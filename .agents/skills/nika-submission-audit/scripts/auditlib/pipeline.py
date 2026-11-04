@@ -28,6 +28,7 @@ calls are not kept, so a rerun retries them.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from dataclasses import replace
@@ -35,11 +36,22 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from auditlib.adjudicate import adjudicate_groups
+from auditlib.adjudicate import adjudicate_groups, group_prompt, system_prompt
 from auditlib.aggregate import group_findings
-from auditlib.cohort_audit import build_rows, judge, scan_rows
+from auditlib.cohort_audit import (
+    build_rows,
+    judge,
+    prompt_rows,
+    scan_rows,
+)
 from auditlib.cohort_audit import curate as curate_cohort
 from auditlib.curate import covered_by_signature, curate_group, recorded_by
+from auditlib.curate_validate import validate_group
+from auditlib.contracts import audit_contracts
+from auditlib.brief import audit_briefs
+from auditlib.boundary import audit_boundaries
+from auditlib.capture import audit_captures
+from auditlib.normalization import audit_normalizations
 from auditlib.kb import load_kb
 from auditlib.runner import audit_trajectories, write_report
 from auditlib.scan import ScanConfig, scan_trials
@@ -70,6 +82,8 @@ def worth_judging(group: dict[str, Any], samples: int) -> bool:
     submissions this rule kept 40% of the groups and nearly all the reference
     issues they reached.
     """
+    if group.get("confirmation") and group.get("counterfactuals"):
+        return True
     seen_by = group.get("sample_agreement", 0.0) * max(1, samples)
     # sample_agreement is rounded to two decimals.
     return group.get("trials", 0) >= 2 or seen_by >= 2 - 0.05
@@ -80,17 +94,45 @@ def _verdicts(path, groups, todo, trials, kb, cfg) -> list[dict[str, Any]]:
 
     def key(i: int) -> str:
         g = groups[i]
-        return json.dumps([g["class"], g["claim"], g["all_refs"]])
+        packet = [
+            cfg.model,
+            cfg.command,
+            cfg.thinking,
+            cfg.temperature,
+            cfg.max_tokens,
+            system_prompt(kb),
+            group_prompt(g, trials),
+        ]
+        return hashlib.sha256(json.dumps(packet).encode()).hexdigest()
 
     cached: dict[str, dict] = {}
     if path.is_file():
-        cached = json.loads(path.read_text(encoding="utf-8"))
+        cached = {
+            k: v
+            for k, v in json.loads(path.read_text(encoding="utf-8")).items()
+            if isinstance(v.get("reason"), str)
+            and v["reason"].strip()
+            and not v.get("error")
+        }
     missing = [i for i in todo if key(i) not in cached]
-    judged = adjudicate_groups([groups[i] for i in missing], trials, kb, cfg)
-    for i, v in zip(missing, judged):
-        if not v["error"]:
-            cached[key(i)] = v
-    path.write_text(json.dumps(cached) + "\n", encoding="utf-8")
+
+    def persist(index: int, verdict: dict) -> None:
+        if index < len(missing):
+            with path.with_name(path.stem + "-calls.jsonl").open(
+                "a", encoding="utf-8"
+            ) as calls:
+                calls.write(
+                    json.dumps({"key": key(missing[index]), "result": verdict}) + "\n"
+                )
+        if not verdict["error"]:
+            cached[key(missing[index])] = verdict
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(cached) + "\n", encoding="utf-8")
+        temporary.replace(path)
+
+    judged = adjudicate_groups(
+        [groups[i] for i in missing], trials, kb, cfg, on_result=persist
+    )
     fresh = dict(zip(missing, judged))
     return [cached.get(key(i)) or fresh[i] for i in todo]
 
@@ -138,11 +180,35 @@ def review_submission(
     trials = {p.name: load_trial(p) for p in trial_dirs(pkg)}
     groups = group_findings(records, trials)
     learned = [i for i in kb.issues if (kb_dir / "issues" / f"{i.id}.yaml").is_file()]
+    automatic = None
+    if repo is not None and adjudicate is not None:
+        t0 = time.time()
+        probe_work = workdir / "normalization"
+        probes = audit_normalizations(
+            groups, trials, kb, learned, repo, adjudicate, probe_work
+        )
+        calls = [
+            call
+            for record in probes["records"]
+            if not record["image_review"].get("cached")
+            for call in record["image_review"]["calls"]
+        ]
+        automatic = {
+            "candidates": probes["candidates"],
+            "applied": probes["confirmed_groups"],
+            "errors": sum(bool(r.get("error")) for r in probes["records"]),
+            "calls": len(calls),
+            "tokens": [
+                sum(c.get("prompt_tokens") or 0 for c in calls),
+                sum(c.get("completion_tokens") or 0 for c in calls),
+            ],
+        }
+        timings["normalization"] = round(time.time() - t0, 1)
     exact = {i.id: i.issue_class for i in kb.issues if _exact(i)}
     for g in groups:
         g["recorded_by"] = recorded_by(
             g, report.get("trials", {}), exact
-        ) or covered_by_signature(g, learned, trials)
+        ) or covered_by_signature(g, learned, trials, kb=kb, repo=repo)
     samples = max((r.get("sample", 0) for r in records), default=0) + 1
     todo = [
         i
@@ -153,6 +219,20 @@ def review_submission(
     t0 = time.time()
     if precomputed is not None:
         verdicts = [precomputed["verdicts"][i] for i in todo]
+        confirmed = [j for j, i in enumerate(todo) if groups[i].get("confirmation")]
+        if confirmed:
+            if adjudicate is None:
+                raise ValueError("controlled confirmations need an adjudicator")
+            refreshed = _verdicts(
+                workdir / "confirmation-verdicts.json",
+                groups,
+                [todo[j] for j in confirmed],
+                trials,
+                kb,
+                adjudicate,
+            )
+            for j, verdict in zip(confirmed, refreshed, strict=True):
+                verdicts[j] = verdict
     else:
         verdicts = _verdicts(
             workdir / "verdicts.json", groups, todo, trials, kb, adjudicate
@@ -160,6 +240,10 @@ def review_submission(
     for i, v in zip(todo, verdicts, strict=True):
         groups[i]["verdict"] = v["verdict"]
         groups[i]["verdict_reason"] = v["reason"]
+        if groups[i].get("confirmation") and v["verdict"] == "real":
+            groups[i]["original_claim"] = groups[i]["claim"]
+            groups[i]["claim"] = v["reason"]
+            groups[i]["other_claims"] = []
     timings["adjudicate"] = round(time.time() - t0, 1)
 
     t0 = time.time()
@@ -173,6 +257,8 @@ def review_submission(
             g,
             [i for i in fresh.issues if (kb_dir / "issues" / f"{i.id}.yaml").is_file()],
             trials,
+            kb=fresh,
+            repo=repo,
         )
         if same:
             g["curation"] = {"written": None, "recorded_by": same}
@@ -185,6 +271,24 @@ def review_submission(
             source=f"submission audit of {pkg.name}",
             date=date.today().isoformat(),
         )
+        if (
+            adjudicate is not None
+            and not result.get("written")
+            and result.get("why", "").startswith("signature too generic:")
+        ):
+            prior = result
+            result = validate_group(
+                g,
+                trials,
+                fresh,
+                kb_dir,
+                workdir / "curation-validation",
+                adjudicate,
+                source=f"submission audit of {pkg.name}",
+                date=date.today().isoformat(),
+                precomputed=(precomputed or {}).get("validation"),
+            )
+            result["original_rejection"] = prior["why"]
         g["curation"] = result
         if result["written"]:
             written.append(result["written"])
@@ -193,9 +297,12 @@ def review_submission(
 
     t0 = time.time()
     cohort = {"findings": 0, "real": 0, "written": []}
+    cohort_calls = []
     reuse = (precomputed or {}).get("cohort")
     if adjudicate is not None or reuse is not None:
-        rows = build_rows(current, list(history or []), report)
+        rows = build_rows(current, list(history or []), report) + prompt_rows(
+            list(trials.values())
+        )
         if reuse is not None:
             # Table findings and verdicts from an earlier run of the same
             # order; findings whose row changed are dropped.
@@ -205,6 +312,8 @@ def review_submission(
                 c
                 for c in reuse
                 if not c.get("error")
+                and isinstance(c.get("reason"), str)
+                and c["reason"].strip()
                 and c["excerpt"].strip() in texts.get(c["row"], "")
             ]
             found = [
@@ -216,9 +325,22 @@ def review_submission(
         else:
             # Like the trial scan, the table scan only reports; the judge reasons.
             found = scan_rows(
-                rows, kb, replace(adjudicate, thinking=False, max_tokens=8192)
+                rows,
+                kb,
+                replace(adjudicate, thinking=False, max_tokens=8192),
+                calls_out=cohort_calls,
+                cache_path=workdir / "cohort-scan-cache.json",
             )
-            verdicts_c = judge(found, rows, kb, adjudicate)
+            verdicts_c = judge(
+                found,
+                rows,
+                kb,
+                adjudicate,
+                cache_path=workdir / "cohort-judge-cache.json",
+            )
+            (workdir / "cohort-scan.json").write_text(
+                json.dumps(cohort_calls, indent=1) + "\n"
+            )
         results = curate_cohort(
             found,
             verdicts_c,
@@ -244,9 +366,76 @@ def review_submission(
             "findings": len(found),
             "real": sum(v["verdict"] == "real" for v in verdicts_c),
             "written": [r["written"] for r in results if r.get("written")],
+            "scan_errors": sum(bool(c.get("error")) for c in cohort_calls),
+            "judge_errors": sum(bool(v.get("error")) for v in verdicts_c),
+            "cached_scans": sum(bool(c.get("cached")) for c in cohort_calls),
+            "cached_judgments": sum(
+                bool(v.get("response", {}).get("cached")) for v in verdicts_c
+            ),
+            "scan_tokens": [
+                sum(c.get("prompt_tokens") or 0 for c in cohort_calls),
+                sum(c.get("completion_tokens") or 0 for c in cohort_calls),
+            ],
         }
         written += cohort["written"]
     timings["cohort"] = round(time.time() - t0, 1)
+    contracts = None
+    briefs = None
+    boundaries = None
+    captures = None
+    if repo is not None:
+        t0 = time.time()
+        contracts = audit_contracts(
+            list(trials.values()),
+            repo,
+            kb_dir,
+            workdir / "contracts-cache.json",
+            adjudicate,
+            source=f"submission audit of {pkg.name}",
+            date=date.today().isoformat(),
+            precomputed=(precomputed or {}).get("contracts"),
+        )
+        written += contracts["written"]
+        timings["contracts"] = round(time.time() - t0, 1)
+        t0 = time.time()
+        briefs = audit_briefs(
+            list(trials.values()),
+            repo,
+            kb_dir,
+            workdir / "briefs-cache.json",
+            adjudicate,
+            source=f"submission audit of {pkg.name}",
+            date=date.today().isoformat(),
+            precomputed=(precomputed or {}).get("briefs"),
+        )
+        written += briefs["written"]
+        timings["briefs"] = round(time.time() - t0, 1)
+        t0 = time.time()
+        boundaries = audit_boundaries(
+            list(trials.values()),
+            repo,
+            kb_dir,
+            workdir / "boundaries-cache.json",
+            adjudicate,
+            source=f"submission audit of {pkg.name}",
+            date=date.today().isoformat(),
+            precomputed=(precomputed or {}).get("boundaries"),
+        )
+        written += boundaries["written"]
+        timings["boundaries"] = round(time.time() - t0, 1)
+        if adjudicate is not None:
+            t0 = time.time()
+            captures = audit_captures(
+                list(trials.values()),
+                repo,
+                kb_dir,
+                workdir / "captures",
+                adjudicate,
+                source=f"submission audit of {pkg.name}",
+                date=date.today().isoformat(),
+            )
+            written += captures["written"]
+            timings["captures"] = round(time.time() - t0, 1)
     findings = [f for r in records for f in r["findings"]]
     return {
         "submission": pkg.name,
@@ -259,6 +448,26 @@ def review_submission(
         "real": sum(g.get("verdict") == "real" for g in groups),
         "written": written,
         "cohort": cohort,
+        "contracts": contracts,
+        "briefs": briefs,
+        "boundaries": boundaries,
+        "captures": captures,
+        "automatic_confirmations": automatic,
+        "curation_validation": {
+            "calls": sum(
+                g.get("curation", {}).get("validation_calls", 0) for g in groups
+            ),
+            "errors": sum(
+                bool(g.get("curation", {}).get("validation_error")) for g in groups
+            ),
+            "tokens": [
+                sum(
+                    g.get("curation", {}).get("validation_tokens", [0, 0])[i]
+                    for g in groups
+                )
+                for i in range(2)
+            ],
+        },
         # Failed LLM calls: trial scans and adjudications.
         "errors": [
             sum(bool(r["errors"]) for r in records),

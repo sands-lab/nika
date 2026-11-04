@@ -305,6 +305,15 @@ def parse_messages(path: Path) -> tuple[list[Step], int]:
                     )
             elif event == "max_steps_reached":
                 b.add(line_no, phase, "harness", text="max_steps_reached")
+            elif event in ("subprocess_stall", "agent_error"):
+                b.add(
+                    line_no,
+                    phase,
+                    "harness",
+                    text=json.dumps(row),
+                    meta=row,
+                    is_error=True,
+                )
     return b.steps, bad
 
 

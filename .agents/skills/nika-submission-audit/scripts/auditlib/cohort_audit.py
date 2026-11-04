@@ -13,10 +13,13 @@ to the row's fault type, environment, or tool (``auditlib.cohort`` metrics).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+import threading
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -26,8 +29,16 @@ import yaml
 
 from auditlib.cohort import TrialRecord, run_metrics
 from auditlib.curate import PREFIX
-from auditlib.kb import Issue, KnowledgeBase
-from auditlib.scan import ScanConfig, chat
+from auditlib.kb import Issue, KnowledgeBase, Scope, Signature
+from auditlib.runner import (
+    _DIGITS,
+    _prompt_lines,
+    _prompt_min_support,
+    prompt_contrast,
+    prompt_profiles,
+)
+from auditlib.scan import FINDINGS_FORMAT, ScanConfig, _NO_STRUCTURED, chat
+from auditlib.trace import Trial
 
 _JSON = re.compile(r"\{.*\}", re.S)
 FAULT_ABSENT_CHECK = "VALIDITY-FAULT-ABSENT-AT-CLEANUP"
@@ -36,7 +47,7 @@ FAULT_ABSENT_CHECK = "VALIDITY-FAULT-ABSENT-AT-CLEANUP"
 @dataclass
 class Row:
     id: str
-    kind: str  # case | healthy | tool
+    kind: str  # case | healthy | tool | prompt
     env: str
     text: str
     meta: dict[str, Any] = field(default_factory=dict)
@@ -44,6 +55,98 @@ class Row:
 
 def _top(counter: Counter, n: int = 4) -> str:
     return ", ".join(f"{k} x{v}" for k, v in counter.most_common(n)) or "none"
+
+
+def prompt_rows(trials: list[Trial]) -> list[Row]:
+    """Expose sentence-level evidence for deployment-matched prompt contrasts."""
+    rows = []
+    for group in prompt_profiles(trials):
+        found, _ = prompt_contrast(group)
+        prompts = [
+            (t, next(s for s in t.steps if s.kind == "prompt"))
+            for t in group
+            if _prompt_lines(t)
+        ]
+        faults = [(t, s) for t, s in prompts if not t.is_healthy_case]
+        healthy = [(t, s) for t, s in prompts if t.is_healthy_case]
+        if not faults or not healthy:
+            continue
+        for line in found.get(group[0].scenario, []):
+            t, source = next(
+                (t, s)
+                for t, s in faults
+                if line
+                in {_DIGITS.sub("<n>", raw.strip()) for raw in s.text.splitlines()}
+            )
+            raw = next(
+                raw.strip()
+                for raw in source.text.splitlines()
+                if _DIGITS.sub("<n>", raw.strip()) == line
+            )
+            h, peer = healthy[0]
+            for fragment in re.split(r"(?<=[.!?])\s+", raw):
+                n_fault = sum(fragment in s.text for _, s in faults)
+                n_healthy = sum(fragment in s.text for _, s in healthy)
+                normalized = _DIGITS.sub("<n>", fragment)
+                if (
+                    len(fragment) < 8
+                    or n_fault < _prompt_min_support(len(faults))
+                    or any(normalized in _DIGITS.sub("<n>", s.text) for _, s in healthy)
+                ):
+                    continue
+                evidence = {
+                    "environment": t.scenario,
+                    "fault_trials": len(faults),
+                    "healthy_trials": len(healthy),
+                    "fault_occurrences": n_fault,
+                    "healthy_occurrences": n_healthy,
+                    "fragment": fragment,
+                    "fault_prompt_contains_fragment": fragment in source.text,
+                    "healthy_prompt_contains_fragment": fragment in peer.text,
+                    "fault_source": f"{t.trial_id}:{source.index}",
+                    "healthy_source": f"{h.trial_id}:{peer.index}",
+                    "fault_prompt": source.text,
+                    "healthy_prompt": peer.text,
+                    "matched_deployment_and_commit": True,
+                    "commit": t.run.get("nika_git_commit"),
+                }
+                key = json.dumps(
+                    [evidence["fault_source"], evidence["healthy_source"], fragment]
+                )
+                row_id = "prompt:" + hashlib.sha256(key.encode()).hexdigest()[:16]
+                text = (
+                    f"[{row_id}] Prompt fragment: {fragment}\n"
+                    f"Fault tasks: {n_fault}/{len(faults)} contain this exact fragment. "
+                    f"Healthy tasks: {n_healthy}/{len(healthy)} contain this exact fragment.\n"
+                    + json.dumps(evidence)
+                )
+                rows.append(
+                    Row(
+                        row_id,
+                        "prompt",
+                        t.scenario,
+                        text,
+                        {
+                            "pattern": re.escape(line),
+                            "scenario": t.scenario,
+                            "refs": [
+                                evidence["fault_source"],
+                                evidence["healthy_source"],
+                            ],
+                            "prompt_observation": {
+                                k: evidence[k]
+                                for k in (
+                                    "fragment",
+                                    "fault_occurrences",
+                                    "fault_trials",
+                                    "healthy_occurrences",
+                                    "healthy_trials",
+                                )
+                            },
+                        },
+                    )
+                )
+    return rows
 
 
 def build_rows(
@@ -202,8 +305,92 @@ def _render(rows: list[Row]) -> str:
     return "\n".join(r.text for r in rows)
 
 
+class _Responses:
+    """Persist valid exact-packet replies before another table finishes."""
+
+    def __init__(self, path: Path | None):
+        self.path = path
+        self.data = json.loads(path.read_text()) if path and path.is_file() else {}
+        self.lock = threading.Lock()
+
+    def key(self, cfg: ScanConfig, system: str, user: str) -> str:
+        return hashlib.sha256(
+            json.dumps(
+                [
+                    cfg.model,
+                    cfg.command,
+                    cfg.thinking,
+                    cfg.temperature,
+                    cfg.max_tokens,
+                    system,
+                    user,
+                ]
+            ).encode()
+        ).hexdigest()
+
+    def get(self, key: str) -> dict | None:
+        result = self.data.get(key)
+        if not isinstance(result, dict) or result.get("error"):
+            return None
+        return {
+            **result,
+            "cached": True,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "http_attempts": 0,
+            "sec": 0,
+        }
+
+    def put(self, key: str, result: dict) -> None:
+        with self.lock:
+            self.data[key] = result
+            if self.path:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = self.path.with_suffix(".tmp")
+                temporary.write_text(json.dumps(self.data) + "\n")
+                temporary.replace(self.path)
+
+    def record(self, key: str, result: dict) -> None:
+        if self.path:
+            with self.lock:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                journal = self.path.with_name(self.path.stem + "-calls.jsonl")
+                with journal.open("a") as stream:
+                    stream.write(json.dumps({"key": key, "result": result}) + "\n")
+
+
+def _scan_error(result: dict) -> str:
+    data = _parse(result.get("content", ""))
+    if result.get("error"):
+        return result["error"]
+    if result.get("finish") != "stop":
+        return "incomplete cohort scan response"
+    if not isinstance(data, dict) or not isinstance(data.get("findings"), list):
+        return "invalid cohort scan response"
+    return ""
+
+
+def _format(rows: list[Row]) -> dict:
+    result = deepcopy(FINDINGS_FORMAT)
+    result["json_schema"]["name"] = "audit_cohort_findings_bounded"
+    item = result["json_schema"]["schema"]["properties"]["findings"]["items"]
+    item["properties"] = {
+        "class": {"type": "string", "maxLength": 80},
+        "row": {"type": "string", "enum": [r.id for r in rows]},
+        "claim": {"type": "string", "maxLength": 600},
+        "excerpt": {"type": "string", "maxLength": 500},
+    }
+    item["required"] = ["class", "row", "claim", "excerpt"]
+    return result
+
+
 def scan_rows(
-    rows: list[Row], kb: KnowledgeBase, cfg: ScanConfig
+    rows: list[Row],
+    kb: KnowledgeBase,
+    cfg: ScanConfig,
+    *,
+    calls_out: list | None = None,
+    cache_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """One call per environment (and one for tools); verified findings only."""
     questions = "\n".join(f"- {c.id}: {c.question}" for c in kb.taxonomy)
@@ -212,11 +399,68 @@ def scan_rows(
     for r in rows:
         tables[r.env or "tools"].append(r)
     by_id = {r.id: r for r in rows}
+    cache = _Responses(cache_path)
 
     def one(env: str) -> list[dict[str, Any]]:
-        result = chat(client, cfg, system, f"Table for {env}:\n{_render(tables[env])}")
+        user = f"Table for {env}:\n{_render(tables[env])}"
+        key = cache.key(cfg, system, user)
+        result = cache.get(key)
+        if result is None or _scan_error(result):
+            result = chat(client, cfg, system, user)
+            error = _scan_error(result)
+            attempts = []
+            if (
+                error
+                in {
+                    "invalid cohort scan response",
+                    "incomplete cohort scan response",
+                }
+                and cfg.retries
+            ):
+                attempts.append({**result, "error": error})
+                endpoint = (cfg.base_url, cfg.model)
+                structured = not cfg.command and endpoint not in _NO_STRUCTURED
+                result = chat(
+                    client,
+                    cfg,
+                    system,
+                    user,
+                    **({"response_format": _format(tables[env])} if structured else {}),
+                )
+                if structured and result.get("status_code") in {400, 422}:
+                    _NO_STRUCTURED.add(endpoint)
+                    attempts.append(result)
+                    result = chat(client, cfg, system, user)
+                error = _scan_error(result)
+            if error:
+                result["error"] = error
+            if attempts:
+                attempts.append(result)
+                result = {
+                    **result,
+                    "attempts": attempts,
+                    **{
+                        k: sum(a.get(k) or 0 for a in attempts)
+                        for k in (
+                            "prompt_tokens",
+                            "completion_tokens",
+                            "http_attempts",
+                            "sec",
+                        )
+                    },
+                }
+            cache.record(key, result)
+            if not error:
+                cache.put(key, result)
+        if calls_out is not None:
+            calls_out.append({"environment": env, **result})
+        if result.get("error"):
+            return []
+        data = _parse(result.get("content", ""))
         out = []
-        for f in _parse(result.get("content", "")).get("findings") or []:
+        for f in data["findings"]:
+            if not isinstance(f, dict):
+                continue
             row = by_id.get(str(f.get("row", "")).strip("[]"))
             excerpt = str(f.get("excerpt") or "")
             if row is None or not excerpt.strip() or excerpt.strip() not in row.text:
@@ -230,24 +474,45 @@ def scan_rows(
 
 
 def judge(
-    findings: list[dict[str, Any]], rows: list[Row], kb: KnowledgeBase, cfg: ScanConfig
-) -> list[dict[str, str]]:
+    findings: list[dict[str, Any]],
+    rows: list[Row],
+    kb: KnowledgeBase,
+    cfg: ScanConfig,
+    *,
+    cache_path: Path | None = None,
+) -> list[dict[str, Any]]:
     classes = "\n".join(f"- {c.id}: {c.question}" for c in kb.taxonomy)
     system = JUDGE_SYSTEM.format(classes=classes)
     by_id = {r.id: r for r in rows}
+    cache = _Responses(cache_path)
 
     def one(f: dict[str, Any]) -> dict[str, str]:
         user = (
             f"Class: {f.get('class')}\nClaim: {f.get('claim')}\n"
             f"Row: {by_id[f['row']].text}"
         )
-        result = chat(client, cfg, system, user)
+        key = cache.key(cfg, system, user)
+        result = cache.get(key) or chat(client, cfg, system, user)
+        if not result.get("cached"):
+            cache.record(key, result)
         data = _parse(result.get("content", ""))
-        verdict = str(data.get("verdict") or "unclear")
+        verdict = data.get("verdict") if isinstance(data, dict) else None
+        reason = data.get("reason") if isinstance(data, dict) else None
+        valid = (
+            not result.get("error")
+            and result.get("finish") == "stop"
+            and verdict in JUDGE_VERDICTS
+            and isinstance(reason, str)
+            and bool(reason.strip())
+        )
+        if valid and not result.get("cached"):
+            cache.put(key, result)
         return {
-            "verdict": verdict if verdict in JUDGE_VERDICTS else "unclear",
-            "reason": str(data.get("reason") or ""),
-            "error": result.get("error", ""),
+            "verdict": verdict if valid else "unclear",
+            "reason": reason.strip() if valid else "",
+            "error": result.get("error", "")
+            or ("" if valid else "invalid cohort adjudication response"),
+            "response": result,
         }
 
     with httpx.Client(limits=httpx.Limits(max_connections=cfg.workers)) as client:
@@ -258,6 +523,11 @@ def judge(
 def signature_for(f: dict[str, Any], row: Row) -> tuple[dict, dict] | None:
     """The statistical signature and scope that record *f*, or None."""
     cls = f.get("class")
+    if row.kind == "prompt" and cls == "shortcut":
+        return (
+            {"kind": "prompt_contrast", "pattern": row.meta["pattern"]},
+            {"scenarios": [row.meta["scenario"]]},
+        )
     if row.kind == "case":
         scope = {"fault_types": row.meta["fault_types"]}
         if cls == "label_unidentifiable" and row.meta["confused_with"]:
@@ -312,20 +582,15 @@ def signature_for(f: dict[str, Any], row: Row) -> tuple[dict, dict] | None:
 
 def _same(issue: Issue, sig: dict, scope: dict) -> bool:
     """Same statistic over the same scope, whatever class it was filed under."""
-    for s in issue.detect:
-        if (
-            s.kind != sig["kind"]
-            or s.metric != sig.get("metric")
-            or s.flag != sig.get("flag")
-        ):
-            continue
-        if (
-            sorted(issue.scope.fault_types) == sorted(scope.get("fault_types", []))
-            and (sorted(issue.scope.scenarios) == sorted(scope.get("scenarios", [])))
-            and (s.pattern or "") == sig.get("pattern", "")
-        ):
-            return True
-    return False
+    expected = Scope(**scope).model_dump()
+    actual = issue.scope.model_dump()
+
+    def normalize(values):
+        return {k: sorted(v) if isinstance(v, list) else v for k, v in values.items()}
+
+    return normalize(actual) == normalize(expected) and any(
+        s.model_dump() == Signature(**sig).model_dump() for s in issue.detect
+    )
 
 
 def curate(
@@ -370,19 +635,28 @@ def curate(
         issue_id, n = base, 2
         while issue_id in used:
             issue_id, n = f"{base}-{n}", n + 1
+        claim = str(f.get("claim") or "")
+        observation = row.meta.get("prompt_observation")
+        if row.kind == "prompt" and observation:
+            claim = (
+                f"In {row.env}, the prompt fragment {observation['fragment']!r} "
+                f"appears in {observation['fault_occurrences']}/{observation['fault_trials']} "
+                f"fault trials and {observation['healthy_occurrences']}/{observation['healthy_trials']} "
+                "healthy trials of the same recorded deployment and code version."
+            )
         data = {
             "id": issue_id,
-            "title": " ".join(str(f.get("claim") or "").split())[:120],
+            "title": " ".join(claim.split())[:120],
             "class": f["class"],
             "severity": "warn",
             "status": "open",
-            "summary": f"{f.get('claim')} Evidence: {row.text}",
+            "summary": f"{claim} Evidence: {row.text}",
             "guideline": "Recorded from cross-trial statistics; check the row again.",
             "detect": [sig],
             "provenance": {
                 "source": source,
                 "date": date,
-                "refs": [row.id],
+                "refs": row.meta.get("refs", [row.id]),
                 "found_by": "agentic",
             },
         }

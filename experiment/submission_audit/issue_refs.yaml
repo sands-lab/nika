@@ -1,8 +1,7 @@
-# Which learned issues of the skill (kb/issues) record which reference
-# issues. Used only to label trials and steps for experiments: a step where the
-# issue's signature fires shows the reference issue. Generated from the
-# issues' provenance; issues without a signature that fires per trial label
-# nothing.
+# Aliases connect learned issues to reference descriptions and candidate
+# evidence steps. Signature matches locate potential evidence; they do not
+# establish a defect mechanism. Generic artifact patterns cannot identify
+# a specific reference issue.
 AGENT-P4RT-WRITE:
 - REF-P4RT-WRITABLE
 FNR-BGP-NO-VICTIM:
@@ -118,8 +117,7 @@ LEAK-P4RT-HELP-INJECTION-KINDS:
 - REF-P4RT-HELP
 LEAK-PCAP-CAPTURE-FILE-NAME:
 - REF-PCAP-CAPTURE-NAME
-LEAK-PRE-FAULT-STATE-COPY:
-- REF-DHCP-LEASES-BACKUP
+# Generic backup-file signatures do not identify a specific reference issue.
 LEAK-ROUTINATOR-NIKA-VRP-COMMENT:
 - REF-ROUTINATOR-NIKA-VRP-COMMENT
 LEAK-SANDBOX-NIKA-RUN-ID:

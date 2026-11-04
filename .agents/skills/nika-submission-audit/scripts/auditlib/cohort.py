@@ -118,7 +118,7 @@ def healthy_label_share(sig, current, history):
     groups = _group((r for r in current if r.healthy), lambda r: r.scenario)
 
     def value(recs):
-        counts = Counter(t for r in recs for t in set(r.pred_types))
+        counts = Counter(t for r in recs for t in sorted(set(r.pred_types)))
         if not counts:
             return 0.0, [], {}
         label, n = counts.most_common(1)[0]
@@ -193,7 +193,7 @@ def label_confusion(sig, current, history):
             t
             for r in recs
             if r.gt_types[0] not in r.pred_types
-            for t in set(r.pred_types)
+            for t in sorted(set(r.pred_types))
         )
         if not wrong:
             return 0.0, [], {}

@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -64,6 +65,14 @@ def review_packet(
         f"- ground truth: `{_root_causes(trial.ground_truth)}`",
         f"- submission: is_anomaly={sub.get('is_anomaly')} root causes `{_root_causes(sub)}`",
         f"- scores: rca_f1={trial.eval_metrics.get('rca_f1')} steps={trial.eval_metrics.get('steps')} tool_calls={len(trial.calls())}",
+        "- run outcome: "
+        + json.dumps(
+            {
+                k: trial.run[k]
+                for k in ("status", "outcome", "score_status", "agent_error")
+                if k in trial.run
+            }
+        ),
         "",
         "## Deterministic hits",
         "",
@@ -187,7 +196,14 @@ def check_issue(
     trial_sigs = [
         s
         for s in candidate.detect
-        if s.kind not in ("metric", "fingerprint_drift", "prompt_contrast")
+        if s.kind
+        not in (
+            "metric",
+            "fingerprint_drift",
+            "prompt_contrast",
+            "source_absence",
+            "source_text",
+        )
     ]
     single = base.model_copy(update={"issues": [candidate]})
     report: dict[str, Any] = {

@@ -25,10 +25,11 @@ from typing import Any
 import yaml
 
 from auditlib.cohort import TrialRecord, run_metrics
-from auditlib.detectors import Hit, run_trial, tool_stats
+from auditlib.detectors import Hit, in_scope, run_trial, tool_stats
 from auditlib.kb import KnowledgeBase, Policy, load_kb
 from auditlib.regrade import regrade_trial
-from auditlib.trace import Trial, load_trial, split_tool_name, trial_dirs
+from auditlib.source import SourceUnavailable, source_absent, verified_provider
+from auditlib.trace import Trial, _fingerprint, load_trial, split_tool_name, trial_dirs
 
 SCHEMA = "nika-audit/1"
 _FINGERPRINT_RUN_KEYS = (
@@ -215,8 +216,48 @@ def audit_trajectories(
     trial_hits: dict[str, list[Hit]] = {}
     records: list[TrialRecord] = []
     fingerprints: dict[str, dict[str, str]] = {}
+    source_checks = [
+        (issue, sig)
+        for issue in kb.issues
+        for sig in issue.detect
+        if sig.kind in {"source_absence", "source_text"}
+    ]
+    unavailable: dict[tuple[str, str], set[str]] = defaultdict(set)
     for trial in data.trials:
         hits = run_trial(kb, trial)
+        for issue, sig in source_checks:
+            if not in_scope(issue, trial):
+                continue
+            # Reuse normal text matching, including tool and authored-input rules.
+            text_issue = issue.model_copy(
+                update={"detect": [sig.model_copy(update={"kind": "text"})]}
+            )
+            matched = run_trial(kb.model_copy(update={"issues": [text_issue]}), trial)
+            if not matched:
+                continue
+            commit = str(trial.run.get("nika_git_commit") or "")
+            try:
+                if repo is None:
+                    raise SourceUnavailable("source check needs --repo")
+                versions = tuple(
+                    tuple(sorted(f.items())) for f in sig.source_fingerprints
+                )
+                if sig.kind == "source_absence":
+                    verified = source_absent(
+                        str(repo.resolve()), commit, sig.source_glob, versions
+                    )
+                else:
+                    verified = verified_provider(str(repo.resolve()), commit, versions)
+            except SourceUnavailable as exc:
+                unavailable[issue.id, str(exc)].add(trial.trial_id)
+                continue
+            if not verified:
+                continue
+            for hit in matched:
+                hit.detail.update(commit=commit)
+                if sig.source_glob:
+                    hit.detail["source_glob"] = sig.source_glob
+            hits.extend(matched)
         trial_hits[trial.trial_id] = hits
         records.append(_record(trial, kb, hits, source))
         fingerprints[trial.trial_id] = fingerprint(trial, kb.policy)
@@ -225,7 +266,6 @@ def audit_trajectories(
         records_out.extend(records)
 
     drift, drift_trials = _fingerprint_drift(fingerprints)
-    contrast, contrast_trials = prompt_contrast(data.trials)
     drift_issues = [
         i for i in kb.issues if any(s.kind == "fingerprint_drift" for s in i.detect)
     ]
@@ -235,8 +275,27 @@ def audit_trajectories(
     contrast_issues = [
         i for i in kb.issues if any(s.kind == "prompt_contrast" for s in i.detect)
     ]
+    contrasts = {}
+    contrast_cache = {}
     for issue in contrast_issues:
-        by_issue[issue.id].update(contrast_trials)
+        lines = defaultdict(set)
+        for sig in issue.detect:
+            if sig.kind != "prompt_contrast":
+                continue
+            if sig.pattern not in contrast_cache:
+                contrast_cache[sig.pattern] = prompt_contrast(
+                    data.trials, pattern=sig.pattern
+                )
+            found, hit = contrast_cache[sig.pattern]
+            scoped = [
+                t for t in data.trials if t.trial_id in hit and in_scope(issue, t)
+            ]
+            by_issue[issue.id].update(t.trial_id for t in scoped)
+            for trial in scoped:
+                lines[trial.scenario].update(
+                    set(found[trial.scenario]) & _prompt_lines(trial)
+                )
+        contrasts[issue.id] = {env: sorted(values) for env, values in lines.items()}
     for tid, hits in trial_hits.items():
         for hit in hits:
             by_issue[hit.issue].add(tid)
@@ -249,7 +308,8 @@ def audit_trajectories(
         trials = by_issue.get(issue.id, set())
         metrics = [m.to_dict() for m in metric_hits if m.issue == issue.id]
         drifted = issue in drift_issues and bool(drift)
-        contrasted = issue in contrast_issues and bool(contrast)
+        contrast = contrasts.get(issue.id, {})
+        contrasted = bool(contrast)
         if not trials and not metrics and not drifted and not contrasted:
             continue
         row: dict[str, Any] = {
@@ -295,6 +355,15 @@ def audit_trajectories(
         "scores": scores,
         "known_issues": known,
         "leads": leads,
+        "unsupported_checks": [
+            {
+                "id": issue_id,
+                "reason": reason,
+                "n_trials": len(tids),
+                "trials": sorted(tids)[:20],
+            }
+            for (issue_id, reason), tids in sorted(unavailable.items())
+        ],
         "fingerprint": _fingerprint_summary(fingerprints),
         "trials": {
             tid: [h.to_dict() for h in hits]
@@ -340,22 +409,59 @@ def _prompt_lines(trial: Trial) -> set[str]:
     return {line for line in lines if len(line) >= 8}
 
 
+def prompt_profiles(trials: list[Trial]) -> list[list[Trial]]:
+    """Compare prompts within recorded deployment settings and code versions."""
+    groups = defaultdict(list)
+    for trial in trials:
+        fp = _fingerprint(trial.run)
+        if not fp or not trial.scenario:
+            continue
+        params = trial.run.get("scenario_params") or {}
+        if not isinstance(params, dict):
+            continue
+        profile = {
+            "environment": trial.scenario,
+            "deployment": {
+                k: v
+                for k, v in fp.items()
+                if k not in {"problem", "problems", "inject"}
+            },
+            "parameters": {
+                k: v
+                for k, v in params.items()
+                if k not in {"lab_name", "runtime_workdir"}
+            },
+            "topology_size": trial.run.get("scenario_topo_size"),
+            "backend": trial.run.get("backend"),
+            "commit": trial.run.get("nika_git_commit"),
+        }
+        groups[json.dumps(profile, sort_keys=True)].append(trial)
+    return list(groups.values())
+
+
+def _prompt_min_support(fault_trials: int, min_share: float | None = None) -> float:
+    """Keep existing majority cues and repeated cues in larger profiles."""
+    if min_share is not None:
+        return min_share * fault_trials
+    return min(2, 0.5 * fault_trials)
+
+
 def prompt_contrast(
-    trials: list[Trial], *, min_share: float = 0.5
+    trials: list[Trial], *, min_share: float | None = None, pattern: str | None = None
 ) -> tuple[dict[str, list[str]], set[str]]:
     """Prompt lines that tell fault tasks from healthy ones, per environment.
 
-    Healthy and fault tasks of one environment should get the same prompt.
-    A line shared by at least *min_share* of the fault tasks and absent from
-    every healthy task tells an agent that a fault exists. Returns the lines
-    per environment and the fault trials that show them.
+    Healthy and fault tasks of the same deployment should get the same prompt.
+    A line absent from every healthy task is a lead when it occurs in two
+    fault trials or at least half of a smaller profile. An explicit
+    *min_share* instead requires that fraction for fixed-threshold comparisons.
+    Returns the lines per environment and the fault trials that show them.
     """
-    by_env: dict[str, list[tuple[Trial, set[str]]]] = defaultdict(list)
-    for trial in trials:
-        by_env[trial.scenario].append((trial, _prompt_lines(trial)))
-    found: dict[str, list[str]] = {}
+    found: dict[str, set[str]] = defaultdict(set)
     hit_trials: set[str] = set()
-    for env, rows in by_env.items():
+    for group in prompt_profiles(trials):
+        env = group[0].scenario
+        rows = [(t, lines) for t in group if (lines := _prompt_lines(t))]
         healthy = [lines for t, lines in rows if t.is_healthy_case]
         faulty = [(t, lines) for t, lines in rows if not t.is_healthy_case]
         if not healthy or not faulty:
@@ -365,12 +471,14 @@ def prompt_contrast(
         variant = sorted(
             line
             for line, n in counts.items()
-            if n >= min_share * len(faulty) and line not in seen_healthy
+            if n >= _prompt_min_support(len(faulty), min_share)
+            and line not in seen_healthy
+            and (pattern is None or re.search(pattern, line, re.I))
         )
         if variant:
-            found[env] = variant
+            found[env].update(variant)
             hit_trials |= {t.trial_id for t, lines in faulty if lines & set(variant)}
-    return found, hit_trials
+    return {env: sorted(lines) for env, lines in found.items()}, hit_trials
 
 
 def _fingerprint_drift(
@@ -498,6 +606,11 @@ def render_markdown(report: dict[str, Any], *, max_rows: int = 30) -> str:
         "Leads for review",
         sorted(report["leads"], key=lambda r: (order[r["severity"]], -r["n_trials"])),
     )
+    if report.get("unsupported_checks"):
+        lines.extend(["### Checks not completed", ""])
+        for row in report["unsupported_checks"][:max_rows]:
+            lines.append(f"- `{row['id']}`: {row['reason']} ({row['n_trials']} trials)")
+        lines.append("")
     return "\n".join(lines)
 
 

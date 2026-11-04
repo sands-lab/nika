@@ -15,7 +15,7 @@ confirms becomes a signature the next deterministic run checks for free.
 from __future__ import annotations
 
 import re
-from functools import cached_property
+from functools import cached_property, lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
@@ -37,6 +37,8 @@ SignatureKind = Literal[
     "metric",
     "fingerprint_drift",
     "prompt_contrast",
+    "source_absence",
+    "source_text",
 ]
 StepKindName = Literal[
     "prompt",
@@ -70,8 +72,18 @@ class Signature(BaseModel):
     ``metric``: a submission-level ``metric`` crosses ``threshold`` (see
     :mod:`auditlib.cohort`).
     ``fingerprint_drift``: the harness fingerprint differs across trials.
-    ``prompt_contrast``: within an environment, a prompt line shared by at
-    least half of the fault tasks and absent from every healthy task.
+    ``prompt_contrast``: within one recorded deployment and commit, a prompt
+    line absent from healthy tasks, supported by two fault trials or at least
+    half of fault trials in a smaller profile.
+    ``pattern`` optionally selects a matching line after digit normalization.
+    ``source_absence``: matching text plus no file matching ``source_glob``
+    at the run's recorded commit. Provider files must match a reviewed
+    ``source_fingerprints`` entry; changed providers need another review.
+    This check requires ``--repo``.
+    ``source_text``: a text signature whose interpretation requires exact
+    reviewed provider hashes. Changed source is unsupported, not a match.
+    ``call_pattern`` filters the producing call's arguments. ``before_mutation``
+    restricts observations to steps before the first detected state change.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -80,6 +92,8 @@ class Signature(BaseModel):
     pattern: str | None = None
     where: list[StepKindName] = Field(default_factory=lambda: ["tool_result"])
     tool: str | None = None
+    call_pattern: str | None = None
+    before_mutation: bool = False
     exclude_authored: bool = True
     scope: Literal["init", "call"] | None = None
     flag: str | None = None
@@ -87,8 +101,34 @@ class Signature(BaseModel):
     metric: str | None = None
     threshold: float | None = None
     min_trials: int = 3
+    source_glob: str | None = None
+    source_fingerprints: list[dict[str, str]] = Field(default_factory=list)
 
-    @field_validator("pattern", "tool")
+    @field_validator("source_glob")
+    @classmethod
+    def _relative_source_glob(cls, value: str | None) -> str | None:
+        if value is not None and (
+            not value or Path(value).is_absolute() or ".." in Path(value).parts
+        ):
+            raise ValueError("source_glob must stay inside the repository")
+        return value
+
+    @field_validator("source_fingerprints")
+    @classmethod
+    def _provider_hashes(cls, value: list[dict[str, str]]) -> list[dict[str, str]]:
+        for fingerprint in value:
+            if not fingerprint:
+                raise ValueError("source fingerprints must name their provider files")
+            for path, digest in fingerprint.items():
+                if not path or Path(path).is_absolute() or ".." in Path(path).parts:
+                    raise ValueError(
+                        "source fingerprint paths must stay inside the repository"
+                    )
+                if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                    raise ValueError("source fingerprints need SHA256 hashes")
+        return value
+
+    @field_validator("pattern", "tool", "call_pattern")
     @classmethod
     def _compiles(cls, value: str | None) -> str | None:
         if value is not None:
@@ -102,10 +142,17 @@ class Signature(BaseModel):
             "validity": ("flag",),
             "metric": ("metric", "threshold"),
             "tool_policy": ("scope",),
+            "source_absence": ("pattern", "source_glob"),
+            "source_text": ("pattern",),
         }.get(self.kind, ())
         missing = [name for name in need if getattr(self, name) in (None, "")]
         if missing:
             raise ValueError(f"{self.kind} signature needs {', '.join(missing)}")
+        if (
+            self.kind in {"source_absence", "source_text"}
+            and not self.source_fingerprints
+        ):
+            raise ValueError(f"{self.kind} needs a verified provider fingerprint")
         return self
 
     @cached_property
@@ -116,6 +163,10 @@ class Signature(BaseModel):
     def tool_regex(self) -> re.Pattern[str] | None:
         return re.compile(self.tool) if self.tool else None
 
+    @cached_property
+    def call_regex(self) -> re.Pattern[str] | None:
+        return re.compile(self.call_pattern) if self.call_pattern else None
+
 
 class Scope(BaseModel):
     """Trials an issue can apply to; empty lists mean any."""
@@ -124,6 +175,7 @@ class Scope(BaseModel):
 
     fault_types: list[str] = Field(default_factory=list)
     scenarios: list[str] = Field(default_factory=list)
+    backends: list[str] = Field(default_factory=list)
     agent_types: list[str] = Field(default_factory=list)
     releases: list[str] = Field(default_factory=list)
     healthy: bool | None = None
@@ -136,6 +188,28 @@ class Provenance(BaseModel):
     date: str
     refs: list[str] = Field(default_factory=list)
     found_by: Literal["manual", "deterministic", "agentic", "live_audit"] = "manual"
+
+
+class SourceRead(BaseModel):
+    """A bounded source location learned from a verified acquisition."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["read"] = "read"
+    path: str
+    start: int = Field(ge=1)
+    end: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def bounded_location(self) -> SourceRead:
+        if (
+            not self.path.startswith(("src/nika/", "src/agent/"))
+            or ".." in Path(self.path).parts
+            or "\x00" in self.path
+            or not 0 <= self.end - self.start < 180
+        ):
+            raise ValueError("source read must stay within one bounded production file")
+        return self
 
 
 class Issue(BaseModel):
@@ -163,6 +237,7 @@ class Issue(BaseModel):
     fixed_in: str | None = None
     provenance: Provenance
     evidence: list[str] = Field(default_factory=list)
+    source_reads: list[SourceRead] = Field(default_factory=list, max_length=6)
 
     @field_validator("id")
     @classmethod
@@ -243,9 +318,14 @@ class KnowledgeBaseError(ValueError):
     pass
 
 
+@lru_cache(maxsize=4096)
+def _parse_yaml(text: str) -> Any:
+    return yaml.safe_load(text)
+
+
 def _load_yaml(path: Path) -> Any:
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8"))
+        return _parse_yaml(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
         raise KnowledgeBaseError(f"{path}: {exc}") from exc
 

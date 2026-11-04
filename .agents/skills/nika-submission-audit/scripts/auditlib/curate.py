@@ -12,17 +12,19 @@ are merged.
 
 from __future__ import annotations
 
+import copy
 import re
+import json
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from auditlib.detectors import in_scope, run_trial
+from auditlib.detectors import TrialContext, run_trial
 from auditlib.kb import Issue, KnowledgeBase
-from auditlib.review import check_issue
 from auditlib.trace import Trial
+from auditlib.source import SourceUnavailable, verified_provider
 
 PREFIX = {
     "shortcut": "LEAK",
@@ -128,28 +130,72 @@ def recorded_by(
 
 
 def covered_by_signature(
-    group: dict[str, Any], issues: list[Issue], trials: dict[str, Trial]
+    group: dict[str, Any],
+    issues: list[Issue],
+    trials: dict[str, Trial],
+    *,
+    kb: KnowledgeBase,
+    repo: Path | None = None,
 ) -> str | None:
-    """A learned issue whose text signature matches one of the group's excerpts.
-
-    The same text signature means the same recorded finding, whatever class
-    the scan filed the group under, provided the issue's scope covers one of
-    the group's trials.
-    """
-    excerpts = [e for e in (group.get("excerpts") or [])[:10] if e.strip()]
-    mine = [
-        trials[t]
-        for t in {r[0] for r in map(_parse_ref, group.get("all_refs") or []) if r}
-        if t in trials
-    ]
+    """Match a cited step under the learned detector's complete conditions."""
+    refs = [r for r in map(_parse_ref, group.get("all_refs") or []) if r]
+    refs = [(t, s) for t, s in refs if t in trials and 0 <= s < len(trials[t].steps)]
     for issue in issues:
-        if not any(in_scope(issue, t) for t in mine):
-            continue
         for sig in issue.detect:
-            if sig.kind == "text" and sig.regex is not None:
-                if any(sig.regex.search(e) for e in excerpts):
-                    return issue.id
+            if sig.kind not in {"text", "source_text"}:
+                continue
+            matched_issue = issue.model_copy(
+                update={"detect": [sig.model_copy(update={"kind": "text"})]}
+            )
+            if group.get("counterfactuals") and not _rejects_controls(
+                matched_issue, group, trials, kb
+            ):
+                continue
+            single = kb.model_copy(update={"issues": [matched_issue]})
+            for tid, step in refs:
+                if not any(h.step == step for h in run_trial(single, trials[tid])):
+                    continue
+                if sig.kind == "source_text":
+                    if repo is None:
+                        continue
+                    try:
+                        verified_provider(
+                            str(repo.resolve()),
+                            str(trials[tid].run.get("nika_git_commit") or ""),
+                            tuple(
+                                tuple(sorted(f.items()))
+                                for f in sig.source_fingerprints
+                            ),
+                        )
+                    except SourceUnavailable:
+                        continue
+                return issue.id
     return None
+
+
+def observation_capsule(trial, step: int, text: str, policy):
+    """Test a replacement output with its actual producing call."""
+    call = TrialContext(trial, policy).call_of(trial.steps[step])
+    result = copy.copy(trial.steps[step])
+    result.text = text
+    capsule = copy.copy(trial)
+    capsule.steps = ([call] if call else []) + [result]
+    return capsule
+
+
+def _rejects_controls(
+    issue: Issue, group: dict, trials: dict, kb: KnowledgeBase
+) -> bool:
+    single = kb.model_copy(update={"issues": [issue]})
+    return all(
+        not run_trial(
+            single,
+            observation_capsule(
+                trials[row["trial"]], row["step"], row["text"], kb.policy
+            ),
+        )
+        for row in group.get("counterfactuals", [])
+    )
 
 
 def curate_group(
@@ -161,10 +207,14 @@ def curate_group(
     source: str,
     date: str,
     min_share: float = 0.5,
+    write: bool = True,
 ) -> dict[str, Any]:
     """Write one issue file for *group*, or say why not."""
     refs = [r for r in map(_parse_ref, group.get("all_refs") or []) if r]
     refs = [(t, s) for t, s in refs if t in trials and 0 <= s < len(trials[t].steps)]
+    if group.get("confirmation"):
+        verified = {(r["trial"], r["step"]) for r in group.get("counterfactuals", [])}
+        refs = [r for r in refs if r in verified]
     if not refs:
         return {"written": None, "why": "no cited step in the trials"}
     text = common_text(group.get("excerpts") or [])
@@ -175,7 +225,6 @@ def curate_group(
     prefix = PREFIX.get(group["class"], "ISSUE")
     issue_id = _slug(group["claim"], used, prefix)
     envs = group.get("environments") or []
-    all_envs = {t.scenario for t in trials.values()}
     data: dict[str, Any] = {
         "id": issue_id,
         "title": _ws(group["claim"])[:120],
@@ -199,9 +248,70 @@ def curate_group(
             "found_by": "agentic",
         },
     }
-    if envs and len(envs) < len(all_envs) and len(envs) <= 3:
+    if envs and len(envs) <= 3:
         data["scope"] = {"scenarios": sorted(envs)}
-    sources = sorted({trials[t].path for t, _ in refs})
+    if group.get("confirmation"):
+        # Measured leaf behavior transfers only within the reviewed release.
+        releases = sorted(
+            {
+                str(trials[t].run.get("benchmark_version"))
+                for t, _ in refs
+                if trials[t].run.get("benchmark_version")
+            }
+        )
+        data.setdefault("scope", {})["releases"] = releases
+        data["summary"] = _ws(group["claim"])
+        data["evidence"] = [
+            json.dumps(receipt["request"], sort_keys=True)
+            for receipt in group["confirmation"]
+        ]
+        candidate = Issue(**data)
+        if not _rejects_controls(candidate, group, trials, kb):
+            observations = {trials[t].steps[s].text for t, s in refs}
+            if any(len(text) > 2500 for text in observations):
+                return {
+                    "written": None,
+                    "why": "controlled signature needs a bounded complete observation",
+                }
+            tools = {
+                TrialContext(trials[t], kb.policy).tool_of(trials[t].steps[s])
+                for t, s in refs
+            }
+            if len(tools) != 1 or not all(tools):
+                return {
+                    "written": None,
+                    "why": "controlled signature needs one producing tool",
+                }
+            data["detect"] = [
+                {
+                    "kind": "text",
+                    "where": ["tool_result"],
+                    "tool": re.escape(next(iter(tools))),
+                    "pattern": r"\A(?:"
+                    + "|".join(to_pattern(text) for text in sorted(observations))
+                    + r")\Z",
+                }
+            ]
+            if not _rejects_controls(Issue(**data), group, trials, kb):
+                return {
+                    "written": None,
+                    "why": "signature still fires on a measured counterfactual",
+                }
+        bindings = group.get("confirmation_bindings")
+        if bindings:
+            data["detect"][0]["tool"] = "exec_shell"
+    sources = sorted({t for t, _ in refs})
+
+    def fires_on_citations(candidate):
+        single = kb.model_copy(update={"issues": [candidate]})
+        return all(
+            any(
+                h.step in {s for tid, s in refs if tid == t}
+                for h in run_trial(single, trials[t])
+            )
+            for t in sources
+        )
+
     issue = None
     # A match the agent typed itself is skipped by default; evidence the scan
     # cited can sit in such a step, so try without that rule before giving up.
@@ -211,7 +321,7 @@ def curate_group(
             candidate = Issue(**data)
         except (TypeError, ValueError) as exc:
             return {"written": None, "why": f"invalid issue: {exc}"}
-        if check_issue(candidate, sources=sources, kb=kb)["ok"]:
+        if candidate.issue_class in kb.classes() and fires_on_citations(candidate):
             issue = candidate
             break
     if issue is None:
@@ -222,10 +332,44 @@ def curate_group(
     fired = {tid for tid, trial in trials.items() if run_trial(single, trial)}
     mine = {t for t, _ in refs}
     share = len(fired & mine) / len(fired) if fired else 0.0
-    if share < min_share:
+    if share < min_share and not group.get("confirmation"):
         return {
             "written": None,
             "why": f"signature too generic: {len(fired)} trials, {share:.0%} the group's",
+        }
+    if group.get("confirmation_bindings"):
+        data["detect"] = [
+            {
+                **data["detect"][0],
+                "kind": "source_text",
+                "call_pattern": (
+                    r'(?s)\A(?=.*"host_name"\s*:\s*"'
+                    + re.escape(binding["host"])
+                    + r'")(?=.*"command"\s*:\s*"cat -A /etc/hosts")'
+                ),
+                "source_fingerprints": [binding["providers"]],
+            }
+            for binding in group["confirmation_bindings"]
+        ]
+        bound = Issue(**data)
+        matched = bound.model_copy(
+            update={
+                "detect": [
+                    sig.model_copy(update={"kind": "text"}) for sig in bound.detect
+                ]
+            }
+        )
+        if not fires_on_citations(matched):
+            return {
+                "written": None,
+                "why": "source-bound signature does not fire on its cited steps",
+            }
+    if not write:
+        return {
+            "written": None,
+            "proposal": data,
+            "fires_on": len(fired),
+            "group_share": round(share, 2),
         }
     path = kb_dir / "issues" / f"{issue_id}.yaml"
     path.write_text(

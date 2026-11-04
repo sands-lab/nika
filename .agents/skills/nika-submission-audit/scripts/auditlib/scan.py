@@ -14,12 +14,13 @@ The endpoint is any OpenAI-compatible chat API (vLLM, a proxy, a hosted API).
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -58,19 +59,51 @@ Reply with JSON only:
 "step": <int>, "excerpt": "<verbatim>"}}]}}"""
 
 _JSON = re.compile(r"\{.*\}", re.S)
+_NO_STRUCTURED: set[tuple[str, str]] = set()
+_NO_STREAM: set[tuple[str, str]] = set()
+FINDINGS_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "audit_findings",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "class": {"type": "string"},
+                            "claim": {"type": "string"},
+                            "step": {"type": "integer"},
+                            "excerpt": {"type": "string"},
+                        },
+                        "required": ["class", "claim", "step", "excerpt"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["findings"],
+            "additionalProperties": False,
+        },
+    },
+}
 
 
 @dataclass
 class ScanConfig:
     base_url: str
     model: str
-    api_key: str = "none"
+    api_key: str = field(
+        default_factory=lambda: os.environ.get("OPENAI_API_KEY", "none")
+    )
     samples: int = 1
     temperature: float = 0.6
     max_tokens: int = 8192
     thinking: bool | None = None  # None: the endpoint's default
     chunk_chars: int = 120_000
-    timeout: float = 900.0
+    timeout: float = 900.0  # Total HTTP budget including retries; per CLI invocation.
     workers: int = 64
     retries: int = 8
     # Instead of the HTTP endpoint, run this agent CLI with the prompt on
@@ -113,6 +146,8 @@ def _parse(text: str) -> list[dict[str, Any]]:
     except json.JSONDecodeError:
         return []
     findings = data.get("findings") if isinstance(data, dict) else None
+    if not isinstance(findings, list):
+        return []
     out = []
     for f in findings or []:
         if not isinstance(f, dict):
@@ -170,11 +205,93 @@ def _cli_chat(cfg: ScanConfig, system: str, user: str) -> dict:
     return {"error": error, "sec": round(time.time() - t0, 1)}
 
 
-def chat(client: httpx.Client, cfg: ScanConfig, system: str, user: str) -> dict:
+class _IncompleteStream(ValueError):
+    def __init__(self, message, content, usage):
+        super().__init__(message)
+        self.content = content
+        self.usage = usage
+
+
+def _stream_response(client, url, *, headers, payload, deadline) -> httpx.Response:
+    """Collect the answer and usage while reasoning tokens keep proxies active."""
+    remaining = max(0.001, deadline - time.monotonic())
+    with client.stream(
+        "POST",
+        url,
+        headers=headers,
+        json={**payload, "stream": True, "stream_options": {"include_usage": True}},
+        timeout=remaining,
+    ) as response:
+        if response.status_code >= 400:
+            response.read()
+            return response
+        content, usage, finish, complete = [], {}, None, False
+        try:
+            for line in response.iter_lines():
+                if time.monotonic() >= deadline:
+                    raise httpx.ReadTimeout(
+                        "request deadline exceeded during streaming"
+                    )
+                if not line.startswith("data:"):
+                    continue
+                raw = line[5:].strip()
+                if not raw:
+                    continue
+                if raw == "[DONE]":
+                    complete = True
+                    break
+                item = json.loads(raw)
+                if not isinstance(item, dict) or item.get("error"):
+                    raise ValueError("invalid completion stream event")
+                if item.get("usage") and not isinstance(item["usage"], dict):
+                    raise ValueError("invalid completion stream usage")
+                if item.get("usage"):
+                    usage = item["usage"]
+                choices = item.get("choices") or []
+                if not isinstance(choices, list):
+                    raise ValueError("invalid completion stream choices")
+                for choice in choices:
+                    if not isinstance(choice, dict):
+                        raise ValueError("invalid completion stream choice")
+                    if choice.get("index", 0) != 0:
+                        continue
+                    delta = choice.get("delta") or {}
+                    if not isinstance(delta, dict) or not isinstance(
+                        delta.get("content", "") or "", str
+                    ):
+                        raise ValueError("invalid completion stream delta")
+                    if delta.get("content"):
+                        content.append(delta["content"])
+                    if choice.get("finish_reason"):
+                        finish = choice["finish_reason"]
+            if not complete or finish is None:
+                raise ValueError("incomplete completion stream")
+        except (httpx.TransportError, ValueError) as exc:
+            raise _IncompleteStream(str(exc), "".join(content), usage) from exc
+        return httpx.Response(
+            response.status_code,
+            request=response.request,
+            json={
+                "choices": [
+                    {"message": {"content": "".join(content)}, "finish_reason": finish}
+                ],
+                "usage": usage,
+            },
+        )
+
+
+def chat(
+    client: httpx.Client,
+    cfg: ScanConfig,
+    system: str,
+    user: str,
+    *,
+    response_format: dict | None = None,
+) -> dict:
     """One chat completion, retried with backoff while the endpoint is busy."""
     if cfg.command:
         return _cli_chat(cfg, system, user)
-    t0 = time.time()
+    t0 = time.monotonic()
     payload = {
         "model": cfg.model,
         "messages": [
@@ -183,6 +300,7 @@ def chat(client: httpx.Client, cfg: ScanConfig, system: str, user: str) -> dict:
         ],
         "temperature": cfg.temperature,
         "max_tokens": cfg.max_tokens,
+        **({"response_format": response_format} if response_format else {}),
         **(
             {"chat_template_kwargs": {"enable_thinking": cfg.thinking}}
             if cfg.thinking is not None
@@ -190,28 +308,89 @@ def chat(client: httpx.Client, cfg: ScanConfig, system: str, user: str) -> dict:
         ),
     }
     error = ""
+    http_attempts = 0
     for attempt in range(cfg.retries + 1):
+        remaining = cfg.timeout - (time.monotonic() - t0)
+        delay = min(60.0, 2.0**attempt) if attempt else 0
+        if remaining <= delay:
+            return {
+                "error": "request deadline exceeded: " + error,
+                "sec": round(time.monotonic() - t0, 1),
+                "http_attempts": http_attempts,
+            }
         if attempt:
-            time.sleep(min(60.0, 2.0**attempt))
+            time.sleep(delay)
         try:
-            resp = client.post(
-                f"{cfg.base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {cfg.api_key}"},
-                json=payload,
-                timeout=cfg.timeout,
-            )
+            url = f"{cfg.base_url.rstrip('/')}/chat/completions"
+            headers = {"Authorization": f"Bearer {cfg.api_key}"}
+            endpoint = (cfg.base_url, cfg.model)
+            streaming = cfg.thinking is True and endpoint not in _NO_STREAM
+            fallback = False
+            http_attempts += 1
+            if streaming:
+                resp = _stream_response(
+                    client,
+                    url,
+                    headers=headers,
+                    payload=payload,
+                    deadline=t0 + cfg.timeout,
+                )
+                if resp.status_code in {400, 422}:
+                    try:
+                        data = resp.json()
+                        body = data.get("error", {}) if isinstance(data, dict) else {}
+                        message = (
+                            body.get("message", "")
+                            if isinstance(body, dict)
+                            else str(body)
+                        )
+                    except ValueError:
+                        message = ""
+                    if re.search(r"\bstream(?:_options|ing)?\b", message, re.I):
+                        _NO_STREAM.add(endpoint)
+                        streaming = False
+                        fallback = True
+            if not streaming:
+                remaining = cfg.timeout - (time.monotonic() - t0)
+                if remaining <= 0:
+                    raise httpx.ReadTimeout("request deadline exceeded")
+                if fallback:
+                    http_attempts += 1
+                resp = client.post(
+                    url, headers=headers, json=payload, timeout=remaining
+                )
             if resp.status_code in _RETRY_STATUS:
                 error = f"HTTP {resp.status_code}"
                 continue
             resp.raise_for_status()
             data = resp.json()
             break
+        except _IncompleteStream as exc:
+            return {
+                "error": "completion stream interrupted: " + str(exc)[:300],
+                "partial_content": exc.content,
+                "prompt_tokens": exc.usage.get("prompt_tokens", 0),
+                "completion_tokens": exc.usage.get("completion_tokens", 0),
+                "sec": round(time.monotonic() - t0, 1),
+                "http_attempts": http_attempts,
+            }
         except (httpx.TransportError, httpx.TimeoutException) as exc:
             error = str(exc)[:300]
-        except (httpx.HTTPError, json.JSONDecodeError) as exc:
-            return {"error": str(exc)[:300], "sec": round(time.time() - t0, 1)}
+        except (httpx.HTTPError, ValueError) as exc:
+            return {
+                "error": str(exc)[:300],
+                "status_code": exc.response.status_code
+                if isinstance(exc, httpx.HTTPStatusError)
+                else None,
+                "sec": round(time.monotonic() - t0, 1),
+                "http_attempts": http_attempts,
+            }
     else:
-        return {"error": error, "sec": round(time.time() - t0, 1)}
+        return {
+            "error": error,
+            "sec": round(time.monotonic() - t0, 1),
+            "http_attempts": http_attempts,
+        }
     choice = (data.get("choices") or [{}])[0]
     usage = data.get("usage") or {}
     content = (choice.get("message") or {}).get("content") or ""
@@ -221,7 +400,8 @@ def chat(client: httpx.Client, cfg: ScanConfig, system: str, user: str) -> dict:
         "finish": choice.get("finish_reason"),
         "prompt_tokens": usage.get("prompt_tokens"),
         "completion_tokens": usage.get("completion_tokens"),
-        "sec": round(time.time() - t0, 1),
+        "sec": round(time.monotonic() - t0, 1),
+        "http_attempts": http_attempts,
     }
 
 
@@ -256,8 +436,62 @@ def scan_trials(
 
     def run(job) -> dict[str, Any]:
         path, trial_id, sample, pieces = job
-        calls = [chat(client, cfg, system, piece) for piece in pieces]
-        found = [f for c in calls for f in c.get("findings", [])]
+
+        def request(piece: str, *, structured: bool = False) -> dict:
+            endpoint = (cfg.base_url, cfg.model)
+            use_format = (
+                structured and not cfg.command and endpoint not in _NO_STRUCTURED
+            )
+            call = chat(
+                client,
+                cfg,
+                system,
+                piece,
+                **({"response_format": FINDINGS_FORMAT} if use_format else {}),
+            )
+            if use_format and call.get("status_code") in {400, 422}:
+                _NO_STRUCTURED.add(endpoint)
+                call["format_unsupported"] = True
+            if call.get("error"):
+                return call
+            match = _JSON.search(call.get("content") or "")
+            try:
+                data = json.loads(match.group(0)) if match else None
+            except json.JSONDecodeError:
+                data = None
+            if call.get("finish") != "stop":
+                call["error"] = "incomplete scan response"
+            elif not isinstance(data, dict) or not isinstance(
+                data.get("findings"), list
+            ):
+                call["error"] = "invalid scan response"
+            return call
+
+        calls, final, recovered = [], [], []
+        for piece in pieces:
+            call = request(piece)
+            calls.append(call)
+            if (
+                call.get("error")
+                in {"invalid scan response", "incomplete scan response"}
+                and cfg.retries
+            ):
+                retry = request(piece, structured=True)
+                calls.append(retry)
+                if retry.get("format_unsupported"):
+                    retry = request(piece)
+                    calls.append(retry)
+                if not retry.get("error"):
+                    recovered.append(call["error"])
+                call = retry
+            final.append(call)
+        found = list(
+            {
+                json.dumps(f, sort_keys=True): f
+                for c in calls
+                for f in c.get("findings", [])
+            }.values()
+        )
         trial = load_trial(path)
         checked = check_citations(
             [{**f, "trial": trial_id, "evidence": [f]} for f in found],
@@ -272,7 +506,11 @@ def scan_trials(
                 | {"citation_status": f["citation_status"]}
                 for f in checked
             ],
-            "errors": [c["error"] for c in calls if "error" in c],
+            "errors": [c["error"] for c in final if c.get("error")],
+            "recovered_errors": recovered,
+            "requests": len(calls),
+            "http_attempts": sum(c.get("http_attempts", 1) for c in calls),
+            "failed_responses": [c for c in calls if c.get("error")],
             "truncated": sum(c.get("finish") == "length" for c in calls),
             "prompt_tokens": sum(c.get("prompt_tokens") or 0 for c in calls),
             "completion_tokens": sum(c.get("completion_tokens") or 0 for c in calls),

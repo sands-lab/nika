@@ -18,9 +18,10 @@ hand-checked mapping of the agent runs) and reports agreement.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import httpx
@@ -94,7 +95,13 @@ def issue_text(data: dict) -> str:
 
 
 def map_run(
-    run: Path, cfg: ScanConfig, system: str, valid: set[str]
+    run: Path,
+    cfg: ScanConfig,
+    system: str,
+    valid: set[str],
+    cache: dict | None = None,
+    *,
+    on_result=None,
 ) -> tuple[dict, list[str]]:
     """Map the issues the run learned; the memory it started with is skipped.
 
@@ -117,20 +124,69 @@ def map_run(
         except yaml.YAMLError:
             texts.append(path.read_text()[:6000])
 
-    def one(text: str) -> list[str] | None:
-        result = chat(client, cfg, system, text)
-        if result.get("error"):
+    cache = cache if cache is not None else {}
+
+    def key(text: str) -> str:
+        return hashlib.sha256(
+            json.dumps(
+                [
+                    system,
+                    text,
+                    cfg.model,
+                    cfg.command,
+                    cfg.thinking,
+                    cfg.temperature,
+                    cfg.max_tokens,
+                ]
+            ).encode()
+        ).hexdigest()
+
+    def one(text: str) -> dict:
+        return chat(client, cfg, system, text)
+
+    def mapped(result: dict) -> dict | None:
+        if result.get("error") or result.get("finish") != "stop":
             return None
         match = _JSON.search(result.get("content") or "")
         try:
             data = json.loads(match.group(0)) if match else {}
         except json.JSONDecodeError:
             data = {}
-        return sorted({r for r in data.get("refs") or [] if r in valid})
+        if not isinstance(data, dict) or not isinstance(data.get("refs"), list):
+            return None
+        if not all(isinstance(r, str) and r in valid for r in data["refs"]):
+            return None
+        if not isinstance(data.get("reason"), str) or not data["reason"].strip():
+            return None
+        return {
+            "refs": sorted(set(data["refs"])),
+            "reason": data["reason"],
+            "response": result,
+        }
 
+    missing = list(dict.fromkeys(text for text in texts if key(text) not in cache))
     with httpx.Client(limits=httpx.Limits(max_connections=cfg.workers)) as client:
         with ThreadPoolExecutor(cfg.workers) as pool:
-            refs = list(pool.map(one, texts))
+            futures = {pool.submit(one, text): text for text in missing}
+            for future in as_completed(futures):
+                response = future.result()
+                result = mapped(response)
+                with (run / "mapping-calls.jsonl").open("a") as journal:
+                    journal.write(
+                        json.dumps(
+                            {
+                                "key": key(futures[future]),
+                                "response": response,
+                                "valid": result is not None,
+                            }
+                        )
+                        + "\n"
+                    )
+                if result is not None:
+                    cache[key(futures[future])] = result
+                    if on_result is not None:
+                        on_result()
+    refs = [cache[key(text)]["refs"] if key(text) in cache else None for text in texts]
     failed = [p.stem for p, r in zip(files, refs) if r is None]
     return {p.stem: r for p, r in zip(files, refs) if r is not None}, failed
 
@@ -142,6 +198,11 @@ def main() -> None:
     parser.add_argument("--model", default="")
     parser.add_argument("--out-name", default="mapping_llm.yaml")
     parser.add_argument("--workers", type=int, default=64)
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        help="Shared content-addressed mappings; defaults to <runs>/mapping-cache.json.",
+    )
     parser.add_argument("--mode", choices=("on", "off"), default="on")
     parser.add_argument(
         "--validate", help="Existing mapping file name to compare with."
@@ -167,8 +228,18 @@ def main() -> None:
     )
     runs = sorted(p for p in args.runs.iterdir() if (p / "kb" / "issues").is_dir())
     failures = 0
+    cache_path = args.cache or args.runs / "mapping-cache.json"
+    cache = json.loads(cache_path.read_text()) if cache_path.is_file() else {}
+
+    def persist() -> None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = cache_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(cache, indent=1) + "\n")
+        temporary.replace(cache_path)
+
     for run in runs:
-        mapping, failed = map_run(run, cfg, system, valid)
+        mapping, failed = map_run(run, cfg, system, valid, cache, on_result=persist)
+        persist()
         if failed:
             # A partial mapping would lower the run's recall silently.
             failures += 1
