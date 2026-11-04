@@ -6,12 +6,10 @@ NetComplete workflow completes link metrics and supported AS-local import polici
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from pathlib import Path
-from copy import deepcopy
-from textwrap import indent
 
-import yaml
 from nika.net_env.isp.igp.frr import ISIS_PROCESS
 from nika.net_env.isp.igp.ifaces import srl_e1_name
 from ipaddress import IPv4Address, IPv4Network
@@ -50,6 +48,7 @@ from nika.net_env.isp.igp.plan import (
     shortest_paths,
 )
 from nika.net_env.net_env_pool import list_all_net_envs, resolve_scenario_backend
+from nika.net_env.synthesis.changes import DesignChange
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.routing_control_plane.bgp import (
     ASN_MISCONFIG_OFFSET,
@@ -57,6 +56,7 @@ from nika.problems.routing_control_plane.bgp import (
 )
 from nika.problems.routing_control_plane.ospf import ospf_networks
 from nika.workflows.benchmark.load_config import load_benchmark_input
+from nika.workflows.validation.netlab import analysis_device
 from nika.workflows.validation.scenario_spec import (
     ScenarioDeployment,
     ScenarioExperiment,
@@ -232,6 +232,81 @@ def benchmark_isp_profiles(manifests: list[Path]):
     return dict(sorted(profiles.items()))
 
 
+def _transit_impact(healthy, graph, target, excluded):
+    """Split business flows by whether every or some IGP path transits ``target``.
+
+    ``graph`` carries the original metrics, whose shortest paths completion
+    preserves. Returns ``(always, sometimes)`` intent IDs among business flows
+    not in ``excluded``; a flow is checked in both directions.
+    """
+    always, sometimes = set(), set()
+    for intent in healthy.intents:
+        if not intent.id.startswith("business.") or intent.id in excluded:
+            continue
+        hits = []
+        for source, destination in (
+            (intent.source.name, intent.destination.name),
+            (intent.destination.name, intent.source.name),
+        ):
+            paths = (
+                shortest_paths(graph, source, destination)
+                if source in graph and destination in graph
+                else ()
+            )
+            hits.append([target in p[1:-1] for p in paths])
+        if any(h and all(h) for h in hits):
+            always.add(intent.id)
+        elif any(any(h) for h in hits):
+            sometimes.add(intent.id)
+    return always, sometimes
+
+
+def _iosxr_static_controls(env, plan, healthy, bgp_announcement):
+    """Return announcement and RR-role mutations in netlab's IOS XR syntax."""
+    from nika.net_env.isp.iosxr import iosxr_interface
+
+    old, replacement = bgp_announcement, ""
+    if not env.bgp_plan:
+        old = (
+            " interface Loopback0\n  passive\n  address-family ipv4 unicast\n  !\n !\n"
+            if plan.igp == "isis"
+            else "  interface Loopback0\n   passive enable\n  !\n"
+        )
+    role_static = []
+    if env.bgp_mode == "ibgp_rr":
+        role = next(
+            i
+            for i in healthy.intents
+            if i.adjacency and i.adjacency.route_reflector_client
+        )
+        local, peer = role.adjacency.local_node, role.adjacency.remote_address
+        session = next(
+            s
+            for s in env.bgp_plan.sessions
+            if s.local_device == local and s.remote_ip == peer
+        )
+        original = (
+            f" neighbor {peer}\n  remote-as {session.remote_asn}\n"
+            + (
+                f"  update-source {iosxr_interface(session.update_source)}\n"
+                if session.update_source
+                else ""
+            )
+            + "  address-family ipv4 unicast\n   route-reflector-client\n"
+        )
+        role_static.append(
+            RoutingMutation(
+                name="missing-rr-client-role",
+                node=local,
+                old=original,
+                new=original.replace("   route-reflector-client\n", ""),
+                changes=(DesignChange(kind="rr_client", node=local, peer=peer),),
+                expected_failed_ids=(role.id,),
+            )
+        )
+    return old, replacement, role_static
+
+
 def build_benchmark_isp_experiment(
     profile, *, bgp_selections: tuple[BgpAsSelectionRequirement, ...] | None = None
 ) -> ScenarioExperiment:
@@ -259,7 +334,10 @@ def build_benchmark_isp_experiment(
                 "Native ISP experiment needs native fault bindings for: "
                 + ", ".join(sorted(unsupported_faults))
             )
-    env = load_offline_net_env(scenario, **deployment.model_dump(exclude_none=True))
+    # Controls are authored on NIKA's rendering and bound to netlab output later.
+    env = load_offline_net_env(
+        scenario, **deployment.model_dump(exclude_none=True), rendered=False
+    )
     plan = env.plan
     srl = env.device_profile == "nokia_srlinux"
     if bgp_selections is None:
@@ -351,6 +429,41 @@ def build_benchmark_isp_experiment(
         "scope": f"Directed physical {plan.igp.upper()} adjacencies, bidirectional anchor-to-router loopback connectivity and exact ECMP paths in healthy and declared failure states; no all-pairs claim",
         "synthesis": f"NetComplete completes active {plan.igp.upper()} interface metrics; AS boundaries, RR roles and existing BGP policies remain fixed sketch inputs",
     }
+
+    def customer_intents(site, origins, removed):
+        """The partner AS alone reaches the customer, over the provider session."""
+        asn = {n.device_name: n.asn for n in env.bgp_plan.nodes}
+        customer = NetworkEntity(kind="node", name=site.provider, address=site.gateway)
+        cut = any(
+            {link.address_a, link.address_b} == {site.provider_ip, site.partner_ip}
+            for link in plan.links
+            if link.link_id in removed
+        )
+        result = []
+        for origin in origins:
+            partner = origin.ping_address == site.service_address
+            if not partner and asn[origin.device] in {
+                asn[site.provider],
+                asn[site.partner],
+            }:
+                continue
+            reachable = partner and not cut
+            result.append(
+                ValidationIntent(
+                    id=f"customer.{origin.device}.{site.provider}",
+                    description="Only the partner AS reaches the customer, over its session with the provider."
+                    if partner
+                    else "Only the partner AS learns the customer prefix.",
+                    property="reachability" if reachable else "isolation",
+                    expected="reachable" if reachable else "unreachable",
+                    source=NetworkEntity(
+                        kind="node", name=origin.device, address=origin.ping_address
+                    ),
+                    destination=customer,
+                    traffic=TrafficSelector(protocol="icmp", round_trip=True),
+                )
+            )
+        return result
 
     def contract(removed=()):
         remaining = tuple(link for link in plan.links if link.link_id not in removed)
@@ -452,6 +565,8 @@ def build_benchmark_isp_experiment(
                             traffic=TrafficSelector(protocol="icmp", round_trip=True),
                         )
                     )
+            if site := env.bgp_plan.customer_site:
+                intents.extend(customer_intents(site, origins, removed))
         if env.bgp_plan and (env.rpki or getattr(env, "rtbh", False)):
             info = env.bgp_plan.inventory
 
@@ -484,11 +599,15 @@ def build_benchmark_isp_experiment(
                         intents.append(
                             ValidationIntent(
                                 id=f"rpki.{role}.{prefix.replace('/', '-')}",
-                                description="The original dormant unauthorized origin must have no selected BGP route.",
+                                description="The router must accept no route from the original dormant unauthorized origin.",
                                 property="bgp_route",
                                 expected="absent",
                                 bgp_route=BgpRouteExpectation(
-                                    node=info[role], prefix=prefix, present=False
+                                    node=info[role],
+                                    prefix=prefix,
+                                    origin_asn=info["leaker_asn"],
+                                    present=False,
+                                    selected=False,
                                 ),
                             )
                         )
@@ -671,6 +790,7 @@ def build_benchmark_isp_experiment(
             ):
                 continue
             info = env.bgp_plan.inventory
+            unconstrained = ()
             if case["problem"] == "bgp_rpki_invalid_route_leak":
                 failed = tuple(
                     i.id
@@ -715,6 +835,17 @@ def build_benchmark_isp_experiment(
                     i.id for i in healthy.intents if i.id.startswith("rtbh.provider.")
                 )
                 restore_nodes = (info["leaker_device"],)
+                # Flows into the blackholed prefix fail only on paths through
+                # the provider that discards it.
+                unconstrained = tuple(
+                    i.id
+                    for i in healthy.intents
+                    if i.id.startswith("business.")
+                    and any(
+                        IPv4Network(e.address).subnet_of(IPv4Network(prefix))
+                        for e in (i.source, i.destination)
+                    )
+                )
                 positive_intents = tuple(
                     i.model_copy(
                         update={"property": "isolation", "expected": "unreachable"}
@@ -722,7 +853,7 @@ def build_benchmark_isp_experiment(
                     if i.id in failed
                     else i
                     for i in healthy.intents
-                    if not i.id.startswith("business.")
+                    if i.id not in unconstrained
                 )
                 name = "benchmark-rtbh-community"
             fault_checks.append(
@@ -732,6 +863,7 @@ def build_benchmark_isp_experiment(
                     params=case["inject"],
                     restore_nodes=restore_nodes,
                     expected_failed_ids=failed,
+                    unconstrained_ids=unconstrained,
                     requirements=healthy.model_copy(
                         update={"intents": positive_intents}
                     ),
@@ -757,15 +889,18 @@ def build_benchmark_isp_experiment(
             recovery_commands = {}
             nft_nodes = ()
             static_edits = {}
+            static_changes = ()
             if problem == "bgp_asn_misconfig":
                 asn = next(n.asn for n in env.bgp_plan.nodes if n.device_name == target)
-                old = f"autonomous-system: {asn}\n" if srl else f"router bgp {asn}\n"
-                new = (
-                    f"autonomous-system: {asn + ASN_MISCONFIG_OFFSET}\n"
-                    if srl
-                    else f"router bgp {asn + ASN_MISCONFIG_OFFSET}\n"
-                )
+                # FRR and IOS XR, the analyzed syntaxes, share this header.
+                old = f"router bgp {asn}\n"
+                new = f"router bgp {asn + ASN_MISCONFIG_OFFSET}\n"
                 static_edits = {target: (old, new)}
+                static_changes = (
+                    DesignChange(
+                        kind="local_asn", node=target, asn=asn + ASN_MISCONFIG_OFFSET
+                    ),
+                )
             if problem in {"bgp_asn_misconfig", "bgp_acl_block"}:
                 failed = tuple(
                     sorted(
@@ -783,6 +918,16 @@ def build_benchmark_isp_experiment(
                         )
                     )
                 )
+                # The target loses its BGP routes, so it drops business traffic
+                # it would forward hop by hop on the original IGP paths.
+                graph = {node: [] for node in nodes}
+                for edge in links:
+                    graph[edge.endpoint_a].append((edge.endpoint_b, edge.metric))
+                    graph[edge.endpoint_b].append((edge.endpoint_a, edge.metric))
+                transit, uncertain = _transit_impact(
+                    healthy, graph, target, set(failed)
+                )
+                failed = tuple(sorted({*failed, *transit}))
                 if problem == "bgp_acl_block" and not srl:
                     nft_nodes = (target,)
                     blocked = set()
@@ -935,7 +1080,11 @@ def build_benchmark_isp_experiment(
                 }
             positive = healthy.model_copy(
                 update={
-                    "intents": tuple(i for i in healthy.intents if i.id not in failed)
+                    "intents": tuple(
+                        i
+                        for i in healthy.intents
+                        if i.id not in failed and i.id not in uncertain
+                    )
                 }
             )
             if problem == "bgp_hijacking":
@@ -972,6 +1121,7 @@ def build_benchmark_isp_experiment(
                     recovery_commands=recovery_commands,
                     restore_nft_nodes=nft_nodes,
                     static_edits=static_edits,
+                    changes=static_changes,
                 )
             )
             continue
@@ -1008,6 +1158,40 @@ def build_benchmark_isp_experiment(
                 )
             ]
             name = f"benchmark-max-prefix-{receiver}"
+            # Losing the last session between two ASes makes their original
+            # direct exit choices impossible, even when transit preserves service.
+            alternatives = [
+                s
+                for s in env.bgp_plan.sessions
+                if s.session_type == "ebgp"
+                and (s.local_asn, s.remote_asn)
+                == (session.local_asn, session.remote_asn)
+                and (s.local_device, s.remote_device, s.local_ip, s.remote_ip)
+                != (receiver, peer, session.local_ip, session.remote_ip)
+            ]
+            lost_exits = (
+                tuple(
+                    f"{r.id}.{n.device_name}"
+                    for r in bgp_selections
+                    if (r.asn, r.candidates[0])
+                    in {
+                        (session.local_asn, session.remote_asn),
+                        (session.remote_asn, session.local_asn),
+                    }
+                    for n in env.bgp_plan.nodes
+                    if n.asn == r.asn
+                )
+                if session.session_type == "ebgp" and not alternatives
+                else ()
+            )
+            site = env.bgp_plan.customer_site
+            if site and {receiver, peer} == {site.provider, site.partner}:
+                (service,) = [
+                    o
+                    for o in env.bgp_plan.originated
+                    if o.ping_address == site.service_address
+                ]
+                lost_exits += (f"customer.{service.device}.{site.provider}",)
             if not any(f.name == name for f in fault_checks):
                 fault_checks.append(
                     RoutingFailureCheck(
@@ -1015,7 +1199,9 @@ def build_benchmark_isp_experiment(
                         problem=case["problem"],
                         params=case["inject"],
                         restore_nodes=(receiver, peer),
-                        expected_failed_ids=tuple(sorted(i.id for i in paired)),
+                        expected_failed_ids=tuple(
+                            sorted({i.id for i in paired} | set(lost_exits))
+                        ),
                     )
                 )
             continue
@@ -1075,6 +1261,16 @@ def build_benchmark_isp_experiment(
                     requirements=contract(removed),
                     expected_failed_ids=tuple(failed),
                     static_edits={target: (old, new)},
+                    changes=tuple(
+                        DesignChange(
+                            kind="interface_area",
+                            node=target,
+                            prefix=str(IPv4Network(prefix, strict=False)),
+                            area=wrong_area,
+                        )
+                        for prefix, area in statements
+                        if area == correct_area
+                    ),
                 )
             )
     # Removing one original loopback announcement isolates the return path while
@@ -1157,6 +1353,7 @@ def build_benchmark_isp_experiment(
                 node=role_node,
                 old=f"  neighbor {peer} route-reflector-client",
                 new="",
+                changes=(DesignChange(kind="rr_client", node=role_node, peer=peer),),
                 expected_failed_ids=(role.id,),
             )
         )
@@ -1181,17 +1378,11 @@ def build_benchmark_isp_experiment(
                 expected_failed_ids=(role.id,),
             )
         )
+    frr_static = (old_announcement, static_replacement, list(role_static))
     if srl:
         # Mutate concrete native documents, retaining the original requirement IDs.
-        documents = env.routing_documents
-        mutated = deepcopy(documents[target])
+        document = env.routing_documents[target]
         if env.bgp_plan:
-            policy = mutated["srl_nokia-routing-policy:routing-policy"]
-            business = next(p for p in policy["prefix-set"] if p["name"] == "BUSINESS")
-            prefix_row = next(p for p in business["prefix"] if p["ip-prefix"] == prefix)
-            old_announcement = indent(
-                yaml.safe_dump([prefix_row], sort_keys=False), " " * 4
-            )
             path = f"/routing-policy prefix-set BUSINESS prefix {prefix} mask-length-range {IPv4Network(prefix).prefixlen}..{IPv4Network(prefix).prefixlen}"
             withdraw_native = ("enter candidate", f"delete {path}", "commit now")
             recover_native = (
@@ -1200,18 +1391,10 @@ def build_benchmark_isp_experiment(
                 "commit now",
             )
         else:
-            instance = mutated["srl_nokia-network-instance:network-instance"][0]
+            instance = document["srl_nokia-network-instance:network-instance"][0]
             igp = instance["protocols"][f"srl_nokia-{plan.igp}:{plan.igp}"]["instance"][
                 0
             ]
-            rows = (
-                igp["interface"] if plan.igp == "isis" else igp["area"][0]["interface"]
-            )
-            loopback_row = next(i for i in rows if i["interface-name"] == "system0.0")
-            old_announcement = indent(
-                yaml.safe_dump([loopback_row], sort_keys=False),
-                " " * (8 if plan.igp == "isis" else 10),
-            )
             path = (
                 f"/network-instance default protocols {plan.igp} instance {igp['name']}"
             )
@@ -1220,8 +1403,7 @@ def build_benchmark_isp_experiment(
             path += " interface system0.0"
             withdraw_native = ("enter candidate", f"delete {path}", "commit now")
             recover_native = ("enter candidate", f"{path} passive true", "commit now")
-        static_replacement = ""
-        role_static, role_runtime = [], []
+        role_runtime = []
         if env.bgp_mode == "ibgp_rr":
             role = next(
                 i
@@ -1229,24 +1411,6 @@ def build_benchmark_isp_experiment(
                 if i.adjacency and i.adjacency.route_reflector_client
             )
             local, peer = role.adjacency.local_node, role.adjacency.remote_address
-            mutated_role = deepcopy(documents[local])
-            bgp = mutated_role["srl_nokia-network-instance:network-instance"][0][
-                "protocols"
-            ]["srl_nokia-bgp:bgp"]
-            neighbor = next(p for p in bgp["neighbor"] if p["peer-address"] == peer)
-            original_neighbor = indent(
-                yaml.safe_dump([neighbor], sort_keys=False), " " * 6
-            )
-            neighbor["route-reflector"]["client"] = False
-            role_static.append(
-                RoutingMutation(
-                    name="missing-rr-client-role",
-                    node=local,
-                    old=original_neighbor,
-                    new=indent(yaml.safe_dump([neighbor], sort_keys=False), " " * 6),
-                    expected_failed_ids=(role.id,),
-                )
-            )
             path = f"/network-instance default protocols bgp neighbor {peer} route-reflector client"
             role_runtime.append(
                 RoutingRuntimeMutation(
@@ -1275,11 +1439,6 @@ def build_benchmark_isp_experiment(
                     "end",
                 )
             elif plan.igp == "isis":
-                static_replacement = ""
-                old_announcement = (
-                    " interface Loopback0\n  passive\n"
-                    "  address-family ipv4 unicast\n  !\n !\n"
-                )
                 context = (f"router isis {ISIS_PROCESS}",)
                 withdraw_native = (
                     "configure terminal",
@@ -1298,7 +1457,6 @@ def build_benchmark_isp_experiment(
                     "end",
                 )
             else:
-                old_announcement = "  interface Loopback0\n   passive enable\n  !\n"
                 context = ("router ospf CORE", "area 0")
                 withdraw_native = (
                     "configure terminal",
@@ -1316,30 +1474,39 @@ def build_benchmark_isp_experiment(
                     "end",
                 )
         else:
+            config = env.deployment_configs[target]
             if env.bgp_plan:
-                old_announcement = (
-                    f"/ip firewall address-list add list=BGP-ORIGINS address={prefix}"
+                # NIKA's and netlab's renderings name the origin list differently.
+                origins = (
+                    "BGP-ORIGINS" if "list=BGP-ORIGINS " in config else "bgp-networks"
+                )
+                origin_entry = (
+                    f"/ip firewall address-list add list={origins} address={prefix}"
                 )
                 withdraw_native = (
                     "/ip firewall address-list remove "
-                    f"[find where list=BGP-ORIGINS and address={prefix}]",
+                    f"[find where list={origins} and address={prefix}]",
                 )
-                recover_native = (old_announcement,)
+                recover_native = (origin_entry,)
             else:
-                old_announcement = next(
+                from nika.net_env.utils.routeros.common import routeros_interface
+
+                loopback = routeros_interface("lo")
+                template = next(
                     line
-                    for line in env.deployment_configs[target].splitlines()
-                    if line.startswith(f"/routing {plan.igp} interface-template add ")
-                    and "interfaces=lo0 " in line
+                    for line in config.splitlines()
+                    if re.match(
+                        rf"/routing[ /]{plan.igp}[ /]interface-template add ", line
+                    )
+                    and re.search(rf" interfaces?={loopback}(?: |$)", line)
                 )
                 withdraw_native = (
                     f"/routing {plan.igp} interface-template remove "
-                    "[find where interfaces=lo0]",
+                    f"[find where interfaces={loopback}]",
                 )
                 # The loopback keeps its address; only its IGP circuit goes.
-                static_replacement = ""
-                recover_native = (old_announcement,)
-        role_static, role_runtime = [], []
+                recover_native = (template,)
+        role_runtime = []
         if env.bgp_mode == "ibgp_rr":
             role = next(
                 i
@@ -1349,23 +1516,6 @@ def build_benchmark_isp_experiment(
             adjacency = role.adjacency
             local, peer = adjacency.local_node, adjacency.remote_address
             if env.device_profile == "iosxr":
-                from nika.net_env.isp.iosxr import iosxr_interface
-
-                session = next(
-                    session
-                    for session in env.bgp_plan.sessions
-                    if session.local_device == local and session.remote_ip == peer
-                )
-                original = (
-                    f" neighbor {peer}\n  remote-as {session.remote_asn}\n"
-                    + (
-                        f"  update-source {iosxr_interface(session.update_source)}\n"
-                        if session.update_source
-                        else ""
-                    )
-                    + "  address-family ipv4 unicast\n   route-reflector-client\n"
-                )
-                altered = original.replace("   route-reflector-client\n", "")
                 context = (
                     f"router bgp {adjacency.local_asn}",
                     f"neighbor {peer}",
@@ -1386,28 +1536,11 @@ def build_benchmark_isp_experiment(
                     "end",
                 )
             else:
-                config = env.deployment_configs[local]
-                original = next(
-                    line
-                    for line in config.splitlines()
-                    if line.startswith("/routing bgp connection add ")
-                    and f"remote.address={peer} " in line
-                )
-                altered = original.replace("local.role=ibgp-rr ", "local.role=ibgp ")
                 command = (
                     "/routing bgp connection set "
                     f"[find where remote.address={peer}] local.role="
                 )
                 remove_role, restore_role = (command + "ibgp",), (command + "ibgp-rr",)
-            role_static.append(
-                RoutingMutation(
-                    name="missing-rr-client-role",
-                    node=local,
-                    old=original,
-                    new=altered,
-                    expected_failed_ids=(role.id,),
-                )
-            )
             role_runtime.append(
                 RoutingRuntimeMutation(
                     name="rr-client-role-withdrawal",
@@ -1420,6 +1553,14 @@ def build_benchmark_isp_experiment(
     else:
         withdraw_native = ("configure terminal", *context, *withdrawal, "end")
         recover_native = ("configure terminal", *context, *recovery, "end")
+    # Static controls mutate the configuration Batfish analyzes: the deployed
+    # FRR or IOS XR text, or the design rendered by netlab for other platforms.
+    if analysis_device(env.device_profile, plan.igp) == "iosxr":
+        old_announcement, static_replacement, role_static = _iosxr_static_controls(
+            env, plan, healthy, frr_static[0]
+        )
+    else:
+        old_announcement, static_replacement, role_static = frr_static
     completion = (IsisLevelCompletion if plan.igp == "isis" else OspfAreaCompletion)(
         kind="isis_level" if plan.igp == "isis" else "ospf_area",
         **({"level": 2} if plan.igp == "isis" else {"area": 0}),
@@ -1481,6 +1622,13 @@ def build_benchmark_isp_experiment(
                 node=target,
                 old=old_announcement,
                 new=static_replacement,
+                changes=(
+                    DesignChange(kind="withdraw_origin", node=target, prefix=prefix)
+                    if env.bgp_plan
+                    else DesignChange(
+                        kind="interface_area", node=target, prefix=prefix
+                    ),
+                ),
                 expected_failed_ids=failed_ids,
             ),
             *role_static,

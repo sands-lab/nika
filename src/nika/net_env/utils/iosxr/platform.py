@@ -96,6 +96,11 @@ PLATFORM = NativeRouterPlatform(
         config_file=CONFIG_FILE_PATH,
         netlab_device="iosxr",
         netlab_retained=retained_netlab_fragment,
+        netlab_retained_capability=(
+            "XR eBGP multipath and open eBGP policy",
+            "netlab's iosxr templates emit no BGP multipath and admit eBGP routes "
+            "only through bgp unsafe-ebgp-policy",
+        ),
     ),
     fault_ops=_fault_ops,
 )

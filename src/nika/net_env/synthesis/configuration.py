@@ -1,11 +1,39 @@
 """Install a completed construction through the ordinary environment lifecycle."""
 
+# netlab configuration scripts that a router's startup runs, by module name.
+NETLAB_SCRIPT_DIR = "/etc/netlab"
+
+
+class RouterConfigs(dict):
+    """Router name to configuration text, plus the Linux scripts netlab emits.
+
+    ``scripts`` maps a router to ``{module: script}`` for netlab modules that
+    configure Linux instead of the routing daemon, such as WireGuard tunnels.
+    ``model`` is the netlab model the configurations were rendered from.
+    """
+
+    def __init__(
+        self,
+        configs=(),
+        scripts: dict[str, dict[str, str]] | None = None,
+        model: dict | None = None,
+    ):
+        super().__init__(configs)
+        self.scripts = dict(scripts or {})
+        self.model = model
+
+
+def netlab_script_command(module: str) -> str:
+    """Startup command that runs the deployed netlab script for ``module``."""
+    return f"bash {NETLAB_SCRIPT_DIR}/{module}.sh"
+
 
 def apply_routing_configs(env, configs: dict[str, str]) -> None:
     """Bind concrete configuration text without invoking a generator at startup.
 
     The topology, stub hosts and daemon startup remain owned by NIKA. This
-    adapter installs native text or SR Linux JSON-IETF configuration trees.
+    adapter installs native text or SR Linux JSON-IETF configuration trees,
+    and the netlab Linux scripts of ``RouterConfigs``.
     """
     if env.backend == "containerlab" and getattr(env, "routing_documents", None):
         from nika.net_env.synthesis.srl_updates import srl_config_document
@@ -50,4 +78,9 @@ def apply_routing_configs(env, configs: dict[str, str]) -> None:
             env.lab.machines[name].create_file_from_string(text, config_file)
             continue
         env.lab.machines[name].create_file_from_string(text, path)
+    for name, scripts in getattr(configs, "scripts", {}).items():
+        for module, script in scripts.items():
+            env.lab.machines[name].create_file_from_string(
+                script, f"{NETLAB_SCRIPT_DIR}/{module}.sh"
+            )
     env.deployment_configs = dict(configs)

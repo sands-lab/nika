@@ -100,18 +100,6 @@ class BgpPlan:
     inventory: dict[str, Any]
     customer_site: BgpCustomerSite | None = None
 
-    def stub_interfaces(self) -> dict[str, tuple[str, ...]]:
-        """Router addresses (``address/len``) on stub links outside the routing config.
-
-        These connected prefixes come from lab startup, not from the FRR
-        config, yet BGP may originate them (the customer site's link).
-        """
-        site = self.customer_site
-        if site is None:
-            return {}
-        plen = site.prefix.rsplit("/", 1)[1]
-        return {site.provider: (f"{site.gateway}/{plen}",)}
-
 
 def compile_bgp_plan(
     isp_plan: IspPlan,

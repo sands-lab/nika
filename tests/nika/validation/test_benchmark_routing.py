@@ -15,6 +15,36 @@ from nika.workflows.validation.benchmark_routing import (
 ROOT = Path(__file__).resolve().parents[3]
 
 
+@pytest.mark.contract
+def test_max_prefix_impact_includes_exits_only_when_last_as_session_is_lost():
+    profile = benchmark_isp_profiles(
+        [
+            ROOT / "benchmark/working/cases.yaml",
+            ROOT / "benchmark/releases/0.2.0/dev.yaml",
+            ROOT / "benchmark/releases/0.2.0/test.yaml",
+        ]
+    )["isp_abilene--ospf--ebgp--kathara"]
+    spec = build_benchmark_isp_experiment(profile)
+    faults = {f.name: f for f in spec.failure_checks}
+    redundant = faults["benchmark-max-prefix-hstnng"].expected_failed_ids
+    assert len(redundant) == 2 and all(i.startswith("adj.") for i in redundant)
+    sole = faults["benchmark-max-prefix-iplsng"].expected_failed_ids
+    assert set(sole) == {
+        "adj.bgp.iplsng.kscyng.10-0-0-23",
+        "adj.bgp.kscyng.iplsng.10-0-0-22",
+        *(
+            f"exit.as65002.198.51.102.0-24.{node}"
+            for node in ("dnvrng", "kscyng", "losang", "snvang", "sttlng")
+        ),
+        *(
+            f"exit.as65003.198.51.101.0-24.{node}"
+            for node in ("chinng", "iplsng", "nycmng")
+        ),
+        # The session also carries the customer route to its only partner AS.
+        "customer.nycmng.kscyng",
+    }
+
+
 @pytest.mark.e2e
 @pytest.mark.parametrize("scenario", ["isp_dfn-bwin", "isp_di-yuan", "isp_pdh"])
 def test_srl_isis_and_as_import_completion(
@@ -598,7 +628,10 @@ def test_benchmark_bgp_preserves_as_boundaries_and_fault_targets(scenario):
     )
     assert len([i for i in spec.healthy.intents if i.id.startswith("business.")]) == 6
     assert spec.failure_checks[0].problem == "bgp_max_prefix_exceeded"
-    assert len(spec.failure_checks[0].expected_failed_ids) == 2
+    # The two session ends fail; other failures follow from losing that session.
+    failed = spec.failure_checks[0].expected_failed_ids
+    assert len([i for i in failed if i.startswith("adj.bgp.")]) == 2
+    assert all(i.startswith(("adj.bgp.", "exit.", "customer.")) for i in failed)
     assert spec.counterexamples[0].name == "missing-business-announcement"
     active = active_igp_links(original)
     assert all(asn_of[link.endpoint_a] == asn_of[link.endpoint_b] for link in active)

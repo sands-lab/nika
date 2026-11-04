@@ -70,9 +70,12 @@ INTERFACE_RATE_KBPS = 1000
 
 
 def routeros_interface(name: str) -> str:
-    """Translate a reserved-layout container interface to its RouterOS port."""
+    """Translate a reserved-layout container interface to its RouterOS port.
+
+    The loopback bridge takes the name netlab's RouterOS templates give it.
+    """
     if name == "lo":
-        return "lo0"
+        return "loopback"
     if re.fullmatch(r"eth[0-9]+", name):
         return f"ether{int(name[3:]) + 1}"
     raise ValueError(f"Unsupported RouterOS interface {name!r}")

@@ -4,6 +4,7 @@ from ipaddress import IPv4Interface
 
 from nika.net_env.contract import ValidationContract, ValidationIntent
 from nika.net_env.net_env_pool import get_net_env_instance
+from nika.net_env.synthesis.changes import DesignChange
 from nika.workflows.validation.scenario_spec import (
     ScenarioExperiment,
     ScenarioIncident,
@@ -131,27 +132,13 @@ def build_direct_bgp_experiment(scenario, *, routing_model):
         for i in intents
         if i.property == "reachability" and i.destination.name in local_hosts
     )
-    export_old = (
-        "  done"
-        if routing_model == "iosxr-bgp"
-        else f"if (dst == {local_network} && dst-len == {local_network.prefixlen}) {{ accept; }}"
-    )
-    export_new = (
-        "  drop"
-        if routing_model == "iosxr-bgp"
-        else export_old.replace("accept;", "reject;")
-    )
+    # Static controls state design changes, which netlab renders. Only the
+    # IOS XR configuration that NIKA renders itself also takes text edits.
+    xr = routing_model == "iosxr-bgp"
+    export_old, export_new = ("  done", "  drop") if xr else (None, None)
     all_ids = tuple(i.id for i in contract.intents)
-    old_asn = (
-        f"remote-as {original['peer_as']}"
-        if routing_model == "iosxr-bgp"
-        else f"remote.as={original['peer_as']}"
-    )
-    bad_asn = (
-        f"remote-as {original['peer_as'] + 100}"
-        if routing_model == "iosxr-bgp"
-        else f"remote.as={original['peer_as'] + 100}"
-    )
+    old_asn = f"remote-as {original['peer_as']}" if xr else None
+    bad_asn = f"remote-as {original['peer_as'] + 100}" if xr else None
     native_controls = ()
     if routing_model == "routeros-bgp":
         connection = f"[find where remote.address={original['peer_ip']}]"
@@ -176,6 +163,14 @@ def build_direct_bgp_experiment(scenario, *, routing_model):
                 node=node,
                 old=old_asn,
                 new=bad_asn,
+                changes=(
+                    DesignChange(
+                        kind="peer_asn",
+                        node=node,
+                        peer=str(original["peer_ip"]),
+                        asn=original["peer_as"] + 100,
+                    ),
+                ),
                 expected_failed_ids=all_ids,
             ),
             RoutingMutation(
@@ -183,6 +178,14 @@ def build_direct_bgp_experiment(scenario, *, routing_model):
                 node=node,
                 old=export_old,
                 new=export_new,
+                changes=(
+                    DesignChange(
+                        kind="deny_export",
+                        node=node,
+                        peer=str(original["peer_ip"]),
+                        prefix=str(local_network),
+                    ),
+                ),
                 expected_failed_ids=affected_static,
             ),
         ),

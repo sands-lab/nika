@@ -14,6 +14,7 @@ from pathlib import Path
 from ipaddress import IPv4Interface
 from nika.validation.base import ValidationSnapshot
 from nika.validation.batfish.snapshot import (
+    normalize_frr_for_batfish,
     prepare_snapshot,
     _cumulus_frr_snapshot,
     _edge,
@@ -36,20 +37,20 @@ def startup_static_routes(startup: str):
     ]
 
 
-def export_native_routers(
-    env, root: Path, configs, shutdown, endpoints=None, *, static_underlay=False
-):
+def export_native_routers(env, root: Path, configs, shutdown, endpoints=None):
     """Write each native router's concrete configuration for its vendor parser.
 
     Returns ``{router: {native interface: Linux interface}}`` aliases. Router
-    addresses are added to ``endpoints`` when given. With ``static_underlay``
-    (the Linux static model), a platform that provides it exports only the
-    router's default-table addressing and static routes.
+    addresses are added to ``endpoints`` when given. Routers analyzed through
+    their FRR design are exported with the FRR routers instead.
     """
-    from nika.net_env.native_routers import native_platform
+    from nika.net_env.native_routers import design_analyzed_routers, native_platform
 
     aliases = {}
+    design_analyzed = design_analyzed_routers(env)
     for name, profile in sorted(getattr(env, "native_routers", {}).items()):
+        if name in design_analyzed:
+            continue
         validation = native_platform(profile).validation
         if validation is None:
             raise ValueError(f"No validation projection for native profile {profile}")
@@ -61,15 +62,8 @@ def export_native_routers(
         disabled = [validation.interface(i) for n, i in shutdown if n == name]
         node = validation.node(name, config)
         aliases[name] = {validation.interface(i.name): i.name for i in node.interfaces}
-        if static_underlay and validation.static_underlay:
-            content = validation.static_underlay(config, disabled)
-            addresses = [
-                str(IPv4Interface(address).ip)
-                for address in re.findall(r"^ ip address (\S+)$", content, re.M)
-            ]
-        else:
-            content = validation.batfish_config(config, disabled)
-            addresses = [i.address for i in node.interfaces]
+        content = validation.batfish_config(config, disabled)
+        addresses = [i.address for i in node.interfaces]
         if endpoints is not None:
             endpoints.update(addresses)
         (root / "configs" / f"{name}.cfg").write_text(content)
@@ -102,6 +96,8 @@ def build_kathara_snapshot(
     root = prepare_snapshot(root)
     (root / "configs").mkdir(parents=True, exist_ok=True)
     (root / "batfish").mkdir(exist_ok=True)
+    from nika.net_env.native_routers import design_analyzed_routers
+
     routers = {
         name: machine
         for name, machine in env.lab.machines.items()
@@ -110,16 +106,23 @@ def build_kathara_snapshot(
     native = dict(getattr(env, "native_routers", {}))
     if not routers and not native:
         raise ValueError("No concrete FRR configurations available.")
-    aliases = export_native_routers(
-        env,
-        root,
-        configs,
-        shutdown,
-        default_endpoints,
-        static_underlay=routing_model == "linux-static",
-    )
+    # Routers without a Batfish parser are analyzed as FRR from their design:
+    # Linux addressing from the design startup, routing from the FRR rendering.
+    design_analyzed = design_analyzed_routers(env)
+    if (
+        design_analyzed
+        and routing_model == "frr"
+        and (configs is None or not set(design_analyzed) <= set(configs))
+    ):
+        raise ValueError("Design-analyzed routers require their FRR rendering")
+    routers.update({name: env.lab.machines[name] for name in design_analyzed})
+    aliases = export_native_routers(env, root, configs, shutdown, default_endpoints)
     for name, machine in routers.items():
-        startup = env.lab.fs.readtext(f"{name}.startup")
+        startup = (
+            env.native_sources[name][1]
+            if name in design_analyzed
+            else env.lab.fs.readtext(f"{name}.startup")
+        )
         addresses = startup_addresses(startup)
         if not addresses:
             raise ValueError(f"No supported static Ethernet addressing on {name}")
@@ -148,6 +151,8 @@ def build_kathara_snapshot(
         config = (
             configs[name]
             if configs is not None
+            else f"hostname {name}\n"
+            if name in design_analyzed
             else machine.fs.readtext("etc/frr/frr.conf")
         )
         if getattr(env, "rpki", False):
@@ -170,49 +175,7 @@ def build_kathara_snapshot(
         config += "".join(
             f"\nip route {prefix} {gateway}\n" for prefix, gateway in static_routes
         )
-        # FRR accepts global maximum-paths as IPv4-unicast shorthand; Batfish
-        # parses its explicit address-family form. Keep the numeric limit.
-        config = re.sub(
-            r"^ maximum-paths ([0-9]+)$",
-            r" address-family ipv4 unicast\n  maximum-paths \1\n exit-address-family",
-            config,
-            flags=re.MULTILINE,
-        )
-        # FRR documents interface-level passive and router-level
-        # passive-interface as equivalent. The pinned Batfish parser supports
-        # only the latter. Normalize concrete commands, never the design plan.
-        # https://docs.frrouting.org/en/stable-10.2/ospfd.html
-        passive, interface = {}, None
-        for line in config.splitlines():
-            if match := re.fullmatch(r"interface (\S+)", line):
-                interface = match[1]
-            elif line.strip().startswith(("ip ospf passive", "no ip ospf passive")):
-                if line.strip() not in {"ip ospf passive", "no ip ospf passive"}:
-                    raise ValueError(
-                        "Address-specific OSPF passive syntax is not covered"
-                    )
-                if interface is None:
-                    raise ValueError("OSPF passive command outside an interface")
-                passive[interface] = line.strip() == "ip ospf passive"
-            elif line and not line[0].isspace() and not line.startswith(("!", "#")):
-                interface = None
-        if passive:
-            if len(re.findall(r"^router ospf$", config, re.M)) != 1 or re.search(
-                r"^\s+(?:no )?passive-interface\b", config, re.M
-            ):
-                raise ValueError(
-                    "Interface passive normalization requires one OSPF process without mixed passive syntax"
-                )
-            config = re.sub(r"^ (?:no )?ip ospf passive\n", "", config, flags=re.M)
-            config += (
-                "\nrouter ospf\n"
-                + "".join(
-                    f" passive-interface {iface}\n"
-                    for iface, enabled in passive.items()
-                    if enabled
-                )
-                + "!\n"
-            )
+        config = normalize_frr_for_batfish(config)
         (root / "configs" / f"{name}.cfg").write_text(
             _cumulus_frr_snapshot(
                 name,

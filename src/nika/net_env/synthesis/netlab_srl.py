@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Interface
 from pathlib import Path
@@ -14,8 +15,14 @@ from nika.net_env.synthesis.parameters import RoutingParameters
 from nika.net_env.synthesis.srl_updates import srl_config_document
 
 
-def srl_topology(env, parameters=None) -> tuple[dict, set[tuple[str, str, int]]]:
-    """Build an upstream topology from existing SRL addresses and BGP peers."""
+def srl_topology(
+    env, parameters=None, *, as_frr=False
+) -> tuple[dict, set[tuple[str, str, int]]]:
+    """Build an upstream topology from existing SRL addresses and BGP peers.
+
+    With ``as_frr``, the design is rendered as FRR with ``ethN`` names for
+    static analysis.
+    """
     capabilities = getattr(env, "ROUTING_PARAMETER_KINDS", frozenset())
     if (
         env.backend != "containerlab"
@@ -268,12 +275,35 @@ def srl_topology(env, parameters=None) -> tuple[dict, set[tuple[str, str, int]]]
         "nodes": nodes,
         "links": links,
     }
+    if as_frr:
+        topology["defaults.device"] = "frr"
+        for node in nodes.values():
+            node.pop("box")
+            node.pop("clab.type")
+            node["loopback"].pop("ipv6", None)
+        for link in links:
+            for endpoint in link["interfaces"]:
+                endpoint["ifname"] = frr_interface(endpoint["ifname"])
+                endpoint.pop("ipv6", None)
     return topology, expected
 
 
-def generate_srl_configs(env, parameters, directory: Path) -> dict[str, str]:
-    """Compile SR Linux BGP completion to per-node netlab operation YAML."""
-    topology, expected = srl_topology(env, parameters)
+def frr_interface(name: str) -> str:
+    """Map SR Linux ``ethernet-1/N`` to the ``eth(N-1)`` name of its rendering."""
+    match = re.fullmatch(r"ethernet-1/([0-9]+)", name)
+    if match is None:
+        raise ValueError(f"Unsupported SR Linux interface {name}")
+    return f"eth{int(match[1]) - 1}"
+
+
+def generate_srl_configs(
+    env, parameters, directory: Path, *, as_frr=False, changes=()
+) -> dict[str, str]:
+    """Compile SR Linux BGP completion to per-node netlab operation YAML.
+
+    With ``as_frr``, return the design's FRR rendering for static analysis.
+    """
+    topology, expected = srl_topology(env, parameters, as_frr=as_frr)
     # The pinned upstream SRL BGP template repeats its YAML afi-safi key when
     # both node families are present. Keep the IPv4 routing scope explicit and
     # retain the original IPv6 interface configuration without enabling IPv6 BGP.
@@ -282,7 +312,7 @@ def generate_srl_configs(env, parameters, directory: Path) -> dict[str, str]:
     for link in topology["links"]:
         for endpoint in link["interfaces"]:
             endpoint.pop("ipv6", None)
-    configs, model = run_netlab(topology, directory)
+    configs, model = run_netlab(topology, directory, changes)
     actual = {
         (name, peer["ipv4"], peer["as"])
         for name, node in model["nodes"].items()
@@ -325,6 +355,8 @@ def generate_srl_configs(env, parameters, directory: Path) -> dict[str, str]:
         raise ValueError(
             "netlab-derived SR Linux system0 addresses differ from the fixed sketch"
         )
+    if as_frr:
+        return configs
     return retain_srl_attributes(configs, env.routing_documents)
 
 

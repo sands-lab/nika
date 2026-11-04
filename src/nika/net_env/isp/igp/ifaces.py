@@ -20,6 +20,11 @@ def srl_e1_name(iface_name: str) -> str:
     return f"e1-{eth_index(iface_name) + 1}"
 
 
+def plan_iface_name(endpoint: str) -> str:
+    """Map a Containerlab endpoint ``e1-N`` back to plan ``eth{N-1}``."""
+    return f"eth{int(endpoint[3:]) - 1}" if endpoint.startswith("e1-") else endpoint
+
+
 def srl_ethernet_name(iface_name: str) -> str:
     """Map plan ``ethN`` → SRL ``ethernet-1/{N+1}``."""
     return f"ethernet-1/{eth_index(iface_name) + 1}"
