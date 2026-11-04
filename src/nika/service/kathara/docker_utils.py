@@ -6,20 +6,22 @@ from collections.abc import Iterable
 from typing import Any
 
 from docker.models.containers import Container
-from Kathara.exceptions import MachineNotFoundError
 from Kathara.manager.Kathara import Kathara
 
 
 def get_machine_container(*, lab_name: str, host_name: str) -> Container:
     """Return the Docker container for ``host_name`` inside ``lab_name``."""
-    try:
-        return Kathara.get_instance().get_machine_api_object(
+    stats = next(
+        Kathara.get_instance().get_machine_stats(
             machine_name=host_name, lab_name=lab_name
-        )
-    except MachineNotFoundError as exc:
+        ),
+        None,
+    )
+    if stats is None:
         raise ValueError(
             f"No container found for host {host_name!r} in lab {lab_name!r}."
-        ) from exc
+        )
+    return stats.machine_api_object
 
 
 def list_lab_containers(*, lab_name: str) -> list[dict[str, Any]]:
