@@ -113,7 +113,7 @@ To check the frontend/engine boundary, run [`test_engine_container_e2e.py`](../.
 
 PR CI builds the engine from the tested commit and runs the seven runtime jobs above. It also discovers published releases with resolvable release tags and checks their actual pinned engines.
 
-Nightly selects the latest benchmark release by version and runs every task in its dev and test splits. It builds the current engine once and reuses the release verification workflow. Eight amd64 shards run on at most two separate runners, with one trial at a time per runner. Nightly compares each engine trial with an in-process oracle trial. The other Nightly suites retain artifact verification depth; neither suite asserts failure recovery.
+Nightly selects the latest benchmark release by version and runs every task in its dev and test splits. It builds the current engine once and reuses the release verification workflow. Eight amd64 shards run on at most four separate runners, with one trial at a time per runner. Nightly compares each engine trial with an in-process oracle trial. The other Nightly suites retain artifact verification depth; neither suite asserts failure recovery.
 
 Run one task against the release manifest's actual engine locally:
 
@@ -130,7 +130,7 @@ For all tasks in both release splits, dispatch [Release engine verification](../
 gh workflow run release-engine-verify.yml --ref <branch> -f release=0.2.0
 ```
 
-The manual workflow defaults to the latest benchmark release; set `release` to select a version. It resolves the manifest's pinned engine once and distributes it to eight shards, with at most two runners in parallel. Each runner executes one trial at a time, compares the engine and in-process results, and uploads per-trial artifacts even on failure. It requires the WireGuard and VRF kernel modules and at least 30 GiB free on the Docker filesystem before deployment. A coverage gate requires exactly one passing result for each assigned task; missing, duplicate, skipped, failed, or unexpected results fail the workflow. Nightly uses the same gate. The scheduled workflow takes effect only on the default branch; dispatch Nightly on a PR branch to validate changes before then.
+The manual workflow defaults to the latest benchmark release; set `release` to select a version. It resolves the manifest's pinned engine once and distributes it to eight shards, with at most four runners in parallel. Each runner executes one trial at a time, compares the engine and in-process results, and uploads per-trial artifacts even on failure. It requires the WireGuard and VRF kernel modules and at least 30 GiB free on the Docker filesystem before deployment. A coverage gate requires exactly one passing result for each assigned task; missing, duplicate, skipped, failed, or unexpected results fail the workflow. Nightly uses the same gate. The scheduled workflow takes effect only on the default branch; dispatch Nightly on a PR branch to validate changes before then.
 
 To reproduce one shard locally after preparing those prerequisites:
 
