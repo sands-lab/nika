@@ -224,9 +224,11 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
         # Keepalive until device startup signals networking is ready, then exec
         # k3s as PID1 (avoids bridge/default-route race and cgroupv2 issues; #38).
         _k3s_wait = "while [ ! -f /var/run/net-ready ]; do sleep 1; done; "
+        # Join and advertise the same lab address during agent bootstrap.
         _k3s_server = (
             "server --disable servicelb --disable traefik --write-kubeconfig-mode 644 "
-            "--disable-default-registry-endpoint"
+            "--disable-default-registry-endpoint "
+            "--advertise-address 200.0.0.1 --tls-san 200.0.0.1"
         )
         for name, (links, is_controller) in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
@@ -263,7 +265,7 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
                     "args",
                     f'-c "{_k3s_wait}exec /bin/k3s agent --disable-default-registry-endpoint"',
                 )
-                m.add_meta("env", "K3S_URL=https://controller:6443")
+                m.add_meta("env", "K3S_URL=https://200.0.0.1:6443")
                 m.add_meta("env", "K3S_TOKEN=secret")
             for link in links:
                 self.lab.connect_machine_to_link(name, link)
