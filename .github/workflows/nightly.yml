@@ -254,10 +254,10 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
-      - name: Free unused SDK space on the ephemeral runner
+      - name: Free unused tools on the ephemeral runner
         if: runner.environment == 'github-hosted'
-        # These SDKs are unrelated to NIKA. Preserve Docker images and lab caches.
-        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift
+        # Remove preinstalled SDKs and CodeQL that NIKA does not use.
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift "$RUNNER_TOOL_CACHE/CodeQL"
       - name: Require disk headroom for heavy labs
         run: |
           docker_root=$(docker info --format '{{.DockerRootDir}}')
