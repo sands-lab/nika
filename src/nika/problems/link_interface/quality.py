@@ -4,7 +4,6 @@ import re
 
 from pydantic import BaseModel, Field
 
-from nika.problems.support.traffic import LOSS_EVIDENCE_TRAFFIC
 from nika.problems.rca.inventory import (
     link_containing_endpoint,
     select_host_interface,
@@ -101,7 +100,6 @@ class LinkPacketCorruption(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "degradation"
     root_cause_name: str = "link_packet_corruption"
-    TRAFFIC_PROFILE = LOSS_EVIDENCE_TRAFFIC
     # Goodput collapses only where the path forwards far faster than TCP
     # sustains under the loss; a 1 Mbit/s path is already near that rate.
     minimum_path_rate_kbps = 10_000

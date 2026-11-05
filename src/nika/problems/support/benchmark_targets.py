@@ -232,6 +232,13 @@ def first_iface(ifaces: list[str], fallback: str = "eth0") -> str:
 # ----------------------------------------------------------------------
 
 
+# A Containerlab flap takes the port's carrier down, so the routers reroute at
+# once and move traffic back only after the IGP adjacency returns (about 7 s on
+# SR Linux IS-IS). An up period longer than that makes every down period an
+# outage on the probed path.
+CARRIER_FLAP_UP_SEC = "12"
+
+
 def resolve_link_flap_params(
     scenario: str,
     net_env,
@@ -276,7 +283,7 @@ def resolve_link_flap_params(
         params.update(
             host_name="leaf1",
             intf_name="e1-2",
-            up_time="12",
+            up_time=CARRIER_FLAP_UP_SEC,
             probe_dst_ip="10.0.0.27",
             observer_device="client1",
         )
@@ -726,6 +733,88 @@ def require_node_capability(
             f"{problem} host_name={host_name!r} does not run {capability} on "
             f"{ctx.scenario} (topo_size={ctx.topo_size!r})."
         )
+
+
+def segment_host_pairs(net_env: Any, hosts: list[str]) -> list[tuple[str, str]] | None:
+    """Pairs of ``hosts`` on one Layer-2 segment with two more nodes on it.
+
+    An IP or MAC conflict shows only to a third node on the pair's segment,
+    so the segment needs an observer and a control besides the pair. A segment
+    is a lab link, joined with the links whose ports a node bridges
+    (``brctl addif`` in its startup). Nodes that only bridge, holding no
+    address, do not count as observers. Returns ``None`` when the lab's links
+    are not known offline.
+    """
+    import re
+
+    from nika.runtime.spec import NodeRole
+
+    lab = getattr(net_env, "lab", None)
+    machines = getattr(lab, "machines", None)
+    if not machines:
+        return None
+    sources = dict(getattr(net_env, "native_sources", {}) or {})
+    roles = getattr(net_env, "machine_identities", {}) or {}
+    parent: dict[str, str] = {}
+
+    def find(key: str) -> str:
+        while parent.setdefault(key, key) != key:
+            key = parent[key]
+        return key
+
+    addressed: set[str] = set()
+    for name, machine in machines.items():
+        path = f"{name}.startup"
+        if name in sources:
+            text = sources[name][1]
+        elif lab.fs.exists(path):
+            text = lab.fs.readtext(path)
+        else:
+            text = ""
+        role = getattr(roles.get(name), "role", None)
+        if re.search(r"ip (?:addr|address) add ", text) or role in {
+            NodeRole.HOST,
+            NodeRole.SERVICE,
+        }:
+            addressed.add(name)
+        ports = {f"eth{i}": iface.link.name for i, iface in machine.interfaces.items()}
+        links = [
+            ports[p]
+            for p in re.findall(r"brctl addif \S+ (eth\d+)", text)
+            if p in ports
+        ]
+        for link in links[1:]:
+            parent[find(link)] = find(links[0])
+    members: dict[str, set[str]] = defaultdict(set)
+    for name, machine in machines.items():
+        for iface in machine.interfaces.values():
+            members[find(iface.link.name)].add(name)
+    pairs: list[tuple[str, str]] = []
+    for nodes in members.values():
+        on_segment = sorted(h for h in hosts if h in nodes)
+        for a in on_segment:
+            for b in on_segment:
+                if a != b and len((nodes & addressed) - {a, b}) >= 2:
+                    pairs.append((a, b))
+    return list(dict.fromkeys(pairs))
+
+
+def conflict_hosts(net_env: Any) -> list[str]:
+    """End hosts and servers, the devices an address conflict involves."""
+    hosts = list(net_env.hosts or [])
+    for bucket in (net_env.servers or {}).values():
+        hosts += [name for name in bucket or [] if name not in hosts]
+    return hosts
+
+
+def segment_pair_options(ctx: Any, base: dict[str, str]) -> list[dict[str, str]]:
+    """Keep a generated conflict pair only if it shares an observed segment.
+
+    Generation-only: published rows are validated without this rule.
+    """
+    pairs = segment_host_pairs(ctx.net_env, conflict_hosts(ctx.net_env))
+    pair = (base.get("host_name"), base.get("host_name_2"))
+    return [base] if pairs is None or pair in pairs else []
 
 
 def require_distinct_hosts(

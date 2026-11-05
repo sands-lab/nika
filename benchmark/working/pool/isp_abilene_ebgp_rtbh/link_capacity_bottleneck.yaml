@@ -6,6 +6,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: atlang
@@ -23,6 +26,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: nycmng
@@ -40,6 +46,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: snvang
@@ -57,6 +66,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: sttlng

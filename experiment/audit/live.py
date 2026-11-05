@@ -281,6 +281,16 @@ def _independent_control_ip(
             addresses[endpoint] = found
         return addresses[endpoint]
 
+    # A host inside a prefix the fault withdraws or hijacks loses its replies too.
+    if nets:
+        for ep in sorted({ep for eps in links for ep in eps if _node(ep) in endpoints}):
+            ip = address(ep)
+            if ip and any(
+                ipaddress.ip_address(ip) in net
+                for net in nets
+                if ipaddress.ip_address(ip).version == net.version
+            ):
+                behind_nodes.add(_node(ep))
     unaffected = sorted(
         ep
         for eps in links

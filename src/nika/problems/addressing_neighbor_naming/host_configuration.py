@@ -21,7 +21,10 @@ from nika.problems.support.benchmark_targets import (
     choice_distinct,
     device_interfaces,
     endpoint_target,
+    conflict_hosts,
     require_distinct_hosts,
+    segment_pair_options,
+    segment_host_pairs,
 )
 from nika.problems.support.dhcp import (
     DHCP_LEASE_CMD,
@@ -353,6 +356,11 @@ class HostIPConflict(ProblemBase):
                     + list(servers.get("dns") or [])
                 )
             )
+        # Both hosts must sit on one segment, so a third node sees the conflict.
+        pairs = segment_host_pairs(ctx.net_env, conflict_hosts(ctx.net_env))
+        if pairs:
+            pair = ctx.rng.choice(pairs)
+            return {"host_name": pair[0], "host_name_2": pair[1]}
         pair = choice_distinct(ctx.rng, conflict_pool, ctx.host0)
         if pair[0] == pair[1] and len(conflict_pool) >= 2:
             pair = [conflict_pool[0], conflict_pool[1]]
@@ -361,6 +369,10 @@ class HostIPConflict(ProblemBase):
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
         require_distinct_hosts(ctx, cls.root_cause_name, inject)
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        return segment_pair_options(ctx, base)
 
     symptom_desc = "Some hosts experience intermittent connectivity issues."
 

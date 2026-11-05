@@ -4,6 +4,9 @@ failure:
   fault_type: web_dos_attack
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: pc_1_1_1_1
       host_name: web_server_0
@@ -16,6 +19,9 @@ failure:
       fault_type: web_dos_attack
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: pc_1_1_1_1
       host_name: web_server_0
@@ -28,6 +34,9 @@ failure:
       fault_type: web_dos_attack
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: pc_1_1_1_1
       host_name: web_server_0
@@ -39,6 +48,9 @@ failure:
         node: web_server_0
       fault_type: web_dos_attack
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: pc_1_1_1_1
       host_name: web_server_0
@@ -50,6 +62,9 @@ failure:
         node: web_server_0
       fault_type: web_dos_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: pc_1_1_1_1
       host_name: web_server_0

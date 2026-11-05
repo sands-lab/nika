@@ -6,6 +6,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       peer_host: pc_frankfurt
@@ -20,6 +23,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       peer_host: pc_hamburg
@@ -34,6 +40,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: stuttgart
       peer_host: pc_stuttgart

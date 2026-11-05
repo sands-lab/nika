@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ulm
       peer_host: pc_ulm
@@ -26,6 +29,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: wesel
       peer_host: pc_wesel
@@ -43,6 +49,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: wuerzburg
       peer_host: pc_wuerzburg

@@ -4,6 +4,9 @@ failure:
   fault_type: vrf_dscp_remarking
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay
@@ -19,6 +22,9 @@ failure:
       fault_type: vrf_dscp_remarking
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay
@@ -34,6 +40,9 @@ failure:
       fault_type: vrf_dscp_remarking
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay
@@ -48,6 +57,9 @@ failure:
         name: wg_br1
       fault_type: vrf_dscp_remarking
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay
@@ -62,6 +74,9 @@ failure:
         name: wg_br1
       fault_type: vrf_dscp_remarking
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay

@@ -146,8 +146,11 @@ def evaluate_link_flap_symptom(
     )
     if "error" in train:
         return False, {"error": "flap_probe_failed", "after": train}
+    # The flap shows as repeated bursts of consecutive lost echoes between
+    # answered runs. A router that reroutes around the down port cuts each
+    # burst short, so the share of lost echoes has no floor beyond them.
     periodic_loss = (
-        20.0 <= train["loss_percent"] <= 80.0
+        train["loss_percent"] <= 80.0
         and train["down_runs"] >= MIN_CYCLES
         and train["up_runs"] >= MIN_CYCLES
     )

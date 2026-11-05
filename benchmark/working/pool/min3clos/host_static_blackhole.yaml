@@ -3,14 +3,20 @@ scenario:
 failure:
   fault_type: host_static_blackhole
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: leaf1
     root_causes:
     - resource:
         kind: node
         node: leaf1
       fault_type: host_static_blackhole
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: leaf2
     root_causes:
     - resource:

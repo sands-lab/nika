@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: aachen
       intf_name: eth0
@@ -27,6 +30,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: aachen
       intf_name: eth1
@@ -45,6 +51,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: aachen
       intf_name: eth2
@@ -63,6 +72,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: augsburg
       intf_name: eth0
@@ -81,6 +93,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: augsburg
       intf_name: eth1
@@ -99,6 +114,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: augsburg
       intf_name: eth2
@@ -117,6 +135,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bayreuth
       intf_name: eth0
@@ -135,6 +156,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bayreuth
       intf_name: eth1
@@ -153,6 +177,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bayreuth
       intf_name: eth2
@@ -171,6 +198,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth0
@@ -189,6 +219,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth1
@@ -207,6 +240,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth2
@@ -225,6 +261,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth3
@@ -243,6 +282,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth4
@@ -261,6 +303,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bielefeld
       intf_name: eth0
@@ -279,6 +324,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bielefeld
       intf_name: eth1
@@ -297,6 +345,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bielefeld
       intf_name: eth2
@@ -315,6 +366,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bielefeld
       intf_name: eth3
@@ -333,6 +387,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: braunschweig
       intf_name: eth0
@@ -351,6 +408,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: braunschweig
       intf_name: eth1
@@ -369,6 +429,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: braunschweig
       intf_name: eth2
@@ -387,6 +450,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: braunschweig
       intf_name: eth4
@@ -405,6 +471,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bremen
       intf_name: eth0
@@ -423,6 +492,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bremen
       intf_name: eth1
@@ -441,6 +513,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bremen
       intf_name: eth2
@@ -459,6 +534,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bremerhaven
       intf_name: eth1
@@ -477,6 +555,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: chemnitz
       intf_name: eth0
@@ -495,6 +576,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: chemnitz
       intf_name: eth1
@@ -513,6 +597,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: darmstadt
       intf_name: eth0
@@ -531,6 +618,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: darmstadt
       intf_name: eth1
@@ -549,6 +639,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: darmstadt
       intf_name: eth2
@@ -567,6 +660,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dortmund
       intf_name: eth0
@@ -585,6 +681,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dortmund
       intf_name: eth1
@@ -603,6 +702,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dortmund
       intf_name: eth2
@@ -621,6 +723,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dortmund
       intf_name: eth3
@@ -639,6 +744,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dresden
       intf_name: eth1
@@ -657,6 +765,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dresden
       intf_name: eth2
@@ -675,6 +786,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: duesseldorf
       intf_name: eth0
@@ -693,6 +807,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: duesseldorf
       intf_name: eth1
@@ -711,6 +828,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erfurt
       intf_name: eth0
@@ -729,6 +849,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erfurt
       intf_name: eth3
@@ -747,6 +870,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erfurt
       intf_name: eth4
@@ -765,6 +891,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: eth2
@@ -783,6 +912,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: flensburg
       intf_name: eth0
@@ -801,6 +933,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth0
@@ -819,6 +954,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth2
@@ -837,6 +975,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth3
@@ -855,6 +996,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: freiburg
       intf_name: eth0
@@ -873,6 +1017,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: freiburg
       intf_name: eth1
@@ -891,6 +1038,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: fulda
       intf_name: eth0
@@ -909,6 +1059,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: fulda
       intf_name: eth2
@@ -927,6 +1080,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: fulda
       intf_name: eth3
@@ -945,6 +1101,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: giessen
       intf_name: eth0
@@ -963,6 +1122,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: giessen
       intf_name: eth1
@@ -981,6 +1143,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: greifswald
       intf_name: eth1
@@ -999,6 +1164,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: eth0
@@ -1017,6 +1185,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: eth1
@@ -1035,6 +1206,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: eth2
@@ -1053,6 +1227,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: eth4
@@ -1071,6 +1248,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kaiserslautern
       intf_name: eth0
@@ -1089,6 +1269,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kaiserslautern
       intf_name: eth2
@@ -1107,6 +1290,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kaiserslautern
       intf_name: eth3
@@ -1125,6 +1311,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: karlsruhe
       intf_name: eth0
@@ -1143,6 +1332,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: karlsruhe
       intf_name: eth2
@@ -1161,6 +1353,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: karlsruhe
       intf_name: eth3
@@ -1179,6 +1374,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kempten
       intf_name: eth0
@@ -1197,6 +1395,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kempten
       intf_name: eth1
@@ -1215,6 +1416,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kiel
       intf_name: eth0
@@ -1233,6 +1437,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koblenz
       intf_name: eth0
@@ -1251,6 +1458,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koblenz
       intf_name: eth3
@@ -1269,6 +1479,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koblenz
       intf_name: eth4
@@ -1287,6 +1500,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: konstanz
       intf_name: eth0
@@ -1305,6 +1521,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
       intf_name: eth3
@@ -1323,6 +1542,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: magdeburg
       intf_name: eth2
@@ -1341,6 +1563,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
       intf_name: eth2
@@ -1359,6 +1584,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
       intf_name: eth3
@@ -1377,6 +1605,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
       intf_name: eth4
@@ -1395,6 +1626,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenster
       intf_name: eth1
@@ -1413,6 +1647,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: norden
       intf_name: eth0
@@ -1431,6 +1668,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: norden
       intf_name: eth1
@@ -1449,6 +1689,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nuernberg
       intf_name: eth2
@@ -1467,6 +1710,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nuernberg
       intf_name: eth3
@@ -1485,6 +1731,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: oldenburg
       intf_name: eth0
@@ -1503,6 +1752,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: oldenburg
       intf_name: eth3
@@ -1521,6 +1773,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: passau
       intf_name: eth1
@@ -1539,6 +1794,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: saarbruecken
       intf_name: eth1
@@ -1557,6 +1815,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: stuttgart
       intf_name: eth1
@@ -1575,6 +1836,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: stuttgart
       intf_name: eth3

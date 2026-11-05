@@ -28,6 +28,11 @@ def _loads_exec_json(output: str, *, command: str, node: str):
         ) from exc
 
 
+# vrnetlab router images (RouterOS) bridge the VM's management port inside the
+# container. Its address is the same on every router and unreachable from the
+# lab, so it never stands for the node.
+VM_MGMT_IFACES = frozenset({"br-mgmt"})
+
 # Containerlab management bridge ranges used by NIKA labs.
 _CLAB_MGMT_PREFIXES = ("172.100.", "172.101.", "172.20.", "172.18.")
 
@@ -60,6 +65,8 @@ def _ipv4_by_iface(output: str, *, node: str, with_prefix: bool) -> dict[str, st
     """Map each interface to its first non-loopback IPv4 address, in link order."""
     addresses: dict[str, str] = {}
     for link in _loads_exec_json(output, command="ip -j addr", node=node):
+        if link.get("ifname") in VM_MGMT_IFACES:
+            continue
         for addr in link.get("addr_info", []):
             ip = addr.get("local")
             if addr.get("family") != "inet" or not ip or ip.startswith("127."):

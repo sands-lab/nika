@@ -718,9 +718,11 @@ A profile combines a traffic matrix, a flow-size distribution, and Poisson flow 
 
 Host pairs that the environment isolates by design, such as guest LANs or separate autonomous systems, carry no profile traffic. A `demand` profile fails at session start when the environment has no demand matrix. On environments with RouterOS routers, NIKA lowers the load and incast bursts to 15% of the RouterOS send cap, or of the slower rate an environment shapes its paths to, such as the `enterprise_branch` overlay, and paces each flow to that rate, so a single flow cannot fill the link. It logs the values it ran in the `env_traffic` event. A profile is part of the task identity, so the same fault with and without a profile counts as two tasks, and the benchmark audit runs each task with its profile.
 
-### Failure traffic profiles
+### Baseline traffic in generated tasks
 
-Some failures only show in the traffic that crosses them: a link that corrupts or drops part of its frames slows the flows that use it. Such failures declare a profile, and the cases that `nika benchmark generate` writes for them carry it in `traffic:`, so these faults have flows on every host pair to act on. `link_flap`, `link_packet_corruption`, `device_forwarding_packet_corruption`, `flow_rule_loop`, `p4_action_selector_member_misconfig`, and `p4_ecmp_group_member_missing` run with `uniform` traffic. `silent_egress_packet_loss` runs without one: on the bmv2 gateways the profile's load alone drops as many packets as the fault does. For every profile its failures use, generation also writes a healthy case with the same profile, so background traffic alone does not show an agent that a fault exists. The case YAML decides what runs: a case without `traffic:`, including every case of an earlier benchmark release, runs without a profile, and a multi-fault case runs the profile its YAML names.
+Every task that `nika benchmark generate` writes to the working pool runs a background traffic profile, so faulty and healthy tasks carry the same kind of load. Because the profile is the same for every failure, its programs say nothing about which fault, if any, the agent faces. Each environment declares its baseline: `uniform` at 1 Mbit/s, or `gravity` at 1 Mbit/s for ISP backbones. A failure can replace the baseline for its own tasks with `TRAFFIC_PROFILE`, but any difference from the baseline hints at the failure class, so no current failure does.
+
+Benchmark releases keep their tasks as published: a task without `traffic:`, such as every task of release 0.2.0, runs without a profile. A multi-fault task runs the profile its YAML names.
 
 ## Telemetry
 

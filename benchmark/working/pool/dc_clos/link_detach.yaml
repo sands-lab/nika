@@ -4,6 +4,9 @@ failure:
   fault_type: link_detach
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
       intf_name: eth0
@@ -14,6 +17,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       intf_name: eth0
@@ -24,6 +30,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth0
@@ -34,6 +43,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth1
@@ -44,6 +56,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth0
@@ -54,6 +69,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth1
@@ -64,6 +82,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth2
@@ -74,6 +95,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_0
       intf_name: eth0
@@ -84,6 +108,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_1
       intf_name: eth0
@@ -95,6 +122,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
       intf_name: eth0
@@ -106,6 +136,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       intf_name: eth0
@@ -117,6 +150,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
       intf_name: eth0
@@ -128,6 +164,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       intf_name: eth0
@@ -138,6 +177,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
       intf_name: eth0
@@ -148,6 +190,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_1
       intf_name: eth0
@@ -158,6 +203,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       intf_name: eth0
@@ -168,6 +216,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod1
       intf_name: eth0
@@ -178,6 +229,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth0
@@ -188,6 +242,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth1
@@ -198,6 +255,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth2
@@ -208,6 +268,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth3
@@ -218,6 +281,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth0
@@ -228,6 +294,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth1
@@ -238,6 +307,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth2
@@ -248,6 +320,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth3
@@ -258,6 +333,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth4
@@ -268,6 +346,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth0
@@ -278,6 +359,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth1
@@ -288,6 +372,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth2
@@ -298,6 +385,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth3
@@ -308,6 +398,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth4
@@ -318,6 +411,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth0
@@ -328,6 +424,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth1
@@ -338,6 +437,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth2
@@ -348,6 +450,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth3
@@ -358,6 +463,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth4
@@ -368,6 +476,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth0
@@ -378,6 +489,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth1
@@ -388,6 +502,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth2
@@ -398,6 +515,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth3
@@ -408,6 +528,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth0
@@ -418,6 +541,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth1
@@ -428,6 +554,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth2
@@ -438,6 +567,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth3
@@ -448,6 +580,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth4
@@ -458,6 +593,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth0
@@ -468,6 +606,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth1
@@ -478,6 +619,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth2
@@ -488,6 +632,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth3
@@ -498,6 +645,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth4
@@ -508,6 +658,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth0
@@ -518,6 +671,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth1
@@ -528,6 +684,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth2
@@ -538,6 +697,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth3
@@ -548,6 +710,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth4
@@ -558,6 +723,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_0
       intf_name: eth0
@@ -568,6 +736,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_0
       intf_name: eth1
@@ -578,6 +749,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_1
       intf_name: eth0
@@ -588,6 +762,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_1
       intf_name: eth1
@@ -598,6 +775,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_2
       intf_name: eth0
@@ -608,6 +788,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_2
       intf_name: eth1
@@ -618,6 +801,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_3
       intf_name: eth0
@@ -628,6 +814,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_3
       intf_name: eth1
@@ -638,6 +827,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_0
       intf_name: eth0
@@ -648,6 +840,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_0
       intf_name: eth1
@@ -658,6 +853,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_1
       intf_name: eth0
@@ -668,6 +866,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_1
       intf_name: eth1
@@ -678,6 +879,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_2
       intf_name: eth0
@@ -688,6 +892,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_2
       intf_name: eth1
@@ -698,6 +905,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_3
       intf_name: eth0
@@ -708,6 +918,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_3
       intf_name: eth1
@@ -718,6 +931,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
       intf_name: eth0
@@ -728,6 +944,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_1
       intf_name: eth0
@@ -738,6 +957,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_2
       intf_name: eth0
@@ -748,6 +970,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_3
       intf_name: eth0
@@ -758,6 +983,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       intf_name: eth0
@@ -768,6 +996,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod1
       intf_name: eth0
@@ -778,6 +1009,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod2
       intf_name: eth0
@@ -788,6 +1022,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod3
       intf_name: eth0
@@ -798,6 +1035,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth0
@@ -808,6 +1048,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth1
@@ -818,6 +1061,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth2
@@ -828,6 +1074,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth3
@@ -838,6 +1087,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth4
@@ -848,6 +1100,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth5
@@ -858,6 +1113,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth6
@@ -868,6 +1126,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_0
       intf_name: eth7
@@ -878,6 +1139,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth0
@@ -888,6 +1152,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth1
@@ -898,6 +1165,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth2
@@ -908,6 +1178,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth3
@@ -918,6 +1191,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth4
@@ -928,6 +1204,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth5
@@ -938,6 +1217,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth6
@@ -948,6 +1230,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth7
@@ -958,6 +1243,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
       intf_name: eth8
@@ -968,6 +1256,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth0
@@ -978,6 +1269,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth1
@@ -988,6 +1282,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth2
@@ -998,6 +1295,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth3
@@ -1008,6 +1308,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth4
@@ -1018,6 +1321,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth5
@@ -1028,6 +1334,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth6
@@ -1038,6 +1347,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth7
@@ -1048,6 +1360,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_2
       intf_name: eth8
@@ -1058,6 +1373,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth0
@@ -1068,6 +1386,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth1
@@ -1078,6 +1399,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth2
@@ -1088,6 +1412,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth3
@@ -1098,6 +1425,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth4
@@ -1108,6 +1438,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth5
@@ -1118,6 +1451,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth6
@@ -1128,6 +1464,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth7
@@ -1138,6 +1477,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_3
       intf_name: eth8
@@ -1148,6 +1490,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_4
       intf_name: eth0
@@ -1158,6 +1503,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_4
       intf_name: eth1
@@ -1168,6 +1516,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_4
       intf_name: eth2
@@ -1178,6 +1529,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_4
       intf_name: eth3
@@ -1188,6 +1542,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_4
       intf_name: eth4
@@ -1198,6 +1555,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_4
       intf_name: eth5
@@ -1208,6 +1568,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_4
       intf_name: eth6
@@ -1218,6 +1581,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_4
       intf_name: eth7
@@ -1228,6 +1594,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_4
       intf_name: eth8
@@ -1238,6 +1607,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_5
       intf_name: eth0
@@ -1248,6 +1620,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_5
       intf_name: eth1
@@ -1258,6 +1633,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_5
       intf_name: eth2
@@ -1268,6 +1646,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_5
       intf_name: eth3
@@ -1278,6 +1659,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_5
       intf_name: eth4
@@ -1288,6 +1672,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_5
       intf_name: eth5
@@ -1298,6 +1685,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_5
       intf_name: eth6
@@ -1308,6 +1698,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_5
       intf_name: eth7
@@ -1318,6 +1711,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_5
       intf_name: eth8
@@ -1328,6 +1724,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_6
       intf_name: eth0
@@ -1338,6 +1737,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_6
       intf_name: eth1
@@ -1348,6 +1750,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_6
       intf_name: eth2
@@ -1358,6 +1763,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_6
       intf_name: eth3
@@ -1368,6 +1776,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_6
       intf_name: eth4
@@ -1378,6 +1789,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_6
       intf_name: eth5
@@ -1388,6 +1802,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_6
       intf_name: eth6
@@ -1398,6 +1815,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_6
       intf_name: eth7
@@ -1408,6 +1828,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_6
       intf_name: eth8
@@ -1418,6 +1841,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_7
       intf_name: eth0
@@ -1428,6 +1854,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_7
       intf_name: eth1
@@ -1438,6 +1867,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_7
       intf_name: eth2
@@ -1448,6 +1880,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_7
       intf_name: eth3
@@ -1458,6 +1893,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_7
       intf_name: eth4
@@ -1468,6 +1906,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_7
       intf_name: eth5
@@ -1478,6 +1919,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_7
       intf_name: eth6
@@ -1488,6 +1932,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_7
       intf_name: eth7
@@ -1498,6 +1945,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_7
       intf_name: eth8
@@ -1508,6 +1958,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth0
@@ -1518,6 +1971,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth1
@@ -1528,6 +1984,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth2
@@ -1538,6 +1997,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth3
@@ -1548,6 +2010,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth4
@@ -1558,6 +2023,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth5
@@ -1568,6 +2036,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth6
@@ -1578,6 +2049,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_0
       intf_name: eth7
@@ -1588,6 +2062,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth0
@@ -1598,6 +2075,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth1
@@ -1608,6 +2088,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth2
@@ -1618,6 +2101,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth3
@@ -1628,6 +2114,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth4
@@ -1638,6 +2127,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth5
@@ -1648,6 +2140,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth6
@@ -1658,6 +2153,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth7
@@ -1668,6 +2166,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_1
       intf_name: eth8
@@ -1678,6 +2179,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth0
@@ -1688,6 +2192,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth1
@@ -1698,6 +2205,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth2
@@ -1708,6 +2218,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth3
@@ -1718,6 +2231,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth4
@@ -1728,6 +2244,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth5
@@ -1738,6 +2257,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth6
@@ -1748,6 +2270,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth7
@@ -1758,6 +2283,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_2
       intf_name: eth8
@@ -1768,6 +2296,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth0
@@ -1778,6 +2309,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth1
@@ -1788,6 +2322,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth2
@@ -1798,6 +2335,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth3
@@ -1808,6 +2348,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth4
@@ -1818,6 +2361,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth5
@@ -1828,6 +2374,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth6
@@ -1838,6 +2387,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth7
@@ -1848,6 +2400,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_3
       intf_name: eth8
@@ -1858,6 +2413,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_4
       intf_name: eth0
@@ -1868,6 +2426,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_4
       intf_name: eth1
@@ -1878,6 +2439,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_4
       intf_name: eth2
@@ -1888,6 +2452,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_4
       intf_name: eth3
@@ -1898,6 +2465,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_4
       intf_name: eth4
@@ -1908,6 +2478,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_4
       intf_name: eth5
@@ -1918,6 +2491,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_4
       intf_name: eth6
@@ -1928,6 +2504,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_4
       intf_name: eth7
@@ -1938,6 +2517,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_4
       intf_name: eth8
@@ -1948,6 +2530,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_5
       intf_name: eth0
@@ -1958,6 +2543,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_5
       intf_name: eth1
@@ -1968,6 +2556,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_5
       intf_name: eth2
@@ -1978,6 +2569,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_5
       intf_name: eth3
@@ -1988,6 +2582,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_5
       intf_name: eth4
@@ -1998,6 +2595,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_5
       intf_name: eth5
@@ -2008,6 +2608,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_5
       intf_name: eth6
@@ -2018,6 +2621,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_5
       intf_name: eth7
@@ -2028,6 +2634,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_5
       intf_name: eth8
@@ -2038,6 +2647,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_6
       intf_name: eth0
@@ -2048,6 +2660,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_6
       intf_name: eth1
@@ -2058,6 +2673,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_6
       intf_name: eth2
@@ -2068,6 +2686,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_6
       intf_name: eth3
@@ -2078,6 +2699,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_6
       intf_name: eth4
@@ -2088,6 +2712,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_6
       intf_name: eth5
@@ -2098,6 +2725,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_6
       intf_name: eth6
@@ -2108,6 +2738,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_6
       intf_name: eth7
@@ -2118,6 +2751,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_6
       intf_name: eth8
@@ -2128,6 +2764,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_7
       intf_name: eth0
@@ -2138,6 +2777,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_7
       intf_name: eth1
@@ -2148,6 +2790,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_7
       intf_name: eth2
@@ -2158,6 +2803,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_7
       intf_name: eth3
@@ -2168,6 +2816,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_7
       intf_name: eth4
@@ -2178,6 +2829,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_7
       intf_name: eth5
@@ -2188,6 +2842,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_7
       intf_name: eth6
@@ -2198,6 +2855,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_7
       intf_name: eth7
@@ -2208,6 +2868,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_1_7
       intf_name: eth8
@@ -2218,6 +2881,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_0
       intf_name: eth0
@@ -2228,6 +2894,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_0
       intf_name: eth1
@@ -2238,6 +2907,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_0
       intf_name: eth2
@@ -2248,6 +2920,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_0
       intf_name: eth3
@@ -2258,6 +2933,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_0
       intf_name: eth4
@@ -2268,6 +2946,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_0
       intf_name: eth5
@@ -2278,6 +2959,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_0
       intf_name: eth6
@@ -2288,6 +2972,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_0
       intf_name: eth7
@@ -2298,6 +2985,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_1
       intf_name: eth0
@@ -2308,6 +2998,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_1
       intf_name: eth1
@@ -2318,6 +3011,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_1
       intf_name: eth2
@@ -2328,6 +3024,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_1
       intf_name: eth3
@@ -2338,6 +3037,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_1
       intf_name: eth4
@@ -2348,6 +3050,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_1
       intf_name: eth5
@@ -2358,6 +3063,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_1
       intf_name: eth6
@@ -2368,6 +3076,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_1
       intf_name: eth7
@@ -2378,6 +3089,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_1
       intf_name: eth8
@@ -2388,6 +3102,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_2
       intf_name: eth0
@@ -2398,6 +3115,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_2
       intf_name: eth1
@@ -2408,6 +3128,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_2
       intf_name: eth2
@@ -2418,6 +3141,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_2
       intf_name: eth3
@@ -2428,6 +3154,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_2
       intf_name: eth4
@@ -2438,6 +3167,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_2
       intf_name: eth5
@@ -2448,6 +3180,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_2
       intf_name: eth6
@@ -2458,6 +3193,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_2
       intf_name: eth7
@@ -2468,6 +3206,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_2
       intf_name: eth8
@@ -2478,6 +3219,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_3
       intf_name: eth0
@@ -2488,6 +3232,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_3
       intf_name: eth1
@@ -2498,6 +3245,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_3
       intf_name: eth2
@@ -2508,6 +3258,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_3
       intf_name: eth3
@@ -2518,6 +3271,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_3
       intf_name: eth4
@@ -2528,6 +3284,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_3
       intf_name: eth5
@@ -2538,6 +3297,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_3
       intf_name: eth6
@@ -2548,6 +3310,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_3
       intf_name: eth7
@@ -2558,6 +3323,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_3
       intf_name: eth8
@@ -2568,6 +3336,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_4
       intf_name: eth0
@@ -2578,6 +3349,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_4
       intf_name: eth1
@@ -2588,6 +3362,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_4
       intf_name: eth2
@@ -2598,6 +3375,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_4
       intf_name: eth3
@@ -2608,6 +3388,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_4
       intf_name: eth4
@@ -2618,6 +3401,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_4
       intf_name: eth5
@@ -2628,6 +3414,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_4
       intf_name: eth6
@@ -2638,6 +3427,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_4
       intf_name: eth7
@@ -2648,6 +3440,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_4
       intf_name: eth8
@@ -2658,6 +3453,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_5
       intf_name: eth0
@@ -2668,6 +3466,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_5
       intf_name: eth1
@@ -2678,6 +3479,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_5
       intf_name: eth2
@@ -2688,6 +3492,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_5
       intf_name: eth3
@@ -2698,6 +3505,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_5
       intf_name: eth4
@@ -2708,6 +3518,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_5
       intf_name: eth5
@@ -2718,6 +3531,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_5
       intf_name: eth6
@@ -2728,6 +3544,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_5
       intf_name: eth7
@@ -2738,6 +3557,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_5
       intf_name: eth8
@@ -2748,6 +3570,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_6
       intf_name: eth0
@@ -2758,6 +3583,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_6
       intf_name: eth1
@@ -2768,6 +3596,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_6
       intf_name: eth2
@@ -2778,6 +3609,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_6
       intf_name: eth3
@@ -2788,6 +3622,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_6
       intf_name: eth4
@@ -2798,6 +3635,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_6
       intf_name: eth5
@@ -2808,6 +3648,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_6
       intf_name: eth6
@@ -2818,6 +3661,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_6
       intf_name: eth7
@@ -2828,6 +3674,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_6
       intf_name: eth8
@@ -2838,6 +3687,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_7
       intf_name: eth0
@@ -2848,6 +3700,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_7
       intf_name: eth1
@@ -2858,6 +3713,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_7
       intf_name: eth2
@@ -2868,6 +3726,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_7
       intf_name: eth3
@@ -2878,6 +3739,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_7
       intf_name: eth4
@@ -2888,6 +3752,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_7
       intf_name: eth5
@@ -2898,6 +3765,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_7
       intf_name: eth6
@@ -2908,6 +3778,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_7
       intf_name: eth7
@@ -2918,6 +3791,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_2_7
       intf_name: eth8
@@ -2928,6 +3804,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_0
       intf_name: eth0
@@ -2938,6 +3817,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_0
       intf_name: eth1
@@ -2948,6 +3830,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_0
       intf_name: eth2
@@ -2958,6 +3843,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_0
       intf_name: eth3
@@ -2968,6 +3856,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_0
       intf_name: eth4
@@ -2978,6 +3869,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_0
       intf_name: eth5
@@ -2988,6 +3882,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_0
       intf_name: eth6
@@ -2998,6 +3895,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_0
       intf_name: eth7
@@ -3008,6 +3908,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_1
       intf_name: eth0
@@ -3018,6 +3921,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_1
       intf_name: eth1
@@ -3028,6 +3934,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_1
       intf_name: eth2
@@ -3038,6 +3947,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_1
       intf_name: eth3
@@ -3048,6 +3960,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_1
       intf_name: eth4
@@ -3058,6 +3973,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_1
       intf_name: eth5
@@ -3068,6 +3986,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_1
       intf_name: eth6
@@ -3078,6 +3999,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_1
       intf_name: eth7
@@ -3088,6 +4012,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_1
       intf_name: eth8
@@ -3098,6 +4025,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_2
       intf_name: eth0
@@ -3108,6 +4038,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_2
       intf_name: eth1
@@ -3118,6 +4051,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_2
       intf_name: eth2
@@ -3128,6 +4064,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_2
       intf_name: eth3
@@ -3138,6 +4077,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_2
       intf_name: eth4
@@ -3148,6 +4090,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_2
       intf_name: eth5
@@ -3158,6 +4103,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_2
       intf_name: eth6
@@ -3168,6 +4116,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_2
       intf_name: eth7
@@ -3178,6 +4129,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_2
       intf_name: eth8
@@ -3188,6 +4142,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_3
       intf_name: eth0
@@ -3198,6 +4155,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_3
       intf_name: eth1
@@ -3208,6 +4168,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_3
       intf_name: eth2
@@ -3218,6 +4181,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_3
       intf_name: eth3
@@ -3228,6 +4194,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_3
       intf_name: eth4
@@ -3238,6 +4207,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_3
       intf_name: eth5
@@ -3248,6 +4220,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_3
       intf_name: eth6
@@ -3258,6 +4233,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_3
       intf_name: eth7
@@ -3268,6 +4246,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_3
       intf_name: eth8
@@ -3278,6 +4259,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_4
       intf_name: eth0
@@ -3288,6 +4272,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_4
       intf_name: eth1
@@ -3298,6 +4285,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_4
       intf_name: eth2
@@ -3308,6 +4298,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_4
       intf_name: eth3
@@ -3318,6 +4311,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_4
       intf_name: eth4
@@ -3328,6 +4324,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_4
       intf_name: eth5
@@ -3338,6 +4337,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_4
       intf_name: eth6
@@ -3348,6 +4350,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_4
       intf_name: eth7
@@ -3358,6 +4363,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_4
       intf_name: eth8
@@ -3368,6 +4376,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_5
       intf_name: eth0
@@ -3378,6 +4389,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_5
       intf_name: eth1
@@ -3388,6 +4402,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_5
       intf_name: eth2
@@ -3398,6 +4415,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_5
       intf_name: eth3
@@ -3408,6 +4428,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_5
       intf_name: eth4
@@ -3418,6 +4441,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_5
       intf_name: eth5
@@ -3428,6 +4454,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_5
       intf_name: eth6
@@ -3438,6 +4467,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_5
       intf_name: eth7
@@ -3448,6 +4480,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_5
       intf_name: eth8
@@ -3458,6 +4493,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_6
       intf_name: eth0
@@ -3468,6 +4506,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_6
       intf_name: eth1
@@ -3478,6 +4519,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_6
       intf_name: eth2
@@ -3488,6 +4532,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_6
       intf_name: eth3
@@ -3498,6 +4545,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_6
       intf_name: eth4
@@ -3508,6 +4558,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_6
       intf_name: eth5
@@ -3518,6 +4571,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_6
       intf_name: eth6
@@ -3528,6 +4584,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_6
       intf_name: eth7
@@ -3538,6 +4597,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_6
       intf_name: eth8
@@ -3548,6 +4610,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_7
       intf_name: eth0
@@ -3558,6 +4623,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_7
       intf_name: eth1
@@ -3568,6 +4636,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_7
       intf_name: eth2
@@ -3578,6 +4649,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_7
       intf_name: eth3
@@ -3588,6 +4662,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_7
       intf_name: eth4
@@ -3598,6 +4675,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_7
       intf_name: eth5
@@ -3608,6 +4688,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_7
       intf_name: eth6
@@ -3618,6 +4701,9 @@ failure:
         name: eth6
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_7
       intf_name: eth7
@@ -3628,6 +4714,9 @@ failure:
         name: eth7
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_3_7
       intf_name: eth8
@@ -3638,6 +4727,9 @@ failure:
         name: eth8
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_0
       intf_name: eth0
@@ -3648,6 +4740,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_0
       intf_name: eth1
@@ -3658,6 +4753,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_0
       intf_name: eth2
@@ -3668,6 +4766,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_0
       intf_name: eth3
@@ -3678,6 +4779,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_1
       intf_name: eth0
@@ -3688,6 +4792,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_1
       intf_name: eth1
@@ -3698,6 +4805,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_1
       intf_name: eth2
@@ -3708,6 +4818,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_1
       intf_name: eth3
@@ -3718,6 +4831,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_2
       intf_name: eth0
@@ -3728,6 +4844,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_2
       intf_name: eth1
@@ -3738,6 +4857,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_2
       intf_name: eth2
@@ -3748,6 +4870,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_2
       intf_name: eth3
@@ -3758,6 +4883,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_3
       intf_name: eth0
@@ -3768,6 +4896,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_3
       intf_name: eth1
@@ -3778,6 +4909,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_3
       intf_name: eth2
@@ -3788,6 +4922,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_3
       intf_name: eth3
@@ -3798,6 +4935,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_4
       intf_name: eth0
@@ -3808,6 +4948,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_4
       intf_name: eth1
@@ -3818,6 +4961,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_4
       intf_name: eth2
@@ -3828,6 +4974,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_4
       intf_name: eth3
@@ -3838,6 +4987,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_5
       intf_name: eth0
@@ -3848,6 +5000,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_5
       intf_name: eth1
@@ -3858,6 +5013,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_5
       intf_name: eth2
@@ -3868,6 +5026,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_5
       intf_name: eth3
@@ -3878,6 +5039,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_6
       intf_name: eth0
@@ -3888,6 +5052,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_6
       intf_name: eth1
@@ -3898,6 +5065,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_6
       intf_name: eth2
@@ -3908,6 +5078,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_6
       intf_name: eth3
@@ -3918,6 +5091,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_7
       intf_name: eth0
@@ -3928,6 +5104,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_7
       intf_name: eth1
@@ -3938,6 +5117,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_7
       intf_name: eth2
@@ -3948,6 +5130,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_0_7
       intf_name: eth3
@@ -3958,6 +5143,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_0
       intf_name: eth0
@@ -3968,6 +5156,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_0
       intf_name: eth1
@@ -3978,6 +5169,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_0
       intf_name: eth2
@@ -3988,6 +5182,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_0
       intf_name: eth3
@@ -3998,6 +5195,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_1
       intf_name: eth0
@@ -4008,6 +5208,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_1
       intf_name: eth1
@@ -4018,6 +5221,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_1
       intf_name: eth2
@@ -4028,6 +5234,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_1
       intf_name: eth3
@@ -4038,6 +5247,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_2
       intf_name: eth0
@@ -4048,6 +5260,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_2
       intf_name: eth1
@@ -4058,6 +5273,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_2
       intf_name: eth2
@@ -4068,6 +5286,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_2
       intf_name: eth3
@@ -4078,6 +5299,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_3
       intf_name: eth0
@@ -4088,6 +5312,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_3
       intf_name: eth1
@@ -4098,6 +5325,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_3
       intf_name: eth2
@@ -4108,6 +5338,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_3
       intf_name: eth3
@@ -4118,6 +5351,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_4
       intf_name: eth0
@@ -4128,6 +5364,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_4
       intf_name: eth1
@@ -4138,6 +5377,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_4
       intf_name: eth2
@@ -4148,6 +5390,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_4
       intf_name: eth3
@@ -4158,6 +5403,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_5
       intf_name: eth0
@@ -4168,6 +5416,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_5
       intf_name: eth1
@@ -4178,6 +5429,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_5
       intf_name: eth2
@@ -4188,6 +5442,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_5
       intf_name: eth3
@@ -4198,6 +5455,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_6
       intf_name: eth0
@@ -4208,6 +5468,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_6
       intf_name: eth1
@@ -4218,6 +5481,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_6
       intf_name: eth2
@@ -4228,6 +5494,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_6
       intf_name: eth3
@@ -4238,6 +5507,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_7
       intf_name: eth0
@@ -4248,6 +5520,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_7
       intf_name: eth1
@@ -4258,6 +5533,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_7
       intf_name: eth2
@@ -4268,6 +5546,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_1_7
       intf_name: eth3
@@ -4278,6 +5559,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_0
       intf_name: eth0
@@ -4288,6 +5572,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_0
       intf_name: eth1
@@ -4298,6 +5585,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_0
       intf_name: eth2
@@ -4308,6 +5598,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_0
       intf_name: eth3
@@ -4318,6 +5611,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_1
       intf_name: eth0
@@ -4328,6 +5624,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_1
       intf_name: eth1
@@ -4338,6 +5637,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_1
       intf_name: eth2
@@ -4348,6 +5650,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_1
       intf_name: eth3
@@ -4358,6 +5663,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_2
       intf_name: eth0
@@ -4368,6 +5676,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_2
       intf_name: eth1
@@ -4378,6 +5689,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_2
       intf_name: eth2
@@ -4388,6 +5702,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_2
       intf_name: eth3
@@ -4398,6 +5715,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_3
       intf_name: eth0
@@ -4408,6 +5728,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_3
       intf_name: eth1
@@ -4418,6 +5741,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_3
       intf_name: eth2
@@ -4428,6 +5754,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_3
       intf_name: eth3
@@ -4438,6 +5767,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_4
       intf_name: eth0
@@ -4448,6 +5780,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_4
       intf_name: eth1
@@ -4458,6 +5793,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_4
       intf_name: eth2
@@ -4468,6 +5806,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_4
       intf_name: eth3
@@ -4478,6 +5819,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_5
       intf_name: eth0
@@ -4488,6 +5832,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_5
       intf_name: eth1
@@ -4498,6 +5845,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_5
       intf_name: eth2
@@ -4508,6 +5858,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_5
       intf_name: eth3
@@ -4518,6 +5871,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_6
       intf_name: eth0
@@ -4528,6 +5884,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_6
       intf_name: eth1
@@ -4538,6 +5897,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_6
       intf_name: eth2
@@ -4548,6 +5910,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_6
       intf_name: eth3
@@ -4558,6 +5923,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_7
       intf_name: eth0
@@ -4568,6 +5936,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_7
       intf_name: eth1
@@ -4578,6 +5949,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_7
       intf_name: eth2
@@ -4588,6 +5962,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_2_7
       intf_name: eth3
@@ -4598,6 +5975,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_0
       intf_name: eth0
@@ -4608,6 +5988,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_0
       intf_name: eth1
@@ -4618,6 +6001,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_0
       intf_name: eth2
@@ -4628,6 +6014,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_0
       intf_name: eth3
@@ -4638,6 +6027,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_1
       intf_name: eth0
@@ -4648,6 +6040,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_1
       intf_name: eth1
@@ -4658,6 +6053,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_1
       intf_name: eth2
@@ -4668,6 +6066,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_1
       intf_name: eth3
@@ -4678,6 +6079,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_2
       intf_name: eth0
@@ -4688,6 +6092,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_2
       intf_name: eth1
@@ -4698,6 +6105,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_2
       intf_name: eth2
@@ -4708,6 +6118,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_2
       intf_name: eth3
@@ -4718,6 +6131,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_3
       intf_name: eth0
@@ -4728,6 +6144,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_3
       intf_name: eth1
@@ -4738,6 +6157,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_3
       intf_name: eth2
@@ -4748,6 +6170,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_3
       intf_name: eth3
@@ -4758,6 +6183,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_4
       intf_name: eth0
@@ -4768,6 +6196,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_4
       intf_name: eth1
@@ -4778,6 +6209,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_4
       intf_name: eth2
@@ -4788,6 +6222,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_4
       intf_name: eth3
@@ -4798,6 +6235,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_5
       intf_name: eth0
@@ -4808,6 +6248,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_5
       intf_name: eth1
@@ -4818,6 +6261,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_5
       intf_name: eth2
@@ -4828,6 +6274,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_5
       intf_name: eth3
@@ -4838,6 +6287,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_6
       intf_name: eth0
@@ -4848,6 +6300,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_6
       intf_name: eth1
@@ -4858,6 +6313,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_6
       intf_name: eth2
@@ -4868,6 +6326,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_6
       intf_name: eth3
@@ -4878,6 +6339,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_7
       intf_name: eth0
@@ -4888,6 +6352,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_7
       intf_name: eth1
@@ -4898,6 +6365,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_7
       intf_name: eth2
@@ -4908,6 +6378,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: spine_router_3_7
       intf_name: eth3

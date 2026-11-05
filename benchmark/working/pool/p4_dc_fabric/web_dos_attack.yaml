@@ -4,6 +4,9 @@ failure:
   fault_type: web_dos_attack
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_4_1
       host_name: web_2
@@ -15,6 +18,9 @@ failure:
         node: web_2
       fault_type: web_dos_attack
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_8_3
       host_name: web_2
@@ -26,6 +32,9 @@ failure:
         node: web_2
       fault_type: web_dos_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_16_3
       host_name: web_2

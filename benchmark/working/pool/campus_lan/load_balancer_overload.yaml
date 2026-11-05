@@ -4,6 +4,9 @@ failure:
   fault_type: load_balancer_overload
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       backend_cpu_host: backend_web_0
       backend_probe_host: load_balancer
@@ -27,6 +30,9 @@ failure:
       fault_type: load_balancer_overload
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       backend_cpu_host: backend_web_0
       backend_probe_host: load_balancer
@@ -50,6 +56,9 @@ failure:
       fault_type: load_balancer_overload
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       backend_cpu_host: backend_web_0
       backend_probe_host: load_balancer
@@ -72,6 +81,9 @@ failure:
         node: load_balancer
       fault_type: load_balancer_overload
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       backend_cpu_host: backend_web_0
       backend_probe_host: load_balancer
@@ -94,6 +106,9 @@ failure:
         node: load_balancer
       fault_type: load_balancer_overload
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       backend_cpu_host: backend_web_0
       backend_probe_host: load_balancer

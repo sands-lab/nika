@@ -4,6 +4,9 @@ failure:
   fault_type: dns_record_error
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       target_domain: pod0
@@ -15,6 +18,9 @@ failure:
       fault_type: dns_record_error
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       target_domain: pod0
@@ -26,6 +32,9 @@ failure:
       fault_type: dns_record_error
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       target_domain: pod0
@@ -36,6 +45,9 @@ failure:
         node: dns_pod0
       fault_type: dns_record_error
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       target_domain: pod0
@@ -46,6 +58,9 @@ failure:
         node: dns_pod0
       fault_type: dns_record_error
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod1
       target_domain: pod1
@@ -56,6 +71,9 @@ failure:
         node: dns_pod1
       fault_type: dns_record_error
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod0
       target_domain: pod0
@@ -66,6 +84,9 @@ failure:
         node: dns_pod0
       fault_type: dns_record_error
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod1
       target_domain: pod1
@@ -76,6 +97,9 @@ failure:
         node: dns_pod1
       fault_type: dns_record_error
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod2
       target_domain: pod2
@@ -86,6 +110,9 @@ failure:
         node: dns_pod2
       fault_type: dns_record_error
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_pod3
       target_domain: pod3

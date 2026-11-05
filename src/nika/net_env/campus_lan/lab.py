@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import re
+from collections import deque
+from ipaddress import IPv4Interface
 from typing import Literal
 
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.native_routers import NativeRouterEnv
+
+_ADDRESS = re.compile(r"ip addr add (\S+) dev (\S+)")
 
 
 class CampusLan(NativeRouterEnv, NetworkEnvBase):
@@ -128,3 +133,123 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
             scenario_name=self.LAB_NAME,
             queries=self._router_queries(),
         )
+
+    def link_symptom_targets(self, node: str, intf: str) -> dict[str, str] | None:
+        """Observer and destination whose path crosses the link at ``node:intf``.
+
+        A server link is probed at the server's own address; a link on a PC's
+        shortest paths to the web server from that PC; any other
+        router-to-router link at the far router's address on it, from the PC
+        nearer the other router.
+        """
+        match = re.fullmatch(r"eth(\d+)", intf)
+        machine = self.lab.machines.get(node)
+        iface = machine.interfaces.get(int(match[1])) if machine and match else None
+        if iface is None:
+            return None
+        ends = set(iface.link.machines)
+        graph = self._machine_graph()
+        addresses = self._startup_addresses()
+        path = self.default_probe_path()
+        target = next(
+            (
+                name
+                for name, by_intf in addresses.items()
+                if any(str(a.ip) == path.dst_ip for a in by_intf.values())
+            ),
+            None,
+        )
+        pcs = sorted(h for h in self.hosts or () if h.startswith("pc_"))
+        if target is None or not pcs:
+            return None
+
+        def hops(src: str, cut: set[str] | None = None) -> dict[str, int]:
+            seen, queue = {src: 0}, deque([src])
+            while queue:
+                here = queue.popleft()
+                for there in graph[here]:
+                    if there in seen or (cut and {here, there} <= cut):
+                        continue
+                    seen[there] = seen[here] + 1
+                    queue.append(there)
+            return seen
+
+        def crosses(src: str) -> bool:
+            """Every shortest path from ``src`` to the target uses the link."""
+            detour = hops(src, ends).get(target)
+            return detour is None or detour > hops(src)[target]
+
+        if crosses(path.src_host):
+            return None
+        routers = set(self.routers or ())
+        hosts = [end for end in sorted(ends) if end not in routers and end not in pcs]
+        # Probe the faulted host's own address, or the host across the port.
+        if node in hosts and intf in addresses.get(node, {}):
+            server, address = node, addresses[node][intf]
+        else:
+            server = next((h for h in hosts if addresses.get(h)), None)
+            address = next(iter(addresses[server].values())) if server else None
+        if server and address:
+            # A host behind another host (a load balancer's backend) is reached
+            # from its neighbor there, its gateway first. The others are reached
+            # from the default web server: a statically addressed observer, as
+            # a DHCP client loses its address while the DHCP server's link is
+            # down.
+            others = sorted(
+                (h for h in hosts if h != server),
+                key=lambda h: len(addresses.get(h, {})) < 2,
+            )
+            observer = others[0] if others else target
+            if observer == server:
+                observer = path.src_host
+            return {"observer_device": observer, "probe_dst_ip": str(address.ip)}
+        for pc in pcs:
+            if crosses(pc):
+                return {"observer_device": pc, "probe_dst_ip": path.dst_ip}
+        if len(ends) != 2 or not ends <= routers:
+            return None
+        for near, far in (sorted(ends), sorted(ends)[::-1]):
+            address = next(
+                (
+                    a
+                    for name, a in addresses.get(far, {}).items()
+                    if self._link_of(far, name) == iface.link
+                ),
+                None,
+            )
+            if address is None:
+                continue
+            for pc in pcs:
+                distance = hops(pc)
+                if distance.get(near, 1 << 30) < distance.get(far, 1 << 30):
+                    return {"observer_device": pc, "probe_dst_ip": str(address.ip)}
+        return None
+
+    def _machine_graph(self) -> dict[str, set[str]]:
+        graph: dict[str, set[str]] = {name: set() for name in self.lab.machines}
+        for machine in self.lab.machines.values():
+            for iface in machine.interfaces.values():
+                graph[machine.name] |= set(iface.link.machines) - {machine.name}
+        return graph
+
+    def _link_of(self, node: str, intf: str):
+        match = re.fullmatch(r"eth(\d+)", intf)
+        iface = self.lab.machines[node].interfaces.get(int(match[1])) if match else None
+        return iface.link if iface is not None else None
+
+    def _startup_addresses(self) -> dict[str, dict[str, IPv4Interface]]:
+        """Interface addresses from each machine's startup, before conversion."""
+        sources = dict(getattr(self, "native_sources", {}) or {})
+        found: dict[str, dict[str, IPv4Interface]] = {}
+        for name in self.lab.machines:
+            path = f"{name}.startup"
+            if name in sources:
+                text = sources[name][1]
+            elif self.lab.fs.exists(path):
+                text = self.lab.fs.readtext(path)
+            else:
+                continue
+            found[name] = {
+                dev: IPv4Interface(cidr) for cidr, dev in _ADDRESS.findall(text)
+            }
+        return found

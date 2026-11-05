@@ -83,6 +83,8 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
 class Isp(ContainerlabNetworkEnv):
     """SNDlib ISP on Containerlab with nokia_srlinux routers + linux stubs."""
 
+    # Synthetic WAN traffic matrices follow a gravity model (Roughan, CCR 2005).
+    BASELINE_TRAFFIC = {"pattern": "gravity", "load_mbps": 1.0}
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     ROUTING_MODELS = frozenset({"srl-isp"})
 
@@ -217,7 +219,9 @@ class Isp(ContainerlabNetworkEnv):
             f"metric={self.plan.metric_strategy}, "
             f"device_profile={self.device_profile}). {bgp_desc}"
         )
-        self.desc += design_notes(self.plan, self.bgp_plan, router_services=False)
+        self.desc += design_notes(
+            self.plan, self.bgp_plan, workload=self.business_workload()
+        )
         self._populate_role_lists()
 
     def probe_intent(self) -> ProbeIntent | None:

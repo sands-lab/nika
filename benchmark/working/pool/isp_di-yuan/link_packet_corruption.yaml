@@ -9,8 +9,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: &id001
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -29,7 +30,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -48,7 +51,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -67,7 +72,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -86,7 +93,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -105,7 +114,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -124,7 +135,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -143,7 +156,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -162,7 +177,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -181,7 +198,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -200,7 +219,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -219,7 +240,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -238,7 +261,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -257,7 +282,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -276,7 +303,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -295,7 +324,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -314,7 +345,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -333,7 +366,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -352,7 +387,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -371,7 +408,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -390,7 +429,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -409,7 +450,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -428,7 +471,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -447,7 +492,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -466,7 +513,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -485,7 +534,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -504,7 +555,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_3
@@ -523,7 +576,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_3
@@ -542,7 +597,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_3
@@ -561,7 +618,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_3
@@ -580,7 +639,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -599,7 +660,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -618,7 +681,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -637,7 +702,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -656,7 +723,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -675,7 +744,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_5
@@ -694,7 +765,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_5
@@ -713,7 +786,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_5
@@ -732,7 +807,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_5
@@ -751,7 +828,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_6
@@ -770,7 +849,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_7
@@ -789,7 +870,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_7
@@ -808,8 +891,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: &id002
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -828,7 +912,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -847,7 +933,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -866,7 +954,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -885,7 +975,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -904,7 +996,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -923,7 +1017,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_1
@@ -942,7 +1038,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -961,7 +1059,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -980,7 +1080,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -999,7 +1101,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -1018,7 +1122,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -1037,7 +1143,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -1056,7 +1164,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_10
@@ -1075,7 +1185,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -1094,7 +1206,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -1113,7 +1227,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -1132,7 +1248,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -1151,7 +1269,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -1170,7 +1290,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -1189,7 +1311,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_11
@@ -1208,7 +1332,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -1227,7 +1353,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -1246,7 +1374,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -1265,7 +1395,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -1284,7 +1416,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_2
@@ -1303,7 +1437,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_3
@@ -1322,7 +1458,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_3
@@ -1341,7 +1479,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_3
@@ -1360,7 +1500,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_3
@@ -1379,7 +1521,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -1398,7 +1542,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -1417,7 +1563,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -1436,7 +1584,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -1455,7 +1605,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_4
@@ -1474,7 +1626,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_5
@@ -1493,7 +1647,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_5
@@ -1512,7 +1668,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_5
@@ -1531,7 +1689,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_5
@@ -1550,7 +1710,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_6
@@ -1569,7 +1731,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_7
@@ -1588,7 +1752,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n_7

@@ -8,6 +8,9 @@ healthy:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: l
     igp: isis
     bgp_mode: none
@@ -15,22 +18,23 @@ healthy:
     backend: kathara
     device_profile: frr
     traffic:
-      pattern: uniform
-  - topo_size: l
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: l
     igp: ospf
     bgp_mode: none
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0

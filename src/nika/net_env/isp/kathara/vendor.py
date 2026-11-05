@@ -33,6 +33,8 @@ from nika.runtime.spec import NodeRole
 class IspVendor(NetworkEnvBase):
     """Compile any catalog ISP graph to a supported native OSPF/BGP platform."""
 
+    # Synthetic WAN traffic matrices follow a gravity model (Roughan, CCR 2005).
+    BASELINE_TRAFFIC = {"pattern": "gravity", "load_mbps": 1.0}
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
@@ -166,7 +168,9 @@ class IspVendor(NetworkEnvBase):
             f"ISP {self.plan.topology_name}: {self.device_profile}, "
             f"{self.plan.igp.upper()}, {bgp_desc}"
         )
-        self.desc += design_notes(self.plan, self.bgp_plan, router_services=False)
+        self.desc += design_notes(
+            self.plan, self.bgp_plan, workload=self.business_workload()
+        )
         for node in self.plan.nodes:
             if self.device_profile == "routeros":
                 from nika.net_env.utils.routeros.common import add_routeros_router

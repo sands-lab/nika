@@ -611,6 +611,51 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                 f"{web.machine.name}.startup",
             )
 
+    def bgp_hijack_targets(self):
+        """Leaves that hijack the last web server's network, seen from client_0.
+
+        Each leaf announces its access /24; a leaf that originates a /25 inside
+        another leaf's /24 wins by longest match on every router, so client_0
+        behind super_spine_router_0 reaches the hijacker instead.
+        """
+        from nika.net_env.isp.bgp.hijack import HijackTarget
+
+        web = list((self.servers or {}).get("web") or [])
+        if not web:
+            return []
+        victim = web[-1]
+        address = IPv4Interface(
+            self.lab.fs.readtext(f"{victim}.startup")
+            .split("ip addr add ", 1)[1]
+            .split()[0]
+        )
+        prefix = next(address.network.subnets(new_prefix=25))
+        machine = self.lab.machines[victim]
+        victim_leaf = next(
+            peer
+            for iface in machine.interfaces.values()
+            for peer in iface.link.machines
+            if peer != victim
+        )
+        observer = "super_spine_router_0"
+        observer_host = next(
+            peer
+            for iface in self.lab.machines[observer].interfaces.values()
+            for peer in iface.link.machines
+            if peer.startswith("client_")
+        )
+        return [
+            HijackTarget(
+                hijacker=leaf,
+                prefix=str(prefix),
+                observer=observer,
+                observer_host=observer_host,
+                probe_ip=str(address.ip),
+            )
+            for leaf in sorted(self.router_roles()["leaf"])
+            if leaf != victim_leaf
+        ]
+
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
         return ProbePath(

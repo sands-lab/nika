@@ -362,33 +362,29 @@ def test_compatibility_obeys_declared_path_rate() -> None:
     )
 
 
-def test_failure_traffic_profiles_parse() -> None:
+def test_every_environment_baseline_profile_parses() -> None:
+    from nika.net_env.net_env_pool import list_all_net_envs, scenario_baseline_traffic
     from nika.traffic.profiles import normalize_traffic
 
-    declared = {
-        name: cls.TRAFFIC_PROFILE
-        for name, cls in list_avail_problem_instances().items()
-        if cls.TRAFFIC_PROFILE
-    }
-    assert declared
-    for name, profile in declared.items():
-        assert normalize_traffic(profile) is not None, name
+    for scenario in list_all_net_envs():
+        assert normalize_traffic(scenario_baseline_traffic(scenario)), scenario
 
 
-def test_generated_cases_run_their_failure_profile_with_a_healthy_twin() -> None:
+def test_faulty_and_healthy_cases_run_the_same_baseline() -> None:
     from nika.workflows.benchmark.generate import _healthy_specs
 
-    cases, _ = build_failure_cases(
-        problem="link_flap", scenario="dc_clos", topo_size="s", isp_options=None
-    )
-    assert cases and all(case["traffic"] == {"pattern": "uniform"} for case in cases)
+    baseline = {"pattern": "uniform", "load_mbps": 1.0}
+    for problem in ("link_down", "link_flap"):
+        cases, _ = build_failure_cases(
+            problem=problem, scenario="dc_clos", topo_size="s", isp_options=None
+        )
+        assert cases and all(case["traffic"] == baseline for case in cases)
     document = {
         "scenario": {"name": "dc_clos"},
-        "failure": {"fault_type": "link_flap", "cases": cases},
+        "failure": {"fault_type": "link_down", "cases": cases},
     }
-    specs = list(_healthy_specs([document]))
-    assert ("dc_clos", "s", {"traffic": {"pattern": "uniform"}}) in specs
-    assert ("dc_clos", "s", None) in specs
+    specs = [spec for spec in _healthy_specs([document]) if spec[0] == "dc_clos"]
+    assert specs and all(options["traffic"] == baseline for _, _, options in specs)
 
 
 def test_public_service_link_is_observed_from_a_guest_host() -> None:
