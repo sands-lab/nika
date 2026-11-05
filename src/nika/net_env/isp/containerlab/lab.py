@@ -253,7 +253,9 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
             f"metric={self.plan.metric_strategy}, "
             f"device_profile={self.device_profile}). {bgp_desc}"
         )
-        self.desc += design_notes(self.plan, self.bgp_plan, router_services=False)
+        self.desc += design_notes(
+            self.plan, self.bgp_plan, workload=self.business_workload()
+        )
         self._populate_role_lists()
         if rendered and routing_parameters is None:
             from nika.net_env.synthesis.rendered import use_rendered_configs

@@ -60,3 +60,40 @@ def test_min3clos_brief_still_lists_nodes() -> None:
     info = env.get_info()
     assert "leaf1" in info
     assert "Topology:" in info
+
+
+@pytest.mark.parametrize("bgp_mode", ["none", "ebgp", "ibgp_rr"])
+@pytest.mark.parametrize(
+    ("backend", "profile"),
+    [
+        ("kathara", "frr"),
+        ("containerlab", "nokia_srlinux"),
+        ("kathara", "iosxr"),
+        ("kathara", "routeros"),
+    ],
+)
+def test_brief_declares_only_planned_service_endpoints(backend, profile, bgp_mode):
+    env = get_net_env_instance(
+        "isp_dfn-bwin",
+        backend=backend,
+        device_profile=profile,
+        igp="ospf",
+        bgp_mode=bgp_mode,
+    )
+    info = env.get_info()
+    workload = env.business_workload()
+    publishers = {p.node for p in workload.processes if p.app == "file_server"}
+    assert publishers and publishers < {h.host_name for h in env.traffic.hosts}
+    for app, label in (
+        ("file_server", "Bulk HTTP publishers"),
+        ("web_service", "Web services"),
+    ):
+        expected = {
+            f"{p.node}:{p.args[p.args.index('--port') + 1]}"
+            for p in workload.processes
+            if p.app == app
+        }
+        if expected:
+            declared = info.split(label + " by declared node and port: ", 1)[1]
+            assert set(declared.split(".", 1)[0].split(", ")) == expected
+    assert "each edge stub publishes" not in info
