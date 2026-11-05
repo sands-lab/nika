@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from nika.net_env.isp.bgp.plan import BgpPlan
     from nika.net_env.isp.igp.plan import IspPlan
     from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
+    from nika.traffic.workload import BusinessWorkload
 
 EBGP_SCOPE_NOTE = (
     " Between ASes, BGP carries only business prefixes, and each AS gives the "
@@ -73,7 +74,7 @@ def format_isp_network_info(
 
 
 def design_notes(
-    plan: "IspPlan", bgp_plan: "BgpPlan | None", *, router_services: bool
+    plan: "IspPlan", bgp_plan: "BgpPlan | None", *, workload: "BusinessWorkload"
 ) -> str:
     """Design sentences for the scenario brief: tunnelled links and user traffic."""
     from nika.net_env.isp.igp.plan import tunnel_links
@@ -82,20 +83,24 @@ def design_notes(
         f"{a} reaches {b} over a GRE tunnel (IP MTU {mtu})."
         for a, b, mtu in tunnel_links(plan)
     ]
-    scope = (
-        " inside its own AS" if bgp_plan is not None and bgp_plan.mode == "ebgp" else ""
-    )
-    service = (
-        "the web services on the business prefixes"
-        if bgp_plan is not None and router_services
-        else "a web service at the busiest PoP"
-    )
-    notes.append(
-        "Customers at every PoP generate traffic at all times: each edge stub "
-        "publishes a data set over HTTP (port 8080) and syncs the data set of "
-        f"the PoP it has the largest SNDlib demand with{scope}, and some stubs "
-        f"keep persistent sessions to {service}."
-    )
+    for app, role in (
+        ("file_server", "Bulk HTTP publishers"),
+        ("web_service", "Web services"),
+    ):
+        endpoints = sorted(
+            f"{p.node}:{p.args[p.args.index('--port') + 1]}"
+            for p in workload.processes
+            if p.app == app
+        )
+        if endpoints:
+            notes.append(f"{role} by declared node and port: {', '.join(endpoints)}.")
+    for app, role in (
+        ("file_sync", "Dataset synchronization clients"),
+        ("web_client", "Persistent web clients"),
+    ):
+        clients = sorted({p.node for p in workload.processes if p.app == app})
+        if clients:
+            notes.append(f"{role}: {', '.join(clients)}.")
     site = bgp_plan.customer_site if bgp_plan is not None else None
     if site is not None:
         asn_of = {node.device_name: node.asn for node in bgp_plan.nodes}

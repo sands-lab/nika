@@ -219,7 +219,9 @@ class Isp(ContainerlabNetworkEnv):
             f"metric={self.plan.metric_strategy}, "
             f"device_profile={self.device_profile}). {bgp_desc}"
         )
-        self.desc += design_notes(self.plan, self.bgp_plan, router_services=False)
+        self.desc += design_notes(
+            self.plan, self.bgp_plan, workload=self.business_workload()
+        )
         self._populate_role_lists()
 
     def probe_intent(self) -> ProbeIntent | None:

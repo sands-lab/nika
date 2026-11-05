@@ -228,7 +228,9 @@ class Isp(NetworkEnvBase):
             f"{host_n} edge stubs, IGP={self.plan.igp}, "
             f"metric={self.plan.metric_strategy}). {bgp_desc}"
         )
-        self.design_note = design_notes(self.plan, self.bgp_plan, router_services=True)
+        self.design_note = design_notes(
+            self.plan, self.bgp_plan, workload=self.business_workload()
+        )
         self.desc += self.design_note
 
         if self.bgp_plan is not None:
