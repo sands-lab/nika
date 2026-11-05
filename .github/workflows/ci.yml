@@ -271,7 +271,18 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install containerlab
-        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+        run: |
+          clab_version=$(sed -n 's/^ARG CLAB_VERSION=//p' src/nika/benchmark_engine/docker/Dockerfile)
+          test -n "$clab_version"
+          for attempt in 1 2 3; do
+            if clab_installer=$(curl -fsSL --retry 3 https://get.containerlab.dev) &&
+               bash -c "$clab_installer" -- -v "$clab_version"; then
+              clab version
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          exit 1
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
       - name: Install (labs)
@@ -331,7 +342,18 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install containerlab
-        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+        run: |
+          clab_version=$(sed -n 's/^ARG CLAB_VERSION=//p' src/nika/benchmark_engine/docker/Dockerfile)
+          test -n "$clab_version"
+          for attempt in 1 2 3; do
+            if clab_installer=$(curl -fsSL --retry 3 https://get.containerlab.dev) &&
+               bash -c "$clab_installer" -- -v "$clab_version"; then
+              clab version
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          exit 1
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
       - name: Install (labs)
@@ -362,7 +384,18 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install containerlab
-        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
+        run: |
+          clab_version=$(sed -n 's/^ARG CLAB_VERSION=//p' src/nika/benchmark_engine/docker/Dockerfile)
+          test -n "$clab_version"
+          for attempt in 1 2 3; do
+            if clab_installer=$(curl -fsSL --retry 3 https://get.containerlab.dev) &&
+               bash -c "$clab_installer" -- -v "$clab_version"; then
+              clab version
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          exit 1
       - name: Install gnmic
         run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
       - name: Install (labs)
