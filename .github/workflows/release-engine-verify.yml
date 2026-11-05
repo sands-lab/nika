@@ -1,16 +1,26 @@
 name: Release engine verification
 
 on:
+  workflow_call:
+    inputs:
+      release:
+        description: Benchmark release to verify; empty selects the latest release
+        type: string
+        default: ""
+      build_current:
+        description: Build HEAD instead of using the release engine
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       release:
-        description: Release manifest to verify on its pinned engine
-        required: true
-        default: "0.2.0"
+        description: Benchmark release to verify; empty selects the latest release
+        required: false
+        default: ""
         type: string
 
 concurrency:
-  group: release-engine-verify-${{ inputs.release }}
+  group: engine-verify-${{ github.workflow }}-${{ github.ref }}-${{ inputs.release }}
   cancel-in-progress: false
 
 env:
@@ -19,7 +29,10 @@ env:
 
 jobs:
   engine-build:
-    name: prepare release engine (amd64)
+    name: prepare benchmark engine (amd64)
+    outputs:
+      image: ${{ steps.engine.outputs.image }}
+      release: ${{ steps.engine.outputs.release }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -48,8 +61,10 @@ jobs:
           python-version-file: .python-version
       - name: Install (labs)
         run: uv sync --group labs --group dev
-      - name: Resolve the manifest's actual engine once
+      - name: Prepare the selected engine once
+        id: engine
         env:
+          BUILD_CURRENT: ${{ inputs.build_current }}
           NIKA_CI_ENGINE_RELEASE: ${{ inputs.release }}
         run: |
           uv run python - <<'PYTHON'
@@ -58,14 +73,26 @@ jobs:
           import subprocess
           from pathlib import Path
           from nika.benchmark_engine.container import resolve_engine_image
-          from nika.workflows.benchmark.release import load_release
+          from packaging.version import Version
+          from nika.workflows.benchmark.release import list_releases, load_release
 
-          release = load_release(os.environ["NIKA_CI_ENGINE_RELEASE"])
-          engine = release.manifest.get("engine")
+          release = load_release(
+              os.environ["NIKA_CI_ENGINE_RELEASE"] or max(list_releases(), key=Version)
+          )
+          engine = (
+              release.manifest.get("engine")
+              if os.environ["BUILD_CURRENT"] != "true"
+              else {"tag": subprocess.check_output(
+                  ["git", "rev-parse", "--short=12", "HEAD"], text=True
+              ).strip(), "api": {"version": 1}}
+          )
           if not engine:
-              raise ValueError(f"Release {release.version} has no pinned engine")
+              raise ValueError("Release manifest has no pinned engine")
           image = resolve_engine_image(engine)
           canonical = f"nika/benchmark-engine:{engine['tag']}"
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"image={canonical}\n")
+              output.write(f"release={release.version}\n")
           subprocess.run(["docker", "image", "tag", image, canonical], check=True)
           metadata = json.loads(subprocess.check_output(
               ["docker", "image", "inspect", canonical], text=True
@@ -82,7 +109,7 @@ jobs:
           retention-days: 1
 
   verify:
-    name: release ${{ inputs.release }} shard ${{ matrix.shard }}
+    name: benchmark shard ${{ matrix.shard }}
     needs: engine-build
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -92,8 +119,11 @@ jobs:
       matrix:
         shard: [0, 1, 2, 3, 4, 5, 6, 7]
     env:
-      NIKA_CI_ENGINE_RELEASE: ${{ inputs.release }}
-      NIKA_CI_ENGINE_PINNED: "1"
+      NIKA_CI_ENGINE_RELEASE: ${{ needs.engine-build.outputs.release }}
+      NIKA_CI_ENGINE_PINNED: ${{ inputs.build_current && '0' || '1' }}
+      NIKA_CI_ENGINE_IMAGE: ${{ inputs.build_current && needs.engine-build.outputs.image || '' }}
+      # Do not inherit the artifact-only depth used by the startup suites.
+      NIKA_CI_VERIFY_DEPTH: full
       NIKA_CI_ENGINE_TASK_ID: all
       NIKA_CI_ENGINE_SPLIT: dev,test
       NIKA_CI_ENGINE_COMPARE: "1"
@@ -162,7 +192,8 @@ jobs:
           import os
           from nika.workflows.benchmark.release import load_release, preflight_release
 
-          preflight_release(load_release(os.environ["NIKA_CI_ENGINE_RELEASE"], split="test"))
+          for split in ("dev", "test"):
+              preflight_release(load_release(os.environ["NIKA_CI_ENGINE_RELEASE"], split=split))
           PYTHON
       - name: Require disk headroom before trial deployment
         run: |
@@ -173,17 +204,50 @@ jobs:
             echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
             exit 1
           fi
-      - name: Verify every task on its pinned engine and compare in process
+      - name: Verify every task through the engine and compare in process
         # Each runner executes one trial at a time, including heavy labs.
         run: >-
           uv run pytest tests/benchmark/test_engine_container_e2e.py
           -v -ra --basetemp "$RUNNER_TEMP/release-engine-trials"
           --junitxml "$RUNNER_TEMP/release-engine-results.xml"
+      - name: Require a passing result for every assigned task
+        if: ${{ !cancelled() }}
+        run: |
+          uv run python - <<'PYTHON'
+          import os
+          from collections import Counter
+          from pathlib import Path
+          from xml.etree import ElementTree
+          from tests.benchmark.test_engine_container_e2e import _engine_cases
+
+          assigned = _engine_cases()
+          expected = Counter(
+              f"test_pinned_release_runs_on_engine_container[{case.id}]"
+              for case in assigned
+          )
+          report = Path(os.environ["RUNNER_TEMP"]) / "release-engine-results.xml"
+          cases = list(ElementTree.parse(report).iter("testcase"))
+          actual = Counter(case.attrib["name"] for case in cases)
+          assert expected and all(count == 1 for count in expected.values()), expected
+          assert actual == expected, {"missing": expected - actual, "unexpected": actual - expected}
+          rejected = [
+              case.attrib["name"] for case in cases
+              if any(case.find(status) is not None for status in ("skipped", "failure", "error"))
+          ]
+          assert not rejected, f"Tasks without a passing engine/oracle comparison: {rejected}"
+          summary = (
+              f"Shard {os.environ['NIKA_CI_ENGINE_SHARD_INDEX']}: "
+              f"{len(cases)}/{len(assigned)} tasks passed; no skips.\n"
+          )
+          print(summary)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
+              output.write(summary)
+          PYTHON
       - name: Upload per-trial results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: release-engine-${{ inputs.release }}-shard-${{ matrix.shard }}
+          name: benchmark-engine-shard-${{ matrix.shard }}
           path: |
             ${{ runner.temp }}/release-engine-results.xml
             ${{ runner.temp }}/release-engine-trials
