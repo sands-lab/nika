@@ -61,6 +61,7 @@ The container runs privileged with the host's `/dev`, because AgentENV starts ea
 
 - On Linux, your user needs read/write access to `/dev/kvm`, usually through the `kvm` group. `sbx diagnose` checks virtualization support. See [Manual sbx installation](installation.md#install-a-sandbox-runtime) for other install methods.
 - `sbx login` authenticates Docker; agent credentials require separate setup.
+- NIKA runs agents under the Balanced global network policy of sbx, which it sets when sbx has no policy yet. Under Open (`allow-all`), runs stop before anything is deployed; see [Runs stop because sbx allows all traffic](#runs-stop-because-sbx-allows-all-traffic).
 
 ### Connect to E2B cloud or another E2B-compatible service
 
@@ -272,6 +273,18 @@ Each agent run gets its own sandbox, workspace, and host MCP gateway on an ephem
 Claude Code runs with `--strict-mcp-config` and without `WebSearch`, `WebFetch`, or claude.ai connectors; Codex runs with web search disabled. The agent reaches the network only through its MCP tools.
 
 ## Troubleshoot sandbox runs
+
+### Runs stop because sbx allows all traffic
+
+NIKA limits each agent sandbox to its MCP gateway and model proxy by denying, for that sandbox, every host the global sbx policy allows. In sbx a deny always wins over an allow, so under the Open preset (`allow-all`, global rule `**`) the deny would also block the gateway and the proxy, and the agent could reach nothing. NIKA therefore stops the run with an error before it deploys anything.
+
+Switch the global policy to Balanced:
+
+```bash
+sbx policy reset   # stops running sandboxes, then asks for a preset: choose Balanced
+```
+
+The global policy applies to all your sandboxes, and the reset removes the global rules you added; add back the ones your other sandboxes need with `sbx policy allow network`.
 
 ### `sbx create` fails with a KVM error
 

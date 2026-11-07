@@ -26,7 +26,7 @@ def _invoke_pingmesh(
     # The assertions parse the full snapshot JSON; agent-facing output bounding
     # would elide the middle of large meshes.
     with (
-        patch("nika.mcp.gateway.middleware.tool_output_max_chars", return_value=0),
+        patch("nika.mcp.gateway.middleware.MAX_CHARS", 0),
         mcp_gateway_for_session(session_id, scenario_name=scenario_name),
     ):
         config = MCPServerConfig(session_id=session_id).load_http_config(

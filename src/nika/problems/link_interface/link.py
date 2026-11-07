@@ -1,4 +1,5 @@
 import re
+import shlex
 import time
 
 from pydantic import BaseModel, Field
@@ -41,6 +42,7 @@ from nika.problems.support.benchmark_targets import (
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+from nika.runtime.shared.containers import isolated_container_pid
 from nika.service.containerlab.host_tc import HostTcController
 from nika.traffic.workload import BULK_TRANSIT
 from nika.utils.logger import system_logger
@@ -1220,11 +1222,21 @@ class LinkDetach(ProblemBase):
     @staticmethod
     def _move_netns(node, network_mode: str, intf: str, target) -> None:
         """Move ``intf`` from the netns of ``network_mode`` to ``target``'s."""
-        target.reload()
-        pid = int(target.attrs["State"]["Pid"])
+        if not network_mode.startswith("container:"):
+            raise RuntimeCapabilityError("Link detach requires a container namespace")
+        source = node.client.containers.get(network_mode.partition(":")[2])
+        isolated_container_pid(source)
+        pid = isolated_container_pid(target)
         output = node.client.containers.run(
             nika_image("base"),
-            command=["ip", "link", "set", "dev", intf, "netns", str(pid)],
+            command=[
+                "/bin/sh",
+                "-ec",
+                "host_ns=$(stat -Lc %i /proc/1/ns/net); "
+                'test "$(stat -Lc %i /proc/self/ns/net)" != "$host_ns"; '
+                f'test "$(stat -Lc %i /proc/{pid}/ns/net)" != "$host_ns"; '
+                f"exec ip link set dev {shlex.quote(intf)} netns {pid}",
+            ],
             network_mode=network_mode,
             pid_mode="host",
             privileged=True,

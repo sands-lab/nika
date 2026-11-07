@@ -16,7 +16,7 @@ from nika.net_env.utils.rack_workload import (
     client_processes,
     web_content_commands,
 )
-from nika.traffic.workload import BusinessWorkload
+from nika.traffic.workload import BusinessWorkload, pace_browsers
 from nika.net_env.sdn_l3_clos.topology_model import (
     BASE_IMAGE,
     FABRIC_MGR_OOB_IP,
@@ -39,10 +39,10 @@ from nika.net_env.sdn_l3_clos.topology_model import (
 _OVS_HANDLER_THREADS = 2
 _OVS_REVALIDATOR_THREADS = 1
 LARGE_OBJECT_MB = 16
-# Fabric-wide pace of large downloads: unpaced, each one fills its path, and
-# every fabric link is a userspace switch that spends CPU per packet. Each
-# client's pause therefore grows with the number of clients.
+# Each client's pause grows with the client count to spread large downloads.
 LARGE_DOWNLOAD_EVERY_SEC = 60
+# Share a fabric-wide web traffic budget across clients to leave forwarding headroom.
+WORKLOAD_RATE_KBPS = 10_000
 
 
 def _ovs_start_commands() -> list[str]:
@@ -350,11 +350,14 @@ class SDNL3Clos(NetworkEnvBase):
         mean = LARGE_DOWNLOAD_EVERY_SEC * len(clients)
         return BusinessWorkload(
             processes=tuple(
-                client_processes(
-                    clients,
-                    webs,
-                    page_pause="3-10",
-                    large_pause=f"{mean // 2}-{mean * 3 // 2}",
+                pace_browsers(
+                    client_processes(
+                        clients,
+                        webs,
+                        page_pause="3-10",
+                        large_pause=f"{mean // 2}-{mean * 3 // 2}",
+                    ),
+                    WORKLOAD_RATE_KBPS,
                 )
             ),
             exercises=tuple(bulk_downloads(clients)),

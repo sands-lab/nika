@@ -6,7 +6,6 @@ import logging
 import os
 import shutil
 import time
-from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,11 +27,8 @@ from nika.remote.protocol import (
 )
 from nika.mcp.gateway.phase import phase_advance_token
 from nika.mcp.gateway.session_registry import get_session
-from nika.mcp.gateway.lifecycle import (
-    McpGatewayManager,
-    SANDBOX_GATEWAY_BIND_HOST,
-    mcp_gateway_for_session,
-)
+from nika.benchmark_engine.protocol import AgentAccess
+from nika.mcp.gateway.lifecycle import SANDBOX_GATEWAY_BIND_HOST, GatewayLeases
 from nika.runtime.factory import resolve_backend
 from nika.utils.agent_session_id import make_agent_session_id
 from nika.utils.logger import bind_session_dir, log_event
@@ -55,19 +51,11 @@ logger = logging.getLogger("nika.remote")
 MAX_LOG_CHUNK = 4 << 20
 
 
-class GatewayLease:
-    """Holds an open ``mcp_gateway_for_session`` context for one session."""
-
-    def __init__(self, stack: ExitStack, manager: McpGatewayManager) -> None:
-        self.stack = stack
-        self.manager = manager
-
-
 class RemoteHandlerState:
     """Process-local state for attached MCP gateways."""
 
     def __init__(self) -> None:
-        self.gateways: dict[str, GatewayLease] = {}
+        self.gateways = GatewayLeases()
 
     def attach_gateway(
         self,
@@ -77,23 +65,20 @@ class RemoteHandlerState:
         policy_mode: PolicyMode,
         public_host: str,
         backend: str | None = None,
+        access: AgentAccess | None = None,
     ) -> McpAttachResponse:
-        self.detach_gateway(session_id)
-        stack = ExitStack()
-        manager = stack.enter_context(
-            mcp_gateway_for_session(
-                session_id,
-                scenario_name=scenario_name,
-                policy_mode=policy_mode,
-                host=SANDBOX_GATEWAY_BIND_HOST,
-                sandbox=True,
-                sandbox_agent_host=public_host,
-                # Multi-backend scenarios (e.g. ISP on Containerlab) serve
-                # backend-specific MCP servers; match the deployed lab.
-                backend=backend,
-            )
+        manager = self.gateways.open(
+            session_id,
+            scenario_name=scenario_name,
+            policy_mode=policy_mode,
+            host=SANDBOX_GATEWAY_BIND_HOST,
+            sandbox=True,
+            sandbox_agent_host=public_host,
+            # Multi-backend scenarios (e.g. ISP on Containerlab) serve
+            # backend-specific MCP servers; match the deployed lab.
+            backend=backend,
+            access=access,
         )
-        self.gateways[session_id] = GatewayLease(stack=stack, manager=manager)
         # Agent-facing URL for this session's gateway. Read from the manager,
         # never from process-global env: concurrent attaches run in parallel
         # threads.
@@ -114,9 +99,7 @@ class RemoteHandlerState:
         )
 
     def detach_gateway(self, session_id: str) -> None:
-        lease = self.gateways.pop(session_id, None)
-        if lease is not None:
-            lease.stack.close()
+        if self.gateways.close(session_id):
             logger.info("mcp detach done session_id=%s", session_id)
         else:
             logger.info("mcp detach noop session_id=%s (no lease)", session_id)
@@ -235,6 +218,7 @@ def handle_mcp_attach(session_id: str, request: McpAttachRequest) -> McpAttachRe
             backend=resolve_backend(meta),
             policy_mode=request.policy_mode,
             public_host=public_host,
+            access=request.access,
         )
     except Exception:
         logger.exception("mcp attach failed session_id=%s", session_id)

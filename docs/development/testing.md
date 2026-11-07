@@ -75,14 +75,14 @@ Workflows live under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | When | Runners | What |
 |----------|------|---------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | PR, push to `main`, manual | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines |
-| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Artifact/boot checks (`NIKA_CI_VERIFY_DEPTH=artifact`): light scenario startup, inject contract + artifact `verify_fault`, ISP light matrix, k8s/llmd startup. Deep `evaluate_scenario` / symptom / recover stay local. |
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR, push to `main`, manual | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines; seven engine oracle jobs covering Kathará, Containerlab, P4, and SDN; available published-engine checks |
+| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | dual-arch startup/artifact suites; amd64 benchmark shards | All dev and test tasks from the latest benchmark release through the current engine and in process. Existing startup/artifact suites remain. |
 
-PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. On PRs, the `changes` job picks jobs from the changed paths:
+PR jobs shard one environment or image per runner. The engine matrix runs Kathará, Containerlab, and P4 on amd64 and arm64, plus SDN on amd64: seven jobs. SDN stays on amd64 because its ONOS dependency needs emulation on arm64; see the [maintainer decision](https://github.com/sands-lab/nika/issues/309#issuecomment-6624618475). On PRs, the `changes` job picks jobs from the changed paths:
 
 | Changed paths | Jobs that run |
 |---------------|---------------|
-| `src/`, `benchmark/`, `config/`, `pyproject.toml`, `uv.lock`, `.python-version`, `ci.yml` | all |
+| `src/`, `benchmark/`, `config/`, `pyproject.toml`, `uv.lock`, `.python-version`, `ci.yml`, `nightly.yml`, `release-engine-verify.yml` | all |
 | `tests/ci/`, `tests/support/`, `tests/benchmark/`, `tests/nika/workflows/integration/`, `tests/conftest.py` | all |
 | other `tests/` | `unit`+`contract` |
 | `scripts/install.sh`, `.env.example` | install through benchmark |
@@ -106,6 +106,42 @@ NIKA_CI_FAILURE_CASE=dc_clos-link_down uv run pytest tests/ci/test_failure_injec
 NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,abilene,janos-us NIKA_CI_ISP_BGP_MODES=ibgp_rr \
   uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 ```
+
+## Verify benchmark engines
+
+To check the frontend/engine boundary, run [`test_engine_container_e2e.py`](../../tests/benchmark/test_engine_container_e2e.py). It runs an oracle through the normal release workflow and checks the outcome, ground truth, diagnosis score, tool-call errors, and failure presence at `post_inject`, `during_agent`, and `before_cleanup`. It also checks engine provenance and verifies removal of the session's owned containers and runtime resources. A passing process exit code alone is insufficient.
+
+PR CI builds the engine from the tested commit and runs the seven runtime jobs above. It also discovers published releases with resolvable release tags and checks their actual pinned engines.
+
+Nightly selects the latest benchmark release by version and runs every task in its dev and test splits. It builds the current engine once and reuses the release verification workflow. Eight amd64 shards run on at most eight separate runners, with one trial at a time per runner. Nightly compares each engine trial with an in-process oracle trial. The other Nightly suites retain artifact verification depth; neither suite asserts failure recovery.
+
+Run one task against the release manifest's actual engine locally:
+
+```shell
+NIKA_CI_ENGINE_PINNED=1 \
+  uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
+```
+
+The test defaults to one `dc_clos` task from release 0.2.0's test split. Set `NIKA_CI_ENGINE_RELEASE`, `NIKA_CI_ENGINE_SPLIT`, and `NIKA_CI_ENGINE_TASK_ID` to select another task. Without `NIKA_CI_ENGINE_PINNED=1`, the test prepares a release using the current commit's engine. Set `NIKA_CI_ENGINE_COMPARE=1` to run the same task in process and compare scores.
+
+For all tasks in both release splits, dispatch [Release engine verification](../../.github/workflows/release-engine-verify.yml) from the branch whose frontend you want to test:
+
+```shell
+gh workflow run release-engine-verify.yml --ref <branch> -f release=0.2.0
+```
+
+The manual workflow defaults to the latest benchmark release; set `release` to select a version. It resolves the manifest's pinned engine once and distributes it to eight shards, with at most eight runners in parallel. Each runner executes one trial at a time, compares the engine and in-process results, and uploads per-trial artifacts even on failure. It requires the WireGuard and VRF kernel modules and at least 30 GiB free on the Docker filesystem before deployment. A coverage gate requires exactly one passing result for each assigned task; missing, duplicate, skipped, failed, or unexpected results fail the workflow. Nightly uses the same gate. The scheduled workflow takes effect only on the default branch; dispatch Nightly on a PR branch to validate changes before then.
+
+To reproduce one shard locally after preparing those prerequisites:
+
+```shell
+NIKA_CI_ENGINE_PINNED=1 NIKA_CI_ENGINE_COMPARE=1 \
+NIKA_CI_ENGINE_SPLIT=dev,test NIKA_CI_ENGINE_TASK_ID=all \
+NIKA_CI_ENGINE_SHARD_INDEX=0 NIKA_CI_ENGINE_SHARD_COUNT=8 \
+  uv run pytest tests/benchmark/test_engine_container_e2e.py -v -ra
+```
+
+Workflow configuration describes intended coverage, not evidence that a release passed. Check the selected revision's completed jobs and per-trial artifacts before reporting full-release verification. A passing PR sample does not establish that every task passed. Nightly covers the selected release, including its environment and deployment-profile combinations. Newly registered failures absent from that release are outside this inventory. Derive task counts from the selected manifest rather than copying counts from an earlier audit.
 
 ## Shared support (`tests/support/`)
 
@@ -244,7 +280,8 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | `test_release.py` | Freeze/preflight/job metadata on mini releases |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
-| `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), on sbx and E2B |
+| `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), and a `byo.langgraph` trial of a release that pins a benchmark engine, on sbx and E2B |
+| `test_engine_container_e2e.py` | Oracle trials on a commit-built or manifest-pinned engine, with optional in-process comparison; see [Verify benchmark engines](#verify-benchmark-engines) |
 | `test_curated_release_contract.py` | Test-only curated rows from `0.2.0` `test` split: subset contract, mock pack/validate, timeout+continue |
 | `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |

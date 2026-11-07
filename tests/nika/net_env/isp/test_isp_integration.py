@@ -718,7 +718,10 @@ class IspClabReprSmokeTest(CliIntegrationTestCase):
                     source.device_name,
                     f"delete /network-instance default static-routes route {prefix}",
                 )
-            assert_verify_success(env.verify_lab())
+            # Wait for forwarding to converge after removing the discard route.
+            recovered, result = evaluate_scenario(env)
+            assert recovered, result
+            assert_verify_success(result)
         finally:
             self._close_session(session_id)
 

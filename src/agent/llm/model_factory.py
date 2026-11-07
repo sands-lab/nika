@@ -354,7 +354,7 @@ def load_model(
         kwargs = {
             "model": model,
             "api_key": api_key or openai_api_key(llm_provider),
-            "base_url": base_url or openai_base_url(llm_provider),
+            "api_base": base_url or openai_base_url(llm_provider),
             "timeout": timeout,
             "max_retries": retries,
             "max_tokens": max_tokens,

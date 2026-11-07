@@ -8,6 +8,7 @@ import urllib.request
 from typing import Any
 from urllib.parse import urljoin
 
+from nika.benchmark_engine.protocol import AgentAccess
 from nika.remote.artifacts import unpack_session_dir
 from nika.remote.config import RemoteConfig, load_remote_config
 from nika.remote.protocol import (
@@ -119,9 +120,9 @@ class RemoteClient:
         )
 
     def fault_artifact(
-        self, session_id: str, *, timeout: float = 30.0
+        self, session_id: str, *, timeout: float = 180.0
     ) -> dict[str, Any]:
-        """Bound the network wait for a benchmark artifact recheck."""
+        """Bound the recheck wait, including slow Docker reads and their retry."""
         payload = self._request(
             "GET", f"/v1/sessions/{session_id}/fault-artifact", timeout=timeout
         )
@@ -135,10 +136,12 @@ class RemoteClient:
         *,
         policy_mode: PolicyMode = "two_phase",
         public_host: str | None = None,
+        access: AgentAccess | None = None,
     ) -> McpAttachResponse:
         body = McpAttachRequest(
             policy_mode=policy_mode,
             public_host=public_host or self.config.host,
+            access=access,
         )
         resp = McpAttachResponse.model_validate(
             self._request(

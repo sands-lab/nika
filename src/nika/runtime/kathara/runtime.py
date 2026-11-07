@@ -15,6 +15,7 @@ from nika.runtime.kathara.tap import (
     record_lab_taps,
 )
 from nika.runtime.shared.containers import (
+    isolated_container_pid,
     lift_cpu_cap,
     pause_container,
     unpause_container,
@@ -55,6 +56,7 @@ class KatharaRuntime(LabRuntime):
 
     def _exec_raw(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
         def _run() -> str:
+            isolated_container_pid(self.get_container(node))
             # stream=False returns (stdout, stderr, exit_code).
             stdout, stderr, _ = self._instance.exec(
                 machine_name=node,
@@ -132,7 +134,7 @@ class KatharaRuntime(LabRuntime):
         # Strict probe: a Docker/Kathara API error must surface here instead
         # of being mistaken for "lab exists" and silently skipping deploy.
         if self._lab_present():
-            record_lab_taps(self._machine_containers(), self.lab_name)
+            record_lab_taps(self._machine_containers(), self.lab_name, tx_queue_len=100)
             log_event(
                 "lab_deploy_skipped",
                 f"Lab {self.lab_name} already exists; skipping deploy",
@@ -148,7 +150,9 @@ class KatharaRuntime(LabRuntime):
             try:
                 Kathara.get_instance().deploy_lab(lab=self._net_env.lab)
                 self._wait_deploy_ready(lab.deploy_ready_timeout_sec)
-                record_lab_taps(self._machine_containers(), self.lab_name)
+                record_lab_taps(
+                    self._machine_containers(), self.lab_name, tx_queue_len=100
+                )
                 return True
             except Exception as exc:  # noqa: BLE001 - includes docker APIError
                 last_error = exc

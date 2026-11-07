@@ -25,6 +25,7 @@ Sessions (`runtime/`) and caches (`.nika_cache/`) live in the main Git checkout 
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
 | `nika observability` | Turn monitoring of benchmark progress and lab CPU and memory `on` / `off`, viewed in Grafana; see [monitor benchmarks and lab resources](resource-monitoring.md) |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
+| `nika engine` | Build the benchmark engine image of a published release; see [benchmark engine](#nika-engine) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `matrix-replay`, `burst`) against the running lab |
 | `nika tui` | Interactive shell with slash commands and guided forms over this CLI (bare `nika` in a terminal opens it too); see [interactive shell](tui.md) |
 
@@ -137,7 +138,6 @@ Aligned with `nika agent run`:
 - **`nika session wipe [-y]`**: close every running session and wipe all leftover Kathara, Containerlab, and runtime working files.
 
 ---
----
 
 ## `nika inspect`
 
@@ -177,7 +177,6 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---
----
 
 ## `nika failure`
 
@@ -186,7 +185,6 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 - **`nika failure inject PROBLEM [PROBLEM …] [--session_id ID] [--set key=value …]`**: inject for a selected running session and write ground truth. Repeat **`--set`** to override injection parameters (see `describe` for valid keys).
 - **`nika failure ps [--session_id ID]`**: list persisted failure injection records for one session.
 
----
 ---
 
 ## `nika exec`
@@ -206,7 +204,6 @@ Example: `nika exec --timeout 30 pc1 ping -c 3 10.0.0.2`
 Put options before `HOST`. `nika exec` passes every argument after `HOST` to the container command, so a trailing `--timeout 30` becomes a `ping` argument and the timeout stays at 10 seconds.
 
 ---
----
 
 ## `nika config`
 
@@ -217,7 +214,6 @@ The tracked template is `config/nika.example.yaml` (preferred for new setups). P
 
 Lab deployment and verification timings live under `nika.lab`. MCP client and gateway settings live under `nika.mcp`. The `byo.langgraph` LLM client reads timeout and retry settings from `agent.llm`. See the [run configuration reference](configuration.md) for defaults and constraints.
 
----
 ---
 
 ## `nika agent`
@@ -281,7 +277,6 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
   Manual lab/session commands are documented under **`nika env`**, **`nika failure`**, and **`nika session`** below.
 
 ---
----
 
 ## `nika benchmark`
 
@@ -336,7 +331,7 @@ For batch `--config` or `--release`, `--result_dir` is the run root (see [Result
 
 Release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`. Ad-hoc `--config` runs write `run.json` only. NIKA writes these files after you confirm the plan. Each trial `run.json` is stamped with `benchmark_id` / `benchmark_version` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live progress of release and ad-hoc runs is under `runtime/benchmark_runs/{run_id}.json`.
 
-The result-dir `run.json` records the run identity: `agent_type`, `model`, `llm_provider`, `max_steps`, `max_tokens`, `reasoning_effort`, `agent_timeout_sec`, `access_role`, `n_trials`, `case_timeout_sec`, `official`, and the release `benchmark_id` / `version` / `split`. A resume with a different value for any of these fails before the plan prints; use a new `--result_dir` instead. Each resume from a different git commit appends an entry to `nika_git_history`.
+The result-dir `run.json` records the run identity: `agent_type`, `model`, `llm_provider`, `max_steps`, `max_tokens`, `reasoning_effort`, `agent_timeout_sec`, `access_role`, `n_trials`, `case_timeout_sec`, `official`, and the release `benchmark_id` / `version` / `split`. A resume with a different value for any of these fails before the plan prints; use a new `--result_dir` instead. Each resume from a different git commit appends an entry to `nika_git_history`. The file also records `schema_version` and a `provenance` block (NIKA version, benchmark engine and its API version, and host Docker and kernel versions); a resume with different provenance appends an entry to `provenance_history`.
 
 ### Console output
 
@@ -392,7 +387,7 @@ A failure after ground truth is written, but before the agent demonstrably start
 
 **`--session-tag TAG`** (`benchmark.session_tag`): embed `TAG` in each session id (`YYYYMMDD-HHMMSS-TAG-{hex}`).
 
-**`--role ROLE`**, **`--run-config PATH`**: same as on `nika agent run`. `--run-config` also sets the config that spawned trial workers load.
+**`--role ROLE`**, **`--run-config PATH`**: same as on `nika agent run`. `--run-config` also sets the config that spawned trial workers load. A release run uses the release's access policy and stops if the role selects a different one.
 
 ```bash
 nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-passes 2 --result_dir results/my-run
@@ -441,7 +436,6 @@ nika eval summary --result_dir results/
 - Each benchmark case gets its own lab; the lab is torn down when the session closes (before metrics).
 - LLM judge and CSV summary are separate `nika eval` steps, not part of `benchmark run`.
 
----
 ---
 
 ## `nika eval`
@@ -502,7 +496,6 @@ When you compare against the raw CSV:
 The same report prints automatically when `nika benchmark run` finishes.
 
 ---
----
 
 ## `nika leaderboard`
 
@@ -525,7 +518,6 @@ nika leaderboard submit --result_dir results/my-run \
 | `--title TEXT` | GitHub PR title (default `Add submission <package>`) |
 | `--body TEXT` | GitHub PR body (default: a short generated summary) |
 
----
 ---
 
 ## `nika observability`
@@ -552,7 +544,12 @@ Optional control plane for splitting the agent host from the lab host. See [remo
 
 When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` on the agent host, `env` / `failure` / `agent` / `session` lab ops forward to the daemon transparently.
 
----
+## `nika engine`
+
+A release whose manifest pins a benchmark engine runs on a container selected by its `engine` block. NIKA builds `engine.tag` from a Git tag or commit unless the manifest supplies an available `engine.image`. `nika benchmark run --release` resolves the image, builds it when needed, and starts the container itself; see [benchmark release contracts](../development/benchmark-contracts.md#b-lifecycle-protocol).
+
+- **`nika engine build <ref>`**: build the benchmark engine image of a Git tag or commit ahead of a run. NIKA prints the local image name.
+
 ---
 
 ## `nika traffic`
@@ -630,7 +627,6 @@ Options:
 - **`--pages-min`**, **`--pages-max`**
 - **`--no-loop`**: one browsing session per client host then exit
 
----
 ---
 
 ## Helpful paths

@@ -26,6 +26,32 @@ def docker_client() -> Any:
     return _client
 
 
+def isolated_container_pid(container: Any) -> int:
+    """Require a running container whose network namespace is not the host's."""
+    from nika.runtime.base import RuntimeCapabilityError
+
+    current = container
+    seen = set()
+    pid = None
+    while current.id not in seen:
+        seen.add(current.id)
+        current.reload()
+        current_pid = int((current.attrs.get("State") or {}).get("Pid") or 0)
+        if current_pid <= 1:
+            raise RuntimeCapabilityError(f"Container {current.id} is not running")
+        if pid is None:
+            pid = current_pid
+        mode = (current.attrs.get("HostConfig") or {}).get("NetworkMode")
+        if not isinstance(mode, str) or mode == "host":
+            raise RuntimeCapabilityError(
+                f"Refusing lab operation in host or unknown network namespace: {current.id}"
+            )
+        if not mode.startswith("container:"):
+            return pid
+        current = current.client.containers.get(mode.partition(":")[2])
+    raise RuntimeCapabilityError("Cannot resolve container network namespace")
+
+
 def pause_container(container: Any) -> None:
     container.reload()
     if container.status != "paused":

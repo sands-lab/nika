@@ -27,6 +27,9 @@ import struct
 import subprocess
 import sys
 
+# Injected with the shared standard-library source by vde_proxy.
+_PROCESS_HELPERS = globals().get("_PROCESS_HELPERS", {})
+
 _SYS_PIDFD_GETFD = 438
 _SYS_PPOLL = {"x86_64": 271, "aarch64": 73}
 _TUNSETIFF = 0x400454CA
@@ -145,6 +148,12 @@ def main() -> None:
     ctl, node_pid, ifname, mtu, ready = sys.argv[1:6]
     netns_ino = os.stat(f"/proc/{node_pid}/ns/net").st_ino
     switch = _switch_pid(ctl)
+    switch_identity = _PROCESS_HELPERS["process_identity"](switch)
+    switch_fd = _PROCESS_HELPERS["owned_pidfd"](switch_identity)
+    if switch_fd is None or _switch_pid(ctl) != switch:
+        raise SystemExit("VDE hub exited before its process identity was pinned")
+    if os.stat("/proc/self/ns/net").st_ino == os.stat("/proc/1/ns/net").st_ino:
+        raise SystemExit("Refusing a VDE splice in the host network namespace")
     sockets = _unix_dgram_sockets(switch)
     ports = [row for row in sockets if row[0] == switch]
     if len(ports) != 2:
@@ -185,7 +194,10 @@ def main() -> None:
         )
 
     def resume(*_args) -> None:
-        os.kill(switch, signal.SIGCONT)
+        try:
+            _PROCESS_HELPERS["send_pidfd"](switch_fd, signal.SIGCONT)
+        except ProcessLookupError:
+            pass
         os._exit(0)
 
     signal.signal(signal.SIGTERM, resume)
@@ -193,9 +205,18 @@ def main() -> None:
     poller = select.epoll()
     for fd in route:
         poller.register(fd, select.EPOLLIN)
-    os.kill(switch, signal.SIGSTOP)
-    with open(ready, "w") as handle:
-        handle.write(f"{os.getpid()} {switch}\n")
+    _PROCESS_HELPERS["send_pidfd"](switch_fd, signal.SIGSTOP)
+    with open(ready + ".tmp", "w") as handle:
+        import json
+
+        json.dump(
+            {
+                "relay": _PROCESS_HELPERS["process_identity"](os.getpid()),
+                "hub": switch_identity,
+            },
+            handle,
+        )
+    os.replace(ready + ".tmp", ready)
     while True:
         for fd, _event in poller.poll():
             receive, forward = route[fd]

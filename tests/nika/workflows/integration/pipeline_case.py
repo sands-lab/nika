@@ -230,12 +230,12 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
     def test_step_06_submit_via_mcp(self) -> None:
         assert self.session_id is not None
         assert self.session_dir is not None
-        from nika.agents.mcp_config import begin_submission_mcp_phase
-        from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+        from nika.agents.mcp_config import begin_submission_mcp_phase, engine_gateway
+        from nika.benchmark_engine.protocol import GatewayRequest
         from nika.workflows.agent.submission import load_submission_context
 
         report = "integration test frozen diagnosis report"
-        with mcp_gateway_for_session(self.session_id, scenario_name=self.SCENARIO):
+        with engine_gateway(self.session_id, self.session_dir, GatewayRequest()):
             begin_submission_mcp_phase(self.session_id, report)
             config = MCPServerConfig(session_id=self.session_id).load_http_config(
                 ["task_mcp_server"]

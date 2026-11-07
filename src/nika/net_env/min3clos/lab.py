@@ -221,7 +221,8 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         )
         if result.returncode != 0:
             raise RuntimeError(
-                f"min3clos setup.sh failed: {result.stderr or result.stdout}"
+                f"min3clos setup.sh failed (exit {result.returncode}):\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             )
 
     def target_roles(self) -> dict[str, list[str]]:

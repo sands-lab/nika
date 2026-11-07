@@ -13,6 +13,8 @@ nika benchmark releases
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 ```
 
+Release `0.2.0` runs on its [benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol), a container built from the Git reference in `engine.tag` of its `RELEASE.yaml`, so its environments, failures, MCP tools, and scoring stay those of the release as NIKA changes. The first run builds the engine image; `nika engine build <tag>` builds it ahead of time. Firecracker execution and NIKA Remote cannot run it yet.
+
 Release `0.1.0` still runs with `--release 0.1.0`. [Run release 0.1.0](../compat/release-0.1.0.md) covers its restored labs and known limitations.
 
 The [versioning policy](../../VERSIONING.md) explains what each component of a release version means and which changes produce a new one.

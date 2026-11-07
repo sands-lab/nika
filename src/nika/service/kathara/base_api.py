@@ -13,6 +13,7 @@ from Kathara.manager.Kathara import Kathara, Lab
 from Kathara.model.Machine import Machine
 
 from nika.runtime.shared.execution import merge_exec_output
+from nika.runtime.shared.containers import isolated_container_pid
 from nika.runtime.spec import MachineInventory, NodeRole
 from nika.service.kathara.docker_utils import link_members, link_neighbors
 from nika.service.lab.reachability import PingReachabilityMixin
@@ -287,6 +288,11 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
         (``nika.mcp.tool_output_*``), not here.
         """
         try:
+            isolated_container_pid(
+                self.instance.get_machine_api_object(
+                    machine_name=host_name, lab_name=self.lab.name
+                )
+            )
             # stream=False returns (stdout, stderr, exit_code).
             stdout, stderr, _ = self.instance.exec(
                 machine_name=host_name,

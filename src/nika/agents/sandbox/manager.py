@@ -148,6 +148,7 @@ class SandboxManager:
         self,
         *,
         session: Session,
+        task_description: str,
         spec: AgentSpec,
         model: str,
         max_steps: int | None,
@@ -170,7 +171,7 @@ class SandboxManager:
         return Task(
             session_id=agent_sid,
             agent_class=spec.class_path,
-            task_description=session.task_description,
+            task_description=task_description,
             # Bake the session-specific gateway URL into the workspace.
             # Parallel trials share the host process environment, so resolving
             # it later from NIKA_MCP_GATEWAY_* can pick up a sibling's value.
@@ -249,6 +250,7 @@ class SandboxManager:
         self,
         *,
         session: Session,
+        task_description: str,
         agent_type: str,
         model: str,
         max_steps: int | None,
@@ -278,6 +280,7 @@ class SandboxManager:
             )
             task = self.build_task(
                 session=session,
+                task_description=task_description,
                 spec=spec,
                 model=model,
                 max_steps=max_steps,
@@ -661,6 +664,7 @@ class SandboxManager:
         self,
         *,
         session: Session,
+        task_description: str,
         agent_type: str,
         model: str,
         max_steps: int | None,
@@ -676,6 +680,7 @@ class SandboxManager:
         """Create a sandbox, run the agent, collect artifacts."""
         with self.open_session(
             session=session,
+            task_description=task_description,
             agent_type=agent_type,
             model=model,
             max_steps=max_steps,

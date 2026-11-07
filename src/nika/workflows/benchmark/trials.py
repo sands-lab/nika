@@ -12,12 +12,9 @@ from typing import Any
 
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.traffic.profiles import normalize_traffic
-from nika.evaluator.trace_parser import AgentTraceParser
-from nika.utils.session_artifacts import (
-    update_run_json,
-    write_json_atomic,
-)
+from nika.utils.session_artifacts import update_run_json
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
+from nika.workflows.benchmark.provenance import schema_version_of
 from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
     KNOWN_OUTCOMES,
@@ -415,6 +412,16 @@ def trial_outcome(session_dir: str | Path) -> str | None:
     return str(outcome) if outcome else None
 
 
+def trial_ready(session_dir: str | Path) -> bool:
+    """True once the engine's ``begin`` returned: the agent got a valid task.
+
+    The trial loop records ``ready`` in ``run.json``, so a parent process can
+    triage a worker that died without reading the engine's ground truth.
+    """
+    run_meta = _read_json(Path(session_dir) / "run.json")
+    return bool(run_meta and run_meta.get("ready") is True)
+
+
 def is_finalized_failure(session_dir: str | Path) -> bool:
     """True when the worker already stamped a known failure outcome.
 
@@ -426,33 +433,31 @@ def is_finalized_failure(session_dir: str | Path) -> bool:
 
 
 def _restore_success_eval_metrics(path: Path) -> bool:
-    """Rebuild metrics for a solved trial interrupted before evaluation finished."""
-    from nika.workflows.eval.session import build_eval_metrics_payload
+    """Score a solved trial interrupted before its metrics were written.
+
+    The run's benchmark engine scores it, as it scores every trial.
+    """
+    from nika.benchmark_engine import benchmark_engine
+    from nika.benchmark_engine.protocol import TrialHandle
 
     metrics_path = path / "eval_metrics.json"
     if metrics_path.is_file():
         return True
 
-    gt = _read_json(path / "ground_truth.json")
-    submission = _read_json(path / "submission.json")
-    trajectory_path = path / MESSAGES_FILENAME
-    if gt is None or submission is None or not trajectory_path.is_file():
+    session_id = (_read_json(path / "run.json") or {}).get("session_id")
+    if (
+        not session_id
+        or not has_valid_submission(path)
+        or not (path / MESSAGES_FILENAME).is_file()
+    ):
         return False
-
     try:
-        trace_metrics = AgentTraceParser(trace_path=str(trajectory_path)).parse_trace()
-    except (json.JSONDecodeError, OSError, TypeError, ValueError):
-        trace_metrics = {}
-    payload, _status = build_eval_metrics_payload(
-        gt=gt,
-        submission=submission,
-        trace_metrics=trace_metrics,
-    )
-    try:
-        write_json_atomic(metrics_path, payload)
-    except OSError:
+        benchmark_engine().score(
+            TrialHandle(session_id=str(session_id), trial_dir=str(path))
+        )
+    except Exception:  # noqa: BLE001 - the slot stays incomplete and reruns
         return False
-    return True
+    return metrics_path.is_file()
 
 
 def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> bool:
@@ -513,10 +518,9 @@ def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> boo
 
     from nika.evaluator.score_status import infer_score_status_from_artifacts
 
+    # The agent got a turn, so the trial was ready and has a task to score.
     score_status = infer_score_status_from_artifacts(
-        has_submission=submitted,
-        run_meta=run_meta,
-        has_ground_truth=(path / "ground_truth.json").is_file(),
+        has_submission=submitted, run_meta=run_meta
     )
 
     def _stamp(meta: dict[str, Any]) -> None:
@@ -731,6 +735,13 @@ def assert_run_config_compatible(
         for key in _RUN_IDENTITY_FIELDS
         if key in existing and old.get(key) != new.get(key)
     ]
+    if "schema_version" in proposed:
+        recorded = schema_version_of(existing)
+        if recorded != proposed["schema_version"]:
+            mismatches.append(
+                f"schema_version: existing={recorded!r} "
+                f"requested={proposed['schema_version']!r}"
+            )
     if mismatches:
         raise ValueError(
             "Existing run under this --result_dir does not match the "
@@ -749,6 +760,7 @@ def merge_run_config(
 
     ``nika_git_commit`` / ``nika_git_dirty`` track the latest launch, and
     ``nika_git_history`` keeps every distinct commit the run was resumed from.
+    ``provenance`` and ``provenance_history`` do the same for run provenance.
     """
     now = _utc_now_iso()
     if existing is None:
@@ -759,6 +771,8 @@ def merge_run_config(
         out["updated_at"] = now
         if any(key in proposed for key in _GIT_FIELDS):
             out["nika_git_history"] = [_git_entry(proposed, now)]
+        if "provenance" in proposed:
+            out["provenance_history"] = [{**proposed["provenance"], "recorded_at": now}]
         return out
 
     assert_run_config_compatible(existing, proposed)
@@ -779,6 +793,21 @@ def merge_run_config(
         for key in _GIT_FIELDS:
             if key in proposed:
                 out[key] = proposed[key]
+    if "schema_version" in proposed:
+        out["schema_version"] = proposed["schema_version"]
+    if "provenance" in proposed:
+        history = list(out.get("provenance_history") or [])
+        if not history and existing.get("provenance"):
+            history.append(
+                {**existing["provenance"], "recorded_at": existing.get("created_at")}
+            )
+        last = dict(history[-1]) if history else None
+        if last is not None:
+            last.pop("recorded_at", None)
+        if last != proposed["provenance"]:
+            history.append({**proposed["provenance"], "recorded_at": now})
+        out["provenance_history"] = history
+        out["provenance"] = proposed["provenance"]
     return out
 
 

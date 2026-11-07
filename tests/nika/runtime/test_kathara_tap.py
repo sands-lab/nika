@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -25,6 +27,10 @@ class _Container:
         self.listing = listing
         self.exit_code = exit_code
         self.commands: list[list[str]] = []
+        self.attrs = {"State": {"Pid": 42}, "HostConfig": {"NetworkMode": "none"}}
+
+    def reload(self):
+        pass
 
     def exec_run(self, command):
         self.commands.append(command)
@@ -106,3 +112,87 @@ def test_host_cleanup_finds_current_and_legacy_aliases() -> None:
     with patch.object(tap.subprocess, "run", return_value=result):
         found = tap.owned_host_taps(LAB)
     assert [link["ifname"] for link in found] == ["tapa", "tapb"]
+
+
+def test_queue_limit_refuses_host_namespace_before_exec() -> None:
+    container = _Container("")
+    container.attrs["HostConfig"]["NetworkMode"] = "host"
+    with pytest.raises(RuntimeCapabilityError, match="host or unknown"):
+        tap.record_container_taps(container, LAB, tx_queue_len=100)
+    assert container.commands == []
+
+
+@pytest.mark.parametrize("limit", [None, 100])
+def test_queue_limit_only_reduces_owned_taps(tmp_path, limit) -> None:
+    net = tmp_path / "net"
+    net.mkdir()
+    owner = tap.tap_owner(LAB)
+    for name, flags, queue in [
+        ("large", "0x2", 1000),
+        ("small", "0x2", 50),
+        ("equal", "0x2", 100),
+        ("tun", "0x1", 1000),
+        ("eth0", None, 1000),
+    ]:
+        dev = net / name
+        dev.mkdir()
+        if flags:
+            (dev / "tun_flags").write_text(flags)
+        (dev / "ifalias").write_text(owner)
+        (dev / "tx_queue_len").write_text(str(queue))
+    binary = tmp_path / "ip"
+    log = tmp_path / "ip.log"
+    binary.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$NIKA_TEST_IP_LOG"\n')
+    binary.chmod(0o755)
+    subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            tap._record_script(LAB, limit).replace("/sys/class/net", str(net)),
+        ],
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path}:{os.environ['PATH']}",
+            "NIKA_TEST_IP_LOG": str(log),
+        },
+        check=True,
+    )
+    calls = log.read_text().splitlines() if log.exists() else []
+    assert calls == (["link set dev large txqueuelen 100"] if limit else [])
+
+
+def test_queue_helper_rechecks_exact_tap_and_foreign_alias(tmp_path) -> None:
+    container = _Container("NEED_HELPER\teth0\n")
+    with patch.object(tap, "_run_net_admin_helper") as helper:
+        tap.record_container_taps(container, LAB, tx_queue_len=100)
+    command, mode, *_ = helper.call_args.args
+    assert mode == "container:c1"
+    dev = tmp_path / "eth0"
+    dev.mkdir()
+    (dev / "tun_flags").write_text("0x2")
+    (dev / "ifalias").write_text(tap.tap_owner("foreign"))
+    binary = tmp_path / "ip"
+    log = tmp_path / "ip.log"
+    binary.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$NIKA_TEST_IP_LOG"\n')
+    binary.chmod(0o755)
+    env = {
+        **os.environ,
+        "PATH": f"{tmp_path}:{os.environ['PATH']}",
+        "NIKA_TEST_IP_LOG": str(log),
+    }
+    result = subprocess.run(
+        [*command[:2], command[2].replace("/sys/class/net", str(tmp_path))],
+        capture_output=True,
+        env=env,
+    )
+    assert result.returncode != 0
+    # A non-TAP with the expected alias must also fail before calling ip.
+    (dev / "ifalias").write_text(tap.tap_owner(LAB))
+    (dev / "tun_flags").write_text("0x1")
+    result = subprocess.run(
+        [*command[:2], command[2].replace("/sys/class/net", str(tmp_path))],
+        capture_output=True,
+        env=env,
+    )
+    assert result.returncode != 0
+    assert not log.exists()

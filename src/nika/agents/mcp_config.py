@@ -12,16 +12,21 @@ import os
 import socket
 import urllib.error
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from pathlib import Path
 
 from agent.protocols import SUBMISSION
 from agent.runtime.contract import SESSION_HEADER, SESSION_TOKEN_HEADER
 from agent.utils.mcp_client import filter_phase_servers
 from nika.agents.sandbox.config import (
+    ENV_GATEWAY_AGENT_URL,
+    ENV_GATEWAY_SERVERS,
     ENV_GATEWAY_SESSION_TOKEN,
     ENV_GATEWAY_URL,
     SANDBOX_GATEWAY_HOST_BRIDGE,
 )
+from nika.benchmark_engine.protocol import AgentEndpoints, GatewayRequest
 from nika.mcp.registry import select_diagnosis_servers
 from nika.telemetry import telemetry_for_session
 
@@ -32,6 +37,7 @@ __all__ = [
     "agent_facing_mcp_session_id",
     "begin_submission_mcp_phase",
     "client_mcp_config",
+    "engine_gateway",
     "load_session_mcp_config",
     "select_diagnosis_servers",
     "select_session_servers",
@@ -40,7 +46,7 @@ __all__ = [
 
 # Per-session secret for the gateway phase-advance endpoint (host-only).
 PHASE_TOKEN_HEADER = "NIKA-Phase-Token"
-# Host-side remote runs receive the remote gateway's phase token here.
+# The frontend receives the trial gateway's phase token here.
 ENV_GATEWAY_PHASE_TOKEN = "NIKA_MCP_GATEWAY_PHASE_TOKEN"
 
 
@@ -63,15 +69,72 @@ def agent_facing_mcp_session_id(session_id: str) -> str:
         return sid
 
 
+@contextmanager
+def engine_gateway(
+    session_id: str, session_dir: str | Path, request: GatewayRequest
+) -> Iterator[AgentEndpoints]:
+    """Open the trial's MCP gateway on its benchmark engine for one agent run.
+
+    The gateway's URLs, tokens, and served MCP servers are exported to this
+    process's environment until the context closes, where the agent's MCP
+    config and the submission phase advance read them.
+    """
+    from nika.benchmark_engine import benchmark_engine
+    from nika.benchmark_engine.protocol import TrialHandle
+
+    keys = (
+        ENV_GATEWAY_URL,
+        ENV_GATEWAY_AGENT_URL,
+        ENV_GATEWAY_PHASE_TOKEN,
+        ENV_GATEWAY_SESSION_TOKEN,
+        ENV_GATEWAY_SERVERS,
+    )
+    # Before opening: an in-process gateway exports its own URL when it starts.
+    prior = {key: os.environ.get(key) for key in keys}
+    engine = benchmark_engine()
+    handle = TrialHandle(session_id=session_id, trial_dir=str(session_dir))
+    endpoints = engine.agent_endpoints(handle, request)
+    try:
+        os.environ.update(
+            {
+                ENV_GATEWAY_URL: endpoints.gateway_url,
+                ENV_GATEWAY_AGENT_URL: endpoints.agent_url,
+                # Host orchestration advances the phase; sandbox env filters
+                # NIKA_*TOKEN.
+                ENV_GATEWAY_PHASE_TOKEN: endpoints.phase_token,
+                ENV_GATEWAY_SESSION_TOKEN: endpoints.session_token,
+                ENV_GATEWAY_SERVERS: ",".join(endpoints.servers),
+            }
+        )
+        yield endpoints
+    finally:
+        try:
+            engine.close_agent_endpoints(handle)
+        finally:
+            for key, value in prior.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+
 def select_session_servers(
     scenario_name: str,
     *,
     backend: str | None = None,
     telemetry: Iterable[str] = (),
 ) -> list[str]:
-    """Return all MCP server names for a troubleshooting session."""
+    """Return all MCP server names for a troubleshooting session.
+
+    Inside :func:`engine_gateway`, these are the servers the benchmark
+    engine's gateway serves, since a release may serve other tools than this
+    NIKA.
+    """
     from nika.mcp.registry import SUBMISSION_SERVER
 
+    served = os.environ.get(ENV_GATEWAY_SERVERS, "").strip()
+    if served:
+        return served.split(",")
     servers = select_diagnosis_servers(
         scenario_name, backend=backend, telemetry=telemetry
     )
@@ -132,8 +195,6 @@ class MCPServerConfig:
         *base_url* is the gateway as the client reaches it (default: the
         host-facing gateway, ``NIKA_MCP_GATEWAY_URL``).
         """
-        from nika.mcp.registry import MCP_SERVER_SPECS
-
         base = (base_url or _gateway_base_url()).rstrip("/")
         return {
             name: {
@@ -142,7 +203,6 @@ class MCPServerConfig:
                 "headers": session_http_headers(self.session_id),
             }
             for name in server_names
-            if name in MCP_SERVER_SPECS
         }
 
     def load_session_http_config(
@@ -251,11 +311,9 @@ def _http_advance_submission_phase(
     token: str,
     diagnosis_report: str = "",
 ) -> dict:
-    """Freeze (when report provided) and advance phase on a remote gateway."""
+    """Freeze the report and advance the phase on the trial's gateway."""
     url = f"{base}/gateway/sessions/{session_id}/phase"
-    payload: dict[str, str] = {"phase": SUBMISSION}
-    if diagnosis_report:
-        payload["diagnosis_report"] = diagnosis_report
+    payload = {"phase": SUBMISSION, "diagnosis_report": diagnosis_report}
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
@@ -301,31 +359,17 @@ def begin_submission_mcp_phase(session_id: str, diagnosis_report: str = "") -> d
     """
     # Agents / HTTP paths use the opaque handle; freeze/advance accept either key.
     mcp_session_id = agent_facing_mcp_session_id(session_id)
-
-    from nika.remote.config import is_remote_enabled
-
-    if is_remote_enabled():
-        # The gateway lives on the remote server; it freezes the report there.
-        base = _rewrite_gateway_base_for_client(
-            os.environ.get(ENV_GATEWAY_URL, "").strip().rstrip("/")
-        )
-        token = os.environ.get(ENV_GATEWAY_PHASE_TOKEN, "").strip()
-        if not base or not token:
-            raise RuntimeError(
-                f"{ENV_GATEWAY_URL} and {ENV_GATEWAY_PHASE_TOKEN} must be set for "
-                "a remote MCP phase advance."
-            )
-        return _http_advance_submission_phase(
-            mcp_session_id, base, token=token, diagnosis_report=diagnosis_report
-        )
-
-    from nika.mcp.gateway.phase import advance_mcp_phase
-    from nika.mcp.gateway.session_registry import resolve_canonical_session_id
-    from nika.workflows.agent.submission import (
-        freeze_diagnosis,
-        load_submission_context,
+    # The gateway runs on the benchmark engine (or a NIKA Remote lab host); it
+    # freezes the report there.
+    base = _rewrite_gateway_base_for_client(
+        os.environ.get(ENV_GATEWAY_URL, "").strip().rstrip("/")
     )
-
-    freeze_diagnosis(mcp_session_id, diagnosis_report)
-    advance_mcp_phase(mcp_session_id, SUBMISSION)
-    return load_submission_context(resolve_canonical_session_id(mcp_session_id))
+    token = os.environ.get(ENV_GATEWAY_PHASE_TOKEN, "").strip()
+    if not base or not token:
+        raise RuntimeError(
+            f"{ENV_GATEWAY_URL} and {ENV_GATEWAY_PHASE_TOKEN} must be set for "
+            "an MCP phase advance."
+        )
+    return _http_advance_submission_phase(
+        mcp_session_id, base, token=token, diagnosis_report=diagnosis_report
+    )
