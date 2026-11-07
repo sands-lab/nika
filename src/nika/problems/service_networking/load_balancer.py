@@ -303,6 +303,8 @@ class LoadBalancerOverload(ProblemBase):
                     ),
                     evidence=True,
                     timeout=20,
+                    attempts=6,
+                    interval_sec=5,
                 ),
             ],
         )
