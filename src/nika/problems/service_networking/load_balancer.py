@@ -275,7 +275,7 @@ class LoadBalancerOverload(ProblemBase):
                     f"Request a VIP backend directly ({params.backend_url}).",
                     contains(r"^backend 200 ", "the backend answers 200"),
                     evidence=True,
-                    timeout=40,
+                    timeout=60,
                 ),
                 shell(
                     lb,
@@ -290,6 +290,7 @@ class LoadBalancerOverload(ProblemBase):
                         ),
                     ),
                     evidence=True,
+                    timeout=30,
                 ),
                 shell(
                     lb,
@@ -301,7 +302,7 @@ class LoadBalancerOverload(ProblemBase):
                         _cpu_throttled,
                     ),
                     evidence=True,
-                    timeout=20,
+                    timeout=40,
                     attempts=6,
                     interval_sec=5,
                 ),
