@@ -70,10 +70,10 @@ _ORACLE_VIP_SLOWDOWN = 3.0
 _ORACLE_LB_CONNECTIONS = 100
 
 
-def _timed_curl(label: str, url: str, samples: int) -> str:
+def _timed_curl(label: str, url: str) -> str:
     return (
-        f"for i in $(seq {samples}); do curl -s -o /dev/null -m 10 "
-        f"-w '{label} %{{http_code}} %{{time_total}}\\n' {shlex.quote(url)}; done"
+        "curl -s -o /dev/null -m 10 "
+        f"-w '{label} %{{http_code}} %{{time_total}}\\n' {shlex.quote(url)}"
     )
 
 
@@ -257,8 +257,9 @@ class LoadBalancerOverload(ProblemBase):
             steps=[
                 shell(
                     client,
-                    f"{_timed_curl('vip', params.vip_url, 5)}; "
-                    f"{_timed_curl('control', params.control_url, 5)}",
+                    "for i in $(seq 5); do "
+                    f"({_timed_curl('vip', params.vip_url)}) & "
+                    f"({_timed_curl('control', params.control_url)}) & wait; done",
                     f"From {client}, time requests through the VIP ({params.vip_url}) "
                     f"and to the parallel web server ({params.control_url}).",
                     Check(
@@ -272,7 +273,8 @@ class LoadBalancerOverload(ProblemBase):
                 ),
                 shell(
                     params.backend_probe_host,
-                    _timed_curl("backend", params.backend_url, 3),
+                    "for i in $(seq 3); do "
+                    f"{_timed_curl('backend', params.backend_url)}; done",
                     f"Request a VIP backend directly ({params.backend_url}).",
                     contains(r"^backend 200 ", "the backend answers 200"),
                     evidence=True,
