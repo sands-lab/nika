@@ -357,6 +357,9 @@ class BGPAsnMisconfig(ProblemBase):
                         _speaker_refuses_host,
                     ),
                     evidence=True,
+                    # Speakers must retry TCP before rejecting the new AS.
+                    attempts=6,
+                    interval_sec=30,
                 ),
             ],
         )
