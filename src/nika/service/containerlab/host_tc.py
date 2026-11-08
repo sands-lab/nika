@@ -14,6 +14,7 @@ import subprocess
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.shared.containers import isolated_container_pid
 from nika.runtime.shared.processes import process_command
+from nika.runtime.shared.link_faults import corrupt_commands
 from nika.utils.network_change_log import log_network_change
 
 # Every host command here is a short iproute2/tc/nsenter call; a stuck sudo
@@ -83,80 +84,64 @@ class HostTcController:
             f"host veth ifindex {iflink} for {node}:{intf} is absent"
         )
 
-    def set_netem_corrupt(self, node: str, intf: str, percentage: int) -> str:
+    def wire_partner(self, peer: str) -> str | None:
+        """Other host end of the wire ``peer`` belongs to (``wires.py``), if any."""
+        filters = self._run("tc", "filter", "show", "dev", peer, "ingress")
+        match = re.search(r"redirect to device (\S+)\)", filters, re.IGNORECASE)
+        return match.group(1) if match else None
+
+    def wire_ends(self, peer: str) -> list[str]:
+        """``peer`` and, on a wired link, the far end: a cable has two ends."""
+        partner = self.wire_partner(peer)
+        return [peer] if partner is None else [peer, partner]
+
+    def egress_dev(self, node: str, intf: str) -> str:
+        """Host device that carries what ``node`` sends out of ``intf``."""
         peer = self.peer_name(node, intf)
-        self._run(
-            "tc",
-            "qdisc",
-            "replace",
-            "dev",
-            peer,
-            "root",
-            "netem",
-            "corrupt",
-            f"{percentage}%",
-        )
+        return self.wire_partner(peer) or peer
+
+    def set_link_up(self, peer: str) -> None:
+        for end in self.wire_ends(peer):
+            self._run("ip", "link", "set", "dev", end, "up")
+
+    def set_corrupt(self, node: str, intf: str, percentage: int) -> str:
+        """Corrupt what ``node`` sends out of ``intf`` on its host-side wire end.
+
+        Returns the host device. See ``corrupt_commands`` for how frames fail.
+        """
+        dev = self.egress_dev(node, intf)
+        self._run("sh", "-c", " && ".join(corrupt_commands(dev, percentage)))
         log_network_change(
-            f"host_tc netem corrupt on {node}:{intf} peer={peer} corrupt={percentage}%",
+            f"host_tc corrupt on {node}:{intf} dev={dev} corrupt={percentage}%",
             mechanism="host_tc",
             host=node,
             intf=intf,
-            peer=peer,
+            peer=dev,
             params={"corrupt": percentage},
             action="netem_corrupt",
         )
-        return peer
+        return dev
 
-    def set_netem_corrupt_bidirectional(
-        self, node: str, intf: str, peer_node: str, peer_intf: str, percentage: int
-    ) -> tuple[str, str]:
-        """Apply corrupt netem on both host veth peers of a point-to-point link."""
-        host_peer = self.set_netem_corrupt(node, intf, percentage)
-        peer_veth = self.peer_name(peer_node, peer_intf)
-        if peer_veth != host_peer:
-            self._run(
-                "tc",
-                "qdisc",
-                "replace",
-                "dev",
-                peer_veth,
-                "root",
-                "netem",
-                "corrupt",
-                f"{percentage}%",
-            )
-            log_network_change(
-                f"host_tc netem corrupt on {peer_node}:{peer_intf} "
-                f"peer={peer_veth} corrupt={percentage}%",
-                mechanism="host_tc",
-                host=peer_node,
-                intf=peer_intf,
-                peer=peer_veth,
-                params={"corrupt": percentage},
-                action="netem_corrupt",
-            )
-        return host_peer, peer_veth
+    def corrupt_configured(self, dev: str) -> bool:
+        qdisc = self.qdisc(dev).lower()
+        return "netem" in qdisc and "corrupt" in qdisc
+
+    def egress_filters(self, dev: str) -> str:
+        """``tc`` egress filters on host device ``dev``."""
+        return self._run("tc", "filter", "show", "dev", dev, "egress")
+
+    def delete_egress_filter(self, dev: str, prio: int) -> None:
+        self._run("tc", "filter", "del", "dev", dev, "egress", "prio", str(prio))
 
     def set_link_down(self, node: str, intf: str) -> tuple[str, str]:
         """Bring down a link so endpoints report operstate down.
 
-        Prefer the host-side veth peer (carrier loss). Fall back to setting the
-        interface down inside the node namespace when no host peer exists.
+        Downs the host-side veth ends (carrier loss). The node interface stays
+        admin-up. Raises if this lab has no host peer for the link.
         """
-        try:
-            peer = self.peer_name(node, intf)
-        except RuntimeCapabilityError:
-            self.set_node_link_down(node, intf)
-            log_network_change(
-                f"host_tc link down via node intf {node}:{intf}",
-                mechanism="host_tc",
-                host=node,
-                intf=intf,
-                action="link_down",
-                mode="node_intf",
-            )
-            return "node_intf", f"{node}:{intf}"
-        self._run("ip", "link", "set", "dev", peer, "down")
+        peer = self.peer_name(node, intf)
+        for end in self.wire_ends(peer):
+            self._run("ip", "link", "set", "dev", end, "down")
         log_network_change(
             f"host_tc link down via host peer {peer} for {node}:{intf}",
             mechanism="host_tc",
@@ -220,7 +205,7 @@ class HostTcController:
     ) -> str:
         """Apply TBF on the host veth peer, or inside the node when none exists."""
         try:
-            peer = self.peer_name(node, intf)
+            peer = self.egress_dev(node, intf)
         except RuntimeCapabilityError:
             pid = self._container_pid(node)
             self._run(
@@ -303,18 +288,22 @@ class HostTcController:
         """Flap a host-side veth without putting fault state in the lab node."""
         pid_path = self._flap_pid_path(peer)
         self.stop_link_flap(peer)
+        ends = " ".join(shlex.quote(end) for end in self.wire_ends(peer))
         script = f"""PID_FILE={shlex.quote(pid_path)}
+set_ends() {{
+    for end in {ends}; do ip link set dev "$end" "$1" >/dev/null 2>&1 || true; done
+}}
 cleanup() {{
-    ip link set dev {shlex.quote(peer)} up >/dev/null 2>&1 || true
+    set_ends up
     rm -f "$PID_FILE"
 }}
 trap cleanup EXIT
 trap 'exit 0' INT TERM
 {shlex.join(process_command("record", pid_path))} $$ || exit 1
 while true; do
-    ip link set dev {shlex.quote(peer)} down
+    set_ends down
     sleep {down_time}
-    ip link set dev {shlex.quote(peer)} up
+    set_ends up
     sleep {up_time}
 done
 """
@@ -374,16 +363,24 @@ done
 
     def stop_link_flap(self, peer: str) -> None:
         self._run(*process_command("stop", self._flap_pid_path(peer)))
-        self._run("ip", "link", "set", "dev", peer, "up")
+        for end in self.wire_ends(peer):
+            try:
+                self._run("ip", "link", "set", "dev", end, "up")
+            except RuntimeCapabilityError:
+                pass
 
     def stop_node_link_flap(self, node: str, intf: str) -> None:
         self._run(*process_command("stop", self._flap_pid_path(f"{node}:{intf}")))
         self.set_node_link_up(node, intf)
 
     @classmethod
-    def cleanup_lab(cls, lab_name: str) -> None:
-        """Stop only workers with verified birth identities belonging to this lab."""
-        prefix = cls._flap_pid_prefix(lab_name)
+    def cleanup_lab(
+        cls, lab_name: str | None = None, *, all_labs: bool = False
+    ) -> None:
+        """Stop workers with verified birth identities in the requested scope."""
+        if not lab_name and not all_labs:
+            return
+        prefix = "/tmp/nika-link-flap-" if all_labs else cls._flap_pid_prefix(lab_name)
         command = shlex.join(process_command("stop"))
         cls._run(
             "sh",
@@ -394,8 +391,7 @@ done
         )
 
     def _flap_pid_path(self, peer: str) -> str:
-        key = hashlib.blake2s(peer.encode(), digest_size=8).hexdigest()
-        return f"{self._flap_pid_prefix(self.runtime.lab_name)}{key}.pid"
+        return f"{self._flap_pid_prefix(self.runtime.lab_name)}{peer}.pid"
 
     def _container_pid(self, node: str) -> int:
         container = self.runtime.get_container(node)
@@ -429,11 +425,14 @@ def host_veth_for(ip_link_output: str, iflink: str, ifindex: str) -> str | None:
     """Return the host veth at ``iflink`` whose peer is ifindex ``ifindex``.
 
     ``ip_link_output`` is ``ip -o link show`` from the host namespace, with
-    rows like ``41: veth1a2b@if40: <...> ... link-netnsid 3``.
+    rows like ``41: veth1a2b@if40: <...> ... link-netnsid 3`` or ``... link-netns
+    clab-lab-node``.
     """
     pattern = re.compile(rf"^{re.escape(iflink)}: ([^:@\s]+)@if(\d+):")
     for row in ip_link_output.splitlines():
         match = pattern.match(row)
-        if match and match.group(2) == ifindex and "link-netnsid" in row:
+        # ``link-netnsid N``, or ``link-netns <name>`` for a namespace that has
+        # a name (Containerlab names each node's).
+        if match and match.group(2) == ifindex and " link-netns" in row:
             return match.group(1)
     return None
