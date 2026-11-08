@@ -47,3 +47,51 @@ failure:
         kind: link
         name: leaf2:e1-1--spine:e1-2
       fault_type: link_capacity_bottleneck
+  - device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: client1
+      intf_name: eth1
+      limit: 32kb
+      rate: 512kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: client1:eth1--leaf1:eth2
+      fault_type: link_capacity_bottleneck
+  - device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: leaf1
+      intf_name: eth1
+      limit: 32kb
+      rate: 512kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf1:eth1--spine:eth1
+      fault_type: link_capacity_bottleneck
+  - device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: leaf2
+      intf_name: eth2
+      limit: 32kb
+      rate: 512kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: client2:eth1--leaf2:eth2
+      fault_type: link_capacity_bottleneck
+  - device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: spine
+      intf_name: eth2
+      limit: 32kb
+      rate: 512kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf2:eth1--spine:eth2
+      fault_type: link_capacity_bottleneck

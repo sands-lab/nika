@@ -7,6 +7,146 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: birmingham
+      intf_name: eth1
+      limit: 32kb
+      peer_host: pc_glasgow
+      probe_dst_ip: 10.254.0.54
+      rate: 512kbit
+      symptom_host: pc_birmingham
+    root_causes:
+    - resource:
+        kind: link
+        name: birmingham:eth1--glasgow:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: birmingham
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_london
+      probe_dst_ip: 10.254.0.74
+      rate: 512kbit
+      symptom_host: pc_birmingham
+    root_causes:
+    - resource:
+        kind: link
+        name: birmingham:eth2--london:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: dusseldorf
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.50
+      rate: 512kbit
+      symptom_host: pc_dusseldorf
+    root_causes:
+    - resource:
+        kind: link
+        name: dusseldorf:eth2--frankfurt:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: frankfurt
+      intf_name: eth1
+      limit: 32kb
+      peer_host: pc_dusseldorf
+      probe_dst_ip: 10.254.0.46
+      rate: 512kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: dusseldorf:eth2--frankfurt:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: krakow
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.138
+      rate: 512kbit
+      symptom_host: pc_krakow
+    root_causes:
+    - resource:
+        kind: link
+        name: krakow:eth2--warsaw:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: london
+      intf_name: eth1
+      limit: 32kb
+      peer_host: pc_birmingham
+      probe_dst_ip: 10.254.0.22
+      rate: 512kbit
+      symptom_host: pc_london
+    root_causes:
+    - resource:
+        kind: link
+        name: birmingham:eth2--london:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: warsaw
+      intf_name: eth3
+      limit: 32kb
+      peer_host: pc_krakow
+      probe_dst_ip: 10.254.0.66
+      rate: 512kbit
+      symptom_host: pc_warsaw
+    root_causes:
+    - resource:
+        kind: link
+        name: krakow:eth2--warsaw:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:

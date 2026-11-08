@@ -7,6 +7,26 @@ failure:
     igp: ospf
     bgp_mode: ebgp
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      flood_count: '120'
+      neighbor_ip: 10.0.0.23
+      peer_name: kscyng
+      receiver_name: iplsng
+    root_causes:
+    - resource:
+        kind: node
+        node: iplsng
+      fault_type: bgp_max_prefix_exceeded
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: bgp_max_prefix_exceeded
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:
