@@ -10,7 +10,11 @@ from __future__ import annotations
 
 import re
 
-from nika.net_env.utils.routeros.common import routeros_port
+from nika.net_env.utils.routeros.common import (
+    bridge_member_command,
+    routeros_container_interface,
+    routeros_port,
+)
 from nika.net_env.utils.routeros.parse import (
     routeros_count,
     routeros_established_bgp_peers,
@@ -25,6 +29,8 @@ _BGP_PORT_RULES = tuple(
     for port in ("dst-port", "src-port")
 )
 _FILTER_CHAINS = ("input", "forward", "output")
+# OSPF only reaches or leaves the router itself.
+_OSPF_CHAINS = ("input", "output")
 _DURATION = re.compile(r"(\d+)(ms|w|d|h|m|s)")
 _UNITS = {"w": 604800, "d": 86400, "h": 3600, "m": 60, "s": 1, "ms": 0.001}
 
@@ -246,6 +252,61 @@ class RouterOsFaultOps(RouterFaultOps):
             ":delay 2s; /routing ospf instance enable [find]"
         )
 
+    def _container_interface(self, port: str) -> str | None:
+        net_env = getattr(self.runtime, "_net_env", None)
+        return routeros_container_interface(net_env, self.node, port)
+
+    def ospf_interfaces(self) -> list[str]:
+        rows = self._rows("/routing/ospf/interface/print terse")
+        return sorted(
+            name
+            for row in rows
+            if (name := self._container_interface(row.get("interface", "")))
+        )
+
+    def ospf_neighbor_interfaces(self) -> list[str]:
+        rows = self._rows("/routing/ospf/neighbor/print terse")
+        return sorted(
+            name
+            for row in rows
+            if row.get("state", "").lower() == "full"
+            and (name := self._container_interface(row.get("interface", "")))
+        )
+
+    def remove_ospf_interface(self, interface: str) -> None:
+        from ipaddress import ip_interface, ip_network
+
+        port = self._port(interface)
+        addresses = [ip_interface(a).ip for a in self.interface_addresses(interface)]
+        for row in self._rows("/routing/ospf/interface-template/print terse"):
+            ports = row.get("interfaces", "").split(",")
+            networks = [n for n in row.get("networks", "").split(",") if n]
+            if port in ports:
+                selector = f'interfaces="{row["interfaces"]}"'
+            elif any(ip in ip_network(n) for n in networks for ip in addresses):
+                selector = f'networks="{row["networks"]}"'
+            else:
+                continue
+            self._cli(
+                f"/routing ospf interface-template remove [find where {selector}]"
+            )
+            return
+        raise ValueError(f"No OSPF interface template covers {self.node}:{interface}")
+
+    def block_ospf(self) -> None:
+        for chain in _OSPF_CHAINS:
+            self._cli(
+                f"/ip firewall filter add chain={chain} protocol=ospf action=drop"
+            )
+
+    def ospf_blocked(self) -> bool:
+        chains = {
+            row.get("chain")
+            for row in self._filter_rules()
+            if row.get("protocol") == "ospf" and row.get("action") == "drop"
+        }
+        return set(_OSPF_CHAINS) <= chains
+
     def _filter_rules(self) -> list[dict[str, str]]:
         return self._rows("/ip/firewall/filter/print terse")
 
@@ -328,6 +389,13 @@ class RouterOsFaultOps(RouterFaultOps):
             )
             > 0
         )
+
+    def reattach_interface(self, interface: str) -> None:
+        # A converted router's link reaches the VM through a container bridge
+        # that the interface left; the carrier watcher then restores the NIC.
+        net_env = getattr(self.runtime, "_net_env", None)
+        if self.node in (getattr(net_env, "native_routers", None) or {}):
+            self.runtime.exec(self.node, bridge_member_command(interface))
 
     def set_interface_mtu(self, interface: str, mtu: int) -> None:
         # The container link only carries the VM's frames; the router port

@@ -31,7 +31,11 @@ _ZTP_APPLY_COMMAND = "/bin/bash -c 'source /pkg/bin/ztp_helper.sh; xrapply {file
 
 # Kathara memory limit per XRd router. XRd Control Plane needs about 2 GiB
 # resident; the limit leaves boot headroom.
-XRD_MEMORY = "3g"
+# Memory one XRd router needs; Firecracker sizes IOS XR lab VMs from it.
+ROUTER_MEMORY_MIB = 3072
+# CPU one XRd router needs, millicores; Kathara gives each router 1.0 CPU.
+ROUTER_CPU_MILLIS = 1000
+XRD_MEMORY = f"{ROUTER_MEMORY_MIB // 1024}g"
 
 
 def iosxr_interface(name: str) -> str:
@@ -41,6 +45,13 @@ def iosxr_interface(name: str) -> str:
     if match := re.fullmatch(r"eth(0|[1-9][0-9]*)", name):
         return f"GigabitEthernet0/0/0/{match[1]}"
     raise ValueError(f"Unsupported IOS XR interface: {name!r}")
+
+
+def container_interface(name: str) -> str | None:
+    """Invert :func:`iosxr_interface` for data ports; other names give ``None``."""
+    if match := re.fullmatch(r"(?:GigabitEthernet|Gi)0/0/0/(0|[1-9][0-9]*)", name):
+        return f"eth{match[1]}"
+    return None
 
 
 def configure_xrd_router(

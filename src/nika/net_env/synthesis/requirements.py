@@ -302,6 +302,10 @@ def resolve_routing_requirements(spec, env):
                 from nika.validation.batfish.srl_isp import srl_addresses
 
                 addresses = srl_addresses(env.routing_documents[terminal])
+            elif getattr(env, "device_profile", None) == "sonic":
+                from nika.validation.batfish.sonic import design_addresses
+
+                addresses = design_addresses(env.sonic_routers[terminal])
             elif terminal in getattr(env, "native_routers", {}):
                 from nika.validation.batfish.vendor_bgp import vendor_addresses
 

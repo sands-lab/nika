@@ -234,6 +234,8 @@ class NetworkEnvBase:
             return "IOS-XR"
         if "nokia_srlinux" in caps or "srlinux" in caps:
             return "Nokia SR Linux"
+        if "sonic" in caps:
+            return "SONiC"
         if "frr" not in caps and "linux" in caps:
             return "Linux, static routes"
         return "FRRRouting"

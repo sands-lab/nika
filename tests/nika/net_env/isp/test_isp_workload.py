@@ -97,3 +97,39 @@ def test_isp_hijack_targets_divert_a_service_client() -> None:
         if p.app == "web_client" and p.args[0] == target.probe_ip
     }
     assert target.observer_host in clients
+
+
+def _session_clients(env) -> dict[str, set[str]]:
+    stub_of = {h.router_device: h for h in env.traffic.hosts}
+    prefix_at = {o.ping_address: o.prefix for o in env.bgp_plan.originated}
+    for origin in env.bgp_plan.originated:
+        prefix_at[stub_of[origin.device].address] = origin.prefix
+    clients: dict[str, set[str]] = {}
+    for process in env.business_workload().processes:
+        if process.app != "web_client" or process.args[0] not in prefix_at:
+            continue
+        clients.setdefault(prefix_at[process.args[0]], set()).add(process.node)
+    return clients
+
+
+def test_containerlab_hijack_targets_match_stub_sessions() -> None:
+    kathara = _env("isp_dfn-bwin", igp="isis", bgp_mode="ibgp_rr")
+    clab = _env(
+        "isp_dfn-bwin",
+        igp="isis",
+        bgp_mode="ibgp_rr",
+        backend="containerlab",
+        device_profile="sonic",
+    )
+    kathara_rows = [
+        (t.hijacker, t.prefix, t.observer, t.observer_host, t.probe_ip)
+        for t in kathara.bgp_hijack_targets()
+    ]
+    clab_rows = [
+        (t.hijacker, t.prefix, t.observer, t.observer_host, t.probe_ip)
+        for t in clab.bgp_hijack_targets()
+    ]
+    assert clab_rows == kathara_rows
+    clients = _session_clients(clab)
+    for target in clab.bgp_hijack_targets():
+        assert target.observer_host in clients[target.prefix]

@@ -1,4 +1,4 @@
-"""Plan ethN ↔ Containerlab SRL interface name helpers."""
+"""Plan ethN ↔ Containerlab interface name helpers."""
 
 from __future__ import annotations
 
@@ -28,3 +28,8 @@ def srl_ethernet_name(iface_name: str) -> str:
 def srl_subinterface(iface_name: str) -> str:
     """Map plan ``ethN`` → SRL ``ethernet-1/{N+1}.0``."""
     return f"{srl_ethernet_name(iface_name)}.0"
+
+
+def clab_eth_name(iface_name: str) -> str:
+    """Map plan ``ethN`` → Containerlab endpoint ``eth{N+1}`` (``eth0`` is management)."""
+    return f"eth{eth_index(iface_name) + 1}"

@@ -5,7 +5,11 @@ from __future__ import annotations
 import ipaddress
 import re
 
-from nika.net_env.utils.iosxr.common import build_xr_file_command
+from nika.net_env.utils.iosxr.common import (
+    build_xr_file_command,
+    container_interface,
+    iosxr_interface,
+)
 from nika.problems.support.router_ops import RouterFaultOps
 from nika.service.lab.iosxr_api import CLI_COMMAND
 
@@ -19,6 +23,7 @@ _ADDRESSED_INTERFACE = re.compile(
 )
 _ROUTE_PREFIX = re.compile(r"^(\S+)\s+(\d+\.\d+\.\d+\.\d+/\d+)\s", re.MULTILINE)
 _ROUTER_BGP = re.compile(r"^router bgp (\d+)", re.MULTILINE)
+_OSPF_FULL_NEIGHBOR = re.compile(r"^\S+\s+\d+\s+FULL/\S*\s.*?\s(\S+)\s*$", re.M)
 _STATIC_NULL0 = re.compile(r"^\s+(\d+\.\d+\.\d+\.\d+/\d+)\s+Null0\s*$", re.MULTILINE)
 
 
@@ -48,6 +53,7 @@ def _replace_command(running: str) -> str:
 
 class IosxrFaultOps(RouterFaultOps):
     profile = "iosxr"
+    port_follows_link = False
 
     def _show(self, command: str) -> str:
         return self.runtime.exec(
@@ -171,6 +177,90 @@ class IosxrFaultOps(RouterFaultOps):
             f"ipv4 access-group {_FILTER_ACL} {direction}" in applied
             for direction in ("ingress", "egress")
         )
+
+    def block_ospf(self) -> None:
+        # XR applies an ingress interface ACL to traffic punted to the
+        # router itself, so hellos from every neighbor stop arriving.
+        lines = [
+            f"ipv4 access-list {_FILTER_ACL}",
+            " 10 deny ospf any any",
+            " 20 permit ipv4 any any",
+            "!",
+        ]
+        for interface, _address in self._addressed_interfaces():
+            lines += [
+                f"interface {interface}",
+                f" ipv4 access-group {_FILTER_ACL} ingress",
+                "!",
+            ]
+        self._apply(*lines)
+
+    def ospf_blocked(self) -> bool:
+        acl = self._show(f"show running-config ipv4 access-list {_FILTER_ACL}")
+        ingress: dict[str, str] = {}
+        interface = None
+        for line in self._show("show running-config interface").splitlines():
+            if match := re.fullmatch(r"interface (\S+)", line):
+                interface = match[1]
+            elif match := re.fullmatch(r" ipv4 access-group (\S+) ingress", line):
+                ingress[interface] = match[1]
+        return bool(re.search(r"\bdeny ospf any any\b", acl)) and all(
+            ingress.get(name) == _FILTER_ACL
+            for name, _address in self._addressed_interfaces()
+        )
+
+    # OSPF
+
+    def _ospf_config(self) -> tuple[str, dict[str, str]]:
+        """Return the OSPF process and the area of each data interface."""
+        config = self._show("show running-config router ospf")
+        process = re.search(r"^router ospf (\S+)", config, re.M)
+        if process is None:
+            raise ValueError(f"No OSPF process on IOS XR router {self.node!r}")
+        areas: dict[str, str] = {}
+        area = None
+        for line in config.splitlines():
+            if match := re.fullmatch(r" area (\S+)", line):
+                area = match[1]
+            elif (match := re.fullmatch(r"  interface (\S+)", line)) and area:
+                if container_interface(match[1]):
+                    areas[match[1]] = area
+        return process[1], areas
+
+    def ospf_interfaces(self) -> list[str]:
+        return sorted(map(container_interface, self._ospf_config()[1]))
+
+    def ospf_neighbor_interfaces(self) -> list[str]:
+        return sorted(
+            container_interface(match[1])
+            for match in _OSPF_FULL_NEIGHBOR.finditer(self._show("show ospf neighbor"))
+            if container_interface(match[1])
+        )
+
+    def remove_ospf_interface(self, interface: str) -> None:
+        name = iosxr_interface(interface)
+        process, areas = self._ospf_config()
+        if name not in areas:
+            raise ValueError(f"OSPF does not run on {self.node}:{interface}")
+        self._apply(
+            f"router ospf {process}",
+            f" area {areas[name]}",
+            f"  no interface {name}",
+            " !",
+            "!",
+        )
+
+    # Interfaces
+
+    def interface_up(self, interface: str) -> bool:
+        output = self._show(f"show interfaces {iosxr_interface(interface)} brief")
+        return bool(re.search(r"^\s*\S+\s+up\s+up\b", output, re.M | re.I))
+
+    def reattach_interface(self, interface: str) -> None:
+        # XRd's software packet path keeps the socket of the Linux interface it
+        # found at boot; a restart binds the returned interface again without
+        # interrupting the other ports.
+        self._show("process restart spp")
 
     # Routes
 

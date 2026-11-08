@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from ipaddress import IPv4Address, IPv4Network
 
 from nika.net_env.isp.igp.frr import render_frr_conf
-from nika.net_env.isp.igp.ifaces import srl_e1_name
 from nika.net_env.isp.igp.plan import (
     IspPlan,
     PlannedInterface,
@@ -249,16 +249,14 @@ def attach_traffic_stubs(
     )
 
 
-def remap_inventory_ifaces_to_srl(
+def remap_inventory_ifaces(
     attachment: IspTrafficAttachment,
+    map_iface: Callable[[str], str],
 ) -> IspTrafficAttachment:
-    """Rewrite inventory/edge router iface names to Containerlab ``e1-N``.
+    """Rewrite inventory/edge router iface names to Containerlab endpoint names.
 
-    Plan interface names stay as ``ethN`` so SRL YAML renderers can map them.
+    Plan interface names stay as ``ethN`` so the platform renderers can map them.
     """
-
-    def map_iface(name: str) -> str:
-        return srl_e1_name(name)
 
     edges_t = tuple(
         replace(edge, router_iface=map_iface(edge.router_iface))
