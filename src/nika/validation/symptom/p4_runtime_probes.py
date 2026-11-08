@@ -447,7 +447,9 @@ def _crossed_reading_quiet(problem: Any, params: Any) -> dict[str, Any]:
         load_intent(runtime), params.host_name
     )
     path = get_probe_path(
-        problem.scenario_name or "", topo_size=problem.net_env.model.topo_size
+        problem.scenario_name or "",
+        topo_size=problem.net_env.model.topo_size,
+        net_env=problem.net_env,
     )
     if path is None or not path.http_url:
         return {**pair, "error": "no_probe_path"}

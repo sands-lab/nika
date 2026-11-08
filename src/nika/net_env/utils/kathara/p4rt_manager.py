@@ -984,6 +984,27 @@ def cmd_counters(args: argparse.Namespace) -> None:
     print(json.dumps({"ok": True, "summary": summary, "counters": payload}))
 
 
+def cmd_delete_lpm(args: argparse.Namespace) -> None:
+    intent = load_json(args.intent)
+    index = P4InfoIndex(load_p4info(args.p4info))
+    switch = intent["switches"][args.switch]
+    client = connect(switch)
+    try:
+        statuses = controller_write(
+            client,
+            index,
+            args.switch,
+            [lpm_entity(index, {"prefix": args.prefix}, kind="DELETE")],
+        )
+    finally:
+        client.close()
+    print(
+        json.dumps(
+            {"ok": all(s["code"] == "OK" for s in statuses), "statuses": statuses}
+        )
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="P4Runtime fabric manager", fromfile_prefix_chars="@"
@@ -996,6 +1017,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_apply = sub.add_parser("apply")
     p_apply.add_argument("--switch")
     p_apply.set_defaults(func=cmd_apply)
+
+    p_delete = sub.add_parser("delete-lpm")
+    p_delete.add_argument("--switch", required=True)
+    p_delete.add_argument("--prefix", required=True)
+    p_delete.set_defaults(func=cmd_delete_lpm)
 
     p_read = sub.add_parser("read")
     selection = p_read.add_mutually_exclusive_group()

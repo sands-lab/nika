@@ -311,17 +311,8 @@ def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     assert fixed["features"] == ["rpki"]
     assert fixed["supported"]
     assert build_benchmark_isp_experiment(fixed).failure_checks[0].static_edits
-    profile = next(
-        profile
-        for profile in profiles.values()
-        if profile["deployment"]["backend"] == "kathara"
-        and profile["deployment"]["igp"] == "ospf"
-        and profile["deployment"]["bgp_mode"] == "none"
-        and any(
-            case["problem"] == "ospf_area_misconfiguration"
-            for case in profile["benchmark_cases"]
-        )
-    )
+    # This topology retains intermediate paths after its anchor is isolated.
+    profile = profiles["isp_janos-us--ospf--none--kathara"]
     spec = build_benchmark_isp_experiment(profile)
     assert spec.deployment.igp == "ospf"
     assert spec.deployment.bgp_mode == "none"

@@ -118,8 +118,11 @@ def _get_net_env_for_benchmark(
     topo_size: str = "",
     *,
     isp_options: dict[str, str] | None = None,
+    release: str | None = None,
 ):
     kwargs: dict = {}
+    if release is not None:
+        kwargs["environment_release"] = release
     if topo_size and not is_isp_scenario(scenario):
         kwargs["topo_size"] = topo_size
     kwargs.update(_isp_protocol_kwargs(scenario, isp_options))
@@ -317,6 +320,7 @@ def validate_benchmark_case(
             canonical,
             topo_size,
             isp_options=isp_options,
+            release=release,
         )
         _load_inventory(net_env)
     unsupported = unsupported_native_targets(

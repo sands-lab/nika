@@ -47,7 +47,7 @@ def _write_catalog(tmp_path: Path, *, cases: list[dict]) -> Path:
 
 def test_candidate_catalog_loads_flat_case(tmp_path: Path) -> None:
     net_env = load_offline_net_env("dc_clos", "s")
-    inject = {"host_name": "client_0", "intf_name": "eth0"}
+    inject = {"host_name": "client_1_1", "intf_name": "eth0"}
     truth = ground_truth_for_case(
         problem="link_down",
         params=inject,
@@ -159,7 +159,7 @@ def test_link_down_enumerates_distinct_topology_links() -> None:
         )
         resources.add(truth.root_causes[0].resource.id)
     assert len(resources) == len(options)
-    assert "link/leaf_router_0_0:eth0--spine_router_0_0:eth1" in resources
+    assert "link/leaf_1:eth3--spine_1:eth0" in resources
 
 
 def test_isp_link_variants_recompute_symptom_targets() -> None:

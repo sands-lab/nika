@@ -763,7 +763,11 @@ def resolve_scenario_backend(
 
 
 def get_net_env_instance(
-    scenario_name: str, *, backend: str | None = None, **kwargs
+    scenario_name: str,
+    *,
+    backend: str | None = None,
+    environment_release: str | None = None,
+    **kwargs,
 ) -> NetworkEnvBase:
     """Get an instance of the specified network environment.
 
@@ -791,6 +795,9 @@ def get_net_env_instance(
     native = (spec.device_profiles or {}).get(merged.get("device_profile"))
     if resolved == "kathara" and native is not None:
         cls = getattr(import_module(native.module), native.class_name)
+    from nika.net_env.compat import release_environment_class
+
+    cls = release_environment_class(canonical, environment_release, cls)
     lab_name = merged.pop("lab_name", None)
     topology_file = merged.pop("topology_file", None)
     runtime_workdir = merged.pop("runtime_workdir", None)
@@ -849,6 +856,7 @@ def get_probe_path(
     *,
     topo_size: str = "s",
     deploy_overrides: Mapping[str, Any] | None = None,
+    net_env: NetworkEnvBase | None = None,
 ) -> ProbePath | None:
     """Default probe path declared by the scenario's lab class, if any.
 
@@ -863,11 +871,20 @@ def get_probe_path(
         backend = resolve_scenario_backend(
             scenario_name, default_when_ambiguous="kathara"
         )
-        cls = _load_net_env_class(scenario_name, backend=backend)
-        return cls.default_probe_path(
-            topo_size=topo_size,
-            **{**(spec.deploy_defaults or {}), **(deploy_overrides or {})},
+        cls = (
+            type(net_env)
+            if net_env is not None
+            else _load_net_env_class(scenario_name, backend=backend)
         )
+        deployment = dict(spec.deploy_defaults or {})
+        if net_env is not None:
+            topo_size = getattr(net_env, "topo_size", None) or topo_size
+            for key in ("topo", "igp", "bgp_mode", "rpki", "device_profile"):
+                value = getattr(net_env, key, None)
+                if value is not None:
+                    deployment[key] = value
+        deployment.update(deploy_overrides or {})
+        return cls.default_probe_path(topo_size=topo_size, **deployment)
     except Exception as exc:  # noqa: BLE001
         system_logger.warning(f"No default probe path for {scenario_name!r}: {exc}")
         return None

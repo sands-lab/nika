@@ -52,7 +52,7 @@ class DNSLookupLatency(ProblemBase):
     def benchmark_inject_params(cls, ctx):
         dns_list = list(ctx.servers.get("dns") or [])
         if ctx.scenario == "dc_clos":
-            dns_target = prefer_named(dns_list, "dns_pod0", ctx.dns0)
+            dns_target = prefer_named(dns_list, "web_1", ctx.dns0)
         elif ctx.scenario == "campus_lan":
             dns_target = prefer_named(dns_list, "dns_server", ctx.dns0)
         else:

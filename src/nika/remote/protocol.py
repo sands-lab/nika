@@ -38,6 +38,7 @@ class EnvStartRequest(BaseModel):
     rpki: bool | None = None
     backend: str | None = None
     device_profile: str | None = None
+    release: str | None = None
     static_validation: bool = False
     telemetry: list[str] = Field(default_factory=list)
     traffic: dict[str, Any] | None = None

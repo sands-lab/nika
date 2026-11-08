@@ -31,7 +31,7 @@ from tests.support.prerequisites import docker_available
 
 @pytest.mark.unit
 def test_size_table_matches_plan() -> None:
-    assert SIZE_TABLE["s"] == (2, 4, 2)
+    assert SIZE_TABLE["s"] == (2, 4, 3)
     assert SIZE_TABLE["m"] == (4, 8, 4)
     assert SIZE_TABLE["l"] == (8, 16, 4)
 

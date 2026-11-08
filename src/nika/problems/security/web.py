@@ -165,14 +165,6 @@ class WebDoS(ProblemBase):
                 ctx.host0,
                 pool=pools.get("attacker_pool"),
             )
-        elif scenario == "dc_clos":
-            # Keep victim, observer, and URL on one deterministic HTTP path.
-            params.update(
-                host_name="webserver0_pod0",
-                attacker_device="client_0",
-                observer_device="dns_pod0",
-                probe_url="http://10.0.1.2/small.bin",
-            )
         elif scenario == "campus_lan":
             params.update(
                 host_name="web_server_0",
@@ -180,7 +172,7 @@ class WebDoS(ProblemBase):
                 observer_device="pc_2_1_1_1",
                 probe_url="http://10.200.0.3/",
             )
-        elif scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
+        elif scenario in {"dc_clos", "sdn_l3_clos", "p4_dc_fabric"}:
             model = ctx.net_env.model
             observer = model.client_endpoints()[0]
             victim = next(

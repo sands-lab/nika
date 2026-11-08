@@ -314,6 +314,7 @@ def start_net_env(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    release: str | None = None,
     static_validation: bool | None = None,
     routing_parameters: dict | None = None,
     routing_model: str | None = None,
@@ -365,6 +366,7 @@ def start_net_env(
             rpki=rpki,
             backend=backend,
             device_profile=device_profile,
+            release=release,
             static_validation=static_validation_enabled,
             telemetry=list(telemetry_kinds),
             traffic=traffic_profile.case_value() if traffic_profile else None,
@@ -428,6 +430,8 @@ def start_net_env(
         session_tag=session_tag, suffix=suffix
     )
     net_env_kwargs: dict = {"lab_name": lab_name, **isp_kwargs}
+    if release is not None:
+        net_env_kwargs["environment_release"] = release
     # Do not pass topo_size into ISP labs (topology is baked into scenario ID).
     if size is not None and not is_isp_scenario(canonical):
         net_env_kwargs["topo_size"] = size
@@ -463,6 +467,8 @@ def start_net_env(
     if is_isp_scenario(canonical):
         scenario_params["topo"] = getattr(net_env, "topo", None)
     scenario_params.update(isp_kwargs)
+    if release is not None:
+        scenario_params["environment_release"] = release
     probe_intent = net_env.probe_intent()
     if probe_intent is not None:
         net_env.metadata[PROBE_INTENT_METADATA_KEY] = probe_intent.model_dump(

@@ -17,13 +17,13 @@ ROW_A = {
     "scenario": "dc_clos",
     "problem": "link_down",
     "topo_size": "s",
-    "inject": {"host_name": "client_0", "intf_name": "eth0"},
+    "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
 }
 ROW_B = {
     "scenario": "dc_clos",
     "problem": "link_flap",
     "topo_size": "s",
-    "inject": {"host_name": "client_0", "intf_name": "eth0"},
+    "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
 }
 
 

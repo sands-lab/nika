@@ -100,7 +100,11 @@ def ground_truth_for_case(
     cls = get_problem_class(problem, scenario, release)
     if cls is None:
         raise UnresolvedRootCauseError(f"Unknown failure {problem!r}.")
-    env = net_env if net_env is not None else load_offline_net_env(scenario, topo_size)
+    env = (
+        net_env
+        if net_env is not None
+        else load_offline_net_env(scenario, topo_size, release=release)
+    )
     instance = cls.__new__(cls)
     instance.root_cause_name = cls.root_cause_name
     instance.symptom_desc = getattr(cls, "symptom_desc", "") or ""

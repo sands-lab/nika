@@ -32,7 +32,7 @@ def _mini_cases_yaml(path: Path) -> Path:
                 "scenario": "dc_clos",
                 "topo_size": "s",
                 "problem": "link_down",
-                "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
             }
         ],
     }

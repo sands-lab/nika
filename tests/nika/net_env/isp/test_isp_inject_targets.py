@@ -155,3 +155,8 @@ def test_default_probe_path_stays_inside_one_as_under_ebgp() -> None:
     assert asn_of[path.control_plane_host] == asn_of[peer_router]
     # Other modes keep the first backbone link, which crosses ASes here.
     assert isp_topology_probe_path("dfn-bwin") != path
+    from nika.net_env.net_env_pool import get_probe_path
+    from nika.problems.rca.inventory import load_offline_net_env
+
+    env = load_offline_net_env("isp_dfn-bwin", bgp_mode="ebgp")
+    assert get_probe_path("isp_dfn-bwin", net_env=env) == path

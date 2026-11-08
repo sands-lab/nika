@@ -277,6 +277,7 @@ def load_offline_net_env(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    release: str | None = None,
     rendered: bool = True,
 ):
     """Instantiate a scenario without deploying, for GT generation and migration.
@@ -312,6 +313,8 @@ def load_offline_net_env(
     )
     if device_profile is not None:
         kwargs["device_profile"] = device_profile
+    if release is not None:
+        kwargs["environment_release"] = release
     if not rendered:
         kwargs["rendered"] = False
     net_env = get_net_env_instance(scenario, **kwargs)
@@ -336,4 +339,5 @@ def load_session_offline_net_env(row: dict):
         rpki=params.get("rpki"),
         backend=params.get("backend"),
         device_profile=params.get("device_profile"),
+        release=params.get("environment_release") or row.get("benchmark_version"),
     )
