@@ -650,6 +650,21 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         ok = bool(original) and all(
             ops.tunnel_peer(iface).public_key == key for iface, key in original.items()
         )
+        expected = set(getattr(self, "_hub_tunnel_ips", []))
+        if ok and expected:
+            from nika.net_env.verify import frr_bgp_established_peers
+
+            def healthy():
+                peers = (
+                    native.bgp_established_peers()
+                    if native is not None
+                    else frr_bgp_established_peers(
+                        self.runtime.exec(edge, "vtysh -c 'show bgp summary json'")
+                    )
+                )
+                return expected <= peers
+
+            ok = wait_until(healthy, 180, interval_s=2)
         return build_verify_result(
             fault_type=self.root_cause_name, verified=ok, details={"host": edge}
         )

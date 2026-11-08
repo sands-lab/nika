@@ -10,6 +10,8 @@ pytestmark = pytest.mark.unit
 
 
 def composite(faults):
+    for fault in faults:
+        fault.MULTI_INJECT_DWELL_SEC = 0
     problem = object.__new__(MultiFaultProblem)
     problem.sub_faults = faults
     problem.problem_names = [fault.root_cause_name for fault in faults]

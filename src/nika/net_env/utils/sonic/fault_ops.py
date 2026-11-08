@@ -9,6 +9,7 @@ container interfaces (``eth{k}``); SONiC ports are ``Ethernet{4(k-1)}``.
 
 from __future__ import annotations
 
+from collections import Counter
 import base64
 import ipaddress
 import json
@@ -263,17 +264,84 @@ class SonicFaultOps(RouterFaultOps):
         return set(json.loads(self._vtysh("show ip route ospf json")))
 
     def save_config(self) -> str:
-        return self._running()
+        """Capture the configuration domains changed by native fault operations."""
+        links = json.loads(self._exec("ip -j link show"))
+        return json.dumps(
+            {
+                "frr": self._running(),
+                "mtu": {
+                    row["ifname"]: row["mtu"]
+                    for row in links
+                    if row["ifname"].startswith("Ethernet")
+                },
+            }
+        )
 
     def restore_config(self, config: str) -> None:
-        # Reconcile the OSPF process, including bindings removed by the fault.
-        self._configure("no router ospf")
-        encoded = base64.b64encode(config.encode()).decode()
-        self._exec(f"printf %s {shlex.quote(encoded)} | base64 -d > {_FRR_CONF}")
-        self._exec(f"vtysh -f {_FRR_CONF}", timeout=60)
-        self._exec(FRR_SAVE_COMMAND)
+        """Restore routing, packet filters, and changed port MTUs from a snapshot."""
+        from nika.problems.support.polling import wait_until
+
+        saved = json.loads(config)
+        current = self._running()
+        if current != saved["frr"]:
+            # Remove changed protocol/policy instances before loading their saved
+            # definitions; applying a file alone cannot undo deleted bindings or
+            # remove an injected route, instance, or prefix-list entry.
+            pattern = (
+                r"^((?:router (?:bgp|ospf|isis)\b|route-map\b)[^\n]*)\n.*?(?=^!\s*$|\Z)"
+            )
+            before = {
+                match[1]: match[0]
+                for match in re.finditer(pattern, saved["frr"], re.M | re.S)
+            }
+            after = {
+                match[1]: match[0]
+                for match in re.finditer(pattern, current, re.M | re.S)
+            }
+            remove = [
+                f"no {header}"
+                for header, block in after.items()
+                if before.get(header) != block
+            ]
+            statements = (
+                r"^(?:ip route |ipv6 route |ip prefix-list |ipv6 prefix-list ).*$"
+            )
+            remove += [
+                f"no {line}"
+                for line in (
+                    Counter(re.findall(statements, current, re.M))
+                    - Counter(re.findall(statements, saved["frr"], re.M))
+                ).elements()
+            ]
+            if remove:
+                self._configure(*remove)
+            encoded = base64.b64encode(saved["frr"].encode()).decode()
+            self._exec(f"printf %s {shlex.quote(encoded)} | base64 -d > {_FRR_CONF}")
+            self._exec(f"vtysh -f {_FRR_CONF}", timeout=60)
+            self._exec(FRR_SAVE_COMMAND)
+        # Keep rules installed before or after this operation. The provider
+        # instance retained by recovery tracks only its own insertions.
+        for chain, rule in self.__dict__.pop("_inserted_filter_rules", []):
+            if self._rule_present(chain, rule):
+                self._exec(f"iptables -D {chain} {rule}")
+        for interface in self.__dict__.pop("_changed_mtu", set()):
+            mtu = saved["mtu"][interface]
+            if self.interface_mtu(interface) != mtu:
+                self._exec(
+                    f"redis-cli -n 4 hset 'PORT|{self._port(interface)}' mtu {int(mtu)}"
+                )
+                if not wait_until(
+                    lambda: self.interface_mtu(interface) == mtu, 30, interval_s=1
+                ):
+                    raise RuntimeError(
+                        f"SONiC MTU recovery failed on {self.node}:{interface}"
+                    )
 
     # Packet filters
+
+    def _insert_filter_rule(self, chain: str, rule: str) -> None:
+        self._exec(f"iptables -I {chain} {rule}")
+        self.__dict__.setdefault("_inserted_filter_rules", []).append((chain, rule))
 
     def _rule_present(self, chain: str, rule: str) -> bool:
         return "present" in self._exec(
@@ -282,7 +350,7 @@ class SonicFaultOps(RouterFaultOps):
 
     def block_bgp_transport(self) -> None:
         for chain, match in _BGP_RULES:
-            self._exec(f"iptables -I {chain} -p tcp {match} -j DROP")
+            self._insert_filter_rule(chain, f"-p tcp {match} -j DROP")
         # Drop the sessions now instead of after the hold timer.
         self._vtysh("clear ip bgp *")
 
@@ -294,14 +362,14 @@ class SonicFaultOps(RouterFaultOps):
 
     def block_ospf(self) -> None:
         for chain in _OSPF_CHAINS:
-            self._exec(f"iptables -I {chain} {_OSPF_DROP}")
+            self._insert_filter_rule(chain, _OSPF_DROP)
 
     def ospf_blocked(self) -> bool:
         return all(self._rule_present(chain, _OSPF_DROP) for chain in _OSPF_CHAINS)
 
     def block_icmp_frag_needed(self) -> None:
         for chain in _FRAG_NEEDED_CHAINS:
-            self._exec(f"iptables -I {chain} {_FRAG_NEEDED}")
+            self._insert_filter_rule(chain, _FRAG_NEEDED)
 
     def icmp_frag_needed_blocked(self) -> bool:
         return all(
@@ -384,6 +452,7 @@ class SonicFaultOps(RouterFaultOps):
 
     def set_interface_mtu(self, interface: str, mtu: int) -> None:
         # portmgrd applies the CONFIG_DB port MTU to the kernel port.
+        self.__dict__.setdefault("_changed_mtu", set()).add(self._port(interface))
         self._exec(f"redis-cli -n 4 hset 'PORT|{self._port(interface)}' mtu {int(mtu)}")
 
     def interface_mtu(self, interface: str) -> int | None:
