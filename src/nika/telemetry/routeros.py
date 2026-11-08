@@ -26,7 +26,7 @@ EXPORTER = f"{CONFIG_DIR}/routeros_exporter.py"
 EXPORTER_PORT = 9101
 _VERSION = re.compile(r"\bversion:\s*(\d[\w.]*)", re.I)
 _STATS_ROW = re.compile(
-    r'(?:^|\s)(?:name="(?P<qname>[^"]+)"|(?P<name>ether\d+|lo0|bridge\d+))\s+'
+    r'(?:^|\s)(?:name="(?P<qname>[^"]+)"|(?P<name>ether\d+|loopback|bridge\d+))\s+'
     r"(?:rx-byte[=:]?\s*)?(?P<rx_byte>\d+)\s+"
     r"(?:tx-byte[=:]?\s*)?(?P<tx_byte>\d+)\s+"
     r"(?:rx-packet[=:]?\s*)?(?P<rx_packet>\d+)\s+"
@@ -34,7 +34,7 @@ _STATS_ROW = re.compile(
     re.I,
 )
 _COLUMN_ROW = re.compile(
-    r"^(?P<name>ether\d+|lo0|bridge\d+)\s+"
+    r"^(?P<name>ether\d+|loopback|bridge\d+)\s+"
     r"(?P<rx_byte>\d+)\s+(?P<tx_byte>\d+)\s+"
     r"(?P<rx_packet>\d+)\s+(?P<tx_packet>\d+)"
     r"(?:\s+(?P<rx_drop>\d+)\s+(?P<tx_drop>\d+)"
@@ -42,7 +42,7 @@ _COLUMN_ROW = re.compile(
     re.I | re.M,
 )
 _TERSE = re.compile(
-    r"^\s*\d+\s+(?P<flags>[A-Z]*)\s+(?P<name>ether\d+|lo0|bridge\d+)",
+    r"^\s*\d+\s+(?P<flags>[A-Z]*)\s+(?P<name>ether\d+|loopback|bridge\d+)",
     re.I | re.M,
 )
 _BGP_ADDR = re.compile(r"(?:^|\s)remote\.address=(\S+)")
@@ -257,12 +257,12 @@ def _ssh(address: str, command: str) -> str:
 
 
 COLUMN = re.compile(
-    r"^(ether\d+|lo0|bridge\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)"
+    r"^(ether\d+|loopback|bridge\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)"
     r"(?:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+))?",
     re.I | re.M,
 )
 STATS = re.compile(
-    r'(?:^|\s)(?:name="([^"]+)"|(ether\d+|lo0|bridge\d+))\s+'
+    r'(?:^|\s)(?:name="([^"]+)"|(ether\d+|loopback|bridge\d+))\s+'
     r"(?:rx-byte[=:]?\s*)?(\d+)\s+"
     r"(?:tx-byte[=:]?\s*)?(\d+)\s+"
     r"(?:rx-packet[=:]?\s*)?(\d+)\s+"
@@ -270,7 +270,7 @@ STATS = re.compile(
     re.I,
 )
 TERSE = re.compile(
-    r"^\s*\d+\s+([A-Z]*)\s+(ether\d+|lo0|bridge\d+)",
+    r"^\s*\d+\s+([A-Z]*)\s+(ether\d+|loopback|bridge\d+)",
     re.I | re.M,
 )
 BGP_ADDR = re.compile(r"(?:^|\s)remote\.address=(\S+)")

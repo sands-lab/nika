@@ -1,0 +1,20 @@
+{
+  "digest": "d05e29f0204f16fa10151069edf1c729d9e0b75d4d0b90bd7aedb40d17c5a2f1",
+  "netlab": "26.10",
+  "routers": [
+    "ann_arbor",
+    "atlanta",
+    "boulder",
+    "houston",
+    "ithaca",
+    "lincoln",
+    "palo_alto",
+    "pittsburgh",
+    "princeton",
+    "salt_lake_city",
+    "san_diego",
+    "seattle",
+    "urbana_champaign",
+    "washington"
+  ]
+}

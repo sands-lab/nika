@@ -129,13 +129,36 @@ def _data_flows_back(problem: Any, params: Any, ends: dict[str, Any]) -> bool:
     the destination), the probe data must flow back toward the observer.
     Without a Linux route lookup on the target, only ownership decides.
     """
-    route = exec_or_empty(
-        problem.runtime, params.host_name, f"ip -4 route get {ends['dst']}"
-    )
-    match = re.search(r"\bdev (\S+)", route)
-    if match is None:
+    egress = _egress_device(problem.runtime, params.host_name, ends["dst"])
+    if egress is None:
         return ends["dst_host"] == params.host_name
-    return match.group(1) != params.intf_name
+    return egress != params.intf_name
+
+
+def _egress_device(runtime: LabRuntime, host: str, ip: str) -> str | None:
+    """The physical interface that carries the host's packets toward ``ip``.
+
+    A route through a tunnel (WireGuard, GRE, IPIP, VXLAN) leaves through the
+    interface that reaches the tunnel's remote endpoint, so the lookup follows
+    the endpoint to the underlay.
+    """
+    device = None
+    for _hop in range(3):
+        route = exec_or_empty(runtime, host, f"ip -4 route get {ip}")
+        match = re.search(r"\bdev (\S+)", route)
+        if match is None:
+            return device
+        device = match.group(1)
+        link = exec_or_empty(runtime, host, f"ip -d link show dev {device}")
+        if re.search(r"^\s+wireguard\b", link, re.M):
+            endpoints = exec_or_empty(runtime, host, f"wg show {device} endpoints")
+            remote = re.search(r"\s(\d+\.\d+\.\d+\.\d+):\d+", endpoints)
+        else:
+            remote = re.search(r"\bremote (\d+\.\d+\.\d+\.\d+)", link)
+        if remote is None:
+            return device
+        ip = remote.group(1)
+    return device
 
 
 def link_corruption_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -148,6 +171,11 @@ def link_corruption_baseline(problem: Any, params: Any) -> tuple[bool, dict[str,
         lambda: _link_corruption_reading(problem, ends),
         lambda r: 0.0 if r["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX else 1.0,
     )
+    # Host load can only lower a goodput sample, so the higher of two healthy
+    # samples is the path's rate.
+    second = _goodput(problem.runtime, ends, port=15221)
+    if (second.get("received_bps") or 0) > (reading["tcp"].get("received_bps") or 0):
+        reading = {**reading, "tcp": second}
     problem._audit_corruption = {"ends": ends, "before": reading}
     ok = reading["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX and bool(
         reading["tcp"]["received_bps"]
@@ -251,16 +279,11 @@ def _crossing_ends(problem: Any, params: Any) -> dict[str, Any]:
     }
     inject_dev = kernel_data_interface(problem.net_env, device, intf)
 
-    def route_dev(ip: str) -> str | None:
-        route = exec_or_empty(runtime, device, f"ip -o route get {ip}")
-        match = re.search(r" dev (\S+)", route)
-        return match.group(1) if match else None
-
     def egresses(ip: str) -> bool:
-        return route_dev(ip) == inject_dev
+        return _egress_device(runtime, device, ip) == inject_dev
 
     if "error" not in ends:
-        dev = route_dev(ends["dst"])
+        dev = _egress_device(runtime, device, ends["dst"])
         if dev == inject_dev or dev not in kernel_ports:
             return ends
     addresses = lab_addresses(runtime)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 from collections.abc import Callable
 from typing import Any
@@ -9,6 +10,54 @@ from typing import Any
 from nika.net_env.contract import ValidationSanityResult
 from nika.validation.base import ValidationSnapshot
 from nika.validation.batfish.compiler import BatfishQuestion
+
+
+# Parse warnings whose statements do not change the routing Batfish models,
+# with the reason. Any other warning fails the configuration_parse check.
+ACCEPTED_PARSE_WARNINGS = (
+    (r"no shutdown", "interfaces are enabled unless shut down"),
+    (r"#!/usr/bin/vtysh -f|exit|!.*", "generator markup, not configuration"),
+    (r"timers (throttle|lsa) .*|bgp update-delay \d+", "convergence timing only"),
+    (r"bgp default show-(nexthop-)?hostname", "display only"),
+    (r"domain ipv4 host .*", "name resolution only"),
+    (r"debug .*", "logging only"),
+    (r"no management enable", "management plane only"),
+    (
+        r"(no )?neighbor \S+ send-community.*",
+        "Batfish propagates communities without per-neighbor send controls",
+    ),
+    (
+        r"no bgp ebgp-requires-policy|bgp unsafe-ebgp-policy",
+        "Batfish does not deny eBGP routes without policy (RFC 8212); native "
+        "execution checks those sessions",
+    ),
+    (r"loopback stub-network enable", "the loopback is announced as a /32 either way"),
+    (
+        r"ip ospf network non-broadcast|neighbor \S+ poll-interval \d+",
+        "the OSPF network type changes adjacency procedure, not computed routes",
+    ),
+    (
+        r"no bgp network import-check",
+        "Batfish originates only networks in the RIB, stricter than the router",
+    ),
+    (
+        "Duplicate IP peer group in neighbor config.",
+        "Batfish merges repeated IOS XR neighbor blocks",
+    ),
+)
+
+
+def unaccepted_parse_warnings(warnings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return parse warnings that may change the modeled routing."""
+    return [
+        w
+        for w in warnings
+        if not any(
+            w.get("Comment") == pattern
+            or re.fullmatch(pattern, str(w.get("Text") or "").strip())
+            for pattern, _ in ACCEPTED_PARSE_WARNINGS
+        )
+    ]
 
 
 class BatfishClient:
@@ -94,7 +143,10 @@ class BatfishClient:
             self._question_cache[question.kind] = rows
             return rows
         elif question.kind == "bgp_route":
-            rows = _records(self._session.q.bgpRib().answer(snapshot).frame())
+            # Best and backup paths; the verifier selects best paths when required.
+            rows = _records(
+                self._session.q.bgpRib(status="/.*/").answer(snapshot).frame()
+            )
             self._question_cache[question.kind] = rows
             return rows
         elif question.kind == "route_policy":
@@ -173,18 +225,22 @@ class BatfishClient:
             ]
             invalid = bad + wrong_format
             warnings = _records(self._session.q.parseWarning().answer(snapshot).frame())
+            dropped = unaccepted_parse_warnings(warnings)
             checks.append(
                 ValidationSanityResult(
                     check="configuration_parse",
-                    status="failed" if invalid else "passed",
+                    status="failed" if invalid or dropped else "passed",
                     evidence={
                         "files": rows,
                         "invalid_files": invalid,
+                        "unaccepted_warnings": dropped[:100],
                         "parse_warnings": warnings[:100],
                         "parse_warning_count": len(warnings),
                     },
                     reason="Batfish could not parse one or more configuration files"
                     if invalid
+                    else "Batfish ignored statements that may change routing"
+                    if dropped
                     else None,
                     duration_ms=_elapsed(started),
                 )

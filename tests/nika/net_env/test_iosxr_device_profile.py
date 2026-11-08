@@ -65,8 +65,11 @@ def test_iosxr_replaces_only_declared_roles(scenario, native, kept) -> None:
 
 
 def test_dc_clos_keeps_its_design_on_iosxr() -> None:
-    frr = get_net_env_instance("dc_clos", topo_size="s")
-    xr = get_net_env_instance("dc_clos", topo_size="s", device_profile="iosxr")
+    # NIKA's translation, not the stored netlab rendering.
+    frr = get_net_env_instance("dc_clos", topo_size="s", rendered=False)
+    xr = get_net_env_instance(
+        "dc_clos", topo_size="s", device_profile="iosxr", rendered=False
+    )
     assert type(xr) is type(frr)
     assert set(xr.lab.machines) == set(frr.lab.machines)
     assert xr.bgp_neighbors == frr.bgp_neighbors
@@ -95,11 +98,13 @@ def test_translation_rejects_unmodeled_router_behavior() -> None:
 
 
 def test_translation_keeps_areas_static_routes_and_underlay_delay() -> None:
-    campus = get_net_env_instance("campus_lan", topo_size="s", device_profile="iosxr")
+    campus = get_net_env_instance(
+        "campus_lan", topo_size="s", device_profile="iosxr", rendered=False
+    )
     core = campus.deployment_configs["router_core_1"]
     assert core.index(" area 0") < core.index(" area 1")
     enterprise = get_net_env_instance(
-        "enterprise_branch", topo_size="s", device_profile="iosxr"
+        "enterprise_branch", topo_size="s", device_profile="iosxr", rendered=False
     )
     provider = enterprise.deployment_configs["isp1_core"]
     assert "  198.18.1.10/32 100.64.0.17" in provider
@@ -210,18 +215,20 @@ def test_netlab_sketch_runs_eligible_routers_as_xr() -> None:
         for i in link["interfaces"]
     }
     assert ("router_core_1", "GigabitEthernet0/0/0/0") in names
-    # netlab XR templates omit Linux-owned static routes and the FRR eBGP
-    # defaults; NIKA retains them as native statements.
+    # netlab renders the provider's static routes; NIKA retains only the XR
+    # BGP defaults that the pinned templates omit.
     provider = get_net_env_instance(
         "enterprise_branch", topo_size="s", device_profile="iosxr"
-    ).native_sources["isp1_core"]
-    assert "  198.18.1.10/32 100.64.0.17" in retained_netlab_fragment(
-        "isp1_core", *provider
     )
-    leaf = get_net_env_instance(
-        "dc_clos", topo_size="s", device_profile="iosxr"
-    ).native_sources["leaf_router_0_0"]
-    fragment = retained_netlab_fragment("leaf_router_0_0", *leaf)
+    topology, _ = kathara_topology(provider)
+    assert {
+        "ipv4": "198.18.1.10/32",
+        "nexthop": {"ipv4": "100.64.0.17"},
+    } in topology["nodes"]["isp1_core"]["routing.static"]
+    leaf = get_net_env_instance("dc_clos", topo_size="s", device_profile="iosxr")
+    fragment = retained_netlab_fragment(
+        leaf.routing_design.routers["leaf_router_0_0"], set()
+    )
     assert "maximum-paths ebgp 32" in fragment
     assert "route-policy PASS in" in fragment
 
@@ -238,7 +245,7 @@ def test_routing_experiments_reject_uncovered_mixed_vendor_projections(
             tmp_path,
             topo_size="s",
             deployment={"device_profile": "iosxr"},
-            routing_model="frr-isis",
+            routing_model="iosxr-isp",
         )
 
 

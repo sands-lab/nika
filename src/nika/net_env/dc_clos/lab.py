@@ -13,6 +13,7 @@ from nika.net_env.utils.download_object import download_object_commands
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.native_routers import NativeRouterEnv
+from nika.net_env.synthesis.design import RoutingDesign
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
@@ -65,7 +66,7 @@ FRR_NEIGHBOR_ADD_TEMPLATE = """neighbor {neighbor_ip} remote-as {neighbor_as}
 
 
 class RouterMeta:
-    def __init__(self, name, machine: Machine, eth_index, cmd_list, AS_number):
+    def __init__(self, name, machine: Machine, eth_index, cmd_list, AS_number, design):
         self.name = name
         self.machine = machine
         self.eth_index = eth_index
@@ -76,6 +77,27 @@ class RouterMeta:
         self.frr_neighbor_configs = []
         self.neighbor_ips: list[str] = []
         self.host_network = None
+        self.design = design.router(name)
+        self.design.asn = AS_number
+        # FRR_BASE_TEMPLATE: multipath-relax, maximum-paths 32, open eBGP policy
+        # and BGP update logging.
+        self.design.bgp_multipath = 32
+        self.design.ebgp_requires_policy = False
+        self.design.debug = ["bgp keepalives", "bgp updates in", "bgp updates out"]
+
+    def add_address(self, address: str, link: str) -> None:
+        self.cmd_list.append(
+            self.design.add_interface(f"eth{self.eth_index}", address, link)
+        )
+        self.eth_index += 1
+
+    def add_neighbor(self, address: str, remote_as: int) -> None:
+        address = address.split("/")[0]
+        self.frr_neighbor_configs.append(
+            FRR_NEIGHBOR_ADD_TEMPLATE.format(neighbor_ip=address, neighbor_as=remote_as)
+        )
+        self.neighbor_ips.append(address)
+        self.design.add_neighbor(address, remote_as)
 
 
 class HostMeta:
@@ -90,6 +112,8 @@ class HostMeta:
 class DCClos(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
     LAB_NAME = "dc_clos"
+    # Deploys the netlab configurations stored under rendered/.
+    STORES_RENDERED_CONFIGS = True
     TOPO_LEVEL = "medium"
     NATIVE_PROFILE_ROLES = {
         "iosxr": frozenset({"super_spine", "spine", "leaf"}),
@@ -104,6 +128,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
         topo_size: Literal["s", "m", "l"] = "s",
         routing_parameters: dict | None = None,
         device_profile: str | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -111,6 +136,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
+        self.routing_design = RoutingDesign()
 
         super_spine_count, spine_per_pod, leaf_per_pod = fabric_dimensions(topo_size)
         self.super_spine_count = super_spine_count
@@ -144,6 +170,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                     eth_index=0,
                     cmd_list=[],
                     AS_number=65000 + ss,
+                    design=self.routing_design,
                 )
             )
 
@@ -166,6 +193,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                     eth_index=0,
                     cmd_list=[],
                     AS_number=65100 + 10 * pod + spine_id,
+                    design=self.routing_design,
                 )
                 pod_spines[pod].append(spine_meta)
                 tot_spines.append(spine_meta)
@@ -188,6 +216,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                     eth_index=0,
                     cmd_list=[],
                     AS_number=65200 + 10 * pod + leaf_id,
+                    design=self.routing_design,
                 )
                 pod_leaves[pod].append(leaf_meta)
                 tot_leaves.append(leaf_meta)
@@ -206,28 +235,11 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                 )
                 subnet = next(subnets31)
                 a_ip, b_ip = assign_p2p_ips(subnet)
-                super_spine_meta.cmd_list.append(
-                    f"ip addr add {a_ip} dev eth{super_spine_meta.eth_index}"
-                )
-                super_spine_meta.eth_index += 1
-                spine_meta.cmd_list.append(
-                    f"ip addr add {b_ip} dev eth{spine_meta.eth_index}"
-                )
-                spine_meta.eth_index += 1
-                super_spine_meta.frr_neighbor_configs.append(
-                    FRR_NEIGHBOR_ADD_TEMPLATE.format(
-                        neighbor_ip=b_ip.split("/")[0],
-                        neighbor_as=spine_meta.AS_number,
-                    )
-                )
-                super_spine_meta.neighbor_ips.append(b_ip.split("/")[0])
-                spine_meta.frr_neighbor_configs.append(
-                    FRR_NEIGHBOR_ADD_TEMPLATE.format(
-                        neighbor_ip=a_ip.split("/")[0],
-                        neighbor_as=super_spine_meta.AS_number,
-                    )
-                )
-                spine_meta.neighbor_ips.append(a_ip.split("/")[0])
+                link = f"{super_spine_meta.machine.name}_{spine_meta.machine.name}"
+                super_spine_meta.add_address(a_ip, link)
+                spine_meta.add_address(b_ip, link)
+                super_spine_meta.add_neighbor(b_ip, spine_meta.AS_number)
+                spine_meta.add_neighbor(a_ip, super_spine_meta.AS_number)
                 if super_spine_meta.router_id == "":
                     super_spine_meta.router_id = a_ip.split("/")[0]
                 if spine_meta.router_id == "":
@@ -247,28 +259,11 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                     )
                     subnet = next(subnets31)
                     a_ip, b_ip = assign_p2p_ips(subnet)
-                    spine_meta.cmd_list.append(
-                        f"ip addr add {a_ip} dev eth{spine_meta.eth_index}"
-                    )
-                    spine_meta.eth_index += 1
-                    leaf_meta.cmd_list.append(
-                        f"ip addr add {b_ip} dev eth{leaf_meta.eth_index}"
-                    )
-                    leaf_meta.eth_index += 1
-                    spine_meta.frr_neighbor_configs.append(
-                        FRR_NEIGHBOR_ADD_TEMPLATE.format(
-                            neighbor_ip=b_ip.split("/")[0],
-                            neighbor_as=leaf_meta.AS_number,
-                        )
-                    )
-                    spine_meta.neighbor_ips.append(b_ip.split("/")[0])
-                    leaf_meta.frr_neighbor_configs.append(
-                        FRR_NEIGHBOR_ADD_TEMPLATE.format(
-                            neighbor_ip=a_ip.split("/")[0],
-                            neighbor_as=spine_meta.AS_number,
-                        )
-                    )
-                    leaf_meta.neighbor_ips.append(a_ip.split("/")[0])
+                    link = f"{spine_meta.machine.name}_{leaf_meta.machine.name}"
+                    spine_meta.add_address(a_ip, link)
+                    leaf_meta.add_address(b_ip, link)
+                    spine_meta.add_neighbor(b_ip, leaf_meta.AS_number)
+                    leaf_meta.add_neighbor(a_ip, spine_meta.AS_number)
                     if spine_meta.router_id == "":
                         spine_meta.router_id = a_ip.split("/")[0]
                     if leaf_meta.router_id == "":
@@ -297,6 +292,8 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                 if router_meta.host_network
                 else ""
             )
+            if router_meta.host_network:
+                router_meta.design.bgp_networks.append(router_meta.host_network)
             self._write_frr_router(router_meta, network=network)
 
         from nika.net_env.synthesis.parameters import apply_routing_parameters
@@ -322,6 +319,10 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
             for web_idx in range(leaf_per_pod - 1)
         ]
         self.apply_device_profile(device_profile)
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import use_rendered_configs
+
+            use_rendered_configs(self)
 
     def router_roles(self) -> dict[str, list[str]]:
         roles = {"super_spine": [], "spine": [], "leaf": []}
@@ -350,6 +351,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
             str(pkg_path("net_env/utils/kathara/bgp/vtysh.conf")),
             "/etc/frr/vtysh.conf",
         )
+        router_meta.design.router_id = router_meta.router_id
         router_meta.frr_config = FRR_BASE_TEMPLATE.format(
             hostname=router_meta.name,
             AS_number=router_meta.AS_number,
@@ -475,10 +477,9 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                 host_ip = IPv4Interface(
                     f"{subnet.network_address + 2}/{subnet.prefixlen}"
                 )
-                leaf_meta.cmd_list.append(
-                    f"ip addr add {leaf_ip} dev eth{leaf_meta.eth_index}"
+                leaf_meta.add_address(
+                    str(leaf_ip), f"{leaf_meta.machine.name}_{host.machine.name}"
                 )
-                leaf_meta.eth_index += 1
                 host.cmd_list.append(f"ip addr add {host_ip} dev eth{host.eth_index}")
                 host.cmd_list.append(
                     f"ip route add default via {leaf_ip.ip} dev eth{host.eth_index}"
@@ -503,10 +504,10 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
             client_ip = IPv4Interface(
                 f"{subnet.network_address + 2}/{subnet.prefixlen}"
             )
-            super_spine_meta.cmd_list.append(
-                f"ip addr add {ss_ip} dev eth{super_spine_meta.eth_index}"
+            super_spine_meta.add_address(
+                str(ss_ip),
+                f"{super_spine_meta.machine.name}_{client_meta.machine.name}",
             )
-            super_spine_meta.eth_index += 1
             client_meta.cmd_list.append(
                 f"ip addr add {client_ip} dev eth{client_meta.eth_index}"
             )

@@ -2,9 +2,10 @@
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from nika.net_env.contract import ContractModel, ValidationContract
+from nika.net_env.synthesis.changes import DesignChange
 from nika.net_env.synthesis.completion import RoutingCompletion
 from nika.net_env.synthesis.requirements import RoutingRequirement
 
@@ -18,11 +19,27 @@ class ScenarioIncident(ContractModel):
 
 
 class RoutingMutation(ContractModel):
+    """A static counterexample: a wrong configuration and the intents it breaks.
+
+    ``changes`` state the error on the routing design; netlab renders them
+    when static analysis reads netlab output. ``old`` and ``new`` replace one
+    statement of the configuration that NIKA renders itself.
+    """
+
     name: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,40}$")
     node: str
-    old: str
-    new: str
+    old: str | None = None
+    new: str | None = None
+    changes: tuple[DesignChange, ...] = ()
     expected_failed_ids: tuple[str, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _edit(self):
+        if (self.old is None) != (self.new is None):
+            raise ValueError("A text edit needs both old and new")
+        if self.old is None and not self.changes:
+            raise ValueError("A counterexample needs design changes or a text edit")
+        return self
 
 
 class RoutingRuntimeMutation(ContractModel):
@@ -45,8 +62,11 @@ class RoutingFailureCheck(ContractModel):
     restore_nft_nodes: tuple[str, ...] = ()
     expected_failed_ids: tuple[str, ...] = Field(min_length=1)
     # Original intents the fault may or may not violate, depending on choices
-    # that completion does not pin down; their outcome is not checked.
+    # that completion does not pin down. Each still requires a concrete result.
     unconstrained_ids: tuple[str, ...] = ()
+    # The fault's static model: design changes that netlab renders, and text
+    # edits of the configuration that NIKA renders itself.
+    changes: tuple[DesignChange, ...] = ()
     static_edits: dict[str, tuple[str, str]] = Field(default_factory=dict)
 
 

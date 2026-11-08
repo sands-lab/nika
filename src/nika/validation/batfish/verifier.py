@@ -223,20 +223,13 @@ class BatfishVerifier:
                         for row in rows
                         if _node(row.get("Node")) == expected.node
                         and str(row.get("Network")) == expected.prefix
-                        and "BEST" in str(row.get("Status", "")).upper()
+                        and (
+                            not expected.selected
+                            or "BEST" in str(row.get("Status", "")).upper()
+                        )
                     ]
                     paths = [str(row.get("AS_Path", "")).split() for row in relevant]
-                    passed = bool(relevant) == expected.present and all(
-                        (
-                            expected.exit_asn is None
-                            or path[:1] == [str(expected.exit_asn)]
-                        )
-                        and (
-                            expected.origin_asn is None
-                            or path[-1:] == [str(expected.origin_asn)]
-                        )
-                        for path in paths
-                    )
+                    passed = expected.satisfied_by(paths)
                 else:
                     relevant = rows
                     expected_action = "PERMIT" if intent.route_policy.permit else "DENY"

@@ -22,6 +22,62 @@ def env_list() -> None:
     typer.echo(fmt_table(headers, rows))
 
 
+@env_app.command("render")
+def env_render(
+    scenario: list[str] = typer.Option(
+        ...,
+        "--scenario",
+        help="Scenario whose router configurations netlab generates; repeatable.",
+    ),
+    check: bool = typer.Option(
+        False,
+        "--check",
+        help="Only check that the stored configurations match the current design.",
+    ),
+) -> None:
+    """Generate and store the netlab router configurations a scenario deploys."""
+    from importlib import import_module
+
+    from nika.net_env.net_env_pool import get_net_env_instance, list_all_net_envs
+    from nika.net_env.synthesis.rendered import (
+        StaleRenderedConfigs,
+        render,
+        renderable,
+        rendered_variants,
+        stored_configs,
+        stores_configs,
+        variant,
+    )
+
+    stale = []
+    for name in scenario:
+        if not stores_configs(name):
+            raise typer.BadParameter(
+                f"{name} does not deploy stored configurations", param_hint="--scenario"
+            )
+        spec = list_all_net_envs()[name]
+        env_cls = getattr(import_module(spec.module), spec.class_name)
+        for options in rendered_variants(env_cls, name):
+            env = get_net_env_instance(name, rendered=False, **options)
+            if not renderable(env):
+                typer.echo(
+                    f"{name} {options}: netlab cannot generate it; NIKA renders it"
+                )
+                continue
+            if check:
+                try:
+                    stored_configs(env)
+                except StaleRenderedConfigs as exc:
+                    stale.append(str(exc))
+                    continue
+                typer.echo(f"{name} {variant(env)}: current")
+            else:
+                typer.echo(f"{name} {variant(env)}: {render(env)}")
+    if stale:
+        typer.echo("\n".join(stale), err=True)
+        raise typer.Exit(1)
+
+
 @env_app.command("run")
 def env_run(
     name: str = typer.Argument(

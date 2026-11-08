@@ -11,11 +11,33 @@ from tests.support.prerequisites import docker_available
 
 
 @pytest.mark.unit
-def test_absent_route_cannot_constrain_unobservable_as_attributes():
+def test_absent_route_cannot_constrain_its_exit_as():
     with pytest.raises(ValueError, match="absent BGP route"):
         BgpRouteExpectation(
-            node="r1", prefix="203.0.113.0/24", present=False, origin_asn=65001
+            node="r1", prefix="203.0.113.0/24", present=False, exit_asn=65001
         )
+
+
+@pytest.mark.unit
+def test_route_expectations_distinguish_best_and_accepted_origins():
+    local, leaked = [], ["65002"]
+    # The unauthorized origin must stay out of every accepted path.
+    dormant = BgpRouteExpectation(
+        node="r1",
+        prefix="203.0.113.0/24",
+        origin_asn=65002,
+        present=False,
+        selected=False,
+    )
+    assert dormant.satisfied_by([local])
+    assert not dormant.satisfied_by([local, leaked])
+    # A leak is accepted once any path from the origin is present.
+    accepted = dormant.model_copy(update={"present": True})
+    assert accepted.satisfied_by([local, leaked])
+    # A best-path expectation constrains every best path.
+    best = accepted.model_copy(update={"selected": True})
+    assert not best.satisfied_by([local, leaked])
+    assert best.satisfied_by([leaked])
 
 
 @pytest.mark.integration

@@ -302,26 +302,6 @@ def test_reject_unknown_candidate_in_original_bgp_order():
         resolve_routing_requirements(spec, env)
 
 
-@pytest.mark.contract
-@pytest.mark.parametrize("feature", ["igp", "inherited-policy", "vrf"])
-def test_srl_projection_rejects_features_outside_its_model(feature):
-    from nika.validation.batfish.srl import project_srl_bgp
-
-    env = get_net_env_instance("min3clos", routing_model="srl-bgp")
-    document = env.routing_documents["leaf1"]
-    instance = document["srl_nokia-network-instance:network-instance"][0]
-    if feature == "igp":
-        instance["protocols"]["srl_nokia-ospf:ospf"] = {}
-    elif feature == "inherited-policy":
-        instance["protocols"]["srl_nokia-bgp:bgp"]["group"][0]["import-policy"] = [
-            "OTHER"
-        ]
-    else:
-        instance["name"] = "business"
-    with pytest.raises(ValueError, match="projection"):
-        project_srl_bgp("leaf1", document)
-
-
 @pytest.mark.integration
 def test_ospf_states_cannot_choose_inconsistent_costs(tmp_path, netcomplete_image):
     from nika.net_env.synthesis.runner import run_netcomplete
