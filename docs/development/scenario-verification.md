@@ -202,7 +202,7 @@ Batfish parses the configuration, computes modeled protocol/route state and answ
 | Full healthy specification | Every required predicate passes | 133 passed |
 | Full link-down specification | Every fault-state predicate passes | 133 passed |
 
-Batfish reads this example's FRR configuration directly. IOS XR also has a native parser. NIKA uses restricted projections for RouterOS, SR Linux and FRR IS-IS. Each projection reads the concrete candidate and rejects unsupported syntax; it does not prove that analyzer and router semantics are identical. The pinned Batfish build includes the [FRR next-hop correction](../../scripts/batfish/frr-next-hop-self.patch).
+Batfish reads this example's FRR configuration directly. IOS XR and SONiC also have native parsers. NIKA uses restricted projections for RouterOS, SR Linux and FRR IS-IS. Each projection reads the concrete candidate and rejects unsupported syntax; it does not prove that analyzer and router semantics are identical. The pinned Batfish build includes the [FRR next-hop correction](../../scripts/batfish/frr-next-hop-self.patch).
 
 A deliberate bad candidate tests whether the checks detect the intended mistake. Removing `washng`'s business-prefix announcement violated exactly 12 predeclared predicates in this run. A violation, tool error or required unsupported property rejects the candidate; it does not count as acceptance.
 
@@ -246,6 +246,7 @@ Acceptance establishes the declared properties within the supported static model
 | ISP FRR and SR Linux | Supported OSPF or IPv4 Level-2 IS-IS sketches, iBGP RR and ordinary eBGP; IS-IS uses a shortest-path reduction with symmetric metrics 1–65,535, not a native NetComplete IS-IS solver |
 | ISP IOS XR | Supported OSPF or IPv4 Level-2 IS-IS sketches with no BGP, iBGP RR or eBGP, subject to device/fault bindings and parser limits; ISP contracts declare OSPF adjacencies only, so IS-IS adjacencies are checked natively on XR |
 | ISP RouterOS | Supported OSPF or IPv4 Level-2 IS-IS sketches with no BGP, iBGP RR or eBGP, subject to device/fault bindings and projection limits; RouterOS IS-IS is projected to IOS XR as FRR IS-IS is, and netlab has no RouterOS IS-IS module |
+| ISP and `min3clos` on SONiC | Static acceptance only, with routing model `sonic`: ISP profiles take the FRR sketches, completion and predicates; `min3clos` checks its fixed design without completion. Batfish parses the SONiC files natively, and IS-IS-only designs are projected to IOS XR. netlab and native execution are not available for SONiC routers in this workflow; `nika env run` verifies them natively |
 | Clos, campus, enterprise, min3clos and direct BGP | Declared routing, communication, policy and isolation; installed ECMP and overlay behavior require native evidence |
 | Clos, campus and enterprise with `device_profile: routeros` | The same sketches and requirements as FRR, size `s`, except the Clos ECMP predicates; RouterOS routers are projected back to FRR and analyzed with the FRR routers; netlab does not generate RouterOS routers |
 | Clos, campus and enterprise with `device_profile: iosxr` | The same sketches and requirements as FRR, size `s`; XR and FRR routers are analyzed together, with netlab generating the XR routers as `iosxr` devices |

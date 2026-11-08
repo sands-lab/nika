@@ -78,13 +78,16 @@ nika:
       # trial copies (relative to the NIKA checkout; uninstall removes it).
       root: runtime/firecracker
       vm_cpus: 4
-      # Scenario id -> vCPUs, merged over NIKA's sizes for large SR Linux
-      # labs (isp_pdh, isp_di-yuan, isp_dfn-gwin: 12).
+      # Scenario id or <scenario>@<device_profile> -> vCPUs. Overrides the
+      # size NIKA derives from the variant's router platform and its 12
+      # vCPUs for isp_pdh, isp_di-yuan and isp_dfn-gwin,
+      # e.g. {isp_pdh: 16, isp_pdh@sonic: 6}.
       vm_cpus_overrides: {}
       vm_memory: 4GiB
-      # Scenario id -> VM memory, merged over NIKA's sizes for large labs
-      # (dc_clos, k8s_lab, llmd_lab, min3clos, iosxr_simple_bgp: 8GiB; isp_pdh,
-      # isp_di-yuan, isp_dfn-gwin: 20GiB), e.g. {k8s_lab: 12GiB}.
+      # Scenario id or <scenario>@<device_profile> -> VM memory. Overrides the
+      # size NIKA derives from the variant's router platform and its 8GiB for
+      # dc_clos, k8s_lab, llmd_lab, min3clos and iosxr_simple_bgp,
+      # e.g. {k8s_lab: 12GiB, isp_pdh@sonic: 6GiB}.
       vm_memory_overrides: {}
       # 2 MiB huge pages, required: reserve them on the host first (see the
       # docs). Each running copy holds its own huge pages.
