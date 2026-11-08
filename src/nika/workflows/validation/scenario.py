@@ -107,6 +107,7 @@ def validate_scenario_design(
     # Save original behavior before resolving fixed address/session bindings.
     (output / "original-spec.json").write_text(spec.model_dump_json(indent=2) + "\n")
     native_srl = spec.routing_model in {"srl-bgp", "srl-isp"}
+    native_sonic = spec.routing_model == "sonic"
     native_vendor = spec.routing_model in {
         "iosxr-bgp",
         "routeros-bgp",
@@ -129,6 +130,19 @@ def validate_scenario_design(
                 "the frr or linux-static routing model"
             )
         require_native_validation(env)
+    if native_sonic:
+        if "sonic" not in env.ROUTING_MODELS:
+            raise ValueError(
+                "The sonic routing model requires a SONiC deployment "
+                "(deployment.device_profile: sonic)"
+            )
+        # SONiC routers have no native fault restoration or contract observation
+        # bound in this workflow yet; their runtime checks run in `nika env run`.
+        if runtime:
+            raise ValueError(
+                "SONiC scenario experiments cover static analysis only; native "
+                "execution is not bound for SONiC routers"
+            )
     if config_generator == "netlab":
         from nika.workflows.validation.netlab import check_netlab_scope
 
@@ -185,6 +199,11 @@ def validate_scenario_design(
             raise ValueError(
                 "Native vendor experiments require vendor-specific configuration restoration"
             )
+    elif native_sonic:
+        from nika.validation.batfish.sonic import build_sonic_snapshot
+
+        snapshot_builder = build_sonic_snapshot
+        runtime_verifier = None
     elif spec.routing_model == "frr-isis":
         from nika.validation.batfish.isis import build_isis_snapshot
 
@@ -353,6 +372,8 @@ def validate_scenario_design(
     def candidate_configs():
         if native_vendor:
             return vendor_configs(env)
+        if native_sonic:
+            return {name: r.frr_conf for name, r in env.sonic_routers.items()}
         if native_srl:
             import yaml
 
@@ -440,7 +461,7 @@ def validate_scenario_design(
             incident = next((i for i in spec.incidents if i.name == name), None)
             shutdown = []
             if incident:
-                if native_srl:
+                if native_srl or native_sonic:
                     endpoint = f"{incident.host_name}:{incident.intf_name}"
                     (link,) = [
                         link

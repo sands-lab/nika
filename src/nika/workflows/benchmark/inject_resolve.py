@@ -7,6 +7,7 @@ import random
 from collections import defaultdict
 
 from nika.net_env.net_env_pool import get_net_env_instance
+from nika.runtime.spec import MachineInventory
 from nika.problems.base import ProblemBase
 from nika.problems.registry import get_problem_class, list_avail_problem_instances
 from nika.problems.support.router_ops import (
@@ -141,7 +142,9 @@ def _load_inventory(net_env) -> None:
     net_env.hosts = []
     net_env.routers = []
     net_env.switches = []
-    net_env.servers = defaultdict(list)
+    net_env.servers = defaultdict(
+        list, MachineInventory(net_env.machine_identities).services()
+    )
 
     for node in spec.nodes:
         name = node.name
@@ -149,7 +152,7 @@ def _load_inventory(net_env) -> None:
         image = node.image.lower()
         if any(key in name for key in ("client", "pc", "host")) or kind == "linux":
             net_env.hosts.append(name)
-        elif any(key in kind for key in ("srl", "ceos", "router")) or any(
+        elif any(key in kind for key in ("srl", "ceos", "sonic", "router")) or any(
             key in image for key in ("srl", "ceos", "frr")
         ):
             net_env.routers.append(name)

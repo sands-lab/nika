@@ -161,12 +161,17 @@ def isp_options_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
 def _native_profile_option(
     scenario: str, provided: dict[str, Any]
 ) -> dict[str, str] | None:
-    """Return ``{"device_profile": ...}`` for a native profile of a non-ISP lab.
+    """Return ``{"device_profile": ...}`` for a router platform of a non-ISP lab.
 
     Environments that declare ``device_profiles`` accept one of them (on
-    Kathara) as their only deployment option. Returns ``None`` otherwise.
+    Kathara), and Containerlab-only environments one of their
+    ``containerlab_device_profiles``, as their only deployment option.
+    Returns ``None`` otherwise.
     """
-    from nika.net_env.net_env_pool import scenario_device_profiles
+    from nika.net_env.net_env_pool import (
+        scenario_containerlab_device_profiles,
+        scenario_device_profiles,
+    )
 
     profile = provided["device_profile"]
     if profile is None or provided["topo"] is not None:
@@ -174,6 +179,12 @@ def _native_profile_option(
     if any(provided[key] is not None for key in ISP_PROTOCOL_KEYS):
         return None
     profile = profile.strip().lower()
+    if profile in scenario_containerlab_device_profiles(scenario):
+        if provided["backend"] not in (None, "containerlab"):
+            raise ValueError(
+                f"device_profile={profile!r} requires backend containerlab."
+            )
+        return {"device_profile": profile}
     if profile not in scenario_device_profiles(scenario):
         return None
     if provided["backend"] not in (None, "kathara"):

@@ -15,6 +15,7 @@ from nika.problems.support.router_ops import (
     profile_fault_operations,
 )
 from nika.workflows.benchmark.generate import (
+    _isp_stack_variants,
     build_failure_cases,
     iter_failure_case_specs,
     native_benchmark_profiles,
@@ -38,6 +39,10 @@ def test_compatibility_follows_the_vendor_fault_operations() -> None:
     # Without a native implementation a failure stays on FRR/Linux nodes.
     frr_down = get_problem_class("frr_service_down")
     assert not failure_supports_profile(frr_down, "iosxr")
+    # OSPF filters, OSPF interfaces and detached links run on every platform.
+    for failure in ("ospf_acl_block", "ospf_neighbor_missing", "link_detach"):
+        for profile in ("iosxr", "routeros", "sonic"):
+            assert failure_supports_profile(get_problem_class(failure), profile)
 
 
 def test_generation_expands_native_profiles_only_at_size_s() -> None:
@@ -71,9 +76,10 @@ def test_targets_avoid_native_routers_that_cannot_run_the_failure() -> None:
     )
     assert not cases
     assert {row["reason"] for row in rejected} == {"unsupported_device_profile"}
-    # campus_lan converts only its core: OSPF faults keep the FRR routers.
+    # campus_lan converts only its core: an OSPF fault without an XR
+    # implementation keeps the FRR routers.
     cases, _ = build_failure_cases(
-        problem="ospf_neighbor_missing",
+        problem="ospf_area_misconfiguration",
         scenario="campus_lan",
         topo_size="s",
         isp_options={"device_profile": "iosxr"},
@@ -154,6 +160,35 @@ def test_predicate_has_a_device_profile_dimension() -> None:
     # The deployment is compatible; its XR routers are not targets.
     assert frr_down.is_compatible("campus_lan", "iosxr")
     assert not frr_down.runs_on_device_profile("iosxr")
+    # A Containerlab platform runs a failure through its provider (SONiC);
+    # SR Linux needs the failure's declared Containerlab implementation.
+    max_prefix = get_problem_class("bgp_max_prefix_exceeded")
+    assert max_prefix.is_compatible("isp_abilene/ebgp", "sonic")
+    assert not max_prefix.is_compatible("isp_abilene/ebgp", "nokia_srlinux")
+    assert not max_prefix.is_compatible("isp_abilene/ebgp", backend="containerlab")
+    assert max_prefix.is_compatible("isp_abilene/ebgp", backend="kathara")
+    assert not link_down.is_compatible("dc_clos", "sonic")
+    # SONiC routers run FRR even where the scenario's default routers do not.
+    assert frr_down.is_compatible("min3clos", "sonic")
+    assert not frr_down.is_compatible("min3clos")
+
+
+@pytest.mark.parametrize(
+    "failure", ["mtu_mismatch", "icmp_frag_needed_filter_misconfiguration"]
+)
+def test_pmtu_failures_run_where_routers_forward_in_linux(failure: str) -> None:
+    cls = get_problem_class(failure)
+    # SONiC forwards in the kernel on every ISP it deploys; SR Linux does not.
+    assert cls.is_compatible("isp_dfn-bwin", "sonic")
+    assert not cls.is_compatible("isp_dfn-bwin", "nokia_srlinux")
+    assert not cls.is_compatible("isp_dfn-bwin", "frr")
+    assert cls.is_compatible("isp_abilene", "frr")
+    stacks = {
+        (scenario, (options or {}).get("device_profile"))
+        for problem, scenario, _size, options in iter_failure_case_specs()
+        if problem == failure and scenario == "isp_dfn-bwin"
+    }
+    assert stacks == {("isp_dfn-bwin", "sonic")}
 
 
 def test_validation_results_round_trip_and_key_isp_as_one_environment(
@@ -181,6 +216,66 @@ def test_validation_results_round_trip_and_key_isp_as_one_environment(
     assert validated_cells(path) == {"dc_clos/iosxr/bgp_asn_misconfig"}
 
 
+def test_profile_validation_covers_containerlab_provider_platforms(
+    tmp_path, monkeypatch
+) -> None:
+    import yaml
+
+    from nika.workflows.benchmark import generate
+    from nika.workflows.benchmark import profile_validation as validation
+
+    root_causes = [
+        {
+            "resource": {"kind": "node", "node": "leaf1"},
+            "fault_type": "bgp_asn_misconfig",
+        }
+    ]
+    cases = [
+        {"inject": {"host_name": "leaf1"}, "root_causes": root_causes},
+        {
+            "device_profile": "sonic",
+            "inject": {"host_name": "leaf1"},
+            "root_causes": root_causes,
+        },
+    ]
+    (tmp_path / "min3clos").mkdir()
+    (tmp_path / "min3clos" / "bgp_asn_misconfig.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "scenario": {"name": "min3clos"},
+                "failure": {"fault_type": "bgp_asn_misconfig", "cases": cases},
+            }
+        )
+    )
+    cells = validation.declared_cells(tmp_path)
+    assert [(c.key, c.native_target) for c in cells] == [
+        ("min3clos/sonic/bgp_asn_misconfig", True)
+    ]
+    assert cells[0].row["device_profile"] == "sonic"
+    assert validation.profile_image("sonic").startswith("docker-sonic-vs:")
+
+    # --validated-only drops SONiC rows of unvalidated cells, keeps SR Linux.
+    monkeypatch.setattr(validation, "validated_cells", lambda: set())
+    monkeypatch.setattr(
+        generate,
+        "iter_failure_case_specs",
+        lambda: iter(
+            [
+                ("bgp_asn_misconfig", "min3clos", "", None),
+                ("bgp_asn_misconfig", "min3clos", "", {"device_profile": "sonic"}),
+            ]
+        ),
+    )
+    built = []
+    monkeypatch.setattr(
+        generate,
+        "build_failure_cases",
+        lambda **kwargs: (built.append(kwargs["isp_options"]), ([], []))[1],
+    )
+    generate.build_candidate_catalog(validated_only=True)
+    assert built == [None]
+
+
 def test_runs_select_rows_by_platform_and_name_missing_licensed_images(
     monkeypatch,
 ) -> None:
@@ -197,6 +292,15 @@ def test_runs_select_rows_by_platform_and_name_missing_licensed_images(
     assert select_rows(rows, skip_licensed=True) == [frr]
     assert select_rows(rows, device_profiles=["routeros"]) == [native, licensed]
     assert select_rows(rows, device_profiles=["frr"]) == [frr]
+    srl = {"scenario": "min3clos"}
+    sonic = {"scenario": "min3clos", "device_profile": "sonic"}
+    isp_srl = {"scenario": "isp_pdh", "backend": "containerlab"}
+    platform_rows = [srl, sonic, isp_srl, frr]
+    assert select_rows(platform_rows, device_profiles=["sonic"]) == [sonic]
+    assert select_rows(platform_rows, device_profiles=["nokia_srlinux"]) == [
+        srl,
+        isp_srl,
+    ]
     monkeypatch.setattr(docker_images, "image_exists", lambda image: False)
     with pytest.raises(ValueError, match="--skip-licensed") as exc:
         require_licensed_images(rows)
@@ -300,18 +404,53 @@ def test_profile_validation_resumes_and_preserves_other_writers(tmp_path, monkey
 
 
 def test_failure_compatibility_requires_a_shared_backend() -> None:
-    corruption = get_problem_class("link_packet_corruption")
-    assert corruption.is_compatible("enterprise_branch")
-    assert not corruption.is_compatible("min3clos")
+    # bgp_hijacking runs on Kathara and on SONiC's provider, not on SR Linux.
+    hijack = get_problem_class("bgp_hijacking")
+    assert hijack.is_compatible("enterprise_branch")
+    assert not hijack.is_compatible("min3clos")
+    assert hijack.is_compatible("isp_abilene", "sonic", backend="containerlab")
     # Multi-backend scenarios retain a usable Kathara deployment.
-    assert corruption.is_compatible("isp_abilene")
-    assert corruption.is_compatible("isp_abilene", backend="kathara")
-    assert not corruption.is_compatible("isp_abilene", backend="containerlab")
+    assert hijack.is_compatible("isp_abilene")
+    assert hijack.is_compatible("isp_abilene", backend="kathara")
+    assert not hijack.is_compatible("isp_abilene", backend="containerlab")
     specs = list(iter_failure_case_specs())
     assert not any(
-        problem == "link_packet_corruption" and scenario == "min3clos"
+        problem == "bgp_hijacking" and scenario == "min3clos"
         for problem, scenario, *_ in specs
     )
+    # A link failure applied outside the nodes runs on both backends.
+    corruption = get_problem_class("link_packet_corruption")
+    assert corruption.is_compatible("min3clos", "sonic", backend="containerlab")
+    assert corruption.is_compatible("isp_abilene", backend="containerlab")
+
+
+def test_forwarding_corruption_runs_on_containerlab_wire_ends() -> None:
+    corruption = get_problem_class("device_forwarding_packet_corruption")
+    # The classifier sits on the host-side wire end, so any Containerlab
+    # router platform carries it.
+    assert corruption.is_compatible("min3clos", "nokia_srlinux")
+    assert corruption.is_compatible("min3clos", "sonic")
+    assert corruption.runs_on_device_profile("sonic")
+    # On Kathara it loads in the node's Linux namespace, which IOS XR and
+    # RouterOS do not forward through.
+    assert not corruption.runs_on_device_profile("iosxr")
+    assert not corruption.runs_on_device_profile("routeros")
+
+
+def test_containerlab_isp_size_follows_platform_memory() -> None:
+    from nika.workflows.benchmark.e2e_validation import containerlab_isp_supported
+
+    # SR Linux keeps graphs of up to 11 routers; SONiC routers need less memory.
+    assert containerlab_isp_supported("isp_pdh", "nokia_srlinux")
+    assert not containerlab_isp_supported("isp_abilene", "nokia_srlinux")
+    assert containerlab_isp_supported("isp_abilene", "sonic")
+    assert containerlab_isp_supported("isp_geant", "sonic")
+    assert not containerlab_isp_supported("isp_brain", "sonic")
+    variants = _isp_stack_variants(
+        "isp_geant", get_problem_class("bgp_max_prefix_exceeded")
+    )
+    assert {"backend": "containerlab", "device_profile": "sonic"} in variants
+    assert all(v["device_profile"] != "nokia_srlinux" for v in variants)
 
 
 def test_compatibility_obeys_declared_path_bdp_ceiling() -> None:
