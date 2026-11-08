@@ -88,19 +88,17 @@ Each row below corresponds to one runtime check or one generated family of check
 
 ### `dc_clos`
 
-`dc_clos` provides an eBGP Clos fabric that connects DNS and HTTP endpoints on different leaves with external clients.
+`dc_clos` checks the declared fabric and services at the selected size. Readiness requires every node, planned eBGP peer and client address; the full check also tests DNS and named HTTP delivery from every client.
 
-| Target | Measurement | Purpose | Expected result |
-| --- | --- | --- | --- |
-| `host`: sampled fabric nodes and `pc_0_0`/`pc_0_1` | Compare expected names with `runtime.list_nodes()` | Confirm minimum fabric deployment | Every expected node exists |
-| `super_spine_router_0` | Parse `show bgp summary` | Confirm fabric BGP convergence | At least two neighbors are established |
-| `leaf_router_0_0` | Parse `show bgp summary` | Confirm leaf BGP convergence | At least one neighbor is established |
-| `pc_0_0`, `pc_0_1` | Inspect `eth0` IPv4 address | Confirm endpoint addressing | Addresses `10.0.0.2` and `10.0.1.2` are present |
-| `pc_0_0` to gateway and remote leaf host | ICMP ping to `10.0.0.1` and `10.0.1.2` | Confirm first-hop and cross-leaf forwarding | One reply from each target |
-| `service`: sampled fabric, DNS, Web, and client nodes | Compare expected names with `runtime.list_nodes()` | Confirm service topology deployment | Every expected node exists |
-| `super_spine_router_0`, `client_0` | BGP summary and client IPv4 inspection | Confirm routing convergence and client addressing | BGP establishes; client has `192.168.0.2` |
-| `client_0` to DNS and Web endpoints | ICMP ping to `10.0.0.2` and `10.0.1.2` | Confirm client-to-pod forwarding | One reply from each target |
-| `dns_pod0`, `client_0` | Check `named`; request `http://web0.pod0/` | Confirm DNS service and Web delivery | `named` is active; HTTP returns `200` |
+| Target | Measurement | Expected result |
+| --- | --- | --- |
+| Every declared node | Compare expected names with `runtime.list_nodes()` | Every node is deployed |
+| Every router and planned peer | Parse the router's BGP summary | Every planned peer is established |
+| Every client | Inspect its `eth0` IPv4 address | The declared rack address is present |
+| Every client to the declared DNS servers | Ping and query the declared service names | A reply and the expected DNS answer |
+| Every client to each named web service | Request URLs such as `http://web-2.fabric` | HTTP returns `200` |
+
+The checks use each router's native query for mixed IOS XR or RouterOS deployments. The shared topology and service declarations are described under [Data-center Clos](../operations/network-scenarios.md#data-center-clos-scenario).
 
 ### `campus_lan`
 

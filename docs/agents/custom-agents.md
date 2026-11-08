@@ -104,7 +104,7 @@ For an OpenAI-compatible endpoint, use the [NOOA profile setup](nooa-example.md#
 <details>
 <summary>Example investigation from a real run</summary>
 
-*The NOOA agent on `dc_clos_s_link_down` with `nvidia/Qwen3.6-35B-A3B-NVFP4`; shortened from the recorded trace and report.*
+*The NOOA agent on the earlier DC Clos topology, running `dc_clos_s_link_down` with `nvidia/Qwen3.6-35B-A3B-NVFP4`; shortened from the recorded trace and report.*
 
 ```text
 Tool: run_pingmesh_snapshot(count=3)

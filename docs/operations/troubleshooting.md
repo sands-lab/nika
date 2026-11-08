@@ -438,7 +438,7 @@ uv run nika env run dc_clos --size s --backend kathara
 Use the `session_id` printed by that command to inspect connectivity and close only this test session:
 
 ```shell
-uv run nika exec --session_id SESSION_ID client_0 ping -c 3 10.0.1.2
+uv run nika exec --session_id SESSION_ID client_1_1 ping -c 3 10.0.2.11
 uv run nika session close --session_id SESSION_ID
 ```
 

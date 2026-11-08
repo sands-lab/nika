@@ -36,6 +36,23 @@ Run one specification through synthesis, static checks, native execution, declar
 uv run python experiment/scenario_validation/experiment.py experiment/scenario_validation/clos.json --output /tmp/routing-clos --runtime
 ```
 
+The Clos specimens come from the shared design and communication requirements. Regenerate them after a design change:
+
+```bash
+uv run python - <<'PY'
+from pathlib import Path
+from nika.workflows.validation.clos import build_routing_clos_experiment
+
+profiles = [("clos", "s", "frr"), ("clos-m", "m", "frr"),
+            ("clos-iosxr", "s", "iosxr"), ("clos-routeros", "s", "routeros")]
+for name, size, profile in profiles:
+    spec = build_routing_clos_experiment(size, device_profile=profile)
+    Path(f"experiment/scenario_validation/{name}.json").write_text(
+        spec.model_dump_json(indent=2, exclude_defaults=True) + "\n"
+    )
+PY
+```
+
 Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. To run the eligible Clos, campus or enterprise routers on Cisco IOS XR, use `clos-iosxr.json`, `campus-iosxr.json` or `enterprise-iosxr.json`; they need the XRd image. `clos-routeros.json`, `campus-routeros.json` and `enterprise-routeros.json` run the same sequence with RouterOS routers; see [RouterOS routers in Ethernet environments](../../docs/development/scenario-verification.md#routeros-routers-in-ethernet-environments). The two-router vendor scenarios derive their specification from the scenario's own router declarations instead:
 
 ```bash

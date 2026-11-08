@@ -66,7 +66,7 @@ Call `prometheus_query` with a PromQL expression. Each series carries the device
 | --- | --- |
 | `node_network_up == 0` | Linux interfaces that are down |
 | `rate(node_network_receive_bytes_total{node="chinng"}[30s])` | Receive rate on one Linux node |
-| `frr_bgp_peer_up{node="leaf_router_0_0"}` | FRR BGP session |
+| `frr_bgp_peer_up{node="leaf_1"}` | FRR BGP session |
 | `openflow_port_rx_bytes{node="leaf_1"}` | OVS port counters |
 | `p4_ingress_packets{node="spine_1"}` | BMv2 pipeline counters |
 | `srl_interface_in_packets{node="leaf1"}` | SR Linux interface packets |
