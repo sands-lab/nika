@@ -7,6 +7,86 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: atlanta
+      intf_name: eth1
+      limit: 32kb
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.30
+      rate: 512kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth1--pittsburgh:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: atlanta
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.14
+      rate: 512kbit
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth2--houston:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: ithaca
+      intf_name: eth3
+      limit: 32kb
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.30
+      rate: 512kbit
+      symptom_host: pc_ithaca
+    root_causes:
+    - resource:
+        kind: link
+        name: ithaca:eth3--pittsburgh:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: pittsburgh
+      intf_name: eth4
+      limit: 32kb
+      peer_host: pc_ithaca
+      probe_dst_ip: 10.254.0.18
+      rate: 512kbit
+      symptom_host: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: link
+        name: ithaca:eth3--pittsburgh:eth4
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:

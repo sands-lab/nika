@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from ipaddress import IPv4Address, IPv4Network
@@ -208,8 +209,13 @@ def verify_fib(
     fibs: dict[str, tuple[FibRoute, ...]],
     *,
     errors: dict[str, str] | None = None,
+    port_name: Callable[[str], str] | None = None,
 ) -> dict[str, Any]:
-    """Check all installed ECMP branches for every ordered intra-IGP pair."""
+    """Check all installed ECMP branches for every ordered intra-IGP pair.
+
+    ``port_name`` maps a plan interface to the name a platform's FIB reports
+    when it is neither the plan name nor the SR Linux subinterface.
+    """
     errors = errors or {}
     graph = {node.device_name: [] for node in plan.nodes}
     links = {}
@@ -219,7 +225,10 @@ def verify_fib(
             (link.endpoint_b, link.endpoint_a, link.iface_b, link.address_a),
         ):
             graph[node].append((peer, link.metric))
-            for name in (interface, srl_ethernet_name(interface) + ".0"):
+            names = [interface, srl_ethernet_name(interface) + ".0"]
+            if port_name is not None:
+                names.append(port_name(interface))
+            for name in names:
                 links[(node, name, gateway)] = (peer, link.metric, link.link_id)
     indexes = {node: _RouteIndex(routes) for node, routes in fibs.items()}
     loopbacks = {node.device_name: node.loopback for node in plan.nodes}

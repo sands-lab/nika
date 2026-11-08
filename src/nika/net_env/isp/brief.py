@@ -85,11 +85,12 @@ def design_notes(
     scope = (
         " inside its own AS" if bgp_plan is not None and bgp_plan.mode == "ebgp" else ""
     )
-    service = (
-        "the web services on the business prefixes"
-        if bgp_plan is not None and router_services
-        else "a web service at the busiest PoP"
-    )
+    if bgp_plan is not None and router_services:
+        service = "the web services on the business prefixes"
+    elif bgp_plan is not None:
+        service = "the web services on the originators' stubs"
+    else:
+        service = "a web service at the busiest PoP"
     notes.append(
         "Customers at every PoP generate traffic at all times: each edge stub "
         "publishes a data set over HTTP (port 8080) and syncs the data set of "

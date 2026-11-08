@@ -7,6 +7,106 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: bialystok
+      intf_name: eth1
+      limit: 32kb
+      peer_host: pc_gdansk
+      probe_dst_ip: 10.254.0.10
+      rate: 512kbit
+      symptom_host: pc_bialystok
+    root_causes:
+    - resource:
+        kind: link
+        name: bialystok:eth1--gdansk:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: bydgoszcz
+      intf_name: eth1
+      limit: 32kb
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.42
+      rate: 512kbit
+      symptom_host: pc_bydgoszcz
+    root_causes:
+    - resource:
+        kind: link
+        name: bydgoszcz:eth1--warsaw:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: gdansk
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_kolobrzeg
+      probe_dst_ip: 10.254.0.18
+      rate: 512kbit
+      symptom_host: pc_gdansk
+    root_causes:
+    - resource:
+        kind: link
+        name: gdansk:eth2--kolobrzeg:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: kolobrzeg
+      intf_name: eth3
+      limit: 32kb
+      peer_host: pc_szczecin
+      probe_dst_ip: 10.254.0.38
+      rate: 512kbit
+      symptom_host: pc_kolobrzeg
+    root_causes:
+    - resource:
+        kind: link
+        name: kolobrzeg:eth3--szczecin:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: warsaw
+      intf_name: eth5
+      limit: 32kb
+      peer_host: pc_lodz
+      probe_dst_ip: 10.254.0.26
+      rate: 512kbit
+      symptom_host: pc_warsaw
+    root_causes:
+    - resource:
+        kind: link
+        name: lodz:eth2--warsaw:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:

@@ -17,3 +17,18 @@ failure:
         kind: link
         name: client1:eth1--leaf1:e1-2
       fault_type: link_flap
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+    inject:
+      down_time: '1'
+      host_name: leaf1
+      intf_name: eth2
+      observer_device: client1
+      probe_dst_ip: 10.0.0.27
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: client1:eth1--leaf1:eth2
+      fault_type: link_flap

@@ -1,0 +1,18 @@
+scenario:
+  name: isp_janos-us
+failure:
+  fault_type: icmp_frag_needed_filter_misconfiguration
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: sanfrancisco
+    root_causes:
+    - resource:
+        kind: node
+        node: sanfrancisco
+      fault_type: icmp_frag_needed_filter_misconfiguration

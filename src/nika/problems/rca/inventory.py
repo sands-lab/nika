@@ -105,16 +105,65 @@ def net_env_backend(net_env: Any) -> str:
     return str(getattr(net_env, "backend", None) or "kathara")
 
 
-def resolve_default_intf(intf_name: str, net_env: Any) -> str:
-    if intf_name != "eth0":
+def first_data_interface(net_env: Any, node: str) -> str:
+    """Return ``node``'s first data interface in the environment topology.
+
+    Containerlab reserves container ``eth0`` for management, so the data
+    ports keep the platform's names (``e1-1`` on SR Linux, ``eth1`` on SONiC
+    and Linux nodes). A node missing from the topology gets the platform's
+    first port.
+    """
+    ifaces = interfaces_for_node(net_env, node)
+    if ifaces:
+        return ifaces[0]
+    if net_env_backend(net_env) != "containerlab":
+        return "eth0"
+    srl = getattr(net_env, "device_profile", None) in (None, "", "nokia_srlinux")
+    return "e1-1" if srl else "eth1"
+
+
+def resolve_default_intf(intf_name: str, net_env: Any, node: str) -> str:
+    """Resolve the ``eth0`` placeholder to ``node``'s first data interface.
+
+    Kathara data interfaces start at ``eth0``, so the name stays as given.
+    """
+    if intf_name != "eth0" or net_env_backend(net_env) != "containerlab":
         return intf_name
-    return "e1-1" if net_env_backend(net_env) == "containerlab" else "eth0"
+    return first_data_interface(net_env, node)
+
+
+def _sonic_router(net_env: Any, node: str) -> bool:
+    identity = (getattr(net_env, "machine_identities", None) or {}).get(node)
+    return identity is not None and "sonic" in getattr(identity, "capabilities", ())
+
+
+def kernel_data_interface(net_env: Any, node: str, intf: str | None = None) -> str:
+    """Kernel name of a topology data interface on ``node``.
+
+    Names come from the environment inventory, never from the management
+    network: Containerlab ``eth0`` is replaced by the node's first data port.
+    SONiC routers map container ``eth{k}`` to ``Ethernet{4(k-1)}``. Kathara
+    names pass through.
+    """
+    name = (
+        first_data_interface(net_env, node)
+        if not intf
+        else resolve_default_intf(intf, net_env, node)
+    )
+    if not _sonic_router(net_env, node) or name.startswith("Ethernet"):
+        return name
+    from nika.net_env.utils.sonic.common import sonic_port
+
+    try:
+        return sonic_port(name)
+    except ValueError:
+        return name
 
 
 def select_host_interface(net_env: Any, host_name: str, *, last: bool) -> str:
-    """Match inject defaults: Containerlab ``e1-1``; Kathara first/last topo iface."""
+    """Match inject defaults: Containerlab first data port; Kathara first/last."""
     if net_env_backend(net_env) == "containerlab":
-        return "e1-1"
+        return first_data_interface(net_env, host_name)
     ifaces = interfaces_for_node(net_env, host_name)
     if not ifaces:
         return "eth0"
@@ -122,7 +171,7 @@ def select_host_interface(net_env: Any, host_name: str, *, last: bool) -> str:
 
 
 def interface_on(net_env: Any, node: str, intf: str):
-    return interface_resource(node, resolve_default_intf(intf, net_env))
+    return interface_resource(node, resolve_default_intf(intf, net_env, node))
 
 
 def canonical_link_name(tps: tuple[str, ...]) -> str:
@@ -144,7 +193,7 @@ def link_resource_from_tps(tps: tuple[str, ...]) -> FaultResource:
 
 def link_containing_endpoint(net_env: Any, node: str, intf: str) -> FaultResource:
     """Resolve the unique catalog link that contains ``node``/``intf``."""
-    resolved = resolve_default_intf(intf, net_env)
+    resolved = resolve_default_intf(intf, net_env, node)
     needle = f"{node}:{resolved}"
     matches: list[FaultResource] = []
     for _key, tps in iter_link_termination_points(net_env):

@@ -29,7 +29,7 @@ from nika.net_env.isp.traffic.stubs import (
     PlannedEdgeLink,
     PlannedHost,
     attach_traffic_stubs,
-    remap_inventory_ifaces_to_srl,
+    remap_inventory_ifaces,
 )
 
 __all__ = [
@@ -53,7 +53,7 @@ __all__ = [
     "fetch_dynamic_traffic",
     "load_dynamic_series",
     "normalize_traffic_mode",
-    "remap_inventory_ifaces_to_srl",
+    "remap_inventory_ifaces",
     "resolve_traffic_series",
     "series_from_demands",
     "series_to_od_dicts",

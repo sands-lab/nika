@@ -24,3 +24,27 @@ failure:
         kind: node
         node: spine
       fault_type: bgp_asn_misconfig
+  - device_profile: sonic
+    inject:
+      host_name: leaf1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf1
+      fault_type: bgp_asn_misconfig
+  - device_profile: sonic
+    inject:
+      host_name: leaf2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf2
+      fault_type: bgp_asn_misconfig
+  - device_profile: sonic
+    inject:
+      host_name: spine
+    root_causes:
+    - resource:
+        kind: node
+        node: spine
+      fault_type: bgp_asn_misconfig

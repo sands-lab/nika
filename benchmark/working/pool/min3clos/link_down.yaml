@@ -35,3 +35,39 @@ failure:
         kind: link
         name: leaf2:e1-1--spine:e1-2
       fault_type: link_down
+  - device_profile: sonic
+    inject:
+      host_name: client1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: client1:eth1--leaf1:eth2
+      fault_type: link_down
+  - device_profile: sonic
+    inject:
+      host_name: client2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: client2:eth1--leaf2:eth2
+      fault_type: link_down
+  - device_profile: sonic
+    inject:
+      host_name: leaf1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf1:eth1--spine:eth1
+      fault_type: link_down
+  - device_profile: sonic
+    inject:
+      host_name: leaf2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf2:eth1--spine:eth2
+      fault_type: link_down

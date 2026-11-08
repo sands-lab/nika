@@ -120,6 +120,9 @@ def wipe_runtime_artifacts(
 def wipe_kathara_labs() -> None:
     """Remove all Kathara devices and collision domains for the current user."""
     try:
+        from nika.runtime.shared.containers import remove_lab_helpers
+
+        remove_lab_helpers(all_labs=True)
         import nika.runtime.kathara.patch  # noqa: F401  # privileged-without-root before wipe
         from Kathara.manager.Kathara import Kathara
 
@@ -187,6 +190,9 @@ def load_session_meta_for_close(
 
 def wipe_all_containerlab_labs() -> None:
     """Remove all Containerlab labs and their orphaned Docker networks."""
+    from nika.service.containerlab.host_tc import HostTcController
+
+    HostTcController.cleanup_lab(all_labs=True)
     try:
         result = subprocess.run(
             ["clab", "destroy", "--all", "--cleanup", "--yes", "--log-level", "error"],

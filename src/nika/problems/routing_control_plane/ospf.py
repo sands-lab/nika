@@ -5,7 +5,11 @@ import re
 from pydantic import BaseModel, Field
 
 from nika.problems.rca import node_resource
-from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
+from nika.problems.rca.inventory import (
+    iter_link_termination_points,
+    kernel_data_interface,
+    parse_endpoint,
+)
 from nika.problems.support.frr import FRR_CONF, frr_config_command
 from nika.problems.support.oracle import (
     Check,
@@ -40,7 +44,11 @@ def ospf_networks(config: str) -> list[tuple[str, str]]:
 
 def linked_routers(net_env, host: str) -> list[tuple[str, str, str]]:
     """``(local_intf, peer, peer_intf)`` for each point-to-point link from
-    ``host`` to another router in the topology."""
+    ``host`` to another router in the topology.
+
+    Interfaces carry the kernel names the routers report, so a SONiC port is
+    ``Ethernet{4(k-1)}`` rather than its container ``eth{k}``.
+    """
     routers = set(getattr(net_env, "routers", None) or []) or {
         name
         for name, identity in (
@@ -55,7 +63,13 @@ def linked_routers(net_env, host: str) -> list[tuple[str, str, str]]:
         ends = [parse_endpoint(str(tp)) for tp in tps]
         for (node, intf), (peer, peer_intf) in (ends, ends[::-1]):
             if node == host and peer in routers and peer != host:
-                links.append((intf, peer, peer_intf))
+                links.append(
+                    (
+                        kernel_data_interface(net_env, node, intf),
+                        peer,
+                        kernel_data_interface(net_env, peer, peer_intf),
+                    )
+                )
     return links
 
 
@@ -335,14 +349,16 @@ class OSPFAreaMisconfig(ProblemBase):
         if ops is not None:
             orig_areas = set(getattr(self, "_orig_areas", None) or ())
             running_areas = set(ops.ospf_interface_areas())
+            details = {
+                "host": params.host_name,
+                "orig_areas": sorted(orig_areas),
+                "running_areas": sorted(running_areas),
+            }
+            # A provider persists the change itself; verify the running daemon.
             return build_verify_result(
                 fault_type=self.root_cause_name,
                 verified=bool(running_areas) and running_areas != orig_areas,
-                details={
-                    "host": params.host_name,
-                    "orig_areas": sorted(orig_areas),
-                    "running_areas": sorted(running_areas),
-                },
+                details=details,
             )
         file_config = self.runtime.exec(params.host_name, "cat /etc/frr/frr.conf")
         running_config = self.runtime.exec(
@@ -388,6 +404,17 @@ class OSPFNeighborMissingParams(BaseModel):
     host_name: str = Field(description="Target router host name.")
 
 
+def _single_adjacency_interface(host: str, neighbor_interfaces: list[str]) -> str:
+    """First interface, in name order, that carries exactly one Full adjacency."""
+    for interface in sorted(set(neighbor_interfaces)):
+        if neighbor_interfaces.count(interface) == 1:
+            return interface
+    raise RuntimeCapabilityError(
+        f"OSPFNeighborMissing: no OSPF interface on {host!r} carries exactly one "
+        "Full adjacency."
+    )
+
+
 class OSPFNeighborMissing(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     symptom_probe = "custom"
@@ -397,6 +424,10 @@ class OSPFNeighborMissing(ProblemBase):
     effect_protocol = "ospf"
 
     TAGS: str = ["ospf"]
+    native_router_operations = frozenset(
+        {"ospf_interfaces", "ospf_neighbor_interfaces", "remove_ospf_interface"}
+    )
+    supported_backends = ("kathara", "containerlab")
 
     Params = OSPFNeighborMissingParams
 
@@ -450,6 +481,27 @@ class OSPFNeighborMissing(ProblemBase):
             f"{type(self).__name__}: no OSPF binding on {host!r} covers exactly one Full adjacency."
         )
 
+    def _platform_interface_ops(self, host: str):
+        """``(interfaces, neighbor_interfaces, remove)`` of a non-FRR router.
+
+        Returns ``None`` for FRR routers, which keep the ``frr.conf`` path.
+        """
+        ops = native_fault_ops(self, host, "remove_ospf_interface")
+        if ops is not None:
+            return (
+                lambda: ops.ospf_interfaces(),
+                lambda: ops.ospf_neighbor_interfaces(),
+                lambda interface: ops.remove_ospf_interface(interface),
+            )
+        if self.lab_backend == "containerlab":
+            runtime = self.runtime
+            return (
+                lambda: runtime.srl_ospf_interfaces(host),
+                lambda: runtime.srl_ospf_neighbor_interfaces(host),
+                lambda interface: runtime.srl_remove_ospf_interface(host, interface),
+            )
+        return None
+
     def oracle_playbook(self, params: OSPFNeighborMissingParams) -> OraclePlaybook:
         host = params.host_name
         links = linked_routers(self.net_env, host)
@@ -465,10 +517,13 @@ class OSPFNeighborMissing(ProblemBase):
             ospf = _ospf_ifaces(output.split("===", 1)[0])
             if not ospf:
                 return []
+            # TAP ports, such as SONiC's, report UNKNOWN while they forward.
             up = {
                 m.group(1)
                 for m in re.finditer(
-                    r"^(\S+?)(?:@\S+)?\s+UP\s+\d+\.\d+\.\d+\.\d+/", output, re.M
+                    r"^(\S+?)(?:@\S+)?\s+(?:UP|UNKNOWN)\s+\d+\.\d+\.\d+\.\d+/",
+                    output,
+                    re.M,
                 )
             }
             return [intf for intf, *_ in links if intf in up and intf not in ospf]
@@ -521,6 +576,22 @@ class OSPFNeighborMissing(ProblemBase):
         )
 
     def inject_fault(self, params: OSPFNeighborMissingParams):
+        platform = self._platform_interface_ops(params.host_name)
+        if platform is not None:
+            # Remove the OSPF interface of one adjacency, the native form of
+            # deleting the ``network`` statement that covers it.
+            interfaces, neighbor_interfaces, remove = platform
+            interface = _single_adjacency_interface(
+                params.host_name, neighbor_interfaces()
+            )
+            self._orig_interfaces = interfaces()
+            remove(interface)
+            self._dropped_binding = ("interface", interface, None)
+            self.logger.info(
+                f"Injected OSPF neighbor missing on {params.host_name} "
+                f"(removed OSPF interface {interface})."
+            )
+            return
         # Drop the one binding that brings a single adjacency into OSPF, the
         # way a deleted ``network`` line loses that neighbor and only it. The
         # startup file loses the line too, leaving no commented-out line that
@@ -568,6 +639,21 @@ class OSPFNeighborMissing(ProblemBase):
             None,
             None,
         )
+        platform = self._platform_interface_ops(params.host_name)
+        if platform is not None:
+            orig = set(getattr(self, "_orig_interfaces", None) or ())
+            running = set(platform[0]())
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=bool(running)
+                and binding in orig
+                and running == orig - {binding},
+                details={
+                    "host": params.host_name,
+                    "removed_interface": binding,
+                    "running_interface_count": len(running),
+                },
+            )
         file_config = self.runtime.exec(params.host_name, f"cat {FRR_CONF}")
         running_config = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config' 2>/dev/null"

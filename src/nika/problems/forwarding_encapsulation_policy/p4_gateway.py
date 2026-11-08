@@ -14,7 +14,10 @@ from nika.problems.support.benchmark_targets import (
     p4_port_options,
     resolve_path_mtu_target,
 )
-from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
+from nika.problems.support.compatible_columns import (
+    LINUX_PMTU_COLUMNS,
+    LINUX_PMTU_PLATFORMS,
+)
 from nika.problems.support.p4_oracle import (
     table_read,
     bmv2_ports,
@@ -23,12 +26,14 @@ from nika.problems.support.p4_oracle import (
     int_path_summary,
 )
 from nika.problems.support.oracle import (
+    FILTER_DUMP,
+    any_of,
+    iptables_rule,
     p4rt,
     Check,
     OraclePlaybook,
     OracleStep,
     contains,
-    nft_rule,
     shell,
 )
 from nika.problems.support.router_ops import native_fault_ops, native_router_profile
@@ -122,6 +127,7 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
         {"block_icmp_frag_needed", "icmp_frag_needed_blocked"}
     )
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS | {"p4_dc_gateway"}
+    COMPATIBLE_PLATFORMS = LINUX_PMTU_PLATFORMS
     Params = IcmpFragNeededFilterMisconfigurationParams
     BENCHMARK_TARGETS = "canonical"
     BENCHMARK_COORDINATES = frozenset({"mtu_mismatch"})
@@ -254,10 +260,18 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
                 evidence=True,
             )
         else:
-            step = nft_rule(
+            step = shell(
                 host,
-                r"frag-needed.*drop",
+                FILTER_DUMP,
                 f"Inspect the packet filter on {host} for ICMP rules.",
+                any_of(
+                    contains(r"frag-needed.*drop", "a filter drops ICMP frag-needed"),
+                    iptables_rule(
+                        r"--icmp-type (3/4|fragmentation-needed)",
+                        "a filter drops ICMP frag-needed",
+                    ),
+                ),
+                evidence=True,
             )
         return OraclePlaybook(finding=finding, steps=[step])
 

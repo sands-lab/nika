@@ -30,7 +30,9 @@ def consistency_snapshot_builder(env, routing_model: str | None = None):
     from nika.net_env.isp.igp.plan import IspPlan
 
     if routing_model is None:
-        if isinstance(getattr(env, "plan", None), IspPlan):
+        if getattr(env, "device_profile", None) == "sonic":
+            routing_model = "sonic"
+        elif isinstance(getattr(env, "plan", None), IspPlan):
             profile = env.device_profile
             routing_model = (
                 "srl-isp"
@@ -55,6 +57,10 @@ def consistency_snapshot_builder(env, routing_model: str | None = None):
         from nika.validation.batfish.srl_isp import build_srl_isp_snapshot
 
         return routing_model, build_srl_isp_snapshot
+    if routing_model == "sonic":
+        from nika.validation.batfish.sonic import build_sonic_snapshot
+
+        return routing_model, build_sonic_snapshot
     if routing_model == "srl-bgp":
         from nika.validation.batfish.srl import build_srl_snapshot
 

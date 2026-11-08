@@ -7,6 +7,46 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: amsterdam
+      intf_name: eth3
+      limit: 32kb
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.50
+      rate: 512kbit
+      symptom_host: pc_amsterdam
+    root_causes:
+    - resource:
+        kind: link
+        name: amsterdam:eth3--hamburg:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: frankfurt
+      intf_name: eth3
+      limit: 32kb
+      peer_host: pc_munich
+      probe_dst_ip: 10.254.0.70
+      rate: 512kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth3--munich:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:

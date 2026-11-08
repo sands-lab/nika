@@ -9,6 +9,8 @@ from nika.net_env.verify import (
     link_up,
     nodes_deployed,
     ping_unreachable,
+    FRR_BGP_PEERS,
+    BgpPeerQuery,
     srl_bgp_established_peers,
 )
 from nika.runtime.base import LabRuntime
@@ -68,16 +70,21 @@ _CLIENTS_IPV6 = {
 }
 
 
-def _bgp_sessions_established(runtime: LabRuntime) -> bool:
+SRL_BGP_PEERS = BgpPeerQuery(
+    'sr_cli "show network-instance default protocols bgp neighbor"',
+    srl_bgp_established_peers,
+)
+
+
+def _bgp_query(sonic: bool) -> BgpPeerQuery:
+    return FRR_BGP_PEERS if sonic else SRL_BGP_PEERS
+
+
+def _bgp_sessions_established(runtime: LabRuntime, query: BgpPeerQuery) -> bool:
     """Every planned eBGP session is Established on both ends."""
     for router, peers in BGP_PEERS.items():
-        output = exec_or_empty(
-            runtime,
-            router,
-            'sr_cli "show network-instance default protocols bgp neighbor"',
-            timeout=30,
-        )
-        if not peers <= srl_bgp_established_peers(output):
+        output = exec_or_empty(runtime, router, query.command, timeout=30)
+        if not peers <= query.established_peers(output):
             return False
     return True
 
@@ -90,13 +97,8 @@ def _clients_addressed(runtime: LabRuntime) -> bool:
     )
 
 
-def _collect(runtime, *, full):
-    commands = [
-        VerifyCommand(
-            router, 'sr_cli "show network-instance default protocols bgp neighbor"', 30
-        )
-        for router in BGP_PEERS
-    ]
+def _collect(runtime, query: BgpPeerQuery, *, full):
+    commands = [VerifyCommand(router, query.command, 30) for router in BGP_PEERS]
     for client, (_, gateway, peer) in _CLIENTS.items():
         commands.extend(
             [
@@ -106,22 +108,32 @@ def _collect(runtime, *, full):
                 VerifyCommand(client, f"ip -4 -o addr show dev {CLIENT_INTF}", 10),
             ]
         )
+        targets = ROUTER_LOOPBACKS
         if full:
             _, gateway6, peer6 = _CLIENTS_IPV6[client]
-            commands.extend(
-                VerifyCommand(client, mesh_ping_command(target), 30)
-                for target in (gateway, peer, gateway6, peer6, *ROUTER_LOOPBACKS)
-            )
+            targets = (gateway, peer, gateway6, peer6, *ROUTER_LOOPBACKS)
+        commands.extend(
+            VerifyCommand(client, mesh_ping_command(target), 30) for target in targets
+        )
     return collect_verify_commands(runtime, commands)
 
 
-def verify_min3clos_lab_startup(runtime: LabRuntime, *, scenario_name: str) -> dict:
-    """Bounded readiness: fabric nodes, client attachment, and all BGP sessions."""
-    runtime = _collect(runtime, full=False)
+def verify_min3clos_lab_startup(
+    runtime: LabRuntime, *, scenario_name: str, sonic: bool = False
+) -> dict:
+    """Bounded readiness: fabric nodes, client attachment, all BGP sessions, and
+    IGP routes to every router loopback."""
+    query = _bgp_query(sonic)
+    runtime = _collect(runtime, query, full=False)
+    clients_ready = _clients_addressed(runtime)
     checks = {
         "nodes_deployed": nodes_deployed(runtime, EXPECTED_NODES),
-        "clients_addressed": _clients_addressed(runtime),
-        "bgp_sessions_established": _bgp_sessions_established(runtime),
+        "clients_addressed": clients_ready,
+        "bgp_sessions_established": _bgp_sessions_established(runtime, query),
+        "router_loopbacks_reachable": clients_ready
+        and not any(
+            ping_unreachable(runtime, client, ROUTER_LOOPBACKS) for client in _CLIENTS
+        ),
     }
     return runtime.finish(
         build_lab_verify_result(
@@ -133,18 +145,21 @@ def verify_min3clos_lab_startup(runtime: LabRuntime, *, scenario_name: str) -> d
     )
 
 
-def verify_min3clos_lab(runtime: LabRuntime, *, scenario_name: str) -> dict:
+def verify_min3clos_lab(
+    runtime: LabRuntime, *, scenario_name: str, sonic: bool = False
+) -> dict:
     """Check provisioning, all BGP sessions, and dual-stack reachability.
 
     Clients reach their gateway and the other client over IPv4 and IPv6, and
     every router loopback (system0) over both families.
     """
-    runtime = _collect(runtime, full=True)
+    query = _bgp_query(sonic)
+    runtime = _collect(runtime, query, full=True)
     clients_ready = _clients_addressed(runtime)
     checks = {
         "nodes_deployed": nodes_deployed(runtime, EXPECTED_NODES),
         "clients_addressed": clients_ready,
-        "bgp_sessions_established": _bgp_sessions_established(runtime),
+        "bgp_sessions_established": _bgp_sessions_established(runtime, query),
         "client_gateways_reachable": clients_ready
         and not any(
             ping_unreachable(runtime, client, [gateway])

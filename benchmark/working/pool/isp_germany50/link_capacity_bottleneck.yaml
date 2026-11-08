@@ -7,6 +7,206 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: darmstadt
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_mannheim
+      probe_dst_ip: 10.254.0.134
+      rate: 512kbit
+      symptom_host: pc_darmstadt
+    root_causes:
+    - resource:
+        kind: link
+        name: darmstadt:eth2--mannheim:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: duesseldorf
+      intf_name: eth1
+      limit: 32kb
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.58
+      rate: 512kbit
+      symptom_host: pc_duesseldorf
+    root_causes:
+    - resource:
+        kind: link
+        name: duesseldorf:eth1--essen:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: duesseldorf
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.118
+      rate: 512kbit
+      symptom_host: pc_duesseldorf
+    root_causes:
+    - resource:
+        kind: link
+        name: duesseldorf:eth2--koeln:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: essen
+      intf_name: eth1
+      limit: 32kb
+      peer_host: pc_duesseldorf
+      probe_dst_ip: 10.254.0.50
+      rate: 512kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: duesseldorf:eth1--essen:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: essen
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_dortmund
+      probe_dst_ip: 10.254.0.42
+      rate: 512kbit
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: link
+        name: dortmund:eth1--essen:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: frankfurt
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_darmstadt
+      probe_dst_ip: 10.254.0.38
+      rate: 512kbit
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: darmstadt:eth1--frankfurt:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: hamburg
+      intf_name: eth3
+      limit: 32kb
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.90
+      rate: 512kbit
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth3--hannover:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: stuttgart
+      intf_name: eth1
+      limit: 32kb
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.98
+      rate: 512kbit
+      symptom_host: pc_stuttgart
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth4--stuttgart:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: stuttgart
+      intf_name: eth4
+      limit: 32kb
+      peer_host: pc_wuerzburg
+      probe_dst_ip: 10.254.0.198
+      rate: 512kbit
+      symptom_host: pc_stuttgart
+    root_causes:
+    - resource:
+        kind: link
+        name: stuttgart:eth4--wuerzburg:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: wuerzburg
+      intf_name: eth5
+      limit: 32kb
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.150
+      rate: 512kbit
+      symptom_host: pc_wuerzburg
+    root_causes:
+    - resource:
+        kind: link
+        name: nuernberg:eth3--wuerzburg:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:

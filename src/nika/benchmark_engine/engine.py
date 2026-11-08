@@ -182,6 +182,7 @@ class BenchmarkEngine:
         from nika.mcp.registry import SUBMISSION_SERVER, select_diagnosis_servers
         from nika.mcp.gateway.session_registry import get_session
         from nika.runtime.factory import resolve_backend
+        from nika.runtime.meta import device_profile_for
         from nika.telemetry import telemetry_for_session
         from nika.utils.session_store import SessionStore
 
@@ -190,7 +191,10 @@ class BenchmarkEngine:
         scenario = str(row.get("scenario_name") or "")
         backend = resolve_backend(row)
         servers = select_diagnosis_servers(
-            scenario, backend=backend, telemetry=telemetry_for_session(row)
+            scenario,
+            backend=backend,
+            telemetry=telemetry_for_session(row),
+            device_profile=device_profile_for(row),
         )
         if SUBMISSION_SERVER not in servers:
             servers.append(SUBMISSION_SERVER)

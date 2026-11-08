@@ -23,7 +23,7 @@ allowed_builtin_tools:
   - update_plan
 
 # MCP servers NIKA starts (nika.mcp.registry.MCP_SERVER_SPECS).
-mcp_server_pattern: '^(?:containerlab_srl|k8s|kathara_[a-z0-9]+|packet_capture|pingmesh|task)_mcp_server$'
+mcp_server_pattern: '^(?:containerlab_(?:srl|sonic)|k8s|kathara_[a-z0-9]+|packet_capture|pingmesh|task)_mcp_server$'
 
 # Tools that are always out of policy, whatever the harness: web access,
 # claude.ai connectors, subagents, skills, schedulers, and messaging.

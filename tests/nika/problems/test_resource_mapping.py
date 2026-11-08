@@ -27,7 +27,10 @@ from nika.problems.rca import (
 from nika.problems.rca.inventory import (
     canonical_link_name,
     catalog_resources,
+    kernel_data_interface,
     link_containing_endpoint,
+    resolve_default_intf,
+    select_host_interface,
 )
 
 
@@ -342,6 +345,57 @@ class LinkInventoryHelpersTest:
         env = _Env(("pc1:eth0", "router1:eth0"))
         with pytest.raises(UnresolvedRootCauseError, match="No link contains"):
             link_containing_endpoint(env, "ghost", "eth0")
+
+    @pytest.mark.parametrize("device_profile", ["nokia_srlinux", "sonic"])
+    def test_containerlab_default_interface_is_the_first_data_port(
+        self, device_profile: str
+    ) -> None:
+        from nika.problems.rca.inventory import load_offline_net_env
+
+        env = load_offline_net_env("min3clos", device_profile=device_profile)
+        router_port = "e1-1" if device_profile == "nokia_srlinux" else "eth1"
+        assert resolve_default_intf("eth0", env, "leaf1") == router_port
+        assert select_host_interface(env, "spine", last=True) == router_port
+        assert resolve_default_intf("eth0", env, "client1") == "eth1"
+        assert link_containing_endpoint(env, "leaf1", "eth0") == link_resource(
+            f"leaf1:{router_port}--spine:{router_port}"
+        )
+        assert resolve_default_intf("eth2", env, "leaf1") == "eth2"
+        # Kathara data interfaces start at eth0.
+        assert resolve_default_intf("eth0", _Env(("pc1:eth1", "r1:eth1")), "pc1") == (
+            "eth0"
+        )
+
+    def test_kernel_data_interface_selects_data_plane_not_management(self) -> None:
+        from nika.problems.rca.inventory import load_offline_net_env
+        from nika.runtime.spec import NodeIdentity, NodeRole
+
+        kathara = _Env(("atlam5:eth0", "pc_atlam5:eth0"))
+        assert kernel_data_interface(kathara, "atlam5", "eth0") == "eth0"
+        assert kernel_data_interface(kathara, "pc_atlam5") == "eth0"
+
+        sonic = load_offline_net_env(
+            "isp_dfn-bwin", backend="containerlab", device_profile="sonic"
+        )
+        assert kernel_data_interface(sonic, "berlin", "eth1") == "Ethernet0"
+        assert kernel_data_interface(sonic, "berlin", "eth2") == "Ethernet4"
+        assert kernel_data_interface(sonic, "berlin", "eth0") == "Ethernet0"
+        assert kernel_data_interface(sonic, "berlin", "Ethernet8") == "Ethernet8"
+        assert kernel_data_interface(sonic, "pc_berlin", "eth1") == "eth1"
+        assert kernel_data_interface(sonic, "pc_berlin", "eth0") == "eth1"
+        assert kernel_data_interface(sonic, "pc_berlin") == "eth1"
+
+        stub = _Env(("berlin:eth1", "frankfurt:eth1"), backend="containerlab")
+        stub.device_profile = "sonic"
+        stub.machine_identities = {
+            "berlin": NodeIdentity(
+                role=NodeRole.ROUTER, capabilities=("linux", "sonic")
+            ),
+            "frankfurt": NodeIdentity(
+                role=NodeRole.ROUTER, capabilities=("linux", "sonic")
+            ),
+        }
+        assert kernel_data_interface(stub, "berlin", "eth1") == "Ethernet0"
 
     def test_catalog_emits_links(self) -> None:
         env = _Env(("pc1:eth0", "router1:eth0"))

@@ -325,10 +325,14 @@ def session_diagnosis_servers(
 ) -> list[str] | None:
     """Diagnosis MCP servers of a session (``None``: every mounted server)."""
     from nika.mcp.registry import select_diagnosis_servers
+    from nika.runtime.meta import device_profile_for
     from nika.telemetry import telemetry_for_session
 
     if not scenario_name:
         return None
     return select_diagnosis_servers(
-        scenario_name, backend=backend, telemetry=telemetry_for_session(row)
+        scenario_name,
+        backend=backend,
+        telemetry=telemetry_for_session(row),
+        device_profile=device_profile_for(row),
     )

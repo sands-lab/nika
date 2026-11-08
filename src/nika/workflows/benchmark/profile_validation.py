@@ -1,8 +1,10 @@
-"""Execution-validated coverage of native router device profiles.
+"""Execution-validated coverage of router platforms with failure providers.
 
 Declared compatibility (``ProblemBase.is_compatible`` with a device profile,
-plus ``runs_on_device_profile``) says a failure *should* work on an IOS XR or
-RouterOS deployment. This runner checks it: for each declared
+plus ``runs_on_device_profile``) says a failure *should* work on a router
+platform whose failure operations come from a provider: the Kathara native
+profiles (IOS XR, RouterOS) and the Containerlab platforms other than SR Linux
+(SONiC). This runner checks it: for each declared
 (environment, device_profile, failure) cell in the working pool it runs one
 representative case end to end — deploy, inject, ``verify_fault``, recovery
 where the failure defines it, close — and records the outcome in a generated,
@@ -87,12 +89,13 @@ def _native_target(row: dict[str, Any], env_cache: dict) -> bool:
 
 
 def declared_cells(pool: Path | None = None) -> list[Cell]:
-    """Return one representative case per native-profile cell of the pool.
+    """Return one representative case per provider-platform cell of the pool.
 
-    Prefers a case whose target is a native router, so the cell exercises the
-    vendor's fault operations rather than only the FRR/Linux nodes around it.
+    Prefers a case whose target is a router of that platform, so the cell
+    exercises the vendor's fault operations rather than only the FRR/Linux
+    nodes around it.
     """
-    from nika.net_env.net_env_pool import scenario_device_profiles
+    from nika.problems.support.router_ops import router_platform_has_provider
     from nika.workflows.benchmark.generate import default_pool_dir
     from nika.workflows.benchmark.healthy import is_healthy_case
     from nika.workflows.benchmark.load_config import load_benchmark_input
@@ -103,7 +106,7 @@ def declared_cells(pool: Path | None = None) -> list[Cell]:
         if (
             is_healthy_case(row["problem"])
             or len(row.get("problems") or [row["problem"]]) > 1
-            or profile not in scenario_device_profiles(row["scenario"])
+            or not router_platform_has_provider(profile)
         ):
             continue
         key = (cell_environment(row["scenario"]), profile, row["problem"])
@@ -170,7 +173,7 @@ def validated_cells(path: Path = RESULTS_PATH) -> set[str]:
 
 
 def profile_image(profile: str) -> str:
-    """Vendor image tag a native profile deploys."""
+    """Vendor image tag a provider platform deploys."""
     return import_module(f"nika.net_env.utils.{profile}.common").IMAGE
 
 

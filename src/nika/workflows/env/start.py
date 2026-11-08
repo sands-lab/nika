@@ -41,6 +41,7 @@ from nika.net_env.net_env_pool import (
     get_net_env_instance,
     resolve_scenario_backend,
     resolve_scenario_id,
+    scenario_containerlab_device_profiles,
     scenario_device_profiles,
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
@@ -148,6 +149,7 @@ def _resolve_isp_kwargs(
             else normalize_device_profile(device_profile)
         )
         native = scenario_device_profiles(scenario)
+        containerlab = scenario_containerlab_device_profiles(scenario)
         protocol_flags = any(
             value is not None
             for key, value in provided.items()
@@ -159,6 +161,13 @@ def _resolve_isp_kwargs(
                 "--metric-strategy/--constant-metric/--bgp-mode/--rpki; those "
                 "flags are only valid for ISP topology scenarios (e.g. isp_abilene)."
             )
+        if containerlab:
+            if profile not in (None, *containerlab):
+                raise ValueError(
+                    f"Scenario '{scenario}' does not support device_profile="
+                    f"{profile!r}; supported: {', '.join(containerlab)}."
+                )
+            return {} if profile is None else {"device_profile": profile}
         if profile not in (None, "frr", *native):
             raise ValueError(
                 f"Scenario '{scenario}' does not support device_profile="

@@ -17,3 +17,19 @@ failure:
         kind: node
         node: leaf2
       fault_type: host_static_blackhole
+  - device_profile: sonic
+    inject:
+      host_name: leaf1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf1
+      fault_type: host_static_blackhole
+  - device_profile: sonic
+    inject:
+      host_name: leaf2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf2
+      fault_type: host_static_blackhole
