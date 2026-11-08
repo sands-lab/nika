@@ -178,6 +178,8 @@ def start_agent(
                     session.session_dir,
                     GatewayRequest(
                         access=access,
+                        tool_call_limits=get_run_config().agent.tool_call_limits
+                        or None,
                         sandbox=use_sandbox,
                         bind_host=(
                             sandbox_backend.gateway_bind_host if use_sandbox else None

@@ -201,7 +201,11 @@ class BenchmarkEngine:
         if remote_lab():
             from nika.remote.client import RemoteClient
 
-            attach = RemoteClient().mcp_attach(session_id, access=request.access)
+            attach = RemoteClient().mcp_attach(
+                session_id,
+                access=request.access,
+                tool_call_limits=request.tool_call_limits,
+            )
             return AgentEndpoints(
                 gateway_url=attach.gateway_base_url,
                 agent_url=attach.gateway_base_url,
@@ -217,6 +221,7 @@ class BenchmarkEngine:
             sandbox_agent_host=request.agent_host or SANDBOX_GATEWAY_AGENT_HOST,
             backend=backend,
             access=request.access,
+            tool_call_limits=request.tool_call_limits,
         )
         return AgentEndpoints(
             gateway_url=manager.base_url,
