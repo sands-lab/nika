@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: mtu_mismatch
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: leaf_1_1
       intf_name: eth2
       mtu: '500'

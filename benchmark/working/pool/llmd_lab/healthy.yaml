@@ -2,4 +2,6 @@ scenario:
   name: llmd_lab
 healthy:
   variants:
-  - {}
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0

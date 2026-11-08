@@ -47,6 +47,11 @@ class NetworkEnvBase:
     # Routers route only frames addressed to their own interface MAC, as real
     # L3 devices do (scenario-declared forwarding behaviour).
     ROUTERS_CHECK_DST_MAC: ClassVar[bool] = False
+    # Background traffic profile (``nika.traffic.profiles``) that every
+    # generated benchmark case of the environment runs, faulty or healthy, so
+    # its presence says nothing about the fault. A failure's
+    # ``TRAFFIC_PROFILE`` replaces it for that failure's cases.
+    BASELINE_TRAFFIC: ClassVar[dict] = {"pattern": "uniform", "load_mbps": 1.0}
     # Remove deploy-time file copies and align saved configs (see seal_baseline).
     SEAL_BASELINE: ClassVar[bool] = True
     """

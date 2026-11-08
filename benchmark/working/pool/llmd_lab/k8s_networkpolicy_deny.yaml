@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: k8s_networkpolicy_deny
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       control_node: controller
       control_url: http://200.0.0.8/
       namespace: llm-d

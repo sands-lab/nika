@@ -232,6 +232,13 @@ def first_iface(ifaces: list[str], fallback: str = "eth0") -> str:
 # ----------------------------------------------------------------------
 
 
+# A Containerlab flap takes the port's carrier down, so the routers reroute at
+# once and move traffic back only after the IGP adjacency returns (about 7 s on
+# SR Linux IS-IS). An up period longer than that makes every down period an
+# outage on the probed path.
+CARRIER_FLAP_UP_SEC = "12"
+
+
 def resolve_link_flap_params(
     scenario: str,
     net_env,
@@ -273,18 +280,10 @@ def resolve_link_flap_params(
             return params
 
     if scenario == "min3clos":
-        # leaf1's port toward client1; its name depends on the router platform.
-        leaf_port = next(
-            end.split(":", 1)[1]
-            for link in net_env.get_topology()
-            if "client1:eth1" in link
-            for end in link
-            if end.startswith("leaf1:")
-        )
         params.update(
             host_name="leaf1",
-            intf_name=leaf_port,
-            up_time="12",
+            intf_name="e1-2",
+            up_time=CARRIER_FLAP_UP_SEC,
             probe_dst_ip="10.0.0.27",
             observer_device="client1",
         )
@@ -386,7 +385,7 @@ def resolve_path_mtu_target(
 
     if scenario == "dc_clos":
         # Lower MTU on the leaf host-facing egress that serves the default
-        # webserver probe target (unique hop; avoids SS ECMP bypass).
+        # web endpoint (a unique egress despite fabric ECMP).
         from nika.problems.rca.inventory import (
             iter_link_termination_points,
             parse_endpoint,
@@ -406,18 +405,18 @@ def resolve_path_mtu_target(
                     continue
                 other = endpoints[0] if endpoints[1] == web_ep else endpoints[1]
                 peer_host, peer_intf = parse_endpoint(other)
-                if peer_host.startswith("leaf_router_"):
+                if peer_host.startswith("leaf_"):
                     host = peer_host
                     intf = peer_intf
                     break
             if host is not None:
                 break
         if host is None:
-            candidates = [n for n in routers if str(n).startswith("leaf_router_")]
+            candidates = [n for n in routers if str(n).startswith("leaf_")]
             host = (
-                "leaf_router_0_1"
-                if "leaf_router_0_1" in candidates
-                else choice(rng, candidates, "leaf_router_0_0")
+                "leaf_2"
+                if "leaf_2" in candidates
+                else choice(rng, candidates, "leaf_1")
             )
             host_ifaces = ifaces_by_device.get(host) or ["eth0"]
             ordered = sorted(host_ifaces, key=lambda name: (len(name), name))
@@ -548,19 +547,16 @@ def endpoint_target(
         )
         params["host_name"] = prefer_named(web_pool, "web_server_0", ctx.web0 or host0)
         params["intf_name"] = "eth0"
-    elif scenario in {"sdn_l3_clos", "p4_dc_fabric"} and link:
-        # Prefer a leaf–spine fabric link so Clos path/ECMP failures are exercised.
-        model = getattr(net_env, "model", None)
-        if model is not None and getattr(model, "leaf_spine_links", None):
-            leaf, spine = rng.choice(model.leaf_spine_links)
-            port = model.port_to_peer(leaf, spine)
-            params["host_name"] = leaf
-            params["intf_name"] = port.name if port is not None else "eth2"
-        else:
-            switches = net_env.ovs_switches or net_env.bmv2_switches or []
-            leaf = choice(rng, bmv2_leaves(switches) or switches, "leaf_1")
-            params["host_name"] = leaf
-            params["intf_name"] = choice_interface(rng, net_env, leaf, backend)
+    elif link and callable(
+        getattr(getattr(net_env, "model", None), "probe_endpoints", None)
+    ):
+        observer, service, _ = net_env.model.probe_endpoints()
+        params.update(
+            host_name=observer.name,
+            intf_name="eth0",
+            observer_device=observer.name,
+            probe_dst_ip=service.ip,
+        )
     elif scenario == "min3clos" and link:
         params["host_name"] = ctx.router0
         params["intf_name"] = choice_interface(rng, net_env, ctx.router0, backend)
@@ -734,6 +730,116 @@ def require_node_capability(
             f"{problem} host_name={host_name!r} does not run {capability} on "
             f"{ctx.scenario} (topo_size={ctx.topo_size!r})."
         )
+
+
+def require_l2_capability(ctx, problem: str, capability: str) -> None:
+    capabilities = getattr(ctx.net_env, "L2_CAPABILITIES", None)
+    if capabilities is not None and capability not in capabilities:
+        raise ValueError(
+            f"{problem} requires unsupported layer-2 capability {capability}"
+        )
+
+
+def same_segment_pairs(net_env) -> list[tuple[str, str]]:
+    """Ordered endpoint pairs sharing a scenario-declared layer-2 segment."""
+    return [
+        (a, b)
+        for group in getattr(net_env, "l2_endpoint_groups", ())
+        for a in group
+        for b in group
+        if a != b
+    ]
+
+
+def require_same_segment(ctx, problem, inject):
+    pairs = same_segment_pairs(ctx.net_env)
+    a, b = inject.get("host_name"), inject.get("host_name_2")
+    if pairs and a and b and (a, b) not in pairs:
+        raise ValueError(
+            f"Inject hosts must share a declared layer-2 segment for {problem}"
+        )
+
+
+def segment_host_pairs(net_env: Any, hosts: list[str]) -> list[tuple[str, str]] | None:
+    """Pairs of ``hosts`` on one Layer-2 segment with two more nodes on it.
+
+    An IP or MAC conflict shows only to a third node on the pair's segment,
+    so the segment needs an observer and a control besides the pair. A segment
+    is a lab link, joined with the links whose ports a node bridges
+    (``brctl addif`` in its startup). Nodes that only bridge, holding no
+    address, do not count as observers. Returns ``None`` when the lab's links
+    are not known offline.
+    """
+    import re
+
+    from nika.runtime.spec import NodeRole
+
+    lab = getattr(net_env, "lab", None)
+    machines = getattr(lab, "machines", None)
+    if not machines:
+        return None
+    sources = dict(getattr(net_env, "native_sources", {}) or {})
+    roles = getattr(net_env, "machine_identities", {}) or {}
+    parent: dict[str, str] = {}
+
+    def find(key: str) -> str:
+        while parent.setdefault(key, key) != key:
+            key = parent[key]
+        return key
+
+    addressed: set[str] = set()
+    for name, machine in machines.items():
+        path = f"{name}.startup"
+        if name in sources:
+            text = sources[name][1]
+        elif lab.fs.exists(path):
+            text = lab.fs.readtext(path)
+        else:
+            text = ""
+        role = getattr(roles.get(name), "role", None)
+        if re.search(r"ip (?:addr|address) add ", text) or role in {
+            NodeRole.HOST,
+            NodeRole.SERVICE,
+        }:
+            addressed.add(name)
+        ports = {f"eth{i}": iface.link.name for i, iface in machine.interfaces.items()}
+        links = [
+            ports[p]
+            for p in re.findall(r"brctl addif \S+ (eth\d+)", text)
+            if p in ports
+        ]
+        for link in links[1:]:
+            parent[find(link)] = find(links[0])
+    members: dict[str, set[str]] = defaultdict(set)
+    for name, machine in machines.items():
+        for iface in machine.interfaces.values():
+            members[find(iface.link.name)].add(name)
+    pairs: list[tuple[str, str]] = []
+    for nodes in members.values():
+        on_segment = sorted(h for h in hosts if h in nodes)
+        for a in on_segment:
+            for b in on_segment:
+                if a != b and len((nodes & addressed) - {a, b}) >= 2:
+                    pairs.append((a, b))
+    return list(dict.fromkeys(pairs))
+
+
+def conflict_hosts(net_env: Any) -> list[str]:
+    """End hosts and servers, the devices an address conflict involves."""
+    hosts = list(net_env.hosts or [])
+    for bucket in (net_env.servers or {}).values():
+        hosts += [name for name in bucket or [] if name not in hosts]
+    return hosts
+
+
+def segment_pair_options(ctx: Any, base: dict[str, str]) -> list[dict[str, str]]:
+    """Keep a generated conflict pair only if it shares an observed segment.
+
+    Generation-only: published rows are validated without this rule.
+    """
+    pairs = segment_host_pairs(ctx.net_env, conflict_hosts(ctx.net_env))
+    pair = (base.get("host_name"), base.get("host_name_2"))
+    return [base] if pairs is None or pair in pairs else []
 
 
 def require_distinct_hosts(

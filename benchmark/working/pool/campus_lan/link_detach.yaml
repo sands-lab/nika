@@ -4,6 +4,9 @@ failure:
   fault_type: link_detach
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       intf_name: eth0
@@ -14,6 +17,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_server
       intf_name: eth0
@@ -24,6 +30,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: load_balancer
       intf_name: eth0
@@ -34,6 +43,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_1
       intf_name: eth0
@@ -44,6 +56,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_1
       intf_name: eth0
@@ -54,6 +69,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth0
@@ -64,6 +82,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth1
@@ -74,6 +95,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth2
@@ -84,6 +108,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth1
@@ -94,6 +121,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth2
@@ -104,6 +134,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_3
       intf_name: eth2
@@ -114,6 +147,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth1
@@ -124,6 +160,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth1
@@ -134,6 +173,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth1
@@ -144,6 +186,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth2
@@ -154,6 +199,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth3
@@ -164,6 +212,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth4
@@ -175,6 +226,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       intf_name: eth0
@@ -186,6 +240,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_server
       intf_name: eth0
@@ -197,6 +254,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: load_balancer
       intf_name: eth0
@@ -208,6 +268,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_1
       intf_name: eth0
@@ -219,6 +282,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_1
       intf_name: eth0
@@ -230,6 +296,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth0
@@ -241,6 +310,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth1
@@ -252,6 +324,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth2
@@ -263,6 +338,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth1
@@ -274,6 +352,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth2
@@ -285,6 +366,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_3
       intf_name: eth2
@@ -296,6 +380,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth1
@@ -307,6 +394,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth1
@@ -318,6 +408,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth1
@@ -329,6 +422,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth2
@@ -340,6 +436,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth3
@@ -351,6 +450,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth4
@@ -362,6 +464,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       intf_name: eth0
@@ -373,6 +478,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_server
       intf_name: eth0
@@ -384,6 +492,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: load_balancer
       intf_name: eth0
@@ -395,6 +506,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_1
       intf_name: eth0
@@ -406,6 +520,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_1
       intf_name: eth0
@@ -417,6 +534,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth0
@@ -428,6 +548,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth1
@@ -439,6 +562,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth2
@@ -450,6 +576,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth1
@@ -461,6 +590,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth2
@@ -472,6 +604,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_3
       intf_name: eth2
@@ -483,6 +618,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth1
@@ -494,6 +632,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth1
@@ -505,6 +646,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth1
@@ -516,6 +660,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth2
@@ -527,6 +674,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth3
@@ -538,6 +688,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth4
@@ -548,6 +701,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       intf_name: eth0
@@ -558,6 +714,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_server
       intf_name: eth0
@@ -568,6 +727,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: load_balancer
       intf_name: eth0
@@ -578,6 +740,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_1
       intf_name: eth0
@@ -588,6 +753,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_2
       intf_name: eth0
@@ -598,6 +766,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_2_1
       intf_name: eth0
@@ -608,6 +779,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_2_2
       intf_name: eth0
@@ -618,6 +792,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_1_1
       intf_name: eth0
@@ -628,6 +805,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_1_2
       intf_name: eth0
@@ -638,6 +818,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_2_1
       intf_name: eth0
@@ -648,6 +831,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_2_2
       intf_name: eth0
@@ -658,6 +844,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_1
       intf_name: eth0
@@ -668,6 +857,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_2
       intf_name: eth0
@@ -678,6 +870,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_2_1
       intf_name: eth0
@@ -688,6 +883,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_2_2
       intf_name: eth0
@@ -698,6 +896,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_1_1
       intf_name: eth0
@@ -708,6 +909,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_1_2
       intf_name: eth0
@@ -718,6 +922,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_2_1
       intf_name: eth0
@@ -728,6 +935,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_2_2
       intf_name: eth0
@@ -738,6 +948,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth0
@@ -748,6 +961,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth1
@@ -758,6 +974,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth2
@@ -768,6 +987,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth3
@@ -778,6 +1000,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth1
@@ -788,6 +1013,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth2
@@ -798,6 +1026,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth3
@@ -808,6 +1039,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_3
       intf_name: eth2
@@ -818,6 +1052,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth1
@@ -828,6 +1065,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth2
@@ -838,6 +1078,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_2
       intf_name: eth1
@@ -848,6 +1091,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_2
       intf_name: eth2
@@ -858,6 +1104,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth1
@@ -868,6 +1117,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth2
@@ -878,6 +1130,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_2
       intf_name: eth1
@@ -888,6 +1143,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_2
       intf_name: eth2
@@ -898,6 +1156,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth1
@@ -908,6 +1169,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth2
@@ -918,6 +1182,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth3
@@ -928,6 +1195,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth4
@@ -938,6 +1208,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       intf_name: eth0
@@ -948,6 +1221,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dns_server
       intf_name: eth0
@@ -958,6 +1234,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: load_balancer
       intf_name: eth0
@@ -968,6 +1247,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_1
       intf_name: eth0
@@ -978,6 +1260,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_2
       intf_name: eth0
@@ -988,6 +1273,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_3
       intf_name: eth0
@@ -998,6 +1286,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_4
       intf_name: eth0
@@ -1008,6 +1299,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_2_1
       intf_name: eth0
@@ -1018,6 +1312,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_2_2
       intf_name: eth0
@@ -1028,6 +1325,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_2_3
       intf_name: eth0
@@ -1038,6 +1338,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_2_4
       intf_name: eth0
@@ -1048,6 +1351,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_3_1
       intf_name: eth0
@@ -1058,6 +1364,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_3_2
       intf_name: eth0
@@ -1068,6 +1377,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_3_3
       intf_name: eth0
@@ -1078,6 +1390,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_3_4
       intf_name: eth0
@@ -1088,6 +1403,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_4_1
       intf_name: eth0
@@ -1098,6 +1416,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_4_2
       intf_name: eth0
@@ -1108,6 +1429,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_4_3
       intf_name: eth0
@@ -1118,6 +1442,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_4_4
       intf_name: eth0
@@ -1128,6 +1455,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_1_1
       intf_name: eth0
@@ -1138,6 +1468,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_1_2
       intf_name: eth0
@@ -1148,6 +1481,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_1_3
       intf_name: eth0
@@ -1158,6 +1494,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_1_4
       intf_name: eth0
@@ -1168,6 +1507,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_2_1
       intf_name: eth0
@@ -1178,6 +1520,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_2_2
       intf_name: eth0
@@ -1188,6 +1533,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_2_3
       intf_name: eth0
@@ -1198,6 +1546,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_2_4
       intf_name: eth0
@@ -1208,6 +1559,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_3_1
       intf_name: eth0
@@ -1218,6 +1572,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_3_2
       intf_name: eth0
@@ -1228,6 +1585,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_3_3
       intf_name: eth0
@@ -1238,6 +1598,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_3_4
       intf_name: eth0
@@ -1248,6 +1611,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_4_1
       intf_name: eth0
@@ -1258,6 +1624,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_4_2
       intf_name: eth0
@@ -1268,6 +1637,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_4_3
       intf_name: eth0
@@ -1278,6 +1650,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_2_4_4
       intf_name: eth0
@@ -1288,6 +1663,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_1_1
       intf_name: eth0
@@ -1298,6 +1676,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_1_2
       intf_name: eth0
@@ -1308,6 +1689,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_1_3
       intf_name: eth0
@@ -1318,6 +1702,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_1_4
       intf_name: eth0
@@ -1328,6 +1715,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_2_1
       intf_name: eth0
@@ -1338,6 +1728,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_2_2
       intf_name: eth0
@@ -1348,6 +1741,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_2_3
       intf_name: eth0
@@ -1358,6 +1754,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_2_4
       intf_name: eth0
@@ -1368,6 +1767,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_3_1
       intf_name: eth0
@@ -1378,6 +1780,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_3_2
       intf_name: eth0
@@ -1388,6 +1793,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_3_3
       intf_name: eth0
@@ -1398,6 +1806,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_3_4
       intf_name: eth0
@@ -1408,6 +1819,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_4_1
       intf_name: eth0
@@ -1418,6 +1832,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_4_2
       intf_name: eth0
@@ -1428,6 +1845,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_4_3
       intf_name: eth0
@@ -1438,6 +1858,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_3_4_4
       intf_name: eth0
@@ -1448,6 +1871,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_1_1
       intf_name: eth0
@@ -1458,6 +1884,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_1_2
       intf_name: eth0
@@ -1468,6 +1897,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_1_3
       intf_name: eth0
@@ -1478,6 +1910,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_1_4
       intf_name: eth0
@@ -1488,6 +1923,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_2_1
       intf_name: eth0
@@ -1498,6 +1936,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_2_2
       intf_name: eth0
@@ -1508,6 +1949,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_2_3
       intf_name: eth0
@@ -1518,6 +1962,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_2_4
       intf_name: eth0
@@ -1528,6 +1975,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_3_1
       intf_name: eth0
@@ -1538,6 +1988,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_3_2
       intf_name: eth0
@@ -1548,6 +2001,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_3_3
       intf_name: eth0
@@ -1558,6 +2014,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_3_4
       intf_name: eth0
@@ -1568,6 +2027,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_4_1
       intf_name: eth0
@@ -1578,6 +2040,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_4_2
       intf_name: eth0
@@ -1588,6 +2053,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_4_3
       intf_name: eth0
@@ -1598,6 +2066,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_4_4
       intf_name: eth0
@@ -1608,6 +2079,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_1
       intf_name: eth0
@@ -1618,6 +2092,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_2
       intf_name: eth0
@@ -1628,6 +2105,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_3
       intf_name: eth0
@@ -1638,6 +2118,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_4
       intf_name: eth0
@@ -1648,6 +2131,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_2_1
       intf_name: eth0
@@ -1658,6 +2144,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_2_2
       intf_name: eth0
@@ -1668,6 +2157,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_2_3
       intf_name: eth0
@@ -1678,6 +2170,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_2_4
       intf_name: eth0
@@ -1688,6 +2183,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_3_1
       intf_name: eth0
@@ -1698,6 +2196,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_3_2
       intf_name: eth0
@@ -1708,6 +2209,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_3_3
       intf_name: eth0
@@ -1718,6 +2222,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_3_4
       intf_name: eth0
@@ -1728,6 +2235,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_4_1
       intf_name: eth0
@@ -1738,6 +2248,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_4_2
       intf_name: eth0
@@ -1748,6 +2261,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_4_3
       intf_name: eth0
@@ -1758,6 +2274,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_4_4
       intf_name: eth0
@@ -1768,6 +2287,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_1_1
       intf_name: eth0
@@ -1778,6 +2300,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_1_2
       intf_name: eth0
@@ -1788,6 +2313,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_1_3
       intf_name: eth0
@@ -1798,6 +2326,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_1_4
       intf_name: eth0
@@ -1808,6 +2339,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_2_1
       intf_name: eth0
@@ -1818,6 +2352,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_2_2
       intf_name: eth0
@@ -1828,6 +2365,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_2_3
       intf_name: eth0
@@ -1838,6 +2378,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_2_4
       intf_name: eth0
@@ -1848,6 +2391,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_3_1
       intf_name: eth0
@@ -1858,6 +2404,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_3_2
       intf_name: eth0
@@ -1868,6 +2417,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_3_3
       intf_name: eth0
@@ -1878,6 +2430,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_3_4
       intf_name: eth0
@@ -1888,6 +2443,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_4_1
       intf_name: eth0
@@ -1898,6 +2456,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_4_2
       intf_name: eth0
@@ -1908,6 +2469,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_4_3
       intf_name: eth0
@@ -1918,6 +2482,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_4_4
       intf_name: eth0
@@ -1928,6 +2495,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_1_1
       intf_name: eth0
@@ -1938,6 +2508,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_1_2
       intf_name: eth0
@@ -1948,6 +2521,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_1_3
       intf_name: eth0
@@ -1958,6 +2534,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_1_4
       intf_name: eth0
@@ -1968,6 +2547,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_2_1
       intf_name: eth0
@@ -1978,6 +2560,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_2_2
       intf_name: eth0
@@ -1988,6 +2573,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_2_3
       intf_name: eth0
@@ -1998,6 +2586,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_2_4
       intf_name: eth0
@@ -2008,6 +2599,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_3_1
       intf_name: eth0
@@ -2018,6 +2612,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_3_2
       intf_name: eth0
@@ -2028,6 +2625,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_3_3
       intf_name: eth0
@@ -2038,6 +2638,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_3_4
       intf_name: eth0
@@ -2048,6 +2651,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_4_1
       intf_name: eth0
@@ -2058,6 +2664,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_4_2
       intf_name: eth0
@@ -2068,6 +2677,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_4_3
       intf_name: eth0
@@ -2078,6 +2690,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_3_4_4
       intf_name: eth0
@@ -2088,6 +2703,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_1_1
       intf_name: eth0
@@ -2098,6 +2716,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_1_2
       intf_name: eth0
@@ -2108,6 +2729,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_1_3
       intf_name: eth0
@@ -2118,6 +2742,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_1_4
       intf_name: eth0
@@ -2128,6 +2755,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_2_1
       intf_name: eth0
@@ -2138,6 +2768,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_2_2
       intf_name: eth0
@@ -2148,6 +2781,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_2_3
       intf_name: eth0
@@ -2158,6 +2794,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_2_4
       intf_name: eth0
@@ -2168,6 +2807,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_3_1
       intf_name: eth0
@@ -2178,6 +2820,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_3_2
       intf_name: eth0
@@ -2188,6 +2833,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_3_3
       intf_name: eth0
@@ -2198,6 +2846,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_3_4
       intf_name: eth0
@@ -2208,6 +2859,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_4_1
       intf_name: eth0
@@ -2218,6 +2872,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_4_2
       intf_name: eth0
@@ -2228,6 +2885,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_4_3
       intf_name: eth0
@@ -2238,6 +2898,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_4_4_4
       intf_name: eth0
@@ -2248,6 +2911,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth0
@@ -2258,6 +2924,9 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth1
@@ -2268,6 +2937,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth2
@@ -2278,6 +2950,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth3
@@ -2288,6 +2963,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth4
@@ -2298,6 +2976,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth5
@@ -2308,6 +2989,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth1
@@ -2318,6 +3002,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth2
@@ -2328,6 +3015,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth3
@@ -2338,6 +3028,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth4
@@ -2348,6 +3041,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth5
@@ -2358,6 +3054,9 @@ failure:
         name: eth5
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_3
       intf_name: eth2
@@ -2368,6 +3067,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth1
@@ -2378,6 +3080,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth2
@@ -2388,6 +3093,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth3
@@ -2398,6 +3106,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth4
@@ -2408,6 +3119,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_2
       intf_name: eth1
@@ -2418,6 +3132,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_2
       intf_name: eth2
@@ -2428,6 +3145,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_2
       intf_name: eth3
@@ -2438,6 +3158,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_2
       intf_name: eth4
@@ -2448,6 +3171,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_3
       intf_name: eth1
@@ -2458,6 +3184,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_3
       intf_name: eth2
@@ -2468,6 +3197,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_3
       intf_name: eth3
@@ -2478,6 +3210,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_3
       intf_name: eth4
@@ -2488,6 +3223,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_4
       intf_name: eth1
@@ -2498,6 +3236,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_4
       intf_name: eth2
@@ -2508,6 +3249,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_4
       intf_name: eth3
@@ -2518,6 +3262,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_4
       intf_name: eth4
@@ -2528,6 +3275,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth1
@@ -2538,6 +3288,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth2
@@ -2548,6 +3301,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth3
@@ -2558,6 +3314,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth4
@@ -2568,6 +3327,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_2
       intf_name: eth1
@@ -2578,6 +3340,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_2
       intf_name: eth2
@@ -2588,6 +3353,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_2
       intf_name: eth3
@@ -2598,6 +3366,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_2
       intf_name: eth4
@@ -2608,6 +3379,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_3
       intf_name: eth1
@@ -2618,6 +3392,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_3
       intf_name: eth2
@@ -2628,6 +3405,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_3
       intf_name: eth3
@@ -2638,6 +3418,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_3
       intf_name: eth4
@@ -2648,6 +3431,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_4
       intf_name: eth1
@@ -2658,6 +3444,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_4
       intf_name: eth2
@@ -2668,6 +3457,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_4
       intf_name: eth3
@@ -2678,6 +3470,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_4
       intf_name: eth4
@@ -2688,6 +3483,9 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth1
@@ -2698,6 +3496,9 @@ failure:
         name: eth1
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth2
@@ -2708,6 +3509,9 @@ failure:
         name: eth2
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth3
@@ -2718,6 +3522,9 @@ failure:
         name: eth3
       fault_type: link_detach
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth4

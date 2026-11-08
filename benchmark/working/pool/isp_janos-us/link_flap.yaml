@@ -9,8 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: &id001
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -18,7 +19,7 @@ failure:
       peer_host: pc_cleveland
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_albany
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -30,7 +31,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -38,7 +41,7 @@ failure:
       peer_host: pc_newyork
       probe_dst_ip: 10.254.0.78
       symptom_host: pc_albany
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -50,7 +53,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -58,7 +63,7 @@ failure:
       peer_host: pc_cleveland
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_albany
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -70,7 +75,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -78,7 +85,7 @@ failure:
       peer_host: pc_newyork
       probe_dst_ip: 10.254.0.78
       symptom_host: pc_albany
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -90,7 +97,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -98,7 +107,7 @@ failure:
       peer_host: pc_boston
       probe_dst_ip: 10.254.0.10
       symptom_host: pc_albany
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -110,7 +119,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -118,7 +129,7 @@ failure:
       peer_host: pc_boston
       probe_dst_ip: 10.254.0.10
       symptom_host: pc_albany
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -130,7 +141,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -138,7 +151,7 @@ failure:
       peer_host: pc_nashville
       probe_dst_ip: 10.254.0.70
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -150,7 +163,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -158,7 +173,7 @@ failure:
       peer_host: pc_charlotte
       probe_dst_ip: 10.254.0.14
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -170,7 +185,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -178,7 +195,7 @@ failure:
       peer_host: pc_neworleans
       probe_dst_ip: 10.254.0.74
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -190,7 +207,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -198,7 +217,7 @@ failure:
       peer_host: pc_nashville
       probe_dst_ip: 10.254.0.70
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -210,7 +229,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -218,7 +239,7 @@ failure:
       peer_host: pc_charlotte
       probe_dst_ip: 10.254.0.14
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -230,7 +251,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -238,7 +261,7 @@ failure:
       peer_host: pc_neworleans
       probe_dst_ip: 10.254.0.74
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -250,7 +273,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -258,7 +283,7 @@ failure:
       peer_host: pc_miami
       probe_dst_ip: 10.254.0.62
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -270,7 +295,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -278,7 +305,7 @@ failure:
       peer_host: pc_miami
       probe_dst_ip: 10.254.0.62
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -290,7 +317,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: boston
@@ -298,7 +327,7 @@ failure:
       peer_host: pc_newyork
       probe_dst_ip: 10.254.0.78
       symptom_host: pc_boston
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -310,7 +339,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: boston
@@ -318,7 +349,7 @@ failure:
       peer_host: pc_newyork
       probe_dst_ip: 10.254.0.78
       symptom_host: pc_boston
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -330,7 +361,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: charlotte
@@ -338,7 +371,7 @@ failure:
       peer_host: pc_nashville
       probe_dst_ip: 10.254.0.70
       symptom_host: pc_charlotte
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -350,7 +383,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: charlotte
@@ -358,7 +393,7 @@ failure:
       peer_host: pc_nashville
       probe_dst_ip: 10.254.0.70
       symptom_host: pc_charlotte
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -370,7 +405,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: charlotte
@@ -378,7 +415,7 @@ failure:
       peer_host: pc_washingtondc
       probe_dst_ip: 10.254.0.102
       symptom_host: pc_charlotte
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -390,7 +427,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: charlotte
@@ -398,7 +437,7 @@ failure:
       peer_host: pc_washingtondc
       probe_dst_ip: 10.254.0.102
       symptom_host: pc_charlotte
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -410,7 +449,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -418,7 +459,7 @@ failure:
       peer_host: pc_minneapolis
       probe_dst_ip: 10.254.0.66
       symptom_host: pc_chicago
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -430,7 +471,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -438,7 +481,7 @@ failure:
       peer_host: pc_minneapolis
       probe_dst_ip: 10.254.0.66
       symptom_host: pc_chicago
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -450,7 +493,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -458,7 +503,7 @@ failure:
       peer_host: pc_indianapolis
       probe_dst_ip: 10.254.0.46
       symptom_host: pc_chicago
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -470,7 +515,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -478,7 +525,7 @@ failure:
       peer_host: pc_detroit
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_chicago
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -490,7 +537,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -498,7 +547,7 @@ failure:
       peer_host: pc_stlouis
       probe_dst_ip: 10.254.0.94
       symptom_host: pc_chicago
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -510,7 +559,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -518,7 +569,7 @@ failure:
       peer_host: pc_indianapolis
       probe_dst_ip: 10.254.0.46
       symptom_host: pc_chicago
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -530,7 +581,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -538,7 +591,7 @@ failure:
       peer_host: pc_detroit
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_chicago
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -550,7 +603,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -558,7 +613,7 @@ failure:
       peer_host: pc_stlouis
       probe_dst_ip: 10.254.0.94
       symptom_host: pc_chicago
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -570,7 +625,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -578,7 +635,7 @@ failure:
       peer_host: pc_indianapolis
       probe_dst_ip: 10.254.0.46
       symptom_host: pc_cleveland
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -590,7 +647,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -598,7 +657,7 @@ failure:
       peer_host: pc_detroit
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_cleveland
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -610,7 +669,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -618,7 +679,7 @@ failure:
       peer_host: pc_indianapolis
       probe_dst_ip: 10.254.0.46
       symptom_host: pc_cleveland
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -630,7 +691,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -638,7 +701,7 @@ failure:
       peer_host: pc_detroit
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_cleveland
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -650,7 +713,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -658,7 +723,7 @@ failure:
       peer_host: pc_washingtondc
       probe_dst_ip: 10.254.0.102
       symptom_host: pc_cleveland
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -670,7 +735,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -678,7 +745,7 @@ failure:
       peer_host: pc_washingtondc
       probe_dst_ip: 10.254.0.102
       symptom_host: pc_cleveland
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -690,7 +757,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -698,7 +767,7 @@ failure:
       peer_host: pc_elpaso
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -710,7 +779,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -718,7 +789,7 @@ failure:
       peer_host: pc_nashville
       probe_dst_ip: 10.254.0.70
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -730,7 +801,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -738,7 +811,7 @@ failure:
       peer_host: pc_elpaso
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -750,7 +823,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -758,7 +833,7 @@ failure:
       peer_host: pc_houston
       probe_dst_ip: 10.254.0.42
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -770,7 +845,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -778,7 +855,7 @@ failure:
       peer_host: pc_tulsa
       probe_dst_ip: 10.254.0.98
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -790,7 +867,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -798,7 +877,7 @@ failure:
       peer_host: pc_denver
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -810,7 +889,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -818,7 +899,7 @@ failure:
       peer_host: pc_nashville
       probe_dst_ip: 10.254.0.70
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -830,7 +911,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -838,7 +921,7 @@ failure:
       peer_host: pc_houston
       probe_dst_ip: 10.254.0.42
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -850,7 +933,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -858,7 +943,7 @@ failure:
       peer_host: pc_tulsa
       probe_dst_ip: 10.254.0.98
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -870,7 +955,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -878,7 +965,7 @@ failure:
       peer_host: pc_denver
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_dallas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -890,7 +977,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: denver
@@ -898,7 +987,7 @@ failure:
       peer_host: pc_saltlakecity
       probe_dst_ip: 10.254.0.82
       symptom_host: pc_denver
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -910,7 +999,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: denver
@@ -918,7 +1009,7 @@ failure:
       peer_host: pc_kansascity
       probe_dst_ip: 10.254.0.50
       symptom_host: pc_denver
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -930,7 +1021,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: denver
@@ -938,7 +1031,7 @@ failure:
       peer_host: pc_saltlakecity
       probe_dst_ip: 10.254.0.82
       symptom_host: pc_denver
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -950,7 +1043,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: denver
@@ -958,7 +1053,7 @@ failure:
       peer_host: pc_kansascity
       probe_dst_ip: 10.254.0.50
       symptom_host: pc_denver
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -970,7 +1065,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -978,7 +1075,7 @@ failure:
       peer_host: pc_lasvegas
       probe_dst_ip: 10.254.0.54
       symptom_host: pc_elpaso
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -990,7 +1087,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -998,7 +1097,7 @@ failure:
       peer_host: pc_losangeles
       probe_dst_ip: 10.254.0.58
       symptom_host: pc_elpaso
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1010,7 +1109,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -1018,7 +1119,7 @@ failure:
       peer_host: pc_lasvegas
       probe_dst_ip: 10.254.0.54
       symptom_host: pc_elpaso
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1030,7 +1131,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -1038,7 +1141,7 @@ failure:
       peer_host: pc_houston
       probe_dst_ip: 10.254.0.42
       symptom_host: pc_elpaso
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1050,7 +1153,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -1058,7 +1163,7 @@ failure:
       peer_host: pc_houston
       probe_dst_ip: 10.254.0.42
       symptom_host: pc_elpaso
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1070,7 +1175,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -1078,7 +1185,7 @@ failure:
       peer_host: pc_losangeles
       probe_dst_ip: 10.254.0.58
       symptom_host: pc_elpaso
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1090,7 +1197,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: houston
@@ -1098,7 +1207,7 @@ failure:
       peer_host: pc_neworleans
       probe_dst_ip: 10.254.0.74
       symptom_host: pc_houston
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1110,7 +1219,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: houston
@@ -1118,7 +1229,7 @@ failure:
       peer_host: pc_neworleans
       probe_dst_ip: 10.254.0.74
       symptom_host: pc_houston
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1130,7 +1241,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: indianapolis
@@ -1138,7 +1251,7 @@ failure:
       peer_host: pc_stlouis
       probe_dst_ip: 10.254.0.94
       symptom_host: pc_indianapolis
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1150,7 +1263,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: indianapolis
@@ -1158,7 +1273,7 @@ failure:
       peer_host: pc_nashville
       probe_dst_ip: 10.254.0.70
       symptom_host: pc_indianapolis
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1170,7 +1285,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: indianapolis
@@ -1178,7 +1295,7 @@ failure:
       peer_host: pc_stlouis
       probe_dst_ip: 10.254.0.94
       symptom_host: pc_indianapolis
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1190,7 +1307,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: indianapolis
@@ -1198,7 +1317,7 @@ failure:
       peer_host: pc_nashville
       probe_dst_ip: 10.254.0.70
       symptom_host: pc_indianapolis
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1210,7 +1329,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -1218,7 +1339,7 @@ failure:
       peer_host: pc_tulsa
       probe_dst_ip: 10.254.0.98
       symptom_host: pc_kansascity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1230,7 +1351,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -1238,7 +1361,7 @@ failure:
       peer_host: pc_minneapolis
       probe_dst_ip: 10.254.0.66
       symptom_host: pc_kansascity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1250,7 +1373,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -1258,7 +1383,7 @@ failure:
       peer_host: pc_tulsa
       probe_dst_ip: 10.254.0.98
       symptom_host: pc_kansascity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1270,7 +1395,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -1278,7 +1405,7 @@ failure:
       peer_host: pc_minneapolis
       probe_dst_ip: 10.254.0.66
       symptom_host: pc_kansascity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1290,7 +1417,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -1298,7 +1427,7 @@ failure:
       peer_host: pc_stlouis
       probe_dst_ip: 10.254.0.94
       symptom_host: pc_kansascity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1310,7 +1439,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -1318,7 +1449,7 @@ failure:
       peer_host: pc_stlouis
       probe_dst_ip: 10.254.0.94
       symptom_host: pc_kansascity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1330,7 +1461,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lasvegas
@@ -1338,7 +1471,7 @@ failure:
       peer_host: pc_saltlakecity
       probe_dst_ip: 10.254.0.82
       symptom_host: pc_lasvegas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1350,7 +1483,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lasvegas
@@ -1358,7 +1493,7 @@ failure:
       peer_host: pc_losangeles
       probe_dst_ip: 10.254.0.58
       symptom_host: pc_lasvegas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1370,7 +1505,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lasvegas
@@ -1378,7 +1515,7 @@ failure:
       peer_host: pc_losangeles
       probe_dst_ip: 10.254.0.58
       symptom_host: pc_lasvegas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1390,7 +1527,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lasvegas
@@ -1398,7 +1537,7 @@ failure:
       peer_host: pc_saltlakecity
       probe_dst_ip: 10.254.0.82
       symptom_host: pc_lasvegas
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1410,7 +1549,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: losangeles
@@ -1418,7 +1559,7 @@ failure:
       peer_host: pc_sanfrancisco
       probe_dst_ip: 10.254.0.86
       symptom_host: pc_losangeles
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1430,7 +1571,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: losangeles
@@ -1438,7 +1581,7 @@ failure:
       peer_host: pc_sanfrancisco
       probe_dst_ip: 10.254.0.86
       symptom_host: pc_losangeles
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1450,7 +1593,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: miami
@@ -1458,7 +1603,7 @@ failure:
       peer_host: pc_neworleans
       probe_dst_ip: 10.254.0.74
       symptom_host: pc_miami
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1470,7 +1615,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: miami
@@ -1478,7 +1625,7 @@ failure:
       peer_host: pc_neworleans
       probe_dst_ip: 10.254.0.74
       symptom_host: pc_miami
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1490,7 +1637,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: newyork
@@ -1498,7 +1647,7 @@ failure:
       peer_host: pc_washingtondc
       probe_dst_ip: 10.254.0.102
       symptom_host: pc_newyork
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1510,7 +1659,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: newyork
@@ -1518,7 +1669,7 @@ failure:
       peer_host: pc_washingtondc
       probe_dst_ip: 10.254.0.102
       symptom_host: pc_newyork
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1530,7 +1681,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: saltlakecity
@@ -1538,7 +1691,7 @@ failure:
       peer_host: pc_seattle
       probe_dst_ip: 10.254.0.90
       symptom_host: pc_saltlakecity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1550,7 +1703,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: saltlakecity
@@ -1558,7 +1713,7 @@ failure:
       peer_host: pc_seattle
       probe_dst_ip: 10.254.0.90
       symptom_host: pc_saltlakecity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1570,7 +1725,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: saltlakecity
@@ -1578,7 +1735,7 @@ failure:
       peer_host: pc_sanfrancisco
       probe_dst_ip: 10.254.0.86
       symptom_host: pc_saltlakecity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1590,7 +1747,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: saltlakecity
@@ -1598,7 +1757,7 @@ failure:
       peer_host: pc_sanfrancisco
       probe_dst_ip: 10.254.0.86
       symptom_host: pc_saltlakecity
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1610,7 +1769,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: sanfrancisco
@@ -1618,7 +1779,7 @@ failure:
       peer_host: pc_seattle
       probe_dst_ip: 10.254.0.90
       symptom_host: pc_sanfrancisco
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1630,7 +1791,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: sanfrancisco
@@ -1638,7 +1801,7 @@ failure:
       peer_host: pc_seattle
       probe_dst_ip: 10.254.0.90
       symptom_host: pc_sanfrancisco
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1650,7 +1813,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: stlouis
@@ -1658,7 +1823,7 @@ failure:
       peer_host: pc_tulsa
       probe_dst_ip: 10.254.0.98
       symptom_host: pc_stlouis
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1670,7 +1835,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: stlouis
@@ -1678,7 +1845,7 @@ failure:
       peer_host: pc_tulsa
       probe_dst_ip: 10.254.0.98
       symptom_host: pc_stlouis
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -1690,8 +1857,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: &id002
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -1711,7 +1879,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -1731,7 +1901,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -1751,7 +1923,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -1771,7 +1945,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -1791,7 +1967,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: albany
@@ -1811,7 +1989,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -1831,7 +2011,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -1851,7 +2033,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -1871,7 +2055,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -1891,7 +2077,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -1911,7 +2099,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -1931,7 +2121,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -1951,7 +2143,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlanta
@@ -1971,7 +2165,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: boston
@@ -1991,7 +2187,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: boston
@@ -2011,7 +2209,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: charlotte
@@ -2031,7 +2231,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: charlotte
@@ -2051,7 +2253,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: charlotte
@@ -2071,7 +2275,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: charlotte
@@ -2091,7 +2297,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -2111,7 +2319,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -2131,7 +2341,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -2151,7 +2363,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -2171,7 +2385,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -2191,7 +2407,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -2211,7 +2429,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -2231,7 +2451,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chicago
@@ -2251,7 +2473,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -2271,7 +2495,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -2291,7 +2517,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -2311,7 +2539,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -2331,7 +2561,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -2351,7 +2583,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: cleveland
@@ -2371,7 +2605,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2391,7 +2627,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2411,7 +2649,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2431,7 +2671,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2451,7 +2693,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2471,7 +2715,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2491,7 +2737,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2511,7 +2759,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2531,7 +2781,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2551,7 +2803,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dallas
@@ -2571,7 +2825,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: denver
@@ -2591,7 +2847,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: denver
@@ -2611,7 +2869,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: denver
@@ -2631,7 +2891,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: denver
@@ -2651,7 +2913,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -2671,7 +2935,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -2691,7 +2957,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -2711,7 +2979,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -2731,7 +3001,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -2751,7 +3023,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: elpaso
@@ -2771,7 +3045,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: houston
@@ -2791,7 +3067,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: houston
@@ -2811,7 +3089,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: indianapolis
@@ -2831,7 +3111,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: indianapolis
@@ -2851,7 +3133,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: indianapolis
@@ -2871,7 +3155,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: indianapolis
@@ -2891,7 +3177,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -2911,7 +3199,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -2931,7 +3221,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -2951,7 +3243,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -2971,7 +3265,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -2991,7 +3287,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kansascity
@@ -3011,7 +3309,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lasvegas
@@ -3031,7 +3331,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lasvegas
@@ -3051,7 +3353,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lasvegas
@@ -3071,7 +3375,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lasvegas
@@ -3091,7 +3397,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: losangeles
@@ -3111,7 +3419,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: losangeles
@@ -3131,7 +3441,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: miami
@@ -3151,7 +3463,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: miami
@@ -3171,7 +3485,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: newyork
@@ -3191,7 +3507,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: newyork
@@ -3211,7 +3529,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: saltlakecity
@@ -3231,7 +3551,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: saltlakecity
@@ -3251,7 +3573,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: saltlakecity
@@ -3271,7 +3595,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: saltlakecity
@@ -3291,7 +3617,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: sanfrancisco
@@ -3311,7 +3639,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: sanfrancisco
@@ -3331,7 +3661,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: stlouis
@@ -3351,7 +3683,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: stlouis

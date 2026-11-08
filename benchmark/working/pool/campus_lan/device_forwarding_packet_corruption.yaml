@@ -6,6 +6,7 @@ failure:
   - topo_size: s
     traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: router_core_2
       intf_name: eth2
@@ -20,6 +21,7 @@ failure:
   - topo_size: m
     traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: router_core_2
       intf_name: eth3
@@ -34,6 +36,7 @@ failure:
   - topo_size: l
     traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: router_core_2
       intf_name: eth5

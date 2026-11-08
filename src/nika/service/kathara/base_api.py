@@ -17,7 +17,7 @@ from nika.runtime.shared.containers import isolated_container_pid
 from nika.runtime.spec import MachineInventory, NodeRole
 from nika.service.kathara.docker_utils import link_members, link_neighbors
 from nika.service.lab.reachability import PingReachabilityMixin
-from nika.service.lab.semantic_mixin import SemanticOpsMixin
+from nika.service.lab.semantic_mixin import VM_MGMT_IFACES, SemanticOpsMixin
 from nika.service.lab.tc_api import TCMixin
 from nika.service.shell import (
     ShellResolver,
@@ -251,6 +251,8 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
                     return format_ip(ip, prefix)
 
         for link in ifaces:
+            if link.get("ifname") in VM_MGMT_IFACES:
+                continue
             for addr in link.get("addr_info", []):
                 if addr.get("family") != "inet":
                     continue

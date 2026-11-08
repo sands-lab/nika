@@ -5,6 +5,7 @@ failure:
   cases:
   - traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: spine
       intf_name: e1-2
@@ -19,6 +20,7 @@ failure:
   - device_profile: sonic
     traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: spine
       intf_name: eth2

@@ -6,6 +6,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: at1_at
       observer_host: pc_ch1_ch
@@ -20,6 +23,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: be1_be
       observer_host: pc_es1_es
@@ -34,6 +40,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ch1_ch
       observer_host: pc_ny1_ny
@@ -48,6 +57,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: cz1_cz
       observer_host: pc_pl1_pl
@@ -62,6 +74,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: de1_de
       observer_host: pc_ch1_ch
@@ -76,6 +91,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: fr1_fr
       observer_host: pc_be1_be
@@ -90,6 +108,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: gr1_gr
       observer_host: pc_ch1_ch
@@ -104,6 +125,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hr1_hr
       observer_host: pc_ch1_ch
@@ -118,6 +142,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hu1_hu
       observer_host: pc_ch1_ch
@@ -132,6 +159,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ie1_ie
       observer_host: pc_ch1_ch
@@ -146,6 +176,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: it1_it
       observer_host: pc_ch1_ch
@@ -160,6 +193,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: lu1_lu
       observer_host: pc_be1_be
@@ -174,6 +210,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ny1_ny
       observer_host: pc_ch1_ch
@@ -188,6 +227,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pl1_pl
       observer_host: pc_cz1_cz
@@ -202,6 +244,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: si1_si
       observer_host: pc_ch1_ch
@@ -216,6 +261,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: sk1_sk
       observer_host: pc_ch1_ch

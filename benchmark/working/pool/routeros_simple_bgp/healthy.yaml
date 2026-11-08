@@ -4,4 +4,4 @@ healthy:
   variants:
   - traffic:
       pattern: uniform
-  - {}
+      load_mbps: 1.0

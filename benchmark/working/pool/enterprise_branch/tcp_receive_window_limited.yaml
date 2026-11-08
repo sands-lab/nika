@@ -4,6 +4,9 @@ failure:
   fault_type: tcp_receive_window_limited
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc
       large_url: http://10.0.20.2/large.bin
@@ -17,6 +20,9 @@ failure:
       fault_type: tcp_receive_window_limited
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc
       large_url: http://10.0.20.2/large.bin
@@ -29,6 +35,9 @@ failure:
         node: br1_corp_pc
       fault_type: tcp_receive_window_limited
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc
       large_url: http://10.0.20.2/large.bin
@@ -41,6 +50,9 @@ failure:
         node: br1_corp_pc
       fault_type: tcp_receive_window_limited
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc2
       large_url: http://10.0.20.2/large.bin
@@ -53,6 +65,9 @@ failure:
         node: br1_corp_pc2
       fault_type: tcp_receive_window_limited
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc
       large_url: http://10.0.20.2/large.bin
@@ -65,6 +80,9 @@ failure:
         node: br1_corp_pc
       fault_type: tcp_receive_window_limited
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc2
       large_url: http://10.0.20.2/large.bin

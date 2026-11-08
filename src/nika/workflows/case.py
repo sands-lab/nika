@@ -110,6 +110,7 @@ def load_example_cases(
             row["scenario"],
             {"": 0, "s": 0, "m": 1, "l": 2}.get(row.get("topo_size", ""), 3),
             row.get("backend", "kathara") != "kathara",
+            row.get("device_profile") or "",
             task_id_for_row(row),
         ),
     )

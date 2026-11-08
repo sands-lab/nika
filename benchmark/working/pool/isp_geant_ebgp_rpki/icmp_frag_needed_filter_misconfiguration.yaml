@@ -6,6 +6,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: at1_at
     root_causes:

@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n12
@@ -29,6 +32,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n23
@@ -49,6 +55,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n23
@@ -69,6 +78,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n23
@@ -89,6 +101,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n26
@@ -109,6 +124,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n26
@@ -129,6 +147,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n47
@@ -149,6 +170,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n50
@@ -169,6 +193,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n12
@@ -189,6 +216,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n23
@@ -209,6 +239,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n23
@@ -229,6 +262,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n23
@@ -249,6 +285,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n26
@@ -269,6 +308,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n26
@@ -289,6 +331,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n47
@@ -309,6 +354,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       burst: 16kb
       host_name: n50

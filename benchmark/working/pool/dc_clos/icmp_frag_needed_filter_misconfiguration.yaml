@@ -4,6 +4,9 @@ failure:
   fault_type: icmp_frag_needed_filter_misconfiguration
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
     root_causes:
@@ -13,6 +16,9 @@ failure:
       fault_type: icmp_frag_needed_filter_misconfiguration
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
     root_causes:
@@ -21,6 +27,9 @@ failure:
         node: leaf_router_0_1
       fault_type: icmp_frag_needed_filter_misconfiguration
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
     root_causes:
@@ -29,6 +38,9 @@ failure:
         node: leaf_router_0_1
       fault_type: icmp_frag_needed_filter_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_router_0_1
     root_causes:

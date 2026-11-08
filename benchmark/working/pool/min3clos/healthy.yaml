@@ -4,8 +4,8 @@ healthy:
   variants:
   - traffic:
       pattern: uniform
-  - {}
+      load_mbps: 1.0
   - device_profile: sonic
     traffic:
       pattern: uniform
-  - device_profile: sonic
+      load_mbps: 1.0

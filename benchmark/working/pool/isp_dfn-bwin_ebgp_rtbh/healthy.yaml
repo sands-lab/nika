@@ -6,7 +6,5 @@ healthy:
     backend: kathara
     device_profile: frr
     traffic:
-      pattern: uniform
-  - topo_size: s
-    backend: kathara
-    device_profile: frr
+      pattern: gravity
+      load_mbps: 1.0

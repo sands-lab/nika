@@ -13,6 +13,7 @@ import yaml
 from nika.config import BENCHMARK_DIR
 from nika.net_env.net_env_pool import (
     list_all_net_envs,
+    scenario_baseline_traffic,
     scenario_device_profile_sizes,
     scenario_containerlab_device_profiles,
     scenario_device_profiles,
@@ -367,8 +368,10 @@ def build_failure_cases(
     """Materialize legal injection targets and report rejected candidates offline."""
     collected: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
-    traffic = traffic_field(get_problem_class(problem, scenario).TRAFFIC_PROFILE)
     net_env = load_offline_net_env(scenario, topo_size, **_offline_kwargs(isp_options))
+    traffic = traffic_field(
+        get_problem_class(problem, scenario).TRAFFIC_PROFILE or net_env.BASELINE_TRAFFIC
+    )
     try:
         enumerated = enumerate_inject_params(
             problem,
@@ -531,7 +534,15 @@ def _healthy_specs(
         topo_size: str,
         isp_options: dict[str, Any] | None,
     ) -> tuple[str, str, dict[str, Any] | None] | None:
-        opts = isp_options or {}
+        opts = dict(isp_options or {})
+        # Healthy cases run the environment baseline, as failure cases do.
+        opts.setdefault(
+            "traffic",
+            traffic_field(
+                scenario_baseline_traffic(scenario, opts.get("device_profile"))
+            )["traffic"],
+        )
+        isp_options = opts
         key = (
             scenario,
             topo_size,
@@ -577,8 +588,7 @@ def _healthy_specs(
         scenario = str(document["scenario"]["name"])
         for case in document["failure"]["cases"]:
             topo_size = str(case.get("topo_size") or "")
-            # A healthy variant per traffic profile the failures run with, so
-            # background traffic alone does not tell an agent a fault exists.
+            # A healthy variant per traffic profile the failures run with.
             isp_options = {
                 key: case[key]
                 for key in (*_DEPLOY_OPTION_KEYS, "traffic")
@@ -753,10 +763,22 @@ def _print_report(report: dict[str, Any]) -> None:
             print(f"  {reason}: {count}")
 
 
+class _PlainDumper(yaml.Dumper):
+    """Write a value shared by several cases in full at each case.
+
+    Without it, YAML anchors (``&id001``) tie a case to the first case that
+    holds the same object, and a reader of one case cannot see its values.
+    """
+
+    def ignore_aliases(self, data: Any) -> bool:
+        return True
+
+
 def _write_yaml_atomic(path: Path, payload: dict[str, Any]) -> None:
     tmp_path = path.with_name(f".{path.name}.tmp")
     tmp_path.write_text(
-        yaml.dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8"
+        yaml.dump(payload, Dumper=_PlainDumper, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
     )
     tmp_path.replace(path)
 

@@ -1,3 +1,4 @@
+from nika.net_env.utils.endpoint_network import restore_endpoint_network
 import json
 import re
 import shlex
@@ -5,7 +6,6 @@ import time
 
 from pydantic import BaseModel, Field
 
-from nika.problems.support.traffic import LOSS_EVIDENCE_TRAFFIC
 from nika.problems.base import (
     FailureDomain,
     ProblemBase,
@@ -36,6 +36,7 @@ from nika.problems.rca.inventory import (
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import native_fault_ops
 from nika.problems.support.benchmark_targets import (
+    CARRIER_FLAP_UP_SEC,
     endpoint_target,
     isp_link_target,
     loaded_inventory,
@@ -336,6 +337,10 @@ class LinkFailure(ProblemBase):
             other = endpoints[0] if endpoints[1] == needle else endpoints[1]
             peer_host, peer_intf = parse_endpoint(other)
             if peer_host and peer_intf:
+                # BMv2 keeps packet sockets bound to its interfaces. Disable
+                # the endpoint attachment without disrupting the switch process.
+                if peer_host in (self.net_env.bmv2_switches or []):
+                    return None
                 return peer_host, peer_intf
         return None
 
@@ -454,6 +459,9 @@ class LinkFailure(ProblemBase):
             )
             if peer is not None:
                 self._set_link_operational_up(peer[0], peer[1])
+            restore_endpoint_network(self.runtime, self.net_env, params.host_name)
+            if peer is not None:
+                restore_endpoint_network(self.runtime, self.net_env, peer[0])
             restored = (
                 self.runtime.get_interface_operstate(params.host_name, intf) == "up"
             )
@@ -506,7 +514,6 @@ class LinkFlap(ProblemBase):
     symptom_class = "loss"
     dynamic_artifact = True
     root_cause_name: str = "link_flap"
-    TRAFFIC_PROFILE = LOSS_EVIDENCE_TRAFFIC
     description = "Logical link flaps between up and down."
     TAGS: str = ["link"]
     # Acts on the link through a controller-side proxy, outside the router OS.
@@ -527,7 +534,9 @@ class LinkFlap(ProblemBase):
         if is_isp_scenario(ctx.scenario):
             params = isp_link_target(ctx)
             params["down_time"] = "1"
-            params["up_time"] = "1"
+            params["up_time"] = (
+                CARRIER_FLAP_UP_SEC if ctx.backend == "containerlab" else "1"
+            )
             return params
         return resolve_link_flap_params(
             ctx.scenario,
@@ -1429,6 +1438,8 @@ class LinkDetach(ProblemBase):
                 self._detach_holder = None
         self.runtime.exec(host, f"ip link set dev {intf} up 2>/dev/null || true")
         self._restore_l3_state(host, intf)
+        restore_endpoint_network(self.runtime, self.net_env, host)
+        self._detach_pid = None
         details = {"host": host, "intf": intf}
         restored = self.runtime.interface_exists(host, intf)
         ops = native_fault_ops(self, host, "reattach_interface")
