@@ -6,6 +6,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ch1_ch
     root_causes:
@@ -16,6 +19,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: cz1_cz
     root_causes:
@@ -26,6 +32,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: de1_de
     root_causes:
@@ -36,6 +45,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: es1_es
     root_causes:
@@ -46,6 +58,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: fr1_fr
     root_causes:
@@ -56,6 +71,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: il1_il
     root_causes:
@@ -66,6 +84,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: it1_it
     root_causes:
@@ -76,6 +97,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nl1_nl
     root_causes:
@@ -86,6 +110,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pt1_pt
     root_causes:
@@ -96,6 +123,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: se1_se
     root_causes:
@@ -106,6 +136,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: sk1_sk
     root_causes:
@@ -116,6 +149,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: uk1_uk
     root_causes:

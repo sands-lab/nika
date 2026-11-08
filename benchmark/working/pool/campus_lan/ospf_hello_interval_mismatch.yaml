@@ -4,6 +4,9 @@ failure:
   fault_type: ospf_hello_interval_mismatch
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth7
@@ -14,6 +17,9 @@ failure:
       fault_type: ospf_hello_interval_mismatch
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth2
@@ -24,6 +30,9 @@ failure:
       fault_type: ospf_hello_interval_mismatch
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth0
@@ -33,6 +42,9 @@ failure:
         node: router_dist_1_1
       fault_type: ospf_hello_interval_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_2
       intf_name: eth0
@@ -42,6 +54,9 @@ failure:
         node: router_dist_2_2
       fault_type: ospf_hello_interval_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_3
       intf_name: eth0

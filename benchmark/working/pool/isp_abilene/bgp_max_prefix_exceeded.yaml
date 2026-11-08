@@ -55,6 +55,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       flood_count: '120'
       neighbor_ip: 10.0.0.23
@@ -75,6 +78,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       flood_count: '120'
       neighbor_ip: 10.0.0.23

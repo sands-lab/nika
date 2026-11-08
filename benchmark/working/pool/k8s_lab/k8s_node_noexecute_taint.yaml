@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: k8s_node_noexecute_taint
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       control_node: controller
       node_name: worker1
     root_causes:
@@ -11,7 +14,10 @@ failure:
         kind: node
         node: worker1
       fault_type: k8s_node_noexecute_taint
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       control_node: controller
       node_name: worker4
     root_causes:

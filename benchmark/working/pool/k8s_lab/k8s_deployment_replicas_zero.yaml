@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: k8s_deployment_replicas_zero
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       control_node: controller
     root_causes:
     - resource:

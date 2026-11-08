@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: k8s_ingress_rate_limit_misconfig
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       control_node: controller
     root_causes:
     - resource:

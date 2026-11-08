@@ -75,6 +75,42 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
+      host_name: router_core_1
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_1
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: router_core_2
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_2
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: router_core_3
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_3
+      fault_type: ospf_area_misconfiguration
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: router_dist_1_1
     root_causes:
     - resource:

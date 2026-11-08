@@ -6,6 +6,7 @@ failure:
   - topo_size: s
     traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: server_access_router
       intf_name: eth1
@@ -19,6 +20,7 @@ failure:
     device_profile: iosxr
     traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: server_access_router
       intf_name: eth1
@@ -32,6 +34,7 @@ failure:
     device_profile: routeros
     traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: server_access_router
       intf_name: eth1
@@ -44,6 +47,7 @@ failure:
   - topo_size: m
     traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: server_access_router
       intf_name: eth1
@@ -56,6 +60,7 @@ failure:
   - topo_size: l
     traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: server_access_router
       intf_name: eth1

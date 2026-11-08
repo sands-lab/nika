@@ -5,6 +5,9 @@ failure:
   cases:
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
     root_causes:
@@ -14,6 +17,9 @@ failure:
       fault_type: bgp_session_policy_missing
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_edge
     root_causes:
@@ -23,6 +29,9 @@ failure:
       fault_type: bgp_session_policy_missing
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_edge
     root_causes:
@@ -32,6 +41,9 @@ failure:
       fault_type: bgp_session_policy_missing
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
     root_causes:

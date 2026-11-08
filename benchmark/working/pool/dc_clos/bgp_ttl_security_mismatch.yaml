@@ -4,356 +4,224 @@ failure:
   fault_type: bgp_ttl_security_mismatch
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_0
+      host_name: spine_1
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_0
+        node: spine_1
       fault_type: bgp_ttl_security_mismatch
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_1
+      host_name: spine_2
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_1
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    device_profile: iosxr
-    inject:
-      host_name: leaf_router_0_0
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_0_0
+        node: spine_2
       fault_type: bgp_ttl_security_mismatch
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_1
+      host_name: spine_1
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_1
+        node: spine_1
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine_2
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_2
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_0
+      host_name: leaf_1
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_0
+        node: leaf_1
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_1
+      host_name: leaf_2
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_1
+        node: leaf_2
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_2
+      host_name: leaf_3
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_2
+        node: leaf_3
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_3
+      host_name: leaf_4
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_3
+        node: leaf_4
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_0
+      host_name: leaf_5
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_0
+        node: leaf_5
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_1
+      host_name: leaf_6
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_1
+        node: leaf_6
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_2
+      host_name: leaf_7
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_2
+        node: leaf_7
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_3
+      host_name: leaf_8
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_3
+        node: leaf_8
       fault_type: bgp_ttl_security_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_0
+      host_name: spine_1
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_0
+        node: spine_1
       fault_type: bgp_ttl_security_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_1
+      host_name: spine_2
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_1
+        node: spine_2
       fault_type: bgp_ttl_security_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_2
+      host_name: spine_3
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_2
+        node: spine_3
       fault_type: bgp_ttl_security_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_3
+      host_name: spine_4
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_3
+        node: spine_4
       fault_type: bgp_ttl_security_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_4
+      host_name: spine_5
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_4
+        node: spine_5
       fault_type: bgp_ttl_security_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_5
+      host_name: spine_6
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_5
+        node: spine_6
       fault_type: bgp_ttl_security_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_6
+      host_name: spine_7
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_6
+        node: spine_7
       fault_type: bgp_ttl_security_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: spine_router_0_7
+      host_name: spine_8
     root_causes:
     - resource:
         kind: node
-        node: spine_router_0_7
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_1_0
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_1_0
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_1_1
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_1_1
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_1_2
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_1_2
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_1_3
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_1_3
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_1_4
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_1_4
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_1_5
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_1_5
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_1_6
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_1_6
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_1_7
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_1_7
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_2_0
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_2_0
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_2_1
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_2_1
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_2_2
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_2_2
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_2_3
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_2_3
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_2_4
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_2_4
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_2_5
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_2_5
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_2_6
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_2_6
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_2_7
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_2_7
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_3_0
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_3_0
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_3_1
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_3_1
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_3_2
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_3_2
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_3_3
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_3_3
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_3_4
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_3_4
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_3_5
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_3_5
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_3_6
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_3_6
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: l
-    inject:
-      host_name: spine_router_3_7
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_router_3_7
+        node: spine_8
       fault_type: bgp_ttl_security_mismatch

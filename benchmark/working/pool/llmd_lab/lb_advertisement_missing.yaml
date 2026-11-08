@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: lb_advertisement_missing
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       control_node: controller
     root_causes:
     - resource:
