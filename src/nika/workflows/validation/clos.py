@@ -162,6 +162,9 @@ def build_routing_clos_experiment(topo_size="s", *, device_profile="frr"):
                 "node": node,
                 "old": old,
                 "new": new,
+                "changes": [
+                    {"kind": "peer_asn", "node": node, "peer": peer, "asn": 65099}
+                ],
                 "expected_failed_ids": adjacency_ids,
             }
         ],

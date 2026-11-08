@@ -15,6 +15,9 @@ failure:
         node: web_1
       fault_type: dns_port_blocked
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_2
     root_causes:
@@ -23,6 +26,9 @@ failure:
         node: web_2
       fault_type: dns_port_blocked
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_3
     root_causes:
@@ -31,6 +37,9 @@ failure:
         node: web_3
       fault_type: dns_port_blocked
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_4
     root_causes:
@@ -52,6 +61,9 @@ failure:
       fault_type: dns_port_blocked
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_2
     root_causes:
@@ -61,6 +73,9 @@ failure:
       fault_type: dns_port_blocked
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_3
     root_causes:
@@ -70,6 +85,9 @@ failure:
       fault_type: dns_port_blocked
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_4
     root_causes:
@@ -91,6 +109,9 @@ failure:
       fault_type: dns_port_blocked
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_2
     root_causes:
@@ -100,6 +121,9 @@ failure:
       fault_type: dns_port_blocked
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_3
     root_causes:
@@ -109,6 +133,9 @@ failure:
       fault_type: dns_port_blocked
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_4
     root_causes:
@@ -139,6 +166,9 @@ failure:
         node: web_2
       fault_type: dns_port_blocked
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_3
     root_causes:
@@ -147,6 +177,9 @@ failure:
         node: web_3
       fault_type: dns_port_blocked
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_4
     root_causes:
@@ -155,6 +188,9 @@ failure:
         node: web_4
       fault_type: dns_port_blocked
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_5
     root_causes:
@@ -163,6 +199,9 @@ failure:
         node: web_5
       fault_type: dns_port_blocked
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_6
     root_causes:
@@ -171,6 +210,9 @@ failure:
         node: web_6
       fault_type: dns_port_blocked
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_7
     root_causes:
@@ -179,6 +221,9 @@ failure:
         node: web_7
       fault_type: dns_port_blocked
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_8
     root_causes:
@@ -231,6 +276,9 @@ failure:
         node: web_12
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_13
     root_causes:
@@ -239,6 +287,9 @@ failure:
         node: web_13
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_14
     root_causes:
@@ -247,6 +298,9 @@ failure:
         node: web_14
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_15
     root_causes:
@@ -255,6 +309,9 @@ failure:
         node: web_15
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_16
     root_causes:
@@ -263,6 +320,9 @@ failure:
         node: web_16
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_2
     root_causes:
@@ -271,6 +331,9 @@ failure:
         node: web_2
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_3
     root_causes:
@@ -279,6 +342,9 @@ failure:
         node: web_3
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_4
     root_causes:
@@ -287,6 +353,9 @@ failure:
         node: web_4
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_5
     root_causes:
@@ -295,6 +364,9 @@ failure:
         node: web_5
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_6
     root_causes:
@@ -303,6 +375,9 @@ failure:
         node: web_6
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_7
     root_causes:
@@ -311,6 +386,9 @@ failure:
         node: web_7
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_8
     root_causes:
@@ -319,6 +397,9 @@ failure:
         node: web_8
       fault_type: dns_port_blocked
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_9
     root_causes:

@@ -229,3 +229,20 @@ def test_pinned_release_runs_on_engine_container(
         (tmp_path / "comparison.json").write_text(json.dumps(results, indent=2))
         if errors:
             raise ExceptionGroup("Engine task acceptance failed", errors)
+
+
+def test_legacy_release_keeps_its_published_topology(tmp_path: Path) -> None:
+    release_ref = "0.1.0"
+    release = load_release(release_ref, split="dev")
+    task = next(
+        row
+        for row in release.cases
+        if row["scenario"] == "dc_clos"
+        and row["problem"] == "link_down"
+        and row.get("topo_size") == "s"
+    )
+    trial = _run_task(tmp_path / "legacy-run", release_ref, "dev", task)
+    _assert_trial(trial, task)
+    meta = json.loads((trial / "run.json").read_text())
+    nodes = set(meta["metadata"]["machine_identities"])
+    assert {"client_0", "webserver0_pod0", "super_spine_router_0"} <= nodes

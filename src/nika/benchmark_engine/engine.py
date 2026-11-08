@@ -112,6 +112,7 @@ class BenchmarkEngine:
                 session_tag=request.session_tag,
                 session_id=request.session_id,
                 session_dir=request.trial_dir,
+                release=request.release,
                 telemetry=task.get("telemetry"),
                 traffic=task.get("traffic"),
                 **{key: task.get(key) for key in _DEPLOY_KEYS},

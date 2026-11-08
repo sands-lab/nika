@@ -19,6 +19,9 @@ failure:
       fault_type: mtu_mismatch
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_1
       intf_name: eth0

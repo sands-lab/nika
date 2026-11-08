@@ -18,7 +18,7 @@ def test_scenarios_deploy_current_rendered_configs(scenario, size):
 
 def test_changed_design_rejects_stale_rendered_configs():
     env = get_net_env_instance("dc_clos", topo_size="s", rendered=False)
-    env.routing_design.routers["leaf_router_0_0"].bgp_multipath = 8
+    env.routing_design.routers[env.model.leaves[0]].bgp_multipath = 8
     with pytest.raises(StaleRenderedConfigs, match="stale"):
         stored_configs(env)
 
