@@ -304,7 +304,11 @@ class SessionScheduler:
                     "occurrence_index": action.occurrence_index,
                     "injection_params": {
                         **_extract_injection_params(prepared.problem),
-                        "resolved_params": json_safe(prepared.params),
+                        "resolved_params": json_safe(
+                            prepared.params.model_dump(exclude_none=True)
+                            if prepared.params is not None
+                            else {}
+                        ),
                     },
                     "status": "pending",
                 }
@@ -606,7 +610,11 @@ class SessionScheduler:
                     self._record(
                         "restored" if self.restored else "applied",
                         action,
-                        resolved_params=json_safe(prepared.params),
+                        resolved_params=json_safe(
+                            prepared.params.model_dump(exclude_none=True)
+                            if prepared.params is not None
+                            else {}
+                        ),
                     )
                     if (
                         event.duration is not None
