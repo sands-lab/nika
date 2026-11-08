@@ -23,9 +23,9 @@ The `failure_domain` identifies the subsystem where the injected mechanism acts.
 
 ## Domain boundaries
 
-Task counts come from the [working pool](../benchmarks/benchmark-configuration.md#working-matrix), the task space that `nika benchmark run` runs by default.
+Failure-task counts come from the [working pool](../benchmarks/benchmark-configuration.md#working-matrix), the task space that `nika benchmark run` runs by default. Its 50,066 failure tasks and 313 healthy controls total 50,379 tasks.
 
-| Domain | Boundary | Registered failures | Tasks in the working pool |
+| Domain | Boundary | Registered failures | Failure tasks in the working pool |
 | --- | --- | ---: | ---: |
 | Link & Interface | Link attachment, interface state, flapping, packet corruption, and capacity bottlenecks. | 6 | 22,054 |
 | Routing & Control Plane | BGP, OSPF, and IS-IS route computation, advertisements, adjacency, and routing-daemon availability. | 22 | 11,999 |

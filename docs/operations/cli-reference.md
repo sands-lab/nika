@@ -232,7 +232,7 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
   | Scenario type | Label | Example |
   |---------------|--------|---------|
-  | Non-scalable | `{scenario}_{problem}` | `simple_bgp_link_down` |
+  | Non-scalable | `{scenario}_{problem}` | `min3clos_link_down` |
   | Scalable | `{scenario}_{size}_{problem}` with size `s`, `m`, or `l` | `dc_clos_s_link_down` |
 
   Discover pieces with `nika env list` and `nika failure list`.
