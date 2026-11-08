@@ -109,48 +109,10 @@ def test_remote_artifact_is_checked_during_and_before_cleanup(
     watch = PresenceWatch("s-remote", tmp_path, delay_sec=30)
     watch.start()
     watch.finish()
-    # The engine's ``begin`` logs the post-inject read, not the watch.
+    # The engine's timeline logs the post-inject read, not the watch.
     assert len(calls) == 2
     assert [item["phase"] for item in logged] == ["during_agent", "before_cleanup"]
     assert logged[-1]["result"] == "absent"
-
-
-def test_begin_logs_the_post_inject_read_and_returns_the_task(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Nothing injected in the engine's process: ``begin`` logs the read."""
-    from types import SimpleNamespace
-
-    from nika.benchmark_engine import engine as engine_module
-    from nika.benchmark_engine.engine import BenchmarkEngine
-    from nika.benchmark_engine.protocol import TrialRequest
-
-    logged: list[dict] = []
-    monkeypatch.setattr(engine_module, "log_presence_check", logged.append)
-    monkeypatch.setattr(engine_module, "start_net_env", lambda *a, **k: "s-healthy")
-    monkeypatch.setattr(
-        engine_module, "write_healthy_session_artifacts", lambda session_id: None
-    )
-    session = SimpleNamespace(task_description="Is the network healthy?")
-    monkeypatch.setattr(
-        engine_module,
-        "Session",
-        lambda: SimpleNamespace(load_running_session=lambda session_id: session),
-    )
-    engine = BenchmarkEngine()
-    handle = engine.start_trial(
-        TrialRequest(
-            task={"scenario": "dc_clos"},
-            failures=[],
-            healthy=True,
-            session_id="s-healthy",
-            trial_dir=str(tmp_path),
-        )
-    )
-    assert engine.begin(handle).task_description == "Is the network healthy?"
-    assert [(item["phase"], item["result"]) for item in logged] == [
-        ("post_inject", "not_applicable")
-    ]
 
 
 def test_recheck_uses_the_injected_instance() -> None:

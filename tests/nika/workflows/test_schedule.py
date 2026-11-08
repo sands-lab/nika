@@ -26,9 +26,9 @@ pytestmark = pytest.mark.contract
 )
 def test_runtime_defaults_keep_authored_task_identity(problems):
     inject = {
-        "link_down": {"host_name": "client_0", "intf_name": "eth0"},
+        "link_down": {"host_name": "client_1_1", "intf_name": "eth0"},
         "dns_record_error": {
-            "host_name": "dns_pod0",
+            "host_name": "web_1",
             "target_domain": "pod0",
             "target_website": "web0",
         },
@@ -121,14 +121,14 @@ def task():
             "events": [
                 {
                     "problem": "link_down",
-                    "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                    "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
                     "at": "1m",
                     "duration": "5s",
                     "repeat": {"every": "30s", "count": 2},
                 },
                 {
                     "problem": "link_down",
-                    "inject": {"host_name": "dns_pod0", "intf_name": "eth0"},
+                    "inject": {"host_name": "web_1", "intf_name": "eth0"},
                     "at": "0s",
                     "duration": "10s",
                 },
@@ -142,8 +142,8 @@ def test_repeated_failure_types_preserve_targets_and_identity(tmp_path):
     row = normalize_benchmark_row(raw)
     assert row["problems"] == ["link_down"]
     assert [e["inject"]["host_name"] for e in row["schedule"]["events"]] == [
-        "client_0",
-        "dns_pod0",
+        "client_1_1",
+        "web_1",
     ]
     equivalent = deepcopy(raw)
     equivalent["schedule"]["events"][0]["at"] = "60s"
@@ -215,7 +215,7 @@ def test_dns_recovery_allows_timed_repetition():
             {
                 "problem": "dns_record_error",
                 "inject": {
-                    "host_name": "dns_pod0",
+                    "host_name": "web_1",
                     "target_domain": "pod0",
                     "target_website": "web0",
                 },

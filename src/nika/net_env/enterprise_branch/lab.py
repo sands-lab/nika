@@ -147,7 +147,9 @@ def _edge_policies(
     return prefix_lists, policies, "RM-OUT-TRANSIT" if is_hub else "RM-OUT-LOCAL"
 
 
-def _vrf_bgp_instance(asn: int, router_id: str, role: str, overlay_roles: tuple[str, ...]) -> list[str]:
+def _vrf_bgp_instance(
+    asn: int, router_id: str, role: str, overlay_roles: tuple[str, ...]
+) -> list[str]:
     return [
         f"router bgp {asn} vrf {vrf_name(role)}",
         f" bgp router-id {router_id}",
@@ -158,7 +160,11 @@ def _vrf_bgp_instance(asn: int, router_id: str, role: str, overlay_roles: tuple[
         # FRR 10.x accepts `import vrf default` only (no inline route-map).
         # Guest/IOT have no BGP VRF instance, so they never import overlay.
         "  import vrf default",
-        *(f"  import vrf {vrf_name(other)}" for other in overlay_roles if other != role),
+        *(
+            f"  import vrf {vrf_name(other)}"
+            for other in overlay_roles
+            if other != role
+        ),
         " exit-address-family",
         "!",
         "!",

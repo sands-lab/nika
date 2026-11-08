@@ -28,7 +28,7 @@ def _task():
                 {"traffic": "background", "at": 1},
                 {
                     "problem": "link_down",
-                    "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                    "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
                     "at": 5,
                     "duration": 5,
                 },

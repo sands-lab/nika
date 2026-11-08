@@ -61,7 +61,7 @@ Published releases do not change. Corrections follow the [versioning policy](../
 | `score` | Trial handle, optional result directory and infrastructure evidence flag | Writes evaluation artifacts |
 | `stop_trial` | Trial handle and final session status | Closes the environment |
 
-The frontend sends task rows, including expected root causes, rather than task IDs. The pinned engine checks release task rows against its own split files. The engine and frontend share trial directories: `begin` writes `ground_truth.json`, and `score` writes scores there. Ground truth therefore reaches the frontend before scoring. The current protocol does not transfer all results as HTTP response data.
+The frontend sends task rows, including expected root causes, rather than task IDs. The pinned engine checks release task rows against its own split files. The engine and frontend share trial directories: the engine writes `ground_truth.json` as it prepares or executes the timeline, and `score` writes scores there. Ground truth reaches the frontend before scoring. The current protocol does not transfer all results as HTTP response data.
 
 For engines returning `scheduled: true`, the frontend opens the gateway before starting the timeline and waiting for its agent-start boundary. It observes completion and revisions through `schedule_operation`; the engine performs failure injection, traffic changes, and recovery on the lab controller. Engines that omit this field keep their existing immediate-start behavior. Explicit scheduled tasks require an engine that supports this operation.
 
