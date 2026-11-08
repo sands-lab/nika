@@ -8,7 +8,7 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      attacker_device: client_4_1
+      attacker_device: client_4_2
       host_name: web_2
       observer_device: client_1_1
       probe_url: http://10.0.2.11/

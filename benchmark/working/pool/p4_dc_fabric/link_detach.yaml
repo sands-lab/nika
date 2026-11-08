@@ -21,12 +21,38 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
+      host_name: client_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: client_2_1
       intf_name: eth0
     root_causes:
     - resource:
         kind: interface
         node: client_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_2
         name: eth0
       fault_type: link_detach
   - topo_size: s
@@ -47,6 +73,19 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
+      host_name: client_3_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: client_4_1
       intf_name: eth0
     root_causes:
@@ -60,6 +99,19 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
+      host_name: client_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: leaf_1
       intf_name: eth0
     root_causes:
@@ -74,12 +126,12 @@ failure:
       load_mbps: 1.0
     inject:
       host_name: leaf_1
-      intf_name: eth2
+      intf_name: eth3
     root_causes:
     - resource:
         kind: interface
         node: leaf_1
-        name: eth2
+        name: eth3
       fault_type: link_detach
   - topo_size: s
     traffic:
@@ -87,12 +139,12 @@ failure:
       load_mbps: 1.0
     inject:
       host_name: leaf_1
-      intf_name: eth3
+      intf_name: eth4
     root_causes:
     - resource:
         kind: interface
         node: leaf_1
-        name: eth3
+        name: eth4
       fault_type: link_detach
   - topo_size: s
     traffic:
@@ -113,12 +165,12 @@ failure:
       load_mbps: 1.0
     inject:
       host_name: leaf_2
-      intf_name: eth2
+      intf_name: eth3
     root_causes:
     - resource:
         kind: interface
         node: leaf_2
-        name: eth2
+        name: eth3
       fault_type: link_detach
   - topo_size: s
     traffic:
@@ -126,12 +178,12 @@ failure:
       load_mbps: 1.0
     inject:
       host_name: leaf_2
-      intf_name: eth3
+      intf_name: eth4
     root_causes:
     - resource:
         kind: interface
         node: leaf_2
-        name: eth3
+        name: eth4
       fault_type: link_detach
   - topo_size: s
     traffic:
@@ -152,12 +204,12 @@ failure:
       load_mbps: 1.0
     inject:
       host_name: leaf_3
-      intf_name: eth2
+      intf_name: eth3
     root_causes:
     - resource:
         kind: interface
         node: leaf_3
-        name: eth2
+        name: eth3
       fault_type: link_detach
   - topo_size: s
     traffic:
@@ -165,12 +217,12 @@ failure:
       load_mbps: 1.0
     inject:
       host_name: leaf_3
-      intf_name: eth3
+      intf_name: eth4
     root_causes:
     - resource:
         kind: interface
         node: leaf_3
-        name: eth3
+        name: eth4
       fault_type: link_detach
   - topo_size: s
     traffic:
@@ -191,12 +243,12 @@ failure:
       load_mbps: 1.0
     inject:
       host_name: leaf_4
-      intf_name: eth2
+      intf_name: eth3
     root_causes:
     - resource:
         kind: interface
         node: leaf_4
-        name: eth2
+        name: eth3
       fault_type: link_detach
   - topo_size: s
     traffic:
@@ -204,12 +256,12 @@ failure:
       load_mbps: 1.0
     inject:
       host_name: leaf_4
-      intf_name: eth3
+      intf_name: eth4
     root_causes:
     - resource:
         kind: interface
         node: leaf_4
-        name: eth3
+        name: eth4
       fault_type: link_detach
   - topo_size: s
     traffic:

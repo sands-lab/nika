@@ -8,15 +8,45 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_0
-      observer_host: client_0
-      probe_dst_ip: 10.0.1.2
-      symptom_host: super_spine_router_0
-      target_network: 10.0.1.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.3.11
+      symptom_host: leaf_2
+      target_network: 10.0.3.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_0
+        node: leaf_1
+      fault_type: bgp_hijacking
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.4.11
+      symptom_host: leaf_2
+      target_network: 10.0.4.0/25
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: bgp_hijacking
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      observer_host: client_3_1
+      probe_dst_ip: 10.0.2.11
+      symptom_host: leaf_3
+      target_network: 10.0.2.0/25
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: s
     device_profile: iosxr
@@ -24,15 +54,47 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_0
-      observer_host: client_0
-      probe_dst_ip: 10.0.1.2
-      symptom_host: super_spine_router_0
-      target_network: 10.0.1.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.3.11
+      symptom_host: leaf_2
+      target_network: 10.0.3.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_0
+        node: leaf_1
+      fault_type: bgp_hijacking
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.4.11
+      symptom_host: leaf_2
+      target_network: 10.0.4.0/25
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: bgp_hijacking
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      observer_host: client_3_1
+      probe_dst_ip: 10.0.2.11
+      symptom_host: leaf_3
+      target_network: 10.0.2.0/25
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: s
     device_profile: routeros
@@ -40,583 +102,375 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_0
-      observer_host: client_0
-      probe_dst_ip: 10.0.1.2
-      symptom_host: super_spine_router_0
-      target_network: 10.0.1.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.3.11
+      symptom_host: leaf_2
+      target_network: 10.0.3.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_0
+        node: leaf_1
+      fault_type: bgp_hijacking
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.4.11
+      symptom_host: leaf_2
+      target_network: 10.0.4.0/25
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: bgp_hijacking
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      observer_host: client_3_1
+      probe_dst_ip: 10.0.2.11
+      symptom_host: leaf_3
+      target_network: 10.0.2.0/25
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_0
-      observer_host: client_0
-      probe_dst_ip: 10.1.3.2
-      symptom_host: super_spine_router_0
-      target_network: 10.1.3.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.3.11
+      symptom_host: leaf_2
+      target_network: 10.0.3.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_0
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_1
-      observer_host: client_0
-      probe_dst_ip: 10.1.3.2
-      symptom_host: super_spine_router_0
-      target_network: 10.1.3.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.4.11
+      symptom_host: leaf_2
+      target_network: 10.0.4.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_1
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_2
-      observer_host: client_0
-      probe_dst_ip: 10.1.3.2
-      symptom_host: super_spine_router_0
-      target_network: 10.1.3.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.5.11
+      symptom_host: leaf_2
+      target_network: 10.0.5.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_2
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_3
-      observer_host: client_0
-      probe_dst_ip: 10.1.3.2
-      symptom_host: super_spine_router_0
-      target_network: 10.1.3.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.6.11
+      symptom_host: leaf_2
+      target_network: 10.0.6.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_3
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_0
-      observer_host: client_0
-      probe_dst_ip: 10.1.3.2
-      symptom_host: super_spine_router_0
-      target_network: 10.1.3.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.7.11
+      symptom_host: leaf_2
+      target_network: 10.0.7.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_0
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_1
-      observer_host: client_0
-      probe_dst_ip: 10.1.3.2
-      symptom_host: super_spine_router_0
-      target_network: 10.1.3.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.8.11
+      symptom_host: leaf_2
+      target_network: 10.0.8.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_1
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_2
-      observer_host: client_0
-      probe_dst_ip: 10.1.3.2
-      symptom_host: super_spine_router_0
-      target_network: 10.1.3.0/25
+      host_name: leaf_1
+      observer_host: client_3_1
+      probe_dst_ip: 10.0.2.11
+      symptom_host: leaf_3
+      target_network: 10.0.2.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_2
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_0
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.10.11
+      symptom_host: leaf_2
+      target_network: 10.0.10.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_0
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_1
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.11.11
+      symptom_host: leaf_2
+      target_network: 10.0.11.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_1
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_2
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.12.11
+      symptom_host: leaf_2
+      target_network: 10.0.12.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_2
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_3
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.13.11
+      symptom_host: leaf_2
+      target_network: 10.0.13.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_3
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_4
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.14.11
+      symptom_host: leaf_2
+      target_network: 10.0.14.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_4
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_5
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.15.11
+      symptom_host: leaf_2
+      target_network: 10.0.15.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_5
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_6
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.16.11
+      symptom_host: leaf_2
+      target_network: 10.0.16.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_6
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_7
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.3.11
+      symptom_host: leaf_2
+      target_network: 10.0.3.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_0_7
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_0
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.4.11
+      symptom_host: leaf_2
+      target_network: 10.0.4.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_0
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_1
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.5.11
+      symptom_host: leaf_2
+      target_network: 10.0.5.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_1
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_2
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.6.11
+      symptom_host: leaf_2
+      target_network: 10.0.6.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_2
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_3
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.7.11
+      symptom_host: leaf_2
+      target_network: 10.0.7.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_3
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_4
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.8.11
+      symptom_host: leaf_2
+      target_network: 10.0.8.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_4
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_5
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_2_1
+      probe_dst_ip: 10.0.9.11
+      symptom_host: leaf_2
+      target_network: 10.0.9.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_5
+        node: leaf_1
       fault_type: bgp_hijacking
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_1_6
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
+      host_name: leaf_1
+      observer_host: client_3_1
+      probe_dst_ip: 10.0.2.11
+      symptom_host: leaf_3
+      target_network: 10.0.2.0/25
     root_causes:
     - resource:
         kind: node
-        node: leaf_router_1_6
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_1_7
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_1_7
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_2_0
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_2_0
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_2_1
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_2_1
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_2_2
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_2_2
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_2_3
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_2_3
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_2_4
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_2_4
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_2_5
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_2_5
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_2_6
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_2_6
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_2_7
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_2_7
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_3_0
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_3_0
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_3_1
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_3_1
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_3_2
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_3_2
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_3_3
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_3_3
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_3_4
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_3_4
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_3_5
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_3_5
-      fault_type: bgp_hijacking
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_router_3_6
-      observer_host: client_0
-      probe_dst_ip: 10.3.7.2
-      symptom_host: super_spine_router_0
-      target_network: 10.3.7.0/25
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_router_3_6
+        node: leaf_1
       fault_type: bgp_hijacking

@@ -19,6 +19,14 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
+      host_name: client_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1_2
+      fault_type: arp_acl_block
+  - topo_size: s
+    inject:
       host_name: client_2_1
     root_causes:
     - resource:
@@ -29,6 +37,14 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2_2
+      fault_type: arp_acl_block
+  - topo_size: s
     inject:
       host_name: client_3_1
     root_causes:
@@ -41,11 +57,27 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
+      host_name: client_3_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3_2
+      fault_type: arp_acl_block
+  - topo_size: s
+    inject:
       host_name: client_4_1
     root_causes:
     - resource:
         kind: node
         node: client_4_1
+      fault_type: arp_acl_block
+  - topo_size: s
+    inject:
+      host_name: client_4_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4_2
       fault_type: arp_acl_block
   - topo_size: m
     traffic:

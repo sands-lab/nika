@@ -8,12 +8,12 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: client_3_1
+      host_name: client_3_2
       intf_name: eth0
     root_causes:
     - resource:
         kind: interface
-        node: client_3_1
+        node: client_3_2
         name: eth0
       fault_type: host_missing_ip
   - topo_size: m

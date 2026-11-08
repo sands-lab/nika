@@ -8,11 +8,35 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
+      host_name: web_1
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
+      fault_type: dns_service_down
+  - topo_size: s
+    inject:
+      host_name: web_2
+    root_causes:
+    - resource:
+        kind: node
+        node: web_2
+      fault_type: dns_service_down
+  - topo_size: s
+    inject:
+      host_name: web_3
+    root_causes:
+    - resource:
+        kind: node
+        node: web_3
+      fault_type: dns_service_down
+  - topo_size: s
+    inject:
+      host_name: web_4
+    root_causes:
+    - resource:
+        kind: node
+        node: web_4
       fault_type: dns_service_down
   - topo_size: s
     device_profile: iosxr
@@ -20,11 +44,38 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
+      host_name: web_1
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
+      fault_type: dns_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: web_2
+    root_causes:
+    - resource:
+        kind: node
+        node: web_2
+      fault_type: dns_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: web_3
+    root_causes:
+    - resource:
+        kind: node
+        node: web_3
+      fault_type: dns_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: web_4
+    root_causes:
+    - resource:
+        kind: node
+        node: web_4
       fault_type: dns_service_down
   - topo_size: s
     device_profile: routeros
@@ -32,75 +83,246 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
+      host_name: web_1
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
+      fault_type: dns_service_down
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: web_2
+    root_causes:
+    - resource:
+        kind: node
+        node: web_2
+      fault_type: dns_service_down
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: web_3
+    root_causes:
+    - resource:
+        kind: node
+        node: web_3
+      fault_type: dns_service_down
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: web_4
+    root_causes:
+    - resource:
+        kind: node
+        node: web_4
       fault_type: dns_service_down
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
+      host_name: web_1
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_service_down
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod1
+      host_name: web_2
     root_causes:
     - resource:
         kind: node
-        node: dns_pod1
+        node: web_2
+      fault_type: dns_service_down
+  - topo_size: m
+    inject:
+      host_name: web_3
+    root_causes:
+    - resource:
+        kind: node
+        node: web_3
+      fault_type: dns_service_down
+  - topo_size: m
+    inject:
+      host_name: web_4
+    root_causes:
+    - resource:
+        kind: node
+        node: web_4
+      fault_type: dns_service_down
+  - topo_size: m
+    inject:
+      host_name: web_5
+    root_causes:
+    - resource:
+        kind: node
+        node: web_5
+      fault_type: dns_service_down
+  - topo_size: m
+    inject:
+      host_name: web_6
+    root_causes:
+    - resource:
+        kind: node
+        node: web_6
+      fault_type: dns_service_down
+  - topo_size: m
+    inject:
+      host_name: web_7
+    root_causes:
+    - resource:
+        kind: node
+        node: web_7
+      fault_type: dns_service_down
+  - topo_size: m
+    inject:
+      host_name: web_8
+    root_causes:
+    - resource:
+        kind: node
+        node: web_8
       fault_type: dns_service_down
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
+      host_name: web_1
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_service_down
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod1
+      host_name: web_10
     root_causes:
     - resource:
         kind: node
-        node: dns_pod1
+        node: web_10
       fault_type: dns_service_down
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod2
+      host_name: web_11
     root_causes:
     - resource:
         kind: node
-        node: dns_pod2
+        node: web_11
       fault_type: dns_service_down
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod3
+      host_name: web_12
     root_causes:
     - resource:
         kind: node
-        node: dns_pod3
+        node: web_12
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_13
+    root_causes:
+    - resource:
+        kind: node
+        node: web_13
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_14
+    root_causes:
+    - resource:
+        kind: node
+        node: web_14
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_15
+    root_causes:
+    - resource:
+        kind: node
+        node: web_15
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_16
+    root_causes:
+    - resource:
+        kind: node
+        node: web_16
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_2
+    root_causes:
+    - resource:
+        kind: node
+        node: web_2
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_3
+    root_causes:
+    - resource:
+        kind: node
+        node: web_3
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_4
+    root_causes:
+    - resource:
+        kind: node
+        node: web_4
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_5
+    root_causes:
+    - resource:
+        kind: node
+        node: web_5
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_6
+    root_causes:
+    - resource:
+        kind: node
+        node: web_6
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_7
+    root_causes:
+    - resource:
+        kind: node
+        node: web_7
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_8
+    root_causes:
+    - resource:
+        kind: node
+        node: web_8
+      fault_type: dns_service_down
+  - topo_size: l
+    inject:
+      host_name: web_9
+    root_causes:
+    - resource:
+        kind: node
+        node: web_9
       fault_type: dns_service_down
