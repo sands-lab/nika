@@ -425,12 +425,12 @@ def test_log_follower_appends_each_remote_line_once(
 def test_attach_preserves_controller_policy_and_budget():
     from nika.remote.protocol import McpAttachRequest
     from nika.remote import handlers
-    from nika.run_config.schema import AgentAccessSettings
+    from nika.benchmark_engine.protocol import AgentAccess
 
-    policy = AgentAccessSettings.model_validate(
+    policy = AgentAccess.model_validate(
         {
             "role": "observer",
-            "roles": {"observer": {"tools": ["run_pingmesh_snapshot"]}},
+            "policy": {"tools": ["run_pingmesh_snapshot"]},
         }
     )
     request = McpAttachRequest(
