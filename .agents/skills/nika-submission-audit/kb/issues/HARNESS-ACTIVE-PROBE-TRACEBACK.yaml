@@ -1,0 +1,28 @@
+id: HARNESS-ACTIVE-PROBE-TRACEBACK
+title: active_tcp_probe returns raw Python tracebacks, including false timeouts on healthy paths when the destination port is in use
+class: harness_defect
+severity: warn
+status: open
+summary: The client script in src/nika/traffic/active_probe.py catches only ConnectionRefusedError and returns raw
+  stdout as "result", so timeouts, Errno 101/113, and bind errors reach the agent as Python tracebacks. When
+  destination_port is already served (port 80 on a web server), the probe listener's bind fails silently, the
+  client connects to the real service, and its recv times out, so a healthy path reads as failed.
+guideline: Counts on any active_tcp_probe result that holds a Python traceback. A TimeoutError on a port the
+  destination already serves (80, 443, 5201) is a false failure even in a healthy lab; Errno 101/113 tracebacks
+  may reflect a real fault but are still unstructured output. Does not count for the "Device ... is not running"
+  error (HARNESS-ACTIVE-PROBE-REJECTS-IPS).
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: active_tcp_probe
+  pattern: Traceback \(most recent call last\)
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-ACTIVE-PROBE-TRACEBACK)
+  date: '2026-10-28'
+  refs:
+  - dc_clos__healthy__m__t02:23
+  found_by: agentic
+evidence:
+- 'dc_clos__healthy__m__t02 (20261012_react_gemma_4_31b_it) step 23: "destination_port": 80, ... "result": "Traceback
+  (most recent call last):\n  File \"<string>\", line 21, in <module>\nTimeoutError: timed out"'

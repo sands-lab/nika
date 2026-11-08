@@ -1,0 +1,18 @@
+id: LEAK-BENCHMARK-TERMS
+title: Agent-visible text names the benchmark or an injection
+class: shortcut
+role: lead
+severity: warn
+status: open
+summary: A prompt, the agent's session metadata, or a tool output contains nika, inject, fault, or ground
+  truth.
+guideline: 'Look at the excerpt. A name an injector chose, a backup or helper file, or a harness path
+  is a leak: add a known issue whose text signature matches the exact marker and scope it to the fault
+  types it reveals. Words the agent typed itself are already excluded.'
+detect:
+- kind: leak_terms
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

@@ -1,0 +1,24 @@
+id: LEAK-VTYSH-HISTORY
+title: vtysh history records injector commands
+class: shortcut
+role: known
+severity: block
+status: fixed
+fixed_in: '42232112'
+summary: '/root/.history_frr kept the injector''s vtysh configuration lines (and the readiness probes''),
+  so reading it showed the change. Fixed in #126 by VTYSH_HISTFILE=/dev/null.'
+guideline: Exclude history lines that repeat the agent's own earlier commands (self-inflicted). A hit
+  on a commit after the fix is a regression.
+detect:
+- kind: text
+  where:
+  - tool_call
+  exclude_authored: false
+  pattern: \.history_frr
+provenance:
+  source: red-team trace audit (qwen38, full, postfix reports)
+  date: '2026-10-20'
+  refs:
+  - '#126'
+  - red-team/full/report.md
+  found_by: live_audit

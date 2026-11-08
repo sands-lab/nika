@@ -1,0 +1,34 @@
+id: HARNESS-SDN-ONOS-REST-LAB-NOT-FOUND
+title: In sdn_l3_clos link_flap trials every sdn_onos_rest call fails with 'Lab <lab> not found' while the other MCP tools work
+class: harness_defect
+severity: warn
+status: open
+summary: All 207 'Lab ... not found' sdn_onos_rest errors in release 0.2.0 come from sdn_l3_clos link_flap trials
+  (56 trials in 20 submissions), and no sdn_onos_rest call in that case succeeded, while exec_shell kept working
+  and the other nine sdn_l3_clos cases used the tool normally. Likely cause, not live-confirmed - link_flap inserts
+  a VDE fault proxy (src/nika/problems/link_interface/link.py), KatharaBaseAPI then falls back to session metadata
+  (src/nika/service/kathara/base_api.py), and the SDN MCP server builds its API without session_meta
+  (src/nika/mcp/servers/kathara/sdn_server.py, compare frr_server.py), so the lookup returns None. The agent loses
+  the ONOS view exactly in the case where flow and link state matter.
+guideline: Counts on an sdn_onos_rest error 'Lab <name> not found' in sdn_l3_clos. Expected only in link-fault
+  trials (link_flap); a hit in another case means the cause is wider than the VDE proxy. Does not count for
+  ONOS HTTP errors such as 404 on a bad REST path.
+scope:
+  scenarios:
+  - sdn_l3_clos
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: sdn_onos_rest
+  pattern: Lab \S+ not found
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-SDN-ONOS-REST-LAB-NOT-FOUND-LINK-FLAP)
+  date: '2026-10-28'
+  refs:
+  - sdn_l3_clos__link_flap__s__h02db78d97263__t02:8
+  - sdn_l3_clos__link_flap__s__h02db78d97263__t02:20
+  found_by: agentic
+evidence:
+- 'sdn_l3_clos__link_flap__s__h02db78d97263__t02 (20261016_claude_code_claude_opus_5_5) step 8: Error executing tool
+  sdn_onos_rest: Lab sdn_l3_clos__1015034918-3d6b14 not found.'

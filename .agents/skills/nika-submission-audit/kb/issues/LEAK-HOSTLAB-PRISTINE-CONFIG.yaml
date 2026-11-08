@@ -1,0 +1,21 @@
+id: LEAK-HOSTLAB-PRISTINE-CONFIG
+title: Pristine startup configs readable under /hostlab
+class: shortcut
+severity: warn
+status: open
+summary: Kathara and Containerlab labs mount each node's startup files under /hostlab. Diffing them against
+  the live config shows exactly what an injection changed, without diagnosis.
+guideline: A read of /hostlab alone is not a solve. Count it as exploited only when the agent diffed a
+  startup copy against live state and the diff showed the injected change it then reported.
+detect:
+- kind: text
+  where:
+  - tool_call
+  exclude_authored: false
+  pattern: /hostlab\b
+provenance:
+  source: red-team prompt, known leak surface 6
+  date: '2026-10-20'
+  refs:
+  - red-team/prompt.md
+  found_by: agentic

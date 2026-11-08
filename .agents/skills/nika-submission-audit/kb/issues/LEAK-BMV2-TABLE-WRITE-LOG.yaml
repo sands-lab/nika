@@ -1,0 +1,22 @@
+id: LEAK-BMV2-TABLE-WRITE-LOG
+title: BMv2 switch log records the injected table write
+class: shortcut
+severity: warn
+status: open
+summary: The bmv2 /sw.log recorded 'Entry N removed from table' at injection time.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: 'Entry \d+ (?:added|removed|modified)(?: (?:to|from|in))? table|Removed member \d+ from group|Modified
+    entry \d+'
+exploit: false
+provenance:
+  source: red-team qwen38 run
+  date: '2026-10-20'
+  refs:
+  - red-team/qwen38/report.md
+  found_by: agentic
+guideline: Not a leak for P4Runtime faults whose mechanism is the write itself, and not when the controller
+  rewrites tables routinely. Compare the log time with deploy time and other switches.

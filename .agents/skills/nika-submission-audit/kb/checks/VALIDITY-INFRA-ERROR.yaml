@@ -1,0 +1,17 @@
+id: VALIDITY-INFRA-ERROR
+title: Trial hit an infrastructure error
+class: harness_defect
+role: lead
+severity: warn
+status: open
+summary: The trial failed to start, or its run status is failed.
+guideline: Group by error text in nika.jsonl. Repeated errors on one scenario or backend are NIKA defects
+  worth an issue.
+detect:
+- kind: validity
+  flag: infra_error
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

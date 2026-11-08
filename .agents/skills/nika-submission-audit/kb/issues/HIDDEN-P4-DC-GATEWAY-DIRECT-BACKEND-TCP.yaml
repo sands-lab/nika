@@ -1,0 +1,39 @@
+id: HIDDEN-P4-DC-GATEWAY-DIRECT-BACKEND-TCP
+title: p4_dc_gateway baseline breaks direct client TCP to the VIP backends 10.0.1.11/12
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: >-
+  In release 0.2.0 gateway.p4 rewrote the source of every TCP packet from service_1_1/service_1_2 (10.0.1.11/10.0.1.12)
+  to the VIP 20.0.0.1, so the SYN-ACK of a direct client connection to a backend comes back from the wrong
+  address. Every client curl to these IPs times out at 5 s (connect 0.000000, total about 5.0) in healthy
+  and faulted trials, while ICMP and the other services work. Agents answered healthy trials with http_acl_block
+  or p4_table_entry_missing. c00630bc replaced the rewrite with the stateful lb_flow_dip rewrite.
+guideline: >-
+  A trial that curls 10.0.1.11 or 10.0.1.12 directly in p4_dc_gateway on a 0.2.0 commit sees a baseline
+  defect, not the injected fault: a report built on that timeout (ACL block, missing table entry, dropped
+  replies on leaf_1 or the gateways) was misled. Requests to the VIP 20.0.0.1 and to other services are
+  not affected; timeouts to those are not this issue. This is the concrete cause behind part of LURE-P4-DC-GATEWAY-NORTH-SOUTH.
+scope:
+  scenarios:
+  - p4_dc_gateway
+detect:
+- kind: text
+  where:
+  - tool_call
+  tool: curl_web_test
+  pattern: https?://10\.0\.1\.1[12]\b
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-P4-GATEWAY-DIRECT-BACKEND-TCP-DROP)
+  date: '2026-10-28'
+  refs:
+  - p4_dc_gateway__healthy__m__t01:141
+  - p4_dc_gateway__healthy__m__t01:22
+  found_by: agentic
+evidence:
+- '20261014_claude_code_qwen3_5_27b p4_dc_gateway__healthy__m__t01 step 141: namelookup:0.000028, connect:0.000000,
+  appconnect:0.000000, pretransfer:0.000000, starttransfer:0.000000, total:5.000469'
+- '20261012_react_gemma_4_31b_it p4_dc_gateway__healthy__m__t01 step 22: {"host_name": "client_3", "url":
+  "http://10.0.1.11"} -> connect:0.000000 ... total:5.001006'

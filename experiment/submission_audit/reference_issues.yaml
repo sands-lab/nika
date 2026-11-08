@@ -1,0 +1,1264 @@
+# Reference issues for the submission-audit experiment: the audit issues
+# confirmed so far in the 21 published 0.2.0 submissions (5,355 trials). They
+# come from earlier audits (the 2026-10 trajectory audit, issue 206, the
+# red-team and healthy-hunter audits) and from agent audits with this skill,
+# each confirmed on trajectories and code. The list is not exhaustive: the
+# submissions may have issues nobody has found yet.
+#
+# Fields
+#   class:      issue class (skill kb/taxonomy.yaml)
+#   source:     the audit or evidence that established the issue
+#   present_in: submissions whose trajectories show the issue ("all" or a
+#               list of package names)
+- id: REF-DHCP-HOOK
+  class: shortcut
+  title: dhclient hook named after the DNS fault
+  source: REPORT B5; issue 206
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_react_qwen3_5_27b
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-FRR-SAV
+  class: shortcut
+  title: FRR backup left next to the live config
+  source: REPORT B5
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261016_claude_code_claude_opus_5_5
+- id: REF-SRL-ACL
+  class: shortcut
+  title: SR Linux ACL and policy names state the fault
+  source: REPORT B5; issue 206
+  present_in:
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+- id: REF-P4-FAULT-TABLES
+  class: shortcut
+  title: P4 program exposes fault tables and actions
+  source: REPORT B5; issue 206
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-P4RT-HELP
+  class: shortcut
+  title: p4rt_exec help lists injection kinds
+  source: REPORT B5
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-HARNESS-PATHS
+  class: shortcut
+  title: NIKA branding in device or tool output
+  source: issue 206 (p4rt_manager tracebacks, nika:tap alias)
+  present_in: all
+- id: REF-INJECTOR-NAMES
+  class: shortcut
+  title: Process or rule names reveal the injector
+  source: red-team qwen38; issue 206
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+- id: REF-HOSTLAB
+  class: shortcut
+  title: Pristine startup configs readable under /hostlab
+  source: red-team prompt (known leak surface 6)
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-WORKSPACE-RUN-FILES
+  class: out_of_scope
+  title: Agent read its run files in the sandbox workspace
+  source: issue 206 comment
+  present_in:
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261017_claude_code_claude_haiku_5_5
+- id: REF-CLAUDE-CONNECTORS
+  class: harness_privilege
+  title: Claude Code ran with web tools and claude.ai connectors
+  source: issue 206 comment; issue 208
+  present_in:
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261017_claude_code_claude_haiku_5_5
+- id: REF-PINGMESH-TRUNCATION
+  class: signal_invisible
+  title: PingMesh output over the tool output limit
+  source: REPORT B4
+  present_in: all
+- id: REF-TSHARK-MISSING
+  class: signal_invisible
+  title: tshark missing on OVS and BMv2 nodes
+  source: REPORT B4
+  present_in: all
+- id: REF-P4RT-WRITABLE
+  class: agent_integrity
+  title: p4rt_exec lets the agent write switch tables
+  source: REPORT B5
+  present_in:
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-AGENT-REPAIRS
+  class: agent_integrity
+  title: Agent changes lab state while diagnosing
+  source: REPORT 5.1 (TelecomGPT)
+  present_in:
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+- id: REF-LG-TRUNCATION
+  class: harness_defect
+  title: LangGraph final turn truncated at 8192 tokens
+  source: REPORT B6
+  present_in:
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+- id: REF-OTEL-PARSER
+  class: harness_defect
+  title: OTel harness parser loses the submission
+  source: REPORT 5.2
+  present_in:
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+- id: REF-LURE-ENTERPRISE
+  class: healthy_lure
+  title: 'enterprise_branch: healthy baseline lure'
+  source: REPORT B1
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-LURE-P4-GATEWAY
+  class: healthy_lure
+  title: 'p4_dc_gateway: healthy baseline lure'
+  source: REPORT B1
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-LURE-DC-CLOS
+  class: healthy_lure
+  title: 'dc_clos: healthy baseline lure'
+  source: REPORT B1
+  present_in: all
+- id: REF-LURE-K8S
+  class: healthy_lure
+  title: 'k8s_lab: healthy baseline lure'
+  source: REPORT B1
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-FNR-NAT
+  class: fault_not_realized
+  title: NAT faults without live flows
+  source: REPORT B2
+  present_in: all
+- id: REF-FNR-RWND
+  class: fault_not_realized
+  title: Receive-window limit without a download
+  source: REPORT B2
+  present_in: all
+- id: REF-FNR-MTU
+  class: fault_not_realized
+  title: MTU mismatch with surviving sessions
+  source: REPORT B2
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-FNR-COREDNS
+  class: fault_not_realized
+  title: CoreDNS isolation without new lookups
+  source: REPORT B2
+  present_in: all
+- id: REF-FNR-BGP-VICTIM
+  class: fault_not_realized
+  title: BGP hijack and max-prefix faults without a victim
+  source: REPORT B2
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-LABEL-PARTIAL-WRITE
+  class: label_unidentifiable
+  title: P4 partial write answered as a missing table entry
+  source: REPORT B3
+  present_in: all
+- id: REF-LABEL-TCAM
+  class: label_unidentifiable
+  title: TCAM entry corruption answered as an exact-match entry fault
+  source: REPORT B3
+  present_in: all
+- id: REF-LABEL-INCAST
+  class: label_unidentifiable
+  title: Incast indistinguishable from a link capacity bottleneck
+  source: REPORT B3
+  present_in: all
+- id: REF-LABEL-RPKI
+  class: label_unidentifiable
+  title: RPKI route leak indistinguishable from a wrong ROA
+  source: REPORT B3
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-SIG-LINK-CAPACITY
+  class: signal_invisible
+  title: Link capacity shaper outside the nodes
+  source: REPORT B4
+  present_in: all
+- id: REF-HIDDEN-NEIGHBOR-OVERFLOW
+  class: healthy_lure
+  title: Host neighbour table overflow in large labs
+  source: healthy-hunter H2
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+- id: REF-AGENT-BENCHMARK-AWARENESS
+  class: shortcut
+  title: Agent reasons about injected faults or the benchmark
+  source: issue 206 ("fault-injection tables"); adjudicated 2026-10-25
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-GRADE-CONTAINMENT
+  class: grading_error
+  title: Interface inside the ground-truth node or link scored 0
+  source: REPORT B3 (resource granularity)
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-FAULT-ABSENT
+  class: agent_integrity
+  title: Fault artifact absent at cleanup
+  source: REPORT B6 (TelecomGPT only); adjudicated 2026-10-25 across 15 submissions
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-EMPTY-REPORTS
+  class: harness_defect
+  title: Trials end with an empty final report
+  source: REPORT 7.7c; adjudicated 2026-10-25
+  present_in:
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-RUN-MIXED-COMMITS
+  class: run_validity
+  title: Harness fingerprint differs across trials
+  source: REPORT 6 (runs span 8+ commits)
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-CODEX-METADATA
+  class: harness_defect
+  title: Codex runs without model metadata
+  source: adjudicated 2026-10-25
+  present_in:
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261017_codex_gpt_6_1_sol
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-MCP-PENDING
+  class: harness_defect
+  title: An MCP server was not connected at session start
+  source: adjudicated 2026-10-25
+  present_in:
+  - 20261016_claude_code_gpt_oss_120b
+- id: REF-ACTIVE-PROBE-IP
+  class: harness_defect
+  title: active_tcp_probe rejects IP addresses as endpoints
+  source: adjudicated 2026-10-25
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-PCAP-INSPECT-ARGS
+  class: harness_defect
+  title: packet_capture_inspect arguments agents get wrong
+  source: adjudicated 2026-10-25
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-SESSION-HEADER
+  class: shortcut
+  title: NIKA-Session-Id header visible to the agent
+  source: issue 206 (NIKA-Session-Id headers)
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-K8S-EVENTS-TRUNCATION
+  class: signal_invisible
+  title: k8s events output cut by the tool output limit
+  source: agentic pilot A, 2026-10-25
+  present_in:
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-PCAP-CAPTURE-NAME
+  class: shortcut
+  title: Packet capture files named after the benchmark
+  source: agentic pilot B (2026-10-25); issue 206 (/tmp/nika-capture-*)
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+- id: REF-LB-AGENT-STATUS
+  class: out_of_scope
+  title: Load-balancer agent status file under /var/lib/nika readable on gateways
+  source: agentic pilot B (2026-10-25)
+  present_in:
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261017_claude_code_claude_haiku_5_5
+- id: REF-INT-TRUNCATION
+  class: signal_invisible
+  title: INT telemetry output cut by the tool output limit
+  source: agentic pilot B (2026-10-25)
+  present_in: all
+- id: REF-K8S-PROMPT-FAULT-WORDING
+  class: shortcut
+  title: k8s fault prompts ask to report faulty devices; healthy prompts do not
+  source: noticed by agent audit runs, which dismissed it as a false positive; confirmed on trajectories (252 fault trials, 0 healthy)
+  present_in: all
+- id: REF-K8S-BOOTSTRAP-WARNINGS
+  class: healthy_lure
+  title: k8s bootstrap Warning events look like faults
+  source: audit fix record (FIX_STATUS B1)
+  present_in:
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-HELPER-LOGS
+  class: shortcut
+  title: Load and attack helpers leave named logs
+  source: red-team trace audit
+  present_in:
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261016_claude_code_claude_opus_5_5
+- id: REF-DHCP-LEASES-BACKUP
+  class: shortcut
+  title: dhcpd.leases~ keeps leases of a removed subnet
+  source: red-team trace audit (postfix white-box)
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+- id: REF-VTYSH-HISTORY
+  class: shortcut
+  title: vtysh history records injector commands
+  source: red-team trace audit (fixed in
+  present_in:
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261016_claude_code_claude_opus_5_5
+- id: REF-CONTROLLER-HELPER-FILES
+  class: shortcut
+  title: Controller helper files keep the injected request
+  source: red-team trace audit
+  present_in:
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261014_claude_code_qwen3_5_27b
+- id: REF-NON-NATIVE-MAC
+  class: shortcut
+  title: Injected values that do not come from the network itself
+  source: audit fix record (FIX_STATUS, issue 206)
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-P4-SOURCE-ON-SWITCH
+  class: shortcut
+  title: P4 program source left on switches
+  source: audit fix record (FIX_STATUS B5)
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261016_claude_code_gpt_oss_120b
+- id: REF-CAMPUS-APACHE
+  class: healthy_lure
+  title: campus_lan brief says Apache; servers run a Python web server
+  source: healthy-hunter H6
+  present_in:
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-DEPLOY-ARTIFACT-LEAF1
+  class: healthy_lure
+  title: Deployment artifacts single out one device
+  source: red-team trace audit
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+- id: REF-SIG-PACKET-CORRUPTION
+  class: signal_invisible
+  title: Packet corruption hits few hosts behind a gzip lure
+  source: REPORT 3.1
+  present_in: all
+- id: REF-LABEL-NEAR-DUPLICATES
+  class: label_unidentifiable
+  title: Near-duplicate fault labels the agent cannot tell apart
+  source: REPORT B3
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-FIXED-DURATION-INJECTOR-EXPIRES
+  class: fault_not_realized
+  title: tcp_syn_flood_attack and receiver_resource_contention run for a fixed 3600 s and stop before
+    the end of trials longer than 1 h
+  source: evolving runs 2026-10-28 (C05); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+- id: REF-SDN-ONOS-REST-LAB-NOT-FOUND-LINK-FLAP
+  class: harness_defect
+  title: In sdn_l3_clos link_flap trials, every sdn_onos_rest call fails with 'Lab <lab> not found' while
+    the other MCP tools work
+  source: evolving runs 2026-10-28 (C29); verified on trajectories and code
+  present_in:
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-SRLINUX-CAPTURE-NAME-EMPTY
+  class: harness_defect
+  title: packet_capture on SR Linux nodes silently captures 0 packets when given the SR Linux interface
+    name (ethernet-1/N); only the Linux name e1-N works
+  source: evolving runs 2026-10-28 (C33); verified on trajectories and code
+  present_in:
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-K3S-NODES-NO-IPERF3
+  class: harness_defect
+  title: iperf_test fails with 'iperf3 not found' on the k3s controller/worker nodes of llmd_lab and k8s_lab
+    (client/web hosts work)
+  source: evolving runs 2026-10-28 (C37); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_gpt_oss_120b
+- id: REF-LURE-LLMD-VIP-ICMP-REDIRECT
+  class: healthy_lure
+  title: On fault-free llmd_lab, ping to the MetalLB L2 gateway VIP 200.0.0.240 returns ICMP Redirect
+    plus Destination Host Unreachable while TCP to the VIP works; the brief does not mention it
+  source: evolving runs 2026-10-28 (C41); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+- id: REF-K8S-LAB-AS2R1-HOST-EGRESS
+  class: harness_defect
+  title: In k8s_lab, as2r1's kernel default route goes through a NATed Docker-bridge uplink, so traffic
+    for unadvertised lab prefixes (10.0.x.0/30) leaves the lab into the host network and gets host-dependent
+    answers
+  source: evolving runs 2026-10-28 (C45); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-CURL-WEB-TEST-UNCOMPRESSED-TIMEOUT
+  class: harness_defect
+  title: In release 0.2.0, curl_web_test fetched the campus_lan catalog without Accept-Encoding, so the
+    raw 64 MiB body always exceeded the 10 s cap and timed out whatever the fault state
+  source: evolving runs 2026-10-28 (C53); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-LURE-ENTBR-SHARED-SNAT-198-18-1-10
+  class: healthy_lure
+  title: In release 0.2.0 enterprise_branch, every site edge SNATs guest/IoT traffic to 198.18.1.10, which
+    only BR1 owns and isp1_core routes only to BR1, so guest/IoT provider egress fails at every non-BR1
+    site on healthy labs
+  source: evolving runs 2026-10-28 (C57); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-LLMD-WEB-BODY-NIKA
+  class: shortcut
+  title: In release 0.2.0 the llmd_lab web host serves the bare body 'nika' (the benchmark name), which
+    agents fetch and quote
+  source: evolving runs 2026-10-28 (C61); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+- id: REF-CAMPUS-WEBSERVER-BENCHMARK-COMMENT
+  class: shortcut
+  title: campus_lan web servers ship /web_server.py whose comment says 'benchmark runs must not depend
+    on per-request randomness', visible to agents that read it
+  source: an additional run of this tool (2026-10-28); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+- id: REF-SKILLS-PROMPT-NO-SKILLS
+  class: harness_defect
+  title: With skills enabled, the diagnosis prompt says 'Project skills are available' but release 0.2.0
+    ships no project skills, so discovery finds none
+  source: an additional run of this tool (2026-10-28); verified on trajectories and code
+  present_in:
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-MCP-TRANSPORT-POST-ERROR
+  class: harness_defect
+  title: 'MCP tool calls from cli.claude intermittently fail with ''Error POSTing to endpoint: EOF'' or
+    ''connection reset by peer'', losing the result'
+  source: evolving runs 2026-10-28 (C85); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261016_claude_code_claude_opus_5_5
+- id: REF-P4-GATEWAY-DIRECT-BACKEND-TCP-DROP
+  class: healthy_lure
+  title: 'p4_dc_gateway baseline breaks direct client TCP to the VIP backends service_1_1/service_1_2
+    (10.0.1.11/12): connect times out at 5 s while ICMP and other services work'
+  source: evolving runs 2026-10-28 (C02); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-K8S-CLIENT-NETMASK-INERT
+  class: fault_not_realized
+  title: 'k8s_lab host_incorrect_netmask on client/eth0 (case h5b4decc91a36) is inert: client is the only
+    host in 3.0.0.0/8, so /8 vs /24 changes no path'
+  source: evolving runs 2026-10-28 (C10); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+- id: REF-DFNBWIN-STUB-ISOLATION-LURE
+  class: healthy_lure
+  title: isp_dfn-bwin_ebgp_rtbh baseline isolates pc_frankfurt/pc_hamburg (single-router ASes, stub subnets
+    not exported, OSPF all passive), and the brief does not say so; agents read it as ospf_neighbor_missing
+  source: evolving runs 2026-10-28 (C14); verified on trajectories and code
+  present_in: all
+- id: REF-PCAP-PROTOCOL-VIEW-NULL-FIELDS
+  class: signal_invisible
+  title: packet_capture_inspect protocol view returns null DNS qname/qtype/rcode and HTTP method/host/uri
+    because the parser reads nested tshark fields at the wrong level
+  source: evolving runs 2026-10-28 (C30); verified on trajectories and code
+  present_in:
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261015_react_glm_4_7_flash
+  - 20261017_codex_gpt_6_1_sol
+- id: REF-TCP-PROBE-NO-PYTHON3
+  class: harness_defect
+  title: 'active_tcp_probe needs python3 on the source/destination node and fails with "/bin/sh: python3:
+    not found" on images without it (isp_pdh PCs, min3clos clients, k8s/llmd k3s nodes)'
+  source: evolving runs 2026-10-28 (C34); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-K3S-NODES-NO-CAPTURE-TOOL
+  class: harness_defect
+  title: 'packet_capture_start fails on k3s controller/worker nodes of llmd_lab and k8s_lab: "has neither
+    dumpcap nor tcpdump installed for packet capture"'
+  source: evolving runs 2026-10-28 (C38); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-CURL-WEB-TEST-NO-STATUS
+  class: harness_defect
+  title: curl_web_test prints only -w timings (curl -s -o /dev/null, no http_code or exit status), so
+    refused/failed connections look like fast measurements with connect 0.000000
+  source: an additional run of this tool (2026-10-28); verified on trajectories and code
+  present_in: all
+- id: REF-SANDBOX-NIKA-RUN-ID
+  class: shortcut
+  title: Agent sandbox hostname and /etc/resolv.conf search domain carry nika-<YYYYMMDD>-<HHMMSS>-a-<hash>,
+    naming the benchmark and run (identity only, no fault information)
+  source: evolving runs 2026-10-28 (C62); verified on trajectories and code
+  present_in:
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261019_claude_code_qwen3_coder_next_fp8
+- id: REF-ROUTINATOR-NIKA-VRP-COMMENT
+  class: shortcut
+  title: isp_geant_ebgp_rpki routinator /tmp/slurm.json assertions are commented "NIKA offline VRP for
+    <prefix>", marking ROA data as harness scaffolding and pulling diagnoses to node/routinator
+  source: an additional run of this tool (2026-10-28); verified on trajectories and code
+  present_in:
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261016_claude_code_claude_opus_5_5
+- id: REF-LURE-LLMD-HOSTS-EOF
+  class: healthy_lure
+  title: llmd_lab /etc/hosts ends without a newline, so worker5 does not resolve by name on the controller
+  source: evolving runs 2026-10-28 (C39); verified on trajectories and code
+  present_in:
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_react_qwen3_5_27b
+  - 20261016_claude_code_gpt_oss_120b
+- id: REF-LURE-K8S-DC-EXIT-SELF-NEXTHOP
+  class: healthy_lure
+  title: k8s_lab dc_exit static ECMP routes use its own eth2 address as next hop, killing the leaf_2_2
+    leg on healthy labs
+  source: healthy-hunter H9; confirmed on 0.2.0 trajectories
+  present_in: all
+- id: REF-LURE-CAMPUS-BIND9-UNIT
+  class: healthy_lure
+  title: campus_lan dns_server reports bind9.service "inactive (dead)" while named serves DNS
+  source: evolving runs 2026-10-28 (C51); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_react_gemma_4_31b_it
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-LEAK-CLAUDE-WORKSPACE-PATH
+  class: shortcut
+  title: Claude Code background-command notices print a /tmp/claude-*/-workspace-nika-runtime-agent-workspaces-...
+    path, naming the benchmark in tool output
+  source: evolving runs 2026-10-28 (C63); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261014_claude_code_glm_4_7_flash
+- id: REF-CAPTURE-FAILED-WRITER-MASKED
+  class: harness_defect
+  title: When the capture writer fails, packet_capture_stop reports a normal 0-packet capture with an
+    artifact path, and packet_capture_inspect then fails with "Capture file missing"
+  source: evolving runs 2026-10-28 (C83); verified on trajectories and code
+  present_in:
+  - 20261017_codex_gpt_6_1_sol
+- id: REF-FRR-RPKI-PREFIX-UNKNOWN-CMD
+  class: harness_defect
+  title: frr_get_rpki_status prefix mode runs the unsupported 'show rpki prefix-table <prefix>' and returns
+    '% Unknown command' with no per-prefix ROV state
+  source: evolving runs 2026-10-28 (C16); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261013_react_telecomgpt_r1
+  - 20261014_react_qwen3_5_27b
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-K8S-PINGMESH-EMPTY
+  class: signal_invisible
+  title: In k8s_lab run_pingmesh_snapshot knows only the 'client' endpoint, so it returns 0 pairs and
+    rejects every other node
+  source: evolving runs 2026-10-28 (C24); verified on trajectories and code
+  present_in: all
+- id: REF-SDN-ONOS-REST-TRUNCATION
+  class: signal_invisible
+  title: sdn_onos_rest returns whole ONOS collections that routinely exceed the 10000-character output
+    limit, eliding most of the state
+  source: evolving runs 2026-10-28 (C28); verified on trajectories and code
+  present_in: all
+- id: REF-ACTIVE-PROBE-TRACEBACK
+  class: harness_defect
+  title: active_tcp_probe returns raw Python tracebacks instead of a structured result, including false
+    timeouts on healthy paths when the destination port is in use
+  source: evolving runs 2026-10-28 (C36); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261007_react_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261012_react_gemma_4_31b_it
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_react_qwen3_5_27b
+  - 20261015_react_glm_4_7_flash
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-BRIEF-MULTIACCESS-TOPOLOGY
+  class: harness_defect
+  title: The llmd_lab brief topology lists one pair (controller:eth0, worker1:eth0) for its shared segment
+    and omits the controller and workers from the inventory
+  source: evolving runs 2026-10-28 (C40); verified on trajectories and code
+  present_in: all
+- id: REF-LURE-K8S-VIP-ICMP-LOOP
+  class: healthy_lure
+  title: On fault-free k8s_lab, pings to the MetalLB ingress VIP 101.0.0.1 loop between a leaf and a worker
+    until TTL expiry, though HTTP to the VIP works
+  source: evolving runs 2026-10-28 (C44); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_codex_qwen3_6_35b_a3b_fp8
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261013_claude_code_telecomgpt_r1
+  - 20261013_react_telecomgpt_r1
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261014_react_qwen3_5_27b
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261017_codex_gpt_6_1_sol
+  - 20261019_claude_code_qwen3_coder_next_fp8
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-BRIEF-NIKA-CLI
+  class: shortcut
+  title: SNDlib ISP scenario briefs name the benchmark CLI ('traffic matrix chosen at `nika traffic run
+    sndlib`')
+  source: evolving runs 2026-10-28 (C60); verified on trajectories and code
+  present_in: all
+- id: REF-TOOL-DESC-NIKA-CONFIG-KEY
+  class: shortcut
+  title: In 0.2.0 every MCP tool description ended with a note naming 'nika.mcp.tool_output_max_chars'
+  source: evolving runs 2026-10-28 (C64); verified on trajectories and code
+  present_in:
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261011_react_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261016_claude_code_gpt_oss_120b
+- id: REF-CODEX-STALL-IN-NIKA-TOOL
+  class: harness_defect
+  title: A cli.codex trial is killed by the 300 s no-progress watchdog while NIKA's own pingmesh call
+    is still running, and the 0 is scored as agent_failed
+  source: an additional run of this tool (2026-10-28); verified on trajectories and code
+  present_in:
+  - 20261020_codex_qwen3_coder_next_fp8
+- id: REF-CLAUDE-MCP-CALL-TIMEOUT
+  class: harness_defect
+  title: Under the Claude Code harness, run_pingmesh_snapshot calls fail as a whole with the bare client
+    error 'The operation timed out.' after about 60 s
+  source: evolving runs 2026-10-28 (C84); verified on trajectories and code
+  present_in:
+  - 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  - 20261008_claude_code_otel_2_0_llm_31b_it
+  - 20261010_claude_code_qwen3_8_27b_fp8
+  - 20261012_claude_code_gemma_4_31b_it
+  - 20261014_claude_code_glm_4_7_flash
+  - 20261014_claude_code_qwen3_5_27b
+  - 20261016_claude_code_claude_opus_5_5
+  - 20261016_claude_code_claude_sonnet_5_5
+  - 20261016_claude_code_gpt_oss_120b
+  - 20261017_claude_code_claude_haiku_5_5
+  - 20261019_claude_code_qwen3_coder_next_fp8

@@ -1,0 +1,21 @@
+id: LURE-P4-DC-GATEWAY-NORTH-SOUTH
+title: 'p4_dc_gateway: healthy baseline lure'
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: Intent is north-south only; agents reported p4_table_entry_missing on every switch.
+scope:
+  scenarios:
+  - p4_dc_gateway
+detect:
+- kind: metric
+  metric: healthy_label_share
+  threshold: 0.3
+  min_trials: 3
+  pattern: p4_table_entry_missing
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B1
+  date: '2026-10-14'
+  refs: []
+  found_by: manual

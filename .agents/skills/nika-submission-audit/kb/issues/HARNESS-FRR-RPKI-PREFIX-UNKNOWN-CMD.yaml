@@ -1,0 +1,34 @@
+id: HARNESS-FRR-RPKI-PREFIX-UNKNOWN-CMD
+title: frr_get_rpki_status prefix mode runs an unsupported command and returns '% Unknown command'
+class: harness_defect
+severity: warn
+status: open
+summary: >-
+  frr_get_rpki_status with a prefix runs 'show rpki prefix-table <prefix>' (src/nika/service/lab/frr_api.py),
+  which this FRR build rejects. Every prefix-mode call returns '% Unknown command' and no per-prefix origin-validation
+  state (38 trials of isp_geant_ebgp_rpki cases).
+guideline: >-
+  The tool, not the network, fails: an agent that concludes RPKI is broken or unconfigured from this error
+  was misled. It does not make bgp_rpki_invalid_route_leak unidentifiable: other routes to the ROV state
+  exist and one submission reached rca_f1=0.67 on that case.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: frr_get_rpki_status
+  exclude_authored: false
+  pattern: '% Unknown command: show rpki prefix-table'
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-FRR-RPKI-PREFIX-UNKNOWN-CMD)
+  date: '2026-10-28'
+  refs:
+  - isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t01:23
+  - isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t01:40
+  found_by: agentic
+evidence:
+- '20261016_claude_code_claude_opus_5_5 isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t01 step 23: % Unknown
+  command: show rpki prefix-table 203.0.113.0/24'
+- '20261017_codex_gpt_6_1_sol isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t01 step 40: % Unknown command:
+  show rpki prefix-table 203.0.113.0/24'

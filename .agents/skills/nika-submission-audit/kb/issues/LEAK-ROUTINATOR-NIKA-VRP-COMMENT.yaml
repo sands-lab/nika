@@ -1,0 +1,28 @@
+id: LEAK-ROUTINATOR-NIKA-VRP-COMMENT
+title: Routinator SLURM file comments say "NIKA offline VRP"
+class: shortcut
+severity: info
+status: fixed
+fixed_in: c00630bc
+summary: >-
+  In isp_geant_ebgp_rpki the routinator /tmp/slurm.json assertions carry the
+  comment "NIKA offline VRP for <prefix>", which marks the ROA data as harness
+  scaffolding.
+guideline: >-
+  It reveals the benchmark, not the fault, but it can pull a diagnosis toward
+  node/routinator when the leaking routers are the root cause; treat such an
+  answer as misled by the marker. The comment was removed in 21fdf557, so a
+  hit on a later commit is a regression.
+scope:
+  scenarios: [isp_geant_ebgp_rpki]
+detect:
+- kind: text
+  where: [tool_result]
+  pattern: NIKA offline VRP
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-ROUTINATOR-NIKA-VRP-COMMENT)
+  date: '2026-10-28'
+  refs:
+  - isp_geant_ebgp_rpki__mtu_mis__h109c2a93c023__t01:175
+  - isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t02:208
+  found_by: agentic
