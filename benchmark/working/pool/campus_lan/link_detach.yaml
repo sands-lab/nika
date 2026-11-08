@@ -310,6 +310,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth1
@@ -321,6 +324,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth2
@@ -332,6 +338,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth1
@@ -343,6 +352,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth2
@@ -354,6 +366,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_3
       intf_name: eth2
@@ -365,6 +380,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth1
@@ -516,6 +534,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth0
@@ -527,6 +548,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth1
@@ -538,6 +562,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
       intf_name: eth2
@@ -549,6 +576,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth1
@@ -560,6 +590,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
       intf_name: eth2
@@ -571,6 +604,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_3
       intf_name: eth2
@@ -582,6 +618,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
       intf_name: eth1
@@ -593,6 +632,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
       intf_name: eth1
@@ -604,6 +646,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth1
@@ -615,6 +660,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth2
@@ -626,6 +674,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth3
@@ -637,6 +688,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
       intf_name: eth4

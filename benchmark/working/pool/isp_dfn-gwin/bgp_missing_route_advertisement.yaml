@@ -69,6 +69,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
       peer_host: pc_leipzig
@@ -86,6 +89,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
       peer_host: pc_muenchen
@@ -103,6 +109,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: stuttgart
       peer_host: pc_stuttgart

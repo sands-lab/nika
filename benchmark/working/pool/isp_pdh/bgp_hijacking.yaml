@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n1
       observer_host: pc_n10
@@ -26,6 +29,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n1
       observer_host: pc_n10
@@ -43,6 +49,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n1
       observer_host: pc_n2
@@ -60,6 +69,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n10
       observer_host: pc_n1
@@ -77,6 +89,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n10
       observer_host: pc_n1
@@ -94,6 +109,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n10
       observer_host: pc_n2
@@ -111,6 +129,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n11
       observer_host: pc_n10
@@ -128,6 +149,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n11
       observer_host: pc_n10
@@ -145,6 +169,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n11
       observer_host: pc_n2
@@ -162,6 +189,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n2
       observer_host: pc_n10
@@ -179,6 +209,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n2
       observer_host: pc_n10
@@ -196,6 +229,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n2
       observer_host: pc_n6
@@ -213,6 +249,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n3
       observer_host: pc_n10
@@ -230,6 +269,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n3
       observer_host: pc_n10
@@ -247,6 +289,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n3
       observer_host: pc_n2
@@ -264,6 +309,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n7
       observer_host: pc_n1
@@ -281,6 +329,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n7
       observer_host: pc_n2
@@ -298,6 +349,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n8
       observer_host: pc_n1

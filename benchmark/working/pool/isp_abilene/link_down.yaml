@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlam5
       intf_name: eth1
@@ -26,6 +29,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlang
       intf_name: eth2
@@ -43,6 +49,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlang
       intf_name: eth3
@@ -60,6 +69,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlang
       intf_name: eth4
@@ -77,6 +89,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: chinng
       intf_name: eth1
@@ -94,6 +109,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: chinng
       intf_name: eth2
@@ -111,6 +129,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dnvrng
       intf_name: eth1
@@ -128,6 +149,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dnvrng
       intf_name: eth2
@@ -145,6 +169,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dnvrng
       intf_name: eth3
@@ -162,6 +189,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hstnng
       intf_name: eth2
@@ -179,6 +209,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hstnng
       intf_name: eth3
@@ -196,6 +229,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: iplsng
       intf_name: eth3
@@ -213,6 +249,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: losang
       intf_name: eth2
@@ -230,6 +269,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nycmng
       intf_name: eth2
@@ -247,6 +289,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: snvang
       intf_name: eth3

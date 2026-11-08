@@ -9,8 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: &id001
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n01
@@ -29,7 +30,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n01
@@ -48,7 +51,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n02
@@ -67,7 +72,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n03
@@ -86,7 +93,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n03
@@ -105,7 +114,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n03
@@ -124,7 +135,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n03
@@ -143,7 +156,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n04
@@ -162,7 +177,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n04
@@ -181,7 +198,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n04
@@ -200,7 +219,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n05
@@ -219,7 +240,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n06
@@ -238,7 +261,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n06
@@ -257,7 +282,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n07
@@ -276,7 +303,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n08
@@ -295,7 +324,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n09
@@ -314,7 +345,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n09
@@ -333,7 +366,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n09
@@ -352,7 +387,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n09
@@ -371,7 +408,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -390,7 +429,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -409,7 +450,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -428,7 +471,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -447,7 +492,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -466,7 +513,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -485,7 +534,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -504,7 +555,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n12
@@ -523,7 +576,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n13
@@ -542,7 +597,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n13
@@ -561,7 +618,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n14
@@ -580,7 +639,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -599,7 +660,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -618,7 +681,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -637,7 +702,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -656,7 +723,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -675,7 +744,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -694,7 +765,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n16
@@ -713,7 +786,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n18
@@ -732,7 +807,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n19
@@ -751,7 +828,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -770,7 +849,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -789,7 +870,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -808,7 +891,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n22
@@ -827,7 +912,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n22
@@ -846,7 +933,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -865,8 +954,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: &id002
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n01
@@ -885,7 +975,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n01
@@ -904,7 +996,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n02
@@ -923,7 +1017,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n03
@@ -942,7 +1038,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n03
@@ -961,7 +1059,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n03
@@ -980,7 +1080,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n03
@@ -999,7 +1101,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n04
@@ -1018,7 +1122,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n04
@@ -1037,7 +1143,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n04
@@ -1056,7 +1164,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n05
@@ -1075,7 +1185,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n06
@@ -1094,7 +1206,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n06
@@ -1113,7 +1227,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n07
@@ -1132,7 +1248,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n08
@@ -1151,7 +1269,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n09
@@ -1170,7 +1290,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n09
@@ -1189,7 +1311,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n09
@@ -1208,7 +1332,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n09
@@ -1227,7 +1353,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -1246,7 +1374,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -1265,7 +1395,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -1284,7 +1416,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -1303,7 +1437,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -1322,7 +1458,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -1341,7 +1479,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -1360,7 +1500,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n12
@@ -1379,7 +1521,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n13
@@ -1398,7 +1542,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n13
@@ -1417,7 +1563,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n14
@@ -1436,7 +1584,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -1455,7 +1605,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -1474,7 +1626,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -1493,7 +1647,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -1512,7 +1668,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -1531,7 +1689,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -1550,7 +1710,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n16
@@ -1569,7 +1731,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n18
@@ -1588,7 +1752,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n19
@@ -1607,7 +1773,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -1626,7 +1794,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -1645,7 +1815,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -1664,7 +1836,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n22
@@ -1683,7 +1857,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n22
@@ -1702,7 +1878,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: n23

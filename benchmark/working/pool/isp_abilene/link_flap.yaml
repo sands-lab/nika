@@ -9,8 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: &id001
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlam5
@@ -18,7 +19,7 @@ failure:
       peer_host: pc_atlang
       probe_dst_ip: 10.254.0.6
       symptom_host: pc_atlam5
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -30,7 +31,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlang
@@ -38,7 +41,7 @@ failure:
       peer_host: pc_hstnng
       probe_dst_ip: 10.254.0.18
       symptom_host: pc_atlang
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -50,7 +53,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlang
@@ -58,7 +63,7 @@ failure:
       peer_host: pc_iplsng
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_atlang
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -70,7 +75,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlang
@@ -78,7 +85,7 @@ failure:
       peer_host: pc_washng
       probe_dst_ip: 10.254.0.46
       symptom_host: pc_atlang
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -90,7 +97,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chinng
@@ -98,7 +107,7 @@ failure:
       peer_host: pc_iplsng
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_chinng
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -110,7 +119,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chinng
@@ -118,7 +129,7 @@ failure:
       peer_host: pc_nycmng
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_chinng
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -130,7 +141,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -138,7 +151,7 @@ failure:
       peer_host: pc_kscyng
       probe_dst_ip: 10.254.0.26
       symptom_host: pc_dnvrng
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -150,7 +163,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -158,7 +173,7 @@ failure:
       peer_host: pc_snvang
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_dnvrng
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -170,7 +185,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -178,7 +195,7 @@ failure:
       peer_host: pc_sttlng
       probe_dst_ip: 10.254.0.42
       symptom_host: pc_dnvrng
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -190,7 +207,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hstnng
@@ -198,7 +217,7 @@ failure:
       peer_host: pc_kscyng
       probe_dst_ip: 10.254.0.26
       symptom_host: pc_hstnng
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -210,7 +229,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hstnng
@@ -218,7 +239,7 @@ failure:
       peer_host: pc_losang
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_hstnng
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -230,7 +251,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: iplsng
@@ -238,7 +261,7 @@ failure:
       peer_host: pc_kscyng
       probe_dst_ip: 10.254.0.26
       symptom_host: pc_iplsng
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -250,7 +273,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: losang
@@ -258,7 +283,7 @@ failure:
       peer_host: pc_snvang
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_losang
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -270,7 +295,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: nycmng
@@ -278,7 +305,7 @@ failure:
       peer_host: pc_washng
       probe_dst_ip: 10.254.0.46
       symptom_host: pc_nycmng
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -290,7 +317,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: snvang
@@ -298,7 +327,7 @@ failure:
       peer_host: pc_sttlng
       probe_dst_ip: 10.254.0.42
       symptom_host: pc_snvang
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -310,8 +339,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: &id002
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlam5
@@ -331,7 +361,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlang
@@ -351,7 +383,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlang
@@ -371,7 +405,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlang
@@ -391,7 +427,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chinng
@@ -411,7 +449,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chinng
@@ -431,7 +471,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -451,7 +493,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -471,7 +515,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -491,7 +537,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hstnng
@@ -511,7 +559,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hstnng
@@ -531,7 +581,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: iplsng
@@ -551,7 +603,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: losang
@@ -571,7 +625,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: nycmng
@@ -591,7 +647,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: snvang
@@ -611,8 +669,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: &id003
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlam5
@@ -632,7 +691,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlang
@@ -652,7 +713,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlang
@@ -672,7 +735,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: atlang
@@ -692,7 +757,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chinng
@@ -712,7 +779,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: chinng
@@ -732,7 +801,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -752,7 +823,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -772,7 +845,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -792,7 +867,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hstnng
@@ -812,7 +889,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hstnng
@@ -832,7 +911,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: iplsng
@@ -852,7 +933,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: losang
@@ -872,7 +955,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: nycmng
@@ -892,7 +977,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id003
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: snvang

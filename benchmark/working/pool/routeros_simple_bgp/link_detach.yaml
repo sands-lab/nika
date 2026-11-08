@@ -27,7 +27,10 @@ failure:
         node: pc2
         name: eth0
       fault_type: link_detach
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: router1
       intf_name: eth1
     root_causes:

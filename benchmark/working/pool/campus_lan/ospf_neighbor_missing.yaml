@@ -83,6 +83,9 @@ failure:
       fault_type: ospf_neighbor_missing
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
     root_causes:
@@ -92,6 +95,9 @@ failure:
       fault_type: ospf_neighbor_missing
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_3
     root_causes:
@@ -101,6 +107,9 @@ failure:
       fault_type: ospf_neighbor_missing
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
     root_causes:
@@ -134,6 +143,9 @@ failure:
       fault_type: ospf_neighbor_missing
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_1
     root_causes:
@@ -143,6 +155,9 @@ failure:
       fault_type: ospf_neighbor_missing
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_2
     root_causes:
@@ -152,6 +167,9 @@ failure:
       fault_type: ospf_neighbor_missing
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_core_3
     root_causes:
@@ -161,6 +179,9 @@ failure:
       fault_type: ospf_neighbor_missing
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_1_1
     root_causes:
@@ -170,6 +191,9 @@ failure:
       fault_type: ospf_neighbor_missing
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: router_dist_2_1
     root_causes:
@@ -179,6 +203,9 @@ failure:
       fault_type: ospf_neighbor_missing
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: server_access_router
     root_causes:

@@ -546,6 +546,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: eth2
@@ -557,6 +560,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: eth3
@@ -568,6 +574,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc
       intf_name: eth0
@@ -593,6 +602,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_edge
       intf_name: eth2
@@ -604,6 +616,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_edge
       intf_name: eth3
@@ -615,6 +630,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc
       intf_name: eth0
@@ -640,6 +658,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_edge
       intf_name: eth2
@@ -651,6 +672,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_edge
       intf_name: eth3
@@ -662,6 +686,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_edge
       intf_name: eth4
@@ -673,6 +700,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc
       intf_name: eth0
@@ -698,6 +728,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       intf_name: eth2
@@ -709,6 +742,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       intf_name: eth3
@@ -720,6 +756,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       intf_name: eth4
@@ -731,6 +770,9 @@ failure:
       fault_type: link_detach
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: internet_web
       intf_name: eth0

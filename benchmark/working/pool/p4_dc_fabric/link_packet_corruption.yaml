@@ -8,11 +8,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_1_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -23,11 +21,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_2_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -38,11 +34,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_3_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -53,11 +47,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_4_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -68,11 +60,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -83,11 +73,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth2
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -98,11 +86,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth3
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -113,11 +99,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -128,11 +112,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth2
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -143,11 +125,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth3
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -158,11 +138,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -173,11 +151,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth2
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -188,11 +164,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth3
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -203,11 +177,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -218,11 +190,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth2
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -233,11 +203,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth3
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -248,11 +216,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_1_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -263,11 +229,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_1_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -278,11 +242,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_1_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -293,11 +255,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_2_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -308,11 +268,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_2_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -323,11 +281,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_2_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -338,11 +294,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_3_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -353,11 +307,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_3_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -368,11 +320,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_3_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -383,11 +333,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_4_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -398,11 +346,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_4_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -413,11 +359,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_4_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -428,11 +372,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_5_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -443,11 +385,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_5_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -458,11 +398,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_5_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -473,11 +411,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_6_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -488,11 +424,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_6_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -503,11 +437,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_6_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -518,11 +450,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_7_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -533,11 +463,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_7_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -548,11 +476,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_7_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -563,11 +489,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_8_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -578,11 +502,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_8_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -593,11 +515,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_8_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -608,11 +528,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -623,11 +541,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -638,11 +554,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -653,11 +567,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -668,11 +580,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -683,11 +593,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -698,11 +606,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -713,11 +619,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -728,11 +632,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -743,11 +645,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -758,11 +658,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -773,11 +671,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -788,11 +684,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -803,11 +697,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -818,11 +710,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -833,11 +723,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -848,11 +736,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -863,11 +749,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -878,11 +762,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -893,11 +775,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -908,11 +788,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -923,11 +801,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -938,11 +814,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -953,11 +827,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -968,11 +840,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -983,11 +853,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -998,11 +866,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1013,11 +879,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1028,11 +892,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1043,11 +905,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1058,11 +918,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1073,11 +931,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1088,11 +944,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1103,11 +957,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1118,11 +970,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1133,11 +983,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1148,11 +996,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1163,11 +1009,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1178,11 +1022,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1193,11 +1035,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1208,11 +1048,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_10_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1223,11 +1061,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_10_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1238,11 +1074,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_10_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1253,11 +1087,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_11_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1268,11 +1100,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_11_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1283,11 +1113,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_11_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1298,11 +1126,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_12_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1313,11 +1139,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_12_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1328,11 +1152,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_12_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1343,11 +1165,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_13_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1358,11 +1178,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_13_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1373,11 +1191,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_13_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1388,11 +1204,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_14_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1403,11 +1217,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_14_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1418,11 +1230,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_14_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1433,11 +1243,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_15_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1448,11 +1256,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_15_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1463,11 +1269,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_15_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1478,11 +1282,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_16_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1493,11 +1295,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_16_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1508,11 +1308,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_16_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1523,11 +1321,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_1_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1538,11 +1334,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_1_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1553,11 +1347,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_1_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1568,11 +1360,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_2_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1583,11 +1373,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_2_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1598,11 +1386,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_2_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1613,11 +1399,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_3_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1628,11 +1412,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_3_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1643,11 +1425,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_3_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1658,11 +1438,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_4_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1673,11 +1451,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_4_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1688,11 +1464,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_4_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1703,11 +1477,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_5_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1718,11 +1490,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_5_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1733,11 +1503,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_5_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1748,11 +1516,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_6_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1763,11 +1529,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_6_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1778,11 +1542,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_6_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1793,11 +1555,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_7_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1808,11 +1568,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_7_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1823,11 +1581,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_7_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1838,11 +1594,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_8_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1853,11 +1607,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_8_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1868,11 +1620,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_8_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1883,11 +1633,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_9_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1898,11 +1646,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_9_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1913,11 +1659,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: client_9_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1928,11 +1672,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1943,11 +1685,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1958,11 +1698,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1973,11 +1711,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -1988,11 +1724,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2003,11 +1737,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2018,11 +1750,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2033,11 +1763,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2048,11 +1776,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_1
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2063,11 +1789,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_10
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2078,11 +1802,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_10
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2093,11 +1815,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_10
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2108,11 +1828,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_10
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2123,11 +1841,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_10
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2138,11 +1854,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_10
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2153,11 +1867,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_10
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2168,11 +1880,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_10
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2183,11 +1893,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_10
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2198,11 +1906,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_11
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2213,11 +1919,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_11
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2228,11 +1932,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_11
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2243,11 +1945,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_11
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2258,11 +1958,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_11
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2273,11 +1971,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_11
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2288,11 +1984,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_11
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2303,11 +1997,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_11
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2318,11 +2010,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_11
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2333,11 +2023,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_12
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2348,11 +2036,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_12
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2363,11 +2049,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_12
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2378,11 +2062,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_12
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2393,11 +2075,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_12
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2408,11 +2088,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_12
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2423,11 +2101,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_12
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2438,11 +2114,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_12
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2453,11 +2127,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_12
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2468,11 +2140,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_13
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2483,11 +2153,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_13
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2498,11 +2166,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_13
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2513,11 +2179,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_13
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2528,11 +2192,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_13
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2543,11 +2205,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_13
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2558,11 +2218,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_13
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2573,11 +2231,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_13
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2588,11 +2244,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_13
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2603,11 +2257,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_14
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2618,11 +2270,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_14
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2633,11 +2283,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_14
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2648,11 +2296,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_14
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2663,11 +2309,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_14
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2678,11 +2322,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_14
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2693,11 +2335,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_14
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2708,11 +2348,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_14
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2723,11 +2361,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_14
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2738,11 +2374,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_15
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2753,11 +2387,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_15
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2768,11 +2400,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_15
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2783,11 +2413,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_15
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2798,11 +2426,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_15
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2813,11 +2439,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_15
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2828,11 +2452,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_15
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2843,11 +2465,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_15
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2858,11 +2478,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_15
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2873,11 +2491,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_16
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2888,11 +2504,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_16
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2903,11 +2517,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_16
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2918,11 +2530,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_16
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2933,11 +2543,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_16
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2948,11 +2556,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_16
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2963,11 +2569,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_16
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2978,11 +2582,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_16
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -2993,11 +2595,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_16
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3008,11 +2608,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3023,11 +2621,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3038,11 +2634,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3053,11 +2647,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3068,11 +2660,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3083,11 +2673,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3098,11 +2686,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3113,11 +2699,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3128,11 +2712,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_2
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3143,11 +2725,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3158,11 +2738,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3173,11 +2751,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3188,11 +2764,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3203,11 +2777,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3218,11 +2790,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3233,11 +2803,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3248,11 +2816,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3263,11 +2829,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_3
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3278,11 +2842,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3293,11 +2855,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3308,11 +2868,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3323,11 +2881,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3338,11 +2894,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3353,11 +2907,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3368,11 +2920,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3383,11 +2933,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3398,11 +2946,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_4
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3413,11 +2959,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3428,11 +2972,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3443,11 +2985,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3458,11 +2998,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3473,11 +3011,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3488,11 +3024,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3503,11 +3037,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3518,11 +3050,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3533,11 +3063,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_5
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3548,11 +3076,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3563,11 +3089,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3578,11 +3102,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3593,11 +3115,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3608,11 +3128,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3623,11 +3141,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3638,11 +3154,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3653,11 +3167,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3668,11 +3180,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_6
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3683,11 +3193,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3698,11 +3206,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3713,11 +3219,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3728,11 +3232,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3743,11 +3245,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3758,11 +3258,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3773,11 +3271,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3788,11 +3284,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3803,11 +3297,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_7
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3818,11 +3310,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3833,11 +3323,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3848,11 +3336,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3863,11 +3349,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3878,11 +3362,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3893,11 +3375,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3908,11 +3388,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3923,11 +3401,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3938,11 +3414,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_8
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3953,11 +3427,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_9
       intf_name: eth0
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3968,11 +3440,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_9
       intf_name: eth10
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3983,11 +3453,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_9
       intf_name: eth11
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -3998,11 +3466,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_9
       intf_name: eth4
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -4013,11 +3479,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_9
       intf_name: eth5
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -4028,11 +3492,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_9
       intf_name: eth6
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -4043,11 +3505,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_9
       intf_name: eth7
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -4058,11 +3518,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_9
       intf_name: eth8
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
@@ -4073,11 +3531,9 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      corruption_percentage: '12'
+      corruption_percentage: '8'
       host_name: leaf_9
       intf_name: eth9
-      observer_device: client_1_1
-      probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
