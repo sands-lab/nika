@@ -32,6 +32,9 @@ failure:
         name: client_1_2:eth0--leaf_1:eth2
       fault_type: link_down
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_2_1
       intf_name: eth0
@@ -57,6 +60,9 @@ failure:
         name: client_2_2:eth0--leaf_2:eth2
       fault_type: link_down
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_3_1
       intf_name: eth0
@@ -82,6 +88,9 @@ failure:
         name: client_3_2:eth0--leaf_3:eth2
       fault_type: link_down
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_4_1
       intf_name: eth0
@@ -107,6 +116,9 @@ failure:
         name: client_4_2:eth0--leaf_4:eth2
       fault_type: link_down
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_1
       intf_name: eth0
