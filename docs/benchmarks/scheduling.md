@@ -48,7 +48,7 @@ schedule:
   events:
     - problem: link_down
       inject:
-        host_name: client_0
+        host_name: client_1_1
         intf_name: eth0
       at: 5s
       duration: 10s
@@ -57,7 +57,7 @@ schedule:
         count: 2
     - problem: link_down
       inject:
-        host_name: dns_pod0
+        host_name: web_1
         intf_name: eth0
       at: 20s
 ```
@@ -103,8 +103,8 @@ schedule:
     - traffic:
         type: burst
         sources:
-          - dns_pod0
-        destination: webserver0_pod0
+          - web_1
+        destination: web_2
         protocol: udp
         rate: 100K
         packet_size: 1200

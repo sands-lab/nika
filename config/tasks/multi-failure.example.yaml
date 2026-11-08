@@ -10,7 +10,7 @@ schedule:
       at: 0s
     - problem: link_down
       inject:
-        host_name: client_0
+        host_name: client_1_1
         intf_name: eth0
       at: 5s
       duration: 10s
@@ -19,7 +19,7 @@ schedule:
         count: 2
     - problem: dns_record_error
       inject:
-        host_name: dns_pod0
-        target_domain: pod0
-        target_website: web0
+        host_name: web_1
+        target_domain: fabric
+        target_website: web-3
       at: 20s
