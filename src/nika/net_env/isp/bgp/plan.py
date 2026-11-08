@@ -113,7 +113,6 @@ class BgpPlan:
         return {site.provider: (f"{site.gateway}/{plen}",)}
 
 
-
 def compile_bgp_plan(
     isp_plan: IspPlan,
     mode: IspBgpMode | str | None = DEFAULT_BGP_MODE,
