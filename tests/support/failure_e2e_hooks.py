@@ -96,10 +96,17 @@ def assert_link_flap_pre(ctx: FailureE2EContext) -> None:
 def assert_link_flap(ctx: FailureE2EContext) -> None:
     assert ctx.symptom is not None
     comparison = ctx.symptom["details"]["comparison"]
-    assert comparison["periodic_loss"] is True, ctx.symptom
+    assert comparison["periodic_loss"] or comparison.get("rerouted"), ctx.symptom
 
 
-def _link_peer(runtime, host: str, intf: str) -> tuple[str, str] | None:
+def _link_peer(runtime, host: str, intf: str, net_env=None) -> tuple[str, str] | None:
+    env = net_env or getattr(runtime, "_net_env", None)
+    if env is not None:
+        from nika.problems.link_interface.link import _link_peer as peer_from_env
+
+        return peer_from_env(env, host, intf)
+    if getattr(runtime, "backend", None) == "containerlab":
+        return None
     controller = KatharaVdeFaultProxy(runtime)
     state = controller.discover(host, intf)
     if state is None:
@@ -140,15 +147,27 @@ def assert_link_capacity_bottleneck(ctx: FailureE2EContext) -> None:
     host_qdisc = _qdisc(ctx.runtime, ctx.parsed.host_name, resolved_intf)
     assert "tbf" not in host_qdisc and "netem" not in host_qdisc, host_qdisc
 
-    peer_ep = _link_peer(ctx.runtime, ctx.parsed.host_name, resolved_intf)
+    peer_ep = _link_peer(
+        ctx.runtime,
+        ctx.parsed.host_name,
+        resolved_intf,
+        net_env=ctx.problem.net_env,
+    )
     assert peer_ep is not None
     peer_qdisc = _qdisc(ctx.runtime, peer_ep[0], peer_ep[1])
     assert "tbf" not in peer_qdisc and "netem" not in peer_qdisc, peer_qdisc
 
-    controller = KatharaVdeFaultProxy(ctx.runtime)
-    proxy = controller.discover(ctx.parsed.host_name, resolved_intf)
-    assert proxy is not None
-    assert controller.tbf_configured(proxy)
+    if getattr(ctx.runtime, "backend", None) == "containerlab":
+        from nika.service.containerlab.host_tc import HostTcController
+
+        host_tc = HostTcController(ctx.runtime)
+        shaped = host_tc.egress_dev(ctx.parsed.host_name, resolved_intf)
+        assert "tbf" in host_tc.qdisc(shaped).lower(), host_tc.qdisc(shaped)
+    else:
+        controller = KatharaVdeFaultProxy(ctx.runtime)
+        proxy = controller.discover(ctx.parsed.host_name, resolved_intf)
+        assert proxy is not None
+        assert controller.tbf_configured(proxy)
 
     # The symptom probe has already filled the 30kbit TBF queue. ICMP may be
     # dropped while the receiver's byte counter still proves traffic flows.

@@ -100,6 +100,10 @@ class ProblemBase:
     # ``None`` means TAGS subset matching only. Values are column ids as in
     # ``coverage_columns`` (scenario name, or ``isp_<topo>/<config>``).
     COMPATIBLE_COLUMNS: ClassVar[frozenset[str] | None] = None
+    # Router platforms (``device_profile``) that meet the premise of
+    # ``COMPATIBLE_COLUMNS`` on every scenario they deploy, so the failure also
+    # runs on those platforms outside the listed columns.
+    COMPATIBLE_PLATFORMS: ClassVar[frozenset[str]] = frozenset()
     # Scenarios whose TAGS match but whose design hides the failure effect,
     # mapped to the reason.
     INCOMPATIBLE_SCENARIOS: ClassVar[dict[str, str]] = {}
@@ -109,6 +113,9 @@ class ProblemBase:
     # ``rpki`` profile is only deployable on named RPKI scenarios.
     isp_protocol: ClassVar[dict[str, Any] | None] = None
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
+    # Backends the failure implements. ``containerlab`` means it has an SR Linux
+    # implementation. ``None``: Kathara, plus backends whose routers have a
+    # fault-operations provider (SONiC on Containerlab).
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
     minimum_path_bdp_bytes: ClassVar[int] = 0
     # Kbit/s the path must forward for the symptom to show, such as when the
@@ -116,7 +123,8 @@ class ProblemBase:
     # Compared with the routers' declared send cap (``interface_rate_kbps``).
     minimum_path_rate_kbps: ClassVar[int] = 0
     # Native router failure operations (``problems/support/router_ops.py``)
-    # this failure needs when its target is a native router (IOS XR, RouterOS).
+    # this failure needs when its target is a router with a fault-operations
+    # provider (IOS XR, RouterOS, SONiC).
     # ``None``: no native implementation, so targets stay on FRR/Linux nodes.
     # An empty set: the failure acts outside the router OS (for example on the
     # container interface), so every native profile can host it.
@@ -176,12 +184,16 @@ class ProblemBase:
 
         Declared backend support and path BDP requirements must also fit the
         deployment. Unknown path limits still require runtime calibration.
+        Without ``supported_backends`` a failure runs on Kathara, and on another
+        backend only where the routers have a fault-operations provider
+        (SONiC on Containerlab); SR Linux needs a declared ``containerlab``.
 
         Single failure/scenario compatibility predicate. ``target`` is a scenario
         id or a coverage column id (``isp_<topo>/<config>``). TAGS must be a
         subset of the target's effective tags, and when ``COMPATIBLE_COLUMNS`` is
-        set the target must be listed; a bare scenario id matches when any of
-        its columns is listed.
+        set the target must be listed, unless ``device_profile`` is one of
+        ``COMPATIBLE_PLATFORMS``; a bare scenario id matches when any of its
+        columns is listed.
 
         A native ``device_profile`` (IOS XR, RouterOS) must also be one the
         scenario declares. The deployment then keeps FRR/Linux nodes as
@@ -196,8 +208,13 @@ class ProblemBase:
             scenario_path_bdp_limit_bytes,
             scenario_path_rate_limit_kbps,
         )
+        from nika.net_env.isp.profiles import SUPPORTED_BACKEND_PROFILE_PAIRS
+        from nika.problems.support.router_ops import (
+            profile_routes_with_frr,
+            router_platform_has_provider,
+        )
 
-        if device_profile not in (None, "", "frr", "nokia_srlinux") and (
+        if device_profile not in (None, "", "frr", "nokia_srlinux", "sonic") and (
             device_profile not in scenario_device_profiles(target.partition("/")[0])
         ):
             return False
@@ -205,8 +222,18 @@ class ProblemBase:
         backends = set(scenario_supported_backends(target.partition("/")[0]))
         if backend is not None:
             backends &= {backend}
+        if device_profile:
+            # A router platform deploys on its own backend.
+            backends &= {
+                b for b, p in SUPPORTED_BACKEND_PROFILE_PAIRS if p == device_profile
+            }
         if cls.supported_backends is not None:
             backends &= set(cls.supported_backends)
+        elif not router_platform_has_provider(device_profile):
+            # Undeclared backends mean the FRR/Linux implementation, which
+            # Kathara runs; elsewhere only a router platform provider
+            # (``native_router_operations``) can stand in for it.
+            backends &= {"kathara"}
         if not backends:
             return False
 
@@ -229,11 +256,17 @@ class ProblemBase:
             allowed is not None
             and target not in allowed
             and target not in {parse_column(column)[0] for column in allowed}
+            and device_profile not in cls.COMPATIBLE_PLATFORMS
         ):
             return False
         if target.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:
             return False
-        return frozenset(cls.TAGS).issubset(effective_tags(target))
+        tags = effective_tags(target)
+        if profile_routes_with_frr(device_profile):
+            # The scenario tags name its default routers; this platform's
+            # routers run FRR.
+            tags |= {"frr"}
+        return frozenset(cls.TAGS).issubset(tags)
 
     @classmethod
     def runs_on_device_profile(cls, device_profile: str) -> bool:

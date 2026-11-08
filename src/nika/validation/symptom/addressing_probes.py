@@ -8,7 +8,9 @@ misconfigured host is observed from a peer, never from the host itself.
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
+import shlex
 import time
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -37,11 +39,72 @@ _MIN_PAIR_LOSS_PERCENT = 25.0
 _MIN_HOLDER_LOSS_PERCENT = 4.0
 
 
-def _eth0_ip(runtime: LabRuntime, node: str) -> str:
-    out = runtime.exec(
-        node, "ip -4 -o addr show dev eth0 scope global | awk '{print $4}'"
+def _valid_ipv4(text: str) -> str:
+    try:
+        parsed = ipaddress.ip_address(text)
+    except ValueError:
+        return ""
+    return text if parsed.version == 4 else ""
+
+
+def iface_ipv4(runtime: LabRuntime, node: str, iface: str) -> str:
+    """IPv4 address configured on ``iface``, or empty if that port has none."""
+    quoted = shlex.quote(iface)
+    out = exec_or_empty(
+        runtime,
+        node,
+        f"ip -4 -o addr show dev {quoted} scope global | awk '{{print $4}}'",
     )
-    return out.strip().split("/")[0]
+    cidr = next((line.strip() for line in out.splitlines() if line.strip()), "")
+    return _valid_ipv4(cidr.split("/")[0])
+
+
+def _eth0_ip(runtime: LabRuntime, node: str) -> str:
+    return iface_ipv4(runtime, node, "eth0")
+
+
+_MGMT_PREFIXES = ("127.", "172.100.", "172.101.", "172.20.", "172.18.")
+_MGMT_IFACES = {"mgmt0", "eth0"}
+
+
+def _probe_ips(runtime: LabRuntime, node: str) -> list[str]:
+    """Data-plane IPv4 addresses on ``node``, loopbacks included, management omitted.
+
+    Kathara hosts keep the pingable address on eth0. Containerlab linux nodes
+    use eth1, and SR Linux / SONiC routers use platform ports plus a routed
+    loopback; eth0/mgmt0 are the Containerlab management network.
+    """
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def add(ip: str) -> None:
+        ip = _valid_ipv4(ip)
+        if ip and ip not in seen and not ip.startswith(_MGMT_PREFIXES):
+            seen.add(ip)
+            found.append(ip)
+
+    getter = getattr(runtime, "get_data_plane_host_ip", None)
+    if callable(getter):
+        add(getter(node, with_prefix=False) or "")
+    output = exec_or_empty(runtime, node, "ip -j -4 addr")
+    try:
+        links = json.loads(output) if output.lstrip().startswith("[") else []
+    except json.JSONDecodeError:
+        links = []
+    if not isinstance(links, list):
+        links = []
+    for link in links:
+        if not isinstance(link, dict):
+            continue
+        name = str(link.get("ifname") or "").split("@", 1)[0]
+        if name in _MGMT_IFACES:
+            continue
+        for addr in link.get("addr_info") or []:
+            if not isinstance(addr, dict) or addr.get("family") not in ("inet", 2):
+                continue
+            add(str(addr.get("local") or ""))
+    add(_eth0_ip(runtime, node))
+    return found
 
 
 def lab_addresses(runtime: LabRuntime) -> dict[str, list[tuple[str, str]]]:
@@ -95,12 +158,12 @@ def _observers(runtime: LabRuntime, target_ip: str, exclude: set[str]) -> dict:
     for node in candidates + [node for node in nodes if node not in candidates]:
         if node == observer:
             continue
-        ip = _eth0_ip(runtime, node)
-        if ip and ip != target_ip and _reachable(runtime, observer, ip):
-            return {"observer": observer, "control_ip": ip, "target_ip": target_ip}
+        for ip in _probe_ips(runtime, node):
+            if ip != target_ip and _reachable(runtime, observer, ip):
+                return {"observer": observer, "control_ip": ip, "target_ip": target_ip}
     # An isolated observer (a guest LAN behind NAT) may reach no other host,
-    # and native routers expose no Linux address: its own gateway still shows
-    # that the observer's side of the network works.
+    # and SR Linux, SONiC and native routers expose no Linux address: its own
+    # gateway still shows that the observer's side of the network works.
     gateway = runtime.get_default_gateway(observer)
     if gateway and gateway != target_ip and _reachable(runtime, observer, gateway):
         return {"observer": observer, "control_ip": gateway, "target_ip": target_ip}

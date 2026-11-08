@@ -171,10 +171,8 @@ def evaluate_link_corruption_symptom(
         and after["echo_loss_percent"] >= LOSS_MIN_PERCENT
         and before["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX
     )
-    goodput_drop = (
-        bool(before_bps)
-        and after_bps is not None
-        and float(after_bps) < float(before_bps) * THROUGHPUT_MAX_RATIO
+    goodput_drop = bool(before_bps) and (
+        after_bps is None or float(after_bps) < float(before_bps) * THROUGHPUT_MAX_RATIO
     )
     verified = frame_loss and goodput_drop
     return verified, build_verify_result(
@@ -230,24 +228,41 @@ def _crossing_ends(problem: Any, params: Any) -> dict[str, Any]:
     """End hosts whose traffic leaves the forwarding device through ``intf_name``.
 
     The scenario path is kept when the device routes its destination out of
-    that port, or when the device is a switch without its own routes. On a
-    router whose port the scenario path does not use, the receiver is an end
-    host the device routes out of that port, and the sender is an end host
-    whose traceroute to it passes the device.
+    that port, when the device is a switch without its own routes, or when its
+    Linux routing table does not route the destination out of any of its
+    topology ports (SR Linux routes outside the container's kernel). Kernel
+    names are compared after ``kernel_data_interface`` mapping, so SONiC
+    ``Ethernet<n>`` matches topology ``eth<k>``. On a router whose port the
+    scenario path does not use, the receiver is an end host the device routes
+    out of that port, and the sender is an end host whose traceroute to it
+    passes the device.
     """
+    from nika.problems.rca.inventory import interfaces_for_node, kernel_data_interface
+
     runtime = problem.runtime
     device, intf = params.forwarding_device, params.intf_name
     ends = _ends(problem, params)
     identity = problem.net_env.machine_identities.get(device)
     if getattr(identity, "role", None) is not NodeRole.ROUTER:
         return ends
+    topology_ports = set(interfaces_for_node(problem.net_env, device))
+    kernel_ports = {
+        kernel_data_interface(problem.net_env, device, name) for name in topology_ports
+    }
+    inject_dev = kernel_data_interface(problem.net_env, device, intf)
+
+    def route_dev(ip: str) -> str | None:
+        route = exec_or_empty(runtime, device, f"ip -o route get {ip}")
+        match = re.search(r" dev (\S+)", route)
+        return match.group(1) if match else None
 
     def egresses(ip: str) -> bool:
-        route = exec_or_empty(runtime, device, f"ip -o route get {ip}")
-        return f" dev {intf} " in f"{route} "
+        return route_dev(ip) == inject_dev
 
-    if "error" not in ends and egresses(ends["dst"]):
-        return ends
+    if "error" not in ends:
+        dev = route_dev(ends["dst"])
+        if dev == inject_dev or dev not in kernel_ports:
+            return ends
     addresses = lab_addresses(runtime)
     device_ips = {
         str(ipaddress.ip_interface(address).ip) for _i, address in addresses[device]

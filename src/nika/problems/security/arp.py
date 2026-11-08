@@ -75,6 +75,7 @@ class ArpCachePoisoning(ProblemBase):
     root_cause_name: str = "arp_cache_poisoning"
     description = "ARP cache is poisoned with a false MAC mapping."
     TAGS: str = ["arp"]
+    supported_backends = ("kathara", "containerlab")
 
     Params = ArpCachePoisoningParams
 
