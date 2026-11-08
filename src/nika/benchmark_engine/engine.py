@@ -39,10 +39,8 @@ from nika.validation.presence import (
     recheck_bound_artifact,
     remote_lab,
 )
-from nika.workflows.benchmark.healthy import write_healthy_session_artifacts
 from nika.workflows.env.start import start_net_env
 from nika.workflows.eval.session import run_eval_metrics
-from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
 
 # Commit an engine image was built from (see ``docker/Dockerfile``).
@@ -61,6 +59,7 @@ class BenchmarkEngine:
 
     def __init__(self) -> None:
         self._gateways = GatewayLeases()
+        self._schedulers: dict[str, object] = {}
         # Started trials: the request ``begin`` prepares, and whether the
         # environment came up with its failure already injected.
         self._started: dict[str, tuple[TrialRequest, bool]] = {}
@@ -95,6 +94,9 @@ class BenchmarkEngine:
             if scenario_requires_topo_size(scenario)
             else None
         )
+        from nika.schedule import schedule_for_task
+
+        plan = schedule_for_task(task, request.release)
         image_lab = active_trial_lab()
         if image_lab is not None:
             # Firecracker execution: the lab was restored from a lab image.
@@ -116,6 +118,16 @@ class BenchmarkEngine:
                 telemetry=task.get("telemetry"),
                 traffic=task.get("traffic"),
                 **{key: task.get(key) for key in _DEPLOY_KEYS},
+                **(
+                    {"defer_background_traffic": True}
+                    if plan.activates("background")
+                    else {}
+                ),
+                **(
+                    {"defer_business_traffic": True}
+                    if plan.activates("business")
+                    else {}
+                ),
             )
         trial_dir = request.trial_dir
         try:
@@ -138,12 +150,10 @@ class BenchmarkEngine:
         )
 
     def begin(self, handle: TrialHandle) -> AgentTask:
-        """Make the trial ready for the agent, which starts right after.
+        """Prepare the task's timeline and its initial agent description.
 
-        Injects the task's failure and returns once it is verified in place. A
-        healthy task gets its no-fault artifacts, and a lab restored with its
-        failure already injected needs nothing. Logs the post-inject fault
-        read and returns the task the agent receives.
+        The frontend opens the gateway before releasing the timeline through
+        schedule_operation. The engine owns injection, traffic, and recovery.
         """
         session_id = handle.session_id
         try:
@@ -152,25 +162,49 @@ class BenchmarkEngine:
             raise EngineError(
                 f"trial {session_id} was not started by this engine"
             ) from None
-        if request.healthy:
-            write_healthy_session_artifacts(session_id)
-        elif not preinjected:
-            inject_failure(
-                problem_names=list(request.failures),
-                session_id=session_id,
-                param_overrides=dict(request.inject),
-                expected_root_causes=request.expected_root_causes,
-            )
-        if bound_injected_problem(session_id) is None:
-            # No injection in this process logged it: a healthy task, a lab
-            # restored with its failure, or an injection on a NIKA Remote host.
-            bind_session_dir(handle.trial_path)
-            log_presence_check(presence_record(self.fault_check(handle), "post_inject"))
+        from nika.remote.config import is_remote_enabled
+        from nika.remote.schedule import RemoteSessionScheduler
+        from nika.schedule import schedule_for_task
+        from nika.workflows.schedule import SessionScheduler
+
+        scheduler_type = (
+            RemoteSessionScheduler if is_remote_enabled() else SessionScheduler
+        )
+        scheduler = scheduler_type(
+            session_id,
+            schedule_for_task(request.task, request.release),
+            traffic=request.task.get("traffic"),
+            expected_root_causes=request.expected_root_causes,
+            restored=preinjected,
+        )
+        self._schedulers[session_id] = scheduler
+        scheduler.prepare()
         session = Session().load_running_session(session_id=session_id)
         task_description = getattr(session, "task_description", None)
         if not task_description:
             raise EngineError(f"trial {session_id} has no task description")
-        return AgentTask(task_description=task_description)
+        return AgentTask(task_description=task_description, scheduled=True)
+
+    def schedule_operation(self, handle: TrialHandle, operation: str) -> dict:
+        """Drive or observe the timeline on the engine's lab controller."""
+        scheduler = self._schedulers[handle.session_id]
+        if operation == "start":
+            scheduler.start()
+        elif operation == "agent-ready":
+            scheduler.wait_agent_start()
+            if (
+                scheduler.plan.static
+                and bound_injected_problem(handle.session_id) is None
+            ):
+                bind_session_dir(handle.trial_path)
+                log_presence_check(
+                    presence_record(self.fault_check(handle), "post_inject")
+                )
+        elif operation == "close":
+            scheduler.close()
+        elif operation != "status":
+            raise ValueError(f"Unknown schedule operation: {operation}")
+        return scheduler.status()
 
     def agent_endpoints(
         self, handle: TrialHandle, request: GatewayRequest
@@ -288,6 +322,14 @@ class BenchmarkEngine:
         )
 
     def stop_trial(self, handle: TrialHandle, *, status: str = "finished") -> None:
+        scheduler = self._schedulers.pop(handle.session_id, None)
+        try:
+            if scheduler is not None:
+                scheduler.close()
+        finally:
+            self._stop_trial(handle, status=status)
+
+    def _stop_trial(self, handle: TrialHandle, *, status: str) -> None:
         self._started.pop(handle.session_id, None)
         self._gateways.close(handle.session_id)
         close_session(

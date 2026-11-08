@@ -229,7 +229,11 @@ def start_agent(
                     gateway_port=int(urlparse(endpoints.agent_url).port or 0),
                     stream_output=stream_output,
                     report_mapper=report_mapper,
-                    **({"before_diagnosis": release_diagnosis} if diagnosis_ready is not None else {}),
+                    **(
+                        {"before_diagnosis": release_diagnosis}
+                        if diagnosis_ready is not None
+                        else {}
+                    ),
                 )
             else:
                 agent = create_agent(

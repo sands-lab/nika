@@ -30,6 +30,7 @@ class RemoteSessionScheduler:
         traffic: Any = None,
         expected_root_causes: list | None = None,
         restored: bool = False,
+        client: Any = None,
     ):
         self.session = Session().load_running_session(session_id=session_id)
         self.session_id = session_id
@@ -38,7 +39,7 @@ class RemoteSessionScheduler:
         self.traffic = traffic
         self.expected_root_causes = expected_root_causes
         self.restored = restored
-        self.client = RemoteClient()
+        self.client = client if client is not None else RemoteClient()
         # The agent pipeline only needs Event.is_set(), backed by lab-host status.
         self.complete = self
         self._closed = False
@@ -86,6 +87,9 @@ class RemoteSessionScheduler:
         self._call("agent-ready")
         if self.plan.agent_start is None:
             self._sync()
+
+    def status(self) -> dict[str, Any]:
+        return self._poll()
 
     def _poll(self) -> dict[str, Any]:
         with self._lock:

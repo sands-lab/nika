@@ -669,12 +669,20 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
     def fake_score(*, session_dir, **kwargs):
         (Path(session_dir) / "eval_metrics.json").write_text("{}", encoding="utf-8")
 
+    def fake_begin(handle):
+        from nika.benchmark_engine.protocol import AgentTask
+
+        fake_inject(session_id=handle.session_id)
+        return AgentTask(task_description="Diagnose the network.")
+
     with (
         patch(
             "nika.benchmark_engine.engine.start_net_env",
             side_effect=fake_start_net_env,
         ),
-        patch("nika.benchmark_engine.engine.inject_failure", side_effect=fake_inject),
+        patch(
+            "nika.benchmark_engine.engine.BenchmarkEngine.begin", side_effect=fake_begin
+        ),
         patch("nika.workflows.benchmark.run.start_agent", side_effect=fake_agent),
         patch("nika.benchmark_engine.engine.close_session"),
         patch("nika.benchmark_engine.engine.run_eval_metrics", side_effect=fake_score),
@@ -695,7 +703,6 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
         from nika.utils.session_store import SessionStore
         from nika.workflows.benchmark.run import run_single_case
 
-        scheduler_cls.return_value.prepare.side_effect = fake_inject
         try:
             run_single_case(
                 problem="link_down",

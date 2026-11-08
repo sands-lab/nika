@@ -27,3 +27,29 @@ def healthy_task_description(net_env: Any) -> str:
         """
     tmpl = textwrap.dedent(diagnostic_prompt)
     return tmpl.format(net_desc=net_env.get_info()).strip()
+
+
+def write_healthy_session_artifacts(session_id: str) -> None:
+    """Write healthy ground truth and task description for a deployed session."""
+    from nika.problems.rca import healthy_ground_truth
+    from nika.problems.rca.inventory import load_offline_net_env
+    from nika.utils.session import Session
+    from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
+
+    session = Session().load_running_session(session_id=session_id)
+    params = dict(getattr(session, "scenario_params", None) or {})
+    topo_size = (
+        getattr(session, "scenario_topo_size", None) or params.get("topo_size") or ""
+    )
+    isp_kwargs: dict[str, Any] = {}
+    for key in ISP_DEPLOY_KEYS:
+        if key in params and params[key] is not None:
+            isp_kwargs[key] = params[key]
+    net_env = load_offline_net_env(
+        str(session.scenario_name),
+        str(topo_size or ""),
+        **isp_kwargs,
+    )
+    session.write_gt(healthy_ground_truth().model_dump(mode="json", exclude_none=True))
+    session.update_session("task_description", healthy_task_description(net_env))
+    session.update_session("problem_names", [HEALTHY_PROBLEM])

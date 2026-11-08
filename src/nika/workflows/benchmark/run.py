@@ -33,7 +33,12 @@ from nika.firecracker.trial import (
     release_trial,
 )
 from nika.benchmark_engine import benchmark_engine, release_engine
-from nika.benchmark_engine.protocol import AgentAccess, TrialHandle, TrialRequest
+from nika.benchmark_engine.protocol import (
+    AgentAccess,
+    EngineError,
+    TrialHandle,
+    TrialRequest,
+)
 from nika.utils.session import Session
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
@@ -892,7 +897,6 @@ def run_single_case(
         traffic=traffic,
     )
     from nika.schedule import schedule_for_task
-    from nika.workflows.schedule import SessionScheduler
 
     if schedule is not None:
         row["schedule"] = schedule
@@ -958,8 +962,8 @@ def run_single_case(
     healthy = is_healthy_case(problem)
     request = TrialRequest(
         task=row,
-        failures=resolved_problems,
-        inject=inject_args,
+        failures=row_problems(row),
+        inject=dict(row.get("inject") or {}),
         expected_root_causes=expected_root_causes,
         healthy=healthy,
         # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
@@ -976,11 +980,19 @@ def run_single_case(
     session_id = handle.session_id
     session_dir = handle.trial_path
     ready = False
+    scheduler = None
 
     try:
         _stamp_ready(session_id, False)
         _phase("prepare")
         task = engine.begin(handle)
+        if row.get("schedule") and not task.scheduled:
+            raise EngineError("This benchmark engine does not support scheduled tasks")
+        if task.scheduled:
+            from nika.benchmark_engine.schedule import EngineSessionScheduler
+
+            scheduler = EngineSessionScheduler(engine, handle, plan)
+            scheduler.prepare()
         # Failed-trial triage reads this: the agent got a valid task.
         _stamp_ready(session_id, True)
         ready = True
@@ -1001,19 +1013,34 @@ def run_single_case(
         )
 
         _phase("agent")
-        start_agent(
-            agent_type=agent_type,
-            llm_provider=llm_provider,
-            model=model,
-            max_steps=max_steps,
-            session_id=session_id,
-            task_description=task.task_description,
-            # Bare single-case CLI streams agent output like session-mode
-            # ``nika agent run``; batch trials stay quiet.
-            stream_output=not trial_id,
-            check_fault_presence=True,
-            access=_release_access(release_meta),
-        )
+
+        def release_scheduled_agent():
+            scheduler.start()
+            scheduler.wait_agent_start()
+
+        try:
+            start_agent(
+                agent_type=agent_type,
+                llm_provider=llm_provider,
+                model=model,
+                max_steps=max_steps,
+                session_id=session_id,
+                task_description=task.task_description,
+                # Bare single-case CLI streams agent output like session-mode
+                # ``nika agent run``; batch trials stay quiet.
+                stream_output=not trial_id,
+                check_fault_presence=plan.static,
+                access=_release_access(release_meta),
+                diagnosis_ready=release_scheduled_agent
+                if scheduler is not None
+                else None,
+            )
+            if scheduler is not None:
+                scheduler.raise_if_failed()
+        finally:
+            if scheduler is not None:
+                owned_scheduler, scheduler = scheduler, None
+                owned_scheduler.close()
         _require_submission(session_dir)
 
         _phase("eval")

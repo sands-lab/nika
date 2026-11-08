@@ -209,6 +209,9 @@ def engine_operations(engine: LifecycleProtocol) -> dict[str, _Operation]:
         "close_agent_endpoints": lambda a: engine.close_agent_endpoints(
             TrialHandle(**a["handle"])
         ),
+        "schedule_operation": lambda a: engine.schedule_operation(
+            TrialHandle(**a["handle"]), a["operation"]
+        ),
         "fault_check": lambda a: engine.fault_check(TrialHandle(**a["handle"])),
         "score": lambda a: engine.score(
             TrialHandle(**a["handle"]),
@@ -253,7 +256,11 @@ def create_engine_app(engine: LifecycleProtocol, *, token: str) -> Starlette:
                 status_code=500,
             )
         return JSONResponse(
-            {"result": result.model_dump(mode="json") if result is not None else None}
+            {
+                "result": result.model_dump(mode="json")
+                if isinstance(result, BaseModel)
+                else result
+            }
         )
 
     async def health(_request: Request) -> JSONResponse:

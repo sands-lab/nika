@@ -95,6 +95,7 @@ class AgentTask(_Message):
     """What the agent is told when its trial is ready, as ``begin`` returns it."""
 
     task_description: str
+    scheduled: bool = Field(default=False, exclude_if=lambda value: not value)
 
 
 # A trial's lifecycle as the engine service tracks it.
@@ -215,6 +216,8 @@ class LifecycleProtocol(Protocol):
     def begin(self, handle: TrialHandle) -> AgentTask:
         """Return the agent's task once it may start; the engine decides when."""
         ...
+
+    def schedule_operation(self, handle: TrialHandle, operation: str) -> dict: ...
 
     def agent_endpoints(
         self, handle: TrialHandle, request: GatewayRequest
