@@ -9,7 +9,7 @@ comes from the release. See ``docs/development/benchmark-contracts.md``.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -158,6 +158,9 @@ class GatewayRequest(_Message):
     reaches it, at ``agent_host``.
     """
 
+    tool_call_limits: (
+        dict[Literal["diagnosis", "submission"], Annotated[int, Field(ge=0)]] | None
+    ) = Field(default=None, exclude_if=lambda value: value is None)
     access: AgentAccess | None = None
     sandbox: bool = False
     bind_host: str | None = None

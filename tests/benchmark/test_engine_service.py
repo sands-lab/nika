@@ -51,6 +51,7 @@ ENDPOINTS = AgentEndpoints(
     servers=["kathara_base_mcp_server", "task_mcp_server"],
 )
 GATEWAY = GatewayRequest(
+    tool_call_limits={"diagnosis": 12, "submission": 1},
     access=AgentAccess(role="release", policy=AccessPolicy(node_roles=["host"])),
     sandbox=True,
     bind_host="0.0.0.0",
@@ -266,3 +267,9 @@ def test_engine_gateway_exports_the_engine_gateway_for_one_agent_run(
         ("agent_endpoints", HANDLE.model_copy(update={"resources": []}), GATEWAY),
         ("close_agent_endpoints", HANDLE.model_copy(update={"resources": []})),
     ]
+
+
+def test_default_gateway_request_retains_published_engine_wire_schema() -> None:
+    payload = GatewayRequest().model_dump(mode="json")
+    assert "tool_call_limits" not in payload
+    assert set(payload) == {"access", "sandbox", "bind_host", "agent_host"}

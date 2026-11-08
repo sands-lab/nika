@@ -503,7 +503,21 @@ class AgentSettings(BaseModel):
     temperature: float | None = None
     top_p: float | None = None
     seed: int | None = None
+    # Host-enforced primitive MCP calls per phase. Missing phases have no cap.
+    tool_call_limits: dict[Literal["diagnosis", "submission"], int] = Field(
+        default_factory=dict
+    )
+    # Refuse sandbox generation requests for a different model.
+    fixed_model: bool = False
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
+
+    @field_validator("tool_call_limits")
+    @classmethod
+    def _tool_limits_non_negative(cls, values: dict[str, int]) -> dict[str, int]:
+        if any(value < 0 for value in values.values()):
+            raise ValueError("agent.tool_call_limits must be non-negative")
+        return values
+
     access: AgentAccessSettings = Field(default_factory=AgentAccessSettings)
     submission: AgentSubmissionSettings = Field(default_factory=AgentSubmissionSettings)
 

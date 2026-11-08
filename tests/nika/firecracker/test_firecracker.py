@@ -484,3 +484,20 @@ def test_case_image_needs_the_lab_image_build_it_was_taken_from(tmp_path) -> Non
     # The lab image was rebuilt under the same key: its memory differs.
     (lab / "meta.json").write_text(json.dumps({"session_id": "s", "created": 2.0}))
     assert case._ready_case("case1") is None
+
+
+def test_guest_plugin_does_not_require_activation_in_image_only_store(monkeypatch):
+    from types import SimpleNamespace
+    from nika.firecracker import base
+
+    monkeypatch.setattr(
+        base.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout="")
+    )
+    monkeypatch.setattr(base.platform, "machine", lambda: "x86_64")
+    assert base._host_plugins() == ["kathara/katharanp_vde:amd64"]
+    monkeypatch.setattr(
+        base.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(stdout="kathara/katharanp_vde:pinned true\n"),
+    )
+    assert base._host_plugins() == ["kathara/katharanp_vde:pinned"]

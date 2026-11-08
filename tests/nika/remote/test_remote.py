@@ -420,3 +420,38 @@ def test_log_follower_appends_each_remote_line_once(
     ]
     assert "diagnosis_frozen" in (tmp_path / "messages.jsonl").read_text()
     assert follower.clock_offset_sec is not None
+
+
+def test_attach_preserves_controller_policy_and_budget():
+    from nika.remote.protocol import McpAttachRequest
+    from nika.remote import handlers
+    from nika.benchmark_engine.protocol import AgentAccess
+
+    policy = AgentAccess.model_validate(
+        {
+            "role": "observer",
+            "policy": {"tools": ["run_pingmesh_snapshot"]},
+        }
+    )
+    request = McpAttachRequest(
+        access=policy, tool_call_limits={"diagnosis": 1, "submission": 2}
+    )
+    state = handlers.RemoteHandlerState()
+    with (
+        patch.object(handlers, "SessionStore") as store,
+        patch.object(handlers, "get_handler_state", return_value=state),
+        patch.object(state, "attach_gateway") as attach,
+    ):
+        store.return_value.get_session.return_value = {
+            "status": "running",
+            "scenario_name": "dc_clos",
+            "backend": "kathara",
+        }
+        handlers.handle_mcp_attach("session", request)
+    assert attach.call_args.kwargs["access"] == policy
+    assert attach.call_args.kwargs["tool_call_limits"] == {
+        "diagnosis": 1,
+        "submission": 2,
+    }
+    with pytest.raises(ValueError):
+        McpAttachRequest(tool_call_limits={"diagnosis": -1})
