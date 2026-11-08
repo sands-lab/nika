@@ -21,6 +21,35 @@ from nika.firecracker import image
 pytestmark = pytest.mark.unit
 
 
+@pytest.mark.parametrize("injected", [False, True])
+@pytest.mark.parametrize("verify", [False, True])
+def test_restored_images_resume_protocols_and_keep_case_fault_checks(injected, verify):
+    from types import SimpleNamespace
+    from nika.firecracker.trial import TrialLab
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"execution": {"firecracker": {"verify_after_restore": verify}}}}
+        )
+    )
+    lab = TrialLab({}, trial_key="owned", owner="test")
+    lab.image = SimpleNamespace(session_id="image")
+    if injected:
+        lab.case = SimpleNamespace(session_id="injected", key="case")
+    with (
+        patch(
+            "nika.remote.workflows.remote_rebind_session", return_value="trial"
+        ) as rebind,
+        patch("nika.remote.workflows._client") as client,
+        patch("nika.firecracker.trial._record_trial_timings"),
+    ):
+        client.return_value.fault_artifact.return_value = {"present": True}
+        assert lab.attach(session_id="trial") == "trial"
+    assert rebind.call_args.kwargs["restore_runtime"] is True
+    assert client.return_value.fault_artifact.call_count == int(injected)
+    assert client.return_value.verify_session.call_count == int(verify and not injected)
+
+
 @pytest.fixture(autouse=True)
 def _clean_run_config():
     reset_run_config()

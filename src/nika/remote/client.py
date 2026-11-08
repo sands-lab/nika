@@ -179,9 +179,12 @@ class RemoteClient:
         new_session_id: str,
         *,
         agent_session_id: str | None = None,
+        restore_runtime: bool = False,
     ) -> SessionRebindResponse:
         body = SessionRebindRequest(
-            session_id=new_session_id, agent_session_id=agent_session_id
+            session_id=new_session_id,
+            agent_session_id=agent_session_id,
+            restore_runtime=restore_runtime,
         ).model_dump()
         return SessionRebindResponse.model_validate(
             self._request("POST", f"/v1/sessions/{session_id}/rebind", body=body)

@@ -365,6 +365,16 @@ def handle_session_rebind(
     new_dir = old_dir.parent / new_id
     if new_dir.exists():
         raise ValueError(f"Results directory {new_dir} already exists.")
+    bound = bound_injected_problem(session_id)
+    restore_ms = None
+    runtime_restored = False
+    if request.restore_runtime:
+        from nika.workflows.session.close import session_net_env
+
+        bind_session_dir(old_dir)
+        started = time.monotonic()
+        runtime_restored = session_net_env(meta).post_restore()
+        restore_ms = round((time.monotonic() - started) * 1000, 1)
     old_dir.rename(new_dir)
     for name in FOLLOWED_LOGS:
         log = new_dir / name
@@ -379,7 +389,6 @@ def handle_session_rebind(
         else:
             log.rename(kept)
     # A fault injected before the snapshot (case image) stays checkable.
-    bound = bound_injected_problem(session_id)
     if bound is not None:
         bind_injected_problem(new_id, *bound)
         clear_injected_problem(session_id)
@@ -392,6 +401,7 @@ def handle_session_rebind(
         created_at=now,
         updated_at=now,
         rebound_from=session_id,
+        runtime_restored=runtime_restored,
     )
     store.create_session(doc)
     store.delete_session(session_id, status="finished")
@@ -399,6 +409,13 @@ def handle_session_rebind(
     session.load_running_session(session_id=new_id)
     session._write_run_json({k: v for k, v in session.__dict__.items() if k != "store"})
     bind_session_dir(new_dir)
+    if runtime_restored:
+        log_event(
+            "env_restore",
+            "Resumed environment protocol sessions",
+            session_id=new_id,
+            duration_ms=restore_ms,
+        )
     log_event(
         "session_rebind",
         f"Session {session_id} continues as {new_id}",
@@ -411,10 +428,9 @@ def handle_session_rebind(
 
 
 def handle_session_verify(session_id: str) -> dict[str, Any]:
-    """Run the startup lab verification of a running session again.
+    """Verify a running environment before failure injection.
 
-    Uses the same check and retry budget as ``nika env run`` (``verify_lab_with_retry``),
-    e.g. to confirm a lab restored from a lab image before injecting a fault.
+    Protocol recovery requires full checks. Other sessions use the configured depth.
     """
     from nika.net_env.verify import verify_lab_with_retry
     from nika.workflows.session.close import session_net_env
@@ -425,7 +441,7 @@ def handle_session_verify(session_id: str) -> dict[str, Any]:
     bind_session_dir(str(meta["session_dir"]))
     net_env = session_net_env(meta)
     started = time.monotonic()
-    result = verify_lab_with_retry(net_env)
+    result = verify_lab_with_retry(net_env, full=bool(meta.get("runtime_restored")))
     verified = result is not None  # None: the scenario has no startup verification
     outcome = "passed again" if verified else "skipped (no startup verification)"
     log_event(

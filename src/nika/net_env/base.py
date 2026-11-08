@@ -369,6 +369,15 @@ class NetworkEnvBase:
         """Run once the lab is deployed and verified."""
         return
 
+    def post_restore(self) -> bool:
+        """Resume transient protocols while preserving the running configuration.
+
+        Called for healthy and injected snapshots. Never restore deployment
+        defaults: a case image must keep its injected fault. Healthy snapshots
+        require full verification when this hook changes protocol state.
+        """
+        return False
+
     def seal_baseline(self) -> None:
         """Leave no pristine on-disk baseline that a fault could be diffed against.
 
