@@ -11,6 +11,8 @@ failure:
       down_time: '1'
       host_name: client_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -25,6 +27,8 @@ failure:
       down_time: '1'
       host_name: dns_pod0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -39,6 +43,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -53,6 +59,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -67,6 +75,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -81,6 +91,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -95,6 +107,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -109,6 +123,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -123,6 +139,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -138,6 +156,8 @@ failure:
       down_time: '1'
       host_name: client_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -153,6 +173,8 @@ failure:
       down_time: '1'
       host_name: dns_pod0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -168,6 +190,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -183,6 +207,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -198,6 +224,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -213,6 +241,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -228,6 +258,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -243,6 +275,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -258,6 +292,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -273,6 +309,8 @@ failure:
       down_time: '1'
       host_name: client_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -288,6 +326,8 @@ failure:
       down_time: '1'
       host_name: dns_pod0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -303,6 +343,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -317,6 +359,8 @@ failure:
       down_time: '1'
       host_name: client_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -331,6 +375,8 @@ failure:
       down_time: '1'
       host_name: client_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -345,6 +391,8 @@ failure:
       down_time: '1'
       host_name: dns_pod0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -359,6 +407,8 @@ failure:
       down_time: '1'
       host_name: dns_pod1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -373,6 +423,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -387,6 +439,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -401,6 +455,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -415,6 +471,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -429,6 +487,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -443,6 +503,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -457,6 +519,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -471,6 +535,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -485,6 +551,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -499,6 +567,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -513,6 +583,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -527,6 +599,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -541,6 +615,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -555,6 +631,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -569,6 +647,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -583,6 +663,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -597,6 +679,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -611,6 +695,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -625,6 +711,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -639,6 +727,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -653,6 +743,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -667,6 +759,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -681,6 +775,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -695,6 +791,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -709,6 +807,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -723,6 +823,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -737,6 +839,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -751,6 +855,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -765,6 +871,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -779,6 +887,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -793,6 +903,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -807,6 +919,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -821,6 +935,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -835,6 +951,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -849,6 +967,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -863,6 +983,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -877,6 +999,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -891,6 +1015,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -905,6 +1031,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -919,6 +1047,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -933,6 +1063,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -947,6 +1079,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -961,6 +1095,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -975,6 +1111,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -989,6 +1127,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1003,6 +1143,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1017,6 +1159,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1031,6 +1175,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1045,6 +1191,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1059,6 +1207,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1073,6 +1223,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1087,6 +1239,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1101,6 +1255,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1115,6 +1271,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1129,6 +1287,8 @@ failure:
       down_time: '1'
       host_name: client_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1143,6 +1303,8 @@ failure:
       down_time: '1'
       host_name: client_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1157,6 +1319,8 @@ failure:
       down_time: '1'
       host_name: client_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1171,6 +1335,8 @@ failure:
       down_time: '1'
       host_name: client_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1185,6 +1351,8 @@ failure:
       down_time: '1'
       host_name: dns_pod0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1199,6 +1367,8 @@ failure:
       down_time: '1'
       host_name: dns_pod1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1213,6 +1383,8 @@ failure:
       down_time: '1'
       host_name: dns_pod2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1227,6 +1399,8 @@ failure:
       down_time: '1'
       host_name: dns_pod3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1241,6 +1415,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1255,6 +1431,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1269,6 +1447,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1283,6 +1463,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1297,6 +1479,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1311,6 +1495,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1325,6 +1511,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1339,6 +1527,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_0
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1353,6 +1543,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1367,6 +1559,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1381,6 +1575,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1395,6 +1591,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1409,6 +1607,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1423,6 +1623,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1437,6 +1639,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1451,6 +1655,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1465,6 +1671,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_1
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1479,6 +1687,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1493,6 +1703,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1507,6 +1719,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1521,6 +1735,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1535,6 +1751,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1549,6 +1767,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1563,6 +1783,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1577,6 +1799,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1591,6 +1815,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_2
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1605,6 +1831,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1619,6 +1847,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1633,6 +1863,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1647,6 +1879,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1661,6 +1895,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1675,6 +1911,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1689,6 +1927,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1703,6 +1943,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1717,6 +1959,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_3
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1731,6 +1975,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_4
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1745,6 +1991,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_4
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1759,6 +2007,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_4
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1773,6 +2023,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_4
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1787,6 +2039,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_4
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1801,6 +2055,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_4
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1815,6 +2071,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_4
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1829,6 +2087,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_4
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1843,6 +2103,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_4
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1857,6 +2119,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_5
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1871,6 +2135,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_5
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1885,6 +2151,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_5
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1899,6 +2167,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_5
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1913,6 +2183,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_5
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1927,6 +2199,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_5
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1941,6 +2215,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_5
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1955,6 +2231,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_5
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1969,6 +2247,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_5
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1983,6 +2263,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_6
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -1997,6 +2279,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_6
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2011,6 +2295,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_6
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2025,6 +2311,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_6
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2039,6 +2327,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_6
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2053,6 +2343,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_6
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2067,6 +2359,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_6
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2081,6 +2375,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_6
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2095,6 +2391,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_6
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2109,6 +2407,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_7
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2123,6 +2423,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_7
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2137,6 +2439,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_7
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2151,6 +2455,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_7
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2165,6 +2471,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_7
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2179,6 +2487,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_7
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2193,6 +2503,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_7
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2207,6 +2519,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_7
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2221,6 +2535,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_0_7
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2235,6 +2551,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2249,6 +2567,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2263,6 +2583,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2277,6 +2599,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2291,6 +2615,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2305,6 +2631,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2319,6 +2647,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2333,6 +2663,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_0
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2347,6 +2679,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2361,6 +2695,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2375,6 +2711,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2389,6 +2727,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2403,6 +2743,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2417,6 +2759,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2431,6 +2775,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2445,6 +2791,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2459,6 +2807,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_1
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2473,6 +2823,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2487,6 +2839,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2501,6 +2855,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2515,6 +2871,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2529,6 +2887,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2543,6 +2903,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2557,6 +2919,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2571,6 +2935,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2585,6 +2951,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_2
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2599,6 +2967,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2613,6 +2983,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2627,6 +2999,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2641,6 +3015,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2655,6 +3031,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2669,6 +3047,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2683,6 +3063,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2697,6 +3079,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2711,6 +3095,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_3
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2725,6 +3111,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_4
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2739,6 +3127,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_4
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2753,6 +3143,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_4
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2767,6 +3159,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_4
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2781,6 +3175,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_4
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2795,6 +3191,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_4
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2809,6 +3207,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_4
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2823,6 +3223,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_4
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2837,6 +3239,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_4
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2851,6 +3255,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_5
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2865,6 +3271,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_5
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2879,6 +3287,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_5
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2893,6 +3303,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_5
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2907,6 +3319,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_5
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2921,6 +3335,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_5
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2935,6 +3351,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_5
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2949,6 +3367,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_5
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2963,6 +3383,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_5
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2977,6 +3399,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_6
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -2991,6 +3415,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_6
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3005,6 +3431,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_6
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3019,6 +3447,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_6
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3033,6 +3463,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_6
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3047,6 +3479,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_6
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3061,6 +3495,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_6
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3075,6 +3511,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_6
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3089,6 +3527,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_6
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3103,6 +3543,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_7
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3117,6 +3559,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_7
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3131,6 +3575,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_7
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3145,6 +3591,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_7
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3159,6 +3607,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_7
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3173,6 +3623,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_7
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3187,6 +3639,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_7
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3201,6 +3655,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_7
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3215,6 +3671,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_1_7
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3229,6 +3687,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3243,6 +3703,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3257,6 +3719,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3271,6 +3735,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3285,6 +3751,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_0
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3299,6 +3767,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_0
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3313,6 +3783,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_0
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3327,6 +3799,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_0
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3341,6 +3815,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3355,6 +3831,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3369,6 +3847,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3383,6 +3863,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3397,6 +3879,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_1
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3411,6 +3895,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_1
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3425,6 +3911,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_1
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3439,6 +3927,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_1
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3453,6 +3943,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_1
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3467,6 +3959,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3481,6 +3975,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3495,6 +3991,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3509,6 +4007,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3523,6 +4023,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_2
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3537,6 +4039,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_2
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3551,6 +4055,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_2
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3565,6 +4071,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_2
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3579,6 +4087,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_2
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3593,6 +4103,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3607,6 +4119,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3621,6 +4135,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3635,6 +4151,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3649,6 +4167,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_3
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3663,6 +4183,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_3
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3677,6 +4199,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_3
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3691,6 +4215,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_3
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3705,6 +4231,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_3
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3719,6 +4247,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_4
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3733,6 +4263,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_4
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3747,6 +4279,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_4
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3761,6 +4295,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_4
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3775,6 +4311,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_4
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3789,6 +4327,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_4
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3803,6 +4343,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_4
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3817,6 +4359,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_4
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3831,6 +4375,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_4
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3845,6 +4391,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_5
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3859,6 +4407,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_5
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3873,6 +4423,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_5
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3887,6 +4439,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_5
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3901,6 +4455,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_5
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3915,6 +4471,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_5
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3929,6 +4487,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_5
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3943,6 +4503,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_5
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3957,6 +4519,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_5
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3971,6 +4535,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_6
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3985,6 +4551,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_6
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -3999,6 +4567,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_6
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4013,6 +4583,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_6
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4027,6 +4599,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_6
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4041,6 +4615,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_6
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4055,6 +4631,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_6
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4069,6 +4647,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_6
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4083,6 +4663,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_6
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4097,6 +4679,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_7
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4111,6 +4695,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_7
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4125,6 +4711,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_7
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4139,6 +4727,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_7
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4153,6 +4743,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_7
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4167,6 +4759,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_7
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4181,6 +4775,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_7
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4195,6 +4791,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_7
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4209,6 +4807,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_2_7
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4223,6 +4823,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4237,6 +4839,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4251,6 +4855,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4265,6 +4871,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4279,6 +4887,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_0
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4293,6 +4903,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_0
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4307,6 +4919,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_0
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4321,6 +4935,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_0
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4335,6 +4951,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4349,6 +4967,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4363,6 +4983,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4377,6 +4999,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4391,6 +5015,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_1
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4405,6 +5031,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_1
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4419,6 +5047,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_1
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4433,6 +5063,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_1
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4447,6 +5079,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_1
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4461,6 +5095,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4475,6 +5111,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4489,6 +5127,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4503,6 +5143,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4517,6 +5159,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_2
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4531,6 +5175,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_2
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4545,6 +5191,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_2
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4559,6 +5207,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_2
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4573,6 +5223,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_2
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4587,6 +5239,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4601,6 +5255,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4615,6 +5271,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4629,6 +5287,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4643,6 +5303,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_3
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4657,6 +5319,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_3
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4671,6 +5335,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_3
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4685,6 +5351,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_3
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4699,6 +5367,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_3
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4713,6 +5383,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_4
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4727,6 +5399,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_4
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4741,6 +5415,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_4
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4755,6 +5431,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_4
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4769,6 +5447,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_4
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4783,6 +5463,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_4
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4797,6 +5479,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_4
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4811,6 +5495,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_4
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4825,6 +5511,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_4
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4839,6 +5527,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_5
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4853,6 +5543,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_5
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4867,6 +5559,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_5
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4881,6 +5575,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_5
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4895,6 +5591,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_5
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4909,6 +5607,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_5
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4923,6 +5623,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_5
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4937,6 +5639,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_5
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4951,6 +5655,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_5
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4965,6 +5671,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_6
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4979,6 +5687,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_6
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -4993,6 +5703,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_6
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5007,6 +5719,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_6
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5021,6 +5735,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_6
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5035,6 +5751,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_6
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5049,6 +5767,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_6
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5063,6 +5783,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_6
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5077,6 +5799,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_6
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5091,6 +5815,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_7
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5105,6 +5831,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_7
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5119,6 +5847,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_7
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5133,6 +5863,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_7
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5147,6 +5879,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_7
       intf_name: eth4
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5161,6 +5895,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_7
       intf_name: eth5
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5175,6 +5911,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_7
       intf_name: eth6
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5189,6 +5927,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_7
       intf_name: eth7
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5203,6 +5943,8 @@ failure:
       down_time: '1'
       host_name: leaf_router_3_7
       intf_name: eth8
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5217,6 +5959,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5231,6 +5975,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5245,6 +5991,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5259,6 +6007,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5273,6 +6023,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5287,6 +6039,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5301,6 +6055,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5315,6 +6071,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5329,6 +6087,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5343,6 +6103,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5357,6 +6119,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5371,6 +6135,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5385,6 +6151,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5399,6 +6167,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5413,6 +6183,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5427,6 +6199,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5441,6 +6215,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_4
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5455,6 +6231,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_4
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5469,6 +6247,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_4
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5483,6 +6263,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_4
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5497,6 +6279,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_5
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5511,6 +6295,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_5
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5525,6 +6311,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_5
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5539,6 +6327,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_5
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5553,6 +6343,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_6
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5567,6 +6359,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_6
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5581,6 +6375,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_6
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5595,6 +6391,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_6
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5609,6 +6407,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_7
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5623,6 +6423,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_7
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5637,6 +6439,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_7
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5651,6 +6455,8 @@ failure:
       down_time: '1'
       host_name: spine_router_0_7
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5665,6 +6471,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5679,6 +6487,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5693,6 +6503,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5707,6 +6519,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5721,6 +6535,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5735,6 +6551,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5749,6 +6567,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5763,6 +6583,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5777,6 +6599,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5791,6 +6615,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5805,6 +6631,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5819,6 +6647,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5833,6 +6663,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5847,6 +6679,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5861,6 +6695,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5875,6 +6711,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5889,6 +6727,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_4
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5903,6 +6743,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_4
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5917,6 +6759,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_4
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5931,6 +6775,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_4
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5945,6 +6791,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_5
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5959,6 +6807,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_5
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5973,6 +6823,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_5
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -5987,6 +6839,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_5
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6001,6 +6855,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_6
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6015,6 +6871,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_6
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6029,6 +6887,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_6
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6043,6 +6903,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_6
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6057,6 +6919,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_7
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6071,6 +6935,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_7
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6085,6 +6951,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_7
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6099,6 +6967,8 @@ failure:
       down_time: '1'
       host_name: spine_router_1_7
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6113,6 +6983,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6127,6 +6999,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6141,6 +7015,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6155,6 +7031,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6169,6 +7047,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6183,6 +7063,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6197,6 +7079,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6211,6 +7095,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6225,6 +7111,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6239,6 +7127,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6253,6 +7143,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6267,6 +7159,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6281,6 +7175,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6295,6 +7191,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6309,6 +7207,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6323,6 +7223,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6337,6 +7239,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_4
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6351,6 +7255,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_4
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6365,6 +7271,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_4
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6379,6 +7287,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_4
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6393,6 +7303,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_5
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6407,6 +7319,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_5
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6421,6 +7335,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_5
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6435,6 +7351,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_5
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6449,6 +7367,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_6
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6463,6 +7383,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_6
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6477,6 +7399,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_6
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6491,6 +7415,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_6
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6505,6 +7431,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_7
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6519,6 +7447,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_7
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6533,6 +7463,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_7
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6547,6 +7479,8 @@ failure:
       down_time: '1'
       host_name: spine_router_2_7
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6561,6 +7495,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_0
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6575,6 +7511,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_0
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6589,6 +7527,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_0
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6603,6 +7543,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_0
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6617,6 +7559,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_1
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6631,6 +7575,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_1
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6645,6 +7591,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_1
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6659,6 +7607,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_1
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6673,6 +7623,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_2
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6687,6 +7639,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_2
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6701,6 +7655,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_2
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6715,6 +7671,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_2
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6729,6 +7687,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_3
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6743,6 +7703,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_3
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6757,6 +7719,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_3
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6771,6 +7735,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_3
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6785,6 +7751,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_4
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6799,6 +7767,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_4
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6813,6 +7783,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_4
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6827,6 +7799,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_4
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6841,6 +7815,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_5
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6855,6 +7831,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_5
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6869,6 +7847,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_5
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6883,6 +7863,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_5
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6897,6 +7879,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_6
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6911,6 +7895,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_6
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6925,6 +7911,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_6
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6939,6 +7927,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_6
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6953,6 +7943,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_7
       intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6967,6 +7959,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_7
       intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6981,6 +7975,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_7
       intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
@@ -6995,6 +7991,8 @@ failure:
       down_time: '1'
       host_name: spine_router_3_7
       intf_name: eth3
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
       up_time: '1'
     root_causes:
     - resource:
