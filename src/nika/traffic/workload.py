@@ -187,22 +187,18 @@ def _start_node(
     runtime: LabRuntime, processes: list[WorkloadProcess]
 ) -> list[WorkloadProcess]:
     """Install and launch one node's processes; return those not running."""
-    launched = False
+    commands = []
     for process in processes:
         if _running(runtime, process):
             continue
         encoded = base64.b64encode(_app_source(process.app).encode()).decode()
-        runtime.exec(
-            process.node,
+        commands.append(
             f"mkdir -p {INSTALL_DIR} && printf '%s' {encoded} | base64 -d "
-            f"> {process.path} && chmod 755 {process.path}",
+            f"> {process.path} && chmod 755 {process.path} && "
+            f"(setsid nohup {process.command_line} >/dev/null 2>&1 </dev/null &)"
         )
-        runtime.exec(
-            process.node,
-            f"setsid nohup {process.command_line} >/dev/null 2>&1 </dev/null &",
-        )
-        launched = True
-    if launched:
+    if commands:
+        runtime.exec(processes[0].node, "\n".join(commands))
         time.sleep(1.0)
     return [p for p in processes if not _running(runtime, p)]
 
