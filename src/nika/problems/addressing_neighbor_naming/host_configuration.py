@@ -926,11 +926,6 @@ class HostIncorrectDNS(ProblemBase):
         lines = [
             line for line in resolv.splitlines() if not line.startswith("nameserver")
         ]
-        self.runtime.write_file(
-            params.host_name,
-            "/etc/resolv.conf",
-            "\n".join([*lines, f"nameserver {fake}"]) + "\n",
-        )
         self.runtime.exec(
             params.host_name,
             # dhclient rewrites resolv.conf at lease renewal. Keep the same
@@ -942,6 +937,13 @@ class HostIncorrectDNS(ProblemBase):
             # Drop static hosts overrides so name lookups must use DNS.
             "sed -i -E '/\\sweb0\\.(local|pod0)\\s*$/d' /etc/hosts 2>/dev/null || true; "
             "sed -i -E '/\\swebserver/d' /etc/hosts 2>/dev/null || true",
+        )
+        # Install the renewal override before changing the live resolver, so
+        # a lease renewal between the two writes cannot restore the real DNS.
+        self.runtime.write_file(
+            params.host_name,
+            "/etc/resolv.conf",
+            "\n".join([*lines, f"nameserver {fake}"]) + "\n",
         )
 
     def verify_fault(self, params: HostIncorrectDNSParams) -> dict:

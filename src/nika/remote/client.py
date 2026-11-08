@@ -120,9 +120,9 @@ class RemoteClient:
         )
 
     def fault_artifact(
-        self, session_id: str, *, timeout: float = 30.0
+        self, session_id: str, *, timeout: float = 180.0
     ) -> dict[str, Any]:
-        """Bound the network wait for a benchmark artifact recheck."""
+        """Bound the recheck wait, including slow Docker reads and their retry."""
         payload = self._request(
             "GET", f"/v1/sessions/{session_id}/fault-artifact", timeout=timeout
         )

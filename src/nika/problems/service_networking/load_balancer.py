@@ -43,12 +43,9 @@ _VIP_PING_HOST = "web99.local"
 # Behavioral gates (fixed workload; not adaptive at runtime).
 # Pinned LB under ab flood typically lands ~0.7–0.9 of quota; 0.80 was flaky.
 _NGINX_CPU_MIN_RATIO = 0.65
-# The release pin of 0.2 CPU is wider than the ab flood on this nginx.
-# Cap the applied quota so that flood fills the slice. At 0.05 CPU nginx still
-# serves ~120 req/s (~2.5 kpps per hop), which saturates the emulated links on
-# the flood path, so the shared farm uplink congested and slowed web0 as well;
-# at 0.02 CPU (~600 pps) the LB accept queue is the only bottleneck.
-_APPLIED_QUOTA_CAP = 0.02
+# Bound LB capacity so the surge queues at the LB while the parallel web
+# path remains responsive on small hosts.
+_APPLIED_QUOTA_CAP = 0.01
 _VIP_TAIL_MIN_RATIO = 2.0
 # web0 shares the campus farm uplink with VIP flood traffic, so mild inflation
 # is expected. Require success and that control stays clearly healthier than VIP.
@@ -70,10 +67,10 @@ _ORACLE_VIP_SLOWDOWN = 3.0
 _ORACLE_LB_CONNECTIONS = 100
 
 
-def _timed_curl(label: str, url: str, samples: int) -> str:
+def _timed_curl(label: str, url: str) -> str:
     return (
-        f"for i in $(seq {samples}); do curl -s -o /dev/null -m 10 "
-        f"-w '{label} %{{http_code}} %{{time_total}}\\n' {shlex.quote(url)}; done"
+        "curl -s -o /dev/null -m 10 "
+        f"-w '{label} %{{http_code}} %{{time_total}}\\n' {shlex.quote(url)}"
     )
 
 
@@ -257,8 +254,9 @@ class LoadBalancerOverload(ProblemBase):
             steps=[
                 shell(
                     client,
-                    f"{_timed_curl('vip', params.vip_url, 5)}; "
-                    f"{_timed_curl('control', params.control_url, 5)}",
+                    "for i in $(seq 5); do "
+                    f"({_timed_curl('vip', params.vip_url)}) & "
+                    f"({_timed_curl('control', params.control_url)}) & wait; done",
                     f"From {client}, time requests through the VIP ({params.vip_url}) "
                     f"and to the parallel web server ({params.control_url}).",
                     Check(
@@ -272,11 +270,12 @@ class LoadBalancerOverload(ProblemBase):
                 ),
                 shell(
                     params.backend_probe_host,
-                    _timed_curl("backend", params.backend_url, 3),
+                    "for i in $(seq 3); do "
+                    f"{_timed_curl('backend', params.backend_url)}; done",
                     f"Request a VIP backend directly ({params.backend_url}).",
                     contains(r"^backend 200 ", "the backend answers 200"),
                     evidence=True,
-                    timeout=40,
+                    timeout=60,
                 ),
                 shell(
                     lb,
@@ -291,6 +290,7 @@ class LoadBalancerOverload(ProblemBase):
                         ),
                     ),
                     evidence=True,
+                    timeout=30,
                 ),
                 shell(
                     lb,
@@ -302,7 +302,9 @@ class LoadBalancerOverload(ProblemBase):
                         _cpu_throttled,
                     ),
                     evidence=True,
-                    timeout=20,
+                    timeout=40,
+                    attempts=6,
+                    interval_sec=5,
                 ),
             ],
         )

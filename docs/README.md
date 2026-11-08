@@ -55,7 +55,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
 | Construct and verify routing, SDN and P4 environments | [Environment construction and verification](development/scenario-verification.md) | Explanation |
 | Check which release 0.2.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
-| Keep published releases runnable from the current CLI through versioned contracts | [Benchmark release contracts](development/benchmark-contracts.md) | Explanation |
+| Integrate the frontend with a release's benchmark engine | [Benchmark release contracts](development/benchmark-contracts.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
 
 ## Maintain the documentation

@@ -17,7 +17,7 @@ configure_SRL() {
   local node=$1
   local out
   out=$(gnmic -a "${MGMT_IP[$node]}:57400" --timeout 30s -u admin -p "$SRL_PASSWORD" -e json_ietf --skip-verify set --update-path / --update-file "$CFG_DIR/$node.yaml" 2>&1)
-  if echo "$out" | grep -q -e '"operation": "UPDATE"'; then
+  if grep -q -e '"operation": "UPDATE"' <<< "$out"; then
     docker exec "clab-__LAB_NAME__-$node" sr_cli "save startup" > /dev/null
     return 0
   fi

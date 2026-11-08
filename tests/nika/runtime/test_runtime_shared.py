@@ -10,11 +10,56 @@ from unittest.mock import MagicMock
 
 from nika.net_env.verify import frr_bgp_established_peers, srl_bgp_established_peers
 from nika.runtime.containerlab.runtime import ContainerlabRuntime
+from nika.runtime.base import RuntimeCapabilityError
+from nika.runtime.shared.containers import isolated_container_pid
 from nika.runtime.shared.execution import merge_exec_output
-from nika.service.containerlab.host_tc import host_veth_for
+from nika.service.containerlab.host_tc import HostTcController, host_veth_for
 from nika.service.kathara.docker_utils import link_neighbors
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize(
+    "mode,pid", [("host", 123), ("none", 0), ("none", 1), (None, 123)]
+)
+def test_lab_operations_reject_host_or_unresolved_namespaces(mode, pid) -> None:
+    container = SimpleNamespace(
+        id="unsafe",
+        attrs={"HostConfig": {"NetworkMode": mode}, "State": {"Pid": pid}},
+        reload=lambda: None,
+    )
+    with pytest.raises(RuntimeCapabilityError):
+        isolated_container_pid(container)
+
+
+def test_joined_container_namespace_cannot_hide_host_network() -> None:
+    host = SimpleNamespace(
+        id="host",
+        attrs={"HostConfig": {"NetworkMode": "host"}, "State": {"Pid": 123}},
+        reload=lambda: None,
+    )
+    joined = SimpleNamespace(
+        id="joined",
+        attrs={"HostConfig": {"NetworkMode": "container:host"}, "State": {"Pid": 456}},
+        reload=lambda: None,
+        client=SimpleNamespace(containers=SimpleNamespace(get=lambda _: host)),
+    )
+    with pytest.raises(RuntimeCapabilityError, match="host"):
+        isolated_container_pid(joined)
+    host.attrs["HostConfig"]["NetworkMode"] = "none"
+    assert isolated_container_pid(joined) == 456
+
+
+def test_host_controller_rejects_pid_in_host_network_namespace(monkeypatch) -> None:
+    container = SimpleNamespace(
+        id="node",
+        attrs={"HostConfig": {"NetworkMode": "none"}, "State": {"Pid": 123}},
+        reload=lambda: None,
+    )
+    controller = HostTcController(SimpleNamespace(get_container=lambda _: container))
+    monkeypatch.setattr(controller, "_run", lambda *args: "4026531840\n4026531840\n")
+    with pytest.raises(RuntimeCapabilityError, match="host network namespace"):
+        controller.set_node_link_down("pc1", "eth0")
 
 
 def test_exec_output_merges_streams_without_markers() -> None:

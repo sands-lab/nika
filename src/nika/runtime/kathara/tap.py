@@ -9,7 +9,7 @@ import subprocess
 from collections.abc import Callable, Iterable
 
 from nika.runtime.base import RuntimeCapabilityError
-from nika.runtime.shared.containers import docker_client
+from nika.runtime.shared.containers import docker_client, isolated_container_pid
 from nika.utils.logger import log_event
 from nika.utils.parallel import bounded_parallel_map
 
@@ -31,8 +31,18 @@ def _owner_aliases(lab_name: str) -> tuple[str, str]:
 # sysfs works in BusyBox images whose `ip` lacks -j and alias (e.g. Routinator);
 # reading it works even where /sys is read-only. One exec lists TAPs and sets
 # aliases; stdout reports FOREIGN (other owner) or NEED_HELPER (no netlink).
-def _record_script(lab_name: str) -> str:
+def _record_script(lab_name: str, tx_queue_len: int | None = None) -> str:
     owner, legacy = _owner_aliases(lab_name)
+    queue = ""
+    if tx_queue_len is not None:
+        # The TAP's internal TUN queue can buffer VDE traffic even when the
+        # tc qdisc has no backlog. Keep any smaller queue the user selected.
+        queue = f"""
+        if [ "$(cat "$dev/tx_queue_len")" -gt {tx_queue_len} ] &&
+            ! ip link set dev "$ifname" txqueuelen {tx_queue_len} >/dev/null 2>&1; then
+            printf 'NEED_HELPER\\t%s\\n' "$ifname"
+        fi
+"""
     return f"""
 owner={shlex.quote(owner)}
 legacy={shlex.quote(legacy)}
@@ -42,6 +52,7 @@ for dev in /sys/class/net/*; do
     ifname=${{dev##*/}}
     alias=$(cat "$dev/ifalias" 2>/dev/null || true)
     if [ "$alias" = "$owner" ]; then
+{queue}
         continue
     fi
     if [ -n "$alias" ] && [ "$alias" != "$legacy" ]; then
@@ -49,6 +60,7 @@ for dev in /sys/class/net/*; do
         exit 1
     fi
     if ip link set dev "$ifname" alias "$owner" >/dev/null 2>&1; then
+{queue}
         continue
     fi
     printf 'NEED_HELPER\\t%s\\n' "$ifname"
@@ -79,9 +91,15 @@ def _exec_output(result) -> str:
     return str(raw)
 
 
-def record_container_taps(container, lab_name: str) -> None:
+def record_container_taps(
+    container, lab_name: str, *, tx_queue_len: int | None = None
+) -> None:
     """Mark only TAPs in a container owned by this lab, including replacements."""
-    result = container.exec_run(["/bin/sh", "-c", _record_script(lab_name)])
+    if tx_queue_len is not None:
+        isolated_container_pid(container)
+    result = container.exec_run(
+        ["/bin/sh", "-c", _record_script(lab_name, tx_queue_len)]
+    )
     output = _exec_output(result)
     foreign, helpers = _parse_record_output(output)
     if foreign:
@@ -96,13 +114,29 @@ def record_container_taps(container, lab_name: str) -> None:
     if not helpers:
         return
     owner = tap_owner(lab_name)
+    commands = []
+    for ifname in helpers:
+        name = shlex.quote(ifname)
+        if tx_queue_len is not None:
+            commands.append(
+                f'dev=/sys/class/net/{name}; test -r "$dev/tun_flags"; '
+                'test $(($(cat "$dev/tun_flags") & 2)) -ne 0; '
+                'alias=$(cat "$dev/ifalias"); '
+                f'[ -z "$alias" ] || [ "$alias" = {shlex.quote(owner)} ] '
+                f'|| [ "$alias" = {shlex.quote("nika:" + owner)} ]'
+            )
+        commands.append(f"ip link set dev {name} alias {shlex.quote(owner)}")
+        if tx_queue_len is not None:
+            commands.append(
+                f'if [ "$(cat "$dev/tx_queue_len")" -gt {tx_queue_len} ]; then '
+                f"ip link set dev {name} txqueuelen {tx_queue_len}; fi"
+            )
+    if tx_queue_len is not None:
+        isolated_container_pid(container)
     command = [
         "/bin/sh",
         "-ec",
-        "\n".join(
-            f"ip link set dev {shlex.quote(ifname)} alias {shlex.quote(owner)}"
-            for ifname in helpers
-        ),
+        "\n".join(commands),
     ]
     _run_net_admin_helper(
         command,
@@ -116,13 +150,14 @@ def record_lab_taps(
     containers: Iterable,
     lab_name: str,
     *,
+    tx_queue_len: int | None = None,
     on_error: Callable[[object, BaseException], None] | None = None,
 ) -> None:
     """Mark TAP ownership in every running container, concurrently."""
 
     def record(container) -> None:
         try:
-            record_container_taps(container, lab_name)
+            record_container_taps(container, lab_name, tx_queue_len=tx_queue_len)
         except Exception as exc:
             if on_error is None:
                 raise

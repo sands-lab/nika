@@ -50,7 +50,9 @@ def _collect(runtime, plan, bgp_plan, traffic, *, full):
             commands.extend(
                 [
                     VerifyCommand(node.device_name, SRL_FIB_COMMAND, 30),
-                    VerifyCommand(node.device_name, 'sr_cli "show interface system0"'),
+                    VerifyCommand(
+                        node.device_name, 'sr_cli "show interface system0"', 30
+                    ),
                 ]
             )
         if bgp_plan:
@@ -129,6 +131,7 @@ def _collect(runtime, plan, bgp_plan, traffic, *, full):
                     VerifyCommand(
                         observer,
                         f'sr_cli "ping {origin.ping_address} network-instance default -c 3{source_arg}"',
+                        30,
                     )
                 )
     return collect_verify_commands(runtime, commands)
@@ -325,7 +328,7 @@ def _inventory_addresses_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
             runtime,
             node.device_name,
             'sr_cli "show interface system0"',
-            timeout=20,
+            timeout=30,
         )
         return node.loopback in output
 
@@ -442,7 +445,7 @@ def _srl_ping_ok(
         runtime,
         device,
         f'sr_cli "ping {target} network-instance default -c 3{source_arg}"',
-        timeout=20,
+        timeout=30,
     )
     return "3 received" in output or "3 packets received" in output
 

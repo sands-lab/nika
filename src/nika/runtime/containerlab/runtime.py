@@ -6,6 +6,7 @@ import json
 import subprocess
 import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from nika.runtime.base import LabRuntime
 from nika.runtime.containerlab.parse import parse_clab_topology
 from nika.runtime.shared.containers import (
     docker_client,
+    isolated_container_pid,
     pause_container,
     unpause_container,
 )
@@ -52,6 +54,7 @@ class ContainerlabRuntime(LabRuntime):
         self._node_containers: dict[str, docker.models.containers.Container] = {}
         self._node_map_lock = threading.Lock()
         self._topology_neighbors: dict[str, list[str]] | None = None
+        self._netns_links: dict[Path, tuple[str, Path, int]] = {}
 
     @property
     def backend(self) -> str:
@@ -235,6 +238,11 @@ class ContainerlabRuntime(LabRuntime):
         # destroying their veth endpoints.
         from nika.service.containerlab.host_tc import HostTcController
 
+        self._remember_netns(
+            self._docker.containers.list(
+                all=True, filters={"label": f"containerlab={self._lab_name}"}
+            )
+        )
         HostTcController.cleanup_lab(self._lab_name)
         result = self._run_clab(
             "destroy",
@@ -246,8 +254,63 @@ class ContainerlabRuntime(LabRuntime):
             print(
                 f"Error destroying containerlab lab {self._lab_name}: {result.stderr or result.stdout}"
             )
+        # A successful clab destroy can leave stopped nodes behind. The
+        # topology may also be gone after an interrupted session close.
+        remaining = self._docker.containers.list(
+            all=True, filters={"label": f"containerlab={self._lab_name}"}
+        )
+        self._remember_netns(remaining)
+        for container in remaining:
+            try:
+                container.remove(force=True, v=True)
+            except docker.errors.NotFound:
+                pass
+        for path in self._owned_netns():
+            subprocess.run(
+                ["sudo", "-n", "unlink", "--", str(path)],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
         with self._node_map_lock:
             self._node_containers = {}
+
+    def has_leftover_resources(self) -> bool:
+        containers = self._docker.containers.list(
+            all=True, filters={"label": f"containerlab={self._lab_name}"}
+        )
+        self._remember_netns(containers)
+        return bool(containers) or any(self._owned_netns())
+
+    def _remember_netns(self, containers: list) -> None:
+        # Names alone cannot separate labs such as "lab" and "lab-extra".
+        # Remember only exact container names supplied by this lab's label.
+        for container in containers:
+            path = Path("/var/run/netns") / container.name
+            previous = self._netns_links.get(path)
+            if previous is not None and previous[0] == container.id:
+                continue
+            try:
+                if path.is_symlink():
+                    self._netns_links[path] = (
+                        container.id,
+                        path.readlink(),
+                        path.lstat().st_ino,
+                    )
+            except FileNotFoundError:
+                pass
+
+    def _owned_netns(self) -> Iterator[Path]:
+        for path, (_container_id, target, inode) in self._netns_links.items():
+            try:
+                if (
+                    path.is_symlink()
+                    and path.lstat().st_ino == inode
+                    and path.readlink() == target
+                ):
+                    yield path
+            except FileNotFoundError:
+                pass
 
     def exists(self) -> bool:
         return self._refresh_node_map() and bool(self._node_containers)
@@ -320,13 +383,16 @@ class ContainerlabRuntime(LabRuntime):
 
         def _run() -> str:
             try:
+                isolated_container_pid(container)
                 _, (stdout, stderr) = container.exec_run(
                     ["/bin/sh", "-c", shell_cmd], demux=True
                 )
             except docker.errors.NotFound:
                 # The lab was redeployed under the same name; look it up again.
                 self._forget_container(node, container)
-                _, (stdout, stderr) = self._cached_container(node).exec_run(
+                replacement = self.get_container(node)
+                isolated_container_pid(replacement)
+                _, (stdout, stderr) = replacement.exec_run(
                     ["/bin/sh", "-c", shell_cmd], demux=True
                 )
             return merge_exec_output(stdout, stderr)

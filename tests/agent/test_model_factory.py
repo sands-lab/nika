@@ -222,6 +222,27 @@ def test_load_model_deepseek_ignores_reasoning_effort() -> None:
     assert "reasoning_effort" not in ctor.call_args.kwargs
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint_source", ["argument", "environment"])
+async def test_deepseek_clients_use_model_proxy(
+    monkeypatch: pytest.MonkeyPatch, endpoint_source: str
+) -> None:
+    proxy_url = "http://127.0.0.1:54321/"
+    monkeypatch.setenv("OPENAI_BASE_URL", proxy_url)
+    model = load_model(
+        llm_provider="deepseek",
+        model="deepseek-flash",
+        api_key="proxy-token",
+        base_url=proxy_url if endpoint_source == "argument" else None,
+    )
+    try:
+        assert str(model.root_client.base_url) == proxy_url
+        assert str(model.root_async_client.base_url) == proxy_url
+    finally:
+        model.root_client.close()
+        await model.root_async_client.close()
+
+
 def test_load_model_rejects_unknown_provider() -> None:
     with pytest.raises(ValueError, match="Unsupported llm provider"):
         load_model(llm_provider="nope", model="x")

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import pwd
 import re
 import secrets
 import subprocess
@@ -189,6 +190,8 @@ def _docker_run_args(
         "-e",
         f"NIKA_GID={os.getgid()}",
         "-e",
+        f"NIKA_USER={pwd.getpwuid(os.getuid()).pw_name}",
+        "-e",
         f"{ENV_ENGINE_TOKEN}={token}",
         *_bind("/var/run/docker.sock"),
         *_bind(RUNTIME_DIR),
@@ -276,7 +279,49 @@ def engine_container(
         _wait_ready(container)
         yield container
     finally:
-        logs = _run(["docker", "logs", name])
-        with (results_root / "benchmark_engine.log").open("a", encoding="utf-8") as log:
-            log.write(logs.stdout + logs.stderr)
-        _run(["docker", "stop", "--time", "30", name])
+        container_id = started.stdout.strip()
+        try:
+            logs = _run(["docker", "logs", name])
+            with (results_root / "benchmark_engine.log").open(
+                "a", encoding="utf-8"
+            ) as log:
+                log.write(logs.stdout + logs.stderr)
+        finally:
+            try:
+                stopped = _run(
+                    ["docker", "stop", "--time", "30", container_id], timeout=40.0
+                )
+                stop_detail = stopped.stderr.strip()
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                stop_detail = str(exc)
+            deadline = time.monotonic() + 30.0
+            while (remaining := deadline - time.monotonic()) > 0:
+                try:
+                    state = _run(
+                        [
+                            "docker",
+                            "ps",
+                            "-aq",
+                            "--no-trunc",
+                            "--filter",
+                            f"id={container_id}",
+                        ],
+                        timeout=min(10.0, remaining),
+                    )
+                except (subprocess.TimeoutExpired, OSError) as exc:
+                    raise EngineContainerError(
+                        f"Could not confirm removal of engine container {container_id}: {exc}"
+                    ) from exc
+                if state.returncode != 0:
+                    raise EngineContainerError(
+                        f"Could not confirm removal of engine container {container_id}: "
+                        f"{state.stderr.strip()}"
+                    )
+                if not state.stdout.strip():
+                    break
+                time.sleep(min(0.2, max(0.0, deadline - time.monotonic())))
+            else:
+                raise EngineContainerError(
+                    f"Engine container {container_id} still exists after waiting 30s "
+                    f"for removal. docker stop: {stop_detail or 'no error message'}"
+                )
