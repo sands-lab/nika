@@ -108,7 +108,6 @@ class BenchmarkEngine:
                 scenario,
                 size,
                 redeploy=True,
-                release=request.release,
                 result_dir=request.result_dir,
                 session_tag=request.session_tag,
                 session_id=request.session_id,
