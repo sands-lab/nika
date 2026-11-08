@@ -10,8 +10,8 @@ failure:
     inject:
       forwarding_device: spine_1
       intf_name: eth0
-      observer_device: client_0
-      probe_dst_ip: 10.0.1.2
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
       seed: '42'
     root_causes:
     - resource:
@@ -25,8 +25,8 @@ failure:
     inject:
       forwarding_device: spine_1
       intf_name: eth0
-      observer_device: client_0
-      probe_dst_ip: 10.0.1.2
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
       seed: '42'
     root_causes:
     - resource:
@@ -40,8 +40,8 @@ failure:
     inject:
       forwarding_device: spine_1
       intf_name: eth0
-      observer_device: client_0
-      probe_dst_ip: 10.0.1.2
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
       seed: '42'
     root_causes:
     - resource:

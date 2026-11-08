@@ -251,9 +251,9 @@ def resolve_link_flap_params(
     """Pin link_flap inject target and probe path so baseline is healthy and on-path."""
     params: dict[str, str] = {"down_time": "1", "up_time": "1"}
 
-    if scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
-        model = getattr(net_env, "model", None)
-        if model is not None and getattr(model, "client_endpoints", None):
+    model = getattr(net_env, "model", None)
+    if callable(getattr(model, "probe_endpoints", None)):
+        if model.client_endpoints():
             observer = model.client_endpoints()[0]
             victim = next(
                 web for web in model.web_endpoints() if web.leaf_id != observer.leaf_id
@@ -280,9 +280,17 @@ def resolve_link_flap_params(
             return params
 
     if scenario == "min3clos":
+        # leaf1's port toward client1; its name depends on the router platform.
+        leaf_port = next(
+            end.split(":", 1)[1]
+            for link in net_env.get_topology()
+            if "client1:eth1" in link
+            for end in link
+            if end.startswith("leaf1:")
+        )
         params.update(
             host_name="leaf1",
-            intf_name="e1-2",
+            intf_name=leaf_port,
             up_time=CARRIER_FLAP_UP_SEC,
             probe_dst_ip="10.0.0.27",
             observer_device="client1",
@@ -298,15 +306,6 @@ def resolve_link_flap_params(
             intf_name="eth0",
             probe_dst_ip="10.0.20.2",
             observer_device=corp_src,
-        )
-        return params
-
-    if scenario == "dc_clos":
-        params.update(
-            host_name="client_0",
-            intf_name="eth0",
-            probe_dst_ip="10.0.1.2",
-            observer_device="client_0",
         )
         return params
 
@@ -336,19 +335,20 @@ def resolve_link_corruption_params(
     host0: str,
 ) -> dict[str, str]:
     """Pin link_packet_corruption on the probe path with a low corrupt rate."""
-    if scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
-        model = getattr(net_env, "model", None)
-        if model is not None and getattr(model, "leaf_spine_links", None):
+    model = getattr(net_env, "model", None)
+    if callable(getattr(model, "probe_endpoints", None)):
+        if model.leaf_spine_links:
             observer = model.client_endpoints()[0]
             victim = next(
                 web for web in model.web_endpoints() if web.leaf_id != observer.leaf_id
             )
-            leaf = f"leaf_{observer.leaf_id}"
-            spine = next(sp for lf, sp in model.leaf_spine_links if lf == leaf)
-            port = model.port_to_peer(leaf, spine)
+            leaf = f"leaf_{victim.leaf_id}"
+            port = model.port_to_peer(leaf, victim.name)
+            if port is None:
+                raise ValueError(f"No declared attachment for {victim.name}")
             return {
                 "host_name": leaf,
-                "intf_name": port.name if port is not None else "eth2",
+                "intf_name": port.name,
                 "probe_dst_ip": victim.ip,
                 "observer_device": observer.name,
                 "corruption_percentage": "12",
