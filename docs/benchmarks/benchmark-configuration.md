@@ -117,15 +117,15 @@ failure:
     - topo_size: s
       device_profile: iosxr
       inject:
-        host_name: leaf_router_0_0
+        host_name: spine_1
       root_causes:
         - resource:
             kind: node
-            node: leaf_router_0_0
+            node: spine_1
           fault_type: bgp_asn_misconfig
 ```
 
-A case targets a native router only when the failure can run there. A failure declares the native router operations it needs in `native_router_operations`, and each vendor provider implements a set of operations (see [Create benchmark tasks](../development/creating-benchmark-tasks.md#add-an-injectable-failure)). Other targets stay on FRR and Linux nodes. In `campus_lan` and `enterprise_branch` only some router roles convert, so many cases of these profiles target FRR routers and hosts in a mixed-vendor lab. Ground truth names NIKA nodes and Linux interface names, as for FRR rows.
+A case targets a native router only when the failure can run there. A failure declares the native router operations it needs in `native_router_operations`, and each vendor provider implements a set of operations (see [Create benchmark tasks](../development/creating-benchmark-tasks.md#add-an-injectable-failure)). Other targets stay on FRR and Linux nodes. In `dc_clos`, `campus_lan` and `enterprise_branch` only some router roles convert, so many cases of these profiles target FRR routers and hosts in a mixed-vendor lab. Ground truth names NIKA nodes and Linux interface names, as for FRR rows.
 
 Compatibility also requires a backend supported by both the failure and the environment. For failures with a minimum path bandwidth-delay product (BDP), generation checks any declared nominal RTT and profile bandwidth limit. The shipped RouterOS CHR profile uses the [free license's 1 Mbps per-interface limit](https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud%2BHosted%2BRouter%2BCHR), so the enterprise WAN's designed 80 ms RTT cannot provide the 64 KiB BDP required by `tcp_receive_window_limited`. The pool excludes that deployment; runtime calibration still checks the actual flow before changing receiver buffers.
 

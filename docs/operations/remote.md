@@ -61,7 +61,7 @@ With remote mode enabled, use the usual workflow commands:
 
 ```shell
 nika env run dc_clos -s s
-nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
+nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
 nika session containers
 nika agent run -a mock
 nika session close -y

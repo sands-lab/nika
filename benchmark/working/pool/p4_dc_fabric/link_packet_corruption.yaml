@@ -24,6 +24,21 @@ failure:
       load_mbps: 1.0
     inject:
       corruption_percentage: '12'
+      host_name: client_1_2
+      intf_name: eth0
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+    root_causes:
+    - resource:
+        kind: link
+        name: client_1_2:eth0--leaf_1:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      corruption_percentage: '12'
       host_name: client_2_1
       intf_name: eth0
       observer_device: client_1_1
@@ -32,6 +47,21 @@ failure:
     - resource:
         kind: link
         name: client_2_1:eth0--leaf_2:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      corruption_percentage: '12'
+      host_name: client_2_2
+      intf_name: eth0
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+    root_causes:
+    - resource:
+        kind: link
+        name: client_2_2:eth0--leaf_2:eth2
       fault_type: link_packet_corruption
   - topo_size: s
     traffic:
@@ -54,6 +84,21 @@ failure:
       load_mbps: 1.0
     inject:
       corruption_percentage: '12'
+      host_name: client_3_2
+      intf_name: eth0
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+    root_causes:
+    - resource:
+        kind: link
+        name: client_3_2:eth0--leaf_3:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      corruption_percentage: '12'
       host_name: client_4_1
       intf_name: eth0
       observer_device: client_1_1
@@ -62,6 +107,21 @@ failure:
     - resource:
         kind: link
         name: client_4_1:eth0--leaf_4:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      corruption_percentage: '12'
+      host_name: client_4_2
+      intf_name: eth0
+      observer_device: client_1_1
+      probe_dst_ip: 10.0.2.11
+    root_causes:
+    - resource:
+        kind: link
+        name: client_4_2:eth0--leaf_4:eth2
       fault_type: link_packet_corruption
   - topo_size: s
     traffic:
@@ -85,13 +145,13 @@ failure:
     inject:
       corruption_percentage: '12'
       host_name: leaf_1
-      intf_name: eth2
+      intf_name: eth3
       observer_device: client_1_1
       probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
-        name: leaf_1:eth2--spine_1:eth0
+        name: leaf_1:eth3--spine_1:eth0
       fault_type: link_packet_corruption
   - topo_size: s
     traffic:
@@ -100,13 +160,13 @@ failure:
     inject:
       corruption_percentage: '12'
       host_name: leaf_1
-      intf_name: eth3
+      intf_name: eth4
       observer_device: client_1_1
       probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
-        name: leaf_1:eth3--spine_2:eth0
+        name: leaf_1:eth4--spine_2:eth0
       fault_type: link_packet_corruption
   - topo_size: s
     traffic:
@@ -130,13 +190,13 @@ failure:
     inject:
       corruption_percentage: '12'
       host_name: leaf_2
-      intf_name: eth2
+      intf_name: eth3
       observer_device: client_1_1
       probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
-        name: leaf_2:eth2--spine_1:eth1
+        name: leaf_2:eth3--spine_1:eth1
       fault_type: link_packet_corruption
   - topo_size: s
     traffic:
@@ -145,13 +205,13 @@ failure:
     inject:
       corruption_percentage: '12'
       host_name: leaf_2
-      intf_name: eth3
+      intf_name: eth4
       observer_device: client_1_1
       probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
-        name: leaf_2:eth3--spine_2:eth1
+        name: leaf_2:eth4--spine_2:eth1
       fault_type: link_packet_corruption
   - topo_size: s
     traffic:
@@ -175,13 +235,13 @@ failure:
     inject:
       corruption_percentage: '12'
       host_name: leaf_3
-      intf_name: eth2
+      intf_name: eth3
       observer_device: client_1_1
       probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
-        name: leaf_3:eth2--spine_1:eth2
+        name: leaf_3:eth3--spine_1:eth2
       fault_type: link_packet_corruption
   - topo_size: s
     traffic:
@@ -190,13 +250,13 @@ failure:
     inject:
       corruption_percentage: '12'
       host_name: leaf_3
-      intf_name: eth3
+      intf_name: eth4
       observer_device: client_1_1
       probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
-        name: leaf_3:eth3--spine_2:eth2
+        name: leaf_3:eth4--spine_2:eth2
       fault_type: link_packet_corruption
   - topo_size: s
     traffic:
@@ -220,13 +280,13 @@ failure:
     inject:
       corruption_percentage: '12'
       host_name: leaf_4
-      intf_name: eth2
+      intf_name: eth3
       observer_device: client_1_1
       probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
-        name: leaf_4:eth2--spine_1:eth3
+        name: leaf_4:eth3--spine_1:eth3
       fault_type: link_packet_corruption
   - topo_size: s
     traffic:
@@ -235,13 +295,13 @@ failure:
     inject:
       corruption_percentage: '12'
       host_name: leaf_4
-      intf_name: eth3
+      intf_name: eth4
       observer_device: client_1_1
       probe_dst_ip: 10.0.2.11
     root_causes:
     - resource:
         kind: link
-        name: leaf_4:eth3--spine_2:eth3
+        name: leaf_4:eth4--spine_2:eth3
       fault_type: link_packet_corruption
   - topo_size: m
     traffic:

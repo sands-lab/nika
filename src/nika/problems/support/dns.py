@@ -8,14 +8,19 @@ from nika.problems.support.oracle import Check, OracleStep, addr_step, contains,
 def dns_host_for_domain(
     net_env, domain: str, fallback: str | None = None
 ) -> str | None:
-    """Return the DNS server that serves ``domain`` (e.g. dns_pod1 -> pod1)."""
+    """Return a declared DNS server for ``domain``."""
     dns_servers = list((getattr(net_env, "servers", None) or {}).get("dns") or [])
     if not dns_servers:
         return fallback
+    zones = getattr(net_env, "dns_zones", None)
+    if zones is not None:
+        return next(
+            (host for host in dns_servers if domain in zones.get(host, ())), fallback
+        )
     if len(dns_servers) == 1:
         return dns_servers[0]
     for host in dns_servers:
-        # dc_clos: dns_pod{N} owns zone pod{N}
+        # Older environments encode zone ownership in the DNS node name.
         if host.startswith("dns_") and host[len("dns_") :] == domain:
             return host
     return fallback or dns_servers[0]

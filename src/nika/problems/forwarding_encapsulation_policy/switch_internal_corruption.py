@@ -57,16 +57,10 @@ def _spine_egress_toward_leaf(net_env, leaf_router: str) -> tuple[str, str] | No
                 continue
             other_ep = endpoints[1 - idx]
             other_host, other_intf = parse_endpoint(other_ep)
-            if other_host.startswith("spine_router_"):
+            if other_host.startswith("spine_"):
                 matches.append((other_host, other_intf))
     if not matches:
         return None
-    leaf_match = re.search(r"leaf_router_(\d+)_(\d+)", leaf_router)
-    if leaf_match is not None:
-        preferred = f"spine_router_{leaf_match.group(1)}_{leaf_match.group(2)}"
-        for host, intf in matches:
-            if host == preferred:
-                return host, intf
     return sorted(matches)[0]
 
 
@@ -80,7 +74,7 @@ def _leaf_router_for_web(net_env, web_host: str) -> tuple[str, str] | None:
             continue
         other = endpoints[0] if endpoints[1] == web_ep else endpoints[1]
         peer_host, peer_intf = parse_endpoint(other)
-        if peer_host.startswith("leaf_router_"):
+        if peer_host.startswith("leaf_"):
             return peer_host, peer_intf
     return None
 
@@ -154,7 +148,7 @@ def _probe_path_corruption_target(ctx) -> dict[str, str]:
 
     if scenario == "dc_clos":
         web_hosts = list(ctx.servers.get("web") or [])
-        web = prefer_named(web_hosts, "webserver0_pod0", first(web_hosts) or ctx.web0)
+        web = prefer_named(web_hosts, "web_1", first(web_hosts) or ctx.web0)
         leaf_match = _leaf_router_for_web(net_env, web) if web else None
         if leaf_match is not None:
             leaf_router, _leaf_intf = leaf_match

@@ -346,3 +346,17 @@ def test_ospf_ecmp_completes_equal_cost_paths_of_different_lengths(
     )
     assert result["ac"] == result["ab"] + result["bc"]
     assert all(1 <= cost <= 65535 for cost in result.values())
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+def test_shared_clos_router_profiles_preserve_original_packet_requirements(
+    profile, tmp_path, netcomplete_image, batfish_verifier
+):
+    from nika.workflows.validation.clos import build_routing_clos_experiment
+
+    spec = build_routing_clos_experiment(device_profile=profile)
+    result = validate_scenario_design(
+        spec, tmp_path, image=netcomplete_image, batfish_verifier=batfish_verifier
+    )
+    assert_scenario_acceptance(spec, result, tmp_path, runtime=False)

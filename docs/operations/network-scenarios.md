@@ -68,33 +68,29 @@ Fixed scenarios reject a size. Each SNDlib ISP topology is its own scenario ID (
 
 ## Data-center Clos scenario
 
-NIKA builds one Clos fabric from code. Each router runs FRR eBGP. Inter-router links use `/31` networks from `172.16.0.0/16`, and leaf access networks use `10.<pod>.<leaf>.0/24`.
+`dc_clos`, `sdn_l3_clos` and `p4_dc_fabric` use the [same Clos design](../../src/nika/net_env/clos/design.py): a complete leaf–spine graph, one web endpoint per leaf and the remaining endpoints as clients. Rack `i` uses `10.0.i.0/24`, gateway `.1` and endpoint addresses from `.11`.
 
-```text
-                    super-spine(s)
-                  /       |       \
-             spine(s) ... spine(s)
-               /  \           /  \
-            leaf  leaf  ...  leaf  leaf
-             |      |          |      |
-             +------ service endpoints
-```
-
-| Size | Super-spines and pods | Spines per pod | Leaves per pod |
+| Size | Spines | Leaves | Endpoints per leaf |
 | --- | ---: | ---: | ---: |
-| `s` | 1 | 2 | 2 |
-| `m` | 2 | 4 | 4 |
-| `l` | 4 | 8 | 8 |
+| `s` | 2 | 4 | 3 |
+| `m` | 4 | 8 | 4 |
+| `l` | 8 | 16 | 4 |
 
-Super-spine `n` uses AS 65000+`n`, spines use AS 651xx, and leaves use AS 652xx. Because the super-spines have distinct ASNs, external clients of different pods reach each other as well as the DNS and web services. Each pod's BIND server is authoritative only for its own pod zone, and clients fall back across the pod servers.
+Published benchmark releases retain their original topology bindings.
 
-Each pod has one authoritative BIND server, HTTP servers on the remaining leaves, and an external client on the super-spine (`192.168.<pod>.0/24`). Clients resolve names such as `web0.pod0`. Use this when the failure needs DNS or HTTP observability.
+| Environment | Forwarding implementation | Additional services |
+| --- | --- | --- |
+| `dc_clos` | FRR eBGP between routers; a bridge joins each leaf's access ports | BIND on `web_1` serves the `fabric` zone |
+| `sdn_l3_clos` | ONOS installs OpenFlow rules and SELECT groups on OVS | Out-of-band controller network |
+| `p4_dc_fabric` | P4Runtime installs LPM entries and ActionSelector groups on BMv2 | Out-of-band controller network and search fan-out traffic |
 
-Business traffic: the users behind each client browse every pod's web servers by name every few seconds and download `large.bin` (2 MB) from one of them every few minutes.
+In `dc_clos`, router ASNs start at 65001 in spine-then-leaf order, and inter-router links use `/31` networks from `172.16.0.0/16`. Clients browse names such as `web-2.fabric` and download `large.bin` (2 MB).
 
 ```shell
 uv run nika env run dc_clos -s s
 ```
+
+The [construction and verification guide](../development/scenario-verification.md#shared-clos-design) describes the common requirements and the checks specific to each implementation.
 
 ## Campus LAN scenario
 
@@ -197,26 +193,9 @@ uv run nika env run enterprise_branch -s s
 
 ### `sdn_l3_clos`
 
-Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open vSwitch (`fail-mode=secure`, OpenFlow 1.3). The out-of-band control network is `172.31.0.0/16` with ONOS at `172.31.0.100:6653`. On deploy, `ensure_nika_docker_images` builds `nika/onos` when missing or outdated and pulls `kathara/sdn` when missing. `nika/onos` is a multi-arch image: `kathara/base` plus a host-arch Temurin 11 JRE, with the ONOS Java tree copied from pinned `onosproject/onos:2.7-latest` (amd64-only upstream). That keeps Kathara's architecture check happy on Linux arm64 and amd64 without qemu. Each leaf owns rack prefix `10.0.<leaf>.0/24` with gateway `.1` and a shared virtual router MAC. Endpoints start at `.11` (one `web_*` nginx endpoint plus `client_*` workers per leaf). Business traffic: clients load pages and `small.bin` from the web servers every few seconds and download `large.bin` (16 MB) every few minutes. A host-side fabric manager installs proactive IPv4 forwarding and OpenFlow `SELECT` ECMP groups (stable five-tuple hash). No STP and no `NORMAL` learning fallback.
+Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open vSwitch (`fail-mode=secure`, OpenFlow 1.3). The out-of-band control network is `172.31.0.0/16` with ONOS at `172.31.0.100:6653`. On deploy, `ensure_nika_docker_images` builds `nika/onos` when missing or outdated and pulls `kathara/sdn` when missing. `nika/onos` is a multi-arch image: `kathara/base` plus a host-arch Temurin 11 JRE, with the ONOS Java tree copied from pinned `onosproject/onos:2.7-latest` (amd64-only upstream). That keeps Kathara's architecture check happy on Linux arm64 and amd64 without qemu. Leaves use a shared virtual router MAC. Business traffic: clients load pages and `small.bin` from the web servers every few seconds and download `large.bin` (16 MB) every few minutes. A host-side fabric manager installs proactive IPv4 forwarding and OpenFlow `SELECT` ECMP groups (stable five-tuple hash). No STP and no `NORMAL` learning fallback.
 
-```text
-                    ONOS
-                     |
-            OOB control network
-                     |
-          spine_1 ... spine_N
-           |\           /|
-           | \         / |
-         leaf_1 ...... leaf_M
-          | |          | |
-       web/client   web/client
-```
-
-| Size | Spines | Leaves | Endpoints per leaf |
-| --- | ---: | ---: | ---: |
-| `s` | 2 | 4 | 2 |
-| `m` | 4 | 8 | 4 |
-| `l` | 8 | 16 | 4 |
+Use the [shared Clos dimensions and endpoint layout](#data-center-clos-scenario).
 
 Deploy starts containers, waits for ONOS device discovery over live OpenFlow sessions, then installs proactive L3 flows and SELECT ECMP groups through the ONOS REST API so the controller keeps owning forwarding state. Controllers stay attached. Verification checks live OpenFlow sessions, topology consistency, addressing, cross-rack ICMP/HTTP, ECMP group shape, and controller vs OVS dataplane evidence. Diagnosis tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#sdn-kathara_sdn_mcp_server).
 
@@ -232,24 +211,7 @@ The two Kathara P4 scenarios start BMv2 `simple_switch_grpc` with no local table
 
 Symmetric leaf-spine L3 Clos of BMv2 `simple_switch_grpc` switches under a NIKA P4Runtime fabric manager. The out-of-band control network is `172.31.0.0/16` with `fabric_mgr` at `172.31.0.101`. Switches start with `--no-p4` and listen on `:9559`. Deploy compiles the v1model IPv4 fabric program once on a leaf, then `SetForwardingPipelineConfig` plus table/group writes program every switch. Role is table state: same-rack `/32` to the host port, remote `/24` via ActionSelector ECMP over all spines. Endpoints use `/32` addresses on rack `10.0.<leaf>.0/24`, send all IPv4 via gateway `.1`, and keep a permanent neighbor for the shared virtual router MAC. Business traffic: clients load pages and `small.bin` from the web servers and download `large.bin` (2 MB) every few minutes; `web_2` runs a search front end that about once a second queries up to four index shards on other web servers (UDP 11311), which all answer at once with 24 datagrams of 1400 bytes. Build `nika/fabric-controller` on deploy when missing or outdated (the image name must not contain `p4`; NIKA classifies `"p4" in image` as BMv2).
 
-```text
-                 fabric_mgr
-                      |
-             OOB control network
-                      |
-           spine_1 ... spine_N
-            |\           /|
-            | \         / |
-          leaf_1 ...... leaf_M
-           | |          | |
-        web/client   web/client
-```
-
-| Size | Spines | Leaves | Endpoints per leaf |
-| --- | ---: | ---: | ---: |
-| `s` | 2 | 4 | 2 |
-| `m` | 4 | 8 | 4 |
-| `l` | 8 | 16 | 4 |
+Use the [shared Clos dimensions and endpoint layout](#data-center-clos-scenario).
 
 Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs intent, same-rack and sparse cross-rack ICMP, HTTP to a remote web, and multi-flow ECMP counters on at least two spines. Diagnosis tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server).
 
@@ -340,7 +302,7 @@ uv run nika env run enterprise_branch -s s --device-profile iosxr
 | Environment | Routers on IOS XR | Routing on IOS XR | Sizes |
 | --- | --- | --- | --- |
 | `isp_<topology>` (SNDlib and Topology Zoo) | All | OSPF or Level-2 IS-IS; BGP `none`, `ibgp_rr` or `ebgp` with the business-prefix allow-list | Graphs that pass memory admission |
-| `dc_clos` | All | eBGP with multipath across spines | `s` |
+| `dc_clos` | Spines; FRR keeps the bridged leaves | eBGP with multipath across spines | `s` |
 | `campus_lan` | Core routers | Multi-area OSPF with the FRR distribution and server gateways | `s`, `m`, `l` |
 | `enterprise_branch` | Provider routers | Static underlay routes with the provider WAN delay | `s`, `m`, `l` |
 
@@ -714,7 +676,7 @@ cases:
       flow_sizes: hadoop
       load_mbps: 2
     inject:
-      host_name: leaf_router_0_0
+      host_name: leaf_1
       intf_name: eth1
 ```
 
@@ -771,7 +733,7 @@ cases:
     problem: link_down
     telemetry: [netflow, prometheus, syslog]
     inject:
-      host_name: leaf_router_0_0
+      host_name: leaf_1
       intf_name: eth0
 ```
 

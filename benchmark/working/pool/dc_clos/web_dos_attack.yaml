@@ -8,14 +8,14 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      attacker_device: client_0
-      host_name: webserver0_pod0
-      observer_device: dns_pod0
-      probe_url: http://10.0.1.2/small.bin
+      attacker_device: client_4_2
+      host_name: web_2
+      observer_device: client_1_1
+      probe_url: http://10.0.2.11/
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_2
       fault_type: web_dos_attack
   - topo_size: s
     device_profile: iosxr
@@ -23,14 +23,14 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      attacker_device: client_0
-      host_name: webserver0_pod0
-      observer_device: dns_pod0
-      probe_url: http://10.0.1.2/small.bin
+      attacker_device: client_4_2
+      host_name: web_2
+      observer_device: client_1_1
+      probe_url: http://10.0.2.11/
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_2
       fault_type: web_dos_attack
   - topo_size: s
     device_profile: routeros
@@ -38,40 +38,40 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      attacker_device: client_0
-      host_name: webserver0_pod0
-      observer_device: dns_pod0
-      probe_url: http://10.0.1.2/small.bin
+      attacker_device: client_4_2
+      host_name: web_2
+      observer_device: client_1_1
+      probe_url: http://10.0.2.11/
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_2
       fault_type: web_dos_attack
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      attacker_device: client_0
-      host_name: webserver0_pod0
-      observer_device: dns_pod0
-      probe_url: http://10.0.1.2/small.bin
+      attacker_device: client_8_3
+      host_name: web_2
+      observer_device: client_1_1
+      probe_url: http://10.0.2.11/
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_2
       fault_type: web_dos_attack
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      attacker_device: client_0
-      host_name: webserver0_pod0
-      observer_device: dns_pod0
-      probe_url: http://10.0.1.2/small.bin
+      attacker_device: client_16_3
+      host_name: web_2
+      observer_device: client_1_1
+      probe_url: http://10.0.2.11/
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_2
       fault_type: web_dos_attack

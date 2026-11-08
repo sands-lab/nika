@@ -82,7 +82,7 @@ def _sweep(
 
 def _ends(problem: Any, params: Any) -> dict[str, Any] | None:
     """Client, name URL and web server address from the scenario probe path."""
-    path = get_probe_path(problem.scenario_name or "")
+    path = get_probe_path(problem.scenario_name or "", net_env=problem.net_env)
     if path is None or not path.http_name_url or not path.dst_ip:
         return None
     website = getattr(params, "target_website", None)

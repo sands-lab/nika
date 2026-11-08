@@ -443,7 +443,7 @@ def test_release_ground_truth_is_in_submission_catalog(split) -> None:
         deploy = {k: case[k] for k in deploy_keys if case.get(k) is not None}
         key = (case["scenario"], case.get("topo_size") or "", *sorted(deploy.items()))
         if key not in catalogs:
-            env = load_offline_net_env(key[0], key[1], **deploy)
+            env = load_offline_net_env(key[0], key[1], **deploy, release="0.2.0")
             catalogs[key] = {item.id for item in catalog_resources(env)}
         for cause in case.get("root_causes") or []:
             resource_id = RootCause.model_validate(cause).resource_id

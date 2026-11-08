@@ -38,6 +38,9 @@ def _parse_web_url(url: str) -> tuple[str, str]:
 
 
 def _dns_record_targets(net_env, rng: random.Random) -> tuple[str, str]:
+    records = getattr(net_env, "dns_records", None)
+    if records:
+        return tuple(rng.choice(sorted(records)).split(".", 1))
     urls = getattr(net_env, "web_urls", None) or []
     if urls:
         return _parse_web_url(rng.choice(urls))
@@ -68,6 +71,9 @@ def _align_dns_record_inject(net_env, row: dict[str, str]) -> dict[str, str]:
 
 def web_server_for(net_env, website: str, domain: str) -> str | None:
     """Web server node that serves ``<website>.<domain>`` (web1 -> web_server_1)."""
+    records = getattr(net_env, "dns_records", None) or {}
+    if records:
+        return records.get(f"{website}.{domain}")
     m = re.search(r"(\d+)$", website)
     if not m:
         return None
@@ -150,6 +156,16 @@ class DNSRecordError(ProblemBase):
         website = inject.get("target_website", "")
         domain = inject.get("target_domain", "")
         host_name = inject.get("host_name", "")
+        records = getattr(ctx.net_env, "dns_records", None)
+        if records is not None:
+            zones = getattr(ctx.net_env, "dns_zones", {})
+            if domain not in zones.get(host_name, ()):
+                raise ValueError(
+                    f"DNS host {host_name!r} does not serve zone {domain!r}"
+                )
+            if f"{website}.{domain}" not in records:
+                raise ValueError(f"Unknown declared DNS record: {website}.{domain}")
+            return
         urls = getattr(ctx.net_env, "web_urls", None) or []
         if urls:
             matched = any(

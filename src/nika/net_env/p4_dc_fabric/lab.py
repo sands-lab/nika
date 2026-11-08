@@ -9,6 +9,7 @@ from typing import Literal
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
+from nika.net_env.clos.requirements import communication_contract
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.p4_dc_fabric.fabric_manager.apply import MANAGER, MANAGER_DIR
 from nika.net_env.p4_dc_fabric.topology_model import (
@@ -96,6 +97,8 @@ def _switch_startup(
 
 
 class P4DcFabric(NetworkEnvBase):
+    build_model = staticmethod(build_clos_fabric_model)
+    L2_CAPABILITIES = frozenset()
     LAB_NAME = "p4_dc_fabric"
     TOPO_LEVEL = "medium"
     VERIFY_MAX_WAIT_SEC = 420
@@ -106,8 +109,11 @@ class P4DcFabric(NetworkEnvBase):
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
         self.topo_size: TopoSize = topo_size
-        self.model: ClosFabricModel = build_clos_fabric_model(topo_size)
+        self.model: ClosFabricModel = self.build_model(topo_size)
         self.web_urls = list(self.model.web_urls)
+        self.validation_contract = communication_contract(
+            self.model, scenario=self.LAB_NAME, topo_size=topo_size
+        )
         self._host_ips = {e.name: e.ip for e in self.model.endpoints}
 
         self.desc = textwrap.dedent(f"""\
@@ -313,15 +319,7 @@ class P4DcFabric(NetworkEnvBase):
         model = build_clos_fabric_model(
             topo_size if topo_size in {"s", "m", "l"} else "s"
         )
-        clients = model.client_endpoints()
-        src = clients[0]
-        dst = next(w for w in model.web_endpoints() if w.leaf_id != src.leaf_id)
-        # A peer on a third leaf: its path to dst crosses the spines and dst's
-        # leaf but not src's leaf, so it controls for faults on src's leaf.
-        peer = next(
-            (c for c in clients if c.leaf_id not in {src.leaf_id, dst.leaf_id}),
-            next((c for c in clients if c.name != src.name), None),
-        )
+        src, dst, peer = model.probe_endpoints(deploy_kwargs.get("probe_source"))
         return ProbePath(
             src_host=src.name,
             dst_ip=dst.ip,

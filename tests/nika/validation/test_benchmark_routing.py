@@ -24,6 +24,18 @@ def test_max_prefix_impact_includes_exits_only_when_last_as_session_is_lost():
             ROOT / "benchmark/releases/0.2.0/test.yaml",
         ]
     )["isp_abilene--ospf--ebgp--kathara"]
+    # Keep the redundant-session control independent of the compact task selection.
+    profile["benchmark_cases"].append(
+        {
+            "problem": "bgp_max_prefix_exceeded",
+            "inject": {
+                "flood_count": "120",
+                "neighbor_ip": "10.0.0.21",
+                "peer_name": "losang",
+                "receiver_name": "hstnng",
+            },
+        }
+    )
     spec = build_benchmark_isp_experiment(profile)
     faults = {f.name: f for f in spec.failure_checks}
     redundant = faults["benchmark-max-prefix-hstnng"].expected_failed_ids
@@ -311,17 +323,8 @@ def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     assert fixed["features"] == ["rpki"]
     assert fixed["supported"]
     assert build_benchmark_isp_experiment(fixed).failure_checks[0].static_edits
-    profile = next(
-        profile
-        for profile in profiles.values()
-        if profile["deployment"]["backend"] == "kathara"
-        and profile["deployment"]["igp"] == "ospf"
-        and profile["deployment"]["bgp_mode"] == "none"
-        and any(
-            case["problem"] == "ospf_area_misconfiguration"
-            for case in profile["benchmark_cases"]
-        )
-    )
+    # This topology retains intermediate paths after its anchor is isolated.
+    profile = profiles["isp_janos-us--ospf--none--kathara"]
     spec = build_benchmark_isp_experiment(profile)
     assert spec.deployment.igp == "ospf"
     assert spec.deployment.bgp_mode == "none"

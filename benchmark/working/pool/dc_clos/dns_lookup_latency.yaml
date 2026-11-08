@@ -9,12 +9,12 @@ failure:
       load_mbps: 1.0
     inject:
       delay_ms: '1000'
-      host_name: dns_pod0
+      host_name: web_1
       intf_name: eth0
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_lookup_latency
   - topo_size: s
     device_profile: iosxr
@@ -23,12 +23,12 @@ failure:
       load_mbps: 1.0
     inject:
       delay_ms: '1000'
-      host_name: dns_pod0
+      host_name: web_1
       intf_name: eth0
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_lookup_latency
   - topo_size: s
     device_profile: routeros
@@ -37,12 +37,12 @@ failure:
       load_mbps: 1.0
     inject:
       delay_ms: '1000'
-      host_name: dns_pod0
+      host_name: web_1
       intf_name: eth0
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_lookup_latency
   - topo_size: m
     traffic:
@@ -50,12 +50,12 @@ failure:
       load_mbps: 1.0
     inject:
       delay_ms: '1000'
-      host_name: dns_pod0
+      host_name: web_1
       intf_name: eth0
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_lookup_latency
   - topo_size: l
     traffic:
@@ -63,10 +63,10 @@ failure:
       load_mbps: 1.0
     inject:
       delay_ms: '1000'
-      host_name: dns_pod0
+      host_name: web_1
       intf_name: eth0
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_lookup_latency

@@ -2,7 +2,7 @@
 
 Both scale with the fabric: every node is deployed, every configured eBGP
 session is Established with its planned peer, and (full check) every client
-reaches every pod's DNS server and fetches every web service by name.
+reaches every declared DNS server and fetches every web service.
 """
 
 from __future__ import annotations
@@ -31,14 +31,15 @@ from nika.utils.parallel import bounded_parallel_map
 def _bgp_failures(
     runtime: LabRuntime,
     bgp_neighbors: Mapping[str, Sequence[str]],
-    bgp_peers: BgpPeerQuery,
+    bgp_peers: BgpPeerQuery | Mapping[str, BgpPeerQuery],
 ) -> dict[str, list[str]]:
     """Return planned peers that are not Established, by router."""
 
     def missing(item: tuple[str, Sequence[str]]) -> list[str]:
         router, peers = item
-        summary = exec_or_empty(runtime, router, bgp_peers.command, timeout=20)
-        return sorted(set(peers) - bgp_peers.established_peers(summary))
+        query = bgp_peers[router] if isinstance(bgp_peers, Mapping) else bgp_peers
+        summary = exec_or_empty(runtime, router, query.command, timeout=20)
+        return sorted(set(peers) - query.established_peers(summary))
 
     items = sorted(bgp_neighbors.items())
     return {
@@ -82,7 +83,15 @@ def _collect(
     dns_servers=(),
     web_urls=(),
 ):
-    commands = [VerifyCommand(router, bgp_peers.command) for router in bgp_neighbors]
+    commands = [
+        VerifyCommand(
+            router,
+            (
+                bgp_peers[router] if isinstance(bgp_peers, Mapping) else bgp_peers
+            ).command,
+        )
+        for router in bgp_neighbors
+    ]
     for client in client_addresses:
         commands.append(VerifyCommand(client, "ip -4 -o addr show dev eth0", 10))
         commands.extend(
@@ -137,7 +146,7 @@ def verify_dc_clos_lab_startup(
     nodes: Sequence[str],
     bgp_neighbors: Mapping[str, Sequence[str]],
     client_addresses: Mapping[str, str],
-    bgp_peers: BgpPeerQuery = FRR_BGP_PEERS,
+    bgp_peers: BgpPeerQuery | Mapping[str, BgpPeerQuery] = FRR_BGP_PEERS,
 ) -> dict[str, Any]:
     """Readiness: all nodes deployed, all eBGP sessions up, clients addressed."""
     runtime = _collect(runtime, bgp_neighbors, client_addresses, bgp_peers)
@@ -176,9 +185,9 @@ def verify_dc_clos_lab(
     client_addresses: Mapping[str, str],
     dns_servers: Sequence[tuple[str, str]],
     web_urls: Sequence[str],
-    bgp_peers: BgpPeerQuery = FRR_BGP_PEERS,
+    bgp_peers: BgpPeerQuery | Mapping[str, BgpPeerQuery] = FRR_BGP_PEERS,
 ) -> dict[str, Any]:
-    """Startup checks plus every client reaching every pod's services."""
+    """Startup checks plus every client reaching the declared services."""
     runtime = _collect(
         runtime, bgp_neighbors, client_addresses, bgp_peers, dns_servers, web_urls
     )

@@ -902,14 +902,7 @@ def validate_scenario_design(
                     if native_srl
                     else "vtysh -c 'show ip route json'"
                 )
-            node = next(
-                (
-                    intent.source
-                    for intent in spec.healthy.intents
-                    if intent.source is not None
-                ),
-                None,
-            )
+            node = next(iter(env.routers or ()), None)
             if native_vendor:
                 node = next(iter(env.BGP_ROUTERS))
             node = node if node is None or isinstance(node, str) else node.name

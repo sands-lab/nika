@@ -152,7 +152,7 @@ To control each stage, run the same agent on an existing session. `nika env run`
 
 ```bash
 uv run nika env run dc_clos -s s
-uv run nika failure inject link_down --set host_name=client_0 --set intf_name=eth0
+uv run nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
 uv run nika agent run
 uv run nika session close -y
 uv run nika eval metrics --session_id <session_id>

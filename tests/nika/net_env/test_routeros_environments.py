@@ -39,9 +39,9 @@ def test_dc_clos_routeros_renders_every_ebgp_session():
         for peer in peers:
             assert f"remote.address={peer} " in config
     # Container eth2 of the leaf is RouterOS ether4.
-    leaf = native.deployment_configs["leaf_router_0_0"]
-    assert "address=10.0.0.1/24 interface=ether4" in leaf
-    assert "list=BGP-NETWORKS address=10.0.0.0/24" in leaf
+    leaf = native.deployment_configs["leaf_1"]
+    assert "address=10.0.1.1/24 interface=br0" in leaf
+    assert "list=BGP-NETWORKS address=10.0.1.0/24" in leaf
     with pytest.raises(ValueError, match="supports size s only"):
         from nika.net_env.net_env_pool import get_net_env_instance
 
@@ -123,8 +123,8 @@ def test_solved_parameters_translate_to_routeros_routers():
     exports = {
         "bgp_exports": [
             {
-                "node": "leaf_router_0_0",
-                "neighbor": "172.16.0.4",
+                "node": "leaf_1",
+                "neighbor": "172.16.0.1",
                 "terms": [
                     {"prefix": "10.0.0.0/24", "permit": True},
                     {"prefix": "10.0.1.0/24", "permit": False},
@@ -134,7 +134,7 @@ def test_solved_parameters_translate_to_routeros_routers():
     }
     leaf = get_net_env_instance(
         "dc_clos", topo_size="s", device_profile="routeros", routing_parameters=exports
-    ).deployment_configs["leaf_router_0_0"]
+    ).deployment_configs["leaf_1"]
     # First exact-prefix match applies; unmatched routes are rejected.
     rules = [line for line in leaf.splitlines() if "chain=NC-OUT-0 " in line]
     assert rules == [
@@ -143,7 +143,7 @@ def test_solved_parameters_translate_to_routeros_routers():
         '/routing filter rule add chain=NC-OUT-0 rule="reject;"',
     ]
     assert (
-        "remote.address=172.16.0.4 " in leaf and "output.filter-chain=NC-OUT-0" in leaf
+        "remote.address=172.16.0.1 " in leaf and "output.filter-chain=NC-OUT-0" in leaf
     )
     core = get_net_env_instance(
         "campus_lan",
@@ -249,7 +249,7 @@ def test_failure_providers_follow_the_router_profile():
     def problem(profile):
         return SimpleNamespace(net_env=_build("dc_clos", profile), runtime=None)
 
-    leaf = "leaf_router_0_0"
+    leaf = "leaf_1"
     ops = router_fault_ops(problem("routeros"), leaf)
     assert isinstance(ops, RouterOsFaultOps)
     assert isinstance(
@@ -260,7 +260,7 @@ def test_failure_providers_follow_the_router_profile():
     assert router_fault_ops(problem("frr"), leaf) is None
     assert native_fault_ops(problem("frr"), leaf, "block_bgp_transport") is None
     with pytest.raises(RuntimeCapabilityError, match="not supported on iosxr"):
-        native_fault_ops(problem("iosxr"), leaf, "set_tunnel_peer_public_key")
+        native_fault_ops(problem("iosxr"), "spine_1", "set_tunnel_peer_public_key")
     # RouterOS runs no separate routing daemon to stop.
     with pytest.raises(RuntimeCapabilityError, match="not supported on routeros"):
         native_fault_ops(problem("routeros"), leaf, "stop_routing_process")

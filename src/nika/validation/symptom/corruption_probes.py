@@ -45,7 +45,9 @@ CSUM_ERRORS_MIN = 5
 def _ends(problem: Any, params: Any) -> dict[str, Any]:
     """The scenario path across the fault and the host that owns its destination."""
     topo_size = getattr(problem.net_env, "topo_size", None) or "s"
-    path = _resolve_path(problem.scenario_name, params, topo_size=topo_size)
+    path = _resolve_path(
+        problem.scenario_name, params, topo_size=topo_size, net_env=problem.net_env
+    )
     if path is None or not path.dst_ip:
         return {"error": "no_probe_path"}
     dst_ip = ipaddress.ip_address(path.dst_ip)
@@ -159,7 +161,19 @@ def _data_flows_back(problem: Any, params: Any, ends: dict[str, Any]) -> bool:
     egress = _egress_device(problem.runtime, params.host_name, ends["dst"])
     if egress is None:
         return ends["dst_host"] == params.host_name
-    return egress != params.intf_name
+    route_interface = egress
+    if route_interface == params.intf_name:
+        return False
+    master = (
+        exec_or_empty(
+            problem.runtime,
+            params.host_name,
+            f"readlink /sys/class/net/{params.intf_name}/master",
+        )
+        .strip()
+        .rsplit("/", 1)[-1]
+    )
+    return route_interface != master
 
 
 def _egress_device(runtime: LabRuntime, host: str, ip: str) -> str | None:

@@ -10,7 +10,7 @@ failure:
     inject:
       host_name: leaf_1
       host_name_2: spine_1
-      port_name: eth2
+      port_name: eth3
       port_name_2: eth2
     root_causes:
     - resource:
@@ -24,7 +24,7 @@ failure:
     inject:
       host_name: leaf_2
       host_name_2: spine_1
-      port_name: eth2
+      port_name: eth3
       port_name_2: eth2
     root_causes:
     - resource:
@@ -38,7 +38,7 @@ failure:
     inject:
       host_name: leaf_3
       host_name_2: spine_1
-      port_name: eth2
+      port_name: eth3
       port_name_2: eth2
     root_causes:
     - resource:
@@ -52,7 +52,7 @@ failure:
     inject:
       host_name: leaf_4
       host_name_2: spine_1
-      port_name: eth2
+      port_name: eth3
       port_name_2: eth2
     root_causes:
     - resource:

@@ -8,14 +8,29 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_1
-      intf_name: eth2
+      host_name: leaf_1
+      intf_name: eth0
       mtu: '500'
     root_causes:
     - resource:
         kind: interface
-        node: leaf_router_0_1
-        name: eth2
+        node: leaf_1
+        name: eth0
+      fault_type: mtu_mismatch
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      intf_name: eth0
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth0
       fault_type: mtu_mismatch
   - topo_size: s
     device_profile: routeros
@@ -23,40 +38,40 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_1
-      intf_name: eth2
+      host_name: leaf_1
+      intf_name: eth0
       mtu: '500'
     root_causes:
     - resource:
         kind: interface
-        node: leaf_router_0_1
-        name: eth2
+        node: leaf_1
+        name: eth0
       fault_type: mtu_mismatch
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_1
-      intf_name: eth4
+      host_name: leaf_1
+      intf_name: eth0
       mtu: '500'
     root_causes:
     - resource:
         kind: interface
-        node: leaf_router_0_1
-        name: eth4
+        node: leaf_1
+        name: eth0
       fault_type: mtu_mismatch
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_router_0_1
-      intf_name: eth8
+      host_name: leaf_1
+      intf_name: eth0
       mtu: '500'
     root_causes:
     - resource:
         kind: interface
-        node: leaf_router_0_1
-        name: eth8
+        node: leaf_1
+        name: eth0
       fault_type: mtu_mismatch

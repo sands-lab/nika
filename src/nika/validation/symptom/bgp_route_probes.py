@@ -150,7 +150,7 @@ def _hijack_reading(problem: Any, params: Any) -> dict[str, Any]:
         reading["host_ping_received"] = stats.received
         # Localization control: the same host still reaches the scenario's
         # default destination, which lies outside the hijacked prefix.
-        path = get_probe_path(problem.scenario_name or "")
+        path = get_probe_path(problem.scenario_name or "", net_env=problem.net_env)
         control_ip = path.dst_ip if path is not None else None
         if control_ip and ipaddress.ip_address(control_ip) not in net:
             stats = ping_stats(runtime, stub, control_ip, count=5, interval_sec=0.2)

@@ -1,24 +1,18 @@
 {
-  "digest": "e9082fdd4a9dff4d5a8fa39d4c54e81a141061b67bba56ada4e5cfd41b2df2cb",
+  "digest": "909a5ee148b0a7c095ab1126bd3065976383f7a05b4186ff0e4ce6aa0a33554c",
   "netlab": "26.10",
   "routers": [
-    "leaf_router_0_0",
-    "leaf_router_0_1",
-    "leaf_router_0_2",
-    "leaf_router_0_3",
-    "leaf_router_1_0",
-    "leaf_router_1_1",
-    "leaf_router_1_2",
-    "leaf_router_1_3",
-    "spine_router_0_0",
-    "spine_router_0_1",
-    "spine_router_0_2",
-    "spine_router_0_3",
-    "spine_router_1_0",
-    "spine_router_1_1",
-    "spine_router_1_2",
-    "spine_router_1_3",
-    "super_spine_router_0",
-    "super_spine_router_1"
+    "leaf_1",
+    "leaf_2",
+    "leaf_3",
+    "leaf_4",
+    "leaf_5",
+    "leaf_6",
+    "leaf_7",
+    "leaf_8",
+    "spine_1",
+    "spine_2",
+    "spine_3",
+    "spine_4"
   ]
 }

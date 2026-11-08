@@ -80,4 +80,6 @@ def test_snapshot_rebuild_removes_obsolete_devices(tmp_path):
     build_kathara_snapshot(env, spec.healthy, tmp_path)
     assert not obsolete.exists()
     assert not (old_hosts / "obsolete-host.json").exists()
-    assert (snapshot.path / "configs/leaf_router_0_0.cfg").exists()
+    assert (snapshot.path / "configs/leaf_1.cfg").exists()
+    for endpoint in env.model.endpoints:
+        assert (snapshot.path / "configs" / f"{endpoint.name}.cfg").exists()

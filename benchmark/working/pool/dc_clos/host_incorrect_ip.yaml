@@ -8,11 +8,11 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: client_0
+      host_name: client_4_2
     root_causes:
     - resource:
         kind: interface
-        node: client_0
+        node: client_4_2
         name: eth0
       fault_type: host_incorrect_ip
   - topo_size: s
@@ -21,11 +21,11 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: client_0
+      host_name: client_1_1
     root_causes:
     - resource:
         kind: interface
-        node: client_0
+        node: client_1_1
         name: eth0
       fault_type: host_incorrect_ip
   - topo_size: s
@@ -34,11 +34,11 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: client_0
+      host_name: client_4_2
     root_causes:
     - resource:
         kind: interface
-        node: client_0
+        node: client_4_2
         name: eth0
       fault_type: host_incorrect_ip
   - topo_size: m
@@ -46,11 +46,11 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: client_0
+      host_name: client_8_3
     root_causes:
     - resource:
         kind: interface
-        node: client_0
+        node: client_8_3
         name: eth0
       fault_type: host_incorrect_ip
   - topo_size: l
@@ -58,10 +58,10 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: client_1
+      host_name: client_14_3
     root_causes:
     - resource:
         kind: interface
-        node: client_1
+        node: client_14_3
         name: eth0
       fault_type: host_incorrect_ip

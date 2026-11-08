@@ -8,13 +8,13 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
-      target_domain: pod0
-      target_website: web0
+      host_name: web_1
+      target_domain: fabric
+      target_website: web-3
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_record_error
   - topo_size: s
     device_profile: iosxr
@@ -22,13 +22,13 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
-      target_domain: pod0
-      target_website: web0
+      host_name: web_1
+      target_domain: fabric
+      target_website: web-1
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_record_error
   - topo_size: s
     device_profile: routeros
@@ -36,89 +36,37 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
-      target_domain: pod0
-      target_website: web0
+      host_name: web_1
+      target_domain: fabric
+      target_website: web-2
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
+        node: web_1
       fault_type: dns_record_error
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
-      target_domain: pod0
-      target_website: web0
+      host_name: web_1
+      target_domain: fabric
+      target_website: web-8
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
-      fault_type: dns_record_error
-  - topo_size: m
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: dns_pod1
-      target_domain: pod1
-      target_website: web0
-    root_causes:
-    - resource:
-        kind: node
-        node: dns_pod1
+        node: web_1
       fault_type: dns_record_error
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: dns_pod0
-      target_domain: pod0
-      target_website: web0
+      host_name: web_1
+      target_domain: fabric
+      target_website: web-12
     root_causes:
     - resource:
         kind: node
-        node: dns_pod0
-      fault_type: dns_record_error
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: dns_pod1
-      target_domain: pod1
-      target_website: web0
-    root_causes:
-    - resource:
-        kind: node
-        node: dns_pod1
-      fault_type: dns_record_error
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: dns_pod2
-      target_domain: pod2
-      target_website: web0
-    root_causes:
-    - resource:
-        kind: node
-        node: dns_pod2
-      fault_type: dns_record_error
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: dns_pod3
-      target_domain: pod3
-      target_website: web0
-    root_causes:
-    - resource:
-        kind: node
-        node: dns_pod3
+        node: web_1
       fault_type: dns_record_error

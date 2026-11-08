@@ -30,8 +30,8 @@ from tests.benchmark.trial_helpers import ROW_A, ROW_B, mini_cases_yaml
 pytestmark = pytest.mark.unit
 
 _RUNNER = CliRunner()
-TASK_A = "dc_clos__link_down__s__h0477bc828c02"
-TASK_B = "dc_clos__link_flap__s__hcc30df961cd6"
+TASK_A = "dc_clos__link_down__s__h3566275c1949"
+TASK_B = "dc_clos__link_flap__s__h5bcbcbe7247d"
 
 
 @pytest.fixture(autouse=True)
@@ -77,7 +77,7 @@ class TestTaskSelectors:
     def test_describe_payload_includes_inject(self) -> None:
         payload = describe_task_payload(ROW_A)
         assert payload["task_id"] == TASK_A
-        assert payload["inject"] == {"host_name": "client_0", "intf_name": "eth0"}
+        assert payload["inject"] == {"host_name": "client_1_1", "intf_name": "eth0"}
         assert "root_causes" not in payload
 
 
@@ -219,7 +219,7 @@ class TestBenchmarkCatalogCli:
         )
         assert described.exit_code == 0, described.output
         assert f"task_id: {TASK_A}" in described.output
-        assert "host_name: client_0" in described.output
+        assert "host_name: client_1_1" in described.output
         assert "intf_name: eth0" in described.output
 
         from_trial = _RUNNER.invoke(
@@ -294,7 +294,7 @@ class TestBenchmarkCatalogCli:
                 "-s",
                 "s",
                 "--set",
-                "host_name=client_0",
+                "host_name=client_1_1",
                 "--set",
                 "intf_name=eth0",
                 "--task-id",

@@ -358,18 +358,6 @@ class SenderResourceContention(ProblemBase):
             params["large_url"] = "http://10.0.20.2/large.bin"
             params["cpu_quota"] = "0.05"
             params["stress_cpus"] = "16"
-        elif scenario == "dc_clos":
-            params["host_name"] = (
-                "webserver0_pod0"
-                if "webserver0_pod0" in web_pool
-                else (first(web_pool) or web0 or host0)
-            )
-            params["client_host"] = "client_0"
-            params["dst_ip"] = "10.0.1.2"
-            params["small_url"] = "http://web0.pod0/small.bin"
-            params["large_url"] = "http://web0.pod0/large.bin"
-            params["cpu_quota"] = "0.05"
-            params["stress_cpus"] = "16"
         elif scenario == "campus_lan":
             params["host_name"] = (
                 "web_server_0"
@@ -393,7 +381,7 @@ class SenderResourceContention(ProblemBase):
             params["large_url"] = "http://200.0.0.8/large.bin"
             params["cpu_quota"] = "0.05"
             params["stress_cpus"] = "16"
-        elif scenario in {"p4_dc_fabric", "sdn_l3_clos"}:
+        elif scenario in {"dc_clos", "p4_dc_fabric", "sdn_l3_clos"}:
             model = getattr(net_env, "model", None)
             webs = list(getattr(model, "web_endpoints", lambda: [])()) if model else []
             clients = (
@@ -449,7 +437,7 @@ class SenderResourceContention(ProblemBase):
     ) -> SenderResourceContentionParams:
         """Fill client/URL defaults for Clos fabrics when cases omit them."""
         scenario = self.scenario_name or ""
-        if scenario not in {"p4_dc_fabric", "sdn_l3_clos"}:
+        if scenario not in {"dc_clos", "p4_dc_fabric", "sdn_l3_clos"}:
             return params
         model = getattr(self.net_env, "model", None)
         if model is None:
@@ -466,7 +454,7 @@ class SenderResourceContention(ProblemBase):
         updates: dict[str, object] = {}
         if params.host_name != web.name:
             updates["host_name"] = web.name
-        # Defaults in Params point at dc_clos names; rewrite for Clos fabrics.
+        # Resolve legacy parameter defaults from the declared Clos endpoints.
         defaultish = (
             params.client_host in {"client_0", "client"}
             or "web0.pod0" in params.small_url
@@ -858,12 +846,15 @@ class ReceiverResourceContention(ProblemBase):
         params = endpoint_target(ctx)
         params["duration"] = "3600"
         if ctx.scenario == "dc_clos":
-            params["peer_host"] = "webserver0_pod0"
-            params["large_url"] = "http://web0.pod0/large.bin"
+            _, service, _ = ctx.net_env.model.probe_endpoints(params.get("host_name"))
+            params["peer_host"] = service.name
+            params["large_url"] = f"http://{service.ip}/large.bin"
             params["stress_cpus"] = "4"
         elif ctx.scenario == "campus_lan":
             params["peer_host"] = "web_server_0"
             params["large_url"] = _CAMPUS_CATALOG_URL
+        elif ctx.scenario == "p4_dc_fabric":
+            params["stress_cpus"] = "16"
         return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
@@ -909,7 +900,7 @@ class ReceiverResourceContention(ProblemBase):
     def _resolve_peer_hosts(
         self, params: ReceiverResourceContentionParams
     ) -> list[str]:
-        """HTTP servers that must hold the large object (dc_clos uses webserver*)."""
+        """HTTP servers that must hold the large object."""
         if self._device_in_lab(params.peer_host):
             return [params.peer_host]
         servers = getattr(self.net_env, "servers", None) or {}
@@ -926,7 +917,7 @@ class ReceiverResourceContention(ProblemBase):
             return _CAMPUS_CATALOG_URL
         from nika.net_env.net_env_pool import get_probe_path
 
-        path = get_probe_path(self.scenario_name or "")
+        path = get_probe_path(self.scenario_name or "", net_env=self.net_env)
         if path is not None and path.http_url:
             parts = urlsplit(path.http_url)
             base = parts.path.rsplit("/", 1)[0]

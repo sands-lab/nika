@@ -6,6 +6,8 @@ from typing import ClassVar
 
 import pytest
 
+from nika.net_env.clos.design import build_clos_fabric_model
+
 from tests.nika.workflows.integration.pipeline_case import PipelineCaseBase
 from tests.support.prerequisites import docker_available
 
@@ -15,17 +17,10 @@ pytestmark = [
     pytest.mark.skipif(not docker_available(), reason="Docker not available"),
 ]
 
+
+_design = build_clos_fabric_model("s")
 _DC_CLOS_S_NODES = frozenset(
-    {
-        "super_spine_router_0",
-        "spine_router_0_0",
-        "spine_router_0_1",
-        "leaf_router_0_0",
-        "leaf_router_0_1",
-        "dns_pod0",
-        "webserver0_pod0",
-        "client_0",
-    }
+    _design.spines + _design.leaves + [e.name for e in _design.endpoints]
 )
 
 
@@ -36,9 +31,9 @@ class KatharaPipelineCiSmoke(PipelineCaseBase):
     BACKEND = "kathara"
     ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "s"]
     PROBLEM = "link_down"
-    INJECT_PARAMS = {"host_name": "client_0", "intf_name": "eth0"}
+    INJECT_PARAMS = {"host_name": "client_1_1", "intf_name": "eth0"}
     EXPECTED_NODES = _DC_CLOS_S_NODES
-    EXEC_PROBE_HOST = "client_0"
-    SUBMIT_FAULTY_DEVICES = ["client_0"]
+    EXEC_PROBE_HOST = "client_1_1"
+    SUBMIT_FAULTY_DEVICES = ["client_1_1"]
     IMAGE_SUBSTRING = "nika"
     RUN_TRAFFIC = True

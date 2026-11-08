@@ -101,7 +101,12 @@ def link_path_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
         problem._audit_link_path = {"mode": "end_host"}
         ok, evidence = address_baseline(problem, host, intf)
         return ok, {"mode": "end_host", **evidence}
-    path = _resolve_path(problem.scenario_name, params, topo_size=_topo_size(problem))
+    path = _resolve_path(
+        problem.scenario_name,
+        params,
+        topo_size=_topo_size(problem),
+        net_env=problem.net_env,
+    )
     if path is None or not path.dst_ip:
         return False, {"error": "no_probe_path"}
     before = _clean_echo(problem.runtime, path.src_host, path.dst_ip)

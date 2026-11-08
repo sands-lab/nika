@@ -95,7 +95,9 @@ def _gateway_probe(node: str, purpose: str, expect: Check, *, evidence: bool):
 
 def _probe_path(problem: ProblemBase):
     topo_size = getattr(problem.net_env, "topo_size", None) or "s"
-    return get_probe_path(problem.scenario_name or "", topo_size=topo_size)
+    return get_probe_path(
+        problem.scenario_name or "", topo_size=topo_size, net_env=problem.net_env
+    )
 
 
 def _tcp_still_works(problem: ProblemBase, host: str) -> OracleStep:

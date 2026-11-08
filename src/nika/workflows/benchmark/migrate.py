@@ -38,6 +38,7 @@ def materialize_case(
     row: dict[str, Any],
     *,
     env_cache: dict[tuple[Any, ...], Any] | None = None,
+    release: str | None = None,
 ) -> dict[str, Any]:
     """Copy identity fields and attach ``root_causes`` from the failure class."""
     if not isinstance(row, dict):
@@ -83,9 +84,11 @@ def materialize_case(
     else:
         inject_map = {problems[0]: {str(k): str(v) for k, v in inject_raw.items()}}
     cache = env_cache if env_cache is not None else {}
-    cache_key = (scenario, topo, *isp_kwargs.items())
+    cache_key = (scenario, topo, release, *isp_kwargs.items())
     if cache_key not in cache:
-        cache[cache_key] = load_offline_net_env(scenario, topo, **isp_kwargs)
+        cache[cache_key] = load_offline_net_env(
+            scenario, topo, **isp_kwargs, release=release
+        )
     if len(problems) > 1:
         gt = ground_truth_for_multi_case(
             problems=problems,
@@ -105,6 +108,7 @@ def materialize_case(
             scenario=scenario,
             topo_size=topo,
             net_env=cache[cache_key],
+            release=release,
         )
     out: dict[str, Any] = {
         "scenario": scenario,

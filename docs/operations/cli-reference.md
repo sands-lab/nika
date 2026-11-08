@@ -265,11 +265,11 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
     --problem dc_clos_s_link_down
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20 \
-    --problem dc_clos_s_link_down --set host_name=pc_0_0 --set intf_name=eth0
+    --problem dc_clos_s_link_down --set host_name=client_1_1 --set intf_name=eth0
 
   # Session mode (manual lab control)
   nika env run dc_clos -s s
-  nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
+  nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
   nika agent run -a cli.codex -m gpt-5-mini -e medium
   nika session close -y
   ```
@@ -426,7 +426,7 @@ Pass **`SCENARIO`** as the first positional argument (like `nika env run NAME`),
 
 ```shell
 nika benchmark run dc_clos --problem bgp_asn_misconfig -s s \
-  --set host_name=spine_router_0_0 \
+  --set host_name=spine_1 \
   -a byo.langgraph -p openai -m gpt-5-mini -n 20
 nika eval judge -p openai -m gpt-5-mini --result_dir results/
 nika eval summary --result_dir results/

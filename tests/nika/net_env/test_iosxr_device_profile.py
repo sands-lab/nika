@@ -74,7 +74,8 @@ def test_dc_clos_keeps_its_design_on_iosxr() -> None:
     assert set(xr.lab.machines) == set(frr.lab.machines)
     assert xr.bgp_neighbors == frr.bgp_neighbors
     assert xr.routers == frr.routers
-    for name in xr.routers:
+    assert set(xr.native_routers) == set(xr.model.spines)
+    for name in xr.native_routers:
         identity = xr.machine_identities[name]
         assert "iosxr" in identity.capabilities and "frr" not in identity.capabilities
         config = xr.deployment_configs[name]
@@ -83,8 +84,11 @@ def test_dc_clos_keeps_its_design_on_iosxr() -> None:
         # an explicit pass policy for the same behavior.
         assert config.count("route-policy PASS in") == len(frr.bgp_neighbors[name])
         assert "maximum-paths ebgp 32" in config
-    leaf = xr.deployment_configs["leaf_router_0_0"]
-    assert "network 10.0.0.0/24" in leaf
+    assert all(
+        "frr" in xr.machine_identities[name].capabilities for name in xr.model.leaves
+    )
+    leaf = xr.lab.machines["leaf_1"].fs.readtext("/etc/frr/frr.conf")
+    assert "network 10.0.1.0/24" in leaf
     with pytest.raises(ValueError, match="supports size s only"):
         get_net_env_instance("dc_clos", topo_size="m", device_profile="iosxr")
 
@@ -133,8 +137,8 @@ def test_solved_parameters_translate_with_the_router_design() -> None:
     exports = {
         "bgp_exports": [
             {
-                "node": "leaf_router_0_0",
-                "neighbor": "172.16.0.4",
+                "node": "spine_1",
+                "neighbor": "172.16.0.0",
                 "terms": [
                     {"prefix": "10.0.0.0/24", "permit": True},
                     {"prefix": "10.0.1.0/24", "permit": False},
@@ -144,7 +148,7 @@ def test_solved_parameters_translate_with_the_router_design() -> None:
     }
     leaf = get_net_env_instance(
         "dc_clos", topo_size="s", device_profile="iosxr", routing_parameters=exports
-    ).deployment_configs["leaf_router_0_0"]
+    ).deployment_configs["spine_1"]
     # First matching route-map entry applies; unmatched routes are denied.
     assert (
         "route-policy NC-OUT-0\n"
@@ -153,7 +157,7 @@ def test_solved_parameters_translate_with_the_router_design() -> None:
         "  else\n    drop\n  endif\nend-policy"
     ) in leaf
     assert "prefix-set NC-0-1\n  10.0.0.0/24\nend-set" in leaf
-    peer = leaf.split(" neighbor 172.16.0.4\n", 1)[1].split(" !\n", 2)[0]
+    peer = leaf.split(" neighbor 172.16.0.0\n", 1)[1].split(" !\n", 2)[0]
     assert "route-policy PASS in" in peer and "route-policy NC-OUT-0 out" in peer
     costs = {"ospf_costs": [{"node": "router_core_1", "interface": "eth0", "cost": 7}]}
     core = get_net_env_instance(
@@ -226,9 +230,7 @@ def test_netlab_sketch_runs_eligible_routers_as_xr() -> None:
         "nexthop": {"ipv4": "100.64.0.17"},
     } in topology["nodes"]["isp1_core"]["routing.static"]
     leaf = get_net_env_instance("dc_clos", topo_size="s", device_profile="iosxr")
-    fragment = retained_netlab_fragment(
-        leaf.routing_design.routers["leaf_router_0_0"], set()
-    )
+    fragment = retained_netlab_fragment(leaf.routing_design.routers["spine_1"], set())
     assert "maximum-paths ebgp 32" in fragment
     assert "route-policy PASS in" in fragment
 
@@ -282,7 +284,7 @@ def test_iosxr_fault_ops_read_router_output() -> None:
         def exec(self, node, command, timeout=None):
             return outputs[command.removeprefix("/pkg/bin/xr_cli '")[:-1]]
 
-    ops = IosxrFaultOps(Runtime(), "leaf_router_0_0")
+    ops = IosxrFaultOps(Runtime(), "router")
     assert ops.bgp_advertised_to("10.0.1.0/24") == ["172.16.0.4"]
     assert ops.remote_bgp_prefixes() == ["10.0.1.0/24"]
     assert ops.blackhole_routes() == ["192.168.0.0/24"]

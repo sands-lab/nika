@@ -43,7 +43,9 @@ def evaluate_symptom(
             }
         return evaluate_custom_symptom(failure, problem, params)
 
-    path = _resolve_path(scenario, params, topo_size=topo_size)
+    path = _resolve_path(
+        scenario, params, topo_size=topo_size, net_env=getattr(problem, "net_env", None)
+    )
     if path is None:
         return False, {"error": "no_probe_path", "scenario": scenario}
     after = run_probe_snapshot(runtime, contract.probe, path, params=params)

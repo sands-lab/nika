@@ -23,6 +23,9 @@ from nika.problems.support.benchmark_targets import (
     endpoint_target,
     conflict_hosts,
     require_distinct_hosts,
+    same_segment_pairs,
+    require_same_segment,
+    require_l2_capability,
     segment_pair_options,
     segment_host_pairs,
 )
@@ -341,6 +344,10 @@ class HostIPConflict(ProblemBase):
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
+        pairs = same_segment_pairs(ctx.net_env)
+        if pairs:
+            a, b = ctx.rng.choice(pairs)
+            return {"host_name": a, "host_name_2": b}
         servers = ctx.servers
         conflict_pool = list(ctx.host_pool)
         for bucket in (servers.get("web") or [], servers.get("dns") or []):
@@ -367,12 +374,17 @@ class HostIPConflict(ProblemBase):
         return {"host_name": pair[0], "host_name_2": pair[1]}
 
     @classmethod
-    def validate_benchmark_inject(cls, ctx, inject):
-        require_distinct_hosts(ctx, cls.root_cause_name, inject)
+    def benchmark_inject_options(cls, ctx, base):
+        pairs = same_segment_pairs(ctx.net_env)
+        if pairs:
+            return [{**base, "host_name": a, "host_name_2": b} for a, b in pairs]
+        return segment_pair_options(ctx, base)
 
     @classmethod
-    def benchmark_inject_options(cls, ctx, base):
-        return segment_pair_options(ctx, base)
+    def validate_benchmark_inject(cls, ctx, inject):
+        require_distinct_hosts(ctx, cls.root_cause_name, inject)
+        require_same_segment(ctx, cls.root_cause_name, inject)
+        require_l2_capability(ctx, cls.root_cause_name, "arp-broadcast")
 
     symptom_desc = "Some hosts experience intermittent connectivity issues."
 

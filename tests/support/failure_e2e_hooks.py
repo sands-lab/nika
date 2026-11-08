@@ -37,7 +37,12 @@ def _ctx_intf(ctx: FailureE2EContext) -> str:
 def _require_probe_path(ctx: FailureE2EContext):
     from nika.validation.symptom.probe import _resolve_path
 
-    path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size or "s")
+    path = _resolve_path(
+        ctx.scenario,
+        ctx.parsed,
+        topo_size=ctx.topo_size or "s",
+        net_env=ctx.problem.net_env,
+    )
     assert path is not None and path.dst_ip
     return path
 
@@ -87,7 +92,12 @@ def assert_link_flap_pre(ctx: FailureE2EContext) -> None:
     from nika.validation.symptom.flap_probes import assert_baseline_healthy
     from nika.validation.symptom.probe import _resolve_path
 
-    path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size or "s")
+    path = _resolve_path(
+        ctx.scenario,
+        ctx.parsed,
+        topo_size=ctx.topo_size or "s",
+        net_env=ctx.problem.net_env,
+    )
     assert path is not None and path.dst_ip
     baseline_ok, baseline = assert_baseline_healthy(ctx.runtime, path)
     assert baseline_ok is True, baseline
@@ -121,7 +131,12 @@ def assert_link_capacity_bottleneck_pre(ctx: FailureE2EContext) -> None:
 
     from nika.validation.symptom.probe import _resolve_path
 
-    path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size or "s")
+    path = _resolve_path(
+        ctx.scenario,
+        ctx.parsed,
+        topo_size=ctx.topo_size or "s",
+        net_env=ctx.problem.net_env,
+    )
     assert path is not None and path.peer_host and path.dst_ip
     _wait_for_ping(ctx.runtime, path.src_host, path.dst_ip)
     baseline_bps = iperf_throughput_bps(
@@ -196,7 +211,12 @@ def assert_link_capacity_bottleneck_recover(ctx: FailureE2EContext) -> None:
 
     from nika.validation.symptom.probe import _resolve_path
 
-    path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size or "s")
+    path = _resolve_path(
+        ctx.scenario,
+        ctx.parsed,
+        topo_size=ctx.topo_size or "s",
+        net_env=ctx.problem.net_env,
+    )
     assert path is not None and path.peer_host and path.dst_ip
     restored_bps = iperf_throughput_bps(
         ctx.runtime,
@@ -333,7 +353,9 @@ def assert_bmv2_switch_down(ctx: FailureE2EContext) -> None:
 def assert_incast_pre(ctx: FailureE2EContext) -> None:
     from nika.validation.symptom.probe import _resolve_path, run_probe_snapshot
 
-    path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size)
+    path = _resolve_path(
+        ctx.scenario, ctx.parsed, topo_size=ctx.topo_size, net_env=ctx.problem.net_env
+    )
     assert path is not None and path.dst_ip
     # Healthy baseline: the receiver answers pings before the bursts start.
     before = run_probe_snapshot(ctx.runtime, "path_ping_loss", path, params=ctx.parsed)
@@ -381,7 +403,9 @@ def assert_isolation_http_pre(ctx: FailureE2EContext) -> None:
         devices = ctx.problem._target_devices(ctx.parsed, k8s)
         if devices:
             ctx.parsed.symptom_host = devices[0]
-    path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size)
+    path = _resolve_path(
+        ctx.scenario, ctx.parsed, topo_size=ctx.topo_size, net_env=ctx.problem.net_env
+    )
     assert path is not None
     contract = get_symptom_contract(ctx.problem_name)
     before = run_probe_snapshot(ctx.runtime, contract.probe, path, params=ctx.parsed)

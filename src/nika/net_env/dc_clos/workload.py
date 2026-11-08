@@ -1,12 +1,4 @@
-"""Business traffic of the dc_clos fabric (always on, every case).
-
-Each external client stands for the users behind it. They resolve the pod
-web names (``web<i>.pod<p>``) through the pod DNS servers and load pages and
-small objects from every pod's web servers every few seconds, and every few
-minutes download a large object (``large.bin``, 2 MB) from one of them.
-Under a router send cap the transfers are read at a limited rate
-(``pace_browsers``).
-"""
+"""Rack clients browse named fabric web services and download large objects."""
 
 from __future__ import annotations
 

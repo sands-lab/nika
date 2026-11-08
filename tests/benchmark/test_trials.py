@@ -77,7 +77,7 @@ def _mini_cases_yaml(path: Path, rows: list[dict] | None = None) -> Path:
 class TestTrialHelpers:
     def test_case_key_and_trial_dirname_are_stable(self) -> None:
         key = case_key_for_row(ROW_A)
-        assert key == "dc_clos__link_down__s__h0477bc828c02"
+        assert key == "dc_clos__link_down__s__h3566275c1949"
         assert len(trial_dirname(key, 1)) <= 48
         assert trial_dirname(key, 1) == f"{key}__t01"
         assert trial_dirname(key, 12) == f"{key}__t12"
@@ -1018,7 +1018,7 @@ class TestReleaseRunMetadata:
         assert case_key_for_row(row) != case_key_for_row(ROW_A)
         assert benchmark_row_fingerprint(row) != benchmark_row_fingerprint(ROW_A)
         # Rows without telemetry keep the identity published releases rely on.
-        assert case_key_for_row(ROW_A) == "dc_clos__link_down__s__h0477bc828c02"
+        assert case_key_for_row(ROW_A) == "dc_clos__link_down__s__h3566275c1949"
         with pytest.raises(ValueError, match="Unknown telemetry"):
             normalize_benchmark_row({**ROW_A, "telemetry": ["sflow"]})
         # Selection export and release materialization keep the field.
