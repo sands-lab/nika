@@ -701,6 +701,26 @@ class IosxrFaultOps(RouterFaultOps):
                     areas[match[1]] = area
         return process[1], areas
 
+    def ospf_interface_areas(self) -> list[str]:
+        return sorted(set(self._ospf_config()[1].values()))
+
+    def renumber_ospf_area(self, area: str, new_area: str) -> None:
+        process, areas = self._ospf_config()
+        if area not in areas.values():
+            raise ValueError(f"OSPF area {area!r} is absent on {self.node}")
+        config = self._show("show running-config router ospf")
+        block = re.search(
+            rf"^ area {re.escape(area)}\n(.*?)(?=^ area |^!|\Z)", config, re.M | re.S
+        )
+        if block is None:
+            raise ValueError(f"Cannot read OSPF area {area!r} on {self.node}")
+        self._apply(
+            f"router ospf {process}",
+            f" no area {area}",
+            f" area {new_area}",
+            *block[1].splitlines(),
+        )
+
     def ospf_interfaces(self) -> list[str]:
         return sorted(map(container_interface, self._ospf_config()[1]))
 
@@ -803,7 +823,6 @@ class IosxrFaultOps(RouterFaultOps):
             ]
         self._apply(*lines)
         self._apply(f"no ipv4 access-list {_OSPF_FILTER_ACL}")
-
 
     # Routes
 

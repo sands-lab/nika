@@ -13,7 +13,6 @@ from nika.net_env.native_routers import (
 )
 from nika.net_env.utils.iosxr.common import (
     CONFIG_FILE_PATH,
-    ROUTER_MEMORY_MIB,
     build_xr_config_command,
     iosxr_interface,
 )

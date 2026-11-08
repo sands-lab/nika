@@ -552,11 +552,9 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
                 ops.set_tunnel_peer_public_key(tunnel.spoke_iface, key)
                 ops.reset_bgp_session(tunnel.hub_tunnel_ip)
             else:
-                conf = f"/etc/wireguard/{tunnel.spoke_iface}.conf"
-                self.runtime.exec(
-                    edge, f"sed -i 's|^PublicKey = .*|PublicKey = {key}|' {conf}"
+                LinuxWireGuard(self.runtime, edge).set_tunnel_peer_public_key(
+                    tunnel.spoke_iface, key
                 )
-                _wg_syncconf(self.runtime, edge, tunnel.spoke_iface)
                 self.runtime.exec(
                     edge, f"vtysh -c 'clear ip bgp {tunnel.hub_tunnel_ip}'"
                 )

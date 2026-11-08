@@ -117,6 +117,8 @@ class DeviceFlowBlackhole(DeviceForwardingPacketCorruption):
     def runs_on_device_profile(cls, device_profile: str) -> bool:
         # XRd presents forwarded packets as locally originated
         # (ingress_ifindex 0) on the container egress.
+        if device_profile == "routeros":
+            return True
         if device_profile == "iosxr":
             return False
         return super().runs_on_device_profile(device_profile)

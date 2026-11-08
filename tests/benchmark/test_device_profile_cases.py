@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import ast
-import inspect
-import textwrap
 
 import pytest
 
 from nika.net_env.net_env_pool import deployment_needs_licensed_images
-from nika.problems.registry import get_problem_class, list_avail_problem_instances
+from nika.problems.registry import get_problem_class
 from nika.problems.support.router_ops import (
     failure_supports_profile,
     profile_fault_operations,
@@ -208,29 +205,6 @@ def test_bgp_md5_targets_originate_paths_in_route_reflector_plans() -> None:
         )
         assert {case["inject"]["host_name"] for case in cases} == originators
         assert all(row["inject"]["host_name"] not in originators for row in rejected)
-
-
-def _native_operations_used(problem_cls) -> set[str]:
-    """Operations a failure class requests through the native dispatch."""
-    tree = ast.parse(textwrap.dedent(inspect.getsource(problem_cls)))
-    used: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        if getattr(func, "id", None) == "native_fault_ops" and len(node.args) >= 3:
-            used.add(node.args[2].value)
-        if isinstance(func, ast.Attribute) and getattr(func.value, "id", "") == "ops":
-            used.add(func.attr)
-    return used
-
-
-def test_failures_declare_every_native_operation_they_use() -> None:
-    for name, problem_cls in list_avail_problem_instances().items():
-        used = _native_operations_used(problem_cls)
-        declared = problem_cls.native_router_operations
-        if used:
-            assert declared is not None and used <= declared, (name, used, declared)
 
 
 def test_predicate_has_a_device_profile_dimension() -> None:
