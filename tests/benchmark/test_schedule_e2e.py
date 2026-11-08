@@ -17,17 +17,20 @@ def test_benchmark_timing_for_complete_task_files_and_execution_defaults(tmp_pat
     from nika.runtime.factory import runtime_for_session
     from nika.workflows.session.close import close_session
 
-    link = {"host_name": "client_0", "intf_name": "eth0"}
-    dns = {
-        "host_name": "dns_pod0",
-        "target_domain": "pod0",
-        "target_website": "web0",
-        "wrong_ip": "203.0.113.99",
-    }
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.workflows.benchmark.inject_resolve import resolve_inject_params
+
+    env = get_net_env_instance("dc_clos", topo_size="s", rendered=False)
+    client = env.model.client_endpoints()[0].name
+    link = {"host_name": client, "intf_name": "eth0"}
+    dns = resolve_inject_params("dns_record_error", "dc_clos", "s", seed=42)
+    dns["wrong_ip"] = "203.0.113.99"
     burst = {
         "type": "burst",
-        "sources": ["dns_pod0"],
-        "destination": "webserver0_pod0",
+        "sources": [dns["host_name"]],
+        "destination": next(
+            host for host in env.servers["web"] if host != dns["host_name"]
+        ),
         "protocol": "udp",
         "rate": "100K",
     }
@@ -44,7 +47,7 @@ def test_benchmark_timing_for_complete_task_files_and_execution_defaults(tmp_pat
                     {"problem": "link_down", "inject": link},
                     {
                         "problem": "link_down",
-                        "inject": {"host_name": "dns_pod0", "intf_name": "eth0"},
+                        "inject": {"host_name": dns["host_name"], "intf_name": "eth0"},
                     },
                 ]
             }
@@ -154,11 +157,11 @@ def test_benchmark_timing_for_complete_task_files_and_execution_defaults(tmp_pat
                         assert resource["kind"] == "link"
                         assert any(
                             target in resource["name"]
-                            for target in ("client_0:eth0", "dns_pod0:eth0")
+                            for target in (f"{client}:eth0", f"{dns['host_name']}:eth0")
                         )
                     else:
                         assert root["fault_type"] == "dns_record_error"
-                        assert resource["node"] == "dns_pod0"
+                        assert resource["node"] == dns["host_name"]
                 runtime = runtime_for_session(run)
                 assert not runtime.exists() and not runtime.has_leftover_resources()
                 assert not (directory / "schedule-owner.json").exists()

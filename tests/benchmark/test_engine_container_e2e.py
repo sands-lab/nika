@@ -255,6 +255,10 @@ def test_engine_container_executes_and_recovers_scheduled_fault(tmp_path, monkey
     from nika.workflows.benchmark.run import run_single_case
     from tests.support.schedule_assertions import assert_schedule_timing
 
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    env = get_net_env_instance("dc_clos", topo_size="s", rendered=False)
+    client = env.model.client_endpoints()[0].name
     results = tmp_path / "scheduled"
     results.mkdir()
     with pinned_engine_release(tmp_path, monkeypatch) as (_, image):
@@ -280,7 +284,7 @@ def test_engine_container_executes_and_recovers_scheduled_fault(tmp_path, monkey
                                 "at": 2,
                                 "duration": 8,
                                 "inject": {
-                                    "host_name": "client_0",
+                                    "host_name": client,
                                     "intf_name": "eth0",
                                 },
                             }
