@@ -369,10 +369,6 @@ def handle_session_rebind(
     restore_ms = None
     runtime_restored = False
     if request.restore_runtime:
-        if bound is not None or meta.get("failure_injections"):
-            raise ValueError(
-                "Cannot rebuild protocol sessions in an injected environment."
-            )
         from nika.workflows.session.close import session_net_env
 
         bind_session_dir(old_dir)

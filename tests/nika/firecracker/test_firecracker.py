@@ -23,7 +23,7 @@ pytestmark = pytest.mark.unit
 
 @pytest.mark.parametrize("injected", [False, True])
 @pytest.mark.parametrize("verify", [False, True])
-def test_only_healthy_images_resume_protocol_sessions(injected, verify):
+def test_restored_images_resume_protocols_and_keep_case_fault_checks(injected, verify):
     from types import SimpleNamespace
     from nika.firecracker.trial import TrialLab
 
@@ -45,7 +45,8 @@ def test_only_healthy_images_resume_protocol_sessions(injected, verify):
     ):
         client.return_value.fault_artifact.return_value = {"present": True}
         assert lab.attach(session_id="trial") == "trial"
-    assert rebind.call_args.kwargs["restore_runtime"] is (not injected)
+    assert rebind.call_args.kwargs["restore_runtime"] is True
+    assert client.return_value.fault_artifact.call_count == int(injected)
     assert client.return_value.verify_session.call_count == int(verify and not injected)
 
 

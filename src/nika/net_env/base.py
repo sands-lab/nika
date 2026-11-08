@@ -366,7 +366,12 @@ class NetworkEnvBase:
         return
 
     def post_restore(self) -> bool:
-        """Resume transient protocols and report whether full verification is needed."""
+        """Resume transient protocols while preserving the running configuration.
+
+        Called for healthy and injected snapshots. Never restore deployment
+        defaults: a case image must keep its injected fault. Healthy snapshots
+        require full verification when this hook changes protocol state.
+        """
         return False
 
     def seal_baseline(self) -> None:

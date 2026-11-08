@@ -257,7 +257,7 @@ about 100 s for `isp_pdh` (15 GiB).
   * `env_stop` records that the lab was discarded with its VM copy;
     `failures_ended` and `session_cleared` come from the VM.
 * Restored environment images resume transient protocols before failure injection. In `enterprise_branch`, Linux WireGuard edges rebuild peer sessions from their running configuration. RouterOS peers keep their restored state, and NIKA records unsupported recovery in the environment logs.
-* Environments with rebuilt protocol sessions pass full environment verification; other environments use the configured [`nika.runtime_validation.depth`](configuration.md#runtime-validation). Set `verify_after_restore: false` to skip verification. Protocol recovery still runs. [Case images](#case-images-optional) preserve their injected state and check the failure instead of rebuilding sessions or verifying a healthy environment.
+* Environments with rebuilt protocol sessions pass full environment verification; other environments use the configured [`nika.runtime_validation.depth`](configuration.md#runtime-validation). Set `verify_after_restore: false` to skip verification. Protocol recovery still runs. [Case images](#case-images-optional) preserve their injected state and rebuild transient sessions from the running configuration, then check that the injected failure remains. They skip healthy-environment verification.
 * Lab-host events in `nika.jsonl` and `messages.jsonl` carry
   `"origin": "remote"` and stream to the host about once a second.
 * Teardown discards the VM copy instead of undeploying the lab.

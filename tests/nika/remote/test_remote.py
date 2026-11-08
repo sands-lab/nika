@@ -38,7 +38,9 @@ pytestmark = pytest.mark.unit
         (True, False, True),
     ],
 )
-def test_rebind_recovers_only_uninjected_snapshots(tmp_path, restore, bound, history):
+def test_rebind_recovers_protocols_and_preserves_injected_snapshots(
+    tmp_path, restore, bound, history
+):
     from nika.remote import handlers
     from nika.remote.protocol import SessionRebindRequest
     from nika.utils.session_store import SessionStore
@@ -56,7 +58,6 @@ def test_rebind_recovers_only_uninjected_snapshots(tmp_path, restore, bound, his
     env = MagicMock()
     env.post_restore.return_value = True
     binding = (object(), object()) if bound else None
-    blocked = restore and (bound or history)
     with (
         patch.object(handlers, "SessionStore", return_value=store),
         patch.object(handlers, "Session"),
@@ -68,20 +69,17 @@ def test_rebind_recovers_only_uninjected_snapshots(tmp_path, restore, bound, his
         patch("nika.workflows.session.close.session_net_env", return_value=env),
     ):
         request = SessionRebindRequest(session_id="trial", restore_runtime=restore)
-        if blocked:
-            with pytest.raises(ValueError, match="injected environment"):
-                handlers.handle_session_rebind("image", request)
-            assert original.is_dir()
-            assert store.get_session("image")["session_id"] == "image"
-        else:
-            result = handlers.handle_session_rebind("image", request)
-            assert result.session_id == "trial"
-            assert result.session["runtime_restored"] is restore
-            assert (tmp_path / "trial").is_dir()
-            assert not original.exists()
-            with pytest.raises(FileNotFoundError):
-                store.get_session("image")
-    assert env.post_restore.call_count == int(restore and not blocked)
+        result = handlers.handle_session_rebind("image", request)
+        assert result.session_id == "trial"
+        assert result.session["runtime_restored"] is restore
+        assert (tmp_path / "trial").is_dir()
+        assert not original.exists()
+        assert store.get_session("trial")["failure_injections"] == (
+            [{"fault": "injected"}] if history else []
+        )
+        with pytest.raises(FileNotFoundError):
+            store.get_session("image")
+    assert env.post_restore.call_count == int(restore)
 
 
 @pytest.mark.parametrize("restored", [False, True])
