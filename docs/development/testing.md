@@ -75,7 +75,7 @@ Workflows live under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | When | Runners | What |
 |----------|------|---------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | PR, push to `main`, manual | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines |
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR, push to `main`, manual | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines; an oracle trial on a benchmark engine container built from the commit |
 | [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Artifact/boot checks (`NIKA_CI_VERIFY_DEPTH=artifact`): light scenario startup, inject contract + artifact `verify_fault`, ISP light matrix, k8s/llmd startup. Deep `evaluate_scenario` / symptom / recover stay local. |
 
 PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. On PRs, the `changes` job picks jobs from the changed paths:
@@ -244,7 +244,8 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | `test_release.py` | Freeze/preflight/job metadata on mini releases |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
-| `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), on sbx and E2B |
+| `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), and a `byo.langgraph` trial of a release that pins a benchmark engine, on sbx and E2B |
+| `test_engine_container_e2e.py` | An oracle trial of a release that pins a benchmark engine built from `HEAD`, run on the engine's container |
 | `test_curated_release_contract.py` | Test-only curated rows from `0.2.0` `test` split: subset contract, mock pack/validate, timeout+continue |
 | `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |

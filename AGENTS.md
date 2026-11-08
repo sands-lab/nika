@@ -25,10 +25,6 @@ Commit subjects and pull request titles follow Conventional Commits: `type(scope
 * The pull request title is the Conventional Commit line without a PR number. The merge commit subject is that line followed by `(#<PR number>)`.
 * The body is a short summary followed by `Fixes #<issue>` (or `Closes` or `Resolves`) so the merge closes the issue. Use one keyword per issue. When the work only contributes to an issue, write `Refs #<issue>` instead; it links the issue without closing it. Omit both when there is no issue.
 
-## Labels
-
-Label every issue and pull request you open with the repository's existing labels (`gh label list`); do not create new ones. Use `bug` for defects, `enhancement` for features, and `documentation` for docs. Add `bug-from-audit` for bugs that could bias agent diagnosis, `agent-ready` for well-scoped issues an agent can implement, and `needs-human` for issues that need a human design decision. Pass them with `--label` on `gh issue create` and `gh pr create`.
-
 ## Leaderboard submissions
 
 Submit with the [leaderboard submission skill](.agents/skills/nika-leaderboard-submit/SKILL.md). Name package directories `YYYYMMDD_<framework>_<model>`, with normalized public harness names, for both scores and Hugging Face trajectories. Do not add model release dates or prices; the leaderboard repository resolves them after merge. Confirm that the `model-metadata` and `validate` checks pass.
@@ -76,7 +72,7 @@ A test that creates external resources must clean up only what it owns, includin
 * Remove temporary or overly specific test code.
 * Review the diff for unintended changes.
 * Run `uv run ruff format` and `uv run ruff check`.
-* Before you create a commit and push it, if `README.md` or `docs/` changed, apply the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md) and confirm Letta Docs Review is PASS; read the latest review comment on the PR and fix blocking findings first.
+* If you are about to push a commit on a PR, and if `README.md` or `docs/` changed, apply the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md) to sanitize the doc and make it consistent with changes and user's expectations.
 
 A test is not complete if its assertions pass but its resources remain, or if it does not exercise the intended runtime behavior.
 

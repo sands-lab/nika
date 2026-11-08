@@ -12,16 +12,21 @@ from pathlib import Path
 import pytest
 import yaml
 
+from nika.agents.registry import get_agent_spec
+from nika.benchmark_engine.container import image_id
+from nika.run_config.loader import ENV_RUN_CONFIG, reset_run_config
 from nika.utils.session_id import resolve_session_tag
 from agent.protocols import DIAGNOSIS
 from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
     classify_trial_failure,
 )
+from nika.workflows.benchmark.run import run_benchmark_from_release
 from tests.agent.sandbox_support import (
     sandbox_backend_available,
     sandbox_provider_credential_available,
 )
+from tests.benchmark.trial_helpers import pinned_engine_release
 from tests.support.integration_pipeline import (
     DEFAULT_INJECT_PARAMS,
     claude_cli_available,
@@ -81,7 +86,7 @@ def _assert_sandbox_artifacts(session_path: Path, *, agent_type: str) -> None:
     manifest = session_path / "sandbox_manifest.json"
     assert manifest.is_file(), f"missing sandbox manifest under {session_path}"
     data = json.loads(manifest.read_text(encoding="utf-8"))
-    assert data["agent_type"] == agent_type
+    assert data["agent_class"] == get_agent_spec(agent_type).class_path
 
     manifest_text = manifest.read_text(encoding="utf-8")
     assert "ANTHROPIC_API_KEY" not in manifest_text
@@ -154,8 +159,11 @@ def _temp_result_root() -> Iterator[Path]:
         shutil.rmtree(root, ignore_errors=True)
 
 
-def _backend_run_config(backend: str) -> Path:
-    """Copy the host run config with *backend* as the sandbox backend."""
+def _backend_run_config(backend: str, *, base_url: str | None = None) -> Path:
+    """Copy the host run config with *backend* as the sandbox backend.
+
+    *base_url* sets ``agent.base_url`` for runs that do not go through the CLI.
+    """
     from nika.run_config.loader import resolve_run_config_path
 
     source = resolve_run_config_path()
@@ -164,6 +172,8 @@ def _backend_run_config(backend: str) -> Path:
     )
     data = data or {}
     data.setdefault("nika", {}).setdefault("sandbox", {})["backend"] = backend
+    if base_url:
+        data.setdefault("agent", {})["base_url"] = base_url
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".yaml", delete=False, encoding="utf-8"
     ) as handle:
@@ -393,6 +403,48 @@ class SandboxBenchmarkDshTest(_SandboxBenchmark):
         )
 
 
+class SandboxEngineReleaseTest(_SandboxBenchmark):
+    """A release that pins a benchmark engine, with the agent in a sandbox.
+
+    The agent runs on this host and reaches the MCP gateway inside the engine
+    container.
+    """
+
+    llm_provider = OPENAI_PROVIDER
+
+    def test_pinned_release_produces_sandbox_artifacts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        task = "dc_clos__receiver_resource_c__ha2be5b357067"
+        base_url = live_custom_base_url() if OPENAI_PROVIDER == "custom" else None
+        run_config = _backend_run_config(self.sandbox_backend, base_url=base_url)
+        monkeypatch.setenv(ENV_RUN_CONFIG, str(run_config))
+        reset_run_config()
+        result_dir = tmp_path / "run"
+        try:
+            with pinned_engine_release(tmp_path, monkeypatch) as (_tag, image):
+                run_benchmark_from_release(
+                    release_ref="0.2.0",
+                    split="test",
+                    agent_type="byo.langgraph",
+                    llm_provider=OPENAI_PROVIDER,
+                    model=OPENAI_MODEL,
+                    max_steps=10,
+                    result_dir=str(result_dir),
+                    session_tag=resolve_session_tag(context="test"),
+                    task_ids=[f"{task}__t01"],
+                    yes=True,
+                )
+                run_meta = json.loads((result_dir / "run.json").read_text())
+                assert run_meta["provenance"]["engine"]["image"] == image_id(image)
+        finally:
+            run_config.unlink(missing_ok=True)
+            reset_run_config()
+        _assert_scored_session(
+            result_dir / "trials" / f"{task}__t01", agent_type="byo.langgraph"
+        )
+
+
 class E2bBenchmarkClaudeTest(SandboxBenchmarkClaudeTest):
     sandbox_backend = "e2b"
 
@@ -406,4 +458,8 @@ class E2bBenchmarkOpenCodeTest(SandboxBenchmarkOpenCodeTest):
 
 
 class E2bBenchmarkDshTest(SandboxBenchmarkDshTest):
+    sandbox_backend = "e2b"
+
+
+class E2bEngineReleaseTest(SandboxEngineReleaseTest):
     sandbox_backend = "e2b"

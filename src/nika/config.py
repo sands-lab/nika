@@ -22,13 +22,20 @@ if sys.prefix != sys.base_prefix and str(_ENV_BIN) not in os.environ.get(
     os.environ["PATH"] = os.pathsep.join([str(_ENV_BIN), os.environ.get("PATH", "")])
 
 
+# Set by the frontend for a benchmark engine container, which shares its state.
+ENV_STATE_DIR = "NIKA_STATE_DIR"
+
+
 def resolve_state_dir() -> Path:
     """Return the root of all NIKA state (``runtime/`` and ``.nika_cache/``).
 
-    Git checkouts share the main working tree: the parent of
-    ``git rev-parse --git-common-dir``. Otherwise this is the repository
-    root of the installed package.
+    ``NIKA_STATE_DIR`` sets it explicitly. Git checkouts share the main working
+    tree: the parent of ``git rev-parse --git-common-dir``. Otherwise this is
+    the repository root of the installed package.
     """
+    override = os.environ.get(ENV_STATE_DIR, "").strip()
+    if override:
+        return Path(override)
     try:
         completed = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],

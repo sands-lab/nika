@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
@@ -119,6 +120,7 @@ class TestReleaseTaskIdGate:
         release = load_release("0.2.0", split="test")
         result_dir = tmp_path / "run"
         with (
+            patch("nika.workflows.benchmark.run.release_engine") as engine,
             patch("nika.workflows.benchmark.run.preflight_release") as preflight,
             patch("nika.workflows.benchmark.run.run_benchmark_trials") as runner,
         ):
@@ -135,6 +137,8 @@ class TestReleaseTaskIdGate:
                     release=release,
                     task_ids=["missing-task"],
                 )
+        # 0.2.0 pins a benchmark engine; a bad selector must not start it.
+        engine.assert_not_called()
         preflight.assert_not_called()
         runner.assert_not_called()
         assert not (result_dir / "run.json").exists()
@@ -146,6 +150,11 @@ class TestReleaseTaskIdGate:
         task_id = task_id_for_row(release.cases[0])
         result_dir = tmp_path / "run"
         with (
+            # Run on the in-process engine instead of 0.2.0's engine container.
+            patch(
+                "nika.workflows.benchmark.run.release_engine",
+                lambda *args, **kwargs: nullcontext(),
+            ),
             patch("nika.workflows.benchmark.run.preflight_release"),
             patch(
                 "nika.workflows.benchmark.run._run_trials_batch", return_value=[]

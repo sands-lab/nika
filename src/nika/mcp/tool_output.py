@@ -23,21 +23,13 @@ _TOO_LONG_WARNING = (
 
 _WARNING_BLOCK = f"<warning>\n{_TOO_LONG_WARNING}\n</warning>"
 
-DEFAULT_MAX_CHARS = 10000
-
-
-def tool_output_max_chars() -> int:
-    """Return the observation char budget from run config."""
-    try:
-        from nika.run_config.loader import get_run_config
-
-        return int(get_run_config().nika.mcp.tool_output_max_chars)
-    except Exception:  # noqa: BLE001 - gateway / early import
-        return DEFAULT_MAX_CHARS
+# Characters of tool result text an agent receives. It is part of what the
+# agent observes, so it is fixed in code and pinned with the release.
+MAX_CHARS = 10000
 
 
 def _resolve_max_chars(max_chars: int | None) -> int:
-    return tool_output_max_chars() if max_chars is None else max_chars
+    return MAX_CHARS if max_chars is None else max_chars
 
 
 def truncate_tool_text(text: str, *, max_chars: int | None = None) -> str:

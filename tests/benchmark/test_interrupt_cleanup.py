@@ -16,6 +16,22 @@ from nika.workflows.benchmark.run import (
 pytestmark = pytest.mark.unit
 
 
+class _RunEngine:
+    """Stands in for the run's engine; records the trials it tears down."""
+
+    def __init__(self) -> None:
+        self.stops: list[dict] = []
+
+    def stop_trial(self, handle, *, status="finished"):
+        self.stops.append(
+            {
+                "session_id": handle.session_id,
+                "session_dir": handle.trial_path,
+                "status": status,
+            }
+        )
+
+
 def test_cleanup_benchmark_interrupt_closes_only_result_dir_sessions(
     tmp_path: Path,
 ) -> None:
@@ -41,24 +57,11 @@ def test_cleanup_benchmark_interrupt_closes_only_result_dir_sessions(
     # orphan under result_root/trials by id only
     (result_root / "trials" / "orphan__t01").mkdir(parents=True)
 
-    close_calls: list[dict] = []
-
-    def _close(*, session_id, undeploy, session_dir, status="finished"):
-        close_calls.append(
-            {
-                "session_id": session_id,
-                "undeploy": undeploy,
-                "session_dir": Path(session_dir),
-                "status": status,
-            }
-        )
-
+    engine = _RunEngine()
     with (
         patch("nika.workflows.benchmark.run.SessionStore") as store_cls,
-        patch(
-            "nika.workflows.benchmark.run.close_session",
-            side_effect=_close,
-        ),
+        patch("nika.workflows.benchmark.run.benchmark_engine", return_value=engine),
+        patch("nika.workflows.benchmark.run.close_session") as close_mock,
         patch(
             "nika.workflows.benchmark.run._terminate_active_trial_workers"
         ) as terminate,
@@ -68,10 +71,10 @@ def test_cleanup_benchmark_interrupt_closes_only_result_dir_sessions(
 
     terminate.assert_called_once_with(signal_first=False)
     assert closed == 2
-    closed_ids = {c["session_id"] for c in close_calls}
-    assert closed_ids == {"case__t01", "orphan__t01"}
-    assert all(c["undeploy"] is True for c in close_calls)
-    assert all(c["status"] == "aborted" for c in close_calls)
+    # The run's engine tears the trials down, never this process's own code.
+    close_mock.assert_not_called()
+    assert {c["session_id"] for c in engine.stops} == {"case__t01", "orphan__t01"}
+    assert all(c["status"] == "aborted" for c in engine.stops)
 
 
 def test_cleanup_skips_job_root_mistaken_for_session(tmp_path: Path) -> None:
@@ -107,12 +110,14 @@ def test_cleanup_skips_job_root_mistaken_for_session(tmp_path: Path) -> None:
             }
         )
 
+    engine = _RunEngine()
     with (
         patch("nika.workflows.benchmark.run.SessionStore") as store_cls,
         patch(
             "nika.workflows.benchmark.run.close_session",
             side_effect=_close,
         ),
+        patch("nika.workflows.benchmark.run.benchmark_engine", return_value=engine),
         patch("nika.workflows.benchmark.run._terminate_active_trial_workers"),
         patch("nika.workflows.benchmark.run._mark_session_aborted") as mark_aborted,
     ):
@@ -120,11 +125,22 @@ def test_cleanup_skips_job_root_mistaken_for_session(tmp_path: Path) -> None:
         closed = cleanup_benchmark_interrupt(result_root)
 
     assert closed == 2
-    by_id = {c["session_id"]: c for c in close_calls}
-    assert by_id["claude"]["undeploy"] is False
-    assert by_id["claude"]["session_dir"] == result_root.resolve()
-    assert by_id["case__t01"]["undeploy"] is True
-    assert by_id["case__t01"]["status"] == "aborted"
+    # Only the job root's stale index row is cleared here, without undeploy.
+    assert close_calls == [
+        {
+            "session_id": "claude",
+            "undeploy": False,
+            "session_dir": result_root.resolve(),
+            "status": "finished",
+        }
+    ]
+    assert engine.stops == [
+        {
+            "session_id": "case__t01",
+            "session_dir": (result_root / "trials" / "case__t01").resolve(),
+            "status": "aborted",
+        }
+    ]
     # Job root must not be stamped aborted (would pollute job run.json).
     mark_aborted.assert_called_once_with(
         (result_root / "trials" / "case__t01").resolve()
@@ -160,9 +176,11 @@ def test_cleanup_aborts_finished_incomplete_trial_left_by_worker(
         encoding="utf-8",
     )
 
+    engine = _RunEngine()
     with (
         patch("nika.workflows.benchmark.run.SessionStore") as store_cls,
         patch("nika.workflows.benchmark.run.close_session") as close_mock,
+        patch("nika.workflows.benchmark.run.benchmark_engine", return_value=engine),
         patch("nika.workflows.benchmark.run._terminate_active_trial_workers"),
     ):
         store_cls.return_value.list_running_sessions.return_value = []
@@ -170,6 +188,7 @@ def test_cleanup_aborts_finished_incomplete_trial_left_by_worker(
 
     assert closed == 1
     close_mock.assert_not_called()
+    assert engine.stops == []
     run_meta = json.loads((trial / "run.json").read_text(encoding="utf-8"))
     assert run_meta["status"] == "aborted"
     assert run_meta["outcome"] == "aborted"
@@ -190,9 +209,11 @@ def test_cleanup_skips_foreign_session_with_same_trial_id(tmp_path: Path) -> Non
             "session_dir": str(other_root / "trials" / shared_id),
         }
     ]
+    engine = _RunEngine()
     with (
         patch("nika.workflows.benchmark.run.SessionStore") as store_cls,
         patch("nika.workflows.benchmark.run.close_session") as close_mock,
+        patch("nika.workflows.benchmark.run.benchmark_engine", return_value=engine),
         patch("nika.workflows.benchmark.run._terminate_active_trial_workers"),
     ):
         store_cls.return_value.list_running_sessions.return_value = running
@@ -200,6 +221,7 @@ def test_cleanup_skips_foreign_session_with_same_trial_id(tmp_path: Path) -> Non
 
     assert closed == 0
     close_mock.assert_not_called()
+    assert engine.stops == []
 
 
 def test_run_single_case_interrupt_closes_and_reraises(tmp_path: Path) -> None:
@@ -210,16 +232,17 @@ def test_run_single_case_interrupt_closes_and_reraises(tmp_path: Path) -> None:
 
     with (
         patch(
-            "nika.workflows.benchmark.run.start_net_env",
+            "nika.benchmark_engine.engine.start_net_env",
             return_value=session_id,
         ),
-        patch("nika.workflows.benchmark.run.inject_failure"),
+        patch("nika.benchmark_engine.engine.inject_failure"),
         patch(
             "nika.workflows.benchmark.run.start_agent",
             side_effect=KeyboardInterrupt(),
         ),
         patch("nika.workflows.benchmark.run.Session") as session_cls,
-        patch("nika.workflows.benchmark.run.close_session") as close_mock,
+        patch("nika.benchmark_engine.engine.Session") as engine_session_cls,
+        patch("nika.benchmark_engine.engine.close_session") as close_mock,
         patch("nika.workflows.benchmark.run._finalize_failed_trial") as finalize_mock,
         patch("nika.workflows.benchmark.run.validate_inject_params"),
         patch(
@@ -232,6 +255,9 @@ def test_run_single_case_interrupt_closes_and_reraises(tmp_path: Path) -> None:
         ),
     ):
         session_cls.return_value.load_running_session.return_value = MagicMock()
+        engine_session_cls.return_value.load_running_session.return_value = MagicMock(
+            task_description="Diagnose the network."
+        )
         with pytest.raises(KeyboardInterrupt):
             run_single_case(
                 problem="link_down",

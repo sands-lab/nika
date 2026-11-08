@@ -143,7 +143,7 @@ def test_rewrite_sse_tools_call() -> None:
 async def test_gateway_rewriting_send_applies_budget(monkeypatch) -> None:
     from nika.mcp.gateway import middleware as mw
 
-    monkeypatch.setattr(mw, "tool_output_max_chars", lambda: 40)
+    monkeypatch.setattr(mw, "MAX_CHARS", 40)
     messages: list[dict] = []
 
     async def capture(message):

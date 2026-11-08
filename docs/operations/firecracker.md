@@ -22,11 +22,19 @@ affects only `nika benchmark run`.
 
 ## When to use it
 
-Use Firecracker execution when you run a benchmark release more than once on a
-host, such as several agents or models on the same tasks, or when its
-environments take minutes to deploy. On release 0.2.0's test split, the time
-trials spend outside the agent drops from 10.8 h to 0.9 h per run, and 85 tasks
-ran in 2 h 30 min including the one-time builds instead of 5 h 55 min. Restored
+Firecracker execution runs working YAML matrices and releases that do not pin a
+[benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol).
+It cannot run a release that pins one yet, such as `--release 0.2.0`. To run
+release 0.2.0's tasks, pass its task file as a matrix, for example
+`--config benchmark/releases/0.2.0/test.yaml`; such a run uses the current
+NIKA's code instead of the release's engine and is not an official release run.
+
+Use Firecracker execution when you run the same tasks more than once on a host,
+such as several agents or models, or when their environments take minutes to
+deploy. On release 0.2.0's test split, measured before the release pinned its
+engine, the time trials spend outside the agent drops from 10.8 h to 0.9 h per
+run, and 85 tasks ran in 2 h 30 min including the one-time builds instead of
+5 h 55 min. Restored
 labs give the same scores as native ones with the mock agent; with a real agent,
 scores differed on some tasks in both directions (see
 [Compatibility and scores](#compatibility-and-scores)).
@@ -145,7 +153,7 @@ the host, over vsock.
 Run benchmarks as usual:
 
 ```shell
-nika benchmark run --release 0.2.0 --split test
+nika benchmark run --config benchmark/working/cases.yaml
 ```
 
 With Firecracker execution, every trial of the run uses a Firecracker VM, and
@@ -314,8 +322,8 @@ build per environment variant and the disk to keep the result. A lab image
 build costs about one native deploy and holds 0.3–4 GiB; after that, a trial
 restores its lab in seconds instead of deploying and undeploying it.
 
-For release 0.2.0 (test split, 85 tasks × 3 trials), measured on a 16 vCPU host
-that is itself a VM, with huge pages:
+For release 0.2.0 (test split, 85 tasks × 3 trials), measured before the release
+pinned its engine, on a 16 vCPU host that is itself a VM, with huge pages:
 
 | | Native | Lab images | Lab and case images |
 |---|---:|---:|---:|

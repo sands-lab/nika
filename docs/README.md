@@ -55,6 +55,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
 | Construct and verify routing, SDN and P4 environments | [Environment construction and verification](development/scenario-verification.md) | Explanation |
 | Check which release 0.2.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
+| Keep published releases runnable from the current CLI through versioned contracts | [Benchmark release contracts](development/benchmark-contracts.md) | Explanation |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
 
 ## Maintain the documentation
@@ -76,5 +77,6 @@ uv run nika agent list
 | Failure registry and labels | [`registry.py`](../src/nika/problems/registry.py), [`base.py`](../src/nika/problems/base.py), [`rca/`](../src/nika/problems/rca/) |
 | Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/nika/agents/registry.py) |
 | MCP server catalog and selection | [`mcp/registry.py`](../src/nika/mcp/registry.py), [`mcp/servers/`](../src/nika/mcp/servers/), [`mcp/gateway/`](../src/nika/mcp/gateway/) |
+| Benchmark release contracts | [`benchmark_engine/protocol.py`](../src/nika/benchmark_engine/protocol.py), [`benchmark_engine/engine.py`](../src/nika/benchmark_engine/engine.py), [`benchmark-contracts.md`](development/benchmark-contracts.md) |
 | Benchmark generation | [`workflows/benchmark/`](../src/nika/workflows/benchmark/) (`nika benchmark generate` / `select`) |
 | Test suites | [`tests/`](../tests/) |

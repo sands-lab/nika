@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from nika.agents.mcp_config import select_session_servers, session_http_headers
-from nika.mcp.registry import MCP_SERVER_SPECS
 
 
 def build_sandbox_mcp_servers(
@@ -29,5 +28,4 @@ def build_sandbox_mcp_servers(
             "headers": headers,
         }
         for name in server_names
-        if name in MCP_SERVER_SPECS
     }
