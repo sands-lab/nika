@@ -77,10 +77,10 @@ echo 'fs.inotify.max_user_watches=64000' | sudo tee -a /etc/sysctl.d/99-nika-ino
 sudo sysctl --system
 ```
 
-4. List sessions, close the affected session, and retry:
+4. List sessions, replace `SESSION_ID` with the affected session's ID, close it, and retry:
 
 ```shell
-uv run nika session list
+uv run nika session ps
 uv run nika session close --session_id SESSION_ID
 uv run nika env run iosxr_simple_bgp
 ```
@@ -188,9 +188,11 @@ The running kernel has no `vrf` module. Ubuntu `-virtual` and cloud kernels ship
 sudo apt-get install linux-modules-extra-$(uname -r)
 sudo modprobe vrf
 echo vrf | sudo tee /etc/modules-load.d/nika-vrf.conf
-uv run nika session list
+uv run nika session ps
 uv run nika session close --session_id SESSION_ID
 ```
+
+Replace `SESSION_ID` with the affected session's ID from `nika session ps`.
 
 Re-running `./scripts/install.sh` does the same. After a kernel upgrade, install the matching `linux-modules-extra` package before the next `enterprise_branch` lab.
 
@@ -221,10 +223,10 @@ Typical scenarios: `min3clos`, `isp_*` with `--backend containerlab` (especially
 
 ### Fix
 
-1. List sessions and close only the affected session:
+1. List sessions and replace `SESSION_ID` with the affected session's ID before closing it:
 
 ```shell
-uv run nika session list
+uv run nika session ps
 uv run nika session close --session_id SESSION_ID
 ```
 

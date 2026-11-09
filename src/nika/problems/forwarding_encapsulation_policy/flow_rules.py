@@ -8,6 +8,7 @@ import re
 
 from pydantic import BaseModel, Field
 
+from nika.problems.support.polling import wait_until
 from nika.net_env.sdn_l3_clos.fabric_manager.apply import onos_flow_snapshot
 from nika.net_env.sdn_l3_clos.topology_model import (
     ONOS_OOB_IP,
@@ -369,39 +370,88 @@ class FlowRuleLoop(ProblemBase):
     _LOOP_PRIORITY = 42000
 
     def inject_fault(self, params: FlowRuleLoopParams):
-        # Each end sends IPv4 arriving from the other switch straight back out
-        # the same port. OpenFlow only re-emits a packet on its ingress port
-        # through the reserved IN_PORT output, so a plain output:<port> would
-        # be a drop. The two rules bounce traffic on the link until its TTL
-        # expires; the TTL decrement keeps the loop bounded.
         port0, port1 = self._resolve_ports(params)
+        self._owned_loop_flows = []
         for switch, port in ((params.host_name, port0), (params.host_name_2, port1)):
             device = _device_id_for_switch(switch)
-            _onos_post_flow(
-                self.runtime,
-                device,
-                {
-                    "priority": self._LOOP_PRIORITY,
-                    "timeout": 0,
-                    "isPermanent": True,
-                    "deviceId": device,
-                    "treatment": {
-                        "instructions": [
-                            {"type": "L3MODIFICATION", "subtype": "DEC_TTL"},
-                            {"type": "OUTPUT", "port": "IN_PORT"},
-                        ]
-                    },
-                    "selector": {
-                        "criteria": [
-                            {
-                                "type": "IN_PORT",
-                                "port": _ofport(self.runtime, switch, port),
-                            },
-                            {"type": "ETH_TYPE", "ethType": "0x0800"},
-                        ]
-                    },
+            before = {
+                str(f["id"])
+                for f in onos_flow_snapshot(self.runtime).get("flows", [])
+                if f.get("deviceId") == device
+            }
+            body = {
+                "priority": self._LOOP_PRIORITY,
+                "timeout": 0,
+                "isPermanent": True,
+                "deviceId": device,
+                "treatment": {
+                    "instructions": [
+                        {"type": "L3MODIFICATION", "subtype": "DEC_TTL"},
+                        {"type": "OUTPUT", "port": "IN_PORT"},
+                    ]
                 },
+                "selector": {
+                    "criteria": [
+                        {
+                            "type": "IN_PORT",
+                            "port": _ofport(self.runtime, switch, port),
+                        },
+                        {"type": "ETH_TYPE", "ethType": "0x0800"},
+                    ]
+                },
+            }
+            try:
+                _onos_post_flow(self.runtime, device, body)
+            finally:
+                for flow in onos_flow_snapshot(self.runtime).get("flows", []):
+                    if (
+                        flow.get("deviceId") == device
+                        and str(flow["id"]) not in before
+                        and flow.get("priority") == body["priority"]
+                        and any(
+                            c.get("type") == "IN_PORT"
+                            and str(c.get("port"))
+                            == body["selector"]["criteria"][0]["port"]
+                            for c in (flow.get("selector") or {}).get("criteria", [])
+                        )
+                    ):
+                        self._owned_loop_flows.append((device, str(flow["id"])))
+
+    def recover_fault(self, params: FlowRuleLoopParams) -> dict:
+        owned = getattr(self, "_owned_loop_flows", None)
+        for device, flow_id in owned or []:
+            self.runtime.exec(
+                "fabric_mgr",
+                "curl -sf -u onos:rocks -X DELETE "
+                + f"'http://{ONOS_OOB_IP}:{ONOS_REST_PORT}/onos/v1/flows/{device}/{flow_id}' >/dev/null",
+                timeout=30,
             )
+
+        def removed():
+            live = {
+                (f.get("deviceId"), str(f.get("id")))
+                for f in onos_flow_snapshot(self.runtime).get("flows", [])
+                if f.get("state") != "REMOVED"
+            }
+            if live.intersection(owned or []):
+                return False
+            for switch, port in zip(
+                (params.host_name, params.host_name_2), self._resolve_ports(params)
+            ):
+                ofport = _ofport(self.runtime, switch, port)
+                flows = self.runtime.exec(
+                    switch, f"ovs-ofctl -O OpenFlow13 dump-flows {switch} 2>/dev/null"
+                )
+                if self._bounce_installed(flows, ofport):
+                    return False
+            return True
+
+        ok = owned is not None and wait_until(removed, 10)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=ok,
+            details={"owned_flow_ids": owned},
+        )
 
     def _loop_probe(self, params: FlowRuleLoopParams) -> OracleStep | None:
         """Traffic from an endpoint on the looped leaf to every other rack.

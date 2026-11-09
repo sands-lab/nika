@@ -51,6 +51,7 @@ from nika.problems.support.oracle import (
     lacks,
     shell,
 )
+from nika.problems.support.recovery import FileSnapshot, IPv4Snapshot, route_lines
 from nika.utils.logger import system_logger
 
 
@@ -138,10 +139,6 @@ def _read_host_ipv4(
     return match.group(1) if match else None
 
 
-# Route state that ``ip route show`` prints but ``ip route replace`` rejects.
-_ROUTE_STATE_FLAGS = frozenset({"linkdown", "dead", "offload", "trap", "rt_offload"})
-
-
 def _inject_ip_change(
     runtime,
     *,
@@ -166,19 +163,12 @@ def _inject_ip_change(
                 f"ip neigh replace {match[1]} lladdr {match[2]} "
                 f"dev {intf_name} nud permanent",
             )
-    static: list[str] = []
-    for line in routes.splitlines():
-        line = line.strip()
-        if line.startswith("nexthop") and static:
-            static[-1] += f" {line}"  # a multipath route's next hops
-        elif line:
-            static.append(line)
     old_addr, new_addr = old_ip.split("/")[0], new_ip.split("/")[0]
     # On-link routes first, so the gateways of the ``via`` routes resolve.
-    for route in sorted(static, key=lambda r: " via " in r):
+    for route in sorted(route_lines(routes), key=lambda r: " via " in r):
         if "proto kernel" in route:
             continue
-        words = [w for w in route.split() if w not in _ROUTE_STATE_FLAGS]
+        words = route.split()
         words = [
             new_addr if w == old_addr and i and words[i - 1] == "src" else w
             for i, w in enumerate(words)
@@ -192,6 +182,25 @@ def _inject_ip_change(
             host_name,
             f"ip route replace default via {new_gateway} dev {intf_name}{onlink}",
         )
+
+
+def _recover_ipv4(problem, host: str) -> dict:
+    snapshot = getattr(problem, "_ipv4_snapshot", None)
+    if snapshot is None:
+        return build_verify_result(
+            fault_type=problem.root_cause_name,
+            verified=False,
+            details={"error": "Pre-injection IPv4 state is unavailable."},
+        )
+    snapshot.restore(
+        problem.runtime,
+        host,
+        injected_ip=getattr(problem, "_recovery_injected_ip", None),
+        injected_gateway=getattr(problem, "_recovery_injected_gateway", None),
+    )
+    return build_verify_result(
+        fault_type=problem.root_cause_name, verified=True, details={"host": host}
+    )
 
 
 # ==========================================
@@ -258,6 +267,9 @@ class HostMissingIP(ProblemBase):
         return [interface_on(self.net_env, params.host_name, params.intf_name)]
 
     def inject_fault(self, params: HostMissingIPParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name, params.intf_name
+        )
         real_ip = self.runtime.get_host_ip(
             params.host_name, params.intf_name, with_prefix=True
         )
@@ -268,6 +280,9 @@ class HostMissingIP(ProblemBase):
         self.logger.info(
             f"Injected missing IP on {params.host_name} from {real_ip} and gateway {real_gateway}."
         )
+
+    def recover_fault(self, params: HostMissingIPParams) -> dict:
+        return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostMissingIPParams) -> dict:
         """Verify that the params.host_name has no global IPv4 address on the interface."""
@@ -395,8 +410,15 @@ class HostIPConflict(ProblemBase):
         return [interface_on(self.net_env, params.host_name_2, "eth0")]
 
     def inject_fault(self, params: HostIPConflictParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name_2, "eth0"
+        )
         src_host = params.host_name
         dst_host = params.host_name_2
+        self._recovery_injected_ip = self.runtime.get_host_ip(
+            src_host, "eth0", with_prefix=True
+        )
+        self._recovery_injected_gateway = self.runtime.get_default_gateway(src_host)
         _inject_ip_change(
             self.runtime,
             host_name=dst_host,
@@ -405,6 +427,9 @@ class HostIPConflict(ProblemBase):
             intf_name="eth0",
             new_gateway=self.runtime.get_default_gateway(src_host),
         )
+
+    def recover_fault(self, params: HostIPConflictParams) -> dict:
+        return _recover_ipv4(self, params.host_name_2)
 
     def verify_fault(self, params: HostIPConflictParams) -> dict:
         """Verify both hosts share the same eth0 IP (conflict)."""
@@ -513,12 +538,16 @@ class HostIncorrectIP(ProblemBase):
         return [interface_on(self.net_env, params.host_name, "eth0")]
 
     def inject_fault(self, params: HostIncorrectIPParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name, "eth0"
+        )
         old_ip = _read_host_ipv4(self.runtime, params.host_name, "eth0")
         self._original_ip = old_ip
         incorrect_ip = params.incorrect_ip or derive_incorrect_ip(
             self.runtime, params.host_name
         )
         self._injected_ip = incorrect_ip
+        self._recovery_injected_ip = incorrect_ip
         _inject_ip_change(
             self.runtime,
             host_name=params.host_name,
@@ -527,6 +556,9 @@ class HostIncorrectIP(ProblemBase):
             intf_name="eth0",
             new_gateway=self.runtime.get_default_gateway(params.host_name),
         )
+
+    def recover_fault(self, params: HostIncorrectIPParams) -> dict:
+        return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostIncorrectIPParams) -> dict:
         """Verify that the params.host_name eth0 IP differs from the original address at inject time."""
@@ -682,10 +714,14 @@ class HostIncorrectGateway(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: HostIncorrectGatewayParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name, "eth0"
+        )
         new_gateway = params.new_gateway or derive_wrong_gateway(
             self.runtime, params.host_name
         )
         self._injected_gateway = new_gateway
+        self._recovery_injected_gateway = new_gateway
         _inject_ip_change(
             self.runtime,
             host_name=params.host_name,
@@ -694,6 +730,9 @@ class HostIncorrectGateway(ProblemBase):
             intf_name="eth0",
             new_gateway=new_gateway,
         )
+
+    def recover_fault(self, params: HostIncorrectGatewayParams) -> dict:
+        return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostIncorrectGatewayParams) -> dict:
         """Verify that the default route uses the injected wrong gateway."""
@@ -808,9 +847,13 @@ class HostIncorrectNetmask(ProblemBase):
         return [interface_on(self.net_env, params.host_name, "eth0")]
 
     def inject_fault(self, params: HostIncorrectNetmaskParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name, "eth0"
+        )
         old_ip = self.runtime.get_host_ip(params.host_name, "eth0", with_prefix=True)
         ip_part = old_ip.split("/")[0]
         new_ip = f"{ip_part}/{params.netmask_prefix}"
+        self._recovery_injected_ip = new_ip
         _inject_ip_change(
             self.runtime,
             host_name=params.host_name,
@@ -819,6 +862,9 @@ class HostIncorrectNetmask(ProblemBase):
             intf_name="eth0",
             new_gateway=self.runtime.get_default_gateway(params.host_name),
         )
+
+    def recover_fault(self, params: HostIncorrectNetmaskParams) -> dict:
+        return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostIncorrectNetmaskParams) -> dict:
         """Verify that eth0 carries the injected ``netmask_prefix``."""
@@ -943,6 +989,14 @@ class HostIncorrectDNS(ProblemBase):
         return unused_address_near(self.runtime, real)
 
     def inject_fault(self, params: HostIncorrectDNSParams):
+        self._dns_snapshots = [
+            FileSnapshot.capture(self.runtime, params.host_name, path)
+            for path in (
+                "/etc/resolv.conf",
+                "/etc/hosts",
+                "/etc/dhcp/dhclient-enter-hooks.d/nameservers",
+            )
+        ]
         resolv = self.runtime.exec(params.host_name, "cat /etc/resolv.conf 2>/dev/null")
         fake = self._resolver(params, resolv)
         self._fake_dns_ip = fake
@@ -968,6 +1022,22 @@ class HostIncorrectDNS(ProblemBase):
             params.host_name,
             "/etc/resolv.conf",
             "\n".join([*lines, f"nameserver {fake}"]) + "\n",
+        )
+
+    def recover_fault(self, params: HostIncorrectDNSParams) -> dict:
+        snapshots = getattr(self, "_dns_snapshots", None)
+        if snapshots is None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=False,
+                details={"error": "Pre-injection DNS state is unavailable."},
+            )
+        for snapshot in reversed(snapshots):
+            snapshot.restore(self.runtime, params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=True,
+            details={"host": params.host_name},
         )
 
     def verify_fault(self, params: HostIncorrectDNSParams) -> dict:

@@ -14,6 +14,8 @@ from nika.problems.support.oracle import (
     shell,
     vtysh,
 )
+from nika.problems.support.polling import wait_until
+from nika.problems.support.recovery import checked_exec
 from nika.problems.support.router_ops import native_fault_ops
 from nika.utils.logger import system_logger
 
@@ -108,6 +110,11 @@ class FrrDown(ProblemBase):
         if ops is not None:
             ops.stop_routing_process()
             return
+        self._routing_was_running = bool(
+            self.runtime.exec(
+                params.host_name, "pgrep -x zebra 2>/dev/null || true"
+            ).strip()
+        )
         # systemctl is a no-op in Kathara; kill FRR daemons directly with pkill.
         # watchfrr must be killed first so it does not restart the routing daemons.
         for daemon in (
@@ -131,6 +138,48 @@ class FrrDown(ProblemBase):
             "pim6d",
         ):
             self.runtime.kill_process(params.host_name, daemon)
+
+    def recover_fault(self, params: FrrDownParams) -> dict:
+        was_running = getattr(self, "_routing_was_running", None)
+        if was_running is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        if not was_running:
+            return build_verify_result(
+                self.root_cause_name,
+                not bool(
+                    self.runtime.exec(
+                        params.host_name, "pgrep -x zebra 2>/dev/null || true"
+                    ).strip()
+                ),
+                {"host": params.host_name, "original_service_running": False},
+            )
+        # Native targets without this operation already reject injection.
+        native_fault_ops(self, params.host_name, "stop_routing_process")
+        zebra = self.runtime.exec(
+            params.host_name, "pgrep -x zebra 2>/dev/null || true"
+        ).strip()
+        if not zebra:
+            checked_exec(
+                self.runtime, params.host_name, "/usr/lib/frr/frrinit.sh start"
+            )
+
+        def running():
+            output = self.runtime.exec(
+                params.host_name, "vtysh -c 'show ip route' 2>&1"
+            )
+            return bool(output.strip()) and not any(
+                error in output.lower()
+                for error in ("failed to connect", "not running", "connection refused")
+            )
+
+        restored = wait_until(running, 60)
+        return build_verify_result(
+            self.root_cause_name,
+            restored,
+            {"host": params.host_name, "routing_available": restored},
+        )
 
     def verify_fault(self, params: FrrDownParams) -> dict:
         """Verify FRR is down by checking zebra is not running and routing is unavailable."""

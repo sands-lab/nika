@@ -3,6 +3,9 @@ from pydantic import BaseModel, Field
 import hashlib
 import json
 import re
+import shlex
+
+from nika.problems.support.recovery import checked_exec
 
 from nika.problems.rca import node_resource
 from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
@@ -145,6 +148,10 @@ class ArpCachePoisoning(ProblemBase):
 
     def inject_fault(self, params: ArpCachePoisoningParams):
         gateway, dev = self._arp_target(params)
+        self._arp_neighbors = json.loads(
+            checked_exec(self.runtime, params.host_name, "ip -j neigh show")
+        )
+        self._arp_dev = dev
         self._poisoned_neighbor = gateway
         fake_mac = self._fake_mac(params, gateway)
         original = self.runtime.exec(
@@ -177,6 +184,12 @@ class ArpCachePoisoning(ProblemBase):
             "(apt-get update -qq && DEBIAN_FRONTEND=noninteractive "
             "apt-get install -y -qq nftables >/dev/null 2>&1)",
         )
+        self._arp_nft_table = checked_exec(
+            self.runtime,
+            params.host_name,
+            "if nft list tables | grep -qx 'table netdev filter'; then "
+            "nft list table netdev filter; fi",
+        )
         self.runtime.exec(
             params.host_name,
             "nft delete table netdev filter 2>/dev/null || true",
@@ -190,6 +203,68 @@ class ArpCachePoisoning(ProblemBase):
         self.runtime.exec(
             params.host_name,
             f"nft add rule netdev filter egress ether daddr {fake_mac} drop",
+        )
+
+    def recover_fault(self, params: ArpCachePoisoningParams) -> dict:
+        original = getattr(self, "_arp_neighbors", None)
+        if original is None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=False,
+                details={"error": "Pre-injection neighbor state is unavailable."},
+            )
+        gateway = self._poisoned_neighbor
+        dev = self._arp_dev
+        current = json.loads(
+            checked_exec(self.runtime, params.host_name, "ip -j neigh show")
+        )
+        fake = self._fake_mac(params, gateway).lower()
+        for entry in current:
+            if entry.get("dst") == gateway and entry.get("lladdr", "").lower() == fake:
+                checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    f"ip neigh del {shlex.quote(entry['dst'])} dev {shlex.quote(entry['dev'])}",
+                )
+        for entry in original:
+            if not entry.get("lladdr"):
+                continue
+            # Dynamic reachability ages naturally. Restore its MAC in STALE state.
+            state = "permanent" if "PERMANENT" in entry.get("state", []) else "stale"
+            checked_exec(
+                self.runtime,
+                params.host_name,
+                f"ip neigh replace {shlex.quote(entry['dst'])} lladdr {shlex.quote(entry['lladdr'])} "
+                f"dev {shlex.quote(entry['dev'])} nud {state}",
+            )
+        if hasattr(self, "_arp_nft_table"):
+            checked_exec(
+                self.runtime,
+                params.host_name,
+                "if nft list tables | grep -qx 'table netdev filter'; then nft delete table netdev filter; fi",
+            )
+            if self._arp_nft_table:
+                checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    "printf %s " + shlex.quote(self._arp_nft_table) + " | nft -f -",
+                )
+        restored = json.loads(
+            checked_exec(self.runtime, params.host_name, "ip -j neigh show")
+        )
+        entries = {
+            (entry.get("dst"), entry.get("dev"), entry.get("lladdr", "").lower())
+            for entry in restored
+        }
+        expected = {
+            (entry.get("dst"), entry.get("dev"), entry["lladdr"].lower())
+            for entry in original
+            if entry.get("lladdr")
+        }
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=expected.issubset(entries),
+            details={"host": params.host_name, "gateway": gateway, "interface": dev},
         )
 
     def verify_fault(self, params: ArpCachePoisoningParams) -> dict:

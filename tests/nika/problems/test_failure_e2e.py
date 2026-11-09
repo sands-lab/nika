@@ -343,6 +343,17 @@ CORE_E2E_CASES = (
         for profile in ("iosxr", "routeros")
     ),
     FailureE2ECase(
+        problem="bgp_hijacking",
+        scenario="simple_bgp",
+        inject_params={
+            "host_name": "router2",
+            "target_network": "200.1.1.0/25",
+            "symptom_host": "router1",
+            "observer_host": "pc1",
+            "probe_dst_ip": "200.1.1.3",
+        },
+    ),
+    FailureE2ECase(
         problem="receiver_resource_contention",
         scenario="dc_clos",
         env_run_args=("-s", "s"),
@@ -740,7 +751,6 @@ CORE_E2E_CASES = (
         scenario="p4_dc_fabric",
         env_run_args=("-s", "s"),
         inject_seed=0,
-        checks=frozenset({"verify", "symptom"}),
         sleep_after_inject_sec=1.0,
     ),
     FailureE2ECase(
@@ -749,8 +759,6 @@ CORE_E2E_CASES = (
         env_run_args=(),
         topo_size="",
         inject_params={"host_name": "leaf1"},
-        # StaticBlackHole has no recover_fault; assert verify + dataplane symptom.
-        checks=frozenset({"verify", "symptom"}),
         sleep_after_inject_sec=2.0,
     ),
 )
@@ -763,7 +771,6 @@ def _pipeline_mismatch_e2e_cases() -> list[FailureE2ECase]:
             scenario="p4_dc_fabric",
             env_run_args=("-s", "s"),
             inject_seed=0,
-            checks=frozenset({"verify", "symptom"}),
             sleep_after_inject_sec=2.0,
         )
     ]

@@ -518,6 +518,7 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             self.record_k8s_object("ServiceCIDR", target)
 
         node_filter = NodeFilter(self.runtime, device)
+        self._recovery_filter = node_filter
         node_filter.block_destination(target)
 
         k8s_node = k8s.k8s_device_for_node(
@@ -529,6 +530,13 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             "preempt kube-proxy DNAT, so ClusterIP Services fail while pod-IP "
             "traffic is unaffected."
         )
+
+    def recover_fault(self, params: ClusterIPRoutingBrokenParams) -> dict:
+        node_filter = getattr(self, "_recovery_filter", None)
+        if node_filter is None:
+            return {"verified": False, "details": {"error": "injection_state_missing"}}
+        removed = node_filter.recover()
+        return {"verified": removed, "details": {"owned_rules_removed": removed}}
 
     def verify_fault(self, params: ClusterIPRoutingBrokenParams) -> dict:
         k8s = self.runtime.lab_api

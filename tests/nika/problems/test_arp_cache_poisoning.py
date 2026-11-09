@@ -27,6 +27,20 @@ class _ArpRuntime:
             if self.timeout_routes:
                 return _TIMEOUT
             return json.dumps([{"dst": "default", "gateway": _GATEWAY, "dev": "eth0"}])
+        if "NIKA_RECOVERY_COMMAND_OK" in cmd:
+            output = ""
+            if "ip -j neigh show" in cmd:
+                output = json.dumps(
+                    [
+                        {
+                            "dst": _GATEWAY,
+                            "dev": "eth0",
+                            "lladdr": "02:00:00:00:00:01",
+                            "state": ["PERMANENT"],
+                        }
+                    ]
+                )
+            return output + "\nNIKA_RECOVERY_COMMAND_OK\n"
         if "ip neigh show" in cmd:
             return f"{_GATEWAY} dev eth0 lladdr {_FAKE_MAC} PERMANENT"
         return ""

@@ -430,10 +430,10 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center">○</td>
 </tr>
 <tr>
@@ -1328,7 +1328,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1358,7 +1358,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2593,6 +2593,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
+<td><code>k8s_readiness_probe_misconfig</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>k8s_worker_apiserver_partition</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2741,36 +2771,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
-</tr>
-<tr>
-<td><code>k8s_readiness_probe_misconfig</code></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 </tr>
 </tbody>
 </table>
@@ -3356,9 +3356,9 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tbody>
 <tr>
 <td><code>incast_traffic_network_limitation</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3382,7 +3382,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center">●</td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>overlay_qos_ef_undersized</code></td>
@@ -3542,7 +3542,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center">○</td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -3702,29 +3702,29 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>web_dos_attack</code></td>
 <td align="center">○</td>
 <td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center"></td>
 <td align="center">●</td>
 </tr>
@@ -3758,25 +3758,25 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <tbody>
 <tr>
 <td><code>link_capacity_bottleneck</code></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆✗</td>
 <td align="center">◆✓</td>
-<td align="center">◆✓</td>
-<td align="center">◆✓</td>
-<td align="center">◆✓</td>
-<td align="center">◆✓</td>
-<td align="center">◆✓</td>
-<td align="center">◆✓</td>
+<td align="center">◆</td>
 <td align="center">◆</td>
 </tr>
 <tr>
 <td><code>link_detach</code></td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
 </tr>
 <tr>
 <td><code>link_down</code></td>
@@ -3803,13 +3803,13 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <tr>
 <td><code>link_packet_corruption</code></td>
 <td align="center">◆✓</td>
+<td align="center"></td>
 <td align="center">◆✓</td>
+<td align="center"></td>
 <td align="center">◆✓</td>
+<td align="center"></td>
 <td align="center">◆✓</td>
-<td align="center">◆✓</td>
-<td align="center">◆✓</td>
-<td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>bgp_address_family_not_activated</code></td>
@@ -3945,13 +3945,13 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>ospf_area_misconfiguration</code></td>
-<td align="center">○✓</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center">◆</td>
 <td align="center">◆✓</td>
 </tr>
 <tr>
@@ -3990,13 +3990,13 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <tr>
 <td><code>ospf_neighbor_missing</code></td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">◆</td>
-<td align="center">◆</td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
 </tr>
 <tr>
 <td><code>ospf_network_type_mismatch</code></td>
@@ -4136,7 +4136,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆✓</td>
 <td align="center">○</td>
 <td align="center">◆✓</td>
-<td align="center">○</td>
+<td align="center">○✗</td>
 <td align="center">◆✓</td>
 <td align="center">○</td>
 <td align="center">◆✓</td>
@@ -4144,13 +4144,13 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <tr>
 <td><code>ospf_acl_block</code></td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">◆</td>
-<td align="center">◆</td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
 </tr>
 <tr>
 <td><code>vrf_dscp_remarking</code></td>
@@ -4353,22 +4353,22 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <tr>
 <td><code>receiver_resource_contention</code></td>
 <td align="center">○✓</td>
+<td align="center"></td>
 <td align="center">○✓</td>
+<td align="center"></td>
 <td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>sender_resource_contention</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center">○✓</td>
 <td align="center">○✓</td>
 <td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
@@ -4380,17 +4380,6 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">◆</td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>incast_traffic_network_limitation</code></td>
-<td align="center">○✓</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○✓</td>
-<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
@@ -4422,7 +4411,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆✓</td>
+<td align="center">◆✗</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
@@ -4466,8 +4455,8 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">○✓</td>
 <td align="center">○✓</td>
 <td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
