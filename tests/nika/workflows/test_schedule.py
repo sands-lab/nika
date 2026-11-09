@@ -419,3 +419,28 @@ def test_sandbox_keeps_diagnosis_phase_and_budget_during_continuation(
     assert "report 1" in prompts[1]
     assert phase_changes == ["submission"]
     assert frozen == ["budget report" if exhaust_final_budget else "report 2"]
+
+
+def test_cancel_before_start_records_no_elapsed_time(tmp_path, monkeypatch):
+    from nika.workflows import schedule as runtime
+
+    session = SimpleNamespace(session_dir=str(tmp_path))
+    monkeypatch.setattr(
+        runtime,
+        "Session",
+        lambda: SimpleNamespace(load_running_session=lambda **kw: session),
+    )
+    scheduler = runtime.SessionScheduler(
+        "cancel-before-start", Schedule(events=[{"problem": "link_down", "at": 10}])
+    )
+    scheduler.close()
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "schedule-events.jsonl").read_text().splitlines()
+    ]
+    cancelled = [row for row in rows if row["status"] == "cancelled"]
+    assert len(cancelled) == 1
+    assert cancelled[0]["planned_offset"] == 10
+    assert cancelled[0]["elapsed"] is None
+    assert cancelled[0]["lateness_sec"] is None
+    assert rows[-1]["status"] == "closed" and not rows[-1]["cleanup_errors"]
