@@ -214,6 +214,8 @@ def select_diagnosis_servers(
     backend = _resolve_diagnosis_backend(scenario_name, backend)
 
     tokens = _scenario_tokens(scenario_name)
+    if device_profile in ("iosxr", "routeros"):
+        tokens.add(device_profile)
     servers = [
         DIAGNOSIS_HOST_SERVER,
         DIAGNOSIS_PINGMESH_SERVER,

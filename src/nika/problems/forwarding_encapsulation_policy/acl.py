@@ -394,6 +394,55 @@ class OSPFAclBlockParams(BaseModel):
     host_name: str = Field(description="Target router host name.")
 
 
+def _xr_ospf_drop_applied(output: str) -> bool:
+    """The running ACL drops OSPF on every configured OSPF data interface."""
+    ospf_interfaces = set(
+        re.findall(r"^  interface (GigabitEthernet\S+)$", output, re.M)
+    )
+    filters = {
+        interface: re.search(r"^ ipv4 access-group (\S+) ingress$", body, re.M)
+        for interface, body in re.findall(
+            r"^interface (\S+)\n(.*?)(?=^!|\Z)", output, re.M | re.S
+        )
+    }
+    acls = dict(
+        re.findall(r"^ipv4 access-list (\S+)\n(.*?)(?=^!|\Z)", output, re.M | re.S)
+    )
+
+    def drops_ospf(acl: str) -> bool:
+        entries = sorted(
+            (int(seq), rule)
+            for seq, rule in re.findall(r"^ (\d+) (.+)$", acl, re.M)
+            if not rule.startswith("remark ")
+        )
+        return bool(entries) and entries[0][1] in {
+            "deny ospf any any",
+            "deny 89 any any",
+        }
+
+    return bool(ospf_interfaces) and all(
+        (applied := filters.get(interface)) is not None
+        and drops_ospf(acls.get(applied[1], ""))
+        for interface in ospf_interfaces
+    )
+
+
+def _xr_ospf_no_adjacencies(output: str) -> bool:
+    counts = re.findall(r"Adjacent neighbor count is (\d+)", output, re.I)
+    return bool(counts) and all(int(count) == 0 for count in counts)
+
+
+def _routeros_ospf_drop(output: str) -> bool:
+    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+    return any(
+        row.get("chain") == "input"
+        and row.get("protocol") in {"ospf", "89"}
+        and row.get("action") == "drop"
+        for row in routeros_terse_rows(output)
+    )
+
+
 class OSPFAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
@@ -522,8 +571,7 @@ class OSPFAclBlock(ProblemBase):
         )
 
 
-# ==================================================================
-# Problem: ARP Access Policy Misconfiguration - ACL blocking ARP traffic
+
 # ==================================================================
 
 

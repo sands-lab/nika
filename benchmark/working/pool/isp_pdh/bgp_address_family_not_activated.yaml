@@ -1,0 +1,53 @@
+scenario:
+  name: isp_pdh
+failure:
+  fault_type: bgp_address_family_not_activated
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n7
+    root_causes:
+    - resource:
+        kind: node
+        node: n7
+      fault_type: bgp_address_family_not_activated
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n8
+    root_causes:
+    - resource:
+        kind: node
+        node: n8
+      fault_type: bgp_address_family_not_activated
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n9
+    root_causes:
+    - resource:
+        kind: node
+        node: n9
+      fault_type: bgp_address_family_not_activated

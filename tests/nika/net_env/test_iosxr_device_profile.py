@@ -114,6 +114,9 @@ def test_translation_keeps_areas_static_routes_and_underlay_delay() -> None:
     assert "  198.18.1.10/32 100.64.0.17" in provider
     # The public web server's LAN.
     assert " ipv4 address 198.51.100.9/29\n no shutdown" in provider
+    bindings = enterprise.lab.machines["isp1_core"].meta["envs"]["XR_INTERFACES"]
+    assert "linux:lo" not in bindings
+    assert "linux:eth0,xr_name=GigabitEthernet0/0/0/0" in bindings
     # XR traffic still passes the container qdiscs, but the XRd image has no
     # tc: the provider's WAN delay is applied from the router's namespace.
     assert (

@@ -1,0 +1,229 @@
+scenario:
+  name: isp_abilene
+failure:
+  fault_type: bgp_ttl_security_mismatch
+  cases:
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: atlang
+    root_causes:
+    - resource:
+        kind: node
+        node: atlang
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hstnng
+    root_causes:
+    - resource:
+        kind: node
+        node: hstnng
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: iplsng
+    root_causes:
+    - resource:
+        kind: node
+        node: iplsng
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: kscyng
+    root_causes:
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: losang
+    root_causes:
+    - resource:
+        kind: node
+        node: losang
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: nycmng
+    root_causes:
+    - resource:
+        kind: node
+        node: nycmng
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: washng
+    root_causes:
+    - resource:
+        kind: node
+        node: washng
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: atlang
+    root_causes:
+    - resource:
+        kind: node
+        node: atlang
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hstnng
+    root_causes:
+    - resource:
+        kind: node
+        node: hstnng
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: iplsng
+    root_causes:
+    - resource:
+        kind: node
+        node: iplsng
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: kscyng
+    root_causes:
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: losang
+    root_causes:
+    - resource:
+        kind: node
+        node: losang
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: nycmng
+    root_causes:
+    - resource:
+        kind: node
+        node: nycmng
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: washng
+    root_causes:
+    - resource:
+        kind: node
+        node: washng
+      fault_type: bgp_ttl_security_mismatch

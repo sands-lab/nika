@@ -9,6 +9,7 @@ container interfaces (``eth{k}``); SONiC ports are ``Ethernet{4(k-1)}``.
 
 from __future__ import annotations
 
+import base64
 import ipaddress
 import json
 import re
@@ -17,7 +18,7 @@ import shlex
 from nika.net_env.utils.sonic.common import container_iface, sonic_port
 from nika.net_env.verify import frr_bgp_established_peers
 from nika.problems.support.frr import FRR_SAVE_COMMAND
-from nika.problems.support.router_ops import RouterFaultOps
+from nika.problems.support.router_ops import RouterFaultOps, OspfNeighbor
 
 _FRR_CONF = "/etc/frr/frr.conf"
 # SONiC name of the loopback that holds BGP-only prefixes (Kathara ``lo1``).
@@ -215,6 +216,62 @@ class SonicFaultOps(RouterFaultOps):
                 self._exec(f"cat {_FRR_CONF}.new > {_FRR_CONF}; rm -f {_FRR_CONF}.new")
                 return
         raise ValueError(f"No OSPF network covers {self.node}:{interface}")
+
+    def ipv4_addresses(self) -> dict[str, tuple[str, ...]]:
+        data = json.loads(self._exec("ip -j -4 address show"))
+        return {
+            container_iface(row["ifname"]): tuple(
+                f"{address['local']}/{address['prefixlen']}"
+                for address in row.get("addr_info", [])
+                if address.get("family") == "inet"
+            )
+            for row in data
+            if row["ifname"].startswith("Ethernet")
+        }
+
+    def ospf_neighbors(self) -> list[OspfNeighbor]:
+        data = json.loads(self._vtysh("show ip ospf neighbor json"))
+        return [
+            OspfNeighbor(
+                router_id,
+                entry["ifaceAddress"],
+                container_iface(entry["ifaceName"].split(":", 1)[0]),
+                entry["nbrState"],
+            )
+            for router_id, entries in data.get("neighbors", {}).items()
+            for entry in (entries if isinstance(entries, list) else [entries])
+        ]
+
+    def ospf_bindings(self) -> dict[str, tuple[str, ...]]:
+        return {
+            f"network {prefix} area {area}": tuple(
+                container_iface(port)
+                for port, address in self._ospf_interface_addresses().items()
+                if ipaddress.ip_address(address)
+                in ipaddress.ip_network(prefix, strict=False)
+            )
+            for prefix, area in _OSPF_NETWORK.findall(self._ospf_block())
+        }
+
+    def remove_ospf_binding(self, binding: str) -> None:
+        if binding not in self.ospf_bindings():
+            raise ValueError(f"No OSPF binding {binding!r} on {self.node}")
+        self._configure("router ospf", f"no {binding}")
+        self._exec(FRR_SAVE_COMMAND)
+
+    def ospf_routes(self) -> set[str]:
+        return set(json.loads(self._vtysh("show ip route ospf json")))
+
+    def save_config(self) -> str:
+        return self._running()
+
+    def restore_config(self, config: str) -> None:
+        # Reconcile the OSPF process, including bindings removed by the fault.
+        self._configure("no router ospf")
+        encoded = base64.b64encode(config.encode()).decode()
+        self._exec(f"printf %s {shlex.quote(encoded)} | base64 -d > {_FRR_CONF}")
+        self._exec(f"vtysh -f {_FRR_CONF}", timeout=60)
+        self._exec(FRR_SAVE_COMMAND)
 
     # Packet filters
 

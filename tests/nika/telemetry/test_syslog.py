@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+
 import pytest
 
 from nika.telemetry import routeros, srl, syslog
@@ -94,6 +96,18 @@ def test_routeros_syslog_script_adds_remote_action() -> None:
     assert "src-address=172.28.0.1" in script
     assert "{" not in script
     assert "nika" not in script.lower()
+
+
+def test_routeros_script_executes_rules_after_the_ssh_wrapper_exits(monkeypatch):
+    monkeypatch.setattr(routeros, "CLI_COMMAND", "printf 'called\\n'; exit 0")
+    result = subprocess.run(
+        ["sh"],
+        input=routeros.syslog_script("172.28.0.1", "172.28.0.254"),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert result.stdout.splitlines() == ["called", "called"]
 
 
 def test_srl_syslog_enabled_reads_running_logging() -> None:

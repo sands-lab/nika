@@ -1,0 +1,20 @@
+scenario:
+  name: isp_abilene_ebgp_rtbh
+failure:
+  fault_type: ospf_network_type_mismatch
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: chinng
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: chinng
+        name: eth1
+      fault_type: ospf_network_type_mismatch

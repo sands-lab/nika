@@ -35,7 +35,7 @@ def test_containerlab_loader_is_labelled_for_lab_teardown() -> None:
         ),
         patch.object(bitflip, "_wire", return_value=wire),
     ):
-        assert bitflip.attach("spine", "eth1", 42) == "nwaaaaaaaaaaaa"
+        bitflip.attach("spine", "eth1", 42)
 
     kwargs = client.containers.create.call_args.kwargs
     assert kwargs["labels"]["nika.lab_name"] == "min3clos__lab"

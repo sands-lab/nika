@@ -52,7 +52,7 @@ class EnvStartResponse(BaseModel):
 class FailureInjectRequest(BaseModel):
     session_id: str
     problem_names: list[str]
-    param_overrides: dict[str, str] = Field(default_factory=dict)
+    param_overrides: dict[str, Any] = Field(default_factory=dict)
     # Benchmark root causes the injected ground truth must match.
     expected_root_causes: list[dict[str, Any]] | None = None
 

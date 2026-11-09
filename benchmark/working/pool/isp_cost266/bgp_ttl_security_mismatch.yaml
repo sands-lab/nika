@@ -1,0 +1,261 @@
+scenario:
+  name: isp_cost266
+failure:
+  fault_type: bgp_ttl_security_mismatch
+  cases:
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: bordeaux
+    root_causes:
+    - resource:
+        kind: node
+        node: bordeaux
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: budapest
+    root_causes:
+    - resource:
+        kind: node
+        node: budapest
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: krakow
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: lisbon
+    root_causes:
+    - resource:
+        kind: node
+        node: lisbon
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: lyon
+    root_causes:
+    - resource:
+        kind: node
+        node: lyon
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: madrid
+    root_causes:
+    - resource:
+        kind: node
+        node: madrid
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: marseille
+    root_causes:
+    - resource:
+        kind: node
+        node: marseille
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: milan
+    root_causes:
+    - resource:
+        kind: node
+        node: milan
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: munich
+    root_causes:
+    - resource:
+        kind: node
+        node: munich
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: paris
+    root_causes:
+    - resource:
+        kind: node
+        node: paris
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: prague
+    root_causes:
+    - resource:
+        kind: node
+        node: prague
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: rome
+    root_causes:
+    - resource:
+        kind: node
+        node: rome
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: seville
+    root_causes:
+    - resource:
+        kind: node
+        node: seville
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: strasbourg
+    root_causes:
+    - resource:
+        kind: node
+        node: strasbourg
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: vienna
+    root_causes:
+    - resource:
+        kind: node
+        node: vienna
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: zurich
+    root_causes:
+    - resource:
+        kind: node
+        node: zurich
+      fault_type: bgp_ttl_security_mismatch

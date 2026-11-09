@@ -276,8 +276,6 @@ def netlab_topology(
             }
         )
     if bgp and (site := bgp.customer_site):
-        if render == "routeros":
-            raise ValueError("netlab RouterOS construction has no customer site")
         (provider,) = [n for n in plan.nodes if n.device_name == site.provider]
         topology["links"].append(
             {
@@ -287,7 +285,7 @@ def netlab_topology(
                     {
                         "node": site.provider,
                         # The lab attaches the customer after the plan's interfaces.
-                        "ifname": native(f"eth{len(provider.interfaces)}"),
+                        "ifname": native(bgp.customer_interface(provider)),
                         "ipv4": f"{site.gateway}/{IPv4Network(site.prefix).prefixlen}",
                         "bgp.advertise": True,
                     }

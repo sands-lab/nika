@@ -67,6 +67,9 @@ FREE_PAGE_REPORT_SEC = 5
 BUILD_DEPLOY_TIMEOUT_SEC = 1800
 # Free space kept on the Firecracker root beyond a build's VM memory.
 BUILD_SPACE_MARGIN_MIB = 4096
+# Guest memory the VM's own kernel and services hold (about 0.7 GiB measured),
+# added to a native vendor lab's admission estimate.
+GUEST_OVERHEAD_MIB = 1024
 # Deploy parameters that change the lab; mirrors ``start_net_env``'s keywords.
 VARIANT_KEYS = (
     "scenario",

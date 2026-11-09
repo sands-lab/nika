@@ -77,10 +77,11 @@ echo 'fs.inotify.max_user_watches=64000' | sudo tee -a /etc/sysctl.d/99-nika-ino
 sudo sysctl --system
 ```
 
-4. Wipe leftover labs and retry:
+4. List sessions, close the affected session, and retry:
 
 ```shell
-uv run nika session wipe -y
+uv run nika session list
+uv run nika session close --session_id SESSION_ID
 uv run nika env run iosxr_simple_bgp
 ```
 
@@ -187,7 +188,8 @@ The running kernel has no `vrf` module. Ubuntu `-virtual` and cloud kernels ship
 sudo apt-get install linux-modules-extra-$(uname -r)
 sudo modprobe vrf
 echo vrf | sudo tee /etc/modules-load.d/nika-vrf.conf
-uv run nika session wipe -y
+uv run nika session list
+uv run nika session close --session_id SESSION_ID
 ```
 
 Re-running `./scripts/install.sh` does the same. After a kernel upgrade, install the matching `linux-modules-extra` package before the next `enterprise_branch` lab.
@@ -219,10 +221,11 @@ Typical scenarios: `min3clos`, `isp_*` with `--backend containerlab` (especially
 
 ### Fix
 
-1. Wipe leftovers:
+1. List sessions and close only the affected session:
 
 ```shell
-uv run nika session wipe -y
+uv run nika session list
+uv run nika session close --session_id SESSION_ID
 ```
 
 2. Lower deploy concurrency in `config/nika.yaml` (copy from `config/nika.example.yaml` if needed):

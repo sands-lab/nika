@@ -82,6 +82,21 @@ def test_parse_routeros_bgp_sessions() -> None:
     assert rows["10.0.0.9"]["up"] == 0
 
 
+def test_routeros_bgp_flags_and_configured_peer_without_a_cached_session():
+    output = "\n".join(
+        [
+            "0 name=primary remote.address=172.30.0.9/32",
+            "1 name=standby remote.address=172.30.0.13/32",
+            "2 name=dynamic remote.address=10.0.0.0/24",
+            "0 E name=primary-1 remote.address=172.30.0.9@vrf_overlay",
+        ]
+    )
+    assert routeros.parse_bgp_sessions(output) == [
+        {"neighbor": "172.30.0.9", "up": 1},
+        {"neighbor": "172.30.0.13", "up": 0},
+    ]
+
+
 def test_srl_collect_interfaces_and_bgp() -> None:
     stats, oper = srl.collect_interfaces(
         [
@@ -122,6 +137,26 @@ def test_routeros_setup_script_assigns_extra_ether_and_traffic_flow() -> None:
     assert "traffic-flow" in script
     assert "172.28.255.254" in script
     assert "9995" in script
+
+
+def test_converted_router_telemetry_uses_its_declared_management_port():
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.telemetry import management
+
+    env = get_net_env_instance(
+        "enterprise_branch", topo_size="s", device_profile="routeros"
+    )
+    plan = management.attach(env, ("prometheus",))
+    device = plan["devices"]["br1_edge"]
+    assert device["mgmt_port"] == "ether6"
+    assert env.lab.machines["br1_edge"].meta["envs"]["CLAB_INTFS"] == "5"
+    assert "ip link set eth4 master bp5" in env.lab.fs.readtext("br1_edge.startup")
+    script = routeros.setup_script(
+        {**device, "prefixlen": 16},
+        "172.28.0.2",
+    )
+    assert "interface=ether6" in script
+    assert "interface=ether5" not in script
 
 
 def test_prometheus_collector_adds_routeros_job() -> None:

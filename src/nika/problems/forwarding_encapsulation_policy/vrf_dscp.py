@@ -22,8 +22,15 @@ from nika.problems.base import (
 )
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace, workload_exercises
-from nika.problems.support.oracle import Check, OraclePlaybook, all_of, contains, shell
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    all_of,
+    contains,
+    routeros,
+    shell,
+)
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
 from nika.traffic.workload import REALTIME_BULK_CONTENTION
 from nika.utils.logger import system_logger
@@ -262,13 +269,52 @@ class VrfDscpRemarking(ProblemBase):
             f"nft -a list ruleset 2>/dev/null | grep -F 'oifname \"{iface}\"' "
             "| grep -E 'dscp set' | head -4"
         )
-        return OraclePlaybook(
-            finding=(
-                f"A mangle rule on {edge} rewrites CORP DSCP EF to CS0 on overlay "
-                f"egress {iface}, so realtime traffic falls out of the EF class "
-                "into best effort and competes with bulk transfers."
-            ),
-            steps=[
+        if native_router_profile(self.net_env, edge) == "routeros":
+            from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+            def matches(output: str) -> bool:
+                return any(
+                    row.get("chain") == "postrouting"
+                    and row.get("out-interface") == iface
+                    and row.get("src-address") == prefix
+                    and row.get("dscp") == str(DSCP_EF)
+                    and row.get("new-dscp") == str(DSCP_CS0)
+                    and row.get("action") == "change-dscp"
+                    for row in routeros_terse_rows(output)
+                )
+
+            counter = (
+                ":foreach r in=[/ip firewall mangle find where action=change-dscp] do={ "
+                f':if (([/ip firewall mangle get $r out-interface] = "{iface}") && '
+                f'([/ip firewall mangle get $r src-address] = "{prefix}") && '
+                f"([/ip firewall mangle get $r dscp] = {DSCP_EF}) && "
+                f"([/ip firewall mangle get $r new-dscp] = {DSCP_CS0})) do={{ "
+                ':put ("counter packets " . [/ip firewall mangle get $r packets]) } }'
+            )
+            steps = [
+                routeros(
+                    edge,
+                    "/queue tree print stats",
+                    f"Inspect the EF and best-effort QoS classes on {edge}:{iface}.",
+                ),
+                routeros(
+                    edge,
+                    "/ip firewall mangle print terse where action=change-dscp",
+                    f"Look for DSCP rewrite rules on {edge}.",
+                    Check(f"EF from {prefix} leaving {iface} is set to CS0", matches),
+                    evidence=True,
+                ),
+                routeros(
+                    edge,
+                    f"{counter}; :delay 5s; {counter}",
+                    "Check that live EF traffic keeps hitting the rewrite rule.",
+                    Check("its packet counter grows", _counter_grows),
+                    evidence=True,
+                    attempts=2,
+                ),
+            ]
+        else:
+            steps = [
                 shell(
                     edge,
                     f"tc -s class show dev {iface} | head -30",
@@ -293,7 +339,14 @@ class VrfDscpRemarking(ProblemBase):
                     timeout=25,
                     attempts=2,
                 ),
-            ],
+            ]
+        return OraclePlaybook(
+            finding=(
+                f"A mangle rule on {edge} rewrites CORP DSCP EF to CS0 on overlay "
+                f"egress {iface}, so realtime traffic falls out of the EF class "
+                "into best effort and competes with bulk transfers."
+            ),
+            steps=steps,
         )
 
     def _chain(self, params: VrfDscpRemarkingParams) -> str:

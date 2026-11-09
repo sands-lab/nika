@@ -363,7 +363,7 @@ def remote_inject_failure(
     problem_names: list[str],
     *,
     session_id: str | None = None,
-    param_overrides: dict[str, str] | None = None,
+    param_overrides: dict[str, Any] | None = None,
     expected_root_causes: list | None = None,
 ) -> None:
     """Inject faults on the remote host and sync artifacts locally."""

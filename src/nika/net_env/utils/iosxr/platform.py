@@ -13,7 +13,6 @@ from nika.net_env.native_routers import (
 )
 from nika.net_env.utils.iosxr.common import (
     CONFIG_FILE_PATH,
-    ROUTER_MEMORY_MIB,
     build_xr_config_command,
     iosxr_interface,
 )
@@ -22,14 +21,14 @@ from nika.net_env.utils.iosxr.frr import convert_frr_routers, retained_netlab_fr
 
 def _check_deployable(env) -> None:
     from nika.net_env.utils.iosxr.common import IMAGE, require_xrd_image
-    from nika.net_env.utils.native_admission import GIB, require_native_lab_memory
+    from nika.net_env.utils.native_admission import require_native_lab_memory
 
     require_xrd_image(IMAGE)
     routers = len(env.native_routers)
     require_native_lab_memory(
         f"{env.LAB_NAME} on IOS XR",
         routers=routers,
-        per_router=ROUTER_MEMORY_MIB * GIB // 1024,
+        per_router=PLATFORM.memory_per_router,
         hosts=len(env.lab.machines) - routers,
     )
 
@@ -87,6 +86,7 @@ PLATFORM = NativeRouterPlatform(
     convert=convert_frr_routers,
     check_deployable=_check_deployable,
     verify_max_wait_sec=900,
+    memory_per_router=3 * 1024**3,
     validation=NativeRouterValidation(
         interface=iosxr_interface,
         batfish_config=_batfish_config,

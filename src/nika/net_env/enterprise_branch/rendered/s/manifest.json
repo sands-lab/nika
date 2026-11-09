@@ -1,5 +1,5 @@
 {
-  "digest": "a52b62e6e872e7be5f185ac485899c88bf16ad4db18567e00ddc3f0464b65dbd",
+  "digest": "2bda162985ed7bb0508685dcaabf258f8661ef3677d62e23751033e819ee3fd6",
   "netlab": "26.10",
   "routers": [
     "br1_edge",

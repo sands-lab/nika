@@ -1,0 +1,23 @@
+scenario:
+  name: isp_ta2
+failure:
+  fault_type: ospf_network_type_mismatch
+  cases:
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n35
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: n35
+        name: eth2
+      fault_type: ospf_network_type_mismatch

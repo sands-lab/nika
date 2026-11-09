@@ -462,6 +462,11 @@ class LinkFailure(ProblemBase):
             restore_endpoint_network(self.runtime, self.net_env, params.host_name)
             if peer is not None:
                 restore_endpoint_network(self.runtime, self.net_env, peer[0])
+            restore_routes = getattr(self.net_env, "restore_link_routes", None)
+            if restore_routes is not None:
+                restore_routes(self.runtime, params.host_name, intf)
+                if peer is not None:
+                    restore_routes(self.runtime, *peer)
             restored = (
                 self.runtime.get_interface_operstate(params.host_name, intf) == "up"
             )

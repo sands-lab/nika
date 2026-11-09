@@ -49,6 +49,12 @@ _TRAFFIC_IMAGE = "python:3.12-alpine@sha256:e6dae589c1c05976188fd3bd019afd091445
 
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 
+INFERENCE_CHAT_URL = "http://llmd/v1/chat/completions"
+INFERENCE_CHAT_BODY = (
+    '{"model":"llm-d-sim","max_tokens":16,'
+    '"messages":[{"role":"user","content":"Summarize the weekly report."}]}'
+)
+
 _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
 _HELM_VERSION = "v3.21.3"
 _HELM_ARCHIVE_SHA256 = {
@@ -371,16 +377,23 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
             "l2_endpoints": sorted(clients, key=lambda h: h != "client"),
         }
 
+    def http_backend_request(self, url: str) -> dict[str, str]:
+        """The user-facing inference request that depends on the gateway picker."""
+        del url
+        return {
+            "method": "POST",
+            "url": INFERENCE_CHAT_URL,
+            "body": INFERENCE_CHAT_BODY,
+            "content_type": "application/json",
+            "success_contains": "choices",
+        }
+
     def business_workload(self) -> BusinessWorkload:
         # The client app talks to the gateway VIP and syncs a dataset from the
         # web server; the in-cluster monitoring agents
         # (``controller/k8s/uptime-agent.yaml``) reach the gateway through
         # cluster DNS. The dataset transfers run from the web server to the
         # client, so a starved sender or receiver slows them.
-        chat = (
-            '{"model":"llm-d-sim","max_tokens":16,'
-            '"messages":[{"role":"user","content":"Summarize the weekly report."}]}'
-        )
         return BusinessWorkload(
             processes=(
                 WorkloadProcess(
@@ -388,9 +401,9 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
                     app="api_client",
                     command="chat-app",
                     args=(
-                        "http://llmd/v1/chat/completions",
+                        INFERENCE_CHAT_URL,
                         "--body",
-                        chat,
+                        INFERENCE_CHAT_BODY,
                         "--workers",
                         "2",
                         "--every",

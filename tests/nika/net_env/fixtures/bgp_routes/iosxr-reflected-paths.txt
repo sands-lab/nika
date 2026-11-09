@@ -1,0 +1,22 @@
+-------------------- show bgp ipv4 unicast 203.0.113.0/24 ---------------------
+BGP routing table entry for 203.0.113.0/24
+Versions:
+  Process           bRIB/RIB   SendTblVer
+  Speaker                 12           12
+Last Modified: Nov  3 16:54:36.576 for 00:01:06
+Paths: (2 available, best #1)
+  Not advertised to any peer
+  Path #1: Received by speaker 0
+  Not advertised to any peer
+  Local
+    10.255.0.8 (metric 11) from 10.255.0.1 (10.255.0.8)
+      Origin IGP, metric 0, localpref 100, valid, internal, best, group-best
+      Received Path ID 0, Local Path ID 1, version 12
+      Originator: 10.255.0.8, Cluster list: 10.255.0.1
+  Path #2: Received by speaker 0
+  Not advertised to any peer
+  Local
+    10.255.0.8 (metric 11) from 10.255.0.2 (10.255.0.8)
+      Origin IGP, metric 0, localpref 100, valid, internal
+      Received Path ID 0, Local Path ID 0, version 0
+      Originator: 10.255.0.8, Cluster list: 10.255.0.1
