@@ -21,23 +21,23 @@ RUN apt-get update \
 COPY --from=docker:28-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=ghcr.io/astral-sh/uv:0.12.10 /uv /usr/local/bin/uv
 
+COPY scripts/download-release.sh /tmp/download-release.sh
+
 # Containerlab needs root; like the host install, it is setuid root.
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     case "${arch}" in amd64) gnmic_arch=x86_64 ;; arm64) gnmic_arch=aarch64 ;; esac; \
-    curl -fsSL --retry 4 --retry-max-time 120 \
-      "https://github.com/srl-labs/containerlab/releases/download/v${CLAB_VERSION}/containerlab_${CLAB_VERSION}_linux_${arch}.tar.gz" \
-      -o /tmp/containerlab.tar.gz; \
+    bash /tmp/download-release.sh srl-labs/containerlab "v${CLAB_VERSION}" \
+      "containerlab_${CLAB_VERSION}_linux_${arch}.tar.gz" /tmp/containerlab.tar.gz; \
     tar -xzf /tmp/containerlab.tar.gz --no-same-owner -C /usr/local/bin containerlab; \
     rm /tmp/containerlab.tar.gz; \
     chown root:root /usr/local/bin/containerlab; \
     chmod 4755 /usr/local/bin/containerlab; \
     ln -s containerlab /usr/local/bin/clab; \
-    curl -fsSL --retry 4 --retry-max-time 120 \
-      "https://github.com/openconfig/gnmic/releases/download/v${GNMIC_VERSION}/gnmic_${GNMIC_VERSION}_Linux_${gnmic_arch}.tar.gz" \
-      -o /tmp/gnmic.tar.gz; \
+    bash /tmp/download-release.sh openconfig/gnmic "v${GNMIC_VERSION}" \
+      "gnmic_${GNMIC_VERSION}_Linux_${gnmic_arch}.tar.gz" /tmp/gnmic.tar.gz; \
     tar -xzf /tmp/gnmic.tar.gz --no-same-owner -C /usr/local/bin gnmic; \
-    rm /tmp/gnmic.tar.gz
+    rm /tmp/gnmic.tar.gz /tmp/download-release.sh
 
 WORKDIR /opt/nika
 ENV UV_PYTHON_DOWNLOADS=never \
