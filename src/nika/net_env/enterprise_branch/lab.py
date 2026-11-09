@@ -473,7 +473,8 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         return pairs
 
     def post_restore(self) -> bool:
-        from nika.net_env.enterprise_branch.wireguard import restore_peer_sessions
+        from nika.net_env.enterprise_branch.wireguard import resume_peer_handshakes
+        from nika.utils.parallel import bounded_parallel_map
         from nika.utils.logger import log_event
 
         nodes = []
@@ -492,8 +493,14 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         if not nodes:
             return False
         runtime = self._build_runtime()
-        for node in nodes:
-            restore_peer_sessions(runtime, node)
+        bounded_parallel_map(
+            lambda edge: resume_peer_handshakes(
+                runtime,
+                edge.name,
+                [(interface, tunnel[1]) for interface, tunnel in edge.tunnels.items()],
+            ),
+            [edge for edge in self._edges.values() if edge.name in nodes],
+        )
         return True
 
     def _next_wan(self) -> IPv4Network:

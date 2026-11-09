@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import MagicMock, patch
 
+from nika.net_env.enterprise_branch.addressing import edge_name_for
 from nika.net_env.enterprise_branch.topology import (
     SCALE,
     build_topo_spec,
@@ -28,7 +29,7 @@ pytestmark = pytest.mark.unit
     [(size, profile) for size in ("s", "m", "l") for profile in (None, "iosxr")]
     + [("s", "routeros")],
 )
-def test_restore_selects_linux_tunnel_nodes(size, profile):
+def test_restore_selects_linux_tunnels_and_peer_probes(size, profile):
     from nika.net_env.enterprise_branch.lab import EnterpriseBranch
 
     with patch("nika.net_env.enterprise_branch.lab.Kathara.get_instance"):
@@ -37,7 +38,7 @@ def test_restore_selects_linux_tunnel_nodes(size, profile):
     env.runtime = runtime
     with (
         patch(
-            "nika.net_env.enterprise_branch.wireguard.restore_peer_sessions"
+            "nika.net_env.enterprise_branch.wireguard.resume_peer_handshakes"
         ) as resume,
         patch("nika.utils.logger.log_event") as log,
     ):
@@ -50,6 +51,20 @@ def test_restore_selects_linux_tunnel_nodes(size, profile):
     assert {call.args[1] for call in resume.call_args_list} == expected
     assert recovered is bool(expected)
     assert all(call.args[0] is runtime for call in resume.call_args_list)
+    expected_probes = {
+        (node, interface, peer_ip)
+        for tunnel in env.built_tunnels
+        for node, interface, peer_ip in (
+            (edge_name_for(tunnel.spoke), tunnel.spoke_iface, tunnel.hub_tunnel_ip),
+            (edge_name_for(tunnel.hub), tunnel.hub_iface, tunnel.spoke_tunnel_ip),
+        )
+        if node in expected
+    }
+    assert {
+        (call.args[1], interface, peer_ip)
+        for call in resume.call_args_list
+        for interface, peer_ip in call.args[2]
+    } == expected_probes
     if profile == "routeros":
         assert log.call_count == len(env.native_routers)
         assert all(
@@ -57,13 +72,13 @@ def test_restore_selects_linux_tunnel_nodes(size, profile):
         )
 
 
-def test_failed_peer_restore_stops_the_trial():
-    from nika.net_env.enterprise_branch.wireguard import restore_peer_sessions
+def test_failed_handshake_recovery_stops_the_trial():
+    from nika.net_env.enterprise_branch.wireguard import resume_peer_handshakes
 
     runtime = MagicMock()
     runtime.exec.return_value = "[TIMEOUT] Command exceeded its execution budget"
-    with pytest.raises(RuntimeError, match="WireGuard session recovery failed"):
-        restore_peer_sessions(runtime, "edge")
+    with pytest.raises(RuntimeError, match="WireGuard handshake recovery failed"):
+        resume_peer_handshakes(runtime, "edge", [("wg_peer", "192.0.2.1")])
 
 
 def test_wrong_hub_peer_key_is_not_a_lab_edge_key() -> None:
