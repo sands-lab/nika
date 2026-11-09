@@ -30,6 +30,7 @@ When a known issue slipped through, decide whether it was a coverage failure (no
 
 * Reviewers dismissed real violations as "expectation wrong" (healthy-hunter B1). Never refute a finding without a check that *holds*.
 * Unconstrained exploration burns the budget (healthy-hunter B2). Start from the hits and the leads; sample the rest.
+* Distinguish a network node's filesystem from the harness workspace. A broad search through an authorized MCP tool does not establish out-of-scope access. Identify the prohibited boundary and the observed access. In `campus_lan__dns_port_blocked__h6a276d3ed5cb__t01`, step 39 targets `web_server_0`; the audit incorrectly called it the DNS server and treated the search itself as a violation. Source: `nika-bench/nika-trajectories`, commit `04fcd6ea825295d0655085b67e6eeefefdff7685`.
 * Most unchecked citations were paraphrased or invented (red-team postfix: 153 of 173). Run `cite-check` before anything else reads the findings.
 * Timestamps, PIDs, and sizes differ between runs; compare masked text.
 * One noisy signature buries real hits. If a signature fires on most trials of every leaderboard submission, narrow it before it trains reviewers to skip it.

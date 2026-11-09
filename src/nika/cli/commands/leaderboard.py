@@ -144,6 +144,71 @@ def leaderboard_audit(
         raise typer.Exit(code=1)
 
 
+@leaderboard_app.command("review")
+def leaderboard_review(
+    trajectories: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=False,
+        help="Trajectory package, benchmark run, or single trial.",
+    ),
+    workdir: Path = typer.Option(
+        ..., "--workdir", help="New directory for review evidence and proposed rules."
+    ),
+    command: Optional[str] = typer.Option(
+        None, "--command", help="Reviewer CLI command reading stdin and returning JSON."
+    ),
+    base_url: Optional[str] = typer.Option(
+        None,
+        "--base-url",
+        envvar="NIKA_AUDIT_LLM_URL",
+        help="OpenAI-compatible chat endpoint.",
+    ),
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        envvar="NIKA_AUDIT_LLM_MODEL",
+        help="Reviewer model at the chat endpoint.",
+    ),
+    kb: Optional[Path] = typer.Option(
+        None, "--kb", help="Reviewed knowledge base to copy for this review."
+    ),
+    repo: Optional[Path] = typer.Option(
+        None, "--repo", help="NIKA checkout for source-backed checks."
+    ),
+    history: Optional[Path] = typer.Option(
+        None, "--history", help="Leaderboard checkout for cross-submission comparisons."
+    ),
+    samples: int = typer.Option(
+        3, "--samples", min=1, help="Independent scans per trial."
+    ),
+    workers: int = typer.Option(2, "--workers", min=1, help="Concurrent review calls."),
+) -> None:
+    """Review trajectories with a model and propose knowledge for maintainer review."""
+    import json
+
+    from nika.workflows.leaderboard.review import review_trajectories
+
+    try:
+        summary = review_trajectories(
+            trajectories,
+            workdir,
+            command=command,
+            base_url=base_url,
+            model=model,
+            kb=kb,
+            repo=repo,
+            history=history,
+            samples=samples,
+            workers=workers,
+        )
+    except (ValueError, OSError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(json.dumps(summary, indent=2))
+    if not summary["complete"]:
+        raise typer.Exit(code=1)
+
+
 @leaderboard_app.command("template")
 def leaderboard_template(
     out: Path = typer.Option(

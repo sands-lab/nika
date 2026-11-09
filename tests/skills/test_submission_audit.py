@@ -2464,3 +2464,43 @@ def test_missing_tool_evidence_keeps_namespace_and_prior_advertisement(
     trial.steps[3].text = f"No such tool available: {requested}"
     trial.steps[1].meta = {}
     assert "Request-specific tool identity" not in group_prompt(group, {"trial": trial})
+
+
+def test_cli_reviewer_isolates_calls_and_terminates_children(tmp_path):
+    import os
+    import signal
+    import sys
+    from nika.audit.scan import _cli_chat
+
+    command = (
+        sys.executable,
+        "-c",
+        "from pathlib import Path; import json; p=Path('state'); print(json.dumps({'findings': [], 'cwd': str(Path.cwd()), 'previous': p.exists()})); p.touch()",
+    )
+    cfg = ScanConfig(base_url="", model="local", command=command)
+    replies = [
+        json.loads(_cli_chat(cfg, "system", "packet")["content"]) for _ in range(2)
+    ]
+    assert all(not reply["previous"] for reply in replies)
+    assert replies[0]["cwd"] != replies[1]["cwd"]
+    assert all(not Path(reply["cwd"]).exists() for reply in replies)
+
+    pids = tmp_path / "pids.json"
+    script = "import json,os,subprocess,sys,time; child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); open(sys.argv[1],'w').write(json.dumps([os.getpid(),child.pid])); time.sleep(30)"
+    cfg.command = (sys.executable, "-c", script, str(pids))
+    cfg.timeout = 2
+    cfg.retries = 8
+    try:
+        result = _cli_chat(cfg, "system", "packet")
+        assert result["error"] == "reviewer timeout"
+        parent, child = json.loads(pids.read_text())
+        assert not Path(f"/proc/{parent}").exists()
+        status = Path(f"/proc/{child}/stat")
+        assert not status.exists() or status.read_text().split()[2] in {"Z", "X"}
+    finally:
+        if pids.exists():
+            parent, _ = json.loads(pids.read_text())
+            try:
+                os.killpg(parent, signal.SIGKILL)
+            except ProcessLookupError:
+                pass

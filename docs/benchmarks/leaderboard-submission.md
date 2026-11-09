@@ -9,7 +9,7 @@ Implementation: [`workflows/leaderboard/`](../../src/nika/workflows/leaderboard/
 
 **Prerequisites:**
 
-- A finished official `nika benchmark run --release …` against a current (non-deprecated) frozen release
+- A finished official `nika benchmark run --release …` against a current (non-deprecated) benchmark release
 - Authenticated [`gh`](https://cli.github.com/) access (`gh auth login` or `GH_TOKEN` with `repo` scope)
 - Hugging Face authentication through `hf auth login`, or `HF_TOKEN` in the environment / repo-root `.env`. Use a token that permits proposing dataset changes. You do not need collaborator access to the public dataset to open a PR. `uv sync` installs `huggingface_hub` and `hf`.
 
@@ -37,7 +37,7 @@ For an open-weight model, `submit` also records which Hugging Face model the run
 Use a template when you want to supply a longer README, code links, tools, skills, or other metadata. Pass `--submission` instead of `--name` and `--authors`.
 
 ```shell
-# Use the current frozen release.
+# Use the current benchmark release.
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run -a <agent> -m <model>
 
 nika leaderboard template -o results/my-run/submission
@@ -229,7 +229,22 @@ uv run nika leaderboard validate <scores-package> \
 
 The download selects the merged trajectories or their open Hub PR, pins its commit, and records that revision in the audit report. For local paired data, use `--trajectories <dir>`. Validation also discovers an existing sibling directory. If no trajectories are available, scores-only validation reports that the audit did not run.
 
-The [reviewed knowledge base](../../src/nika/audit/kb_data/) defines blocking and warning findings. LLM transcript review and proposed detector changes remain part of the [submission audit skill](../../.agents/skills/nika-submission-audit/SKILL.md). Maintainers review those proposals before adding them to the shared knowledge base.
+The [reviewed knowledge base](../../src/nika/audit/kb_data/) defines blocking and warning findings.
+
+### Review trajectories with a model
+
+To investigate issues beyond the reviewed rules, run `nika leaderboard review` on a trajectories package, benchmark run, or single trial. With an authenticated local Codex CLI, use:
+
+```shell
+uv run nika leaderboard review <trajectories-dir> --workdir results/submission-review \
+  --command 'codex exec --ignore-user-config --ephemeral --skip-git-repo-check --sandbox read-only --model gpt-6-luna -'
+```
+
+The reviewer reads prompts from stdin and returns JSON on stdout. For an OpenAI-compatible chat endpoint, replace `--command` with `--base-url <url> --model <model>` and set `NIKA_AUDIT_LLM_KEY` when authentication is required. Add `--repo .` to enable source-assisted checks against recorded commits.
+
+Choose a new output directory outside the input trajectories and KB. The review writes `summary.json`, the deterministic `audit.json`, scans, grouped findings, and judgments there. Candidate rules go into its `kb/issues/` directory. When review generates rules, `audit-candidate.json` records their replay against the input trajectories. The input trajectories, scores, and reviewed KB remain unchanged.
+
+The command exits nonzero when model calls fail or source-assisted review reports unsupported checks. Its completion status describes the review, not submission acceptance. Paired-package validation remains `nika leaderboard validate`. Apply the [submission audit skill](../../.agents/skills/nika-submission-audit/SKILL.md) to verify citations, reject unsupported claims, and merge duplicate findings before proposing changes to the shared KB or skill.
 
 ### Run-validity gates
 

@@ -21,7 +21,7 @@ Sessions (`runtime/`) and caches (`.nika_cache/`) live in the main Git checkout 
 | `nika agent` | Run an end-to-end task, or run an agent on a selected session |
 | `nika benchmark` | Full pipeline for benchmark YAML rows or a single `(scenario, problem)` case |
 | `nika eval` | Metrics, LLM judge, and offline summary CSV for closed sessions |
-| `nika leaderboard` | Write a submission template, then pack, validate, and submit scores (GitHub PR) and trajectories (HF PR) from an official release run |
+| `nika leaderboard` | Audit or review recorded trajectories; pack, validate, and submit scores and trajectories from an official release run |
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
 | `nika observability` | Turn monitoring of benchmark progress and lab CPU and memory `on` / `off`, viewed in Grafana; see [monitor benchmarks and lab resources](resource-monitoring.md) |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |

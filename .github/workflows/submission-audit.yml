@@ -2,6 +2,10 @@ name: Audit submission
 
 on:
   workflow_call:
+    secrets:
+      HF_TOKEN:
+        description: Read access to the trajectories dataset
+        required: false
     inputs:
       artifact_name:
         default: submission-audit
@@ -74,6 +78,7 @@ jobs:
         env:
           PACKAGE: ${{ inputs.package }}
           TRAJECTORIES_REPO: ${{ inputs.trajectories_repository }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_HUB_DISABLE_PROGRESS_BARS: "1"
         shell: bash
         run: |

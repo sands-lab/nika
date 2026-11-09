@@ -1086,3 +1086,69 @@ def test_audit_cli_preserves_inputs_and_reports_policy_evidence(
     assert audit["trials"][trial.name]
     assert report.with_suffix(".md").is_file()
     assert path.read_text() == original
+
+
+@pytest.mark.parametrize("errors", [0, 1])
+def test_review_cli_isolates_proposals_and_reports_model_failures(
+    mini_release_env, tmp_path, monkeypatch, errors
+):
+    from typer.testing import CliRunner
+    from nika.cli.main import app
+    from nika.workflows.leaderboard import review
+
+    _, result_dir = mini_release_env
+    original = next((result_dir / "trials").iterdir()) / "messages.jsonl"
+    before = original.read_bytes()
+    seed = tmp_path / "seed-kb"
+    shutil.copytree(review.KB_DIR, seed)
+    candidate_name = "issues/LEAK-REVIEW-TEST.yaml"
+    out = tmp_path / "review"
+
+    def propose(path, kb, workdir, *, scan, adjudicate, **kwargs):
+        assert scan.command == adjudicate.command == ("reviewer", "--model", "local")
+        candidate = (
+            (kb / "issues/LEAK-VTYSH-HISTORY.yaml")
+            .read_text()
+            .replace("LEAK-VTYSH-HISTORY", "LEAK-REVIEW-TEST")
+        )
+        (kb / candidate_name).write_text(candidate)
+        return {
+            "errors": [errors, 0],
+            "written": ["LEAK-REVIEW-TEST"],
+            "curation_validation": {"errors": 0},
+        }
+
+    monkeypatch.setattr(review, "review_submission", propose)
+    result = CliRunner().invoke(
+        app,
+        [
+            "leaderboard",
+            "review",
+            str(result_dir),
+            "--workdir",
+            str(out),
+            "--kb",
+            str(seed),
+            "--command",
+            "reviewer --model local",
+        ],
+    )
+    assert result.exit_code == (1 if errors else 0), result.output
+    assert json.loads((out / "summary.json").read_text())["complete"] == (not errors)
+    assert (out / "audit-candidate.json").is_file()
+    assert (out / "kb" / candidate_name).is_file()
+    assert not (seed / candidate_name).exists()
+    assert original.read_bytes() == before
+    retry = CliRunner().invoke(
+        app,
+        [
+            "leaderboard",
+            "review",
+            str(result_dir),
+            "--workdir",
+            str(out),
+            "--command",
+            "reviewer",
+        ],
+    )
+    assert retry.exit_code != 0

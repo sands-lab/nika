@@ -26,7 +26,7 @@ import os
 import sys
 from pathlib import Path
 
-from nika.audit.kb import KB_DIR, KnowledgeBaseError, load_kb
+from nika.audit.kb import KnowledgeBaseError, load_kb
 from nika.audit.trace import load_trial, trial_dirs
 
 
@@ -59,50 +59,22 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_review(args: argparse.Namespace) -> int:
-    from nika.audit.cohort import history_from_scores
-    from nika.audit.pipeline import review_submission
-    from nika.audit.runner import read_package
-    from nika.audit.scan import ScanConfig
+    from nika.workflows.leaderboard.review import review_trajectories
 
-    if not args.base_url or not args.model:
-        sys.exit("review needs --base-url and --model (or NIKA_AUDIT_LLM_URL/_MODEL)")
-    if not trial_dirs(args.path):
-        sys.exit(f"No trial directories under {args.path}")
-    past = []
-    if args.history:
-        release = read_package(args.path).package.get("release") or ""
-        past = history_from_scores(
-            args.history, release=str(release), exclude=args.path.name
-        )
-    key = os.environ.get("NIKA_AUDIT_LLM_KEY", "none")
-    scan = ScanConfig(
+    summary = review_trajectories(
+        args.path,
+        args.workdir,
+        command=args.command,
         base_url=args.base_url,
         model=args.model,
-        api_key=key,
+        kb=args.kb,
+        repo=args.repo,
+        history=args.history,
         samples=args.samples,
         workers=args.workers,
-        thinking=False,
-    )
-    judge = ScanConfig(
-        base_url=args.base_url,
-        model=args.model,
-        api_key=key,
-        workers=args.workers,
-        max_tokens=16384,
-        thinking=True,
-    )
-    kb_dir = args.kb or KB_DIR
-    summary = review_submission(
-        args.path,
-        kb_dir,
-        args.workdir,
-        scan=scan,
-        adjudicate=judge,
-        history=past,
-        repo=args.repo,
     )
     print(json.dumps(summary, indent=2))
-    return 0
+    return 0 if summary["complete"] else 1
 
 
 def cmd_packet(args: argparse.Namespace) -> int:
@@ -229,8 +201,12 @@ def main() -> int:
     )
     p.add_argument("--base-url", default=os.environ.get("NIKA_AUDIT_LLM_URL"))
     p.add_argument("--model", default=os.environ.get("NIKA_AUDIT_LLM_MODEL"))
+    p.add_argument(
+        "--command",
+        help="Reviewer CLI command. Reads prompts from stdin and returns JSON on stdout.",
+    )
     p.add_argument("--samples", type=int, default=3, help="Scans per trial.")
-    p.add_argument("--workers", type=int, default=64, help="Parallel requests.")
+    p.add_argument("--workers", type=int, default=2, help="Parallel review calls.")
 
     p = add("cite-check", cmd_cite_check, "Verify findings' citations.")
     p.add_argument("findings", type=Path)

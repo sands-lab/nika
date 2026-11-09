@@ -21,17 +21,20 @@ The implementation and reviewed knowledge base live in [`src/nika/audit/`](../..
 
 ## Audit a submission
 
-Run commands from the NIKA checkout. Review requires an OpenAI-compatible chat endpoint and a local trajectories package or benchmark result directory.
+Run commands from the NIKA checkout. Review requires a reviewer CLI or an OpenAI-compatible chat endpoint and local trajectories or benchmark results.
 
 For an authenticated endpoint, set `NIKA_AUDIT_LLM_KEY` in the command's environment.
 
 ```bash
-AUDIT=".agents/skills/nika-submission-audit/scripts/audit.py"
-uv run python "$AUDIT" review <trajectories-dir> --workdir audit-work \
+uv run nika leaderboard review <trajectories-dir> --workdir audit-work \
   --base-url http://<host>:<port>/v1 --model <model> --repo .
 ```
 
-For published trajectories, `fetch <slug> --release <version>` downloads the package to `audit-trajectories/trajectories/<version>/<slug>`. Add `--history <nika-leaderboard checkout>` to include earlier submissions in cross-trial tables. Every subcommand accepts `--kb <dir>` to use a separate issue memory.
+For a local Codex subscription, replace the endpoint options with `--command 'codex exec --ignore-user-config --ephemeral --skip-git-repo-check --sandbox read-only --model gpt-6-luna -'`.
+
+Use a new output directory outside the input trajectories and KB. The command copies the reviewed KB to `audit-work/kb/`; generated rules remain proposals there. `summary.json` records completion, and model failures produce a nonzero exit. When rules are generated, `audit-candidate.json` records their replay.
+
+For published trajectories, `uv run python -m nika.audit.cli fetch <slug> --release <version>` downloads the package to `audit-trajectories/trajectories/<version>/<slug>`. Add `--history <nika-leaderboard checkout>` to include earlier submissions in cross-trial tables. Every subcommand accepts `--kb <dir>` to use a separate issue memory.
 
 `--repo` enables source verification at recorded commits and checks whether known issues recur after their fixes. Source-assisted checks require those commits in the checkout. Parser and capture confirmation can run isolated Docker probes; those probes require Docker and locally cached images pinned by digest. Missing dependencies, unsupported source layouts, and failed requests remain explicit in the output.
 
@@ -50,7 +53,7 @@ Source-backed detectors bind their observations to reviewed provider contents. A
 
 When a shared-text signature matches many uncited trials, static-disclosure validation can check every distinct scoped output and matched fragment. Each fragment must establish the complete disclosure by itself, and an empty control must be rejected. Accepted detectors also require the producing tool. Other recording failures remain available for review.
 
-Successful model replies are cached against their evidence, prompts, and selected model parameters. Failed replies remain errors and are retried on a rerun. Malformed table or validation replies may receive one bounded format retry; valid replies are preserved. Reasoning-enabled HTTP requests use streaming, with ordinary HTTP as a fallback for endpoints that reject streaming. Interrupted streams remain errors and are not automatically replayed.
+Successful model replies are cached against their evidence, prompts, and selected model parameters. Failed replies remain errors. The review library can reuse successful cached replies; CLI reviews use a new output directory. Malformed table or validation replies may receive one bounded format retry; valid replies are preserved. Reasoning-enabled HTTP requests use streaming, with ordinary HTTP as a fallback for endpoints that reject streaming. Interrupted streams remain errors and are not automatically replayed.
 
 To check existing rules through the installed CLI, run:
 
