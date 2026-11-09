@@ -51,14 +51,15 @@
     "in_tokens": null,
     "out_tokens": null
   },
+  "token_usage_complete": false,
   "steps_totals": {
     "steps": null,
     "tool_calls": null,
     "tool_errors": null
   },
-  "mean_tokens": 0.0,
+  "mean_tokens": null,
   "mean_steps": 0.0,
-  "total_tokens": 0,
+  "total_tokens": null,
   "task_tokens": null,
   "max_steps": null,
   "case_timeout_sec": null,

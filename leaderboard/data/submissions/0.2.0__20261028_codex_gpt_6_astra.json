@@ -71,356 +71,16 @@
     "in_tokens": 7535963,
     "out_tokens": 66767
   },
+  "token_usage_complete": false,
   "steps_totals": {
     "steps": 4807,
     "tool_calls": 8649,
     "tool_errors": 167
   },
-  "mean_tokens": 29814.627,
+  "mean_tokens": null,
   "mean_steps": 18.851,
-  "total_tokens": 7602730,
-  "task_tokens": [
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      356565,
-      2721
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      236031,
-      2833
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      332106,
-      2722
-    ],
-    [
-      360789,
-      3870
-    ],
-    [
-      415816,
-      4710
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      252501,
-      2528
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      558179,
-      2872
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ],
-    [
-      0,
-      0
-    ]
-  ],
+  "total_tokens": null,
+  "task_tokens": null,
   "max_steps": 100,
   "case_timeout_sec": 2400,
   "created_at": "2026-10-28T07:55:51+00:00",
@@ -450,8 +110,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 22,
       "tool_calls": 19,
       "tool_errors": 0
@@ -477,8 +137,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 38,
       "tool_calls": 35,
       "tool_errors": 0
@@ -500,8 +160,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 17,
       "tool_errors": 0
@@ -527,8 +187,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 24,
       "tool_calls": 21,
       "tool_errors": 0
@@ -554,8 +214,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 17,
       "tool_errors": 0
@@ -581,8 +241,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 25,
       "tool_calls": 22,
       "tool_errors": 0
@@ -608,8 +268,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 27,
       "tool_calls": 24,
       "tool_errors": 0
@@ -635,8 +295,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 25,
       "tool_calls": 22,
       "tool_errors": 0
@@ -658,8 +318,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 3,
       "tool_calls": 2,
       "tool_errors": 0
@@ -685,8 +345,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 24,
       "tool_calls": 21,
       "tool_errors": 0
@@ -712,8 +372,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 16,
       "tool_errors": 0
@@ -739,8 +399,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 34,
       "tool_errors": 0
@@ -766,8 +426,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 24,
       "tool_errors": 0
@@ -793,8 +453,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 20,
       "tool_errors": 0
@@ -820,8 +480,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 22,
       "tool_calls": 19,
       "tool_errors": 0
@@ -847,8 +507,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 24,
       "tool_errors": 0
@@ -874,8 +534,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 23,
       "tool_errors": 0
@@ -901,8 +561,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 21,
       "tool_calls": 48,
       "tool_errors": 2
@@ -928,8 +588,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 8,
       "tool_calls": 21,
       "tool_errors": 0
@@ -955,8 +615,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 7,
       "tool_calls": 17,
       "tool_errors": 0
@@ -982,8 +642,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 20,
       "tool_errors": 0
@@ -1009,8 +669,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 15,
       "tool_errors": 0
@@ -1036,8 +696,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 24,
       "tool_calls": 21,
       "tool_errors": 0
@@ -1063,8 +723,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 24,
       "tool_errors": 0
@@ -1086,8 +746,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 19,
       "tool_errors": 1
@@ -1109,8 +769,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 7,
       "tool_calls": 18,
       "tool_errors": 0
@@ -1132,8 +792,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 15,
       "tool_errors": 0
@@ -1159,8 +819,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 26,
       "tool_calls": 23,
       "tool_errors": 0
@@ -1186,8 +846,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 26,
       "tool_errors": 0
@@ -1213,8 +873,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 23,
       "tool_errors": 0
@@ -1240,8 +900,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 35,
       "tool_calls": 32,
       "tool_errors": 0
@@ -1267,8 +927,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 13,
       "tool_calls": 39,
       "tool_errors": 0
@@ -1294,8 +954,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 41,
       "tool_errors": 0
@@ -1317,8 +977,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 33,
       "tool_calls": 30,
       "tool_errors": 0
@@ -1340,8 +1000,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 25,
       "tool_calls": 22,
       "tool_errors": 0
@@ -1363,8 +1023,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 20,
       "tool_errors": 0
@@ -1390,8 +1050,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.6667,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 38,
       "tool_errors": 0
@@ -1417,8 +1077,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.6667,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 29,
       "tool_calls": 66,
       "tool_errors": 0
@@ -1444,8 +1104,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.6667,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 28,
       "tool_calls": 40,
       "tool_errors": 0
@@ -1471,8 +1131,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 28,
       "tool_errors": 0
@@ -1498,8 +1158,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 26,
       "tool_errors": 0
@@ -1525,8 +1185,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 30,
       "tool_errors": 0
@@ -1552,8 +1212,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 22,
       "tool_calls": 19,
       "tool_errors": 0
@@ -1579,8 +1239,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 23,
       "tool_errors": 0
@@ -1606,8 +1266,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 27,
       "tool_errors": 0
@@ -1633,8 +1293,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 26,
       "tool_calls": 23,
       "tool_errors": 0
@@ -1660,8 +1320,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 13,
       "tool_calls": 31,
       "tool_errors": 0
@@ -1687,8 +1347,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 33,
       "tool_errors": 0
@@ -1714,8 +1374,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 20,
       "tool_errors": 0
@@ -1741,8 +1401,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 17,
       "tool_errors": 0
@@ -1768,8 +1428,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 17,
       "tool_errors": 0
@@ -1791,8 +1451,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 40,
       "tool_errors": 0
@@ -1814,8 +1474,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 31,
       "tool_errors": 0
@@ -1837,8 +1497,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 36,
       "tool_calls": 33,
       "tool_errors": 0
@@ -1864,8 +1524,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 26,
       "tool_errors": 0
@@ -1887,8 +1547,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 39,
       "tool_errors": 0
@@ -1910,8 +1570,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 8,
       "tool_calls": 32,
       "tool_errors": 0
@@ -1933,8 +1593,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 11,
       "tool_errors": 0
@@ -1956,8 +1616,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 12,
       "tool_errors": 0
@@ -1979,8 +1639,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 10,
       "tool_errors": 0
@@ -2006,8 +1666,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 14,
       "tool_errors": 0
@@ -2033,8 +1693,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 13,
       "tool_calls": 10,
       "tool_errors": 0
@@ -2060,8 +1720,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 17,
       "tool_errors": 0
@@ -2087,8 +1747,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 12,
       "tool_errors": 0
@@ -2114,8 +1774,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 12,
       "tool_errors": 0
@@ -2141,8 +1801,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 11,
       "tool_errors": 0
@@ -2168,8 +1828,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 19,
       "tool_errors": 2
@@ -2195,8 +1855,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 24,
       "tool_errors": 0
@@ -2222,8 +1882,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 31,
       "tool_calls": 24,
       "tool_errors": 2
@@ -2330,8 +1990,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 16,
       "tool_errors": 0
@@ -2357,8 +2017,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 18,
       "tool_errors": 0
@@ -2384,8 +2044,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 17,
       "tool_errors": 0
@@ -2407,8 +2067,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 13,
       "tool_calls": 34,
       "tool_errors": 0
@@ -2430,8 +2090,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 36,
       "tool_errors": 0
@@ -2453,8 +2113,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 46,
       "tool_errors": 0
@@ -2476,8 +2136,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 22,
       "tool_errors": 0
@@ -2503,8 +2163,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 17,
       "tool_errors": 0
@@ -2530,8 +2190,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 18,
       "tool_errors": 0
@@ -2557,8 +2217,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 15,
       "tool_errors": 0
@@ -2584,8 +2244,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 7,
       "tool_calls": 12,
       "tool_errors": 0
@@ -2611,8 +2271,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 13,
       "tool_errors": 0
@@ -2638,8 +2298,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 39,
       "tool_errors": 0
@@ -2665,8 +2325,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 30,
       "tool_errors": 0
@@ -2692,8 +2352,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 32,
       "tool_errors": 0
@@ -2719,8 +2379,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 43,
       "tool_errors": 0
@@ -2746,8 +2406,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 35,
       "tool_errors": 0
@@ -2773,8 +2433,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 33,
       "tool_errors": 0
@@ -2796,8 +2456,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 26,
       "tool_calls": 21,
       "tool_errors": 0
@@ -2823,8 +2483,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 22,
       "tool_calls": 19,
       "tool_errors": 0
@@ -2850,8 +2510,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 51,
       "tool_errors": 0
@@ -2877,8 +2537,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 17,
       "tool_calls": 35,
       "tool_errors": 0
@@ -2900,8 +2560,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 28,
       "tool_errors": 0
@@ -2923,8 +2583,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 36,
       "tool_errors": 0
@@ -2950,8 +2610,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 20,
       "tool_errors": 0
@@ -2977,8 +2637,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 26,
       "tool_errors": 0
@@ -3004,8 +2664,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 20,
       "tool_errors": 0
@@ -3031,8 +2691,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 23,
       "tool_errors": 0
@@ -3058,8 +2718,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 15,
       "tool_errors": 0
@@ -3085,8 +2745,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 21,
       "tool_errors": 0
@@ -3112,8 +2772,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 26,
       "tool_calls": 23,
       "tool_errors": 0
@@ -3139,8 +2799,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 18,
       "tool_errors": 0
@@ -3166,8 +2826,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 28,
       "tool_errors": 0
@@ -3274,8 +2934,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 18,
       "tool_errors": 0
@@ -3301,8 +2961,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 24,
       "tool_errors": 0
@@ -3328,8 +2988,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 21,
       "tool_calls": 14,
       "tool_errors": 0
@@ -3590,8 +3250,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 13,
       "tool_errors": 0
@@ -3617,8 +3277,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 27,
       "tool_calls": 24,
       "tool_errors": 0
@@ -3644,8 +3304,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 11,
       "tool_errors": 0
@@ -3671,8 +3331,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 45,
       "tool_errors": 0
@@ -3698,8 +3358,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 44,
       "tool_errors": 0
@@ -3725,8 +3385,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 47,
       "tool_errors": 0
@@ -3748,8 +3408,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 30,
       "tool_errors": 1
@@ -3771,8 +3431,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 33,
       "tool_errors": 1
@@ -3794,8 +3454,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 61,
       "tool_errors": 1
@@ -3817,8 +3477,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 20,
       "tool_errors": 1
@@ -3840,8 +3500,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 24,
       "tool_calls": 21,
       "tool_errors": 1
@@ -3863,8 +3523,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 26,
       "tool_errors": 1
@@ -3890,8 +3550,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 29,
       "tool_calls": 26,
       "tool_errors": 1
@@ -3917,8 +3577,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 32,
       "tool_errors": 1
@@ -3944,8 +3604,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 17,
       "tool_calls": 43,
       "tool_errors": 2
@@ -3971,8 +3631,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 17,
       "tool_calls": 51,
       "tool_errors": 2
@@ -3998,8 +3658,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 13,
       "tool_calls": 45,
       "tool_errors": 2
@@ -4025,8 +3685,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 31,
       "tool_errors": 1
@@ -4052,8 +3712,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 20,
       "tool_errors": 2
@@ -4079,8 +3739,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 29,
       "tool_errors": 3
@@ -4106,8 +3766,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 22,
       "tool_errors": 1
@@ -4133,8 +3793,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 13,
       "tool_calls": 32,
       "tool_errors": 1
@@ -4160,8 +3820,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 23,
       "tool_errors": 1
@@ -4187,8 +3847,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 34,
       "tool_errors": 1
@@ -4210,8 +3870,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 16,
       "tool_errors": 0
@@ -4233,8 +3893,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 17,
       "tool_errors": 2
@@ -4256,8 +3916,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 17,
       "tool_errors": 0
@@ -4279,8 +3939,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 20,
       "tool_errors": 1
@@ -4302,8 +3962,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 17,
       "tool_errors": 1
@@ -4325,8 +3985,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 16,
       "tool_errors": 0
@@ -4352,8 +4012,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 8,
       "tool_calls": 20,
       "tool_errors": 0
@@ -4379,8 +4039,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 27,
       "tool_errors": 4
@@ -4402,8 +4062,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 15,
       "tool_errors": 1
@@ -4506,8 +4166,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 8,
       "tool_calls": 15,
       "tool_errors": 1
@@ -4529,8 +4189,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 23,
       "tool_errors": 1
@@ -4556,8 +4216,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 15,
       "tool_errors": 3
@@ -4583,8 +4243,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 22,
       "tool_errors": 0
@@ -4610,8 +4270,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 28,
       "tool_errors": 0
@@ -4637,8 +4297,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 7,
       "tool_calls": 20,
       "tool_errors": 0
@@ -4745,8 +4405,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 17,
       "tool_errors": 1
@@ -4772,8 +4432,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 16,
       "tool_errors": 1
@@ -4799,8 +4459,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 22,
       "tool_calls": 19,
       "tool_errors": 1
@@ -4826,8 +4486,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 51,
       "tool_errors": 1
@@ -4853,8 +4513,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 25,
       "tool_calls": 80,
       "tool_errors": 2
@@ -4880,8 +4540,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 26,
       "tool_calls": 68,
       "tool_errors": 1
@@ -4907,8 +4567,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 31,
       "tool_calls": 87,
       "tool_errors": 1
@@ -4934,8 +4594,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 29,
       "tool_calls": 91,
       "tool_errors": 1
@@ -4957,8 +4617,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 75,
       "tool_errors": 2
@@ -4984,8 +4644,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 55,
       "tool_errors": 2
@@ -5011,8 +4671,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 54,
       "tool_errors": 2
@@ -5038,8 +4698,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 39,
       "tool_errors": 1
@@ -5061,8 +4721,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 40,
       "tool_calls": 122,
       "tool_errors": 1
@@ -5088,8 +4748,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 24,
       "tool_calls": 72,
       "tool_errors": 1
@@ -5115,8 +4775,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 36,
       "tool_calls": 89,
       "tool_errors": 1
@@ -5142,8 +4802,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 42,
       "tool_errors": 1
@@ -5170,8 +4830,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.5,
       "rca_f1": 0.5,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 22,
       "tool_calls": 50,
       "tool_errors": 1
@@ -5197,8 +4857,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 56,
       "tool_errors": 1
@@ -5224,8 +4884,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 25,
       "tool_calls": 70,
       "tool_errors": 1
@@ -5251,8 +4911,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 44,
       "tool_calls": 54,
       "tool_errors": 1
@@ -5278,8 +4938,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 31,
       "tool_calls": 84,
       "tool_errors": 1
@@ -5301,8 +4961,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 28,
       "tool_calls": 87,
       "tool_errors": 1
@@ -5328,8 +4988,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 38,
       "tool_calls": 110,
       "tool_errors": 1
@@ -5351,8 +5011,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 35,
       "tool_calls": 103,
       "tool_errors": 1
@@ -5374,8 +5034,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 65,
       "tool_errors": 2
@@ -5401,8 +5061,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 35,
       "tool_calls": 43,
       "tool_errors": 1
@@ -5428,8 +5088,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 65,
       "tool_calls": 69,
       "tool_errors": 1
@@ -5455,8 +5115,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 24,
       "tool_calls": 47,
       "tool_errors": 1
@@ -5482,8 +5142,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 42,
       "tool_errors": 2
@@ -5509,8 +5169,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 25,
       "tool_calls": 58,
       "tool_errors": 1
@@ -5536,8 +5196,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 58,
       "tool_calls": 55,
       "tool_errors": 1
@@ -5563,8 +5223,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 51,
       "tool_errors": 1
@@ -5590,8 +5250,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 25,
       "tool_calls": 64,
       "tool_errors": 1
@@ -5617,8 +5277,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 75,
       "tool_errors": 1
@@ -5644,8 +5304,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 65,
       "tool_calls": 62,
       "tool_errors": 1
@@ -5671,8 +5331,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 34,
       "tool_calls": 84,
       "tool_errors": 1
@@ -5698,8 +5358,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 43,
       "tool_errors": 1
@@ -5725,8 +5385,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 23,
       "tool_calls": 56,
       "tool_errors": 1
@@ -5752,8 +5412,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 37,
       "tool_errors": 1
@@ -5779,8 +5439,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 58,
       "tool_errors": 2
@@ -5806,8 +5466,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 48,
       "tool_calls": 45,
       "tool_errors": 1
@@ -5833,8 +5493,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 24,
       "tool_calls": 74,
       "tool_errors": 1
@@ -5860,8 +5520,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 52,
       "tool_errors": 2
@@ -5887,8 +5547,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 62,
       "tool_errors": 1
@@ -5914,8 +5574,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 60,
       "tool_errors": 2
@@ -5941,8 +5601,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 27,
       "tool_calls": 82,
       "tool_errors": 1
@@ -5968,8 +5628,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 25,
       "tool_calls": 81,
       "tool_errors": 1
@@ -5995,8 +5655,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 41,
       "tool_calls": 98,
       "tool_errors": 2
@@ -6022,8 +5682,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 20,
       "tool_calls": 55,
       "tool_errors": 3
@@ -6049,8 +5709,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 50,
       "tool_errors": 2
@@ -6076,8 +5736,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 22,
       "tool_calls": 37,
       "tool_errors": 1
@@ -6103,8 +5763,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 40,
       "tool_errors": 2
@@ -6130,8 +5790,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 31,
       "tool_calls": 28,
       "tool_errors": 1
@@ -6157,8 +5817,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 13,
       "tool_calls": 40,
       "tool_errors": 3
@@ -6184,8 +5844,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 27,
       "tool_calls": 69,
       "tool_errors": 1
@@ -6211,8 +5871,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 22,
       "tool_calls": 73,
       "tool_errors": 1
@@ -6238,8 +5898,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 54,
       "tool_calls": 51,
       "tool_errors": 1
@@ -6265,8 +5925,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 43,
       "tool_errors": 2
@@ -6292,8 +5952,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 30,
       "tool_calls": 47,
       "tool_errors": 1
@@ -6319,8 +5979,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 73,
       "tool_calls": 70,
       "tool_errors": 1
@@ -6346,8 +6006,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 29,
       "tool_calls": 26,
       "tool_errors": 0
@@ -6373,8 +6033,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 32,
       "tool_calls": 29,
       "tool_errors": 0
@@ -6400,8 +6060,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 19,
       "tool_calls": 35,
       "tool_errors": 1
@@ -6427,8 +6087,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.6667,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 13,
       "tool_calls": 21,
       "tool_errors": 2
@@ -6454,8 +6114,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.6667,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 24,
       "tool_errors": 2
@@ -6481,8 +6141,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.6667,
       "rca_f1": 0.6667,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 14,
       "tool_errors": 1
@@ -6508,8 +6168,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 16,
       "tool_errors": 1
@@ -6535,8 +6195,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 15,
       "tool_errors": 2
@@ -6562,8 +6222,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 18,
       "tool_errors": 2
@@ -6585,8 +6245,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 21,
       "tool_calls": 18,
       "tool_errors": 1
@@ -6608,8 +6268,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 18,
       "tool_calls": 15,
       "tool_errors": 0
@@ -6631,8 +6291,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 22,
       "tool_calls": 16,
       "tool_errors": 0
@@ -6654,8 +6314,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 8,
       "tool_calls": 17,
       "tool_errors": 0
@@ -6677,8 +6337,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 7,
       "tool_calls": 18,
       "tool_errors": 0
@@ -6700,8 +6360,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 10,
       "tool_calls": 23,
       "tool_errors": 1
@@ -6727,8 +6387,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 28,
       "tool_errors": 4
@@ -6754,8 +6414,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 20,
       "tool_errors": 3
@@ -6781,8 +6441,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 13,
       "tool_calls": 22,
       "tool_errors": 3
@@ -6804,8 +6464,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 12,
       "tool_calls": 24,
       "tool_errors": 2
@@ -6827,8 +6487,8 @@
       "detection_score": 0.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 16,
       "tool_errors": 1
@@ -6854,8 +6514,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 15,
       "tool_calls": 35,
       "tool_errors": 1
@@ -6881,8 +6541,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 25,
       "tool_calls": 22,
       "tool_errors": 1
@@ -6908,8 +6568,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 31,
       "tool_errors": 2
@@ -6935,8 +6595,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 32,
       "tool_calls": 29,
       "tool_errors": 1
@@ -6962,8 +6622,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 14,
       "tool_calls": 33,
       "tool_errors": 2
@@ -6989,8 +6649,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 17,
       "tool_calls": 32,
       "tool_errors": 1
@@ -7016,8 +6676,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 11,
       "tool_calls": 28,
       "tool_errors": 2
@@ -7043,8 +6703,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 16,
       "tool_calls": 43,
       "tool_errors": 5
@@ -7070,8 +6730,8 @@
       "detection_score": 1.0,
       "localization_f1": 0.0,
       "rca_f1": 0.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 9,
       "tool_calls": 24,
       "tool_errors": 2
@@ -7097,8 +6757,8 @@
       "detection_score": 1.0,
       "localization_f1": 1.0,
       "rca_f1": 1.0,
-      "in_tokens": 0,
-      "out_tokens": 0,
+      "in_tokens": null,
+      "out_tokens": null,
       "steps": 48,
       "tool_calls": 41,
       "tool_errors": 1

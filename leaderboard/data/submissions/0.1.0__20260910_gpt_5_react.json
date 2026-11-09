@@ -45,14 +45,15 @@
     "in_tokens": 31551564,
     "out_tokens": 4380904
   },
+  "token_usage_complete": false,
   "steps_totals": {
     "steps": 2092,
     "tool_calls": 8531,
     "tool_errors": 63
   },
-  "mean_tokens": 119774.893,
+  "mean_tokens": null,
   "mean_steps": 6.973,
-  "total_tokens": 35932468,
+  "total_tokens": null,
   "task_tokens": null,
   "max_steps": null,
   "case_timeout_sec": null,

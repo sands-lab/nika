@@ -68,6 +68,7 @@
     "in_tokens": 125781421,
     "out_tokens": 1297165
   },
+  "token_usage_complete": true,
   "steps_totals": {
     "steps": 4125,
     "tool_calls": 4527,
