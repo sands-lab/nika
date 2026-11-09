@@ -24,12 +24,11 @@ from pathlib import Path
 
 import yaml
 
-from experiment.submission_audit import skill  # noqa: F401  (adds auditlib to sys.path)
 
-from auditlib.adjudicate import adjudicate_groups
-from auditlib.kb import load_kb
-from auditlib.scan import ScanConfig
-from auditlib.trace import load_trial, trial_dirs
+from nika.audit.adjudicate import adjudicate_groups
+from nika.audit.kb import load_kb
+from nika.audit.scan import ScanConfig
+from nika.audit.trace import load_trial, trial_dirs
 
 HERE = Path(__file__).resolve().parent
 DEV = {

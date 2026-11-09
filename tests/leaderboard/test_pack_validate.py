@@ -999,3 +999,90 @@ class TestLeaderboardPackValidate:
         (trial / "messages.jsonl").write_text(trace)
         with pytest.raises(LeaderboardPackError, match="no agent trajectory"):
             _pack(result_dir)
+
+
+@pytest.mark.parametrize("defect", ["paired_metrics", "regrade", "tool_policy"])
+def test_validation_audits_paired_trajectory_evidence(mini_release_env, defect):
+    from nika.workflows.leaderboard.validate_trajectories import (
+        sibling_trajectories_dir,
+    )
+
+    _, result_dir = mini_release_env
+    scores = _pack(result_dir)
+    trajectories = sibling_trajectories_dir(scores)
+    trial = next((trajectories / "trials").iterdir())
+    if defect == "paired_metrics":
+        path = trial / "eval_metrics.json"
+        metrics = json.loads(path.read_text())
+        metrics["rca_f1"] = 0
+        _write_json(path, metrics)
+    elif defect == "regrade":
+        _write_json(trial / "submission.json", {"is_anomaly": False, "root_causes": []})
+    else:
+        with (trial / "messages.jsonl").open("a") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "phase": "diagnosis",
+                        "event": "tool_start",
+                        "tool": {"name": "WebSearch"},
+                        "input": {"query": "network fault"},
+                    }
+                )
+                + "\n"
+            )
+    report = validate_leaderboard_submission(scores)
+    assert not report.ok
+    if defect == "paired_metrics":
+        assert any(
+            "metrics differ from paired trajectories" in error
+            for error in report.errors
+        )
+    else:
+        assert report.audit is not None and report.audit["verdict"] == "block"
+        assert report.audit["trials"]
+
+
+def test_audit_cli_preserves_inputs_and_reports_policy_evidence(
+    mini_release_env, tmp_path
+):
+    import subprocess
+
+    _, result_dir = mini_release_env
+    trial = next((result_dir / "trials").iterdir())
+    path = trial / "messages.jsonl"
+    original = (
+        path.read_text()
+        + json.dumps(
+            {
+                "phase": "diagnosis",
+                "event": "tool_start",
+                "tool": {"name": "WebSearch"},
+                "input": {"query": "network fault"},
+            }
+        )
+        + "\n"
+    )
+    path.write_text(original)
+    report = tmp_path / "audit" / "report.json"
+    run = subprocess.run(
+        [
+            "uv",
+            "run",
+            "nika",
+            "leaderboard",
+            "audit",
+            str(result_dir),
+            "--out",
+            str(report),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert run.returncode == 1, run.stdout + run.stderr
+    audit = json.loads(report.read_text())
+    assert audit["verdict"] == "block" and audit["package"]["n_trials"] == 2
+    assert audit["trials"][trial.name]
+    assert report.with_suffix(".md").is_file()
+    assert path.read_text() == original

@@ -204,10 +204,32 @@ Short system description, authors, and links to code / report / site (if any).
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
 - No `grading_error` or residual `infra_error` scoring status (`infra_error` is auto-retried during the run; leftovers reject the pack)
 - [Run-validity gates](#run-validity-gates) based on trial artifacts
-- Sibling trajectories package has the required per-trial files and matching trial set
+- Paired trajectories have the required files, matching trial set, and the same per-trial metrics as the scores package
+- The deterministic trajectory audit checks allowed tools, known shortcut signatures, harness consistency, and re-grading
 - No secrets or absolute paths in package text
 
 See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-submission) for per-trial metrics, `score_status`, and aggregation.
+
+### Audit recorded evidence
+
+Before publishing, check how the agent reached its answers:
+
+```shell
+uv run nika leaderboard audit results/my-run --out results/audit.json --repo .
+```
+
+This command accepts a benchmark result directory or a trajectories package. It writes JSON and Markdown reports with trial and step references. It makes no model calls and preserves the submitted scores and trajectory files. `--repo` enables checks against the recorded NIKA source; the report lists checks it could not complete.
+
+`submit` audits its paired trajectories during validation and includes `audit.json` in the scores package. A blocking verdict stops submission; warnings require review. You can repeat the same checks against a scores package and downloaded trajectories:
+
+```shell
+uv run nika leaderboard validate <scores-package> \
+  --fetch-trajectories --audit-out audit.json --audit-repo .
+```
+
+The download selects the merged trajectories or their open Hub PR, pins its commit, and records that revision in the audit report. For local paired data, use `--trajectories <dir>`. Validation also discovers an existing sibling directory. If no trajectories are available, scores-only validation reports that the audit did not run.
+
+The [reviewed knowledge base](../../src/nika/audit/kb_data/) defines blocking and warning findings. LLM transcript review and proposed detector changes remain part of the [submission audit skill](../../.agents/skills/nika-submission-audit/SKILL.md). Maintainers review those proposals before adding them to the shared knowledge base.
 
 ### Run-validity gates
 

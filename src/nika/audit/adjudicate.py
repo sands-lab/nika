@@ -18,9 +18,9 @@ from typing import Any
 
 import httpx
 
-from auditlib.kb import KnowledgeBase
-from auditlib.scan import ScanConfig, chat
-from auditlib.trace import Trial
+from nika.audit.kb import KnowledgeBase
+from nika.audit.scan import ScanConfig, chat
+from nika.audit.trace import Trial
 
 VERDICTS = ("real", "by_design", "agent_mistake", "unclear")
 

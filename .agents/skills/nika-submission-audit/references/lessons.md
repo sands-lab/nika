@@ -1,6 +1,6 @@
 # Audit lessons
 
-What earlier audits learned: the 2026-10 trajectory audit (3,060 trials), the red-team leak audit, the healthy-hunter baseline audit, the release audit, and the runs of this skill. This file is the learned part of the skill, next to the issues in `kb/issues/`. Add a lesson when an audit goes wrong in a way the next one should avoid, in the same change that adds the issue.
+What earlier audits learned: the 2026-10 trajectory audit (3,060 trials), the red-team leak audit, the healthy-hunter baseline audit, the release audit, and the runs of this skill. This file is the learned part of the skill, alongside the reviewed issues in `src/nika/audit/kb_data/issues/`. Add a lesson when an audit goes wrong in a way the next one should avoid, in the same change that adds the issue.
 
 The issue classes, what each looks like, and the evidence rules are in [the guidelines](guidelines.md). The lessons below add what earlier audits found about where each class hides and how audits went wrong.
 

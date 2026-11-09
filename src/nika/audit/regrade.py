@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from auditlib.trace import Trial
+from nika.audit.trace import Trial
 from nika.evaluator.scoring import (
     GradingError,
     _parse_is_anomaly,

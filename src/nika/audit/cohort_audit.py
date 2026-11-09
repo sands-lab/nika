@@ -8,7 +8,7 @@ answers, fault-absent and state-change counts, over this submission and the
 earlier ones), healthy tasks, and tools; an LLM reads each table with the
 issue-class questions and cites rows; each cited row is adjudicated; and a
 real finding becomes an issue with the matching statistical signature, scoped
-to the row's fault type, environment, or tool (``auditlib.cohort`` metrics).
+to the row's fault type, environment, or tool (``nika.audit.cohort`` metrics).
 """
 
 from __future__ import annotations
@@ -27,18 +27,18 @@ from typing import Any
 import httpx
 import yaml
 
-from auditlib.cohort import TrialRecord, run_metrics
-from auditlib.curate import PREFIX
-from auditlib.kb import Issue, KnowledgeBase, Scope, Signature
-from auditlib.runner import (
+from nika.audit.cohort import TrialRecord, run_metrics
+from nika.audit.curate import PREFIX
+from nika.audit.kb import Issue, KnowledgeBase, Scope, Signature
+from nika.audit.runner import (
     _DIGITS,
     _prompt_lines,
     _prompt_min_support,
     prompt_contrast,
     prompt_profiles,
 )
-from auditlib.scan import FINDINGS_FORMAT, ScanConfig, _NO_STRUCTURED, chat
-from auditlib.trace import Trial
+from nika.audit.scan import FINDINGS_FORMAT, ScanConfig, _NO_STRUCTURED, chat
+from nika.audit.trace import Trial
 
 _JSON = re.compile(r"\{.*\}", re.S)
 FAULT_ABSENT_CHECK = "VALIDITY-FAULT-ABSENT-AT-CLEANUP"

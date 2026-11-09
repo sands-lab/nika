@@ -12,8 +12,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from auditlib.probe import ProbePlan
-from auditlib.source import read_source, source_files
+from nika.audit.probe import ProbePlan
+from nika.audit.source import read_source, source_files
 
 
 class CapturePlan(BaseModel):

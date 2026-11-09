@@ -8,7 +8,7 @@
 The test submissions are the first submission of each run in ``--runs``:
 there the run's reviewer agents started with an empty issue memory, as the
 scanner does. The scanner asks every trial the issue-class questions of the
-skill's taxonomy (``auditlib.scan``), with the built-in checks' hits attached.
+skill's taxonomy (``nika.audit.scan``), with the built-in checks' hits attached.
 
 A reference issue counts as found by the scanner in a submission when a
 finding with a verified citation sits in a trial that shows the issue
@@ -33,11 +33,11 @@ import yaml
 
 from experiment.submission_audit.skill import builtin_kb_dir
 
-from auditlib.detectors import run_trial
-from auditlib.kb import load_kb
-from auditlib.runner import audit_trajectories
-from auditlib.scan import ScanConfig, scan_trials
-from auditlib.trace import load_trial, trial_dirs
+from nika.audit.detectors import run_trial
+from nika.audit.kb import load_kb
+from nika.audit.runner import audit_trajectories
+from nika.audit.scan import ScanConfig, scan_trials
+from nika.audit.trace import load_trial, trial_dirs
 
 HERE = Path(__file__).resolve().parent
 

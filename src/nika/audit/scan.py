@@ -26,9 +26,9 @@ from typing import Any
 
 import httpx
 
-from auditlib.kb import KnowledgeBase
-from auditlib.review import check_citations, review_packet
-from auditlib.trace import Trial, load_trial
+from nika.audit.kb import KnowledgeBase
+from nika.audit.review import check_citations, review_packet
+from nika.audit.trace import Trial, load_trial
 
 SYSTEM = """\
 You audit one recorded run ("trial") of NIKA, a benchmark for network \

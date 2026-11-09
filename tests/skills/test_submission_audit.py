@@ -12,40 +12,41 @@ from typing import Any
 
 import pytest
 
-from experiment.submission_audit import skill  # noqa: F401  (adds auditlib to sys.path)
+from experiment.submission_audit import skill
+
 import yaml
 import httpx
 
-from auditlib.cohort import TrialRecord, healthy_fp_rate, run_metrics
-from auditlib.cohort_audit import Row, _same, prompt_rows, signature_for
-from auditlib.cohort_audit import curate as curate_cohort
-from auditlib.cohort_audit import judge as judge_cohort
-from auditlib.pipeline import _exact, _verdicts
-from auditlib.curate import (
+from nika.audit.cohort import TrialRecord, healthy_fp_rate, run_metrics
+from nika.audit.cohort_audit import Row, _same, prompt_rows, signature_for
+from nika.audit.cohort_audit import curate as curate_cohort
+from nika.audit.cohort_audit import judge as judge_cohort
+from nika.audit.pipeline import _exact, _verdicts
+from nika.audit.curate import (
     common_text,
     covered_by_signature,
     curate_group,
     recorded_by,
     to_pattern,
 )
-from auditlib.detectors import run_trial
-from auditlib.kb import KB_DIR, Issue, Scope, Signature, load_kb
-from auditlib.review import check_citations, check_issue, review_packet
-from auditlib.runner import audit_trajectories, prompt_contrast
-from auditlib.scan import ScanConfig
-from auditlib.scan import _parse as _parse_findings
-from auditlib.scan import chunks as scan_chunks
-from auditlib.source import SourceUnavailable, request_source, source_hash
-from auditlib.trace import load_trial, trial_dirs
-from auditlib.contracts import advertised_claims
-from auditlib.scan import scan_trials
+from nika.audit.detectors import run_trial
+from nika.audit.kb import KB_DIR, Issue, Scope, Signature, load_kb
+from nika.audit.review import check_citations, check_issue, review_packet
+from nika.audit.runner import audit_trajectories, prompt_contrast
+from nika.audit.scan import ScanConfig
+from nika.audit.scan import _parse as _parse_findings
+from nika.audit.scan import chunks as scan_chunks
+from nika.audit.source import SourceUnavailable, request_source, source_hash
+from nika.audit.trace import load_trial, trial_dirs
+from nika.audit.contracts import advertised_claims
+from nika.audit.scan import scan_trials
 
 pytestmark = pytest.mark.unit
 
 
 @pytest.mark.parametrize("server_delay", [0.1, 5.1])
 def test_http_retries_share_one_wall_time_budget(monkeypatch, server_delay) -> None:
-    import auditlib.scan as scanner
+    import nika.audit.scan as scanner
 
     clock = [0.0]
     attempts = []
@@ -132,7 +133,7 @@ def test_contracts_only_review_initial_capability_assertions(tmp_path: Path) -> 
 def test_bad_scan_replies_are_errors_not_empty_findings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reply: dict
 ) -> None:
-    import auditlib.scan as scanner
+    import nika.audit.scan as scanner
 
     path = _trial(
         tmp_path, "t__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
@@ -147,7 +148,7 @@ def test_bad_scan_replies_are_errors_not_empty_findings(
 def test_scan_recovers_once_and_keeps_failure_cost(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.scan as scanner
+    import nika.audit.scan as scanner
 
     path = _trial(
         tmp_path, "t__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
@@ -192,7 +193,7 @@ def test_scan_recovers_once_and_keeps_failure_cost(
 def test_cohort_resume_preserves_valid_tables_and_retries_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.cohort_audit as cohort
+    import nika.audit.cohort_audit as cohort
 
     row = Row("tool:probe", "tool", "", "probe: 10 calls, 90% errors")
     finding = {
@@ -253,7 +254,7 @@ def test_cohort_resume_preserves_valid_tables_and_retries_failures(
 def test_cohort_judgment_cache_does_not_reuse_errors_or_changed_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.cohort_audit as cohort
+    import nika.audit.cohort_audit as cohort
 
     row = Row("tool:probe", "tool", "", "probe: 10 calls, 90% errors")
     finding = {"class": "harness_defect", "claim": "Probe errors", "row": row.id}
@@ -303,7 +304,7 @@ def test_cohort_judgment_cache_does_not_reuse_errors_or_changed_evidence(
 def test_schema_recovery_falls_back_on_endpoints_without_schema_support(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.scan as scanner
+    import nika.audit.scan as scanner
 
     path = _trial(
         tmp_path, "t__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
@@ -618,7 +619,7 @@ def _trial(
 
 
 def test_brief_triage_uses_initial_observed_endpoints(tmp_path: Path) -> None:
-    from auditlib.brief import _check_facts, brief_claims
+    from nika.audit.brief import _check_facts, brief_claims
 
     path = _trial(
         tmp_path,
@@ -753,7 +754,7 @@ def test_contextual_signatures_require_the_actual_call_and_pristine_state(
 def test_boundary_requires_source_ownership_and_runtime_interface_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.boundary as boundary
+    import nika.audit.boundary as boundary
 
     source = {
         "src/nika/net_env/example/router.startup": "ip address add 10.1.0.1/24 dev eth0\nip address add 10.4.0.2/30 dev eth1\niptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE\n",
@@ -1472,7 +1473,7 @@ def test_dedup_requires_the_detector_to_match_its_cited_step(tmp_path, restricti
 def test_curation_validates_uncited_outputs_and_retries_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
 ) -> None:
-    from auditlib import curate_validate as validator
+    from nika.audit import curate_validate as validator
 
     root = tmp_path / "pkg"
     for i in range(4):
@@ -1594,7 +1595,7 @@ def test_curation_validates_uncited_outputs_and_retries_errors(
 def test_source_reader_unwraps_only_unambiguous_readonly_actions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.contracts as contracts
+    import nika.audit.contracts as contracts
 
     replies = iter(
         [
@@ -1722,7 +1723,7 @@ def test_invalid_adjudications_are_retried_instead_of_cached(
         calls.append(1)
         return {"content": replies.pop(0), "finish": "stop"}
 
-    monkeypatch.setattr("auditlib.adjudicate.chat", chat)
+    monkeypatch.setattr("nika.audit.adjudicate.chat", chat)
     cache = tmp_path / "verdicts.json"
     old_key = json.dumps([group["class"], group["claim"], group["all_refs"]])
     cache.write_text(
@@ -1740,7 +1741,7 @@ def test_invalid_adjudications_are_retried_instead_of_cached(
     )
     assert len(calls) == 2
     monkeypatch.setattr(
-        "auditlib.cohort_audit.chat",
+        "nika.audit.cohort_audit.chat",
         lambda *args: {"content": content, "finish": "stop"},
     )
     finding = {"class": "shortcut", "row": "prompt:test", "claim": "Prompt cue"}
@@ -1782,7 +1783,7 @@ def test_changed_evidence_invalidates_a_cached_verdict(
         calls.append(1)
         return {"content": replies.pop(0), "finish": "stop"}
 
-    monkeypatch.setattr("auditlib.adjudicate.chat", chat)
+    monkeypatch.setattr("nika.audit.adjudicate.chat", chat)
     cache = tmp_path / "verdicts.json"
     cfg = ScanConfig(base_url="unused", model="test")
     assert (
@@ -1803,7 +1804,7 @@ def test_changed_evidence_invalidates_a_cached_verdict(
 def test_completed_verdict_survives_interruption_of_the_remaining_batch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.pipeline as pipeline
+    import nika.audit.pipeline as pipeline
 
     group = {
         "class": "shortcut",
@@ -1847,7 +1848,7 @@ def test_completed_verdict_survives_interruption_of_the_remaining_batch(
 
 
 def test_adjudication_whitespace_preserves_the_explicit_verdict() -> None:
-    from auditlib.adjudicate import _verdict
+    from nika.audit.adjudicate import _verdict
 
     result = _verdict(
         '{"verdict":" unclear", "reason":"The tool schema is not recorded."}'
@@ -1863,10 +1864,10 @@ def test_adjudication_whitespace_preserves_the_explicit_verdict() -> None:
 
 
 def test_truncated_judgment_is_an_error_even_if_json_is_complete(monkeypatch) -> None:
-    from auditlib.adjudicate import adjudicate_groups
+    from nika.audit.adjudicate import adjudicate_groups
 
     monkeypatch.setattr(
-        "auditlib.adjudicate.chat",
+        "nika.audit.adjudicate.chat",
         lambda *args: {
             "content": '{"verdict":"real","reason":"A claim."}',
             "finish": "length",
@@ -1891,7 +1892,7 @@ def test_truncated_judgment_is_an_error_even_if_json_is_complete(monkeypatch) ->
 def test_measured_controls_refine_a_signature_and_prevent_false_dedup(
     tmp_path: Path,
 ) -> None:
-    from auditlib.curate import observation_capsule
+    from nika.audit.curate import observation_capsule
 
     output = "alpha localhost$\nbeta controller$\ngamma worker"
     root = tmp_path / "pkg"
@@ -1975,7 +1976,7 @@ def test_measured_controls_refine_a_signature_and_prevent_false_dedup(
 def test_automatic_file_probe_requires_matching_source_and_unterminated_last_record(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.normalization as normalization
+    import nika.audit.normalization as normalization
 
     raw = "127.0.0.1 localhost\n192.0.2.1 earlier\n192.0.2.2 last"
     events = _claude_call(
@@ -2018,8 +2019,8 @@ def test_automatic_file_probe_requires_matching_source_and_unterminated_last_rec
 
 
 def test_stale_source_navigation_falls_back_to_acquisition(tmp_path, monkeypatch):
-    import auditlib.brief as brief
-    from auditlib.kb import SourceRead
+    import nika.audit.brief as brief
+    from nika.audit.kb import SourceRead
 
     for invalid in (
         {"path": "../private", "start": 1, "end": 2},
@@ -2090,7 +2091,7 @@ def test_stale_source_navigation_falls_back_to_acquisition(tmp_path, monkeypatch
 
 
 def test_source_facts_recover_one_outer_object_without_accepting_conflicting_answers():
-    from auditlib.contracts import _object
+    from nika.audit.contracts import _object
 
     facts = {"selected_node_uses_image": True, "details": {"provider": "source.py"}}
     reply = {
@@ -2116,7 +2117,7 @@ def test_source_facts_recover_one_outer_object_without_accepting_conflicting_ans
 def test_reasoning_stream_collects_answer_and_usage_but_rejects_partial_stream(
     monkeypatch, stream_end
 ):
-    import auditlib.scan as scan
+    import nika.audit.scan as scan
 
     monkeypatch.setattr(scan, "_NO_STREAM", set())
     requests = []
@@ -2164,7 +2165,7 @@ def test_reasoning_stream_collects_answer_and_usage_but_rejects_partial_stream(
 def test_streaming_fallback_preserves_compatible_endpoints_and_counts_requests(
     monkeypatch,
 ):
-    import auditlib.scan as scan
+    import nika.audit.scan as scan
 
     monkeypatch.setattr(scan, "_NO_STREAM", set())
     modes = []
@@ -2195,7 +2196,7 @@ def test_streaming_fallback_preserves_compatible_endpoints_and_counts_requests(
 
 
 def test_streaming_checks_deadline_and_closes_the_response(monkeypatch):
-    import auditlib.scan as scan
+    import nika.audit.scan as scan
 
     clock, closed = [0.0], []
     monkeypatch.setattr(scan, "_NO_STREAM", set())
@@ -2230,7 +2231,7 @@ def test_streaming_checks_deadline_and_closes_the_response(monkeypatch):
 
 def test_capture_proof_requires_both_controls_exact_source_and_matching_binary():
     import copy
-    from auditlib.capture_probe import CapturePlan, confirms_start_failure
+    from nika.audit.capture_probe import CapturePlan, confirms_start_failure
 
     plan = {
         "image": "image@sha256:" + "a" * 64,
@@ -2302,7 +2303,7 @@ def test_capture_proof_requires_both_controls_exact_source_and_matching_binary()
 
 
 def test_runtime_scopes_do_not_transfer_to_other_or_unknown_backends(tmp_path):
-    from auditlib.detectors import in_scope
+    from nika.audit.detectors import in_scope
 
     path = _trial(
         tmp_path, "lab__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
@@ -2326,7 +2327,7 @@ def test_runtime_scopes_do_not_transfer_to_other_or_unknown_backends(tmp_path):
 def test_capture_source_repair_is_bounded_and_charges_both_attempts(
     tmp_path, monkeypatch, repair_succeeds
 ):
-    from auditlib import capture
+    from nika.audit import capture
 
     candidate = {
         "commit": "a" * 40,
@@ -2397,8 +2398,8 @@ def test_frr_backup_evidence_does_not_label_a_dhcp_reference(tmp_path):
 def test_missing_tool_evidence_keeps_namespace_and_prior_advertisement(
     tmp_path: Path, requested_server: str
 ) -> None:
-    from auditlib.adjudicate import group_prompt
-    from auditlib.trace import Step, Trial
+    from nika.audit.adjudicate import group_prompt
+    from nika.audit.trace import Step, Trial
 
     advertised = "mcp__kathara_frr_mcp_server__frr_get_rpki_status"
     requested = f"mcp__{requested_server}__frr_get_rpki_status"

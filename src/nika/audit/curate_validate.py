@@ -11,12 +11,12 @@ from pathlib import Path
 import httpx
 import yaml
 
-from auditlib.contracts import _object
-from auditlib.curate import PREFIX, _slug, curate_group
-from auditlib.detectors import TrialContext, run_trial
-from auditlib.kb import Issue, KnowledgeBase
-from auditlib.scan import ScanConfig, _NO_STRUCTURED, chat
-from auditlib.trace import Trial
+from nika.audit.contracts import _object
+from nika.audit.curate import PREFIX, _slug, curate_group
+from nika.audit.detectors import TrialContext, run_trial
+from nika.audit.kb import Issue, KnowledgeBase
+from nika.audit.scan import ScanConfig, _NO_STRUCTURED, chat
+from nika.audit.trace import Trial
 
 VERIFY = """Verify the concrete observation underlying a candidate issue against all supplied outputs.
 Separate what is shown from an overstrong headline. Do not infer the active fault

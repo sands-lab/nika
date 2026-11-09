@@ -21,10 +21,10 @@ from typing import Any
 
 import yaml
 
-from auditlib.detectors import TrialContext, run_trial
-from auditlib.kb import Issue, KnowledgeBase
-from auditlib.trace import Trial
-from auditlib.source import SourceUnavailable, verified_provider
+from nika.audit.detectors import TrialContext, run_trial
+from nika.audit.kb import Issue, KnowledgeBase
+from nika.audit.trace import Trial
+from nika.audit.source import SourceUnavailable, verified_provider
 
 PREFIX = {
     "shortcut": "LEAK",

@@ -9,6 +9,7 @@ itself: from ``main`` once merged, or from the open Hub pull request titled
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from nika.workflows.leaderboard.hf_remote import (
@@ -58,10 +59,11 @@ def fetch_trajectories(
     revision: str | None = None,
 ) -> Path:
     """Download ``trajectories/<release>/<slug>`` into *dest*; return its path."""
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import HfApi, snapshot_download
 
     rel = remote_trajectories_relpath(release, slug)
     revision = revision or find_revision(slug, release, repo=repo)
+    revision = HfApi().repo_info(repo, repo_type="dataset", revision=revision).sha
     snapshot_download(
         repo_id=repo,
         repo_type="dataset",
@@ -72,4 +74,8 @@ def fetch_trajectories(
     path = Path(dest) / rel
     if not path.is_dir():
         raise TrajectoryFetchError(f"download of {rel}@{revision} produced no files")
+    (Path(dest) / "fetch-source.json").write_text(
+        json.dumps({"repo": repo, "revision": revision, "path": rel}) + "\n",
+        encoding="utf-8",
+    )
     return path

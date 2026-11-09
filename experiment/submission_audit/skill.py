@@ -1,22 +1,13 @@
-"""Import path to the nika-submission-audit skill's library (``auditlib``),
-and the helpers every experiment script shares."""
+"""Shared helpers for the submission-audit experiment."""
 
 from __future__ import annotations
 
 import random
 import shutil
-import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_DIR = REPO_ROOT / ".agents" / "skills" / "nika-submission-audit"
-SCRIPTS = SKILL_DIR / "scripts"
-
-if str(SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS))
-
-from auditlib.kb import KB_DIR  # noqa: E402
-from auditlib.trace import trial_dirs  # noqa: E402
+from nika.audit.kb import KB_DIR
+from nika.audit.trace import trial_dirs
 
 
 def builtin_kb_dir(dest: Path) -> Path:

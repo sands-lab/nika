@@ -13,12 +13,17 @@ from pathlib import Path
 
 import httpx
 
-from auditlib.contracts import _object, read_evidence
-from auditlib.curate import covered_by_signature
-from auditlib.detectors import TrialContext
-from auditlib.probe import ProbePlan, run_probe
-from auditlib.scan import ScanConfig, chat
-from auditlib.source import SourceUnavailable, read_source, request_source, source_hash
+from nika.audit.contracts import _object, read_evidence
+from nika.audit.curate import covered_by_signature
+from nika.audit.detectors import TrialContext
+from nika.audit.probe import ProbePlan, run_probe
+from nika.audit.scan import ScanConfig, chat
+from nika.audit.source import (
+    SourceUnavailable,
+    read_source,
+    request_source,
+    source_hash,
+)
 
 READER = """Resolve the selected network node's runtime image from production source.
 Follow node creation, image aliases, and imported constants. Read the creation

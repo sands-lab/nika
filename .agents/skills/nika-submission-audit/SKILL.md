@@ -7,7 +7,7 @@ description: Audit a NIKA leaderboard submission or benchmark run by reading the
 
 Find defects in a benchmark, its harness, or a leaderboard submission from recorded trajectories. Record confirmed issues so later audits detect them with deterministic checks.
 
-The built-in method consists of the reviewer guides in `references/`, `kb/taxonomy.yaml`, `kb/policy.yaml`, and generic checks in `kb/checks/`. The learned memory consists of concrete issues in `kb/issues/` and [audit lessons](references/lessons.md). Update learned memory through reviewed pull requests.
+The implementation and reviewed knowledge base live in [`src/nika/audit/`](../../../src/nika/audit/). The built-in checks and tool policy are in `src/nika/audit/kb_data/`; confirmed issues are in its `issues/` directory. Reviewer guides remain in `references/`, and [audit lessons](references/lessons.md) record recurring review mistakes. Update this knowledge through reviewed pull requests.
 
 ## Rules
 
@@ -52,11 +52,10 @@ When a shared-text signature matches many uncited trials, static-disclosure vali
 
 Successful model replies are cached against their evidence, prompts, and selected model parameters. Failed replies remain errors and are retried on a rerun. Malformed table or validation replies may receive one bounded format retry; valid replies are preserved. Reasoning-enabled HTTP requests use streaming, with ordinary HTTP as a fallback for endpoints that reject streaming. Interrupted streams remain errors and are not automatically replayed.
 
-To check only existing rules, use the deterministic path:
+To check existing rules through the installed CLI, run:
 
 ```bash
-uv run python "$AUDIT" run <trajectories-dir> \
-  --out audit.json --markdown audit.md --repo .
+uv run nika leaderboard audit <trajectories-dir> --out audit.json --repo .
 ```
 
 This command makes no model calls. Source-backed rules that cannot be evaluated are reported as unsupported.

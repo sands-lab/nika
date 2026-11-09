@@ -11,16 +11,16 @@ from pathlib import Path
 import httpx
 import yaml
 
-from auditlib.kb import Issue, KnowledgeBase, load_kb
-from auditlib.detectors import in_scope
-from auditlib.scan import ScanConfig, chat
-from auditlib.source import (
+from nika.audit.kb import Issue, KnowledgeBase, load_kb
+from nika.audit.detectors import in_scope
+from nika.audit.scan import ScanConfig, chat
+from nika.audit.source import (
     SourceUnavailable,
     request_source,
     source_absent,
     source_hash,
 )
-from auditlib.trace import Trial
+from nika.audit.trace import Trial
 
 READER = """Audit one capability-availability statement from a recorded task prompt.
 First locate the source that supplies this capability for the recorded agent type.

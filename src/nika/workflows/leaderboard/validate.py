@@ -48,6 +48,7 @@ class ValidationReport:
     ok: bool
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    audit: dict[str, Any] | None = None
 
     def raise_if_failed(self) -> None:
         if not self.ok:
@@ -79,6 +80,8 @@ def validate_leaderboard_submission(
     submission_dir: str | Path,
     *,
     max_harness_rate: float = DEFAULT_MAX_HARNESS_RATE,
+    trajectories_dir: str | Path | None = None,
+    audit_repo: Path | None = None,
 ) -> ValidationReport:
     """Validate a leaderboard submission package. Returns a report (does not raise).
 
@@ -272,4 +275,28 @@ def validate_leaderboard_submission(
 
     errors.extend(scan_package_dir(root))
 
-    return ValidationReport(ok=not errors, errors=errors, warnings=warnings)
+    from nika.workflows.leaderboard.validate_trajectories import (
+        sibling_trajectories_dir,
+        validate_trajectory_package,
+    )
+
+    audit = None
+    trajectories = (
+        Path(trajectories_dir)
+        if trajectories_dir is not None
+        else sibling_trajectories_dir(root)
+    )
+    if trajectories_dir is not None or trajectories.is_dir():
+        paired = validate_trajectory_package(
+            trajectories, scores_dir=root, audit_repo=audit_repo
+        )
+        errors.extend(paired.errors)
+        warnings.extend(paired.warnings)
+        audit = paired.audit
+    else:
+        warnings.append(
+            "Trajectory audit not run: provide --trajectories or the paired sibling directory."
+        )
+    return ValidationReport(
+        ok=not errors, errors=errors, warnings=warnings, audit=audit
+    )

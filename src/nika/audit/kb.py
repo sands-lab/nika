@@ -1,6 +1,6 @@
 """The audit knowledge base: issue classes, harness policy, and known issues.
 
-The knowledge base is data under the skill's ``kb/`` directory:
+The knowledge base is packaged under ``nika.audit/kb_data/``:
 
 - ``taxonomy.yaml``: the issue classes every finding is filed under.
 - ``policy.yaml``: what a benchmark trial may use (tools, paths, commands).
@@ -22,7 +22,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-KB_DIR = Path(__file__).resolve().parents[2] / "kb"
+KB_DIR = Path(__file__).resolve().parent / "kb_data"
 
 Severity = Literal["block", "warn", "info"]
 Status = Literal["open", "fixed", "by_design", "wontfix"]
@@ -70,7 +70,7 @@ class Signature(BaseModel):
     known scoring revision the difference is consistent with.
     ``mutation``: a state-changing command (``policy.yaml``) in a tool call.
     ``metric``: a submission-level ``metric`` crosses ``threshold`` (see
-    :mod:`auditlib.cohort`).
+    :mod:`nika.audit.cohort`).
     ``fingerprint_drift``: the harness fingerprint differs across trials.
     ``prompt_contrast``: within one recorded deployment and commit, a prompt
     line absent from healthy tasks, supported by two fault trials or at least

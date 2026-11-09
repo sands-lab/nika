@@ -69,6 +69,7 @@ def validate_trajectory_package(
     trajectories_dir: str | Path,
     *,
     scores_dir: str | Path | None = None,
+    audit_repo: Path | None = None,
 ) -> ValidationReport:
     """Validate a trajectories package (optionally against its scores sibling)."""
     errors: list[str] = []
@@ -239,10 +240,48 @@ def validate_trajectory_package(
                         except ValidationError:
                             continue
                         score_ids.add(trial.trial_id)
+                        if trial.trial_id not in present_ids:
+                            continue
+                        metrics_path = (
+                            trials_root / trial.trial_id / "eval_metrics.json"
+                        )
+                        if metrics_path.is_file():
+                            from nika.workflows.leaderboard.aggregate import (
+                                extract_trial_metrics,
+                            )
+
+                            try:
+                                recorded = extract_trial_metrics(
+                                    _load_json(metrics_path)
+                                )
+                            except (OSError, json.JSONDecodeError, TypeError) as exc:
+                                errors.append(
+                                    f"invalid {trial.trial_id}/eval_metrics.json: {exc}"
+                                )
+                            else:
+                                if trial.metrics != recorded:
+                                    errors.append(
+                                        f"{trial.trial_id}: scores metrics differ from paired trajectories"
+                                    )
                     if score_ids != present_ids:
                         errors.append(
                             "trial set differs between scores and trajectories packages"
                         )
 
     errors.extend(scan_trajectory_package_dir(root))
-    return ValidationReport(ok=not errors, errors=errors, warnings=warnings)
+    audit = None
+    if not errors:
+        from nika.audit.runner import audit_trajectories
+
+        audit = audit_trajectories(root, repo=audit_repo)
+        verdict = audit["verdict"]
+        summary = (
+            f"Trajectory audit: {verdict} ({audit['package']['n_trials']} trials)."
+        )
+        if verdict == "block":
+            errors.append(summary + " Run nika leaderboard audit for evidence.")
+        elif verdict == "warn":
+            warnings.append(summary + " Review the audit report.")
+    return ValidationReport(
+        ok=not errors, errors=errors, warnings=warnings, audit=audit
+    )

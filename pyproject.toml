@@ -65,6 +65,7 @@ where = ["src"]
 include = ["nika*", "agent*"]
 
 [tool.setuptools.package-data]
+"nika.audit" = ["kb_data/*.yaml", "kb_data/checks/*.yaml", "kb_data/issues/*.yaml"]
 # Runtime data loaded from the installed package (lab files, images, prompts).
 "nika.validation.netkat" = ["KatchBatch.java"]
 "nika.inspect" = ["www/dist/**/*"]

@@ -19,7 +19,7 @@ verdict depends on the memory, so stage A computes them once for every
 submission. Stage B starts from the skill's built-in part and, submission by
 submission, runs the deterministic audit with the grown memory, treats groups a
 learned issue's signature or an instance-identifying built-in check already
-covers as recorded, takes the stored verdicts of the others, and writes issue files for the real ones (``auditlib.pipeline``). The
+covers as recorded, takes the stored verdicts of the others, and writes issue files for the real ones (``nika.audit.pipeline``). The
 cross-trial tables include earlier submissions, so stage B reads and judges
 them with the LLM given by ``--base-url`` or ``--cli``.
 Adjudication cost counts only the verdicts stage B uses. Each step keeps the
@@ -41,12 +41,12 @@ from pathlib import Path
 from experiment.submission_audit.skill import builtin_kb_dir, submissions
 from experiment.submission_audit.scan_eval import CLI
 
-from auditlib.aggregate import group_findings
-from auditlib.kb import load_kb
-from auditlib.pipeline import _verdicts, review_submission, worth_judging
-from auditlib.runner import audit_trajectories
-from auditlib.scan import ScanConfig, scan_trials
-from auditlib.trace import load_trial, trial_dirs
+from nika.audit.aggregate import group_findings
+from nika.audit.kb import load_kb
+from nika.audit.pipeline import _verdicts, review_submission, worth_judging
+from nika.audit.runner import audit_trajectories
+from nika.audit.scan import ScanConfig, scan_trials
+from nika.audit.trace import load_trial, trial_dirs
 
 
 def load_scan(path: Path) -> list[dict]:

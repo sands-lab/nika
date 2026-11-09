@@ -27,12 +27,11 @@ from pathlib import Path
 import httpx
 import yaml
 
-from experiment.submission_audit import skill  # noqa: F401  (adds auditlib to sys.path)
 
 from experiment.submission_audit.scan_eval import CLI
 
-from auditlib.kb import KB_DIR
-from auditlib.scan import ScanConfig, chat
+from nika.audit.kb import KB_DIR
+from nika.audit.scan import ScanConfig, chat
 
 HERE = Path(__file__).resolve().parent
 

@@ -12,9 +12,9 @@ from dataclasses import asdict, dataclass, field
 from functools import cached_property
 from typing import Any
 
-from auditlib.kb import Issue, KnowledgeBase, Policy, Signature
-from auditlib.regrade import regrade_trial
-from auditlib.trace import Step, Trial, split_tool_name
+from nika.audit.kb import Issue, KnowledgeBase, Policy, Signature
+from nika.audit.regrade import regrade_trial
+from nika.audit.trace import Step, Trial, split_tool_name
 from agent.protocols import SUBMISSION
 from nika.evaluator.validity import detect_trial_validity
 
@@ -206,7 +206,7 @@ def _leak_term_hits(issue: Issue, ctx: TrialContext) -> list[Hit]:
 
 def _fault_token_hits(issue: Issue, ctx: TrialContext) -> list[Hit]:
     """Tool output that names the trial's own fault type."""
-    from experiment.audit.agent_view import fault_tokens
+    from nika.audit.leaks import fault_tokens
 
     tokens = [t for ft in sorted(_gt_types(ctx.trial)) for t in fault_tokens(ft)]
     if not tokens:
