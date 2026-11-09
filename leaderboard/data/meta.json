@@ -7,7 +7,8 @@
     "framework": [
       "Claude Code",
       "Codex",
-      "ReAct"
+      "ReAct",
+      "VENETA WorldModel"
     ],
     "llm_provider": [
       "anthropic",
@@ -42,13 +43,20 @@
     ],
     "optimization_methods": [
       "GEPA",
+      "coverage reminder",
+      "governed memory & self-improvement layer",
       "skills"
     ],
     "tags": [
+      "dev-derived-seed",
+      "memory",
       "replication",
+      "single-run",
       "slides"
     ],
-    "org": [],
+    "org": [
+      "VENETA Inc."
+    ],
     "split": [
       "test"
     ]
@@ -94,5 +102,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-11-09T15:36:37+00:00"
+  "generated_at": "2026-11-09T17:44:13+00:00"
 }

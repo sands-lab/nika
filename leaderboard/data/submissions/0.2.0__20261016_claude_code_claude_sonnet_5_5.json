@@ -7612,6 +7612,8 @@
     0.653596,
     0.810086
   ],
-  "beaten_by": [],
-  "rank": 1
+  "beaten_by": [
+    "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+  ],
+  "rank": 2
 }

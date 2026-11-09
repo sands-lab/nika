@@ -882,6 +882,464 @@
       "rank": 11
     },
     {
+      "id": "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+      "dirname": "20261103_veneta_worldmodel_claude_opus_5_5",
+      "submission_name": "VENETA WorldModel, Telco edition",
+      "authors": "VENETA Inc.",
+      "org": "VENETA Inc.",
+      "site": "https://veneta.ai",
+      "report": null,
+      "logo": null,
+      "github": null,
+      "email": null,
+      "trajectories_url": null,
+      "trajectories_relpath": "trajectories/0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+      "model": "Claude Opus 5.5",
+      "model_id": "claude-opus-5-5",
+      "submitted_model": "claude-opus-5-5",
+      "framework": "VENETA WorldModel",
+      "agent_type": "veneta_agent_v12:VenetaScopedAgentV12",
+      "llm_provider": "anthropic",
+      "vendor": {
+        "id": "anthropic",
+        "label": "Anthropic",
+        "icon": "lobehub/anthropic.svg"
+      },
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [
+        "governed memory & self-improvement layer",
+        "coverage reminder"
+      ],
+      "tags": [
+        "memory",
+        "single-run",
+        "dev-derived-seed"
+      ],
+      "extra": {
+        "governed memory & self-improvement layer_variant": "API-model profile",
+        "model_profile": "API-model profile: the model is reached through its provider's API with the benchmark's standard client; the open-weight profile of the same layer (self-hosted models) differs in serving and local-model client settings only",
+        "runs": 1,
+        "run_note": "Single official run (85 cases x 3 trials); the leaderboard's within-run bootstrap interval applies. A confirming run of the same stack scored 0.830 and is not submitted (run #1 submitted per pre-registration).",
+        "layer": "VENETA WorldModel governed memory & self-improvement layer: seed of 74 fault-signature rows written from the public dev split (one per dev fault type, no test content) plus rows adapted from the SADE community skills; recall by task text and by evidence; outcomes of earlier cases in the same run written back and recalled with same-case exclusion",
+        "harness_controls": "step-budget guard (one closing reminder); one-shot coverage reminder before a no-fault verdict; context compaction only when the prompt exceeds the window; type aid appended to the report before submission",
+        "trajectories": "not included in this submission; to be published with the write-up",
+        "llm_provider": "anthropic",
+        "reasoning_effort": "medium",
+        "max_tokens": 32768,
+        "max_steps": 40,
+        "nika_agent_id": "veneta_agent_v12:VenetaScopedAgentV12",
+        "seed_active_rows": 200,
+        "seed_sade_skill_rows": 121,
+        "seed_contract_rows": 5,
+        "seed_fault_signature_rows": 74,
+        "seed_fault_signature_rows_with_outputs_clause": 10,
+        "seed_archived_rows_never_recalled": 74,
+        "seed_fault_signature_text_sha256": "743b1f4ab883b1e84f986215aa5a25b889f2f155b266051739a03e3f046ed297",
+        "seed_fault_signature_text_sha256_method": "SHA-256 over the 74 active fault-signature texts, sorted, one per line; exact command available to the maintainers on request",
+        "seed_source_split": "dev (nika-bench 0.2.0 dev split); no test content",
+        "seed_hash_matches_submitted_run_memory": true
+      },
+      "reasoning_effort": "medium",
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.8388894117647059,
+      "mean_localization_f1": 0.8741835294117647,
+      "mean_detection_score": 0.9058823529411765,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 255,
+      "n_agent_failed": 0,
+      "success_rate": 1.0,
+      "token_totals": {
+        "in_tokens": 63179776,
+        "out_tokens": 1352871
+      },
+      "steps_totals": {
+        "steps": 2204,
+        "tool_calls": 4124,
+        "tool_errors": 78
+      },
+      "mean_tokens": 253069.204,
+      "mean_steps": 8.643,
+      "total_tokens": 64532647,
+      "task_tokens": [
+        [
+          338421,
+          7001
+        ],
+        [
+          161417,
+          3515
+        ],
+        [
+          84733,
+          2957
+        ],
+        [
+          93966,
+          3027
+        ],
+        [
+          75818,
+          3109
+        ],
+        [
+          140739,
+          4492
+        ],
+        [
+          90527,
+          3564
+        ],
+        [
+          117084,
+          3193
+        ],
+        [
+          167145,
+          5908
+        ],
+        [
+          111325,
+          3379
+        ],
+        [
+          143250,
+          4350
+        ],
+        [
+          410739,
+          7517
+        ],
+        [
+          144855,
+          5564
+        ],
+        [
+          336482,
+          6907
+        ],
+        [
+          69192,
+          2925
+        ],
+        [
+          251451,
+          5676
+        ],
+        [
+          75606,
+          3231
+        ],
+        [
+          228938,
+          5869
+        ],
+        [
+          161178,
+          5177
+        ],
+        [
+          224518,
+          5936
+        ],
+        [
+          125554,
+          2618
+        ],
+        [
+          73488,
+          2349
+        ],
+        [
+          128054,
+          4155
+        ],
+        [
+          143282,
+          4320
+        ],
+        [
+          92884,
+          3329
+        ],
+        [
+          219077,
+          6591
+        ],
+        [
+          81901,
+          2834
+        ],
+        [
+          77093,
+          2775
+        ],
+        [
+          641183,
+          12699
+        ],
+        [
+          272486,
+          6227
+        ],
+        [
+          278945,
+          6158
+        ],
+        [
+          160306,
+          4107
+        ],
+        [
+          201315,
+          5624
+        ],
+        [
+          103673,
+          3727
+        ],
+        [
+          141381,
+          3836
+        ],
+        [
+          110978,
+          4072
+        ],
+        [
+          197933,
+          4783
+        ],
+        [
+          100031,
+          5736
+        ],
+        [
+          276447,
+          7839
+        ],
+        [
+          240238,
+          7850
+        ],
+        [
+          145272,
+          3962
+        ],
+        [
+          153140,
+          3567
+        ],
+        [
+          153347,
+          5586
+        ],
+        [
+          230569,
+          7596
+        ],
+        [
+          136815,
+          5676
+        ],
+        [
+          130876,
+          5668
+        ],
+        [
+          159597,
+          5747
+        ],
+        [
+          91460,
+          3367
+        ],
+        [
+          102639,
+          5210
+        ],
+        [
+          126313,
+          4422
+        ],
+        [
+          49219,
+          2047
+        ],
+        [
+          103380,
+          4349
+        ],
+        [
+          105188,
+          4307
+        ],
+        [
+          71417,
+          3226
+        ],
+        [
+          273928,
+          3604
+        ],
+        [
+          122719,
+          2838
+        ],
+        [
+          82370,
+          2419
+        ],
+        [
+          1057808,
+          12682
+        ],
+        [
+          143333,
+          2864
+        ],
+        [
+          1290406,
+          11956
+        ],
+        [
+          651658,
+          8617
+        ],
+        [
+          300811,
+          4893
+        ],
+        [
+          1381781,
+          15124
+        ],
+        [
+          915035,
+          11103
+        ],
+        [
+          48628,
+          2062
+        ],
+        [
+          176857,
+          4138
+        ],
+        [
+          221021,
+          4182
+        ],
+        [
+          71951,
+          2536
+        ],
+        [
+          400717,
+          5218
+        ],
+        [
+          187149,
+          3760
+        ],
+        [
+          1266831,
+          13733
+        ],
+        [
+          160736,
+          3515
+        ],
+        [
+          107175,
+          2776
+        ],
+        [
+          1363538,
+          15675
+        ],
+        [
+          166906,
+          3490
+        ],
+        [
+          170271,
+          4192
+        ],
+        [
+          69351,
+          3563
+        ],
+        [
+          66848,
+          2746
+        ],
+        [
+          377062,
+          12189
+        ],
+        [
+          245945,
+          8122
+        ],
+        [
+          288289,
+          6659
+        ],
+        [
+          104489,
+          2782
+        ],
+        [
+          127147,
+          3128
+        ],
+        [
+          270896,
+          7441
+        ],
+        [
+          95407,
+          3296
+        ]
+      ],
+      "max_steps": 40,
+      "case_timeout_sec": 15000,
+      "created_at": "2026-11-03T08:07:21+00:00",
+      "run_id": "5d2d6b20f4508795",
+      "official": true,
+      "verification_status": "unverified",
+      "verification_reason": "Trajectories were not provided. Scores and memory-isolation claims have not been independently verified.",
+      "nika_git_commit": "ac4422d8a4a03be2b905e28edf72993d467e1b81",
+      "model_icon": {
+        "label": "Claude",
+        "icon": "lobehub/claude.svg"
+      },
+      "name": "Claude Opus 5.5 (medium) · VENETA WorldModel · governed memory & self-improvement layer (API-model profile) · coverage reminder",
+      "rca_f1_ci": [
+        0.768301,
+        0.904249
+      ],
+      "beaten_by": [],
+      "rank": 1
+    },
+    {
       "id": "0.2.0/20261016_claude_code_claude_opus_5_5",
       "dirname": "20261016_claude_code_claude_opus_5_5",
       "submission_name": "Claude Opus 5.5",
@@ -1757,8 +2215,10 @@
         0.653596,
         0.810086
       ],
-      "beaten_by": [],
-      "rank": 1
+      "beaten_by": [
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+      ],
+      "rank": 2
     },
     {
       "id": "0.2.0/20261017_codex_gpt_6_1_sol",
@@ -2194,9 +2654,10 @@
         0.766735
       ],
       "beaten_by": [
-        "0.2.0/20261016_claude_code_claude_opus_5_5"
+        "0.2.0/20261016_claude_code_claude_opus_5_5",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 2
+      "rank": 3
     },
     {
       "id": "0.2.0/20261028_codex_gpt_6_astra",
@@ -2638,9 +3099,10 @@
       "beaten_by": [
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 3
+      "rank": 4
     },
     {
       "id": "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
@@ -3077,9 +3539,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 4
+      "rank": 5
     },
     {
       "id": "0.2.0/20261011_react_qwen3_8_27b_fp8",
@@ -3517,9 +3980,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261017_claude_code_claude_haiku_5_5",
@@ -3964,9 +4428,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261025_claude_code_ornith_1_5_122b",
@@ -4411,9 +4876,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261014_react_qwen3_5_27b",
@@ -4854,9 +5320,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
@@ -5297,9 +5764,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
@@ -5741,9 +6209,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
@@ -6184,9 +6653,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
@@ -6627,9 +7097,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -7070,9 +7541,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -7517,9 +7989,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -7949,9 +8422,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 11
+      "rank": 12
     },
     {
       "id": "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
@@ -8401,9 +8875,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 11
+      "rank": 12
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -8834,9 +9309,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 12
+      "rank": 13
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -9268,9 +9744,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261020_codex_qwen3_coder_next_fp8",
@@ -9726,9 +10203,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 14
+      "rank": 15
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -10177,9 +10655,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 15
+      "rank": 16
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -10629,9 +11108,10 @@
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
         "0.2.0/20261020_codex_qwen3_coder_next_fp8",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 16
+      "rank": 17
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -11090,9 +11570,10 @@
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
         "0.2.0/20261020_codex_qwen3_coder_next_fp8",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
-        "0.2.0/20261028_codex_gpt_6_astra"
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
       ],
-      "rank": 17
+      "rank": 18
     }
   ]
 }

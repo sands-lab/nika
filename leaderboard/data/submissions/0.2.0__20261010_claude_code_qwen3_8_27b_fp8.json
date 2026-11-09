@@ -8183,7 +8183,8 @@
     "0.2.0/20261016_claude_code_claude_opus_5_5",
     "0.2.0/20261016_claude_code_claude_sonnet_5_5",
     "0.2.0/20261017_codex_gpt_6_1_sol",
-    "0.2.0/20261028_codex_gpt_6_astra"
+    "0.2.0/20261028_codex_gpt_6_astra",
+    "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
   ],
-  "rank": 4
+  "rank": 5
 }
