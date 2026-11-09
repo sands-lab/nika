@@ -141,7 +141,7 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
         "NIKA_RUN_CONFIG": str(config_path),
     }
     sid = f"schedule-remote-{uuid4().hex[:8]}"
-    client = RemoteClient(
+    remote_client = RemoteClient(
         RemoteConfig(enabled=True, url=f"http://127.0.0.1:{port}", artifact_root="")
     )
     scheduler = None
@@ -160,12 +160,12 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
 
             def reachable():
                 try:
-                    return client.health().status == "ok"
+                    return remote_client.health().status == "ok"
                 except RuntimeError:
                     return False
 
             _wait(reachable, 30)
-            with remote_override(client.config):
+            with remote_override(remote_client.config):
                 start_net_env(
                     "dc_clos",
                     "s",
@@ -195,7 +195,7 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
                     ),
                 )
                 scheduler.prepare()
-                remote_meta = client.get_session(sid)
+                remote_meta = remote_client.get_session(sid)
                 assert remote_meta["session_dir"] != str(scheduler.directory)
                 assert "browser" not in _exec(
                     sid,
@@ -259,7 +259,7 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
                 close_session(session_id=sid)
                 with pytest.raises(FileNotFoundError):
                     SessionStore().get_session(sid)
-                assert client.list_sessions() == []
+                assert remote_client.list_sessions() == []
                 from nika.runtime.factory import runtime_for_session
 
                 runtime = runtime_for_session(remote_meta)
@@ -290,14 +290,14 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
                     },
                     start,
                     ready,
-                    client.config,
+                    remote_client.config,
                 ),
             )
             worker.start()
             cancelled_sid = None
             try:
                 cancelled_sid, cancelled_dir = ready.get(timeout=180)
-                cancelled_meta = client.get_session(cancelled_sid)
+                cancelled_meta = remote_client.get_session(cancelled_sid)
                 start.set()
                 _wait(
                     lambda: (
@@ -331,7 +331,7 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
                     e["status"] == "cancelled" and e.get("occurrence_index") == 1
                     for e in _events(cancelled_dir)
                 )
-                assert client.list_sessions() == []
+                assert remote_client.list_sessions() == []
                 runtime = runtime_for_session(cancelled_meta)
                 assert not runtime.exists()
                 assert not runtime.has_leftover_resources()
@@ -340,12 +340,12 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
                     worker.terminate()
                 worker.join(timeout=60)
                 if cancelled_sid and any(
-                    row["session_id"] == cancelled_sid for row in client.list_sessions()
+                    row["session_id"] == cancelled_sid for row in remote_client.list_sessions()
                 ):
-                    client.close_session(cancelled_sid)
+                    remote_client.close_session(cancelled_sid)
         finally:
             try:
-                with remote_override(client.config):
+                with remote_override(remote_client.config):
                     try:
                         if scheduler is not None:
                             scheduler.close()
