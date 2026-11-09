@@ -4,7 +4,7 @@ import pytest
 
 from langchain.agents.middleware.model_call_limit import ModelCallLimitExceededError
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, ToolCall
+from langchain_core.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import tool
 
@@ -150,3 +150,78 @@ async def test_phase_turns_respect_truncation_and_budget(
             else 0
         )
     assert model.n == expected_calls
+
+
+@pytest.mark.parametrize("phase_cls", [DiagnosisPhase, SubmissionPhase])
+@pytest.mark.parametrize(
+    ("recover", "max_steps"), [(True, 10), (False, 10), (False, 2)]
+)
+async def test_malformed_tool_calls_receive_feedback_within_existing_limits(
+    phase_cls, recover, max_steps
+):
+    malformed = AIMessage(
+        content="I will inspect the network.",
+        invalid_tool_calls=[
+            {"name": "ping", "args": "{}}", "id": f"bad-{i}", "error": "invalid JSON"}
+            for i in range(2)
+        ],
+    )
+    responses = [malformed]
+    if recover:
+        responses += [
+            AIMessage(
+                content="", tool_calls=[ToolCall(name="ping", args={}, id="good")]
+            ),
+            AIMessage(content="final report"),
+        ]
+    model = _AlwaysToolModel(responses=responses)
+    phase = phase_cls.__new__(phase_cls)
+    phase.llm, phase.tools, phase.max_steps = model, [ping], max_steps
+    if max_steps == 2:
+        with pytest.raises(ModelCallLimitExceededError):
+            await phase.get_agent().ainvoke({"messages": [HumanMessage("go")]})
+        assert model.n == 2
+        return
+    result = await phase.get_agent().ainvoke({"messages": [HumanMessage("go")]})
+    messages = result["messages"]
+    errors = [m for m in messages if isinstance(m, ToolMessage) and m.status == "error"]
+    assert {m.tool_call_id for m in errors} == {"bad-0", "bad-1"}
+    assert all("JSON" in m.content for m in errors)
+    assert len(errors) == (2 if recover else 2 * MAX_TRUNCATION_RETRIES)
+    if recover:
+        assert model.n == 3
+        assert any(isinstance(m, ToolMessage) and m.content == "pong" for m in messages)
+        assert messages[-1].content == "final report"
+    else:
+        assert model.n == MAX_TRUNCATION_RETRIES + 1
+
+
+@pytest.mark.parametrize("rejected_first", [False, True])
+async def test_submission_stops_after_acceptance_and_retries_rejection(rejected_first):
+    calls = []
+
+    @tool
+    def submit() -> str:
+        """Submit the final diagnosis."""
+        calls.append(1)
+        if rejected_first and len(calls) == 1:
+            return "Submission rejected: correct the arguments."
+        return "Submission success."
+
+    responses = [
+        AIMessage(content="", tool_calls=[ToolCall(name="submit", args={}, id=str(i))])
+        for i in range(3)
+    ]
+    model = _AlwaysToolModel(responses=responses)
+    phase = SubmissionPhase.__new__(SubmissionPhase)
+    phase.llm, phase.tools, phase.max_steps = (
+        model,
+        [submit],
+        2 if rejected_first else 1,
+    )
+    result = await phase.get_agent().ainvoke(
+        {"messages": [HumanMessage("submit the report")]}
+    )
+    assert model.n == len(calls) == (2 if rejected_first else 1)
+    assert isinstance(result["messages"][-1], ToolMessage)
+    assert result["messages"][-1].content == "Submission success."

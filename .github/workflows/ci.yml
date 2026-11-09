@@ -48,7 +48,7 @@ jobs:
             [ "$(printf '%s\n' "$files" | wc -l)" -ge 3000 ] && core=true
             while IFS= read -r f; do
               case "$f" in
-                src/*|benchmark/*|config/*|pyproject.toml|uv.lock|.python-version|.github/workflows/ci.yml|.github/workflows/nightly.yml|.github/workflows/release-engine-verify.yml)
+                src/*|scripts/download-release.sh|benchmark/*|config/*|pyproject.toml|uv.lock|.python-version|.github/workflows/ci.yml|.github/workflows/nightly.yml|.github/workflows/release-engine-verify.yml)
                   core=true ;;
                 tests/ci/*|tests/support/*|tests/benchmark/*|tests/nika/workflows/integration/*|tests/conftest.py)
                   heavy=true unit=true ;;
@@ -270,21 +270,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
-      - name: Install containerlab
+      - name: Install NIKA tools
         run: |
-          clab_version=$(sed -n 's/^ARG CLAB_VERSION=//p' src/nika/benchmark_engine/docker/Dockerfile)
-          test -n "$clab_version"
-          for attempt in 1 2 3; do
-            if clab_installer=$(curl -fsSL --retry 3 https://get.containerlab.dev) &&
-               bash -c "$clab_installer" -- -v "$clab_version"; then
-              clab version
-              exit 0
-            fi
-            sleep $((attempt * 5))
-          done
-          exit 1
-      - name: Install gnmic
-        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+          if ! sudo modprobe -n vrf; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          fi
+          ./scripts/install.sh --skip-images
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: Clab failure inject smoke
@@ -341,21 +333,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
-      - name: Install containerlab
+      - name: Install NIKA tools
         run: |
-          clab_version=$(sed -n 's/^ARG CLAB_VERSION=//p' src/nika/benchmark_engine/docker/Dockerfile)
-          test -n "$clab_version"
-          for attempt in 1 2 3; do
-            if clab_installer=$(curl -fsSL --retry 3 https://get.containerlab.dev) &&
-               bash -c "$clab_installer" -- -v "$clab_version"; then
-              clab version
-              exit 0
-            fi
-            sleep $((attempt * 5))
-          done
-          exit 1
-      - name: Install gnmic
-        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+          if ! sudo modprobe -n vrf; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          fi
+          ./scripts/install.sh --skip-images
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: min3clos light startup
@@ -383,21 +367,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
-      - name: Install containerlab
+      - name: Install NIKA tools
         run: |
-          clab_version=$(sed -n 's/^ARG CLAB_VERSION=//p' src/nika/benchmark_engine/docker/Dockerfile)
-          test -n "$clab_version"
-          for attempt in 1 2 3; do
-            if clab_installer=$(curl -fsSL --retry 3 https://get.containerlab.dev) &&
-               bash -c "$clab_installer" -- -v "$clab_version"; then
-              clab version
-              exit 0
-            fi
-            sleep $((attempt * 5))
-          done
-          exit 1
-      - name: Install gnmic
-        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+          if ! sudo modprobe -n vrf; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          fi
+          ./scripts/install.sh --skip-images
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: Containerlab mock-agent pipeline
