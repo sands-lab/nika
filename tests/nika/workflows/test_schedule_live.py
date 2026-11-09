@@ -340,7 +340,8 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
                     worker.terminate()
                 worker.join(timeout=60)
                 if cancelled_sid and any(
-                    row["session_id"] == cancelled_sid for row in remote_client.list_sessions()
+                    row["session_id"] == cancelled_sid
+                    for row in remote_client.list_sessions()
                 ):
                     remote_client.close_session(cancelled_sid)
         finally:
