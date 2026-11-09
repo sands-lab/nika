@@ -31,6 +31,7 @@
       "GPT-5 Mini",
       "GPT-6 Astra",
       "GPT-6.1 Sol",
+      "Gemma 4 31B FP8",
       "Gemma 4 31B IT",
       "OTel-2.0-LLM-31B-IT",
       "Ornith-1.5-122B",
@@ -39,8 +40,7 @@
       "Qwen3.6 27B",
       "Qwen3.6 35B A3B FP8",
       "Qwen3.8-27B-FP8",
-      "TelecomGPT-R1",
-      "gemma-4-31b-fp8"
+      "TelecomGPT-R1"
     ],
     "optimization_methods": [
       "GEPA",
@@ -105,5 +105,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-11-09T18:32:49+00:00"
+  "generated_at": "2026-11-09T19:01:01+00:00"
 }

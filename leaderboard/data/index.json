@@ -5702,7 +5702,7 @@
       "email": null,
       "trajectories_url": null,
       "trajectories_relpath": "trajectories/0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-      "model": "gemma-4-31b-fp8",
+      "model": "Gemma 4 31B FP8",
       "model_id": null,
       "submitted_model": "gemma-4-31b-fp8",
       "framework": "VENETA WorldModel",
@@ -6142,7 +6142,7 @@
       "verification_reason": "Trajectories were not provided. Scores and memory-isolation claims have not been independently verified.",
       "nika_git_commit": "ac4422d8a4a03be2b905e28edf72993d467e1b81",
       "model_icon": null,
-      "name": "gemma-4-31b-fp8 (medium) · VENETA WorldModel · governed memory & self-improvement layer (open-weight profile) · coverage reminder",
+      "name": "Gemma 4 31B FP8 (medium) · VENETA WorldModel · governed memory & self-improvement layer (open-weight profile) · coverage reminder",
       "rca_f1_ci": [
         0.22801,
         0.387257
