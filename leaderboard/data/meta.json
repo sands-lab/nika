@@ -31,8 +31,8 @@
       "GPT-5 Mini",
       "GPT-6 Astra",
       "GPT-6.1 Sol",
-      "Gemma 4 31B FP8",
       "Gemma 4 31B IT",
+      "Gemma 4 31B IT FP8 Dynamic",
       "OTel-2.0-LLM-31B-IT",
       "Ornith-1.5-122B",
       "Qwen3 Coder Next FP8",
@@ -105,5 +105,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-11-09T19:01:01+00:00"
+  "generated_at": "2026-11-09T19:02:43+00:00"
 }
