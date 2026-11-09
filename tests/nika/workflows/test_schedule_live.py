@@ -139,6 +139,7 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
         **os.environ,
         "PYTHONPATH": str(remote_root / "src"),
         "NIKA_RUN_CONFIG": str(config_path),
+        "NIKA_STATE_DIR": str(remote_root),
     }
     sid = f"schedule-remote-{uuid4().hex[:8]}"
     remote_client = RemoteClient(
