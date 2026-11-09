@@ -3105,6 +3105,473 @@
       "rank": 4
     },
     {
+      "id": "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+      "dirname": "20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+      "submission_name": "VENETA WorldModel, Telco edition",
+      "authors": "VENETA Inc.",
+      "org": "VENETA Inc.",
+      "site": "https://veneta.ai",
+      "report": null,
+      "logo": null,
+      "github": null,
+      "email": null,
+      "trajectories_url": null,
+      "trajectories_relpath": "trajectories/0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+      "model": "Qwen3.8-27B-FP8",
+      "model_id": "qwen3.8-27b-fp8",
+      "submitted_model": "qwen3.8-27b-fp8",
+      "framework": "VENETA WorldModel",
+      "agent_type": "veneta_agent_v15s:VenetaDirectedSignOffAgentV15S",
+      "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [
+        "governed memory & self-improvement layer",
+        "coverage reminder",
+        "evidence review before the verdict"
+      ],
+      "tags": [
+        "memory",
+        "single-run",
+        "dev-derived-seed",
+        "open-weight-profile"
+      ],
+      "extra": {
+        "governed memory & self-improvement layer_variant": "open-weight profile",
+        "model_profile": "open-weight profile: the model is self-hosted on vLLM with local-model client settings; the API-model profile of the same layer (models reached through a provider's API) differs in serving and client only",
+        "runs": 1,
+        "run_note": "Single official run (85 cases x 3 trials); 248/255 trials produced a submission, 7 ended without one and count as 0 in the primary mean; the leaderboard's within-run bootstrap interval applies. No confirming run. Pre-registered on the dev-split result of the same stack (dev rca_f1 0.643).",
+        "layer": "VENETA WorldModel governed memory & self-improvement layer: seed of 74 fault-signature rows written from the public dev split (one per dev fault type, no test content) plus rows adapted from the SADE community skills; recall by task text and by evidence; outcomes of earlier cases in the same run written back and recalled with same-case exclusion",
+        "harness_controls": "step-budget guard (one closing reminder); one-shot coverage reminder before a no-fault verdict; context compaction only when the prompt exceeds the window; one evidence-review step before the final verdict; type aid appended to the report before submission",
+        "serving": "self-hosted on vLLM; served name qwen3.8-27b-fp8; max-model-len 131072; context budget 120000 tokens measured with the server's tokenizer",
+        "trajectories": "not included in this submission; to be published with the write-up",
+        "llm_provider": "custom",
+        "reasoning_effort": "medium",
+        "max_tokens": 16384,
+        "max_steps": 100,
+        "nika_agent_id": "veneta_agent_v15s:VenetaDirectedSignOffAgentV15S",
+        "seed_active_rows": 200,
+        "seed_sade_skill_rows": 121,
+        "seed_contract_rows": 5,
+        "seed_fault_signature_rows": 74,
+        "seed_fault_signature_rows_with_outputs_clause": 10,
+        "seed_archived_rows_never_recalled": 74,
+        "seed_fault_signature_text_sha256": "743b1f4ab883b1e84f986215aa5a25b889f2f155b266051739a03e3f046ed297",
+        "seed_fault_signature_text_sha256_method": "SHA-256 over the 74 active fault-signature texts, sorted, one per line; exact command available to the maintainers on request",
+        "seed_source_split": "dev (nika-bench 0.2.0 dev split); no test content",
+        "seed_hash_matches_submitted_run_memory": true
+      },
+      "reasoning_effort": "medium",
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.591504705882353,
+      "mean_localization_f1": 0.665143137254902,
+      "mean_detection_score": 0.7490196078431373,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 248,
+      "n_agent_failed": 7,
+      "success_rate": 0.972549,
+      "token_totals": {
+        "in_tokens": 181828185,
+        "out_tokens": 19379449
+      },
+      "steps_totals": {
+        "steps": 5489,
+        "tool_calls": 12932,
+        "tool_errors": 158
+      },
+      "mean_tokens": 789049.545,
+      "mean_steps": 21.525,
+      "total_tokens": 201207634,
+      "task_tokens": [
+        [
+          488569,
+          49625
+        ],
+        [
+          557105,
+          40218
+        ],
+        [
+          372743,
+          30628
+        ],
+        [
+          291230,
+          28310
+        ],
+        [
+          291960,
+          36909
+        ],
+        [
+          244320,
+          34878
+        ],
+        [
+          332607,
+          34790
+        ],
+        [
+          473753,
+          19976
+        ],
+        [
+          421168,
+          65200
+        ],
+        [
+          258371,
+          30368
+        ],
+        [
+          404279,
+          38808
+        ],
+        [
+          884233,
+          83139
+        ],
+        [
+          524685,
+          63583
+        ],
+        [
+          914932,
+          122943
+        ],
+        [
+          239361,
+          44189
+        ],
+        [
+          546769,
+          44664
+        ],
+        [
+          202964,
+          18863
+        ],
+        [
+          517290,
+          82298
+        ],
+        [
+          496543,
+          72499
+        ],
+        [
+          121193,
+          10669
+        ],
+        [
+          670092,
+          59090
+        ],
+        [
+          167331,
+          13822
+        ],
+        [
+          365452,
+          34251
+        ],
+        [
+          676648,
+          64477
+        ],
+        [
+          327735,
+          28362
+        ],
+        [
+          872032,
+          44116
+        ],
+        [
+          592881,
+          37294
+        ],
+        [
+          457678,
+          27177
+        ],
+        [
+          1167072,
+          137786
+        ],
+        [
+          1100154,
+          40741
+        ],
+        [
+          363794,
+          65101
+        ],
+        [
+          454746,
+          38782
+        ],
+        [
+          542361,
+          70280
+        ],
+        [
+          282999,
+          43612
+        ],
+        [
+          497712,
+          77695
+        ],
+        [
+          509969,
+          136349
+        ],
+        [
+          703611,
+          164445
+        ],
+        [
+          244348,
+          23533
+        ],
+        [
+          767252,
+          176480
+        ],
+        [
+          708680,
+          189355
+        ],
+        [
+          754764,
+          114556
+        ],
+        [
+          1681191,
+          169836
+        ],
+        [
+          651405,
+          104025
+        ],
+        [
+          884918,
+          70923
+        ],
+        [
+          658645,
+          57999
+        ],
+        [
+          555305,
+          44352
+        ],
+        [
+          595614,
+          59849
+        ],
+        [
+          1112157,
+          63378
+        ],
+        [
+          430221,
+          19576
+        ],
+        [
+          555512,
+          38926
+        ],
+        [
+          252220,
+          39740
+        ],
+        [
+          1058922,
+          88842
+        ],
+        [
+          505555,
+          22616
+        ],
+        [
+          606002,
+          57871
+        ],
+        [
+          595529,
+          94759
+        ],
+        [
+          377848,
+          43684
+        ],
+        [
+          496058,
+          83870
+        ],
+        [
+          1566309,
+          93926
+        ],
+        [
+          739477,
+          86020
+        ],
+        [
+          1216473,
+          61524
+        ],
+        [
+          1578458,
+          209256
+        ],
+        [
+          2095857,
+          147322
+        ],
+        [
+          1562343,
+          145832
+        ],
+        [
+          848666,
+          57079
+        ],
+        [
+          370748,
+          120076
+        ],
+        [
+          654616,
+          100551
+        ],
+        [
+          2006916,
+          151225
+        ],
+        [
+          335162,
+          93901
+        ],
+        [
+          1834196,
+          134958
+        ],
+        [
+          698050,
+          93886
+        ],
+        [
+          1089688,
+          195914
+        ],
+        [
+          429804,
+          100576
+        ],
+        [
+          715296,
+          28232
+        ],
+        [
+          1508080,
+          143106
+        ],
+        [
+          1669478,
+          180901
+        ],
+        [
+          861831,
+          72530
+        ],
+        [
+          716530,
+          67930
+        ],
+        [
+          681349,
+          103253
+        ],
+        [
+          769377,
+          39216
+        ],
+        [
+          924077,
+          43401
+        ],
+        [
+          970566,
+          128845
+        ],
+        [
+          442960,
+          39218
+        ],
+        [
+          497780,
+          50955
+        ],
+        [
+          1574192,
+          67977
+        ],
+        [
+          422628,
+          102101
+        ]
+      ],
+      "max_steps": 100,
+      "case_timeout_sec": 15000,
+      "created_at": "2026-11-05T21:15:16+00:00",
+      "run_id": "5e0b1a4f7db41079",
+      "official": true,
+      "verification_status": "unverified",
+      "verification_reason": "Trajectories were not provided. Scores and memory-isolation claims have not been independently verified.",
+      "nika_git_commit": "ac4422d8a4a03be2b905e28edf72993d467e1b81",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
+      "name": "Qwen3.8-27B-FP8 (medium) · VENETA WorldModel · governed memory & self-improvement layer (open-weight profile) · coverage reminder · evidence review before the verdict",
+      "rca_f1_ci": [
+        0.503269,
+        0.67974
+      ],
+      "beaten_by": [
+        "0.2.0/20261016_claude_code_claude_opus_5_5",
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261028_codex_gpt_6_astra",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+      ],
+      "rank": 5
+    },
+    {
       "id": "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
       "dirname": "20261010_claude_code_qwen3_8_27b_fp8",
       "submission_name": "Claude Code + Qwen3.8-27B-FP8",
@@ -3540,9 +4007,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261011_react_qwen3_8_27b_fp8",
@@ -3981,9 +4449,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261017_claude_code_claude_haiku_5_5",
@@ -4429,9 +4898,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261025_claude_code_ornith_1_5_122b",
@@ -4877,9 +5347,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261014_react_qwen3_5_27b",
@@ -5321,9 +5792,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
@@ -5765,9 +6237,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
@@ -6210,9 +6683,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
@@ -6654,9 +7128,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
@@ -7098,9 +7573,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -7542,9 +8018,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -7990,9 +8467,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 11
+      "rank": 12
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -8423,9 +8901,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 12
+      "rank": 13
     },
     {
       "id": "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
@@ -8876,9 +9355,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 12
+      "rank": 13
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -9310,9 +9790,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -9745,9 +10226,10 @@
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 14
+      "rank": 15
     },
     {
       "id": "0.2.0/20261020_codex_qwen3_coder_next_fp8",
@@ -10204,9 +10686,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 15
+      "rank": 16
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -10656,9 +11139,10 @@
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 16
+      "rank": 17
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -11109,9 +11593,10 @@
         "0.2.0/20261020_codex_qwen3_coder_next_fp8",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 17
+      "rank": 18
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -11571,9 +12056,10 @@
         "0.2.0/20261020_codex_qwen3_coder_next_fp8",
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
       ],
-      "rank": 18
+      "rank": 19
     }
   ]
 }

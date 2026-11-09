@@ -8133,7 +8133,8 @@
     "0.2.0/20261017_codex_gpt_6_1_sol",
     "0.2.0/20261025_claude_code_ornith_1_5_122b",
     "0.2.0/20261028_codex_gpt_6_astra",
-    "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+    "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+    "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
   ],
-  "rank": 8
+  "rank": 9
 }
