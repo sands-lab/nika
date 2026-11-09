@@ -257,8 +257,8 @@ about 100 s for `isp_pdh` (15 GiB).
   * `run.json` → `firecracker`: restore timings and the lab image used.
   * `env_stop` records that the lab was discarded with its VM copy;
     `failures_ended` and `session_cleared` come from the VM.
-* Restored environment images resume transient protocols before failure injection. In `enterprise_branch`, Linux WireGuard edges rebuild peer sessions from their running configuration. RouterOS peers keep their restored state, and NIKA records unsupported recovery in the environment logs.
-* Environments with rebuilt protocol sessions pass full environment verification; other environments use the configured [`nika.runtime_validation.depth`](configuration.md#runtime-validation). Set `verify_after_restore: false` to skip verification. Protocol recovery still runs. [Case images](#case-images-optional) preserve their injected state and rebuild transient sessions from the running configuration, then check that the injected failure remains. They skip healthy-environment verification.
+* Restored environment images resume transient protocols before failure injection. In `enterprise_branch`, Linux WireGuard edges retain their peers and running configuration while renegotiating session keys. Linux invalidates old sending keys when the VM generation changes. NIKA briefly suppresses handshake initiations at one end of each tunnel to prevent simultaneous retries from colliding, then removes its temporary rules. RouterOS peers keep their restored state, and NIKA records unsupported recovery in the environment logs.
+* Environments with protocol recovery pass full environment verification; other environments use the configured [`nika.runtime_validation.depth`](configuration.md#runtime-validation). Set `verify_after_restore: false` to skip verification. Protocol recovery still runs. [Case images](#case-images-optional) preserve their injected state, run protocol recovery, then check that the injected failure remains. They skip healthy-environment verification.
 * Lab-host events in `nika.jsonl` and `messages.jsonl` carry
   `"origin": "remote"` and stream to the host about once a second.
 * Teardown discards the VM copy instead of undeploying the lab.
@@ -268,10 +268,10 @@ about 100 s for `isp_pdh` (15 GiB).
 
 ### Clock
 
-A restored VM continues on its lab image's timeline: its clock is not stepped, so
-logs, leases, uptimes and protocol timers inside the lab stay consistent. As a
-result, the lab clock is behind the host by the image's age. `run.json`
-records the difference as `remote_clock_offset_sec`.
+Before exposing a restored environment, NIKA aligns its UTC clock with the
+restore host. Guest uptime and monotonic protocol timers continue from the saved
+state. `run.json` records any clock difference between the agent and lab hosts
+as `remote_clock_offset_sec`.
 
 * Agent timing metrics use host timestamps only.
 * `nika inspect` shifts lab-host rows onto the host clock, so the timeline stays
