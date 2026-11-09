@@ -39,7 +39,8 @@
       "Qwen3.6 27B",
       "Qwen3.6 35B A3B FP8",
       "Qwen3.8-27B-FP8",
-      "TelecomGPT-R1"
+      "TelecomGPT-R1",
+      "gemma-4-31b-fp8"
     ],
     "optimization_methods": [
       "GEPA",
@@ -104,5 +105,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-11-09T17:47:07+00:00"
+  "generated_at": "2026-11-09T17:49:03+00:00"
 }
