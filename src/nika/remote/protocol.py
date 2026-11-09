@@ -42,6 +42,16 @@ class EnvStartRequest(BaseModel):
     static_validation: bool = False
     telemetry: list[str] = Field(default_factory=list)
     traffic: dict[str, Any] | None = None
+    defer_background_traffic: bool = False
+    defer_business_traffic: bool = False
+
+
+class SchedulePrepareRequest(BaseModel):
+    schedule: dict[str, Any]
+    traffic: dict[str, Any] | None = None
+    benchmark_version: str | None = None
+    expected_root_causes: list[dict[str, Any]] | None = None
+    restored: bool = False
 
 
 class EnvStartResponse(BaseModel):

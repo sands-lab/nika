@@ -1,8 +1,12 @@
 # Benchmark configuration reference
 
-This reference is for maintainers and benchmark operators who need to choose a frozen release or a working YAML matrix and understand its artifact layout.
+This reference helps benchmark operators choose a benchmark release or a working task set and find the resulting artifacts.
 
 Implementation: [`benchmark/`](../../benchmark/) stores matrices and releases; [`workflows/benchmark/`](../../src/nika/workflows/benchmark/) loads and executes them.
+
+Use a task-level `schedule` to control failure injection, recovery, traffic activation, and agent startup. [Incident scheduling](scheduling.md) describes the YAML, timing, and completion rules.
+
+For ad-hoc runs, use a benchmark YAML whose `cases:` list contains relative paths to complete task files, or run one task file directly with `--config`. Each task file defines its scenario, failures, traffic, and schedule. Existing matrices containing only inline tasks remain supported. [Organize task files](scheduling.md#organize-task-files) shows the standard layout.
 
 ## Frozen release (`nika-bench@0.2.0`)
 
@@ -37,7 +41,7 @@ nika leaderboard template -o results/my-run/submission
 nika leaderboard submit --result_dir results/my-run --submission results/my-run/submission
 ```
 
-`defaults.n_trials` in `RELEASE.yaml` is 3 for `0.2.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed` (capability / no submission / tool-heavy or post-LLM case timeout). LLM/API endpoint failures (connection refused, provider 5xx, case-timeout killed mid-LLM after LLM-dominated wall clock, etc.) stamp `outcome=endpoint_failed` instead: they are **not** scored and `--resume` cleans and retries them. This is about the model HTTP endpoint, not the network lab under test. Failures after ground truth is written but before the agent demonstrably started (sandbox CLI missing, MCP gateway URL or bind failure, a worker killed during agent setup) stamp `outcome=infra_failed`. NIKA treats them like `endpoint_failed`: not scored, cleaned, and retried. NIKA counts a failure as `agent_failed` only when `nika.jsonl` has `agent_start` and `messages.jsonl` has at least one model or tool event. A valid `submission.json` always makes the trial `success`, even when a later step (agent timeout, sandbox teardown) fails. NIKA also cleans incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
+`defaults.n_trials` in `RELEASE.yaml` is 3 for `0.2.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed` (capability / no submission / tool-heavy or post-LLM case timeout). LLM/API endpoint failures (connection refused, provider 5xx, case-timeout killed mid-LLM after LLM-dominated wall clock, etc.) stamp `outcome=endpoint_failed` instead: they are **not** scored and `--resume` cleans and retries them. This is about the model HTTP endpoint, not the network lab under test. Failures after ground truth is written but before the agent demonstrably started (sandbox CLI missing, MCP gateway URL or bind failure, a worker killed during agent setup) stamp `outcome=infra_failed`. NIKA treats them like `endpoint_failed`: not scored, cleaned, and retried. NIKA counts a failure as `agent_failed` only when `nika.jsonl` has `agent_start` and `messages.jsonl` has at least one model or tool event. A valid `submission.json` makes the trial `success`, even when a later step (agent timeout, sandbox teardown) fails, provided its scheduler completed without errors when present. NIKA also cleans incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
 
 Official `--release` runs default to continuing past trial failures (`continue_on_error=True`) so one bad trial does not abort the job; use `--abort-on-error` to stop immediately. Ad-hoc `--config` batches still default from `benchmark.continue_on_error` in run config. The agent itself runs under `agent.timeout_sec` (default 1800s), which applies to every agent type. Per-case watchdogs use `--case-timeout` / `benchmark.case_timeout_sec` (default 2400s); a timed-out trial is finalized as counted `agent_failed` when the budget was spent on agent work, or as retryable `endpoint_failed` when the kill lands mid-LLM and LLM calls dominated the wall clock. NIKA stops a timed-out worker with SIGTERM and gives it up to 60 seconds to remove its sandbox, stop the MCP gateway, and undeploy the lab before SIGKILL.
 
@@ -57,7 +61,7 @@ nika benchmark run
 nika benchmark run --config benchmark/working/pool
 ```
 
-The runner loads each catalog case as an executable row before creating trials. It recomputes ground truth during injection and checks it against the materialized `root_causes`. `candidate_option_id` is derived at load time from the normalized row; resume and release identity use `benchmark_row_fingerprint` (canonical scenario / problem / deploy / inject fields, no content hash).
+The runner loads each catalog case as an executable row before creating trials. It recomputes ground truth during injection and checks it against the materialized `root_causes`. `candidate_option_id` is derived at load time from the normalized row; resume and release identity use `benchmark_row_fingerprint` (canonical scenario, problem, deployment, injection, traffic, and authored schedule fields).
 
 ### Pool schema
 

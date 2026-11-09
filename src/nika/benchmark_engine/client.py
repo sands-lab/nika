@@ -202,6 +202,12 @@ class EngineClient:
             raise EngineError(f"benchmark engine trial {status.session_id} has no task")
         return status.task
 
+    def schedule_operation(self, handle: TrialHandle, operation: str) -> dict:
+        return self._call(
+            "schedule_operation",
+            {"handle": handle.model_dump(mode="json"), "operation": operation},
+        )
+
     def agent_endpoints(
         self, handle: TrialHandle, request: GatewayRequest
     ) -> AgentEndpoints:

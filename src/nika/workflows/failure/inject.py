@@ -2,6 +2,7 @@
 
 import json
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -79,6 +80,51 @@ def _verify_with_retry(inject_problem: Any, fault_params: Any | None) -> dict[st
     return last_result
 
 
+@dataclass
+class PreparedFailure:
+    """The injecting instance and parameters retained for its lifecycle."""
+
+    problem: Any
+    params: Any
+
+    def inject(self) -> None:
+        if self.params is None:
+            self.problem.inject_fault()
+        else:
+            self.problem.inject_fault(params=self.params)
+
+    def verify(self) -> dict[str, Any]:
+        return _verify_with_retry(self.problem, self.params)
+
+    def recover(self) -> dict[str, Any]:
+        self.problem.check_runtime_compatible(operation="recover_fault")
+        if self.params is None:
+            result = self.problem.recover_fault()
+        else:
+            result = self.problem.recover_fault(params=self.params)
+        if not isinstance(result, dict) or result.get("verified") is not True:
+            raise RuntimeError(f"Failure recovery verification failed: {result}")
+        return result
+
+
+def prepare_failure(
+    session: Session, problem_names: list[str], overrides: dict[str, Any]
+) -> PreparedFailure:
+    """Resolve a failure against the explicit session without mutating it."""
+    from nika.runtime.factory import resolve_backend
+
+    scenario_params = dict(getattr(session, "scenario_params", {}) or {})
+    session_meta = {k: v for k, v in session.__dict__.items() if k != "store"}
+    scenario_params.setdefault("backend", resolve_backend(session_meta))
+    problem = get_problem_instance(
+        problem_names=problem_names,
+        scenario_name=session.scenario_name,
+        release=getattr(session, "benchmark_version", None),
+        **scenario_params,
+    )
+    return PreparedFailure(problem, problem.resolve_params(overrides))
+
+
 def inject_failure(
     problem_names: list[str],
     *,
@@ -118,20 +164,9 @@ def inject_failure(
 
     store = SessionStore()
 
-    scenario_params = dict(
-        session.scenario_params if hasattr(session, "scenario_params") else {}
-    )
-    from nika.runtime.factory import resolve_backend
-
-    session_meta = {k: v for k, v in session.__dict__.items() if k != "store"}
-    scenario_params.setdefault("backend", resolve_backend(session_meta))
     overrides = dict(param_overrides or {})
-    inject_problem = get_problem_instance(
-        problem_names=resolved_names,
-        scenario_name=session.scenario_name,
-        release=release,
-        **scenario_params,
-    )
+    prepared = prepare_failure(session, resolved_names, overrides)
+    inject_problem, fault_params = prepared.problem, prepared.params
     taxonomy = inject_problem.taxonomy_metadata()
     for key, value in taxonomy.items():
         session.update_session(key, value)
@@ -139,16 +174,6 @@ def inject_failure(
     failure_rows: list[tuple[int, str, dict[str, Any]]] = []
     now_ts = datetime.now().timestamp()
     ParamsClass = getattr(type(inject_problem), "Params", None)
-    if hasattr(inject_problem, "resolve_params"):
-        fault_params = inject_problem.resolve_params(overrides)
-    elif ParamsClass is not None:
-        fault_params = ParamsClass(**overrides)
-    elif overrides:
-        raise ValueError(
-            f"Problem '{resolved_names[0]}' does not accept --set parameters yet."
-        )
-    else:
-        fault_params = None
 
     if len(resolved_names) > 1 and hasattr(inject_problem, "sub_faults"):
         sub_faults = list(getattr(inject_problem, "sub_faults"))
@@ -198,50 +223,27 @@ def inject_failure(
         )
         failure_rows.append((failure_id, resolved_names[0], params_snapshot))
 
-    if ParamsClass is not None:
-        inject_started = time.perf_counter()
-        try:
-            inject_problem.inject_fault(params=fault_params)
-        except Exception as exc:
-            for failure_id, problem_name, _params in failure_rows:
-                store.update_failure_injection(
-                    session.session_id,
-                    failure_id,
-                    {"status": "inject_failed", "error": str(exc)},
-                )
-            log_error_event(
-                "failure_inject_error",
-                f"Failure injection failed: session={session.session_id}, problems={problem_names}: {exc}",
-                session_id=session.session_id,
-                problems=problem_names,
-                error=str(exc),
-                error_type=type(exc).__name__,
-                duration_ms=elapsed_ms(inject_started),
+    inject_started = time.perf_counter()
+    try:
+        prepared.inject()
+    except Exception as exc:
+        for failure_id, problem_name, _params in failure_rows:
+            store.update_failure_injection(
+                session.session_id,
+                failure_id,
+                {"status": "inject_failed", "error": str(exc)},
             )
-            raise
-        inject_duration_ms = elapsed_ms(inject_started)
-    else:
-        inject_started = time.perf_counter()
-        try:
-            inject_problem.inject_fault()
-        except Exception as exc:
-            for failure_id, problem_name, _params in failure_rows:
-                store.update_failure_injection(
-                    session.session_id,
-                    failure_id,
-                    {"status": "inject_failed", "error": str(exc)},
-                )
-            log_error_event(
-                "failure_inject_error",
-                f"Failure injection failed: session={session.session_id}, problems={problem_names}: {exc}",
-                session_id=session.session_id,
-                problems=problem_names,
-                error=str(exc),
-                error_type=type(exc).__name__,
-                duration_ms=elapsed_ms(inject_started),
-            )
-            raise
-        inject_duration_ms = elapsed_ms(inject_started)
+        log_error_event(
+            "failure_inject_error",
+            f"Failure injection failed: session={session.session_id}, problems={problem_names}: {exc}",
+            session_id=session.session_id,
+            problems=problem_names,
+            error=str(exc),
+            error_type=type(exc).__name__,
+            duration_ms=elapsed_ms(inject_started),
+        )
+        raise
+    inject_duration_ms = elapsed_ms(inject_started)
 
     _refresh_injection_params(inject_problem, resolved_names, failure_rows)
 
@@ -250,7 +252,7 @@ def inject_failure(
 
     workflow_started = inject_started
     verify_started = time.perf_counter()
-    verify_result = _verify_with_retry(inject_problem, fault_params)
+    verify_result = prepared.verify()
     verify_duration_ms = elapsed_ms(verify_started)
     verify_payload = json_safe(verify_result)
     verify_summary = summarize_fault_verify(verify_payload)
@@ -354,6 +356,19 @@ def inject_failure(
         session_id=session.session_id,
     )
 
+    validate_failure_effect(
+        session, inject_problem, [row[0] for row in failure_rows], resolved_names
+    )
+
+
+def validate_failure_effect(
+    session: Session,
+    inject_problem: Any,
+    failure_ids: list[int],
+    resolved_names: list[str],
+) -> None:
+    """Run the configured failure-effect checks on retained injection instances."""
+    store = session.store
     contract_path = Path(session.session_dir) / "validation-contract.json"
     if _failure_effect_enabled() and contract_path.is_file():
         from nika.net_env.contract import ValidationContract
@@ -380,7 +395,7 @@ def inject_failure(
                 str(Path(session.session_dir) / FAILURE_EFFECT_FILENAME)
             )
         session.update_session("validation_failure_effect", FAILURE_EFFECT_FILENAME)
-        for failure_id, _problem_name, _params in failure_rows:
+        for failure_id in failure_ids:
             store.update_failure_injection(
                 session.session_id,
                 failure_id,

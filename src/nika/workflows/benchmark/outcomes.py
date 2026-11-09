@@ -484,6 +484,18 @@ def classify_trial_failure(
     for item in _iter_exception_chain(exc):
         if isinstance(item, EngineError):
             return item.outcome
+    from nika.workflows.schedule import ScheduleError
+
+    if isinstance(exc, ScheduleError):
+        return INFRA_FAILED
+    if session_dir is not None:
+        status_path = Path(session_dir) / "schedule-status.json"
+        if status_path.is_file():
+            try:
+                if json.loads(status_path.read_text()).get("error"):
+                    return INFRA_FAILED
+            except (OSError, ValueError):
+                return INFRA_FAILED
     if session_dir is not None and not agent_demonstrably_started(session_dir):
         return ENDPOINT_FAILED if is_endpoint_exception(exc) else INFRA_FAILED
     if session_dir is not None and trace_shows_endpoint_failure(session_dir):

@@ -246,3 +246,56 @@ def test_legacy_release_keeps_its_published_topology(tmp_path: Path) -> None:
     meta = json.loads((trial / "run.json").read_text())
     nodes = set(meta["metadata"]["machine_identities"])
     assert {"client_0", "webserver0_pod0", "super_spine_router_0"} <= nodes
+
+
+def test_engine_container_executes_and_recovers_scheduled_fault(tmp_path, monkeypatch):
+    from nika.benchmark_engine import use_engine
+    from nika.benchmark_engine.client import EngineClient
+    from nika.benchmark_engine.container import engine_container
+    from nika.workflows.benchmark.run import run_single_case
+    from tests.support.schedule_assertions import assert_schedule_timing
+
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    env = get_net_env_instance("dc_clos", topo_size="s", rendered=False)
+    client = env.model.client_endpoints()[0].name
+    results = tmp_path / "scheduled"
+    results.mkdir()
+    with pinned_engine_release(tmp_path, monkeypatch) as (_, image):
+        with engine_container(
+            image, run_id="scheduled", results_root=results
+        ) as service:
+            with use_engine(EngineClient(service.base_url, token=service.token)):
+                _, trial = run_single_case(
+                    "link_down",
+                    "dc_clos",
+                    "s",
+                    "mock",
+                    None,
+                    None,
+                    None,
+                    inject_params={},
+                    result_dir=str(results),
+                    schedule={
+                        "agent_start": 0,
+                        "events": [
+                            {
+                                "problem": "link_down",
+                                "at": 2,
+                                "duration": 8,
+                                "inject": {
+                                    "host_name": client,
+                                    "intf_name": "eth0",
+                                },
+                            }
+                        ],
+                    },
+                )
+                assert_schedule_timing(trial, agent=True)
+                metrics = json.loads((trial / "eval_metrics.json").read_text())
+                assert metrics["rca_f1"] == 1
+                assert metrics["tool_errors"] == 0
+                run = json.loads((trial / "run.json").read_text())
+                runtime = runtime_for_session(run)
+                assert not runtime.exists() and not runtime.has_leftover_resources()
+                assert not (trial / "schedule-owner.json").exists()

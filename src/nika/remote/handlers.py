@@ -114,6 +114,53 @@ def get_handler_state() -> RemoteHandlerState:
     return _STATE
 
 
+def handle_schedule(
+    session_id: str, operation: str, body: Any = None
+) -> dict[str, Any]:
+    """Run the session timeline on the lab host's monotonic clock."""
+    from nika.schedule import normalize_schedule
+    from nika.workflows.schedule import SessionScheduler, _RUNNERS, _RUNNERS_LOCK
+
+    bind_session_dir(SessionStore().get_session(session_id)["session_dir"])
+    if operation == "prepare":
+        session = Session().load_running_session(session_id=session_id)
+        if body.benchmark_version is not None:
+            session.update_session("benchmark_version", body.benchmark_version)
+        plan = normalize_schedule(
+            body.schedule, session.scenario_name, body.benchmark_version
+        )
+        with _RUNNERS_LOCK:
+            if session_id in _RUNNERS:
+                raise ValueError("This session already has a scheduler")
+            scheduler = SessionScheduler(
+                session_id,
+                plan,
+                traffic=body.traffic,
+                expected_root_causes=body.expected_root_causes,
+                restored=body.restored,
+            )
+            _RUNNERS[session_id] = scheduler
+        try:
+            scheduler.prepare()
+        except BaseException:
+            scheduler.close()
+            raise
+        return session_public_dict(session_id)
+    with _RUNNERS_LOCK:
+        scheduler = _RUNNERS.get(session_id)
+    if scheduler is None:
+        raise FileNotFoundError("No scheduler for this session")
+    if operation == "start":
+        scheduler.start()
+    elif operation == "agent-ready":
+        scheduler.wait_agent_start()
+    elif operation == "close":
+        scheduler.close()
+    elif operation != "status":
+        raise ValueError(f"Unknown schedule operation: {operation}")
+    return scheduler.status()
+
+
 def session_public_dict(session_id: str) -> dict[str, Any]:
     meta = SessionStore().get_session(session_id)
     # Drop bulky nested blobs for list/get responses when enormous; keep full for now.
@@ -149,6 +196,8 @@ def handle_env_start(request: EnvStartRequest) -> EnvStartResponse:
             static_validation=request.static_validation,
             telemetry=request.telemetry,
             traffic=request.traffic,
+            defer_background_traffic=request.defer_background_traffic,
+            defer_business_traffic=request.defer_business_traffic,
         )
     except Exception:
         logger.exception("env start failed scenario=%s", request.scenario)

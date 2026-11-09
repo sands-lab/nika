@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from nika.benchmark_engine.protocol import AgentTask
 from nika.workflows.benchmark.run import (
     cleanup_benchmark_interrupt,
     run_single_case,
@@ -235,7 +236,10 @@ def test_run_single_case_interrupt_closes_and_reraises(tmp_path: Path) -> None:
             "nika.benchmark_engine.engine.start_net_env",
             return_value=session_id,
         ),
-        patch("nika.benchmark_engine.engine.inject_failure"),
+        patch(
+            "nika.benchmark_engine.engine.BenchmarkEngine.begin",
+            return_value=AgentTask(task_description="Diagnose the network."),
+        ),
         patch(
             "nika.workflows.benchmark.run.start_agent",
             side_effect=KeyboardInterrupt(),

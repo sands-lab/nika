@@ -33,6 +33,7 @@ from nika.inspect.models import (
     SessionFacets,
     SessionSummary,
 )
+from nika.inspect.schedule import read_schedule_progress
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
     is_job_run_dir,
@@ -249,6 +250,12 @@ def _running_stage(session_dir: Path) -> str:
         reached = milestones.get(str(entry.get("event")))
         if reached and _STAGE_RANK[reached] > _STAGE_RANK[stage]:
             stage = reached
+    if stage == "inject" and (session_dir / "schedule.json").is_file():
+        prepared = any(
+            row.get("status") == "started"
+            for row in iter_jsonl(session_dir / "schedule-events.jsonl")
+        )
+        return "schedule: waiting for agent" if prepared else "agent: preparing"
     if stage != "agent":
         return stage
     last = _last_agent_entry(session_dir / "messages.jsonl")
@@ -527,6 +534,7 @@ def detail_session_dir(
         **summary.model_dump(),
         run=run,
         task_description=run.get("task_description"),
+        schedule=read_schedule_progress(session_dir),
     )
 
 

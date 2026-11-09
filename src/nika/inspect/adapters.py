@@ -594,6 +594,13 @@ def adapt_nika_event(
     except (TypeError, ValueError):
         duration_val = None
 
+    from nika.inspect.schedule import format_schedule_event
+
+    schedule_summary = (
+        format_schedule_event(data)
+        if event == "schedule_event" and isinstance(data, dict)
+        else None
+    )
     raw, truncated = _raw_payload(entry, slim=slim)
     return CanonicalTraceEvent(
         id=f"nika-{index}",
@@ -602,8 +609,10 @@ def adapt_nika_event(
         kind=kind,
         # Same text as the CLI line (nika.utils.logger.format_event_line);
         # ``data`` stays in ``raw`` for the detail view.
-        title=event,
-        summary=event_summary(entry),
+        title=f"schedule: {data.get('status', 'event')}"
+        if event == "schedule_event" and isinstance(data, dict)
+        else event,
+        summary=schedule_summary or event_summary(entry),
         event=event,
         duration_ms=duration_val,
         raw=raw,

@@ -299,8 +299,8 @@ fetch_release() {
   local base="$1" archive="$2" dest="$3"
   need_cmd curl
   log "Downloading ${base}/${archive}"
-  curl -fsSL -o "${dest}/${archive}" "${base}/${archive}"
-  curl -fsSL -o "${dest}/checksums.txt" "${base}/checksums.txt"
+  curl -fsSL --retry 4 --retry-max-time 120 -o "${dest}/${archive}" "${base}/${archive}"
+  curl -fsSL --retry 4 --retry-max-time 120 -o "${dest}/checksums.txt" "${base}/checksums.txt"
   (cd "${dest}" && grep " ${archive}\$" checksums.txt | sha256sum -c --quiet -) \
     || die "checksum mismatch for ${archive}"
   tar -xzf "${dest}/${archive}" -C "${dest}"

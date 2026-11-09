@@ -25,13 +25,19 @@ COPY --from=ghcr.io/astral-sh/uv:0.12.10 /uv /usr/local/bin/uv
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
     case "${arch}" in amd64) gnmic_arch=x86_64 ;; arm64) gnmic_arch=aarch64 ;; esac; \
-    curl -fsSL "https://github.com/srl-labs/containerlab/releases/download/v${CLAB_VERSION}/containerlab_${CLAB_VERSION}_linux_${arch}.tar.gz" \
-      | tar -xz --no-same-owner -C /usr/local/bin containerlab; \
+    curl -fsSL --retry 4 --retry-max-time 120 \
+      "https://github.com/srl-labs/containerlab/releases/download/v${CLAB_VERSION}/containerlab_${CLAB_VERSION}_linux_${arch}.tar.gz" \
+      -o /tmp/containerlab.tar.gz; \
+    tar -xzf /tmp/containerlab.tar.gz --no-same-owner -C /usr/local/bin containerlab; \
+    rm /tmp/containerlab.tar.gz; \
     chown root:root /usr/local/bin/containerlab; \
     chmod 4755 /usr/local/bin/containerlab; \
     ln -s containerlab /usr/local/bin/clab; \
-    curl -fsSL "https://github.com/openconfig/gnmic/releases/download/v${GNMIC_VERSION}/gnmic_${GNMIC_VERSION}_Linux_${gnmic_arch}.tar.gz" \
-      | tar -xz --no-same-owner -C /usr/local/bin gnmic
+    curl -fsSL --retry 4 --retry-max-time 120 \
+      "https://github.com/openconfig/gnmic/releases/download/v${GNMIC_VERSION}/gnmic_${GNMIC_VERSION}_Linux_${gnmic_arch}.tar.gz" \
+      -o /tmp/gnmic.tar.gz; \
+    tar -xzf /tmp/gnmic.tar.gz --no-same-owner -C /usr/local/bin gnmic; \
+    rm /tmp/gnmic.tar.gz
 
 WORKDIR /opt/nika
 ENV UV_PYTHON_DOWNLOADS=never \

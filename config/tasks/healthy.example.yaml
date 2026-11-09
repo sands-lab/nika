@@ -1,0 +1,3 @@
+scenario: dc_clos
+topo_size: s
+problem: healthy

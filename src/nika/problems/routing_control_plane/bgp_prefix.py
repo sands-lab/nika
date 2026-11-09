@@ -39,7 +39,9 @@ def import_prefix_ranges(config: str) -> dict[str, tuple[str, int]]:
             re.M | re.S,
         )
         if policy in imports
-        for name in re.findall(r"^[ \t]+match ip address prefix-list (\S+)$", body, re.M)
+        for name in re.findall(
+            r"^[ \t]+match ip address prefix-list (\S+)$", body, re.M
+        )
     }
     ranges = {}
     for name in sorted(names):

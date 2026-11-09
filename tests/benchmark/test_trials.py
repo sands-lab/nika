@@ -759,14 +759,20 @@ class TestAgentFailedFinalization:
                 '{"event":"llm_start"}\n', encoding="utf-8"
             )
 
+        def fake_begin(handle):
+            from nika.benchmark_engine.protocol import AgentTask
+
+            fake_inject(session_id=handle.session_id)
+            return AgentTask(task_description="Diagnose the network.")
+
         with (
             patch(
                 "nika.benchmark_engine.engine.start_net_env",
                 side_effect=fake_start_net_env,
             ),
             patch(
-                "nika.benchmark_engine.engine.inject_failure",
-                side_effect=fake_inject,
+                "nika.benchmark_engine.engine.BenchmarkEngine.begin",
+                side_effect=fake_begin,
             ),
             patch(
                 "nika.workflows.benchmark.run.start_agent",

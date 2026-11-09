@@ -4,6 +4,7 @@ import logging
 import time
 from contextlib import ExitStack
 from urllib.parse import urlparse
+from collections.abc import Callable
 
 from nika.agents.registry import create_agent, get_agent_spec, run_agent
 from nika.agents.sandbox import SandboxManager
@@ -44,6 +45,7 @@ def start_agent(
     sandbox_memory: str | None = None,
     sandbox_offline_sdk_wheels: bool | None = None,
     access: AgentAccess | None = None,
+    diagnosis_ready: Callable[[], None] | None = None,
 ) -> None:
     """Load the running session, run the agent on ``task_description``, then end the session.
 
@@ -132,7 +134,7 @@ def start_agent(
     # Session lifecycle (nika.jsonl): agent_start → agent_end | agent_error.
     # Phase bookends (messages.jsonl) use agent_start → agent_done | agent_error.
     log_event(
-        "agent_start",
+        "agent_preparing" if diagnosis_ready is not None else "agent_start",
         f"Starting agent: {agent_type} (model={model}) in session {session.session_id}"
         + (" [sandbox]" if use_sandbox else ""),
         session_id=session.session_id,
@@ -152,9 +154,25 @@ def start_agent(
         if check_fault_presence
         else None
     )
-    if presence is not None:
+    if presence is not None and diagnosis_ready is None:
         presence.start()
     agent_started = time.perf_counter()
+
+    def release_diagnosis() -> None:
+        nonlocal agent_started
+        if diagnosis_ready is not None:
+            diagnosis_ready()
+            if presence is not None:
+                presence.start()
+            agent_started = time.perf_counter()
+            log_event(
+                "agent_start",
+                f"Starting scheduled diagnosis: {agent_type}",
+                session_id=session.session_id,
+                agent_type=agent_type,
+                model=model,
+            )
+
     agent_exc: BaseException | None = None
     if stream_output:
         effort_line = (
@@ -211,6 +229,11 @@ def start_agent(
                     gateway_port=int(urlparse(endpoints.agent_url).port or 0),
                     stream_output=stream_output,
                     report_mapper=report_mapper,
+                    **(
+                        {"before_diagnosis": release_diagnosis}
+                        if diagnosis_ready is not None
+                        else {}
+                    ),
                 )
             else:
                 agent = create_agent(
@@ -223,6 +246,7 @@ def start_agent(
                     max_tokens=max_tokens,
                     stream_output=stream_output,
                 )
+                release_diagnosis()
                 run_agent(
                     agent,
                     task_description,

@@ -62,6 +62,15 @@ def _frozen_report(path: Path) -> str | None:
 
 def freeze_diagnosis(session_id: str, report: str) -> dict[str, str]:
     """Append the immutable final report to the diagnosis trajectory once."""
+    from nika.workflows.schedule import ScheduleError, scheduler_for
+
+    scheduler = scheduler_for(session_id)
+    if scheduler is not None:
+        scheduler.raise_if_failed()
+        if not scheduler.complete.is_set():
+            raise ScheduleError(
+                "Observation must finish before diagnosis can be frozen"
+            )
     path = _trajectory_path(session_id)
     existing = _frozen_report(path)
     if existing is not None:

@@ -442,6 +442,10 @@ def _stop_session_record(
     if session_meta.get("session_dir"):
         # Bind first so every event below lands in this session's nika.jsonl.
         bind_session_dir(session_meta["session_dir"])
+    from nika.workflows.schedule import cancel_session_schedule
+
+    if cancel_session_schedule(session_meta):
+        return
     # Drop this session's sandbox before lab undeploy so a slow/failed undeploy
     # cannot leave a hard-killed worker's microVM behind. Scoped by
     # agent_session_id only (safe with concurrent benchmarks).
@@ -623,6 +627,12 @@ def close_session(
 
     if is_remote_enabled():
         from nika.remote.workflows import remote_close_session
+        from nika.workflows.schedule import cancel_session_schedule
+
+        if session_id and cancel_session_schedule(
+            load_session_meta_for_close(session_id)
+        ):
+            return
 
         # The lab runs on the remote host, but the agent's sandbox runs here.
         _cleanup_local_sandboxes(session_id, stop_all=stop_all)
