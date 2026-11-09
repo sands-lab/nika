@@ -177,7 +177,7 @@ uv run nika benchmark run --config benchmark/experiments/latent_backup.yaml --ag
 
 Without the RouterOS image, add `--device-profile frr` to run only the FRR variant.
 
-NIKA retains the first fault for 30 seconds before injecting the second, so `telemetry: [syslog, prometheus]` can record the standby BGP session down while primary traffic still works. Inspect `frr_bgp_peer_up` or `routeros_bgp_peer_up` by node and neighbor, together with the BGP neighbor syslog events. The standby session is Established at startup, so its history shows it going down after the key error and staying down until the primary fails.
+Both failures use the default initial offset of `0s`; this task does not reserve an observation interval between them. Inspect `frr_bgp_peer_up` or `routeros_bgp_peer_up` by node and neighbor, together with BGP neighbor syslog events from `telemetry: [syslog, prometheus]`. To study the standby failure before the primary outage, author distinct offsets with [scheduled failure events](../benchmarks/scheduling.md#define-the-tasks-events).
 
 The task's live test checks corporate access to HQ and guest Internet access. Both work with only the latent fault and fail with both faults. Repairing the primary restores both services while the backup remains broken. Repairing only the backup restores corporate access to HQ, but guest Internet access still fails because the guest VRF uses the primary ISP attachment. Full branch service therefore requires primary recovery; both root causes must be repaired to restore redundancy. The oracle must confirm both playbooks to solve the task. If it confirms only one, it submits that root cause for partial RCA credit.
 
