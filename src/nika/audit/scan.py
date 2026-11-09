@@ -177,6 +177,11 @@ def _cli_chat(cfg: ScanConfig, system: str, user: str) -> dict:
                 stderr=subprocess.PIPE,
                 text=True,
                 cwd=workspace,
+                env={
+                    key: value
+                    for key, value in os.environ.items()
+                    if key not in {"GH_TOKEN", "GITHUB_TOKEN", "HF_TOKEN"}
+                },
                 start_new_session=True,
             ) as proc:
                 try:

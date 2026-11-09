@@ -212,14 +212,6 @@ See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-
 
 ### Audit recorded evidence
 
-Before publishing, check how the agent reached its answers:
-
-```shell
-uv run nika leaderboard audit results/my-run --out results/audit.json --repo .
-```
-
-This command accepts a benchmark result directory or a trajectories package. It writes JSON and Markdown reports with trial and step references. It makes no model calls and preserves the submitted scores and trajectory files. `--repo` enables checks against the recorded NIKA source; the report lists checks it could not complete.
-
 `submit` audits its paired trajectories during validation and includes `audit.json` in the scores package. A blocking verdict stops submission; warnings require review. You can repeat the same checks against a scores package and downloaded trajectories:
 
 ```shell
@@ -231,20 +223,15 @@ The download selects the merged trajectories or their open Hub PR, pins its comm
 
 The [reviewed knowledge base](../../src/nika/audit/kb_data/) defines blocking and warning findings.
 
-### Review trajectories with a model
+### Automatic trajectory review
 
-To investigate issues beyond the reviewed rules, run `nika leaderboard review` on a trajectories package, benchmark run, or single trial. With an authenticated local Codex CLI, use:
+Leaderboard CI validates each changed entry with the shared NIKA audit workflow. The trusted workflow reads scores as data, downloads trajectories at an immutable HF revision, and runs the reviewed checks. Structurally invalid packages and packages containing secrets stop before model review.
 
-```shell
-uv run nika leaderboard review <trajectories-dir> --workdir results/submission-review \
-  --command 'codex exec --ignore-user-config --ephemeral --skip-git-repo-check --sandbox read-only --model gpt-6-luna -'
-```
+The `nika-audit` runner then reviews the same trajectory revision with its local Codex subscription and `gpt-6-luna`. Shell tools are disabled for the model. The review keeps generated rules in a KB copy and replays them before publishing evidence artifacts. New candidates open deduplicated issues and a draft NIKA knowledge PR; maintainers verify their cited steps and scope before merging.
 
-The reviewer reads prompts from stdin and returns JSON on stdout. For an OpenAI-compatible chat endpoint, replace `--command` with `--base-url <url> --model <model>` and set `NIKA_AUDIT_LLM_KEY` when authentication is required. Add `--repo .` to enable source-assisted checks against recorded commits.
+The runner needs an authenticated Codex CLI and a GitHub account authorized to propose NIKA changes. Configure `HF_TOKEN` for restricted trajectories. The caller uses `pull_request_target` so fork entries can be read with credentials while PR-supplied tests run separately without audit credentials. Only the trusted NIKA checkout is executed.
 
-Choose a new output directory outside the input trajectories and KB. The review writes `summary.json`, the deterministic `audit.json`, scans, grouped findings, and judgments there. Candidate rules go into its `kb/issues/` directory. When review generates rules, `audit-candidate.json` records their replay against the input trajectories. The input trajectories, scores, and reviewed KB remain unchanged.
-
-The command exits nonzero when model calls fail or source-assisted review reports unsupported checks. Its completion status describes the review, not submission acceptance. Paired-package validation remains `nika leaderboard validate`. Apply the [submission audit skill](../../.agents/skills/nika-submission-audit/SKILL.md) to verify citations, reject unsupported claims, and merge duplicate findings before proposing changes to the shared KB or skill.
+Each run pins the NIKA commit used for validation and review. Future runs load the latest reviewed KB from `NIKA_REF` (default `dev`), so merged knowledge participates in later audits. Local `submit` and `validate` use the same reviewed deterministic checks.
 
 ### Run-validity gates
 

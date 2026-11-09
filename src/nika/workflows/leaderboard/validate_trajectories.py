@@ -279,7 +279,7 @@ def validate_trajectory_package(
             f"Trajectory audit: {verdict} ({audit['package']['n_trials']} trials)."
         )
         if verdict == "block":
-            errors.append(summary + " Run nika leaderboard audit for evidence.")
+            errors.append(summary + " Inspect the audit report for cited evidence.")
         elif verdict == "warn":
             warnings.append(summary + " Review the audit report.")
     return ValidationReport(

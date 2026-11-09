@@ -1,6 +1,6 @@
 """Tools of the nika-submission-audit skill.
 
-The normal deterministic entry point is ``nika leaderboard audit``.
+Submission validation runs deterministic checks; CI runs model review.
 The skill and review commands also remain available through:
 
     uv run python -m nika.audit.cli <command> ...
@@ -64,7 +64,6 @@ def cmd_review(args: argparse.Namespace) -> int:
     summary = review_trajectories(
         args.path,
         args.workdir,
-        command=args.command,
         base_url=args.base_url,
         model=args.model,
         kb=args.kb,
@@ -201,10 +200,6 @@ def main() -> int:
     )
     p.add_argument("--base-url", default=os.environ.get("NIKA_AUDIT_LLM_URL"))
     p.add_argument("--model", default=os.environ.get("NIKA_AUDIT_LLM_MODEL"))
-    p.add_argument(
-        "--command",
-        help="Reviewer CLI command. Reads prompts from stdin and returns JSON on stdout.",
-    )
     p.add_argument("--samples", type=int, default=3, help="Scans per trial.")
     p.add_argument("--workers", type=int, default=2, help="Parallel review calls.")
 

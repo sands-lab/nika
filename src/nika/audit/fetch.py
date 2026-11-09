@@ -22,6 +22,10 @@ class TrajectoryFetchError(RuntimeError):
     pass
 
 
+class TrajectoryPendingError(TrajectoryFetchError):
+    """The scores PR exists before its paired HF upload is available."""
+
+
 def find_revision(
     slug: str, release: str, *, repo: str = DEFAULT_TRAJECTORIES_REPO
 ) -> str:
@@ -45,7 +49,7 @@ def find_revision(
             and disc.title.split()[-1:] == [rel]
         ):
             return f"refs/pr/{disc.num}"
-    raise TrajectoryFetchError(
+    raise TrajectoryPendingError(
         f"no trajectories for {rel} on main or in an open PR of {repo}"
     )
 

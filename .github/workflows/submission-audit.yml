@@ -55,50 +55,45 @@ jobs:
   audit:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      revision: ${{ steps.audit.outputs.revision }}
+      reviewable: ${{ steps.audit.outputs.reviewable }}
+      nika_commit: ${{ steps.source.outputs.commit }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: sands-lab/nika
           ref: ${{ inputs.nika_ref }}
           fetch-depth: 0
           persist-credentials: false
           path: nika
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: ${{ inputs.scores_repository }}
           ref: ${{ inputs.scores_ref }}
           persist-credentials: false
           path: scores
+          allow-unsafe-pr-checkout: true
+      - name: Record the reviewed NIKA commit
+        id: source
+        run: echo "commit=$(git -C nika rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: "0.8.22"
       - name: Install the auditor
-        run: uv sync --project nika --no-dev
+        run: uv sync --project nika --no-dev --python /usr/bin/python3
       - name: Validate and audit paired trajectories
+        id: audit
         env:
+          AUDIT_STAGE: validate
           PACKAGE: ${{ inputs.package }}
+          SCORES_ROOT: ${{ github.workspace }}/scores
+          NIKA_ROOT: ${{ github.workspace }}/nika
+          AUDIT_OUT: ${{ runner.temp }}/submission-audit
           TRAJECTORIES_REPO: ${{ inputs.trajectories_repository }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_HUB_DISABLE_PROGRESS_BARS: "1"
-        shell: bash
-        run: |
-          set -euo pipefail
-          PACKAGE_PATH=$(nika/.venv/bin/python - <<'PYTHON'
-          import os
-          from pathlib import Path
-          root = Path("scores").resolve()
-          package = (root / os.environ["PACKAGE"]).resolve()
-          if not package.is_relative_to(root) or not package.is_dir():
-              raise SystemExit("Scores package must be a directory inside the checked-out scores repository.")
-          print(package)
-          PYTHON
-          )
-          mkdir -p "$RUNNER_TEMP/submission-audit"
-          nika/.venv/bin/nika leaderboard validate "$PACKAGE_PATH" \
-            --fetch-trajectories --traj-repo "$TRAJECTORIES_REPO" \
-            --audit-repo "$GITHUB_WORKSPACE/nika" \
-            --audit-out "$RUNNER_TEMP/submission-audit/audit.json" \
-            2>&1 | tee "$RUNNER_TEMP/submission-audit/summary.md"
+        run: nika/.venv/bin/python -m nika.audit.ci
       - name: Publish audit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -113,3 +108,50 @@ jobs:
           if [ -f "$RUNNER_TEMP/submission-audit/summary.md" ]; then
             cat "$RUNNER_TEMP/submission-audit/summary.md" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+  review:
+    needs: audit
+    if: >-
+      ${{ !cancelled() && needs.audit.outputs.reviewable == 'true' &&
+          (github.event_name == 'pull_request_target' || github.event_name == 'workflow_dispatch') }}
+    runs-on: nika-audit
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: sands-lab/nika
+          ref: ${{ needs.audit.outputs.nika_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: nika
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.scores_repository }}
+          ref: ${{ inputs.scores_ref }}
+          persist-credentials: false
+          path: scores
+          allow-unsafe-pr-checkout: true
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: "0.8.22"
+      - name: Install the auditor
+        run: uv sync --project nika --no-dev --python /usr/bin/python3
+      - name: Review recorded trajectories
+        env:
+          AUDIT_STAGE: review
+          PACKAGE: ${{ inputs.package }}
+          SCORES_ROOT: ${{ github.workspace }}/scores
+          NIKA_ROOT: ${{ github.workspace }}/nika
+          AUDIT_OUT: ${{ runner.temp }}/submission-review
+          TRAJECTORIES_REPO: ${{ inputs.trajectories_repository }}
+          TRAJECTORY_REVISION: ${{ needs.audit.outputs.revision }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_PROGRESS_BARS: "1"
+        run: nika/.venv/bin/python -m nika.audit.ci
+      - name: Publish review evidence and proposed rules
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}-review
+          path: ${{ runner.temp }}/submission-review/
+          if-no-files-found: warn
