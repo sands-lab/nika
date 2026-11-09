@@ -70,11 +70,6 @@ def _ping_ok(runtime: LabRuntime, host: str, target: str) -> bool:
     return "1 received" in output
 
 
-def _service_active(runtime: LabRuntime, host: str, unit: str) -> bool:
-    output = runtime.exec(host, f"systemctl is-active {unit}", timeout=10)
-    return output.strip() == "active"
-
-
 def _process_running(runtime: LabRuntime, host: str, process: str) -> bool:
     output = runtime.exec(host, f"pgrep -x {process}", timeout=10)
     return bool(output.strip())
@@ -225,7 +220,7 @@ def _collect(runtime, queries: CampusRouterQueries, *, full):
             VerifyCommand(node, command, 10)
             for node, command in (
                 (DNS_SERVER, "pgrep -x named"),
-                ("dhcp_server", "systemctl is-active isc-dhcp-server"),
+                ("dhcp_server", "pgrep -x dhcpd"),
                 (DIST_ROUTER_DHCP, queries.dhcp_relay),
                 (WEB_SERVER, "pgrep -f '[w]eb_server.py'"),
                 (LOAD_BALANCER, "pgrep -x nginx"),
@@ -306,9 +301,7 @@ def verify_campus_lan_lab(
     checks = _shared_checks(runtime, dist_router, queries)
 
     checks["host_dhcp_ip"] = _host_dhcp_ip_ok(runtime)
-    checks["dhcp_server_active"] = _service_active(
-        runtime, "dhcp_server", "isc-dhcp-server"
-    )
+    checks["dhcp_server_active"] = _process_running(runtime, "dhcp_server", "dhcpd")
     checks["dhcp_relay_active"] = queries.dhcp_relay_running(
         runtime.exec(dist_router, queries.dhcp_relay, timeout=10)
     )
