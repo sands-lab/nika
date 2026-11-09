@@ -417,6 +417,8 @@
   "created_at": "2026-10-13T11:07:51+00:00",
   "run_id": "73005ec6f687776d",
   "official": true,
+  "verification_status": "verified",
+  "verification_reason": null,
   "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
   "model_icon": null,
   "name": "TelecomGPT-R1 · ReAct",

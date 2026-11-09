@@ -426,6 +426,8 @@
   "created_at": "2026-10-28T07:55:51+00:00",
   "run_id": "7a8ff0e7d8f6cbab",
   "official": true,
+  "verification_status": "verified",
+  "verification_reason": null,
   "nika_git_commit": "86256da3bbef613952bd55fcf064ccbc189d616e",
   "model_icon": null,
   "name": "GPT-6 Astra (high) · Codex",

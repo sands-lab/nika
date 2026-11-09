@@ -422,6 +422,8 @@
   "created_at": "2026-10-16T14:45:00+00:00",
   "run_id": "19bb905ec42d84b5",
   "official": true,
+  "verification_status": "verified",
+  "verification_reason": null,
   "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3",
   "model_icon": {
     "label": "Claude",

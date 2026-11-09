@@ -420,6 +420,8 @@
   "created_at": "2026-10-19T06:32:46+00:00",
   "run_id": "ee735260d73f56c0",
   "official": true,
+  "verification_status": "verified",
+  "verification_reason": null,
   "nika_git_commit": "4f654ae61b438d824cccb6741e01521e9401db68",
   "model_icon": {
     "label": "Qwen",

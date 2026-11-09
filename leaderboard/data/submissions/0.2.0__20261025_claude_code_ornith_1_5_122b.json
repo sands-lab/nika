@@ -426,6 +426,8 @@
   "created_at": "2026-10-25T09:39:57+00:00",
   "run_id": "faf28950bc7b0343",
   "official": true,
+  "verification_status": "verified",
+  "verification_reason": null,
   "nika_git_commit": "ce0d0ba598ba1a6a09b712f8b52bab6a54c0806d",
   "model_icon": null,
   "name": "Ornith-1.5-122B · Claude Code",

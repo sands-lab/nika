@@ -417,6 +417,8 @@
   "created_at": "2026-10-12T19:07:32+00:00",
   "run_id": "bd167ed99e60276f",
   "official": true,
+  "verification_status": "verified",
+  "verification_reason": null,
   "nika_git_commit": "e9656af3aa15e3db1168328656065d11e19d4b85",
   "model_icon": {
     "label": "Gemma",
