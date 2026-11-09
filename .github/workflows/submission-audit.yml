@@ -86,6 +86,7 @@ jobs:
         id: audit
         env:
           AUDIT_STAGE: validate
+          TMPDIR: ${{ runner.temp }}
           PACKAGE: ${{ inputs.package }}
           SCORES_ROOT: ${{ github.workspace }}/scores
           NIKA_ROOT: ${{ github.workspace }}/nika
@@ -139,6 +140,7 @@ jobs:
       - name: Review recorded trajectories
         env:
           AUDIT_STAGE: review
+          TMPDIR: ${{ runner.temp }}
           PACKAGE: ${{ inputs.package }}
           SCORES_ROOT: ${{ github.workspace }}/scores
           NIKA_ROOT: ${{ github.workspace }}/nika
