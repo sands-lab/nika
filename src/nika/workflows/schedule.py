@@ -456,7 +456,11 @@ class SessionScheduler:
                     occurrence_index=action.occurrence_index,
                     operation="stop" if action.stopping else "start",
                     planned_offset=action.at,
-                    lateness_sec=max(0.0, time.monotonic() - self.t0 - action.at),
+                    lateness_sec=(
+                        max(0.0, record["elapsed"] - action.at)
+                        if record["elapsed"] is not None
+                        else None
+                    ),
                     summary=event.summary,
                 )
             with (self.directory / "schedule-events.jsonl").open(

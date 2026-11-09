@@ -23,6 +23,16 @@ from tests.support.schedule_assertions import assert_schedule_timing
 pytestmark = pytest.mark.e2e
 
 
+@pytest.fixture
+def fabric():
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.workflows.benchmark.inject_resolve import resolve_inject_params
+
+    env = get_net_env_instance("dc_clos", topo_size="s", rendered=False)
+    dns = resolve_inject_params("dns_record_error", "dc_clos", "s", seed=42)
+    return env, dns
+
+
 def _worker(root, tag, plan, start, ready, remote=None):
     if remote is not None:
         from nika.remote.config import remote_override
@@ -98,7 +108,11 @@ def _exec(sid, host, command):
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker required")
-def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path):
+def test_remote_schedule_defers_business_traffic_and_restores_the_link(
+    tmp_path, fabric
+):
+    env, dns = fabric
+    client = env.model.client_endpoints()[0].name
     from nika.config import REPO_ROOT
     from nika.remote.client import RemoteClient
     from nika.remote.config import RemoteConfig, remote_override
@@ -125,9 +139,10 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
         **os.environ,
         "PYTHONPATH": str(remote_root / "src"),
         "NIKA_RUN_CONFIG": str(config_path),
+        "NIKA_STATE_DIR": str(remote_root),
     }
     sid = f"schedule-remote-{uuid4().hex[:8]}"
-    client = RemoteClient(
+    remote_client = RemoteClient(
         RemoteConfig(enabled=True, url=f"http://127.0.0.1:{port}", artifact_root="")
     )
     scheduler = None
@@ -146,12 +161,12 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
 
             def reachable():
                 try:
-                    return client.health().status == "ok"
+                    return remote_client.health().status == "ok"
                 except RuntimeError:
                     return False
 
             _wait(reachable, 30)
-            with remote_override(client.config):
+            with remote_override(remote_client.config):
                 start_net_env(
                     "dc_clos",
                     "s",
@@ -169,7 +184,7 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
                                 {
                                     "problem": "link_down",
                                     "inject": {
-                                        "host_name": "client_0",
+                                        "host_name": client,
                                         "intf_name": "eth0",
                                     },
                                     "at": 6,
@@ -181,17 +196,17 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
                     ),
                 )
                 scheduler.prepare()
-                remote_meta = client.get_session(sid)
+                remote_meta = remote_client.get_session(sid)
                 assert remote_meta["session_dir"] != str(scheduler.directory)
                 assert "browser" not in _exec(
                     sid,
-                    "client_0",
+                    client,
                     "pgrep -af '^python3 /usr/local/bin/browser' || true",
                 )
                 assert "200" in _exec(
                     sid,
-                    "client_0",
-                    "python3 -c \"import urllib.request; print(urllib.request.urlopen('http://web0.pod0/').status)\"",
+                    client,
+                    f"python3 -c \"import urllib.request; print(urllib.request.urlopen('http://{dns['target_website']}.{dns['target_domain']}/').status)\"",
                 )
 
                 def release():
@@ -209,12 +224,10 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
                 assert scheduler.complete.is_set()
                 assert (
                     "UP"
-                    in _exec(
-                        sid, "client_0", "cat /sys/class/net/eth0/operstate"
-                    ).upper()
+                    in _exec(sid, client, "cat /sys/class/net/eth0/operstate").upper()
                 )
                 assert "browser" in _exec(
-                    sid, "client_0", "pgrep -af '^python3 /usr/local/bin/browser'"
+                    sid, client, "pgrep -af '^python3 /usr/local/bin/browser'"
                 )
                 scheduler.close()
                 events = _events(scheduler.directory)
@@ -247,7 +260,7 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
                 close_session(session_id=sid)
                 with pytest.raises(FileNotFoundError):
                     SessionStore().get_session(sid)
-                assert client.list_sessions() == []
+                assert remote_client.list_sessions() == []
                 from nika.runtime.factory import runtime_for_session
 
                 runtime = runtime_for_session(remote_meta)
@@ -267,7 +280,7 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
                             {
                                 "problem": "link_down",
                                 "inject": {
-                                    "host_name": "client_0",
+                                    "host_name": client,
                                     "intf_name": "eth0",
                                 },
                                 "at": 1,
@@ -278,21 +291,21 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
                     },
                     start,
                     ready,
-                    client.config,
+                    remote_client.config,
                 ),
             )
             worker.start()
             cancelled_sid = None
             try:
                 cancelled_sid, cancelled_dir = ready.get(timeout=180)
-                cancelled_meta = client.get_session(cancelled_sid)
+                cancelled_meta = remote_client.get_session(cancelled_sid)
                 start.set()
                 _wait(
                     lambda: (
                         "DOWN"
                         in _exec(
                             cancelled_sid,
-                            "client_0",
+                            client,
                             "cat /sys/class/net/eth0/operstate",
                         ).upper()
                     )
@@ -319,7 +332,7 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
                     e["status"] == "cancelled" and e.get("occurrence_index") == 1
                     for e in _events(cancelled_dir)
                 )
-                assert client.list_sessions() == []
+                assert remote_client.list_sessions() == []
                 runtime = runtime_for_session(cancelled_meta)
                 assert not runtime.exists()
                 assert not runtime.has_leftover_resources()
@@ -328,12 +341,13 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
                     worker.terminate()
                 worker.join(timeout=60)
                 if cancelled_sid and any(
-                    row["session_id"] == cancelled_sid for row in client.list_sessions()
+                    row["session_id"] == cancelled_sid
+                    for row in remote_client.list_sessions()
                 ):
-                    client.close_session(cancelled_sid)
+                    remote_client.close_session(cancelled_sid)
         finally:
             try:
-                with remote_override(client.config):
+                with remote_override(remote_client.config):
                     try:
                         if scheduler is not None:
                             scheduler.close()
@@ -348,7 +362,12 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(tmp_path)
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker required")
-def test_default_initial_events_keep_distinct_targets_for_the_same_failure(tmp_path):
+def test_default_initial_events_keep_distinct_targets_for_the_same_failure(
+    tmp_path, fabric
+):
+    env, dns = fabric
+    client = env.model.client_endpoints()[0].name
+    dns_host = dns["host_name"]
     from nika.runtime.factory import runtime_for_session
     from nika.workflows.session.close import close_session
 
@@ -357,7 +376,7 @@ def test_default_initial_events_keep_distinct_targets_for_the_same_failure(tmp_p
     plan = {
         "events": [
             {"problem": "link_down", "inject": {"host_name": host, "intf_name": "eth0"}}
-            for host in ("client_0", "dns_pod0")
+            for host in (client, dns_host)
         ]
     }
     worker = ctx.Process(
@@ -394,7 +413,10 @@ def test_default_initial_events_keep_distinct_targets_for_the_same_failure(tmp_p
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker required")
-def test_timed_dns_recovery_preserves_another_active_failure(tmp_path):
+def test_timed_dns_recovery_preserves_another_active_failure(tmp_path, fabric):
+    env, dns = fabric
+    client = env.model.client_endpoints()[0].name
+    dns_host = dns["host_name"]
     from nika.runtime.factory import runtime_for_session
     from nika.workflows.session.close import close_session
 
@@ -406,9 +428,7 @@ def test_timed_dns_recovery_preserves_another_active_failure(tmp_path):
             {
                 "problem": "dns_record_error",
                 "inject": {
-                    "host_name": "dns_pod0",
-                    "target_domain": "pod0",
-                    "target_website": "web0",
+                    **dns,
                     "wrong_ip": "203.0.113.99",
                 },
                 "at": 1,
@@ -417,7 +437,7 @@ def test_timed_dns_recovery_preserves_another_active_failure(tmp_path):
             },
             {
                 "problem": "link_down",
-                "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                "inject": {"host_name": client, "intf_name": "eth0"},
                 "at": 2,
                 "duration": 31,
             },
@@ -431,8 +451,8 @@ def test_timed_dns_recovery_preserves_another_active_failure(tmp_path):
     worker.start()
     try:
         sid, directory = ready.get(timeout=180)
-        query = "dig +short +time=2 +tries=1 @127.0.0.1 web0.pod0 A"
-        baseline = _exec(sid, "dns_pod0", query).strip()
+        query = f"dig +short +time=2 +tries=1 @127.0.0.1 {dns['target_website']}.{dns['target_domain']} A"
+        baseline = _exec(sid, dns_host, query).strip()
         assert baseline and "203.0.113.99" not in baseline
         start.set()
         for occurrence in range(2):
@@ -445,9 +465,9 @@ def test_timed_dns_recovery_preserves_another_active_failure(tmp_path):
                         for e in _events(directory)
                     )
                 )
-                answer = _exec(sid, "dns_pod0", query).strip()
+                answer = _exec(sid, dns_host, query).strip()
                 assert answer == ("203.0.113.99" if status == "verified" else baseline)
-            assert "down" in _exec(sid, "client_0", "cat /sys/class/net/eth0/operstate")
+            assert "down" in _exec(sid, client, "cat /sys/class/net/eth0/operstate")
         worker.join(timeout=60)
         assert not worker.is_alive() and worker.exitcode == 0
         truth = json.loads((Path(directory) / "ground_truth.json").read_text())
@@ -467,7 +487,11 @@ def test_timed_dns_recovery_preserves_another_active_failure(tmp_path):
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker required")
-def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path):
+def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path, fabric):
+    env, dns = fabric
+    client = env.model.client_endpoints()[0].name
+    dns_host = dns["host_name"]
+    web = next(host for host in env.servers["web"] if host != dns_host)
     from nika.utils.session_store import SessionStore
     from nika.runtime.factory import runtime_for_session
     from nika.workflows.session.close import close_session
@@ -477,7 +501,7 @@ def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path):
     starts = [ctx.Event(), ctx.Event()]
     failure = {
         "problem": "link_down",
-        "inject": {"host_name": "client_0", "intf_name": "eth0"},
+        "inject": {"host_name": client, "intf_name": "eth0"},
     }
     plans = [
         {
@@ -503,8 +527,8 @@ def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path):
                 {
                     "traffic": {
                         "type": "burst",
-                        "sources": ["dns_pod0"],
-                        "destination": "webserver0_pod0",
+                        "sources": [dns_host],
+                        "destination": web,
                         "protocol": "udp",
                         "rate": "100K",
                     },
@@ -539,13 +563,9 @@ def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path):
         starts[0].set()
         _wait(lambda: any(e["status"] == "verified" for e in _events(directory_a)))
         assert (
-            "DOWN"
-            in _exec(sid_a, "client_0", "cat /sys/class/net/eth0/operstate").upper()
+            "DOWN" in _exec(sid_a, client, "cat /sys/class/net/eth0/operstate").upper()
         )
-        assert (
-            "UP"
-            in _exec(sid_b, "client_0", "cat /sys/class/net/eth0/operstate").upper()
-        )
+        assert "UP" in _exec(sid_b, client, "cat /sys/class/net/eth0/operstate").upper()
         starts[1].set()
         _wait(
             lambda: any(
@@ -554,10 +574,10 @@ def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path):
             )
         )
         _wait(
-            lambda: "connected to" in _exec(sid_b, "dns_pod0", "cat /tmp/burst-*.log"),
+            lambda: "connected to" in _exec(sid_b, dns_host, "cat /tmp/burst-*.log"),
             timeout=10,
         )
-        traffic = _exec(sid_b, "dns_pod0", "cat /tmp/burst-*.log")
+        traffic = _exec(sid_b, dns_host, "cat /tmp/burst-*.log")
         assert "iperf3: error" not in traffic
         assert "connected to" in traffic
         _wait(
@@ -565,7 +585,7 @@ def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path):
                 float(value) > 0
                 for value in re.findall(
                     r"(\d+(?:\.\d+)?)\s+[KMG]?Bytes",
-                    _exec(sid_b, "webserver0_pod0", "cat /tmp/burst-server-*.log"),
+                    _exec(sid_b, web, "cat /tmp/burst-server-*.log"),
                 )
             ),
             timeout=10,
@@ -592,10 +612,7 @@ def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path):
                 for e in _events(directory_b)
             )
         )
-        assert (
-            "UP"
-            in _exec(sid_b, "client_0", "cat /sys/class/net/eth0/operstate").upper()
-        )
+        assert "UP" in _exec(sid_b, client, "cat /sys/class/net/eth0/operstate").upper()
         workers[1].join(timeout=90)
         assert workers[1].exitcode == 0
         rows = _events(directory_b)

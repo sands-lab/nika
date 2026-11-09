@@ -309,7 +309,7 @@ jobs:
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: Mock-agent pipeline smoke
-        run: uv run pytest tests/ci/test_pipeline_smoke.py -q
+        run: uv run pytest tests/ci/test_pipeline_smoke.py tests/nika/workflows/test_schedule_live.py -q
 
   clab-startup:
     name: clab min3clos (${{ matrix.os }})
