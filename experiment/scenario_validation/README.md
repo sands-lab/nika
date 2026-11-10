@@ -10,17 +10,14 @@ The shared workflow currently covers the supported ISP profiles, `dc_clos`,
 Use the retained test matrices below to reproduce acceptance for a deployment.
 Adapter support alone does not imply native acceptance for every size, vendor or fault.
 
-`k8s_lab` and `llmd_lab` retain their existing runtime checks and are not integrated
-with this specification-driven experiment. For SDN and P4, recorded end-to-end
-acceptance covers sizes `s` and `m` and the declared ICMP forwarding requirements. It does
-not establish full controller, P4 program or stateful service correctness.
+`k8s_lab` and `llmd_lab` retain their existing runtime checks and are not integrated with this specification-driven experiment. For SDN and P4, recorded end-to-end acceptance covers sizes `s`, `m` and `l` and the declared ICMP forwarding requirements. It does not establish full controller, P4 program or stateful service correctness.
 
 ## Run an experiment
 
 Prerequisites:
 
 - A Linux host with NIKA installed as described in the [installation guide](../../docs/operations/installation.md), including Docker and Kathara.
-- Containerlab, only for SR Linux specimens and ISP profiles with `--backend containerlab`.
+- Containerlab, for SR Linux and SONiC specimens and ISP profiles with `--backend containerlab`.
 - For the IOS XR and RouterOS examples, the vendor router images from [Prepare vendor images](../../docs/operations/installation.md#prepare-vendor-images). RouterOS needs `/dev/kvm`.
 
 From the repository root, install the analysis extras and build the pinned analysis tools:
@@ -39,6 +36,23 @@ Run one specification through synthesis, static checks, native execution, declar
 uv run python experiment/scenario_validation/experiment.py experiment/scenario_validation/clos.json --output /tmp/routing-clos --runtime
 ```
 
+The Clos specimens come from the shared design and communication requirements. Regenerate them after a design change:
+
+```bash
+uv run python - <<'PY'
+from pathlib import Path
+from nika.workflows.validation.clos import build_routing_clos_experiment
+
+profiles = [("clos", "s", "frr"), ("clos-m", "m", "frr"),
+            ("clos-iosxr", "s", "iosxr"), ("clos-routeros", "s", "routeros")]
+for name, size, profile in profiles:
+    spec = build_routing_clos_experiment(size, device_profile=profile)
+    Path(f"experiment/scenario_validation/{name}.json").write_text(
+        spec.model_dump_json(indent=2, exclude_defaults=True) + "\n"
+    )
+PY
+```
+
 Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. To run the eligible Clos, campus or enterprise routers on Cisco IOS XR, use `clos-iosxr.json`, `campus-iosxr.json` or `enterprise-iosxr.json`; they need the XRd image. `clos-routeros.json`, `campus-routeros.json` and `enterprise-routeros.json` run the same sequence with RouterOS routers; see [RouterOS routers in Ethernet environments](../../docs/development/scenario-verification.md#routeros-routers-in-ethernet-environments). The two-router vendor scenarios derive their specification from the scenario's own router declarations instead:
 
 ```bash
@@ -49,6 +63,10 @@ uv run python experiment/scenario_validation/experiment.py --direct-bgp routeros
 Run heavy environments sequentially. Omit `--runtime` for static analysis only. A successful `summary.json` records `status: passed` and either `validation_scope: static-only` or `static-and-runtime`. Unsupported or failed required checks reject the construction.
 
 The output directory contains the original and resolved specifications, NetComplete inputs and solution, completed parameters, candidate configurations, verifier reports and final summary. These are run artifacts; they are not committed source files. A failed rerun removes the previous acceptance summary. Snapshot exporters replace their generated snapshots so obsolete devices cannot enter later analyses.
+
+Fault-impact reports are `impact-model-<name>.json` and `impact-failure-<name>.json`; see [fault impact acceptance](../../docs/development/scenario-verification.md#6-deploy-observe-inject-and-recover) for their contents and rules.
+
+To compare Batfish, a NetKAT check of the installed FIB and the native probes on the same requirements, add `--compare-methods` to a `--runtime` run of `experiment.py` or `benchmark_isp.py`. It needs the KATch image from [Verify SDN and P4 fabrics](#verify-sdn-and-p4-fabrics); [Compare verification methods](../../docs/development/scenario-verification.md#compare-verification-methods) describes what it records.
 
 The workflow closes its own native session and removes a Batfish service only when it created that service, and stops a stopped analyzer again after restarting it. It leaves a running analyzer in place. For independently managed analyzers, pass `batfish_verifier=BatfishVerifier(host=..., port=...)` to the Python workflow and manage that service in the caller.
 
@@ -70,17 +88,11 @@ uv run python experiment/scenario_validation/benchmark_isp.py --catalog --output
 
 ## Generate configurations with netlab
 
-Install `uv sync --extra batfish --extra netlab` and add `--config-generator netlab`
-to either experiment runner. The Python workflow accepts
-`config_generator="netlab"`. NetComplete solves the declared routing choices;
-netlab generates protocol and policy configuration; Batfish and native execution
-check the original requirements.
+Install `uv sync --extra batfish --extra netlab` and add `--config-generator netlab` to either experiment runner. The Python workflow accepts `config_generator="netlab"`. NetComplete solves the declared routing choices; netlab generates protocol and policy configuration; Batfish and native execution check the original requirements.
 
-This path supports the existing ISP, Clos, campus, enterprise and direct-BGP routing sketches. ISP devices include FRR, IOS XR, SR Linux and RouterOS within their supported protocol scopes. NIKA retains the configuration features missing from upstream templates, such as RouterOS filters and enterprise VRF imports; the result summary lists these responsibilities. See the [configuration-generation example](../../docs/development/scenario-verification.md#4-generate-the-target-device-configuration) and the [protocol limits and model assumptions](../../docs/development/scenario-verification.md#acceptance-scope-and-reproduction).
+This path supports the existing ISP, Clos, campus, enterprise and direct-BGP routing sketches. ISP devices include FRR, IOS XR, SR Linux and RouterOS within their supported protocol scopes. netlab compiles the design itself (the ISP plan or the environment's recorded routing design), never configuration that NIKA rendered. NIKA renders only the features the pinned templates cannot express, such as RouterOS filters and enterprise VRF imports; `summary.json` lists each under `configuration.retained` with the limitation that requires it. See the [configuration-generation example](../../docs/development/scenario-verification.md#4-generate-the-target-device-configuration) and the [protocol limits and model assumptions](../../docs/development/scenario-verification.md#acceptance-scope-and-reproduction).
 
-Omitting the option keeps the existing construction path. Normal benchmark
-startup can reuse saved candidates; it does not run NetComplete, netlab or
-Batfish. This option adds no NIKA CLI command and changes no published tasks.
+Omitting the option keeps the existing construction path. Normal benchmark startup does not run NetComplete, netlab or Batfish; for the environments listed in the linked section, it deploys the configurations netlab generated offline with `uv run nika env render` (see [Deploy stored configurations](../../docs/development/scenario-verification.md#deploy-stored-configurations)). The `--config-generator` option changes no published tasks.
 
 ## Compare native and netlab configurations
 
@@ -101,32 +113,11 @@ uv run python experiment/scenario_validation/generator_consistency.py isp_abilen
   --output /tmp/consistency-abilene
 ```
 
-The script renders both candidates, analyzes each with the platform's Batfish
-export from the table below and exits nonzero on any difference. It neither
-starts nor stops Batfish. If you started the analyzer only for this example, stop
-it afterwards with `docker rm -f nika-batfish-2025-07-07-2423-frr-next-hop-self`;
-leave it running when other experiments share it. From Python, call
-`compare_config_generators(scenario, output, topo_size=..., deployment={...})`
-in `nika.workflows.validation.consistency`. Pass `routing_model` to select another
-projection, and `batfish_host`/`batfish_port` for another analyzer.
+The script renders both candidates, analyzes each with the platform's Batfish export from the table below and exits nonzero on any difference. It needs Batfish to model the candidates, so it rejects SR Linux, RouterOS and FRR IS-IS designs. It neither starts nor stops Batfish. If you started the analyzer only for this example, stop it afterwards with `docker rm -f nika-batfish-2025-07-07-2423-frr-next-hop-self`; leave it running when other experiments share it. From Python, call `compare_config_generators(scenario, output, topo_size=..., deployment={...})` in `nika.workflows.validation.consistency`. Pass `routing_model` to select another projection, and `batfish_host`/`batfish_port` for another analyzer.
 
-`report.json` lists each difference as `kind`, `node`, `key`, `native` and
-`candidate`, and records each candidate's Batfish parse status under `scope`.
-The script fails if either candidate yields no interface or RIB facts. The compared facts are interface addresses, OSPF areas, passivity and costs,
-OSPF or IS-IS adjacencies, BGP sessions, ASNs and RR roles, main RIB and resolved
-FIB entries, selected BGP paths, and per-neighbor import and export outcomes. Both
-candidates see the same probe routes: every path either candidate advertises,
-the design's business, leak and policy prefixes, the RTBH community and a
-TEST-NET-1 canary. Enterprise uses a restricted tunnel projection; it lowers
-business VRF imports into default-table origins and leaves VRF-local tables
-unmodeled. The comparison covers only what the projection models; OSPF network
-type, timers and the community types sent to peers are not compared.
+`report.json` lists each difference as `kind`, `node`, `key`, `native` and `candidate`, and records each candidate's Batfish parse status under `scope`. The script fails if either candidate yields no interface or RIB facts. The compared facts are interface addresses, OSPF areas, passivity and costs, OSPF or IS-IS adjacencies, BGP sessions, ASNs and RR roles, main RIB and resolved FIB entries, selected BGP paths, and per-neighbor import and export outcomes. Batfish's [`differentialReachability`](https://batfish.readthedocs.io/en/latest/notebooks/differentialQuestions.html#Differential-Reachability) also searches the modeled flow space for flows that are delivered in one candidate but not the other, and the report records the example flows it returns as `forwarding` differences. Both candidates see the same probe routes: every path either candidate advertises, the design's business, leak and policy prefixes, the RTBH community and a TEST-NET-1 canary. Enterprise uses a restricted tunnel projection; it lowers business VRF imports into default-table origins and leaves VRF-local tables unmodeled. The comparison covers only what the projection models; OSPF network type, timers and the community types sent to peers are not compared.
 
-With `--device-profile iosxr`, `dc_clos`, `campus_lan` and `enterprise_branch`
-compare the eligible XR routers and the remaining FRR routers in one snapshot.
-netlab generates those routers as `iosxr` devices; NIKA appends the static routes,
-eBGP multipath and open eBGP policies of their FRR design, which the pinned XR
-templates do not emit.
+With `--device-profile iosxr`, `dc_clos`, `campus_lan` and `enterprise_branch` compare the eligible XR routers and the remaining FRR routers in one snapshot. netlab generates those routers as `iosxr` devices, including their static routes; NIKA appends the eBGP multipath and open eBGP policies of their design, which the pinned XR templates do not emit.
 
 ## Reuse a saved construction
 
@@ -160,15 +151,16 @@ This path uses the same deployment arguments as native verification. It runs nor
 
 IGP completion shares metric variables between healthy and declared fault-state graphs. NetComplete must satisfy the original single-path or ECMP requirements in all those states with one parameter assignment. Parallel interfaces share a symmetric router-pair metric; unequal parallel reference metrics are unsupported. AS import completion composes with IGP completion over the fixed sketch; it does not implement NetComplete's full BGP-to-OSPF feedback.
 
-Batfish checks original predicates against the final candidate configuration. Native checks use the same predicates, with separate original requirements for behavior the static model cannot establish. For modeled configuration faults, Batfish predicts the violated original predicates before injection; execution must reproduce that set and satisfy the independently declared fault-state requirements. Recovery must restore the complete healthy requirements.
+Batfish checks original predicates against the final candidate configuration. Native checks use the same predicates, with separate original requirements for behavior the static model cannot establish. For modeled configuration faults, Batfish and native execution each check the fault's authored impact independently: the declared predicates must fail and every other constrained predicate must hold, while outcomes the fault leaves unconstrained may differ and are reported. See [fault impact acceptance](../../docs/development/scenario-verification.md#6-deploy-observe-inject-and-recover). Recovery must restore the complete healthy requirements.
 
 | Platform or domain | Static analysis | Native obligation |
 | --- | --- | --- |
 | FRR OSPF/BGP | Native configuration parser | Sessions, routes, flows and declared fault/recovery behavior |
-| FRR IS-IS | Restricted translation of concrete IPv4 Level-2 configuration to IOS XR | Original IS-IS, ordinary iBGP RR and direct eBGP predicates |
-| Nokia SR Linux | Restricted concrete-configuration projection | Original IGP/BGP predicates on SR Linux |
+| FRR IS-IS | The design rendered by netlab as IOS XR | Original IS-IS, ordinary iBGP RR and direct eBGP predicates |
+| Nokia SR Linux | The design rendered by netlab as FRR, or as IOS XR for IS-IS | Original IGP/BGP predicates on SR Linux |
+| SONiC | Native parser of deployed `config_db.json` and `frr.conf`; IS-IS-only designs projected to IOS XR | Original IGP/BGP predicates on `nika env run`; netlab and native execution are not available in this workflow |
 | Cisco IOS XR | Native parser | Original ISP OSPF or IS-IS/BGP, direct eBGP, and Clos, campus and enterprise predicates on XRd |
-| MikroTik RouterOS | Restricted concrete IPv4 OSPF/BGP projection; IS-IS through the IOS XR IS-IS projection; converted Ethernet routers projected back to FRR | Original predicates on RouterOS; no BGP ECMP |
+| MikroTik RouterOS | The design rendered by netlab as FRR | Original predicates on RouterOS; no BGP ECMP |
 | Enterprise | Explicit static-underlay projection | WireGuard, VRF routing and isolation |
 | Clos ECMP | Routing model | Installed ECMP sets, including FRR multipath limits |
 

@@ -24,6 +24,12 @@ def main() -> None:
     parser.add_argument("--runtime", action="store_true")
     parser.add_argument("--config-generator", choices=["netlab"], default=None)
     parser.add_argument("--image", default="nika/netcomplete:experiment")
+    parser.add_argument(
+        "--compare-methods",
+        action="store_true",
+        help="With --runtime, also check each runtime state's installed FIB with "
+        "NetKAT and compare it with Batfish and the probes.",
+    )
     args = parser.parse_args()
     if bool(args.specification) == bool(args.direct_bgp):
         parser.error("Select a specification file or --direct-bgp")
@@ -41,6 +47,7 @@ def main() -> None:
         runtime=args.runtime,
         image=args.image,
         config_generator=args.config_generator,
+        compare_methods=args.compare_methods,
     )
     print(json.dumps(result, indent=2))
 

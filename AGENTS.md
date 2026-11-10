@@ -82,3 +82,7 @@ A test is not complete if its assertions pass but its resources remain, or if it
 
 * Never delete unrelated runtime, Docker, emulator, Kubernetes, or experiment resources. Close your own sessions with `nika session close --session_id <id>`; reserve `nika session wipe` for when the user asks for it, because it closes every session.
 * Preserve environment data, topology files, startup configs, P4 programs, manifests, and traffic datasets unless the task changes them.
+
+## Research experiments
+
+Keep all research experiments on this shared `experiment` branch. Do not merge this branch into `dev` or `main`. Develop framework fixes through the development workflow and bring them into this branch as needed.

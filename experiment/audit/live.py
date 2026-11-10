@@ -281,6 +281,16 @@ def _independent_control_ip(
             addresses[endpoint] = found
         return addresses[endpoint]
 
+    # A host inside a prefix the fault withdraws or hijacks loses its replies too.
+    if nets:
+        for ep in sorted({ep for eps in links for ep in eps if _node(ep) in endpoints}):
+            ip = address(ep)
+            if ip and any(
+                ipaddress.ip_address(ip) in net
+                for net in nets
+                if ipaddress.ip_address(ip).version == net.version
+            ):
+                behind_nodes.add(_node(ep))
     unaffected = sorted(
         ep
         for eps in links
@@ -699,7 +709,15 @@ def audit_case(row: dict[str, Any]) -> CaseAudit:
     if size and not scenario_requires_topo_size(scenario):
         size = None
     kwargs: dict[str, Any] = {}
-    for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile"):
+    for key in (
+        "topo",
+        "igp",
+        "bgp_mode",
+        "rpki",
+        "backend",
+        "device_profile",
+        "traffic",
+    ):
         if key in row and row[key] is not None:
             kwargs[key] = row[key]
     session_id = start_net_env(

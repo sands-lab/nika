@@ -82,9 +82,10 @@ def parse_global_addresses(
 ) -> dict[int, list[str]]:
     """Global IPv4 and IPv6 addresses from ``ip -o addr show scope global``.
 
-    Ordered by interface name, so the first address of a multi-homed node is
-    its ``eth0`` endpoint address (the one PingMesh probes) rather than
-    whichever interface the kernel numbered first.
+    Lab interfaces (``ethN``) come first, in name order, so the first address
+    of a multi-homed node is its ``eth0`` endpoint address (the one PingMesh
+    probes) rather than a bridge created inside the node, such as a k3s
+    ``cni0``, or whichever interface the kernel numbered first.
     """
     skipped = set(skip) | {"lo"}
     found: dict[int, list[str]] = {4: [], 6: []}
@@ -99,7 +100,9 @@ def parse_global_addresses(
             for part in re.split(r"(\d+)", match.group(1))
         ]
         rows.append((iface, family, match.group(3).split("/")[0]))
-    for _, family, address in sorted(rows, key=lambda row: (row[0], row[1])):
+    for _, family, address in sorted(
+        rows, key=lambda row: (row[0][0] != "eth", row[0], row[1])
+    ):
         found[family].append(address)
     return found
 
