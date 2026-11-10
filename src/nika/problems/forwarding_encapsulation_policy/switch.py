@@ -92,7 +92,7 @@ class Bmv2SwitchDown(ProblemBase):
                     params.host_name,
                     "nohup "
                     + shlex.join(shlex.split(command))
-                    + " >>sw.log 2>&1 </dev/null &",
+                    + " >/dev/null 2>&1 </dev/null &",
                 )
             wait_until(
                 lambda: bool(

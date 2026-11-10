@@ -414,6 +414,8 @@ done
         script = (
             process_source()
             + f"""
+import re
+import subprocess
 import time
 path = {_READY!r}
 if not Path(path).is_file():
@@ -421,7 +423,34 @@ if not Path(path).is_file():
 record = read_identity(path)
 if not isinstance(record, dict):
     raise RuntimeError("Refusing unverified VDE relay and hub identities")
-stop_owned(record.get("relay"))
+# Pin the namespace while the native child still exists, so a killed relay
+# cannot leave its owned VDE socket directory behind in the plugin mount.
+namespace = None
+native = record.get("native")
+native_fd = owned_pidfd(native) if native else None
+if native_fd is not None:
+    try:
+        namespace = os.open(f"/proc/{{native[0]}}/ns/mnt", os.O_RDONLY)
+    except FileNotFoundError:
+        pass
+    finally:
+        os.close(native_fd)
+cleanup_error = None
+try:
+    stop_owned(record.get("relay"))
+    if native:
+        stop_owned(native)
+    directory = record.get("directory", "")
+    if namespace is not None and re.fullmatch(r"/tmp/nika-vde-[0-9a-f]{{32}}", directory):
+        subprocess.run(
+            ["nsenter", f"--mount=/proc/self/fd/{{namespace}}", "--", "rm", "-rf", "--", directory],
+            pass_fds=(namespace,), check=True,
+        )
+except Exception as exc:
+    cleanup_error = exc
+finally:
+    if namespace is not None:
+        os.close(namespace)
 hub = record.get("hub")
 fd = owned_pidfd(hub)
 if fd is not None:
@@ -441,6 +470,8 @@ if fd is not None:
         pass
     finally:
         os.close(fd)
+if cleanup_error is not None:
+    raise cleanup_error
 Path(path).unlink(missing_ok=True)
 """
         )

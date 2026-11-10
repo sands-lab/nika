@@ -21,15 +21,15 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import IO, Any
 
-from experiment.audit import admission
-from experiment.audit.environment import (
+from scripts.benchmark_audit import admission
+from scripts.benchmark_audit.environment import (
     CaseAudit,
     StageResult,
     identity_from_row,
 )
-from experiment.audit.live import audit_case, declared_probe
-from experiment.audit.provenance import provenance_complete
-from experiment.audit.report_doc import RESULTS_DIR
+from scripts.benchmark_audit.live import audit_case, declared_probe
+from scripts.benchmark_audit.provenance import provenance_current
+from nika.config import RUNTIME_DIR
 from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
 )
@@ -53,10 +53,20 @@ _ROW_KEYS = (
 )
 
 
-def _release_rows() -> list[dict[str, Any]]:
-    from experiment.audit.coverage import release_cases
+RESULTS_DIR = Path(
+    os.environ.get("NIKA_AUDIT_RESULTS_DIR")
+    or RUNTIME_DIR / "environment-audit-results"
+)
 
-    return release_cases()
+
+def _release_rows() -> list[dict[str, Any]]:
+    from nika.workflows.benchmark.release import load_release
+
+    return [
+        row
+        for split in ("dev", "test")
+        for row in load_release("0.2.0", split=split).cases
+    ]
 
 
 def effective_class(row: dict[str, Any]) -> str:
@@ -109,19 +119,16 @@ def agent_view_stages(row: dict[str, Any]) -> set[str]:
 def result_current(
     row: dict[str, Any],
     repeat: int = 0,
-    *,
-    allow_dirty: bool = False,
 ) -> bool:
-    """True when a stored run audited this case with its declared probe.
-
-    Records from a dirty tree count only with ``allow_dirty``. A record also
-    needs the agent-view stages.
-    """
+    """True when the current clean commit has complete evidence for this case."""
     path = result_path(row, repeat)
     if not path.is_file():
         return False
-    record = json.loads(path.read_text(encoding="utf-8"))
-    audit = CaseAudit.model_validate(record["audit"])
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        audit = CaseAudit.model_validate(record["audit"])
+    except (ValueError, KeyError, TypeError):
+        return False
     provenance = audit.provenance
     probe = (
         ""
@@ -133,9 +140,7 @@ def result_current(
     return (
         audit.identity.key() == identity_from_row(row).key()
         and audit.symptom_probe == probe
-        and provenance_complete(provenance)
-        and provenance is not None
-        and (allow_dirty or not provenance.git_dirty)
+        and provenance_current(provenance)
     )
 
 
@@ -393,7 +398,7 @@ def run_matrix(
                     stale.unlink()
         for repeat in range(repeats):
             path = result_path(row, repeat)
-            if force or not result_current(row, repeat, allow_dirty=allow_dirty):
+            if force or not result_current(row, repeat):
                 pending.append((row, repeat))
             elif retry_failed:
                 record = json.loads(path.read_text(encoding="utf-8"))
@@ -411,7 +416,7 @@ def run_matrix(
     passed = 0
     for row in selected:
         passed += all(
-            result_current(row, repeat, allow_dirty=allow_dirty)
+            result_current(row, repeat)
             and CaseAudit.model_validate(
                 json.loads(result_path(row, repeat).read_text(encoding="utf-8"))[
                     "audit"

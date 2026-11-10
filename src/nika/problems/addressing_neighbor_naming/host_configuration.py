@@ -546,6 +546,28 @@ class HostIncorrectIP(ProblemBase):
         incorrect_ip = params.incorrect_ip or derive_incorrect_ip(
             self.runtime, params.host_name
         )
+        address = ipaddress.IPv4Interface(incorrect_ip)
+        hook = "/etc/dhcp/dhclient-enter-hooks.d/address"
+        if (
+            self.runtime.exec(
+                params.host_name,
+                "test -d /etc/dhcp/dhclient-enter-hooks.d && echo ready",
+            ).strip()
+            == "ready"
+        ):
+            self._address_renewal_snapshot = FileSnapshot.capture(
+                self.runtime, params.host_name, hook
+            )
+            content = self._address_renewal_snapshot.content or ""
+            content += (
+                '\nif [ "$interface" = eth0 ]; then\n'
+                '  case "$reason" in BOUND|RENEW|REBIND|REBOOT|TIMEOUT)\n'
+                f'    new_ip_address="{address.ip}"\n'
+                f'    new_subnet_mask="{address.network.netmask}"\n'
+                f'    new_broadcast_address="{address.network.broadcast_address}"\n'
+                "    ;; esac\nfi\n"
+            )
+            self.runtime.write_file(params.host_name, hook, content)
         self._injected_ip = incorrect_ip
         self._recovery_injected_ip = incorrect_ip
         _inject_ip_change(
@@ -558,6 +580,9 @@ class HostIncorrectIP(ProblemBase):
         )
 
     def recover_fault(self, params: HostIncorrectIPParams) -> dict:
+        renewal = getattr(self, "_address_renewal_snapshot", None)
+        if renewal is not None:
+            renewal.restore(self.runtime, params.host_name)
         return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostIncorrectIPParams) -> dict:

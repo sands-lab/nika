@@ -3,7 +3,8 @@ title: INT telemetry output cut by the tool output limit
 class: signal_invisible
 role: known
 severity: info
-status: open
+status: fixed
+fixed_in: 06a114a6
 summary: int_query_telemetry outputs exceed the tool output limit in a large share of calls, so later
   hops or records are cut.
 guideline: A skeptic found no lost signal in the sampled trial; count it only when the cut part held the

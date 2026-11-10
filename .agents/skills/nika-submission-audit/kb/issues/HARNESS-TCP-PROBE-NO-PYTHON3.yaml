@@ -2,7 +2,8 @@ id: HARNESS-TCP-PROBE-NO-PYTHON3
 title: active_tcp_probe fails on nodes without python3
 class: harness_defect
 severity: warn
-status: open
+status: fixed
+fixed_in: 7edc92aa
 summary: >-
   active_tcp_probe runs 'python3 -c' on the source and destination nodes (src/nika/traffic/active_probe.py).
   isp_pdh PCs, min3clos clients and the k3s controller/worker nodes of k8s_lab and llmd_lab have no python3,

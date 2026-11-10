@@ -2,17 +2,18 @@ name: Letta Docs Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
     branches: [main, dev]
 
 jobs:
   docs-review:
     name: Letta Docs Review
     if: github.event.pull_request.draft == false
+    timeout-minutes: 30
     concurrency:
       group: letta-docs-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
-    runs-on: ubuntu-latest
+    runs-on: ${{ contains(github.event.pull_request.labels.*.name, 'docs-review-local') && 'nika-docs-local' || 'ubuntu-latest' }}
     permissions:
       contents: read
       issues: write
@@ -20,28 +21,50 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      # Only human-facing docs are reviewed; other Markdown (agent skills,
-      # notes) is not. Without docs changes, pass without starting the agent.
-      - name: Detect changed docs
+      - name: Resolve review target
         id: docs
-        run: |
-          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.pull_request.number }}/files" \
-            --jq '.[] | select(.status != "removed") | .filename')
-          docs=$(printf '%s\n' "$files" | grep -E '(^|/)README\.md$|^docs/' || true)
-          if [ -z "$docs" ]; then
-            echo "No README.md or docs/ changes; skipping the review."
-            echo PASS > .letta-docs-verdict
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            printf 'Docs to review:\n%s\n' "$docs"
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+        uses: actions/github-script@v7
+        env:
+          REVIEW_PR: ${{ github.event.pull_request.number }}
+        with:
+          script: |
+            if (!/^[1-9][0-9]*$/.test(process.env.REVIEW_PR)) {
+              throw new Error('A pull request number is required');
+            }
+            const pull_number = Number(process.env.REVIEW_PR);
+            const {data: pr} = await github.rest.pulls.get({...context.repo, pull_number});
+            if (pr.state !== 'open' || pr.draft || !['dev', 'main'].includes(pr.base.ref)) {
+              throw new Error('Select an open, ready pull request targeting dev or main');
+            }
+            if (pr.labels.some(label => label.name === 'docs-review-local') &&
+                pr.head.repo.full_name !== process.env.GITHUB_REPOSITORY) {
+              throw new Error('Local review requires a branch in this repository');
+            }
+            const files = await github.paginate(github.rest.pulls.listFiles, {...context.repo, pull_number});
+            if (files.length < pr.changed_files) throw new Error('Changed-file list is incomplete; split the PR');
+            const docs = files.filter(f => f.status !== 'removed' &&
+              (f.filename.startsWith('docs/') || /(^|\/)README\.md$/.test(f.filename)));
+            const commit = context.sha;
+            if (!commit) throw new Error('The pull request has no test merge; retry after GitHub prepares it');
+            const {data: merge} = await github.rest.git.getCommit({...context.repo, commit_sha: commit});
+            if (merge.parents.length !== 2 || merge.parents[0].sha !== pr.base.sha ||
+                merge.parents[1].sha !== pr.head.sha) {
+              throw new Error('The test merge does not match the current base and head; rerun the review');
+            }
+            core.setOutput('changed', docs.length > 0 ? 'true' : 'false');
+            core.setOutput('pr', pull_number);
+            core.setOutput('head', pr.head.sha);
+            core.setOutput('base', pr.base.sha);
+            core.setOutput('commit', commit);
+            core.setOutput('files', JSON.stringify(docs.map(f => f.filename)));
       - uses: actions/checkout@v4
         if: steps.docs.outputs.changed == 'true'
         with:
           fetch-depth: 0
+          ref: ${{ steps.docs.outputs.commit }}
+          persist-credentials: false
       - uses: letta-ai/letta-code-action@v0
-        if: steps.docs.outputs.changed == 'true'
+        if: steps.docs.outputs.changed == 'true' && !contains(github.event.pull_request.labels.*.name, 'docs-review-local')
         with:
           letta_api_key: ${{ secrets.LETTA_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -51,13 +74,14 @@ jobs:
           model: chatgpt-plus/gpt-6.1-sol
           # Prompt (agent) mode ignores agent_id; pin the NIKA-dev agent via CLI args.
           letta_args: --agent agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a --new
-          show_full_output: false
+          # Show diagnostics on explicitly requested debug reruns.
+          show_full_output: ${{ runner.debug == '1' }}
           prompt: |
-            Review pull request #${{ github.event.pull_request.number }} for documentation quality only.
+            Review pull request #${{ steps.docs.outputs.pr }} for documentation quality only.
 
             1. List the human-facing docs changed in this PR: `README.md` files and files
                under `docs/`, e.g. with
-               `gh pr diff ${{ github.event.pull_request.number }} --name-only | grep -E '(^|/)README\.md$|^docs/'`.
+               `gh pr diff ${{ steps.docs.outputs.pr }} --name-only | grep -E '(^|/)README\.md$|^docs/'`.
                Other Markdown files (agent skills, notes) are out of scope.
             2. Review each changed docs file (README files first) against the
                human-facing documentation guidelines stored in your memory. Recall
@@ -81,12 +105,53 @@ jobs:
             Finally, you MUST write the verdict to the file `${{ github.workspace }}/.letta-docs-verdict`
             containing exactly one word: `FAIL` if any blocking finding remains, otherwise `PASS`.
             Do not commit this file.
+      - name: Review with local Codex login
+        if: steps.docs.outputs.changed == 'true' && contains(github.event.pull_request.labels.*.name, 'docs-review-local')
+        env:
+          REVIEW_FILES: ${{ steps.docs.outputs.files }}
+          REVIEW_BASE: ${{ steps.docs.outputs.base }}
+          REVIEW_HEAD: ${{ steps.docs.outputs.head }}
+          REVIEW_COMMIT: ${{ steps.docs.outputs.commit }}
+          REVIEW_OUTPUT: ${{ runner.temp }}/docs-review-${{ github.run_id }}-${{ github.run_attempt }}.json
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          python3 scripts/review_docs.py
+      - name: Verify reviewed commit
+        if: steps.docs.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        env:
+          REVIEW_PR: ${{ steps.docs.outputs.pr }}
+          REVIEW_HEAD: ${{ steps.docs.outputs.head }}
+          REVIEW_BASE: ${{ steps.docs.outputs.base }}
+          REVIEW_COMMIT: ${{ steps.docs.outputs.commit }}
+        with:
+          script: |
+            const {data: pr} = await github.rest.pulls.get({
+              ...context.repo, pull_number: Number(process.env.REVIEW_PR)
+            });
+            if (pr.head.sha !== process.env.REVIEW_HEAD || pr.base.sha !== process.env.REVIEW_BASE ||
+                pr.merge_commit_sha !== process.env.REVIEW_COMMIT) {
+              throw new Error('The pull request changed during review; review the new head');
+            }
+      - name: Upload local review
+        if: always() && contains(github.event.pull_request.labels.*.name, 'docs-review-local') && steps.docs.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-review-${{ steps.docs.outputs.pr }}
+          path: ${{ runner.temp }}/docs-review-${{ github.run_id }}-${{ github.run_attempt }}.json
+          if-no-files-found: ignore
       - name: Enforce docs verdict
         if: always()
+        env:
+          DOCS_CHANGED: ${{ steps.docs.outputs.changed }}
         run: |
+          if [ "$DOCS_CHANGED" = false ]; then
+            echo "No human-facing documentation changed."
+            exit 0
+          fi
           verdict=$(tr -d '[:space:]' < .letta-docs-verdict 2>/dev/null || true)
           echo "Docs review verdict: ${verdict:-missing}"
           if [ "$verdict" != "PASS" ]; then
-            echo "::error::Documentation review did not pass. See the Letta review comment on this PR."
+            echo "::error::Documentation review did not pass. See the review step and job summary."
             exit 1
           fi

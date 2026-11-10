@@ -2,7 +2,8 @@ id: HARNESS-SKILLS-PROMPT-NO-SKILLS
 title: Skills-enabled diagnosis prompt advertises project skills that 0.2.0 does not ship
 class: harness_defect
 severity: info
-status: open
+status: fixed
+fixed_in: 06a114a6
 summary: With skills enabled, diagnosis_prompt_with_skills (src/agent/utils/skills.py) appends SKILLS_PROMPT_SUFFIX
   ('Project skills are available for structured troubleshooting workflows'), but the production skill
   directory src/agent/skills/skills/ holds only .gitkeep. Discovery finds nothing. All prompts of the

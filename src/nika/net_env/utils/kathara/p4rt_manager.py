@@ -319,8 +319,16 @@ def lpm_entity(index: P4InfoIndex, entry: dict[str, Any], *, kind: str = "INSERT
     table.table_id = index.table_id(TABLE_IPV4)
     mf = table.match.add()
     mf.field_id = index.match_field_id(TABLE_IPV4, "dstAddr")
-    mf.lpm.value = encode_ipv4(str(network.network_address))
-    mf.lpm.prefix_len = int(network.prefixlen)
+    field = next(
+        f for f in index.tables[TABLE_IPV4].match_fields if f.id == mf.field_id
+    )
+    if field.match_type == p4info_pb2.MatchField.TERNARY:
+        mf.ternary.value = encode_ipv4(str(network.network_address))
+        mf.ternary.mask = encode_ipv4(str(network.netmask))
+        table.priority = network.prefixlen + 1
+    else:
+        mf.lpm.value = encode_ipv4(str(network.network_address))
+        mf.lpm.prefix_len = int(network.prefixlen)
     if kind != "DELETE":
         table.action.action_profile_group_id = int(entry["group_id"])
     return _update(entity, kind)
@@ -724,6 +732,15 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
             for mf in item.match:
                 if mf.HasField("lpm"):
                     prefix = decode_prefix(mf.lpm.value, mf.lpm.prefix_len)
+                elif mf.HasField("ternary"):
+                    value = str(ipaddress.IPv4Address(mf.ternary.value.rjust(4, b"\0")))
+                    mask = str(ipaddress.IPv4Address(mf.ternary.mask.rjust(4, b"\0")))
+                    try:
+                        prefix = str(
+                            ipaddress.IPv4Network(f"{value}/{mask}", strict=False)
+                        )
+                    except ValueError:
+                        prefix = f"{value}&&&{mask}"
             ipv4_lpm.append(
                 {
                     "prefix": prefix,

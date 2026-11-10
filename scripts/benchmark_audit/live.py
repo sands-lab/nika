@@ -9,7 +9,7 @@ same lab:
 4. the artifact and the symptom again after ``PERSISTENCE_WAIT_SEC`` and after
    a further ``FINAL_WAIT_SEC``.
 
-It also runs the stages in ``experiment.audit.agent_view``:
+It also runs the stages in ``scripts.benchmark_audit.agent_view``:
 what an agent's default tools show on the healthy lab, and a scan of the state
 inject added for artifacts that name NIKA or the fault.
 
@@ -25,13 +25,13 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
-from experiment.audit.environment import (
+from scripts.benchmark_audit.environment import (
     CaseAudit,
     StageResult,
     classify_observation,
     identity_from_row,
 )
-from experiment.audit.provenance import capture_provenance
+from scripts.benchmark_audit.provenance import capture_provenance
 from nika.net_env.verify import (
     LabVerifyTimeoutError,
     http_ok,
@@ -549,6 +549,7 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
     from nika.net_env.isp.identity import is_isp_scenario
     from nika.net_env.net_env_pool import get_net_env_instance
     from nika.utils.session import Session
+    from nika.workflows.failure.inject import inject_prepared_failure, prepare_failure
 
     identity = identity_from_row(row)
     fault = identity.fault
@@ -575,7 +576,7 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
     stages.append(_timed("baseline_lab", lambda: _lab_stage("baseline_lab", net_env)))
 
     def view(name: str) -> StageResult:
-        from experiment.audit.agent_view import run_agent_view
+        from scripts.benchmark_audit.agent_view import run_agent_view
 
         return _agent_view_stage(
             name,
@@ -599,10 +600,8 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
         stages.append(_stage("baseline_path", "unsupported", f"no symptom for {fault}"))
         return done()
 
-    problem = cls(scenario_name=session.scenario_name, **kwargs)
-    parsed = problem.parse_params(
-        {key: str(value) for key, value in identity.inject.items()}
-    )
+    prepared = prepare_failure(session, [fault], identity.inject)
+    problem, parsed = prepared.problem, prepared.params
     runtime = problem.runtime
     size = identity.topo_size or "s"
     before: Any = None
@@ -633,7 +632,7 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
     stages.append(_timed("sham_symptom", lambda: _sham_stage(observe)))
     scan: Any = None
     scan_error = "the pre-inject snapshot did not run"
-    from experiment.audit.agent_view import leak_scan_for
+    from scripts.benchmark_audit.agent_view import leak_scan_for
 
     stages.append(view("baseline_agent_view"))
     try:
@@ -648,8 +647,9 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
         return scan.capture_after_and_diff()
 
     def inject() -> StageResult:
-        problem.inject_fault(parsed)
-        verify = problem.verify_fault(parsed)
+        verify = inject_prepared_failure(
+            session, [fault], prepared, param_overrides=identity.inject
+        )
         verified = bool(isinstance(verify, dict) and verify.get("verified"))
         details = verify.get("details") if isinstance(verify, dict) else {}
         return _stage(

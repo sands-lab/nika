@@ -36,6 +36,7 @@ async def test_p4_mcp_tool_schemas() -> None:
         "flow_id",
         "packet_id",
         "limit",
+        "offset",
     } == set(schema["properties"])
 
 
@@ -91,7 +92,7 @@ def test_int_query_telemetry_tool_forwards_filters(monkeypatch) -> None:
         packet_id="packet-1",
         limit=5,
     )
-    assert result == [row]
+    assert result == {"records": [row], "offset": 0, "next_offset": 1}
     assert calls == [
         {
             "lab_name": "gateway_session",
@@ -105,6 +106,7 @@ def test_int_query_telemetry_tool_forwards_filters(monkeypatch) -> None:
             "flow_id": "flow-1",
             "packet_id": "packet-1",
             "limit": 5,
+            "offset": 0,
         }
     ]
 

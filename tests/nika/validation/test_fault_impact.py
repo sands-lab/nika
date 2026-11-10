@@ -119,7 +119,8 @@ def test_modeled_withdrawal_and_native_ecmp_use_original_fault_bounds(
     from tests.support.scenario_validation import assert_scenario_acceptance
 
     specimen = (
-        Path(__file__).resolve().parents[3] / "experiment/scenario_validation/clos.json"
+        Path(__file__).resolve().parents[3]
+        / "tests/fixtures/scenario_validation/clos.json"
     )
     spec = ScenarioExperiment.model_validate_json(specimen.read_text())
     withdrawal = spec.failure_checks[0].model_copy(

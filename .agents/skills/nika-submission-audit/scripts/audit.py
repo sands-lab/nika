@@ -27,7 +27,7 @@ from pathlib import Path
 
 from nika.config import REPO_ROOT  # noqa: E402
 
-# auditlib sits next to this script; experiment.audit (leak tokens) in the repo.
+# auditlib sits next to this script; scripts.benchmark_audit (leak tokens) in the repo.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(1, str(REPO_ROOT))
 

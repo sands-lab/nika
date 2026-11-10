@@ -728,20 +728,9 @@ exit "$FAILED"
         if self.topology_file is not None and self.topology_file.is_file():
             spec = parse_clab_topology(self.topology_file)
         else:
-            # Pre-deploy: synthesize from in-memory doc.
-            tmp = yaml.safe_dump(
-                self._build_clab_document(lab_name=self.name or self.LAB_NAME),
-                sort_keys=False,
+            spec = parse_clab_topology(
+                self._build_clab_document(lab_name=self.name or self.LAB_NAME)
             )
-            from tempfile import NamedTemporaryFile
-
-            with NamedTemporaryFile("w", suffix=".clab.yml", delete=False) as handle:
-                handle.write(tmp)
-                path = Path(handle.name)
-            try:
-                spec = parse_clab_topology(path)
-            finally:
-                path.unlink(missing_ok=True)
         spec.name = self.name or self.LAB_NAME
         return spec
 

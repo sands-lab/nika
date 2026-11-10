@@ -58,6 +58,13 @@ def owned_pidfd(identity) -> int | None:
             "Controller process cleanup requires Linux pidfd support"
         ) from exc
     except OSError as exc:
+        if exc.errno == errno.EINVAL:
+            # A dead group leader's PID can remain allocated while its child
+            # keeps the process group alive. It has no task to pin or signal.
+            try:
+                process_identity(pid)
+            except (FileNotFoundError, ProcessLookupError):
+                return None
         if exc.errno == errno.ENOSYS:
             raise RuntimeError(
                 "Controller process cleanup requires Linux pidfd support"

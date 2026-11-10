@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from experiment.submission_audit import skill  # noqa: F401  (adds auditlib to sys.path)
 
 from auditlib.cohort import METRICS
 from auditlib.kb import load_kb

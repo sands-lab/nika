@@ -444,3 +444,13 @@ def test_cancel_before_start_records_no_elapsed_time(tmp_path, monkeypatch):
     assert cancelled[0]["elapsed"] is None
     assert cancelled[0]["lateness_sec"] is None
     assert rows[-1]["status"] == "closed" and not rows[-1]["cleanup_errors"]
+
+
+@pytest.mark.parametrize("repeat", [None, {"every": 10, "count": 2}])
+def test_schedule_rejects_faults_that_finish_before_agent_dispatch(repeat):
+    event = {"problem": "link_down", "at": 0, "duration": 5}
+    if repeat:
+        event["repeat"] = repeat
+    with pytest.raises(ValueError, match="observable"):
+        Schedule(agent_start=20, events=[event])
+    assert Schedule(agent_start=0, events=[event])

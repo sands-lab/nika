@@ -2,7 +2,8 @@ id: HARNESS-LLMD-BRIEF-TOPOLOGY-INCOMPLETE
 title: The llmd_lab brief lists one pair (controller:eth0, worker1:eth0) for its shared segment and omits the controller and workers from the inventory
 class: harness_defect
 severity: warn
-status: open
+status: fixed
+fixed_in: ea317115
 summary: BaseNetEnv.get_topology keeps only the first two endpoints of each collision domain
   (src/nika/net_env/base.py). llmd_lab puts controller, worker1-5, client, and web on one link
   (src/nika/net_env/llmd_lab/lab.py), so the brief's topology shows a single pair and 6 of 8 endpoints disappear.

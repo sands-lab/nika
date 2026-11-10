@@ -1,6 +1,6 @@
 """Agent-view audit stages: what a diagnosing agent reads on the lab.
 
-Two deterministic checks, run by ``python -m experiment.audit.matrix``:
+Two deterministic checks, run by ``python -m scripts.benchmark_audit.matrix``:
 
 - ``agent_view`` (healthy cases) and ``baseline_agent_view`` (the healthy
   lab of a fault case, before inject): run the PingMesh tool with the default
@@ -15,6 +15,8 @@ Two deterministic checks, run by ``python -m experiment.audit.matrix``:
   P4Runtime tables) right before and right after inject, diff them with
   per-deployment values masked, and fail on an added or changed artifact whose
   name or content names NIKA or the fault, or that is a copy of pre-fault state.
+  File mtime/ctime changes with unchanged same-role peers are separate review
+  leads; they do not fail the stage.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ import time
 from collections import Counter
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -654,6 +657,11 @@ def snapshot_script(pattern: str, capabilities: set[str]) -> str:
     sections = [
         ("files", f"{find} | xargs -0 -r md5sum 2>/dev/null"),
         (
+            "file_times",
+            find.removesuffix("-print0 2>/dev/null")
+            + "-printf '%T@\\t%C@\\t%p\\n' 2>/dev/null",
+        ),
+        (
             "hits",
             f"{find} | xargs -0 -r grep -c -H -i -E {quoted} 2>/dev/null"
             " | grep -v ':0$'",
@@ -696,7 +704,9 @@ def snapshot_script(pattern: str, capabilities: set[str]) -> str:
             )
         )
     if "nokia_srlinux" in capabilities or "srl" in capabilities:
-        sections.append(("srl", "sr_cli -d 'info flat' 2>/dev/null"))
+        sections.append(
+            ("srl", "PYTHONDONTWRITEBYTECODE=1 sr_cli -d 'info flat' 2>/dev/null")
+        )
     if "k3s" in capabilities:
         sections.append(
             (
@@ -730,6 +740,18 @@ def parse_snapshot(output: str) -> dict[str, Any]:
         match = re.match(r"([0-9a-f]{32})\s+\*?(.+)$", line)
         if match:
             files[match.group(2)] = match.group(1)
+    file_times: dict[str, dict[str, str]] = {}
+    for line in sections.pop("file_times", []):
+        parts = line.split("\t", 2)
+        if len(parts) != 3:
+            continue
+        mtime, ctime, path = parts
+        try:
+            if not all(Decimal(value).is_finite() for value in (mtime, ctime)):
+                continue
+        except InvalidOperation:
+            continue
+        file_times[path] = {"mtime": mtime, "ctime": ctime}
     hits: dict[str, int] = {}
     for line in sections.pop("hits", []):
         path, _, count = line.rpartition(":")
@@ -744,7 +766,13 @@ def parse_snapshot(output: str) -> dict[str, Any]:
         ]
         for name, lines in sections.items()
     }
-    return {"files": files, "hits": hits, "nika_files": nika_files, "text": text}
+    return {
+        "files": files,
+        "file_times": file_times,
+        "hits": hits,
+        "nika_files": nika_files,
+        "text": text,
+    }
 
 
 def _is_copy_of(path: str, original: str) -> bool:
@@ -848,6 +876,56 @@ def prefault_mentions(state: dict[str, dict[str, Any] | None]) -> list[str]:
     return found
 
 
+def file_time_asymmetries(before, after, machines) -> list[dict[str, Any]]:
+    """Find refreshed file times with unchanged same-role/platform peers.
+
+    These are review leads. Native configuration changes can produce them,
+    so they do not enter the fault-revealing artifact count.
+    """
+    findings = []
+    for node, identity in sorted(machines.items()):
+        if identity is None or getattr(identity, "role", None) is None:
+            continue
+        peers = [
+            other
+            for other, peer in machines.items()
+            if other != node
+            and peer is not None
+            and getattr(peer, "role", None) == identity.role
+            and getattr(peer, "service_type", None)
+            == getattr(identity, "service_type", None)
+            and set(peer.capabilities) == set(identity.capabilities)
+        ]
+        old = (before.get(node) or {}).get("file_times", {})
+        new = (after.get(node) or {}).get("file_times", {})
+        for path in sorted(old.keys() & new.keys()):
+            fields = {}
+            for field in ("mtime", "ctime"):
+                previous, current = old[path][field], new[path][field]
+                if Decimal(current) <= Decimal(previous):
+                    continue
+                unchanged = {}
+                for peer in sorted(peers):
+                    peer_old = (before.get(peer) or {}).get("file_times", {}).get(path)
+                    peer_new = (after.get(peer) or {}).get("file_times", {}).get(path)
+                    if (
+                        peer_old
+                        and peer_new
+                        and Decimal(peer_old[field]) == Decimal(peer_new[field])
+                        and Decimal(peer_new[field]) < Decimal(current)
+                    ):
+                        unchanged[peer] = peer_new[field]
+                if unchanged:
+                    fields[field] = {
+                        "before": previous,
+                        "after": current,
+                        "unchanged_peers": unchanged,
+                    }
+            if fields:
+                findings.append({"node": node, "path": path, "times": fields})
+    return findings
+
+
 class LeakScan:
     """Snapshot agent-visible state before inject and diff it after inject."""
 
@@ -946,8 +1024,60 @@ class LeakScan:
                     "files_removed_count": len(diff["files_removed"]),
                     "lines_added": diff["lines_added"],
                 }
+        peer_asymmetries = []
+        for node, old in self.before.items():
+            new = after.get(node)
+            if not old or not new or node not in self.machines:
+                continue
+            machine = self.machines[node]
+            peers = [
+                other
+                for other, identity in self.machines.items()
+                if other != node
+                and getattr(identity, "role", None) == getattr(machine, "role", None)
+                and set(getattr(identity, "capabilities", ()) or ())
+                == set(getattr(machine, "capabilities", ()) or ())
+            ]
+            for path, digest in old.get("files", {}).items():
+                if new.get("files", {}).get(path) == digest:
+                    continue
+                unchanged_peers = [
+                    peer
+                    for peer in peers
+                    if (self.before.get(peer) or {}).get("files", {}).get(path)
+                    == digest
+                    and (after.get(peer) or {}).get("files", {}).get(path) == digest
+                ]
+                if unchanged_peers:
+                    peer_asymmetries.append(
+                        {"node": node, "path": path, "unchanged_peers": unchanged_peers}
+                    )
+        time_leads = file_time_asymmetries(self.before, after, self.machines)
+        time_coverage = {
+            node: {
+                "before": len((self.before.get(node) or {}).get("file_times", {})),
+                "after": len((after.get(node) or {}).get("file_times", {})),
+                "files_before": len((self.before.get(node) or {}).get("files", {})),
+                "files_after": len((after.get(node) or {}).get("files", {})),
+            }
+            for node in sorted(self.machines)
+        }
         return {
             "pattern": self.pattern,
+            "file_time_asymmetries": time_leads[:EVIDENCE_CAP],
+            "file_time_asymmetry_count": len(time_leads),
+            "file_time_coverage": time_coverage,
+            "file_time_unreadable_nodes": [
+                node
+                for node, counts in time_coverage.items()
+                if any(
+                    counts[f"files_{phase}"] and not counts[phase]
+                    for phase in ("before", "after")
+                )
+            ],
+            "file_time_unit": "unix_seconds",
+            "peer_asymmetries": peer_asymmetries[:EVIDENCE_CAP],
+            "peer_asymmetry_count": len(peer_asymmetries),
             "prefault_mentions": prefault_mentions(self.before)[:EVIDENCE_CAP],
             "scan_dirs": list(SCAN_DIRS),
             "nodes_scanned": len(after) - len(unreadable),

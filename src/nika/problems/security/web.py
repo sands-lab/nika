@@ -40,8 +40,8 @@ from nika.utils.logger import system_logger
 # victim's access log, so nothing here names the injected fault. The flood
 # targets content the scenario already publishes at baseline (never content
 # created by this failure), so file existence does not itself signal inject.
-_SLOW_HTTP_CLIENT = "/var/tmp/http-hold.py"
-_SLOW_HTTP_PATTERN = "[h]ttp-hold.py"
+_SLOW_HTTP_CLIENT = "/var/tmp/http-client.py"
+_SLOW_HTTP_PATTERN = "[h]ttp-client.py"
 _SLOW_HTTP_SOURCE = """#!/usr/bin/env python3
 import socket
 import sys

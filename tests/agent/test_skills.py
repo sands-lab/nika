@@ -76,6 +76,10 @@ class SkillsConfigTest:
         ).exists()
 
     def test_diagnosis_prompt_with_skills(self, set_skills) -> None:
+        workspace = set_skills(True)
+        skill = workspace / "skills/skills/routing/SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("Routing diagnostics")
         prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
         assert SKILLS_PROMPT_SUFFIX in prompt
         assert TEST_SKILL_NAME not in prompt
@@ -84,6 +88,14 @@ class SkillsConfigTest:
         )
         assert TEST_SKILLS_PROMPT_SUFFIX in test_prompt
         set_skills(False)
+        assert (
+            diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
+            == OVERALL_DIAGNOSIS_PROMPT
+        )
+
+    def test_empty_skill_directory_keeps_base_prompt(self, set_skills):
+        workspace = set_skills(True)
+        (workspace / "skills/skills/incomplete").mkdir(parents=True)
         assert (
             diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
             == OVERALL_DIAGNOSIS_PROMPT

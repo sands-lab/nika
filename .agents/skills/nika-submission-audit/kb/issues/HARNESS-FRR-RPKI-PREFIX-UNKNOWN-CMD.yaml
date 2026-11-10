@@ -2,7 +2,8 @@ id: HARNESS-FRR-RPKI-PREFIX-UNKNOWN-CMD
 title: frr_get_rpki_status prefix mode runs an unsupported command and returns '% Unknown command'
 class: harness_defect
 severity: warn
-status: open
+status: fixed
+fixed_in: 9c2e43fc
 summary: >-
   frr_get_rpki_status with a prefix runs 'show rpki prefix-table <prefix>' (src/nika/service/lab/frr_api.py),
   which this FRR build rejects. Every prefix-mode call returns '% Unknown command' and no per-prefix origin-validation

@@ -2,7 +2,8 @@ id: HARNESS-K3S-NODES-NO-CAPTURE-TOOL
 title: packet_capture_start fails on the k3s controller and worker nodes of llmd_lab and k8s_lab (no dumpcap or tcpdump)
 class: harness_defect
 severity: warn
-status: open
+status: fixed
+fixed_in: 9c2e43fc
 summary: The k3s node image has neither dumpcap nor tcpdump, so packet_capture_start raises "Node '<node>' has
   neither dumpcap nor tcpdump installed for packet capture" (src/nika/service/packet_capture/capture_backend.py)
   on controller and worker nodes. In release 0.2.0 this hit 45 llmd_lab calls and 25 k8s_lab calls, while

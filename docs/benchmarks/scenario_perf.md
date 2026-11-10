@@ -1,6 +1,8 @@
 # Scenario startup performance
 
-Resource and time cost of the environments and tasks in benchmark release 0.2.0 (test and dev splits), measured without an agent, and of SONiC Containerlab variants measured the same way. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](../../experiment/profile/README.md). NIKA budgets 256 MiB per SONiC router and 1.5 GiB per SR Linux router when it sizes Firecracker VMs and the Containerlab ISP set; the tables below are measured lab-container memory, not that budget.
+Resource and time cost of the environments and tasks in benchmark release 0.2.0 (test and dev splits), measured without an agent, and of SONiC Containerlab variants measured the same way. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](https://github.com/sands-lab/nika/blob/experiment/experiment/profile/README.md). NIKA budgets 256 MiB per SONiC router and 1.5 GiB per SR Linux router when it sizes Firecracker VMs and the Containerlab ISP set; the tables below are measured lab-container memory, not that budget.
+
+To run the research commands below, use a separate checkout of the shared `experiment` branch.
 
 The page has four measurements:
 

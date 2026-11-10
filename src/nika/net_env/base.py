@@ -386,9 +386,8 @@ class NetworkEnvBase:
     def seal_baseline(self) -> None:
         """Leave no pristine on-disk baseline that a fault could be diffed against.
 
-        Drops the backend's deploy-time file copies and saves every FRR
-        router's running config, so a fault that saves its change is not the
-        only router with a rewritten config file.
+        Drops the backend's deploy-time file copies, saves running configurations
+        on FRR and SR Linux, and refreshes saved-file metadata on their peers.
         """
         if not self.SEAL_BASELINE:
             return
@@ -400,18 +399,26 @@ class NetworkEnvBase:
         bounded_parallel_map(
             lambda router: frr_save_config(runtime, router), self.frr_routers()
         )
+        self.align_saved_configs()
 
     def align_saved_configs(self) -> None:
-        """Recreate every FRR router's saved config at once, keeping its content."""
+        """Refresh saved configurations across declared router platforms."""
         if not self.SEAL_BASELINE:
             return
         import time
 
         from nika.problems.support.frr import frr_rewrite_saved_configs
 
-        frr_rewrite_saved_configs(
-            self._build_runtime(), self.frr_routers(), time.time()
-        )
+        runtime = self._build_runtime()
+        timestamp = time.time()
+        frr_rewrite_saved_configs(runtime, self.frr_routers(), timestamp)
+        srl_routers = [
+            node
+            for node, identity in self.machine_identities.items()
+            if "nokia_srlinux" in identity.capabilities
+        ]
+        if srl_routers:
+            runtime.lab_api.srl_align_saved_configs(srl_routers, timestamp)
 
     def business_workload(self) -> "BusinessWorkload | None":
         """Always-on traffic of the scenario's users and services.

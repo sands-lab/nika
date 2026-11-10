@@ -51,7 +51,7 @@ def test_routing_specimens_follow_shared_original_requirements(specimen, size, p
     spec = build_routing_clos_experiment(size, device_profile=profile)
     path = (
         Path(__file__).resolve().parents[3]
-        / "experiment/scenario_validation"
+        / "tests/fixtures/scenario_validation"
         / f"{specimen}.json"
     )
     assert ScenarioExperiment.model_validate_json(path.read_text()) == spec

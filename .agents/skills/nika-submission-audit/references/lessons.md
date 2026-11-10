@@ -112,14 +112,14 @@ Run the check twice, 15 s apart, from the vantage point the agents used and from
 Rerun the release audit for the task:
 
 ```bash
-uv run python -m experiment.audit.matrix --scenario <scenario> --fault <fault> --repeats 2 --force
+uv run python -m scripts.benchmark_audit.matrix --scenario <scenario> --fault <fault> --repeats 2 --force
 ```
 
 The `symptom`, `persistence_symptom`, and `agent_view` stages show whether the symptom exists and whether an agent's default tools see it.
 
 ### Healthy-environment check from the agent's view
 
-Run what an agent would run with default arguments: a PingMesh snapshot with its defaults, plus differential probes (endpoint pairs, DNS names from every resolver, BGP peer states, k8s Warning events). Run two rounds 15 s apart and count a check as failed only when it fails in both. Compare every "unreachable" against the session's `probe_intent` before calling it a fault. `experiment/audit/agent_view.py` implements this (stages `agent_view` and `baseline_agent_view`).
+Run what an agent would run with default arguments: a PingMesh snapshot with its defaults, plus differential probes (endpoint pairs, DNS names from every resolver, BGP peer states, k8s Warning events). Run two rounds 15 s apart and count a check as failed only when it fails in both. Compare every "unreachable" against the session's `probe_intent` before calling it a fault. `scripts/benchmark_audit/agent_view.py` implements this (stages `agent_view` and `baseline_agent_view`).
 
 ### Leak
 
@@ -129,7 +129,7 @@ For a scripted comparison, snapshot agent-readable state (files under /etc, /tmp
 
 ### Judging a symptom claim
 
-A claim that a failure has no symptom, or a label is not identifiable, must itself be sound (rules of the release audit, `experiment/audit/`):
+A claim that a failure has no symptom, or a label is not identifiable, must itself be sound (rules of the release audit, `scripts/benchmark_audit/`):
 
 * **Not tautological:** the symptom is measured on traffic, not by reading back the injected artifact.
 * **Not confounded:** a control path that avoids the root cause still works. Choose it so it does not depend on the fault: never target a prefix the fault withdraws or hijacks, and start from a node whose path avoids the faulted component.
@@ -155,3 +155,7 @@ Rerun on a quiet host before reporting such a failure.
 * Model endpoints: check `GET /v1/models` first (served ids change); an HTTP 500 with no tool call is an endpoint failure, not an agent result.
 
 Record what you ran and saw in the finding's `evidence` with `found_by: live_audit`.
+
+### Verify the injected component before accepting a symptom
+
+A probe can confirm the expected traffic failure while the injector changes a different component. For `p4_tcam_entry_corruption`, the old implementation computed a mask but dropped traffic in a VDE proxy. Read the named device's table before and after injection, compare it with controller intent, test a same-prefix control, and verify recovery. Keep physical-device claims separate from a software-switch model. See `FNR-TCAM-ROOT-CAUSE-NOT-INJECTED` and the retained evidence paths in its record. A source review is not a trajectory signature; check each run's pinned engine before applying the finding.

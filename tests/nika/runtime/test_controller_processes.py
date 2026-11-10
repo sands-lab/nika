@@ -97,3 +97,36 @@ def test_splice_payload_has_its_process_helpers_without_nika_installed():
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip().isdigit()
+
+
+def test_exited_group_leader_does_not_block_child_cleanup():
+    from nika.runtime.shared.processes import stop_owned
+
+    code = (
+        "import subprocess, sys; "
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], "
+        "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
+        "print(child.pid, flush=True); sys.stdin.readline()"
+    )
+    leader = subprocess.Popen(
+        [sys.executable, "-c", code],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    child = None
+    try:
+        identity = process_identity(leader.pid)
+        child = process_identity(int(leader.stdout.readline()))
+        leader.communicate("exit\n", timeout=5)
+        assert owned_pidfd(identity) is None
+        fd = owned_pidfd(child)
+        assert fd is not None
+        os.close(fd)
+    finally:
+        if leader.poll() is None:
+            leader.kill()
+        leader.wait(timeout=5)
+        if child is not None:
+            stop_owned(child)

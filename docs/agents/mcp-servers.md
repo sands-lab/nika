@@ -50,7 +50,7 @@ Call `p4rt_exec` with `read`, `read --switch leaf_1`, `read-table --switch leaf_
 
 ### Telemetry (`kathara_telemetry_mcp_server`)
 
-Call `int_query_telemetry` with a start time and optional flow or packet filters. It reads observed INT-MX traces from the collector. The `p4_dc_gateway` scenario selects this server.
+Call `int_query_telemetry` with a start time and optional flow or packet filters. It reads observed INT-MX traces from the collector and returns `records`, `offset`, and `next_offset`. Follow `next_offset` with the same filters and a fixed `end_time` to retrieve older traces. Pages fit the tool output budget; the default requests up to 20 records. An individual trace that exceeds the budget returns an explicit error. The `p4_dc_gateway` scenario selects this server.
 
 ### NetFlow (`kathara_netflow_mcp_server`)
 
@@ -109,7 +109,7 @@ The limit is part of what the agent observes, like the tool list and the phase r
 
 The limit is a ceiling, not context management. To read less, an agent asks for less: `prometheus_query`, `syslog_query`, `netflow_query`, and `k8s_list_events` take a `limit`; `packet_capture_start` takes a capture filter, `max_packets`, and `max_duration_sec`, and `packet_capture_inspect` takes a display filter and a `limit`; and `exec_shell` commands can pipe through `head` or `grep`. Deciding what stays in the model's context across calls is the harness's job, because only the harness knows its model's context window.
 
-The truncation warning and elision markers are added on top of that limit, and non-text content is not counted. Text over the limit keeps its first and last 5,000 characters and reports how many were elided. List results, such as `prometheus_query`, `syslog_query`, `netflow_query`, `int_query_telemetry`, and `k8s_list_events`, keep whole items from both ends and report how many items were elided. Each kept item therefore stays valid JSON. If neither the first nor the last item fits, the result is truncated by characters instead. Both cases start with the same warning that the output was truncated.
+The truncation warning and elision markers are added on top of that limit, and non-text content is not counted. Text over the limit keeps its first and last 5,000 characters and reports how many were elided. List results, such as `prometheus_query`, `syslog_query`, `netflow_query`, and `k8s_list_events`, keep whole items from both ends and report how many items were elided. Each kept item therefore stays valid JSON. If neither the first nor the last item fits, the result is truncated by characters instead. Both cases start with the same warning that the output was truncated.
 
 ## Submit a diagnosis
 
