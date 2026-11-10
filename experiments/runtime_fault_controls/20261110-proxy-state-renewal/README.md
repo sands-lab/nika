@@ -14,6 +14,7 @@ Raw receipts and validation logs remain at `nika01:/workspace/nika-retained-reco
 | Direct VDE link, repaired | `proxy-direct-final.jsonl` | Healthy, sham, reverse impaired, and recovered forwarding remained about 41 to 43 Mbit/s |
 | Relay cancellation | `final-proxy-e2e.log`, `final-proxy-recheck.log`, `proxy-final-cleanup.log` | The first forced-kill check exposed an exited process-group leader cleanup error; the final checks recovered the native hub and removed the owned native child and sockets |
 | SR Linux saved state | `srl-metadata.jsonl`, `srl-fault-persistence.jsonl` | Peer-wide refresh aligned modification times and retained the actual disabled interface before recovery |
+| SR Linux bytecode control | `srl-bytecode-final.json` | A real `show version` call left 5615 existing cache files and their times unchanged; other startup traces remain outside this scoped check |
 | Vendor negative controls | `vendor-controls-final.jsonl` | RouterOS and IOS XR boot-source files retained their hashes and times during a real native configuration mutation |
 
 Local repairs: `3c67492d` (DHCP), `517ac26e` (native VDE forwarding), `052b2942` (SR Linux saved files), and `2cc26c66` (cleanup and audit evidence). The matched throughput runs preceded the final forced-exit cleanup refinement; dedicated end-to-end checks validated that refinement. The initial vendor-control fixture used an adapter without RouterOS methods and failed before changing configuration; the final fixture used the existing RouterOS API.
