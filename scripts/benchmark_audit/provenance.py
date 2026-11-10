@@ -1,4 +1,4 @@
-"""Source, configuration, and container identities for reproducible audits."""
+"""Git and container identities for reproducible audits."""
 
 from __future__ import annotations
 

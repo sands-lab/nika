@@ -171,7 +171,7 @@ On Containerlab, link failures (`link_down`, `link_flap`, `link_capacity_bottlen
 
 A primary WAN outage can expose an existing error on the standby tunnel. The [coordinated task definition](https://github.com/sands-lab/nika/blob/experiment/benchmark/experiments/latent_backup.yaml) pairs `wireguard_peer_key_misconfiguration` with `scope: interface` on `br1_edge:wg_hq_b` and `link_down` on the branch attachment to `isp1`. Ground truth labels both root causes. The primary attachment carries both the preferred HQ tunnel and the DC2 fallback; the affected standby reaches HQ through the independent `isp2` provider.
 
-The definition has two variants of `enterprise_branch` at size `s`: FRR Site Edges and `device_profile: routeros`. The RouterOS variant needs the locally built RouterOS image and KVM (see [RouterOS setup](network-scenarios.md#routeros-simple-bgp-scenario)). Run both variants with the oracle:
+The definition has two variants of `enterprise_branch` at size `s`: FRR Site Edges and `device_profile: routeros`. The RouterOS variant needs the locally built RouterOS image and KVM (see [RouterOS setup](network-scenarios.md#routeros-simple-bgp-scenario)). Run both variants with the oracle from a checkout of the `experiment` branch:
 
 ```shell
 uv run nika benchmark run --config benchmark/experiments/latent_backup.yaml --agent oracle

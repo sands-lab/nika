@@ -2,7 +2,8 @@ id: HARNESS-PCAP-INSPECT-ARGS
 title: packet_capture_inspect arguments agents get wrong
 class: harness_defect
 severity: info
-status: open
+status: fixed
+fixed_in: 06a114a6
 summary: packet_capture_inspect requires a 'view' argument whose allowed values agents guess wrong ('all',
   'hex'); many inspections fail before reading the capture.
 guideline: Repeated across models, so the schema or description, not one agent, is at fault.

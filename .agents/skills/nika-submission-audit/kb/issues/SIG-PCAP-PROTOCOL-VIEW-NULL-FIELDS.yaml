@@ -2,7 +2,8 @@ id: SIG-PCAP-PROTOCOL-VIEW-NULL-FIELDS
 title: packet_capture_inspect protocol view returns null DNS query and HTTP request fields
 class: signal_invisible
 severity: warn
-status: open
+status: fixed
+fixed_in: ea317115
 summary: >-
   src/nika/service/packet_capture/protocol_fields.py reads dns.qry.name/qtype/rcode and http.request.method/uri
   directly from the layer dict, but tshark -T json nests them under the Queries and request-line subtrees.

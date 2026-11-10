@@ -2,7 +2,8 @@ id: LEAK-K8S-PROMPT-FAULT-ONLY-WORDING
 title: k8s_lab fault prompts carry a reporting sentence that healthy prompts lack
 class: shortcut
 severity: warn
-status: open
+status: fixed
+fixed_in: 7edc92aa
 summary: >-
   In release 0.2.0 every k8s_lab fault-task prompt ends with "Report faulty
   devices using lab device names, not Kubernetes object names", and no k8s_lab

@@ -2,7 +2,8 @@ id: HARNESS-K8S-AS2R1-HOST-EGRESS
 title: In k8s_lab, as2r1's default route goes through a NATed Docker-bridge uplink, so traffic for unadvertised lab prefixes leaves the lab and gets host-dependent answers
 class: harness_defect
 severity: warn
-status: open
+status: fixed
+fixed_in: ea317115
 summary: k8s_lab bridges as2r1 to Docker for internet connectivity (src/nika/net_env/k8s_lab/lab.py), masquerades
   all egress on eth2 (as2r1.startup), and default-originates to as1r1 over BGP. In-lab addresses that BGP does not
   carry (the 10.0.x.0/30 links) are therefore routed into the host or campus network. Traceroutes show 172.17.0.1
