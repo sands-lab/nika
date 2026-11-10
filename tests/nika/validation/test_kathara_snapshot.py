@@ -13,7 +13,7 @@ def test_vrf_requires_explicit_static_underlay_scope(tmp_path):
     spec = ScenarioExperiment.model_validate_json(
         (
             Path(__file__).resolve().parents[3]
-            / "experiment/scenario_validation/enterprise.json"
+            / "tests/fixtures/scenario_validation/enterprise.json"
         ).read_text()
     )
     env = EnterpriseBranch()
@@ -67,7 +67,7 @@ def test_snapshot_rebuild_removes_obsolete_devices(tmp_path):
     spec = ScenarioExperiment.model_validate_json(
         (
             Path(__file__).resolve().parents[3]
-            / "experiment/scenario_validation/clos.json"
+            / "tests/fixtures/scenario_validation/clos.json"
         ).read_text()
     )
     env = get_net_env_instance(spec.scenario, topo_size=spec.topo_size)

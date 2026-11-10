@@ -65,7 +65,7 @@ def test_references_resolve_from_the_benchmark_and_keep_order(tmp_path, monkeypa
     first = _task()
     second = {"scenario": "dc_clos", "topo_size": "s", "problem": "healthy"}
     third = deepcopy(first)
-    third["schedule"]["agent_start"] = 10
+    third["schedule"]["agent_start"] = 6
     _write(tmp_path / "tasks" / "one.yaml", first)
     _write(tmp_path / "tasks" / "two.yaml", second)
     _write(tmp_path / "tasks" / "three.yaml", third)

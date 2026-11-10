@@ -12,7 +12,6 @@ from typing import Any
 
 import pytest
 
-from experiment.submission_audit import skill  # noqa: F401  (adds auditlib to sys.path)
 import yaml
 import httpx
 
@@ -334,66 +333,6 @@ def test_schema_recovery_falls_back_on_endpoints_without_schema_support(
     assert len(first["failed_responses"]) == 2
 
 
-@pytest.mark.parametrize(
-    "content",
-    ["invalid", "[]", '{"refs": null}', '{"refs": ["UNKNOWN"], "reason": "test"}'],
-)
-def test_bad_mapper_replies_fail_and_are_not_cached(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: str
-) -> None:
-    from experiment.submission_audit import map_issues as mapper
-
-    issues = tmp_path / "kb/issues"
-    issues.mkdir(parents=True)
-    (issues / "ISSUE-TEST.yaml").write_text("id: ISSUE-TEST\nsummary: test\n")
-    monkeypatch.setattr(
-        mapper, "chat", lambda *args: {"content": content, "finish": "stop"}
-    )
-    cache, persisted = {}, []
-    mapping, failed = mapper.map_run(
-        tmp_path,
-        ScanConfig(base_url="unused", model="unused", workers=1),
-        "system",
-        {"REF-TEST"},
-        cache,
-        on_result=lambda: persisted.append(dict(cache)),
-    )
-    assert not mapping and failed == ["ISSUE-TEST"] and not cache and not persisted
-    calls = []
-    monkeypatch.setattr(
-        mapper,
-        "chat",
-        lambda *args: (
-            calls.append(1)
-            or {"content": '{"refs": [], "reason": "No match"}', "finish": "stop"}
-        ),
-    )
-    assert mapper.map_run(
-        tmp_path,
-        ScanConfig(base_url="unused", model="unused", workers=1),
-        "system",
-        {"REF-TEST"},
-        cache,
-        on_result=lambda: persisted.append(dict(cache)),
-    ) == ({"ISSUE-TEST": []}, [])
-    assert persisted == [cache]
-    mapper.map_run(
-        tmp_path,
-        ScanConfig(base_url="unused", model="unused", workers=1),
-        "system",
-        {"REF-TEST"},
-        cache,
-    )
-    assert len(calls) == 1
-    journal = [
-        json.loads(line)
-        for line in (tmp_path / "mapping-calls.jsonl").read_text().splitlines()
-    ]
-    assert len(journal) == 2
-    assert not journal[0]["valid"] and journal[0]["response"]["content"] == content
-    assert journal[1]["valid"] and journal[0]["key"] == journal[1]["key"]
-
-
 @pytest.mark.parametrize("source_kind", ["source_absence", "source_text"])
 def test_source_checks_require_reviewed_providers_and_report_unknowns(
     tmp_path: Path,
@@ -519,7 +458,7 @@ def test_source_checks_require_reviewed_providers_and_report_unknowns(
             missing,
             {
                 "action": "read",
-                "path": "experiment/submission_audit/reference_issues.yaml",
+                "path": "reference_issues.yaml",
             },
         )
     with pytest.raises(ValueError):
@@ -1906,7 +1845,9 @@ def test_measured_controls_refine_a_signature_and_prevent_false_dedup(
         )
     trials = {f.name: load_trial(f) for f in trial_dirs(root)}
     tid = sorted(trials)[0]
-    kbdir = skill.builtin_kb_dir(tmp_path / "kb")
+    kbdir = tmp_path / "kb"
+    shutil.copytree(KB_DIR, kbdir, ignore=shutil.ignore_patterns("issues"))
+    (kbdir / "issues").mkdir()
     kb = load_kb(kbdir)
     group = {
         "class": "healthy_lure",
@@ -2366,29 +2307,6 @@ def test_capture_source_repair_is_bounded_and_charges_both_attempts(
     if repair_succeeds:
         assert capture.inspect_source(candidate, tmp_path, cfg, tmp_path)["cached"]
         assert len(answers) == 2
-
-
-def test_frr_backup_evidence_does_not_label_a_dhcp_reference(tmp_path):
-    from experiment.submission_audit import scan_eval
-
-    _trial(
-        tmp_path,
-        "enterprise_branch__healthy__t01",
-        _claude_call(
-            "backup",
-            "mcp__kathara_base_mcp_server__exec_shell",
-            "ls /etc/frr",
-            "daemons\nfrr.conf\nfrr.conf.sav\nvtysh.conf",
-        ),
-        gt=HEALTHY_GT,
-        submission=HEALTHY_GT,
-        rca=1,
-        scenario="enterprise_branch",
-    )
-    aliases = yaml.safe_load((scan_eval.HERE / "issue_refs.yaml").read_text())
-    found = scan_eval.labels(tmp_path, aliases)
-    assert "REF-FRR-SAV" in found
-    assert "REF-DHCP-LEASES-BACKUP" not in found
 
 
 @pytest.mark.parametrize(

@@ -15,7 +15,7 @@ from nika.workflows.benchmark.migrate import materialize_case
 
 KEY = "wireguard_peer_key_misconfiguration"
 PROBLEMS = [KEY, "link_down"]
-DEFINITION = Path(__file__).parents[3] / "benchmark/experiments/latent_backup.yaml"
+DEFINITION = Path(__file__).parents[3] / "tests/fixtures/benchmark/latent_backup.yaml"
 pytestmark = pytest.mark.contract
 
 

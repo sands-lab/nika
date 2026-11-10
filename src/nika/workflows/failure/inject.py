@@ -158,14 +158,32 @@ def inject_failure(
         if get_problem_class(resolved, session.scenario_name, release) is None:
             raise ValueError(f"Unknown problem name: {original}")
 
-    session.update_session("problem_names", resolved_names)
-
     bind_session_dir(session.session_dir)
-
-    store = SessionStore()
-
     overrides = dict(param_overrides or {})
     prepared = prepare_failure(session, resolved_names, overrides)
+    inject_prepared_failure(
+        session,
+        resolved_names,
+        prepared,
+        param_overrides=overrides,
+        expected_root_causes=expected_root_causes,
+    )
+
+
+def inject_prepared_failure(
+    session: Session,
+    problem_names: list[str],
+    prepared: PreparedFailure,
+    *,
+    param_overrides: dict[str, Any] | None = None,
+    expected_root_causes: list | None = None,
+) -> dict[str, Any]:
+    """Run the injection workflow and return its verification evidence."""
+    resolved_names = problem_names
+    session.update_session("problem_names", resolved_names)
+    bind_session_dir(session.session_dir)
+    store = SessionStore()
+    overrides = dict(param_overrides or {})
     inject_problem, fault_params = prepared.problem, prepared.params
     taxonomy = inject_problem.taxonomy_metadata()
     for key, value in taxonomy.items():
@@ -359,6 +377,7 @@ def inject_failure(
     validate_failure_effect(
         session, inject_problem, [row[0] for row in failure_rows], resolved_names
     )
+    return verify_payload
 
 
 def validate_failure_effect(

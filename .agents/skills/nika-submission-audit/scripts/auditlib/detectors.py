@@ -206,7 +206,7 @@ def _leak_term_hits(issue: Issue, ctx: TrialContext) -> list[Hit]:
 
 def _fault_token_hits(issue: Issue, ctx: TrialContext) -> list[Hit]:
     """Tool output that names the trial's own fault type."""
-    from experiment.audit.agent_view import fault_tokens
+    from scripts.benchmark_audit.agent_view import fault_tokens
 
     tokens = [t for ft in sorted(_gt_types(ctx.trial)) for t in fault_tokens(ft)]
     if not tokens:

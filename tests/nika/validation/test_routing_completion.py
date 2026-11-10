@@ -12,7 +12,7 @@ from nika.net_env.synthesis.parameters import RoutingParameters
 from nika.workflows.validation.scenario import validate_scenario_design
 from nika.workflows.validation.scenario_spec import ScenarioExperiment
 
-SPECIMENS = Path(__file__).resolve().parents[3] / "experiment/scenario_validation"
+SPECIMENS = Path(__file__).resolve().parents[3] / "tests/fixtures/scenario_validation"
 
 
 @pytest.mark.contract
