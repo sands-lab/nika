@@ -23,15 +23,11 @@ from nika.problems.support.compatible_columns import (
 from nika.problems.support.p4_oracle import (
     table_read,
     bmv2_ports,
-    summary_regex,
-    int_path_rows,
-    int_path_summary,
 )
 from nika.problems.support.oracle import (
     FILTER_DUMP,
     any_of,
     iptables_rule,
-    p4rt,
     Check,
     OraclePlaybook,
     OracleStep,
@@ -43,9 +39,9 @@ from nika.problems.support.p4_gateway import (
     set_icmp_frag_needed_filter,
     set_int_mtu,
     ternary_miss_row,
+    read_table,
 )
 from nika.runtime.base import LabRuntime
-from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 
 
 def _read_switch(runtime: LabRuntime, switch: str) -> dict | None:
@@ -355,7 +351,10 @@ def tcam_row(runtime: LabRuntime, params: P4TcamEntryCorruptionParams) -> dict:
     """The programmed route covering the target, its corrupt row, and its ports."""
     from nika.net_env.p4_dc_fabric.fabric_manager.apply import load_intent
 
-    intent = load_intent(runtime)
+    return _tcam_row(load_intent(runtime), params)
+
+
+def _tcam_row(intent: dict, params: P4TcamEntryCorruptionParams) -> dict:
     switch = intent["switches"][params.host_name]
     target = ipaddress.IPv4Address(params.target_ip)
     covering = [
@@ -383,19 +382,10 @@ def tcam_row(runtime: LabRuntime, params: P4TcamEntryCorruptionParams) -> dict:
 
 
 class P4TcamEntryCorruption(ProblemBase):
-    """A soft error corrupts one programmed route entry in the switch's TCAM.
+    """A route's ternary mask gains one care bit while controller intent stays intact.
 
-    One mask bit of the entry's host part flips from don't-care to care, so
-    the hardware row no longer matches part of its prefix, including the
-    target. Those destinations miss the route lookup on that switch, whichever
-    next hop they would take, while the rest of the prefix and every other
-    route keep forwarding. The corruption lives in the forwarding hardware,
-    below the switch OS and P4Runtime: the controller's read still returns
-    the programmed entry.
-
-    The corrupt row is emulated outside every lab node: on each port of the
-    route's next-hop group, a controller-side proxy drops the frames whose
-    destination falls in the lost part of the prefix.
+    The injector writes the switch table directly through a separate P4Runtime
+    client. The changed match is visible in device reads and absent from intent.
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
@@ -403,7 +393,7 @@ class P4TcamEntryCorruption(ProblemBase):
     symptom_class = "unreachable"
     root_cause_name = "p4_tcam_entry_corruption"
     description = "A forwarding/TCAM entry is silently corrupted for one flow."
-    symptom_desc = "One destination flow stops after a switch whose P4Runtime state remains healthy."
+    symptom_desc = "One destination loses its route on a switch whose table differs from controller intent."
     TAGS = ["p4_runtime", "telemetry", "flow_tracking"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
     supported_backends = ("kathara",)
@@ -432,68 +422,98 @@ class P4TcamEntryCorruption(ProblemBase):
     def root_cause_resources(self, params: P4TcamEntryCorruptionParams):
         return [node_resource(params.host_name)]
 
-    def _interfaces(self, params: P4TcamEntryCorruptionParams, row: dict) -> list[str]:
-        ports = self.net_env.model.ports[params.host_name]
-        return [port.name for port in ports if port.bmv2_port in row["ports"]]
+    def _write_row(self, params: P4TcamEntryCorruptionParams, *, corrupt: bool) -> None:
+        import uuid
+        from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
+            MANAGER,
+            P4INFO_PATH,
+            INTENT_PATH,
+            FABRIC_DIR,
+            _copy_in,
+            parse_json_output,
+        )
+
+        row = tcam_row(self.runtime, params)
+        network = ipaddress.IPv4Network(row["prefix"])
+        value = str(network.network_address)
+        mask = row["mask"] if corrupt else str(network.netmask)
+        script = f"""import importlib.util, json
+spec = importlib.util.spec_from_file_location('manager', {MANAGER!r})
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+intent = m.load_json({INTENT_PATH!r})
+switch = intent['switches'][{params.host_name!r}]
+index = m.P4InfoIndex(m.load_p4info({P4INFO_PATH!r}))
+client = m.SwitchClient(switch['address'], switch['device_id'])
+try:
+    desired = m.lpm_entity(index, {{'prefix': {row["prefix"]!r}, 'group_id': {row["group_id"]}}})
+    entry = desired.entity.table_entry
+    entry.match[0].ternary.value = m.encode_ipv4({value!r})
+    entry.match[0].ternary.mask = m.encode_ipv4({mask!r})
+    request = m.p4runtime_pb2.Entity()
+    request.table_entry.table_id = entry.table_id
+    updates = []
+    present = False
+    for entity in client.read_entities(request):
+        old = entity.table_entry
+        if old.priority != entry.priority or old.action.action_profile_group_id != entry.action.action_profile_group_id:
+            continue
+        if old.match == entry.match:
+            present = True
+        elif old.match[0].ternary.value == entry.match[0].ternary.value:
+            updates.append(m._update(entity, 'DELETE'))
+    if not present:
+        updates.append(desired)
+    if updates:
+        client.write(updates, m.p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
+    print(json.dumps({{'ok': True}}))
+finally:
+    client.close()
+"""
+        request = f"{FABRIC_DIR}/.req-{uuid.uuid4().hex[:12]}"
+        _copy_in(self.runtime, "fabric_mgr", request, script.encode())
+        output = self.runtime.exec(
+            "fabric_mgr",
+            f"exec 3<{request}; rm -f {request}; python3 /dev/fd/3",
+            timeout=40,
+        )
+        if parse_json_output(output) != {"ok": True}:
+            raise RuntimeError(f"TCAM update failed: {output[-500:]}")
 
     def inject_fault(self, params: P4TcamEntryCorruptionParams):
-        row = tcam_row(self.runtime, params)
-        controller = KatharaVdeFaultProxy(self.runtime)
-        for intf in self._interfaces(params, row):
-            state = controller.insert(params.host_name, intf)
-            controller.set_dst_drop(state, row["value"], row["mask"])
-        self._result = row
+        self._write_row(params, corrupt=True)
 
     def verify_fault(self, params: P4TcamEntryCorruptionParams) -> dict:
-        """Each next-hop port drops the lost range; P4Runtime still reads the route."""
         row = tcam_row(self.runtime, params)
-        controller = KatharaVdeFaultProxy(self.runtime)
-        ports = {}
-        for intf in self._interfaces(params, row):
-            state = controller.discover(params.host_name, intf)
-            ports[intf] = state is not None and controller.dst_drop_configured(
-                state, row["value"], row["mask"]
-            )
-        corrupt = bool(ports) and all(ports.values())
-        observed = _read_switch(self.runtime, params.host_name) or {}
-        programmed = any(
-            entry.get("prefix") == row["prefix"]
-            and int(entry.get("group_id") or -1) == row["group_id"]
-            for entry in observed.get("ipv4_lpm") or []
+        network = ipaddress.IPv4Network(row["prefix"])
+        expected = [
+            int(network.network_address),
+            int(ipaddress.IPv4Address(row["mask"])),
+        ]
+        entries = read_table(self.runtime, params.host_name, "ipv4_lpm")
+        verified = entries is not None and any(
+            expected in entry.get("match", {}).values() for entry in entries
         )
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=corrupt and programmed,
-            details={
-                "switch": params.host_name,
-                "target_ip": params.target_ip,
-                "route": row["prefix"],
-                "corrupt_row": f"{row['value']}&&&{row['mask']}",
-                "corrupt_on_ports": ports,
-                "p4runtime_route_intact": programmed,
-            },
+            verified=verified,
+            details={"switch": params.host_name, "corrupt_match": expected},
         )
 
     def recover_fault(self, params: P4TcamEntryCorruptionParams) -> dict:
+        self._write_row(params, corrupt=False)
         row = tcam_row(self.runtime, params)
-        controller = KatharaVdeFaultProxy(self.runtime)
-        interfaces = self._interfaces(params, row)
-        for intf in interfaces:
-            state = controller.discover(params.host_name, intf)
-            if state is not None:
-                controller.remove(state)
+        network = ipaddress.IPv4Network(row["prefix"])
+        expected = [int(network.network_address), int(network.netmask)]
+        entries = read_table(self.runtime, params.host_name, "ipv4_lpm")
         return {
-            "verified": all(
-                controller.discover(params.host_name, intf) is None
-                for intf in interfaces
-            ),
-            "details": {"switch": params.host_name, "interfaces": interfaces},
+            "verified": entries is not None
+            and any(expected in entry.get("match", {}).values() for entry in entries)
         }
 
     def oracle_playbook(self, params: P4TcamEntryCorruptionParams) -> OraclePlaybook:
         switch, target = params.host_name, params.target_ip
         model = self.net_env.model
-        device_id = model.switch_info[switch].device_id
         on_gateway = switch in model.gateways
         sources = (
             [model.client_on_gateway(switch).name]
@@ -522,53 +542,31 @@ class P4TcamEntryCorruption(ProblemBase):
                 )
             )
 
-        def lost_after_switch(output: str) -> bool:
-            rows = [r for r in int_path_rows(output) if r[0] == device_id]
-            ok = sum(r[3] for r in rows if r[2] == target)
-            lost = sum(r[4] for r in rows if r[2] == target)
-            other_ok = sum(r[3] for r in rows if r[2] != target)
-            other_lost = sum(r[4] for r in rows if r[2] != target)
-            return (
-                lost >= 3
-                and lost >= 4 * ok
-                and other_ok > 0
-                and other_lost <= 0.1 * (other_ok + other_lost)
-            )
+        from nika.net_env.p4_dc_gateway.control import build_gateway_intent
+
+        row = _tcam_row(build_gateway_intent(model), params)
+        expected = [
+            int(ipaddress.IPv4Network(row["prefix"]).network_address),
+            int(ipaddress.IPv4Address(row["mask"])),
+        ]
 
         return OraclePlaybook(
             finding=(
                 f"{switch}'s forwarding hardware stops matching part of the route "
-                f"that covers {target}: packets to {target} leave {switch} and "
-                "vanish, while P4Runtime still reads the intended route and other "
+                f"that covers {target}: packets to {target} miss the lookup on {switch}, "
+                "while the device route differs from controller intent and other "
                 "destinations on that route forward."
             ),
             steps=[
                 *traffic,
-                p4rt(
-                    f"read --switch {switch}",
-                    f"Read {switch}'s programmed pipeline, routes, and groups.",
-                    contains(
-                        summary_regex(
-                            switch,
-                            r'"pipeline_matches_intent":\s*true,[^{}]*?'
-                            r'"mismatches":\s*\[\s*\]',
-                        ),
-                        f"{switch}'s P4Runtime state matches the intent",
+                table_read(
+                    switch,
+                    "ipv4_lpm",
+                    "The route mask contains an extra care bit",
+                    lambda entries: any(
+                        expected in entry.get("match", {}).values() for entry in entries
                     ),
-                    evidence=True,
-                ),
-                int_path_summary(
-                    device_id,
-                    60,
-                    Check(
-                        f"INT traces to {target} end at switch_id {device_id} "
-                        "while other destinations through it are delivered",
-                        lost_after_switch,
-                    ),
-                    f"Locate where INT traces to {target} stop (switch_id "
-                    f"{device_id} is {switch}).",
-                    attempts=3,
-                    interval_sec=15,
+                    f"Read the live ternary route masks on {switch} and compare with its intended prefix.",
                 ),
             ],
         )

@@ -36,6 +36,14 @@ def run_active_tcp_probe(
         raise ValueError("TCP ports must be in 1..65535")
     if payload_size < 33 or packets < 1:
         raise ValueError("payload_size must be >= 33 and packets must be positive")
+    for argument, node in (("source", source), ("destination", destination)):
+        try:
+            ipaddress.ip_address(node)
+        except ValueError:
+            continue
+        raise ValueError(
+            f"{argument} must be a lab node name; use destination_address for an IP"
+        )
     payload = hashlib.shake_256(f"{payload_seed}".encode()).digest(payload_size)
     encoded = base64.b64encode(payload).decode()
     if destination_address:
@@ -69,12 +77,9 @@ def run_active_tcp_probe(
             }
     # The listener gives up on its own if no client arrives, so a failed
     # probe never leaves a process holding the port.
-    server = f"""import socket
-s = socket.socket({family})
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server = f"""import socket, sys
+s = socket.socket(fileno=int(sys.argv[1]))
 s.settimeout({_SERVER_WAIT_SEC})
-s.bind(({wildcard!r}, {destination_port}))
-s.listen(1)
 c, _ = s.accept()
 c.settimeout(5)
 n = 0
@@ -93,13 +98,29 @@ print(n)
 c.close()
 s.close()
 """
-    limit = (
-        f"$(command -v timeout >/dev/null 2>&1 && echo timeout {_SERVER_WAIT_SEC + 10})"
-    )
-    runtime.exec(
-        destination,
-        f"{limit} python3 -c {shlex.quote(server)} >/tmp/probe-server.log 2>&1 &",
-    )
+    launch = f"""import json, socket, subprocess, sys
+s = socket.socket({family})
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    s.bind(({wildcard!r}, {destination_port}))
+    s.listen(1)
+    subprocess.Popen([sys.executable, '-c', {server!r}, str(s.fileno())],
+                     pass_fds=(s.fileno(),), stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    print(json.dumps({{'ready': True}}))
+except OSError as exc:
+    print(json.dumps({{'error': str(exc)}}))
+finally:
+    s.close()
+"""
+    output = runtime.exec(destination, f"python3 -c {shlex.quote(launch)}", timeout=5)
+    try:
+        listener = json.loads(output.strip())
+    except ValueError:
+        listener = {"error": "Node did not return a valid listener result"}
+    if not isinstance(listener, dict) or listener.get("ready") is not True:
+        return {**result, "status": "unavailable", "listener": listener}
     # The listener starts in the background; retry refused connects until it
     # is up instead of guessing a startup delay.
     client = f"""import base64, socket, time

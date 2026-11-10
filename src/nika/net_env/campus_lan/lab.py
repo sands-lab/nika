@@ -57,6 +57,10 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
 
             use_rendered_configs(self)
 
+    def seal_baseline(self) -> None:
+        super().seal_baseline()
+        self._build_runtime().exec("dhcp_server", "rm -f /var/lib/dhcp/dhcpd.leases~")
+
     def router_roles(self) -> dict[str, list[str]]:
         roles = {"core": [], "distribution": [], "server_gateway": []}
         for name in self.routers:

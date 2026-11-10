@@ -263,6 +263,7 @@ class SemanticOpsMixin:
             out.append(line)
         self.write_file(dhcp_server, path, "".join(out))
         self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
+        self.exec_cmd(dhcp_server, "rm -f /var/lib/dhcp/dhcpd.leases~")
         self.exec_cmd(
             dhcp_server,
             "for i in 1 2 3 4 5; do "

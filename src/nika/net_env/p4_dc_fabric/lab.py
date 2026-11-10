@@ -88,7 +88,7 @@ def _switch_startup(
     iface = " ".join(port_args)
     cmds.append(
         f"simple_switch_grpc {iface} --device-id {device_id} "
-        f"--no-p4 -- --grpc-server-addr 0.0.0.0:9559 >> sw.log 2>&1 &"
+        f"--no-p4 -- --grpc-server-addr 0.0.0.0:9559 >/dev/null 2>&1 &"
     )
     cmds.append(
         "for i in $(seq 1 30); do pgrep -f '[s]imple_switch_grpc' && break; sleep 1; done"

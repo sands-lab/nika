@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
 
@@ -57,7 +58,7 @@ def packet_capture_stop(capture_id: str) -> str:
 @mcp.tool()
 def packet_capture_inspect(
     capture_id: str,
-    view: str,
+    view: Literal["summary", "packets", "protocol", "expert"],
     display_filter: str | None = None,
     protocol: str | None = None,
     limit: int = HARD_INSPECT_PAGE_SIZE,

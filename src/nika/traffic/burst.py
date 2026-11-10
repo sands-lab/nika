@@ -141,7 +141,7 @@ class BurstTrafficGenerator:
                     )
                 output = self.runtime.exec(
                     flow.destination,
-                    f"iperf3 -s -1 --forceflush -p {flow.destination_port} >/tmp/burst-server-{flow.flow_id}.log 2>&1 & echo $!",
+                    f"iperf3 -s -1 --forceflush -p {flow.destination_port} >/tmp/iperf-server-{flow.flow_id}.log 2>&1 & echo $!",
                     timeout=10,
                 ).strip()
                 if not output.isdigit():
@@ -150,7 +150,7 @@ class BurstTrafficGenerator:
                     (
                         flow.destination,
                         int(output),
-                        f"/tmp/burst-server-{flow.flow_id}.log",
+                        f"/tmp/iperf-server-{flow.flow_id}.log",
                     )
                 )
             return prepared
@@ -240,7 +240,7 @@ class BurstTrafficGenerator:
                     destination,
                     f"python3 -c {shlex.quote(_RAW_UDP_SINK)} "
                     f"{flow.destination_port} {sink_seconds:.0f} "
-                    f">/tmp/burst-server-{flow.flow_id}.log 2>&1 & echo $!",
+                    f">/tmp/iperf-server-{flow.flow_id}.log 2>&1 & echo $!",
                     timeout=10,
                 ).strip()
                 if output.isdigit():
@@ -249,7 +249,7 @@ class BurstTrafficGenerator:
             for flow in flows:
                 self.runtime.exec(
                     destination,
-                    f"iperf3 -s -1 -p {flow.destination_port} >/tmp/burst-server-{flow.flow_id}.log 2>&1 &",
+                    f"iperf3 -s -1 -p {flow.destination_port} >/tmp/iperf-server-{flow.flow_id}.log 2>&1 &",
                     timeout=10,
                 )
         if protocol == "tcp":

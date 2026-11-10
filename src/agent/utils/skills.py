@@ -113,7 +113,9 @@ def _iter_production_skills(root: Path) -> list[Path]:
     if not skills.is_dir():
         return []
     return sorted(
-        p for p in skills.iterdir() if p.is_dir() and not p.name.startswith(".")
+        p
+        for p in skills.iterdir()
+        if p.is_dir() and not p.name.startswith(".") and (p / "SKILL.md").is_file()
     )
 
 
@@ -224,6 +226,10 @@ def diagnosis_prompt_with_skills(base: str, *, include_test_skill: bool = False)
     Pass ``include_test_skill=True`` from tests to require the marker-first workflow.
     """
     if not skills_enabled():
+        return base
+    if not _iter_production_skills(resolve_skills_root()) and not (
+        include_test_skill and resolve_test_skill_dir() is not None
+    ):
         return base
     suffix = TEST_SKILLS_PROMPT_SUFFIX if include_test_skill else SKILLS_PROMPT_SUFFIX
     return f"{base.rstrip()}\n\n{suffix}"

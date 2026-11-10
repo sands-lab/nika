@@ -125,6 +125,16 @@ class Schedule(BaseModel):
 
     @model_validator(mode="after")
     def validate_workloads(self) -> Schedule:
+        agent_start = self.agent_start or 0
+        for event in self.events:
+            if event.problem and event.duration is not None:
+                last_start = event.at + (
+                    event.repeat.every * (event.repeat.count - 1) if event.repeat else 0
+                )
+                if last_start + event.duration <= agent_start:
+                    raise ValueError(
+                        "A fault window must remain observable after agent_start"
+                    )
         workloads = [
             event.traffic for event in self.events if isinstance(event.traffic, str)
         ]

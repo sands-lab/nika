@@ -259,3 +259,31 @@ def test_gateway_p4runtime_verification_checks_programmed_state() -> None:
     live[model.gateways[0]]["mismatches"] = ["ipv4_lpm"]
     ok, _details = _p4runtime_consistent({"ok": True, "switches": live}, model)
     assert not ok
+
+
+def test_int_pages_preserve_middle_evidence_within_tool_budget(monkeypatch):
+    from nika.mcp.servers.kathara import telemetry_server as server
+
+    records = [{"packet_id": str(i), "hop_sequence": ["x" * 300]} for i in range(100)]
+
+    class API:
+        def __init__(self, **kwargs):
+            pass
+
+        def int_query_telemetry(self, **kwargs):
+            stop = max(0, len(records) - kwargs["offset"])
+            return records[max(0, stop - kwargs["limit"]) : stop]
+
+    monkeypatch.setattr(server, "KatharaTelemetryAPI", API)
+    monkeypatch.setattr(server, "get_lab_name", lambda: "test")
+    seen = []
+    offset = 0
+    while True:
+        page = server.int_query_telemetry("0", end_time="1", offset=offset)
+        assert len(json.dumps(page, indent=2)) < 10000
+        seen.extend(row["packet_id"] for row in page["records"])
+        if page["next_offset"] is None:
+            break
+        offset = page["next_offset"]
+    assert len(seen) == len(set(seen)) == len(records)
+    assert set(seen) == {row["packet_id"] for row in records}
