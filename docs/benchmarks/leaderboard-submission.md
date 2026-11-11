@@ -188,12 +188,12 @@ Newly proposed audit rules require maintainer review before adoption. For review
 
 `submit` runs the same checks as leaderboard CI. You need the details below only when a check fails. It verifies that:
 
-- Identity and trial IDs match the official release, and the task definitions at the run's recorded NIKA commit match it too.
+- Identity and trial IDs match the official release. When the run's recorded NIKA commit is available, its task definitions must match too; an unavailable commit produces a warning.
 - Every trial the release defines is present, and the package metrics match the per-trial results. Trials that are not `scored` count as 0 in primary means.
 - No trial ended with a scoring error. Each trial's `score_status` in its `run.json` is `grading_error` when grading failed, or `infra_error` when the environment, LLM API, or MCP failed. Resume the run to retry `infra_error` trials; for `grading_error`, repair the grading inputs and regrade (see [trial `score_status`](root-cause-evaluation.md#trial-score_status)).
-- Each trial's transcript shows a real agent run, not a failed start or a truncated answer.
+- Each trial's transcript records model or tool activity, and harness flags meet the [per-flag rate limits](#error_run_validity).
 - The trajectories package has the required per-trial files and the same trial set.
-- Package text contains no secrets or absolute paths.
+- Package text is scanned for possible credentials and absolute host paths.
 
 [Root-cause ground truth and scoring](root-cause-evaluation.md#score-a-submission) describes per-trial metrics and aggregation.
 
@@ -250,7 +250,7 @@ Some trials still have `score_status=infra_error` after the run's retries. Resum
 
 ### `ERROR_RUN_VALIDITY`
 
-More than `--max-harness-rate` of trials (default 5%) show a harness problem rather than an agent mistake: the agent's last reply was cut off at the output token limit, or the trial failed to start or lacks ground truth. Fix the harness configuration, such as the output token limit, and rerun the affected trials.
+The rate of at least one harness flag (`truncated_final_turn` or `infra_error`) exceeds `--max-harness-rate`. NIKA evaluates each flag's rate separately. Rates at or below the limit produce warnings; residual `score_status=infra_error` is independently rejected by [`ERROR_INFRA_ERROR`](#error_infra_error). Fix the reported harness problem, such as the output token limit, and rerun the affected trials.
 
 ### `ERROR_UNOFFICIAL_RUN`
 
@@ -262,7 +262,7 @@ Package text contains a possible credential or an absolute host path. Remove the
 
 ### `ERROR_PACKAGE_INCOMPLETE`
 
-A required package file or directory is missing, or the package contains symbolic links. Pack again from the original result files with `nika leaderboard submit --dry-run`.
+A required package file or directory is missing, or the package contains symbolic links. Pack again from the original result files with `nika leaderboard submit --dry-run` and the original metadata options.
 
 ### `ERROR_METADATA_INVALID`
 

@@ -29,7 +29,7 @@ class IssueSpec:
 
 _REPACK = (
     "Re-pack with `nika leaderboard submit --dry-run` from the release run "
-    "directory instead of editing package files by hand."
+    "directory with the original metadata options instead of editing package files by hand."
 )
 
 ISSUE_SPECS: dict[str, IssueSpec] = {
@@ -49,9 +49,8 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
         "Provide --trajectories or --fetch-trajectories to audit paired evidence.",
     ),
     "ERROR_PACKAGE_INCOMPLETE": IssueSpec(
-        "required package files are missing",
-        "The package was not written by `nika leaderboard submit`, or files were "
-        "removed after packing.",
+        "package files are missing or contain symbolic links",
+        "Required files are missing, or the package contains symbolic links.",
         _REPACK,
     ),
     "ERROR_METADATA_INVALID": IssueSpec(
@@ -93,7 +92,8 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
         "official release, usually because the NIKA checkout used for the run is "
         "older or newer than the release commit.",
         "Create a separate checkout of the reported release commit, rerun the "
-        "release into a new result directory, and pack that run. Keep the original results.",
+        "release with the original agent and model settings into a new result "
+        "directory, and pack that run. Keep the original results.",
     ),
     "ERROR_TRIALS_MISSING": IssueSpec(
         "trials are missing",
@@ -115,7 +115,8 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     "ERROR_GRADING_ERROR": IssueSpec(
         "trials have grading_error status",
         "NIKA could not score these trials.",
-        "Repair the grading inputs, re-run the affected trials, and pack again.",
+        "Repair the grading inputs, regrade the existing submissions with "
+        "`nika eval metrics --result_dir <dir>`, and pack again. Preserve the agent trajectories.",
     ),
     "ERROR_INFRA_ERROR": IssueSpec(
         "trials have residual infra_error status",
@@ -125,8 +126,8 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     ),
     "ERROR_RUN_VALIDITY": IssueSpec(
         "harness faults exceed the allowed rate",
-        "Too many trials ended with a truncated final turn or an infrastructure "
-        "error, which points at the harness rather than the agent.",
+        "The trial rate for `truncated_final_turn` or `infra_error` exceeds "
+        "the configured limit. Each flag's rate is checked separately.",
         "Fix the harness configuration (for example the output token limit), "
         "re-run the affected trials, and pack again.",
     ),
@@ -169,14 +170,14 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     "WARNING_LOCAL_RELEASE": IssueSpec(
         "validated against local release files",
         "`--release-source local` was set, so this check read the release from "
-        "this checkout instead of the official tag.",
+        "this checkout instead of the published reference.",
         "Validate without `--release-source local` before submitting.",
     ),
     "WARNING_RUN_COMMIT_UNVERIFIED": IssueSpec(
         "the task definitions at the run's NIKA commit could not be checked",
         "The commit recorded in the package is not available locally or on "
         "GitHub, so only trial ids were compared with the official release.",
-        "Run from the release tag, or push the commit the run used.",
+        "Run from the reported official release commit, or push the commit the run used.",
     ),
     "WARNING_RUN_VALIDITY": IssueSpec(
         "some trials carry run-validity flags",
