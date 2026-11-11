@@ -1,4 +1,4 @@
-"""The local documentation gate requires a consistent review of selected files."""
+"""The documentation gate requires a consistent review of selected files."""
 
 import pytest
 

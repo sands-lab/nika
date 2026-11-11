@@ -35,8 +35,11 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     load_intent,
     lpm_capacity,
     run_manager,
+    probe_table_capacity,
+    table_capacity_command,
+    table_capacity_rejected,
 )
-from nika.problems.support.p4_oracle import bmv2_ports, summary_regex
+from nika.problems.support.p4_oracle import bmv2_ports, summary_regex, p4rt_json
 from nika.problems.support.oracle import (
     p4rt,
     Check,
@@ -935,15 +938,12 @@ class P4TableResourceExhaustion(ProblemBase):
     root_cause_name = "p4_table_resource_exhaustion"
     description = "A P4 table has exhausted its capacity."
     TAGS = ["p4", "p4_runtime"]
+    RECORDED_ATTRS = ("_filler_prefixes",)
     Params = P4TableResourceExhaustionParams
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return {"host_name": choice(ctx.rng, bmv2_leaves(ctx.bmv2), "leaf_1")}
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
-        self._fill: dict | None = None
 
     def root_cause_resources(self, params: P4TableResourceExhaustionParams):
         return [node_resource(params.host_name)]
@@ -960,18 +960,28 @@ class P4TableResourceExhaustion(ProblemBase):
         prefixes = _host_route_filler(
             intent, params.host_name, max(0, size - len(existing))
         )
+        healthy = probe_table_capacity(self.runtime, params.host_name)
+        if (
+            not healthy.get("inserted")
+            or healthy.get("present_after")
+            or "error" in healthy
+        ):
+            raise RuntimeError(
+                f"Table cannot accept a route before injection: {healthy}"
+            )
         self._filler_prefixes = [p for p in prefixes if p not in existing]
-        result = p4runtime_write(
-            self.runtime,
-            params.host_name,
-            [{"lpm": {"prefix": p, "group_id": group_id}} for p in prefixes],
-            timeout=120,
+        require_ok(
+            p4runtime_write(
+                self.runtime,
+                params.host_name,
+                [
+                    {"lpm": {"prefix": p, "group_id": group_id}}
+                    for p in self._filler_prefixes
+                ],
+                timeout=120,
+            ),
+            "table fill",
         )
-        self._fill = {
-            "size": size,
-            "added": sum(1 for s in result["statuses"] if s["code"] == "OK"),
-            "errors": [s for s in result["statuses"] if s["code"] != "OK"][:3],
-        }
 
     def recover_fault(self, params: P4TableResourceExhaustionParams) -> dict:
         prefixes = getattr(self, "_filler_prefixes", None)
@@ -997,16 +1007,20 @@ class P4TableResourceExhaustion(ProblemBase):
         )
         state = (observed.get("switches") or {}).get(params.host_name) or {}
         remaining = {row["prefix"] for row in state.get("ipv4_lpm", [])}
+        write = probe_table_capacity(self.runtime, params.host_name)
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=prefixes is not None
             and bool(state)
-            and not remaining.intersection(prefixes),
-            details={"host": params.host_name},
+            and not remaining.intersection(prefixes)
+            and write.get("inserted") is True
+            and write.get("present_after") is False
+            and "error" not in write,
+            details={"host": params.host_name, "write": write},
         )
 
     def verify_fault(self, params: P4TableResourceExhaustionParams) -> dict:
-        """Read the live LPM table and compare its occupancy with its size."""
+        """Require a full table and a new route rejected for lack of resources."""
         capacity = lpm_capacity(load_intent(self.runtime))
         observed = run_manager(
             self.runtime, "read", "--switch", params.host_name, timeout=60
@@ -1014,14 +1028,16 @@ class P4TableResourceExhaustion(ProblemBase):
         switch = (observed.get("switches") or {}).get(params.host_name) or {}
         occupancy = len(switch.get("ipv4_lpm") or [])
         at_cap = bool(switch) and occupancy >= capacity
+        write = probe_table_capacity(self.runtime, params.host_name)
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=at_cap,
+            verified=at_cap and table_capacity_rejected(write),
             details={
                 "host": params.host_name,
                 "capacity": capacity,
                 "occupancy": occupancy,
                 "at_cap": at_cap,
+                "write": write,
             },
         )
 
@@ -1040,6 +1056,16 @@ class P4TableResourceExhaustion(ProblemBase):
                 "further route can be installed."
             ),
             steps=[
+                shell(
+                    CONTROLLER,
+                    table_capacity_command(switch),
+                    "Attempt an unused route and check the device resource error.",
+                    p4rt_json(
+                        "The full table rejects a new route and leaves no diagnostic entry",
+                        table_capacity_rejected,
+                    ),
+                    evidence=True,
+                ),
                 intent_drift(switch, "ipv4_lpm"),
                 shell(
                     CONTROLLER,

@@ -107,19 +107,19 @@ NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,abilene,janos-us NIKA_CI_ISP
   uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 ```
 
-### Run documentation review locally
+### Use the documentation review fallback
 
-If the hosted documentation reviewer runs out of quota, select local execution for that review. Keep a GitHub Actions self-hosted runner with the `nika-docs-local` label online on a machine with Git, Python 3, and Codex CLI available. Run `codex login` as the runner user and confirm `codex login status` succeeds. On Linux, install `bubblewrap` and complete the [Codex sandbox prerequisites](https://developers.openai.com/codex/concepts/sandboxing#prerequisites). The local review uses that user's configured model and login, which must have available quota.
+If the hosted documentation reviewer runs out of quota, select the self-hosted fallback for that review. Keep a GitHub Actions self-hosted runner with the `nika-docs-fallback` label online on a machine with Git, Python 3, and Codex CLI available. Run `codex login` as the runner user and confirm `codex login status` succeeds. On Linux, install `bubblewrap` and complete the [Codex sandbox prerequisites](https://developers.openai.com/codex/concepts/sandboxing#prerequisites). The fallback review uses that user's configured model and login, which must have available quota.
 
-Local review supports PRs whose head branch belongs to this repository. Select it for a PR:
+Fallback review supports PRs whose head branch belongs to this repository. Select it for a PR:
 
 ```shell
-gh pr edit <number> --add-label docs-review-local
+gh pr edit <number> --add-label docs-review-fallback
 ```
 
 The review runs Codex in read-only mode with the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md) on the pull request's test merge, verifies commands and links against the checkout, and records its verdict and findings in the job summary and downloadable JSON artifact. The native `Letta Docs Review` Actions job remains the required check. A blocking finding or failed review keeps the check failing.
 
-A change to the head, base, or test merge during review requires another run. Commits on a PR with `docs-review-local` continue to use local execution; use Actions **Re-run jobs** to retry the current commit. Remove the label to restore hosted Letta for that PR. PRs without the label use hosted Letta by default. Starting a job on another machine does not increase the quota of its configured model account.
+A change to the head, base, or test merge during review requires another run. Commits on a PR with `docs-review-fallback` continue to use the fallback runner; use Actions **Re-run jobs** to retry the current commit. Remove the label to restore hosted Letta for that PR. PRs without the label use hosted Letta by default. Starting a job on another machine does not increase the quota of its configured model account.
 
 ## Verify benchmark engines
 

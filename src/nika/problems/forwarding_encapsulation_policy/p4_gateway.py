@@ -347,14 +347,8 @@ class P4TcamEntryCorruptionParams(BaseModel):
     control_source: str = Field(description="Client used for the healthy control flow.")
 
 
-def tcam_row(runtime: LabRuntime, params: P4TcamEntryCorruptionParams) -> dict:
-    """The programmed route covering the target, its corrupt row, and its ports."""
-    from nika.net_env.p4_dc_fabric.fabric_manager.apply import load_intent
-
-    return _tcam_row(load_intent(runtime), params)
-
-
 def _tcam_row(intent: dict, params: P4TcamEntryCorruptionParams) -> dict:
+    """The intended prefix, selector group, and changed device mask for the target."""
     switch = intent["switches"][params.host_name]
     target = ipaddress.IPv4Address(params.target_ip)
     covering = [
@@ -369,16 +363,18 @@ def _tcam_row(intent: dict, params: P4TcamEntryCorruptionParams) -> dict:
         key=lambda e: ipaddress.IPv4Network(e["prefix"], strict=False).prefixlen,
     )
     others = [str(item["ip"]) for item in intent["endpoints"]]
-    value, mask = ternary_miss_row(entry["prefix"], params.target_ip, others)
-    group = next(g for g in switch["groups"] if g["group_id"] == entry["group_id"])
-    ports = {m["member_id"]: m["port"] for m in switch["members"]}
+    _, mask = ternary_miss_row(entry["prefix"], params.target_ip, others)
     return {
         "prefix": entry["prefix"],
         "group_id": int(entry["group_id"]),
-        "value": value,
         "mask": mask,
-        "ports": sorted({int(ports[m]) for m in group["member_ids"]}),
     }
+
+
+def tcam_row(runtime: LabRuntime, params: P4TcamEntryCorruptionParams) -> dict:
+    from nika.net_env.p4_dc_fabric.fabric_manager.apply import load_intent
+
+    return _tcam_row(load_intent(runtime), params)
 
 
 class P4TcamEntryCorruption(ProblemBase):
@@ -392,7 +388,7 @@ class P4TcamEntryCorruption(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "p4_tcam_entry_corruption"
-    description = "A forwarding/TCAM entry is silently corrupted for one flow."
+    description = "A ternary forwarding route has an incorrect match mask."
     symptom_desc = "One destination loses its route on a switch whose table differs from controller intent."
     TAGS = ["p4_runtime", "telemetry", "flow_tracking"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
@@ -423,93 +419,80 @@ class P4TcamEntryCorruption(ProblemBase):
         return [node_resource(params.host_name)]
 
     def _write_row(self, params: P4TcamEntryCorruptionParams, *, corrupt: bool) -> None:
-        import uuid
-        from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
-            MANAGER,
-            P4INFO_PATH,
-            INTENT_PATH,
-            FABRIC_DIR,
-            _copy_in,
-            parse_json_output,
-        )
-
         row = tcam_row(self.runtime, params)
         network = ipaddress.IPv4Network(row["prefix"])
-        value = str(network.network_address)
-        mask = row["mask"] if corrupt else str(network.netmask)
-        script = f"""import importlib.util, json
-spec = importlib.util.spec_from_file_location('manager', {MANAGER!r})
-m = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(m)
-intent = m.load_json({INTENT_PATH!r})
-switch = intent['switches'][{params.host_name!r}]
-index = m.P4InfoIndex(m.load_p4info({P4INFO_PATH!r}))
-client = m.SwitchClient(switch['address'], switch['device_id'])
-try:
-    desired = m.lpm_entity(index, {{'prefix': {row["prefix"]!r}, 'group_id': {row["group_id"]}}})
-    entry = desired.entity.table_entry
-    entry.match[0].ternary.value = m.encode_ipv4({value!r})
-    entry.match[0].ternary.mask = m.encode_ipv4({mask!r})
-    request = m.p4runtime_pb2.Entity()
-    request.table_entry.table_id = entry.table_id
-    updates = []
-    present = False
-    for entity in client.read_entities(request):
-        old = entity.table_entry
-        if old.priority != entry.priority or old.action.action_profile_group_id != entry.action.action_profile_group_id:
-            continue
-        if old.match == entry.match:
-            present = True
-        elif old.match[0].ternary.value == entry.match[0].ternary.value:
-            updates.append(m._update(entity, 'DELETE'))
-    if not present:
-        updates.append(desired)
-    if updates:
-        client.write(updates, m.p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
-    print(json.dumps({{'ok': True}}))
-finally:
-    client.close()
-"""
-        request = f"{FABRIC_DIR}/.req-{uuid.uuid4().hex[:12]}"
-        _copy_in(self.runtime, "fabric_mgr", request, script.encode())
-        output = self.runtime.exec(
-            "fabric_mgr",
-            f"exec 3<{request}; rm -f {request}; python3 /dev/fd/3",
-            timeout=40,
+        original = {"prefix": row["prefix"], "group_id": row["group_id"]}
+        changed = {
+            **original,
+            "value": str(network.network_address),
+            "mask": row["mask"],
+        }
+        before, after = (original, changed) if corrupt else (changed, original)
+        # A match key cannot be modified in place. Recovery also handles a
+        # failed insertion after the original row was deleted.
+        entries = read_table(self.runtime, params.host_name, "ipv4_lpm")
+        if entries is None:
+            raise RuntimeError("Cannot read the route table before updating its mask")
+        expected = [
+            int(network.network_address),
+            int(ipaddress.IPv4Address(before.get("mask", str(network.netmask)))),
+        ]
+        updates = []
+        if any(entry.get("match", {}).get("dstAddr") == expected for entry in entries):
+            updates.append({"type": "DELETE", "lpm": before})
+        wanted = [
+            int(network.network_address),
+            int(ipaddress.IPv4Address(after.get("mask", str(network.netmask)))),
+        ]
+        if not any(
+            entry.get("match", {}).get("dstAddr") == wanted for entry in entries
+        ):
+            updates.append({"lpm": after})
+        require_ok(
+            p4runtime_write(self.runtime, params.host_name, updates, sequential=True),
+            "route mask update",
         )
-        if parse_json_output(output) != {"ok": True}:
-            raise RuntimeError(f"TCAM update failed: {output[-500:]}")
 
     def inject_fault(self, params: P4TcamEntryCorruptionParams):
         self._write_row(params, corrupt=True)
 
-    def verify_fault(self, params: P4TcamEntryCorruptionParams) -> dict:
+    def _verify_row(
+        self, params: P4TcamEntryCorruptionParams, *, corrupt: bool
+    ) -> dict:
         row = tcam_row(self.runtime, params)
         network = ipaddress.IPv4Network(row["prefix"])
-        expected = [
-            int(network.network_address),
-            int(ipaddress.IPv4Address(row["mask"])),
-        ]
+        normal = [int(network.network_address), int(network.netmask)]
+        changed = [normal[0], int(ipaddress.IPv4Address(row["mask"]))]
+        wanted, absent = (changed, normal) if corrupt else (normal, changed)
         entries = read_table(self.runtime, params.host_name, "ipv4_lpm")
-        verified = entries is not None and any(
-            expected in entry.get("match", {}).values() for entry in entries
+        verified = (
+            entries is not None
+            and any(
+                entry.get("match", {}).get("dstAddr") == wanted
+                and entry.get("priority") == network.prefixlen + 1
+                and entry.get("group_id") == row["group_id"]
+                for entry in entries
+            )
+            and not any(
+                entry.get("match", {}).get("dstAddr") == absent for entry in entries
+            )
         )
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
-            details={"switch": params.host_name, "corrupt_match": expected},
+            details={
+                "switch": params.host_name,
+                "expected_match": wanted,
+                "group_id": row["group_id"],
+            },
         )
+
+    def verify_fault(self, params: P4TcamEntryCorruptionParams) -> dict:
+        return self._verify_row(params, corrupt=True)
 
     def recover_fault(self, params: P4TcamEntryCorruptionParams) -> dict:
         self._write_row(params, corrupt=False)
-        row = tcam_row(self.runtime, params)
-        network = ipaddress.IPv4Network(row["prefix"])
-        expected = [int(network.network_address), int(network.netmask)]
-        entries = read_table(self.runtime, params.host_name, "ipv4_lpm")
-        return {
-            "verified": entries is not None
-            and any(expected in entry.get("match", {}).values() for entry in entries)
-        }
+        return self._verify_row(params, corrupt=False)
 
     def oracle_playbook(self, params: P4TcamEntryCorruptionParams) -> OraclePlaybook:
         switch, target = params.host_name, params.target_ip
@@ -542,9 +525,11 @@ finally:
                 )
             )
 
-        from nika.net_env.p4_dc_gateway.control import build_gateway_intent
+        from nika.problems.forwarding_encapsulation_policy.p4_runtime import (
+            declared_intent,
+        )
 
-        row = _tcam_row(build_gateway_intent(model), params)
+        row = _tcam_row(declared_intent(self.net_env), params)
         expected = [
             int(ipaddress.IPv4Network(row["prefix"]).network_address),
             int(ipaddress.IPv4Address(row["mask"])),
@@ -552,7 +537,7 @@ finally:
 
         return OraclePlaybook(
             finding=(
-                f"{switch}'s forwarding hardware stops matching part of the route "
+                f"{switch}'s ternary route stops matching part of the prefix "
                 f"that covers {target}: packets to {target} miss the lookup on {switch}, "
                 "while the device route differs from controller intent and other "
                 "destinations on that route forward."
@@ -563,8 +548,22 @@ finally:
                     switch,
                     "ipv4_lpm",
                     "The route mask contains an extra care bit",
-                    lambda entries: any(
-                        expected in entry.get("match", {}).values() for entry in entries
+                    lambda entries: (
+                        any(
+                            entry.get("match", {}).get("dstAddr") == expected
+                            and entry.get("priority")
+                            == ipaddress.IPv4Network(row["prefix"]).prefixlen + 1
+                            and entry.get("group_id") == row["group_id"]
+                            for entry in entries
+                        )
+                        and not any(
+                            entry.get("match", {}).get("dstAddr")
+                            == [
+                                expected[0],
+                                int(ipaddress.IPv4Network(row["prefix"]).netmask),
+                            ]
+                            for entry in entries
+                        )
                     ),
                     f"Read the live ternary route masks on {switch} and compare with its intended prefix.",
                 ),

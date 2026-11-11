@@ -14,7 +14,6 @@ hands the ports back to the hub and removes the helper.
 from __future__ import annotations
 
 import hashlib
-import ipaddress
 import shlex
 import time
 from dataclasses import dataclass
@@ -175,40 +174,6 @@ class KatharaVdeFaultProxy:
             raise RuntimeCapabilityError(
                 f"could not configure controller-side VDE proxy: {result.output.decode(errors='ignore')}"
             )
-
-    def set_dst_drop(self, state: VdeFaultProxyState, value: str, mask: str) -> None:
-        """Drop IPv4 frames toward the peer whose destination matches value/mask.
-
-        *mask* may be non-contiguous (a ternary match), which ``u32`` matches
-        on the destination address word of the IPv4 header.
-        """
-        val, msk = _ipv4_word(value), _ipv4_word(mask)
-        proxy = self._client.containers.get(state.proxy_id)
-        result = proxy.exec_run(
-            [
-                "/bin/sh",
-                "-c",
-                "tc qdisc replace dev eth1 root handle 1: prio && "
-                "tc filter replace dev eth1 parent 1: protocol ip prio 1 u32 "
-                f"match u32 0x{val & msk:08x} 0x{msk:08x} at 16 action drop",
-            ]
-        )
-        if result.exit_code:
-            raise RuntimeCapabilityError(
-                f"could not configure controller-side VDE proxy filter: "
-                f"{result.output.decode(errors='ignore')}"
-            )
-
-    def dst_drop_configured(
-        self, state: VdeFaultProxyState, value: str, mask: str
-    ) -> bool:
-        val, msk = _ipv4_word(value), _ipv4_word(mask)
-        proxy = self._client.containers.get(state.proxy_id)
-        result = proxy.exec_run(["tc", "filter", "show", "dev", "eth1"])
-        return (
-            result.exit_code == 0
-            and f"match {val & msk:08x}/{msk:08x} at 16".encode() in result.output
-        )
 
     def qdisc_show(self, state: VdeFaultProxyState) -> str:
         """``tc qdisc show`` of the proxy port toward the peer."""
@@ -551,7 +516,3 @@ Path(path).unlink(missing_ok=True)
             raise RuntimeCapabilityError(
                 "controller-side link flap worker did not start"
             )
-
-
-def _ipv4_word(address: str) -> int:
-    return int(ipaddress.IPv4Address(address))
