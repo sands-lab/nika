@@ -317,8 +317,8 @@ def test_run_trials_batch_interrupt_shuts_down_without_waiting(
 
         with (
             patch(
-                "nika.workflows.benchmark.run.as_completed",
-                return_value=[future],
+                "nika.workflows.benchmark.run.wait_futures",
+                return_value=({future}, set()),
             ),
             pytest.raises(KeyboardInterrupt),
         ):

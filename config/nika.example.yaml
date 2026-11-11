@@ -200,6 +200,13 @@ benchmark:
   continue_on_error: false
   # Retry failed or incomplete trials with this many extra passes.
   retry_passes: 0
+  # Pause admission after this many consecutive endpoint failures.
+  endpoint_failure_threshold: 3
+  # Wait between recovery probes, doubling up to the maximum.
+  endpoint_backoff_initial_sec: 5
+  endpoint_backoff_max_sec: 60
+  # Abort with pending trials available for resume after this wait.
+  endpoint_wait_timeout_sec: 900
   # Reuse completed trial slots instead of running them again.
   resume: true
   # Add this tag to generated session IDs.

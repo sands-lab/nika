@@ -1057,8 +1057,10 @@ class TestReleaseRunMetadata:
             "agent_type": "mock",
             "model": "mock-v1",
         }
+        launch_sources = []
 
         def fake_trial(trial, **kwargs):
+            launch_sources.append(kwargs["release_meta"])
             path = trial_dir(
                 Path(kwargs["result_dir"]), trial.case_key, trial.trial_index
             )
@@ -1095,6 +1097,11 @@ class TestReleaseRunMetadata:
         assert progress["result_dir"] == str(result_dir.resolve())
         assert progress["agent_type"] == "mock"
         assert progress["model"] == "mock-v1"
+        job = load_run_config(result_dir)
+        assert len(launch_sources) == 4
+        for source in launch_sources:
+            for key in ("nika_git_commit", "nika_git_dirty"):
+                assert source[key] == job[key]
 
 
 @pytest.mark.skipif(
@@ -1376,3 +1383,12 @@ class TestHealthyMockAgentE2E:
         assert is_valid_trial(fault_path)
         fault_run = json.loads((fault_path / "run.json").read_text(encoding="utf-8"))
         assert fault_run["outcome"] == "success", fault_run
+
+
+@pytest.mark.contract
+def test_resume_warns_when_source_contains_uncommitted_edits(capsys):
+    old = {"agent_type": "mock", "nika_git_commit": "same", "nika_git_dirty": True}
+    merged = merge_run_config(existing=old, proposed=dict(old))
+    assert "nika_git_dirty" in capsys.readouterr().out
+    assert merged["nika_git_commit"] == "same"
+    assert len(merged["nika_git_history"]) == 1

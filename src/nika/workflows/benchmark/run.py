@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait as wait_futures
 from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
@@ -1415,6 +1415,7 @@ def _run_trials_batch(
     verbose: bool = False,
     progress: BenchmarkProgress | None = None,
     on_trial_finished: Any | None = None,
+    endpoint_guard: Any | None = None,
 ) -> list[str]:
     """Run trials with a concurrency cap (sliding window).
 
@@ -1451,6 +1452,15 @@ def _run_trials_batch(
         release_meta=release_meta,
         isolate=isolate,
         verbose=verbose,
+    )
+    from nika.run_config.loader import get_run_config
+    from nika.workflows.benchmark.endpoint import EndpointBackoff, probe_model
+
+    guard = endpoint_guard or EndpointBackoff(
+        get_run_config().benchmark,
+        lambda timeout: probe_model(
+            llm_provider, model, timeout, agent_type=agent_type
+        ),
     )
     results_root = resolve_results_root(result_dir)
 
@@ -1496,6 +1506,9 @@ def _run_trials_batch(
         failures.append(f"[{trial.trial_id}] {error}")
 
     def _notify_finished(trial: Trial) -> None:
+        guard.record(
+            trial_outcome(trial_dir(results_root, trial.case_key, trial.trial_index))
+        )
         if on_trial_finished is not None:
             on_trial_finished(trial)
 
@@ -1511,16 +1524,18 @@ def _run_trials_batch(
     # Ctrl+C: re-raise; ``run_benchmark_trials`` runs cleanup exactly once.
     if workers == 1:
         for trial in trials_batch:
+            guard.wait()
             try:
                 _run_one(trial)
-                _on_finished(trial)
-                _notify_finished(trial)
             except Exception as e:  # noqa: BLE001
                 _on_finished(trial, failed=True)
                 _notify_finished(trial)
                 if not continue_on_error:
                     raise
                 _report_failure(trial, e)
+            else:
+                _on_finished(trial)
+                _notify_finished(trial)
         return failures
 
     if verbose and progress is None:
@@ -1546,6 +1561,10 @@ def _run_trials_batch(
 
     def _admit_available() -> None:
         nonlocal backfill_remaining
+        if pending and guard.paused:
+            if futures:
+                return
+            guard.wait()
         if not futures:
             backfill_remaining = limits["light"]
         while len(futures) < workers and pending:
@@ -1582,14 +1601,15 @@ def _run_trials_batch(
     try:
         _admit_available()
         while futures:
-            for future in as_completed(futures):
+            finished, _ = wait_futures(
+                futures, timeout=0.2, return_when=FIRST_COMPLETED
+            )
+            for future in finished:
                 trial, cls = futures.pop(future)
                 in_flight[cls] = max(0, in_flight.get(cls, 0) - 1)
                 hugepages_in_flight.pop(future, None)
                 try:
                     future.result()
-                    _on_finished(trial)
-                    _notify_finished(trial)
                 except Exception as e:  # noqa: BLE001
                     _on_finished(trial, failed=True)
                     _notify_finished(trial)
@@ -1597,8 +1617,12 @@ def _run_trials_batch(
                         _abort_in_flight()
                         raise
                     _report_failure(trial, e)
-                _admit_available()
-                break
+                else:
+                    _on_finished(trial)
+                    _notify_finished(trial)
+            if futures or pending:
+                guard.poll()
+            _admit_available()
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     return failures
@@ -1715,6 +1739,7 @@ def run_benchmark_trials(
             },
         )
         job["case_count"] = len(rows)
+        release_meta = {**job, **release_meta}
     # Legacy scoped-run fields: they shrank the job to one launch's selection.
     job.pop("task_ids", None)
     job.pop("planned_trial_count", None)
@@ -1806,6 +1831,20 @@ def run_benchmark_trials(
             return
         _refresh_progress(pending, status="finished")
 
+    from nika.run_config.loader import get_run_config
+    from nika.workflows.benchmark.endpoint import (
+        EndpointBackoff,
+        EndpointUnavailable,
+        probe_model,
+    )
+
+    endpoint_guard = EndpointBackoff(
+        get_run_config().benchmark,
+        lambda timeout: probe_model(
+            llm_provider, model, timeout, agent_type=agent_type
+        ),
+    )
+
     def _run_pending(
         pending: list[int], *, progress: BenchmarkProgress | None
     ) -> list[str]:
@@ -1859,6 +1898,7 @@ def run_benchmark_trials(
             verbose=verbose,
             progress=progress,
             on_trial_finished=_refresh_after_trial,
+            endpoint_guard=endpoint_guard,
         )
 
     # Preflight plan only — do not clear/cleanup slots until the user confirms.
@@ -2046,12 +2086,14 @@ def run_benchmark_trials(
                     failures = [
                         f"incomplete trial {trials[i].trial_id}" for i in still_pending
                     ]
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EndpointUnavailable) as error:
         print(
-            "\nInterrupted — cleaning up running benchmark sessions "
+            "\nRun aborted. Cleaning up running benchmark sessions "
             f"under {results_root}…"
         )
-        cleanup_benchmark_interrupt(results_root)
+        cleanup_benchmark_interrupt(
+            results_root, signal_workers=isinstance(error, EndpointUnavailable)
+        )
         if run_id:
             try:
                 _root, pending = scan_trials(
