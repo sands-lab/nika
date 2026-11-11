@@ -132,11 +132,14 @@ class OracleAgent(DiagnosisAgent):
         from nika.utils.session_store import SessionStore
 
         names = list(getattr(self.session, "problem_names", None) or [HEALTHY_PROBLEM])
-        records = {
-            str(r.get("problem_name")): r
-            for r in SessionStore().list_failure_injections(session_id=self.session_id)
-            if r.get("status") == "injected"
-        }
+        # The store returns newest first. Keep the latest successful injection
+        # when a fault was injected again with different targets.
+        records = {}
+        for record in SessionStore().list_failure_injections(
+            session_id=self.session_id
+        ):
+            if record.get("status") == "injected":
+                records.setdefault(str(record.get("problem_name")), record)
         scenario_params = dict(getattr(self.session, "scenario_params", None) or {})
         scenario_params.setdefault("backend", resolve_backend(self.session))
         release = getattr(self.session, "benchmark_version", None)

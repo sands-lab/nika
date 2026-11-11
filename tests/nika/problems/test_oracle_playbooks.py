@@ -119,3 +119,44 @@ def test_min3clos_oracle_covers_slow_flaps_and_declared_tcp_service(profile) -> 
             assert not checksum.expect("TcpInCsumErrorsDelta 0")
             with pytest.raises(ValueError, match="baseline"):
                 checksum.args({})
+
+
+@pytest.mark.unit
+def test_oracle_uses_latest_successful_injection_target(monkeypatch):
+    from types import SimpleNamespace
+    from nika.utils.session_store import SessionStore
+    import nika.agents.oracle.agent as module
+
+    def record(host, status="injected"):
+        return {
+            "problem_name": "p4_tcam_entry_corruption",
+            "status": status,
+            "injection_params": {"resolved_params": {"host_name": host}},
+        }
+
+    monkeypatch.setattr(
+        SessionStore,
+        "list_failure_injections",
+        lambda *args, **kwargs: [
+            record("failed", "inject_failed"),
+            record("spine_1"),
+            record("gateway_1"),
+        ],
+    )
+    selected = []
+
+    def plan(name, scenario, options, params, **kwargs):
+        selected.append(params["host_name"])
+        return SimpleNamespace(playbook=healthy_playbook(), root_causes=[])
+
+    monkeypatch.setattr(module, "fault_plan", plan)
+    agent = OracleAgent.__new__(OracleAgent)
+    agent.session_id = "test"
+    agent.scenario_name = "p4_dc_gateway"
+    agent.session = SimpleNamespace(
+        problem_names=["p4_tcam_entry_corruption"],
+        scenario_params={"backend": "kathara"},
+        backend="kathara",
+    )
+    assert len(agent._faults()) == 1
+    assert selected == ["spine_1"]
