@@ -11,7 +11,11 @@ from pydantic import ValidationError
 
 from nika.benchmark_engine.protocol import UnsupportedContractVersion
 from nika.config import REPO_ROOT
-from nika.evaluator.validity import has_agent_trace
+from nika.evaluator.validity import (
+    FAULT_ABSENT_AT_CLEANUP,
+    detect_trial_validity,
+    has_agent_trace,
+)
 from nika.workflows.benchmark.release import ReleaseError, load_release
 from nika.workflows.benchmark.provenance import check_schema_version
 from nika.workflows.benchmark.trials import expand_trials
@@ -144,6 +148,8 @@ def validate_trajectory_package(
         present_ids.add(trial_id)
         if not has_agent_trace(trial_dir_path / "messages.jsonl"):
             errors.append(f"{trial_id}/messages.jsonl has no agent trajectory")
+        if FAULT_ABSENT_AT_CLEANUP in detect_trial_validity(trial_dir_path).flags:
+            errors.append(f"{trial_id}: {FAULT_ABSENT_AT_CLEANUP}")
         for name in TRAJECTORY_REQUIRED_FILES:
             path = trial_dir_path / name
             if not path.is_file():

@@ -14,7 +14,7 @@ import yaml
 
 from nika.config import REPO_ROOT, resolve_results_root
 from nika.benchmark_engine.protocol import UnsupportedContractVersion
-from nika.evaluator.validity import has_agent_trace
+from nika.evaluator.validity import FAULT_ABSENT_AT_CLEANUP, has_agent_trace
 from nika.workflows.benchmark.provenance import check_schema_version, schema_version_of
 from nika.workflows.benchmark.release import (
     ReleaseError,
@@ -368,6 +368,12 @@ def pack_leaderboard_submission(
             )
         except TrialResultError as exc:
             raise LeaderboardPackError(str(exc)) from exc
+        if FAULT_ABSENT_AT_CLEANUP in result.validity_flags:
+            raise LeaderboardPackError(
+                f"Trial {trial.trial_id} is invalid: {FAULT_ABSENT_AT_CLEANUP}; "
+                "the injected fault disappeared before cleanup. "
+                "Check the trajectory for network changes or a self-healing fault."
+            )
         trial_results.append(result)
         session_by_trial_id[trial.trial_id] = session_dir
 

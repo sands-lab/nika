@@ -297,6 +297,58 @@ def _identity_path(package: Path) -> Path:
     return package / RESULTS_DIRNAME / IDENTITY_FILENAME
 
 
+def test_absent_fault_rejects_pack_and_trajectory_validation(mini_release_env) -> None:
+    from nika.workflows.leaderboard.validate_trajectories import (
+        validate_trajectory_package,
+    )
+
+    _release, result_dir = mini_release_env
+    packed = pack_leaderboard_submission(
+        result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+    )
+    assert validate_leaderboard_submission(packed.scores_dir).ok
+    assert validate_trajectory_package(packed.trajectories_dir).ok
+    session = next((result_dir / "trials").iterdir())
+    event = (
+        json.dumps(
+            {
+                "event": "fault_presence_recheck",
+                "data": {
+                    "phase": "before_cleanup",
+                    "fault": "link_down",
+                    "result": "absent",
+                },
+            }
+        )
+        + "\n"
+    )
+    with (session / "nika.jsonl").open("a") as handle:
+        handle.write(event)
+    original_metrics = (session / "eval_metrics.json").read_bytes()
+    with pytest.raises(LeaderboardPackError, match="fault_absent_at_cleanup"):
+        _pack(result_dir)
+    assert (session / "eval_metrics.json").read_bytes() == original_metrics
+
+    # Independent trajectory validation must catch an absent fault even when
+    # the scores package still contains clean flags.
+    trajectory = packed.trajectories_dir / "trials" / session.name / "nika.jsonl"
+    with trajectory.open("a") as handle:
+        handle.write(event)
+    report = validate_trajectory_package(packed.trajectories_dir)
+    assert not report.ok
+    assert any("fault_absent_at_cleanup" in error for error in report.errors)
+
+    result_path = (
+        packed.scores_dir / RESULTS_DIRNAME / "trials" / session.name / "result.json"
+    )
+    result = json.loads(result_path.read_text())
+    result["validity_flags"] = ["fault_absent_at_cleanup"]
+    _write_json(result_path, result)
+    report = validate_leaderboard_submission(packed.scores_dir, max_harness_rate=1.0)
+    assert not report.ok
+    assert any("fault_absent_at_cleanup" in error for error in report.errors)
+
+
 def test_cli_submit_generates_metadata_and_validates_offline(
     mini_release_env, monkeypatch: pytest.MonkeyPatch
 ) -> None:

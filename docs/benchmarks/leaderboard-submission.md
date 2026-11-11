@@ -223,7 +223,7 @@ See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-
 | `fault_absent_at_cleanup` | a `fault_presence_recheck` before cleanup read `absent`: the agent likely mutated the network or the fault self-healed |
 | `infra_error` | the trial failed to start, lacks ground truth, or has `score_status=infra_error` |
 
-An `empty_trace` flag rejects packing and trajectory validation regardless of its rate. The `truncated_final_turn` and `infra_error` validity flags reject validation when either flag's rate exceeds `--max-harness-rate` (default 5%). The `no_submission`, `empty_report`, `max_steps_exhausted`, and `fault_absent_at_cleanup` flags only warn.
+An `empty_trace` or `fault_absent_at_cleanup` flag rejects the submission regardless of its rate. Packing and trajectory validation check the original trial artifacts; scores validation checks the packaged flags. Inspect the trajectory for network changes or a self-healing fault before rerunning an absent-fault trial. NIKA preserves the raw scores for analysis. The `truncated_final_turn` and `infra_error` validity flags reject validation when either flag's rate exceeds `--max-harness-rate` (default 5%). The `no_submission`, `empty_report`, and `max_steps_exhausted` flags only warn.
 
 Pack rejection on `score_status` has no threshold: any trial with `grading_error` or residual `infra_error` status rejects the package. A trial can carry the `infra_error` validity flag without that scoring status.
 
