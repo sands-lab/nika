@@ -36,7 +36,11 @@ from nika.workflows.leaderboard.schema import (
     PackageIdentity,
     TrialResult,
 )
-from nika.workflows.leaderboard.release_check import coverage_issues, load_reference
+from nika.workflows.leaderboard.release_check import (
+    coverage_issues,
+    load_reference,
+    run_commit_changes,
+)
 from nika.workflows.leaderboard.secrets import (
     reject_package_symlinks,
     scan_trajectory_package_dir,
@@ -215,6 +219,9 @@ def validate_trajectory_package(
             expand_trials(release.cases, release.n_trials),
             present_ids,
             issues,
+            changed_tasks=run_commit_changes(
+                release, reference, identity.run.nika_git_commit, issues
+            ),
         )
 
     if scores_dir is not None:

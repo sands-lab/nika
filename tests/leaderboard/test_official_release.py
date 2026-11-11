@@ -22,6 +22,7 @@ from nika.workflows.benchmark.trials import task_id_for_row
 from nika.workflows.leaderboard.issues import ISSUE_SPECS
 from nika.workflows.leaderboard.pack import LeaderboardPackError
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
+from nika.workflows.leaderboard.validate_trajectories import validate_trajectory_package
 from tests.leaderboard.test_pack_validate import _pack, mini_release_env  # noqa: F401
 from tests.support.official_release import FakeOfficialRepo
 
@@ -161,11 +162,19 @@ def test_run_commit_with_different_release_settings_is_rejected(
     identity = yaml.safe_load(identity_path.read_text())
     identity["run"]["nika_git_commit"] = commit
     identity_path.write_text(yaml.safe_dump(identity))
+    paired = package.parent / f"{package.name}_trajectories"
+    paired_identity_path = paired / "identity.yaml"
+    paired_identity = yaml.safe_load(paired_identity_path.read_text())
+    paired_identity["run"]["nika_git_commit"] = commit
+    paired_identity_path.write_text(yaml.safe_dump(paired_identity))
 
     report = validate_leaderboard_submission(package)
 
     assert _error_codes(report) == ["ERROR_BENCHMARK_MISMATCH"]
     assert setting in " ".join(report.issues[0].items)
+    assert _error_codes(validate_trajectory_package(paired)) == [
+        "ERROR_BENCHMARK_MISMATCH"
+    ]
     run_path = result_dir / "run.json"
     run = json.loads(run_path.read_text())
     run["nika_git_commit"] = commit
