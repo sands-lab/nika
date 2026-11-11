@@ -229,7 +229,7 @@ The package contains trials that the release does not define, for example from a
 
 ### `ERROR_RELEASE_UNAVAILABLE`
 
-NIKA could not read the official release: the version has no published reference yet, or GitHub could not be reached. Check the version and the network connection.
+NIKA could not read the official release. If GitHub is unreachable, restore connectivity and retry. If the version has no published reference, check that you selected the intended version; maintainers must publish its reference before official submission is available.
 
 ### `ERROR_BENCHMARK_MISMATCH`
 
@@ -281,7 +281,7 @@ A trajectory trial lacks one of its [published files](#what-gets-published), or 
 
 ### `ERROR_EMPTY_TRACE`
 
-A trial's `messages.jsonl` records no model or tool interaction (no model or tool interaction), usually because the agent failed to start or its harness did not record the trace. The error lists the affected trials and rejects the package at any rate. Fix the agent or harness setup, rerun those trials with `--no-resume --task-id <trial id>`, and pack again.
+A trial's `messages.jsonl` records no model or tool interaction, usually because the agent failed to start or its harness did not record the trace. The error lists the affected trials and rejects the package at any rate. Fix the agent or harness setup, rerun those trials with `--no-resume --task-id <trial id>`, and pack again.
 
 ### `ERROR_TRAJECTORY_FORBIDDEN_FILE`
 
@@ -301,7 +301,7 @@ The NIKA commit recorded in the package is neither in the local repository nor o
 
 ### `WARNING_RUN_VALIDITY`
 
-Some trials show signs of a problem that does not block the submission. Review them: no readable `submission.json`, an empty diagnosis report, the step limit exhausted, or the fault already absent before cleanup, which means the agent likely changed the network or the fault healed itself.
+Some trials show signs of a problem that does not block the submission. Review them: no readable `submission.json`, an empty diagnosis report, the step limit exhausted, or the fault already absent before cleanup. Check the recorded events before attributing a missing fault to agent changes or unintended recovery.
 
 ### `WARNING_NON_DEFAULT_PRIMARY`
 

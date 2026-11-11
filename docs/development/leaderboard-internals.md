@@ -44,7 +44,7 @@ Run-validity flags live in [`src/nika/evaluator/validity.py`](../../src/nika/eva
 
 Partial failure: if the Hub upload fails after the GitHub PR opens (network, Hub permissions), the error prints the GitHub PR URL and a retry command with `--skip-github --out <original-scores-package-directory>`, so trajectories upload under the original package name even on a later date.
 
-Flags: `--dry-run`, `--hf-model`, `--hf-revision`, `--proprietary`, `--draft`, `--skip-github`, `--skip-trajectories`, `--skip-validate`, `--out`, `--title`, `--body`, `--repo`, `--traj-repo`, `--release-source official|local`.
+See the [submission options](../benchmarks/leaderboard-submission.md#options) for flags and their effects.
 
 ### Package naming
 
@@ -135,22 +135,7 @@ hf discussions merge nika-bench/nika-trajectories <N> --yes --type dataset
 
 ## Metadata and model records
 
-`metadata.yaml` field guidance (the user guide shows the schema):
-
-- `info.github`: the agent implementation, not a personal profile; `https://github.com/sands-lab/nika` for built-in agents.
-- `info.site`, `info.report`: project site and paper; a benchmark-paper link should be explained in the README.
-- `agent.framework`: public harness name; the run identity keeps the NIKA agent ID.
-- `agent.model`: public model name without org prefix; it feeds the slug and the leaderboard catalog match, so reuse an existing `catalog/models.json` key spelling.
-- `agent.tools`, `agent.skills`: what the run used; MCP server names come from `tools.allowed_mcp_servers`.
-- `agent.optimization_methods`: harness optimizations (prompting, skills, multi-agent, GEPA-style search), not weight fine-tunes.
-- `agent.extra`: official model repo, evaluated revision, serving precision; never a guessed revision.
-
-`hf_model.py` writes `hf_repo`, `hf_revision`, `hf_revision_source` (`latest` | `specified`) to `agent.extra` for `llm_provider: custom`:
-
-- Model served under its Hugging Face ID (vLLM default): repo inferred from the run's `model`, latest revision pinned at submit time and printed.
-- `--hf-model org/name --hf-revision <commit|branch|tag>`: resolved and stored as a commit SHA. A custom metadata file can supply `agent.extra.hf_repo` instead of `--hf-model`.
-- Alias (`vllm --served-model-name`) or Ollama library name (`gpt-oss:120b`): unidentifiable; submit stops before packing unless `--hf-model org/name` or `--proprietary` is passed.
-- Vendor providers (`openai`, `anthropic`, `deepseek`): nothing recorded.
+The user guide defines [metadata fields](../benchmarks/leaderboard-submission.md#metadatayaml) and [model revision selection](../benchmarks/leaderboard-submission.md#record-the-open-weight-model). Model resolution runs in `hf_model.py` before packing; errors stop submission before remote writes.
 
 ## Leaderboard-side processing (sands-lab/nika-leaderboard)
 
@@ -158,21 +143,10 @@ hf discussions merge nika-bench/nika-trajectories <N> --yes --type dataset
 
 See [website pricing and display names](../benchmarks/leaderboard-submission.md#how-the-website-prices-runs) for the published calculation and naming rules.
 
-## Review checklists
+## Manual review
 
-### GitHub scores PR
+Validation checks package structure and recorded values. Maintainers still need to establish that those records describe the submitted system:
 
-- Official release run; local pack/validate passed.
-- Required metadata filled; README describes the system.
-- Code, project/report links, public harness name, and tools match the run.
-- Open-weight model: `agent.extra.hf_repo` and `hf_revision` match the served model.
-- `model-metadata` check passes (new model → `pending`); CI `validate` green.
-- Path is `submissions/<version>/{YYYYMMDD}_{slug}/`.
-
-### Hugging Face trajectories PR
-
-- Path is `trajectories/<version>/{YYYYMMDD}_{slug}/`.
-- Paired scores PR exists and is linked.
-- Trial set matches `case_count × n_trials`.
-- No secrets or absolute machine paths.
-- Maintainer merges the Hub PR after review.
+- Compare the code, project and report links, public harness name, and tools with the actual run.
+- For open-weight models, verify that `agent.extra.hf_repo` and `hf_revision` identify the model that was served.
+- Inspect cited trajectory observations and resolve or explain audit findings before accepting the entry.
