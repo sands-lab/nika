@@ -176,6 +176,8 @@ class TrialResult(BaseModel):
     trial_index: int = Field(..., ge=1)
     scenario: str
     problem: str
+    node_count: int | None = Field(default=None, ge=0)
+    link_count: int | None = Field(default=None, ge=0)
     outcome: Literal["success", "agent_failed"]
     score_status: ScoreStatus
     metrics: dict[str, float | int | None] = Field(default_factory=dict)
