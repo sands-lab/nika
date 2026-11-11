@@ -25,7 +25,7 @@ The `failure_domain` identifies the subsystem where the injected mechanism acts.
 
 ## Domain boundaries
 
-Failure-task counts come from the [working pool](../benchmarks/benchmark-configuration.md#working-matrix), the task space that `nika benchmark run` runs by default. Its 50,066 failure tasks and 313 healthy controls total 50,379 tasks.
+Failure-task counts come from the [working pool](../benchmarks/benchmark-configuration.md#working-matrix), the task space that `nika benchmark run` runs by default. Its 50,071 failure tasks and 313 healthy controls total 50,384 tasks.
 
 | Domain | Boundary | Registered failures | Failure tasks in the working pool |
 | --- | --- | ---: | ---: |
@@ -35,10 +35,10 @@ Failure-task counts come from the [working pool](../benchmarks/benchmark-configu
 | Service Networking | Kubernetes ClusterIP forwarding, Service port mapping, Service selector matching, Ingress class selection and rate limits, and load-balancer operation and address advertisement. | 11 | 41 |
 | Management & Orchestration Plane | Kubernetes API-server reachability, Kubernetes Deployment replica counts and readiness probes, node taints, SDN controller availability, controller southbound management channels, and switch identity at the controller. | 9 | 47 |
 | Addressing, Neighbor & Naming | IP and MAC assignment, ARP, DHCP, DNS data, DNS reachability, and name resolution. | 13 | 1,872 |
-| Endpoint & Application | Endpoint resource contention and application delay. | 2 | 359 |
+| Endpoint & Application | Endpoint resource contention, application delay, and server TLS certificate validity. | 3 | 364 |
 | Traffic, Queueing & Resource | Offered load, queueing, and end-host resource constraints. | 4 | 184 |
 | Security | Attacks, spoofing, and poisoning. | 7 | 3,835 |
-| **Total** |  | **103** | **50,066** |
+| **Total** |  | **104** | **50,071** |
 
 The domains follow the failed network mechanism.
 
@@ -243,6 +243,7 @@ For these HTTP failures, `sender` is the server that sends the response body and
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Receiver resource contention | `receiver_resource_contention` | **HTTP** | `host_name` (HTTP client), `duration` (accepted, no timer), `stress_cpus=8`, `archive_workers=8` (`campus_lan`), `peer_host=web`, optional `large_url` | On `campus_lan`, a lab PC's local gzip archive job is reconfigured from 1 to `archive_workers` concurrent workers inside the PC's unchanged 0.5 CPU limit, so the batch competes with the user's catalog refresh. The PC downloads the repository's gzip-encoded software catalog (`https://web0.local/packages/catalog.txt`, 64 MiB decoded) over HTTPS and decompresses it while receiving. This follows the over-provisioned worker pool exhausting a container CPU quota in [Twitter's cgroup throttling analysis](https://danluu.com/cgroup-throttling/) and the CPU dependence of encrypted file transfer in [Microsoft's slow SMB transfer guidance](https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/slow-smb-file-transfer); [Dell's TCP zero-window guidance](https://www.dell.com/support/kbdoc/en-au/000221738/troubleshoot-tcp-zero-window-update-packets-sent-by-a-powerscale-node?lang=en) lists receiver CPU as one cause of a slow receiving application. Other scenarios create a 16 MiB object on `peer_host`, cap the receiver container at 0.05 CPU where the backend allows it, and run a local gzip archive job with `stress_cpus` workers on the receiver. | On `campus_lan`, the contended PC downloads the catalog at ≤ 50% of baseline throughput, every download completes with the full decoded catalog, and its throughput ratio is at most half that of another lab PC downloading the same catalog, so shared server, path, or host load cannot explain the slowdown; ping and small-object HTTP do not have to stay healthy. Elsewhere, a peer sends three TCP streams of up to 64 MiB or 15 seconds each into the receiver. Across them, the median share of send time in which the receiver's window held the sender back must be at least 20%, and ping loss from the sender must be at most 5%. Throughput is reported but is not a pass condition; it is typically about half of baseline. | On `campus_lan`, the archive job runs with the configured worker count and its gzip workers are active; elsewhere, the archive job's gzip workers are running. On `campus_lan`, symptom tests compare the median of three catalog downloads with the pre-injection baseline; elsewhere, the same three TCP streams measured before injection must all complete with no ping loss and a median receive-window-limited share of at most 10%. On `campus_lan`, recovery stops only the archive job it started, restores the original worker count, and requires catalog throughput to reach at least 70% of baseline. Elsewhere, recovery stops the archive job and restores the original quota without a throughput threshold. | [Dan Luu and David Mackey, The container throttling problem (Twitter operational analysis)](#source-receiver_resource_contention-1) |
 | Sender CPU contention | `sender_resource_contention` | **HTTP** (canonical: `dc_clos`) | `host_name` (HTTP server), `duration` (accepted, no timer), `cpu_quota=0.05`, `stress_cpus=16`, client/URL probe knobs | Caps the HTTP server container at `cpu_quota`, runs a local gzip archive job with `stress_cpus` workers inside that limit, and serves probe objects through a CPU-sensitive HTTP handler that re-hashes each 64 KiB block. The handler listens on the `large_url` port (80 by default; `campus_lan` uses 8080 because its web service already holds port 80). The injection leaves link qdisc, netem, routing, and interface state unchanged. | Large HTTP transfers run at ≤ 20% of baseline throughput or take ≥ 5× the baseline time, while ping loss and small-object HTTP remain healthy. ICMP RTT to the contended host may rise under CFS starvation. | `NanoCpus` matches the applied quota, the archive job's gzip workers run, and the CPU-sensitive HTTP server process is running on the target. Recovery restores the original quota, stops the archive job, and requires large-object throughput to reach at least 70% of baseline. | [Linux kernel, CFS Bandwidth Control](#source-sender_resource_contention-1) |
+| Expired server TLS certificate | `tls_certificate_expired` | `campus_lan` | `host_name=web_server_0`, `client_host`, `https_url`, `http_url`, `control_https_url`, `backend_url`, `cert_path`, `key_path` | Replaces the repository server's certificate and key with a static certificate for the same names, signed by the campus CA that every campus PC trusts, whose validity ended on 2026-11-01T00:00:00Z, then reloads nginx. The original files are held by the controller, not on the node. | Campus PCs reject `https://web0.local` because the certificate has expired (curl exit 60, `ssl_verify_result` 10), while plain HTTP to the same server, the application behind nginx, and HTTPS to `web1.local` (same CA) keep working. | The expired certificate is installed in `cert_path` and nginx runs; from `client_host`, the served certificate's `expire date` is before the client clock, HTTPS validation fails with the expired-certificate error, `http_url` returns 200, and `https://web1.local` validates; `backend_url` returns 200 on the server. Recovery restores the original certificate and key, reloads nginx, and requires HTTPS to validate again. | [RFC 5280, Internet X.509 Public Key Infrastructure Certificate and CRL Profile](#source-tls_certificate_expired-1) |
 
 ### Traffic, Queueing & Resource
 
@@ -285,14 +286,14 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 The evidence below supports each failure's mechanism, reference implementation, or expected symptom. Each entry distinguishes the source's claim from NIKA's modeling choices. Source review establishes the correspondence with code; executable tests establish behavior in the supported environments.
 
 <!-- failure-sources:start -->
-Reviewed: 103 of 103 registered failures.
+Reviewed: 104 of 104 registered failures.
 
 | Source type | Citation records | Distinct failures |
 | --- | --- | --- |
 | incident_report | 2 | 2 |
 | operator_mailing_list | 0 | 0 |
 | vendor_documentation | 69 | 68 |
-| rfc | 28 | 28 |
+| rfc | 29 | 29 |
 | paper | 10 | 7 |
 
 Citation records count repeated uses of a source. Distinct-failure counts overlap when a failure cites multiple source types.
@@ -2128,6 +2129,24 @@ Source: [RFC 4987, TCP SYN Flooding Attacks and Common Mitigations](https://www.
 **Correspondence:** NIKA sends repeated SYN-only 5-tuples without completing legitimate handshakes. RFC 4987 describes SYN barrages retaining half-open state and excluding valid connection requests, matching the attack mechanism.
 
 **Evidence limits:** The RFC does not validate the NIKA packet rate, number of tuples or Bloom-filter behavior. Success depends on backlog policy and SYN-cookie defenses.
+
+</details>
+
+### `tls_certificate_expired`
+
+Implementation: [`TlsCertificateExpired`](../../src/nika/problems/endpoint_application/tls.py).
+
+<a id="source-tls_certificate_expired-1"></a>
+<details>
+<summary>RFC 5280, Internet X.509 Public Key Infrastructure Certificate and CRL Profile (rfc; mechanism)</summary>
+
+Source: [RFC 5280, Internet X.509 Public Key Infrastructure Certificate and CRL Profile](https://www.rfc-editor.org/rfc/rfc5280). Location: Section 6.1.3, Basic Certificate Processing, step (a)(2). Accessed: 2026-11-11.
+
+> The certificate validity period includes the current time.
+
+**Correspondence:** Path validation requires the current time to fall within each certificate's validity period. NIKA installs a campus-CA-signed server certificate whose notAfter is in the past, so campus clients reject it during validation while the CA, the name, and the server's plain HTTP service stay valid.
+
+**Evidence limits:** The RFC defines the validation rule, not an operational incident; it does not describe how often expired certificates cause outages or which renewal process failed.
 
 </details>
 

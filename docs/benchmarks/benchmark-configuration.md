@@ -3320,6 +3320,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 </tr>
+<tr>
+<td><code>tls_certificate_expired</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
 </tbody>
 </table>
 
@@ -4378,6 +4408,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">○✓</td>
 <td align="center">○✓</td>
 <td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>tls_certificate_expired</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>

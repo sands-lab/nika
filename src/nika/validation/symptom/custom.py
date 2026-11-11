@@ -11,6 +11,7 @@ from nika.validation.symptom.wireguard_probes import (
     peer_key_unreachable,
 )
 from nika.validation.symptom.rib_fib_probes import rib_fib_baseline, rib_fib_diverged
+from nika.validation.symptom.tls_probes import tls_baseline, tls_expired
 from nika.validation.symptom.vrf_probes import (
     vrf_import_baseline,
     vrf_import_routes_lost,
@@ -430,6 +431,7 @@ _CUSTOM: dict[str, Any] = {
     "k8s_node_noexecute_taint": noexecute_taint_broken,
     "silent_egress_packet_loss": silent_loss,
     "load_balancer_overload": lb_overload,
+    "tls_certificate_expired": tls_expired,
     "lb_connection_state_exhaustion": lb_race,
     "snat_port_pool_exhaustion": snat_pool_exhaustion,
     "nat_mapping_removed_without_drain": nat_mapping_removed,
@@ -489,6 +491,7 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "receiver_resource_contention": receiver_baseline,
     "web_dos_attack": web_dos_baseline,
     "load_balancer_overload": lb_baseline,
+    "tls_certificate_expired": tls_baseline,
     "sender_resource_contention": sender_baseline,
     "tcp_receive_window_limited": rwnd_baseline,
     "southbound_port_block": controller_serving,
