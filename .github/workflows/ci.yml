@@ -148,6 +148,7 @@ jobs:
           - nika/fabric-controller
           - nika/tc-bpf
           - nika/skopeo
+          - nika/vde-switch
           - nika/routinator
     steps:
       - uses: actions/checkout@v5

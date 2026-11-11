@@ -153,7 +153,9 @@ def test_routeros_routers_complete_execute_and_restore(
         pytest.skip(f"Native vendor image unavailable: {IMAGE}")
     finally:
         client.close()
-    specimens = Path(__file__).resolve().parents[3] / "experiment/scenario_validation"
+    specimens = (
+        Path(__file__).resolve().parents[3] / "tests/fixtures/scenario_validation"
+    )
     spec = ScenarioExperiment.model_validate_json(
         (specimens / f"{specimen}-routeros.json").read_text()
     )

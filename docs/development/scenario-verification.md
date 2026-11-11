@@ -2,6 +2,8 @@
 
 NIKA checks whether a constructed network satisfies its original behavior specification. This walkthrough follows one Abilene design through routing completion, device configuration, static analysis and real execution. Each step identifies its input and output.
 
+To run the research commands below, use a separate checkout of the shared `experiment` branch.
+
 Run this experiment explicitly during environment development. For the FRR and IOS XR profiles of `dc_clos`, `campus_lan` and `enterprise_branch`, and for the stored ISP variants that netlab can generate, normal benchmark startup deploys router configurations that netlab generated offline from the environment's design; see [Deploy stored configurations](#deploy-stored-configurations). Saved constructions can be reused without rerunning synthesis and analysis.
 
 ## Why these stages are separate
@@ -200,7 +202,7 @@ router bgp 65001
 
 Both express the same prefix-specific import decision. RouterOS and SR Linux need their own supported renderings; sharing a solved value does not make their configuration languages interchangeable. The IOS XR excerpt is generation evidence, not native XRd acceptance. The execution results in step 6 belong to FRR.
 
-Before relying on netlab for a design, compare its candidate with NIKA's native renderer for the same design. [`generator_consistency.py`](../../experiment/scenario_validation/generator_consistency.py) renders both, analyzes each with the platform's Batfish export and lists every differing routing fact: interface addresses, IGP areas, costs and adjacencies, BGP sessions and roles, RIB and FIB entries, selected BGP paths and per-neighbor import/export outcomes. An empty difference list shows that the two generators agree within that projection, not that either candidate meets the requirements; steps 5 and 6 still decide acceptance. The [experiment guide](../../experiment/scenario_validation/README.md#compare-native-and-netlab-configurations) describes the command and report. The comparison needs Batfish to model the candidates, so it is unavailable for SR Linux, RouterOS and FRR IS-IS.
+Before relying on netlab for a design, compare its candidate with NIKA's native renderer for the same design. [`generator_consistency.py`](https://github.com/sands-lab/nika/blob/experiment/experiment/scenario_validation/generator_consistency.py) renders both, analyzes each with the platform's Batfish export and lists every differing routing fact: interface addresses, IGP areas, costs and adjacencies, BGP sessions and roles, RIB and FIB entries, selected BGP paths and per-neighbor import/export outcomes. An empty difference list shows that the two generators agree within that projection, not that either candidate meets the requirements; steps 5 and 6 still decide acceptance. The [experiment guide](https://github.com/sands-lab/nika/blob/experiment/experiment/scenario_validation/README.md#compare-native-and-netlab-configurations) describes the command and report. The comparison needs Batfish to model the candidates, so it is unavailable for SR Linux, RouterOS and FRR IS-IS.
 
 ### Deploy stored configurations
 
@@ -317,7 +319,7 @@ Native checks observe non-backbone OSPF areas, bridged ports and the Site Edge's
 
 Catalogue support, offline generation, static acceptance and native acceptance are distinct. A representative run does not cover every topology/vendor/protocol combination. Heavy native environments run one at a time and remain subject to resource admission.
 
-Each experiment saves its original specification, solved parameters, candidate configurations and verification reports. Use the [experiment guide](../../experiment/scenario_validation/README.md) for dependencies, execution, saved-build replay and test matrices, and the [runtime validation guide](scenario-validation.md) for ordinary startup checks.
+Each experiment saves its original specification, solved parameters, candidate configurations and verification reports. Use the [experiment guide](https://github.com/sands-lab/nika/blob/experiment/experiment/scenario_validation/README.md) for dependencies, execution, saved-build replay and test matrices, and the [runtime validation guide](scenario-validation.md) for ordinary startup checks.
 
 The recorded FRR example uses the benchmark's OSPF/eBGP Abilene profile with six AS-exit orders. From the repository root, prepare the benchmark inputs, then run only that profile:
 

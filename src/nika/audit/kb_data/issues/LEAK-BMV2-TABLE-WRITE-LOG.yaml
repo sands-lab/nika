@@ -2,7 +2,8 @@ id: LEAK-BMV2-TABLE-WRITE-LOG
 title: BMv2 switch log records the injected table write
 class: shortcut
 severity: warn
-status: open
+status: fixed
+fixed_in: 06a114a6
 summary: The bmv2 /sw.log recorded 'Entry N removed from table' at injection time.
 scope: {}
 detect:

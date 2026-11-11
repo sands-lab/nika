@@ -2,7 +2,8 @@ id: LURE-K8S-VIP-ICMP-LOOP
 title: k8s_lab ingress VIP 101.0.0.1 loops ICMP between a leaf and a worker
 class: healthy_lure
 severity: warn
-status: open
+status: fixed
+fixed_in: 7edc92aa
 summary: >-
   On fault-free k8s_lab, ping to the MetalLB ingress VIP 101.0.0.1 loops between a leaf and the advertising
   worker until TTL expiry (Time to live exceeded; traceroute alternates 192.168.0.2 / 201.2.1.2), while

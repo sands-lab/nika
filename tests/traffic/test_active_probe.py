@@ -12,7 +12,12 @@ pytestmark = pytest.mark.unit
 def test_successful_probe_returns_acknowledgement_counts() -> None:
     runtime = Mock()
     runtime.get_data_plane_host_ip.return_value = "10.0.1.2"
-    runtime.exec.side_effect = ["ready", "ready", "", '{"acked": 2, "elapsed_ms": 1.0}']
+    runtime.exec.side_effect = [
+        "ready",
+        "ready",
+        '{"ready":true}',
+        '{"acked": 2, "elapsed_ms": 1.0}',
+    ]
     result = run_active_tcp_probe(
         runtime,
         source="pc_0_0",
@@ -39,7 +44,7 @@ def test_probe_failures_are_structured(
 ) -> None:
     runtime = Mock()
     runtime.get_data_plane_host_ip.return_value = "10.0.1.2"
-    runtime.exec.side_effect = [available, available, "", output]
+    runtime.exec.side_effect = [available, available, '{"ready":true}', output]
     result = run_active_tcp_probe(
         runtime,
         source="a",
@@ -54,7 +59,12 @@ def test_probe_failures_are_structured(
 
 def test_destination_address_overrides_node_address() -> None:
     runtime = Mock()
-    runtime.exec.side_effect = ["ready", "ready", "", '{"acked": 1, "elapsed_ms": 1.0}']
+    runtime.exec.side_effect = [
+        "ready",
+        "ready",
+        '{"ready":true}',
+        '{"acked": 1, "elapsed_ms": 1.0}',
+    ]
     result = run_active_tcp_probe(
         runtime,
         source="pc_0_0",
@@ -70,3 +80,36 @@ def test_destination_address_overrides_node_address() -> None:
     assert "2001:db8::7" in client
     assert result["destination_address"] == "2001:db8::7"
     assert result["status"] == "ok"
+
+
+def test_occupied_probe_port_is_unavailable_without_running_client():
+    runtime = Mock()
+    runtime.get_data_plane_host_ip.return_value = "10.0.1.2"
+    runtime.exec.side_effect = ["ready", "ready", '{"error":"Address already in use"}']
+    result = run_active_tcp_probe(
+        runtime,
+        source="a",
+        destination="b",
+        source_port=21001,
+        destination_port=80,
+        payload_seed=1,
+    )
+    assert result["status"] == "unavailable"
+    assert "already in use" in result["listener"]["error"]
+    assert runtime.exec.call_count == 3
+
+
+@pytest.mark.parametrize("argument", ["source", "destination"])
+def test_ip_node_names_are_rejected_before_execution(argument):
+    runtime = Mock()
+    kwargs = dict(
+        source="a",
+        destination="b",
+        source_port=21001,
+        destination_port=80,
+        payload_seed=1,
+    )
+    kwargs[argument] = "192.0.2.1"
+    with pytest.raises(ValueError, match="lab node name"):
+        run_active_tcp_probe(runtime, **kwargs)
+    runtime.exec.assert_not_called()

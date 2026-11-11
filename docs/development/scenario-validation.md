@@ -17,7 +17,7 @@ Base `isp_<topology>` scenarios and `min3clos` also create a design-time validat
 
 To construct and verify an environment before using it in a benchmark, follow
 [scenario construction and verification](scenario-verification.md) and the
-[experiment guide](../../experiment/scenario_validation/README.md).
+[experiment guide](https://github.com/sands-lab/nika/blob/experiment/experiment/scenario_validation/README.md).
 The shared workflow checks original requirements through NetComplete, netlab,
 Batfish or NetKAT where supported, followed by native execution and recovery.
 These experiments are opt-in; normal benchmark startup keeps its existing defaults.

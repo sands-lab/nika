@@ -33,6 +33,7 @@ from nika.firecracker.image import (
     DAEMON_PORT,
     GATEWAY_PORT,
     MEMORY,
+    META,
     STATE,
     LabImage,
     _clone,
@@ -313,6 +314,11 @@ def _record_trial_timings(
     from nika.utils.session_store import SessionStore
 
     restored = {"image": image.key, **({"case": case.key} if case else {})}
+    metadata = image.path / META
+    if metadata.is_file():
+        native_hub = json.loads(metadata.read_text()).get("native_hub")
+        if native_hub:
+            restored["native_hub"] = native_hub
     SessionStore().update_session(session_id, {"firecracker": {**restored, **timings}})
     what = f"case image {case.key}" if case else f"lab image {image.key}"
     log_event(

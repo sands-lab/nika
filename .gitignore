@@ -46,4 +46,5 @@ config/**
 !config/**/*.example.yaml
 !config/**/*.example.yml
 !config/custom/README.md
+!config/systemd/*.service
 .nika_cache

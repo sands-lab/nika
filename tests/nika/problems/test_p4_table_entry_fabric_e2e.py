@@ -58,6 +58,15 @@ class P4TableEntryFabricE2ETest(IntegrationTestCase):
 
             assert http_ok(runtime, path.src_host, path.http_url)
 
+            from nika.validation.symptom.probe import _resolve_path, run_probe_snapshot
+
+            symptom_path = _resolve_path(
+                SCENARIO, parsed, topo_size=topo_size, net_env=instance.net_env
+            )
+            before = run_probe_snapshot(
+                runtime, "path_http", symptom_path, params=parsed
+            )
+            assert before.http_ok is True
             instance.inject_fault(parsed)
             time.sleep(1)
 
@@ -70,6 +79,8 @@ class P4TableEntryFabricE2ETest(IntegrationTestCase):
                 parsed,
                 scenario=SCENARIO,
                 topo_size=topo_size,
+                before=before,
+                problem=instance,
             )
             assert ok is True, symptom
             assert symptom.get("after", {}).get("http_ok") is False, symptom

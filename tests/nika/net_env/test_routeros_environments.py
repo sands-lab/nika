@@ -192,7 +192,7 @@ def test_mixed_platform_runtime_report_keeps_each_row(monkeypatch):
     spec = ScenarioExperiment.model_validate_json(
         (
             Path(__file__).resolve().parents[3]
-            / "experiment/scenario_validation/enterprise-routeros.json"
+            / "tests/fixtures/scenario_validation/enterprise-routeros.json"
         ).read_text()
     )
     env = _build("enterprise_branch", "routeros")

@@ -68,6 +68,7 @@ class TelemetryAPIMixin:
         flow_id: str | None = None,
         packet_id: str | None = None,
         limit: int = 100,
+        offset: int = 0,
     ) -> list[dict]:
         """Query observed INT-MX traces from the scenario collector."""
         start_ns = self._time_bound_ns(start_time)
@@ -112,7 +113,10 @@ class TelemetryAPIMixin:
             ):
                 continue
             rows.append(row)
-        return rows[-max(1, min(limit, 1000)) :]
+        if offset < 0:
+            raise ValueError("offset must be nonnegative")
+        stop = max(0, len(rows) - offset)
+        return rows[max(0, stop - max(1, min(limit, 1000))) : stop]
 
 
 class KatharaTelemetryAPI(KatharaBaseAPI, TelemetryAPIMixin):

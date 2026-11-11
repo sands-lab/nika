@@ -585,7 +585,7 @@ def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path, fabric):
                 float(value) > 0
                 for value in re.findall(
                     r"(\d+(?:\.\d+)?)\s+[KMG]?Bytes",
-                    _exec(sid_b, web, "cat /tmp/burst-server-*.log"),
+                    _exec(sid_b, web, "cat /tmp/iperf-server-*.log"),
                 )
             ),
             timeout=10,

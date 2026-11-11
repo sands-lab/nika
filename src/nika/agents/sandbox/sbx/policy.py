@@ -170,7 +170,11 @@ def _require_confinable(resources: Iterable[str]) -> None:
         f"rule {ALLOW_ALL_RESOURCE!r}, from the allow-all policy). NIKA limits "
         "each agent sandbox to its MCP gateway and model proxy by denying the "
         "hosts the global policy allows, and sbx cannot deny every host while "
-        "allowing those two. Switch the global policy to balanced or "
+        "allowing those two. To keep your host policy, configure "
+        "AgentENV with `./scripts/install.sh --with-agentenv`, or select "
+        "nika.sandbox.backend: e2b with E2B_API_KEY for E2B cloud. "
+        "See docs/operations/agent-sandbox.md. Alternatively, "
+        "switch the global policy to balanced or "
         "deny-all: run `sbx policy reset` and choose Balanced. The global "
         "policy applies to all your sandboxes."
     )

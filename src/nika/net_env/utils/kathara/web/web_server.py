@@ -14,8 +14,7 @@ def random_paragraph(rng, min_len=80, max_len=200):
 
 
 def generate_html_body(target_kb=256):
-    # Seeded by size so the same request always returns the same bytes;
-    # benchmark runs must not depend on per-request randomness.
+    # Seed by size so identical requests return the same response.
     rng = random.Random(target_kb)
     target_bytes = target_kb * 1024
     parts = []

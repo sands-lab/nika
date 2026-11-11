@@ -14,7 +14,6 @@ hands the ports back to the hub and removes the helper.
 from __future__ import annotations
 
 import hashlib
-import ipaddress
 import shlex
 import time
 from dataclasses import dataclass
@@ -175,40 +174,6 @@ class KatharaVdeFaultProxy:
             raise RuntimeCapabilityError(
                 f"could not configure controller-side VDE proxy: {result.output.decode(errors='ignore')}"
             )
-
-    def set_dst_drop(self, state: VdeFaultProxyState, value: str, mask: str) -> None:
-        """Drop IPv4 frames toward the peer whose destination matches value/mask.
-
-        *mask* may be non-contiguous (a ternary match), which ``u32`` matches
-        on the destination address word of the IPv4 header.
-        """
-        val, msk = _ipv4_word(value), _ipv4_word(mask)
-        proxy = self._client.containers.get(state.proxy_id)
-        result = proxy.exec_run(
-            [
-                "/bin/sh",
-                "-c",
-                "tc qdisc replace dev eth1 root handle 1: prio && "
-                "tc filter replace dev eth1 parent 1: protocol ip prio 1 u32 "
-                f"match u32 0x{val & msk:08x} 0x{msk:08x} at 16 action drop",
-            ]
-        )
-        if result.exit_code:
-            raise RuntimeCapabilityError(
-                f"could not configure controller-side VDE proxy filter: "
-                f"{result.output.decode(errors='ignore')}"
-            )
-
-    def dst_drop_configured(
-        self, state: VdeFaultProxyState, value: str, mask: str
-    ) -> bool:
-        val, msk = _ipv4_word(value), _ipv4_word(mask)
-        proxy = self._client.containers.get(state.proxy_id)
-        result = proxy.exec_run(["tc", "filter", "show", "dev", "eth1"])
-        return (
-            result.exit_code == 0
-            and f"match {val & msk:08x}/{msk:08x} at 16".encode() in result.output
-        )
 
     def qdisc_show(self, state: VdeFaultProxyState) -> str:
         """``tc qdisc show`` of the proxy port toward the peer."""
@@ -414,6 +379,8 @@ done
         script = (
             process_source()
             + f"""
+import re
+import subprocess
 import time
 path = {_READY!r}
 if not Path(path).is_file():
@@ -421,7 +388,34 @@ if not Path(path).is_file():
 record = read_identity(path)
 if not isinstance(record, dict):
     raise RuntimeError("Refusing unverified VDE relay and hub identities")
-stop_owned(record.get("relay"))
+# Pin the namespace while the native child still exists, so a killed relay
+# cannot leave its owned VDE socket directory behind in the plugin mount.
+namespace = None
+native = record.get("native")
+native_fd = owned_pidfd(native) if native else None
+if native_fd is not None:
+    try:
+        namespace = os.open(f"/proc/{{native[0]}}/ns/mnt", os.O_RDONLY)
+    except FileNotFoundError:
+        pass
+    finally:
+        os.close(native_fd)
+cleanup_error = None
+try:
+    stop_owned(record.get("relay"))
+    if native:
+        stop_owned(native)
+    directory = record.get("directory", "")
+    if namespace is not None and re.fullmatch(r"/tmp/nika-vde-[0-9a-f]{{32}}", directory):
+        subprocess.run(
+            ["nsenter", f"--mount=/proc/self/fd/{{namespace}}", "--", "rm", "-rf", "--", directory],
+            pass_fds=(namespace,), check=True,
+        )
+except Exception as exc:
+    cleanup_error = exc
+finally:
+    if namespace is not None:
+        os.close(namespace)
 hub = record.get("hub")
 fd = owned_pidfd(hub)
 if fd is not None:
@@ -441,6 +435,8 @@ if fd is not None:
         pass
     finally:
         os.close(fd)
+if cleanup_error is not None:
+    raise cleanup_error
 Path(path).unlink(missing_ok=True)
 """
         )
@@ -520,7 +516,3 @@ Path(path).unlink(missing_ok=True)
             raise RuntimeCapabilityError(
                 "controller-side link flap worker did not start"
             )
-
-
-def _ipv4_word(address: str) -> int:
-    return int(ipaddress.IPv4Address(address))

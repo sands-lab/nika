@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -97,3 +98,83 @@ def test_splice_payload_has_its_process_helpers_without_nika_installed():
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip().isdigit()
+
+
+def test_exited_group_leader_does_not_block_child_cleanup():
+    from nika.runtime.shared.processes import stop_owned
+
+    code = (
+        "import subprocess, sys; "
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], "
+        "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
+        "print(child.pid, flush=True); sys.stdin.readline()"
+    )
+    leader = subprocess.Popen(
+        [sys.executable, "-c", code],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    child = None
+    try:
+        identity = process_identity(leader.pid)
+        child = process_identity(int(leader.stdout.readline()))
+        leader.communicate("exit\n", timeout=5)
+        assert owned_pidfd(identity) is None
+        fd = owned_pidfd(child)
+        assert fd is not None
+        os.close(fd)
+    finally:
+        if leader.poll() is None:
+            leader.kill()
+        leader.wait(timeout=5)
+        if child is not None:
+            stop_owned(child)
+
+
+def test_owned_command_cancellation_reaps_only_its_child(tmp_path, worker):
+    record = tmp_path / "probe.json"
+    wrapper = subprocess.Popen(
+        process_command(
+            "run", str(record), sys.executable, "-c", "import time; time.sleep(60)"
+        )
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while not record.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        identity = json.loads(record.read_text())
+        subprocess.run(process_command("cancel", str(record)), check=True, timeout=10)
+        assert wrapper.wait(timeout=5) != 0
+        assert owned_pidfd(identity) is None
+        assert worker.poll() is None
+        assert not list(tmp_path.iterdir())
+    finally:
+        if wrapper.poll() is None:
+            subprocess.run(
+                process_command("cancel", str(record)), check=True, timeout=10
+            )
+        wrapper.wait(timeout=5)
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_owned_command_completes_or_skips_a_cancelled_launch(tmp_path, cancelled):
+    record = tmp_path / "probe.json"
+    marker = tmp_path / "executed"
+    if cancelled:
+        subprocess.run(process_command("cancel", str(record)), check=True)
+    result = subprocess.run(
+        process_command(
+            "run",
+            str(record),
+            sys.executable,
+            "-c",
+            f"open({str(marker)!r}, 'w').close()",
+        ),
+        timeout=5,
+    )
+    assert result.returncode == (125 if cancelled else 0)
+    assert marker.exists() is not cancelled
+    assert not record.exists()
+    assert not record.with_suffix(".json.cancel").exists()

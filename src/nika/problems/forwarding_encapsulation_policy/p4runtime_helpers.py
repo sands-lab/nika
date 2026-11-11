@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ipaddress
+import json
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -355,4 +357,82 @@ def restore_switch(problem, switch, original):
     ok = all(observed.get(kind) == original.get(kind) for kind in fields)
     return build_verify_result(
         fault_type=problem.root_cause_name, verified=ok, details={"host": switch}
+    )
+
+
+# TEST-NET-3 is outside the authored and filler address pools.
+TABLE_PROBE_PREFIX = "203.0.113.77/32"
+TABLE_FULL_MESSAGE = "Error when adding match entry to target"
+TABLE_CAPACITY_PROBE = r"""
+import json, sys
+sys.path.insert(0, sys.argv[5])
+import p4rt_manager as m
+name, prefix, intent_path, p4info_path = sys.argv[1:5]
+switch = m.load_json(intent_path)["switches"][name]
+index = m.P4InfoIndex(m.load_p4info(p4info_path))
+entry = {"prefix": prefix, "group_id": int(switch["ipv4_lpm"][0]["group_id"])}
+client = m.connect(switch)
+out = {"prefix": prefix, "inserted": False, "codes": [], "messages": []}
+try:
+    before = m.observed_switch(client, index)["ipv4_lpm"]
+    out["occupancy"] = len(before)
+    if any(row["prefix"] == prefix for row in before):
+        raise RuntimeError("Diagnostic prefix already exists")
+    try:
+        statuses = m.write_updates(client, [m.lpm_entity(index, entry)])
+        out["codes"] = [status["code"] for status in statuses]
+        out["messages"] = [status["message"] for status in statuses]
+        out["inserted"] = out["codes"] == ["OK"]
+    finally:
+        live = m.observed_switch(client, index)["ipv4_lpm"]
+        if any(row["prefix"] == prefix for row in live):
+            cleanup = m.write_updates(client, [m.lpm_entity(index, entry, kind="DELETE")])
+            if any(status["code"] != "OK" for status in cleanup):
+                raise RuntimeError("Diagnostic route cleanup failed")
+        after = m.observed_switch(client, index)["ipv4_lpm"]
+        out["present_after"] = any(row["prefix"] == prefix for row in after)
+except Exception as exc:
+    out["error"] = str(exc)
+finally:
+    client.close()
+print(json.dumps(out))
+"""
+
+
+def table_capacity_command(switch: str) -> str:
+    """Build a diagnostic that attempts one route and removes it if installed."""
+    from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
+        INTENT_PATH,
+        P4INFO_PATH,
+        MANAGER_DIR,
+    )
+
+    return (
+        f"python3 -B -c {shlex.quote(TABLE_CAPACITY_PROBE)} {shlex.quote(switch)} "
+        f"{TABLE_PROBE_PREFIX} {INTENT_PATH} {P4INFO_PATH} {MANAGER_DIR}"
+    )
+
+
+def probe_table_capacity(runtime: LabRuntime, switch: str) -> dict[str, Any]:
+    """Try an unused route; report device status and verify diagnostic cleanup."""
+    try:
+        output = runtime.exec("fabric_mgr", table_capacity_command(switch), timeout=60)
+        return json.loads(output.strip().splitlines()[-1])
+    except (RuntimeError, ValueError, IndexError) as exc:
+        return {"error": str(exc)}
+
+
+def table_capacity_rejected(result: dict[str, Any]) -> bool:
+    """Accept resource errors, including BMv2's specific target-full response."""
+    codes = set(result.get("codes") or [])
+    messages = result.get("messages") or []
+    return (
+        "error" not in result
+        and result.get("inserted") is False
+        and result.get("present_after") is False
+        and (
+            codes == {"RESOURCE_EXHAUSTED"}
+            or codes == {"UNKNOWN"}
+            and TABLE_FULL_MESSAGE in messages
+        )
     )

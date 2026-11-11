@@ -2,7 +2,8 @@ id: SIG-LINK-CAPACITY-SHAPER-HIDDEN
 title: Link capacity shaper outside the nodes
 class: signal_invisible
 severity: warn
-status: open
+status: fixed
+fixed_in: 7edc92aa
 summary: 'The shaper lives in a proxy outside the nodes, so tc on the nodes shows nothing; 28/36 trials
   answered healthy. Partly fixed: workload makes the bottleneck observable.'
 scope:

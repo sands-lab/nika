@@ -473,7 +473,8 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         return pairs
 
     def post_restore(self) -> bool:
-        from nika.net_env.enterprise_branch.wireguard import restore_peer_sessions
+        from nika.net_env.enterprise_branch.wireguard import resume_peer_handshakes
+        from nika.utils.parallel import bounded_parallel_map
         from nika.utils.logger import log_event
 
         nodes = []
@@ -492,8 +493,14 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         if not nodes:
             return False
         runtime = self._build_runtime()
-        for node in nodes:
-            restore_peer_sessions(runtime, node)
+        bounded_parallel_map(
+            lambda edge: resume_peer_handshakes(
+                runtime,
+                edge.name,
+                [(interface, tunnel[1]) for interface, tunnel in edge.tunnels.items()],
+            ),
+            [edge for edge in self._edges.values() if edge.name in nodes],
+        )
         return True
 
     def _next_wan(self) -> IPv4Network:
@@ -952,6 +959,12 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         if cap is None:
             return None
         return min(overlay_be_kbit(overlay_qos_for(size, cap)) for size in SCALE)
+
+    def background_rate_limit_kbps(self) -> int | None:
+        """Background transfers share the selected topology's best-effort class."""
+        return overlay_be_kbit(
+            overlay_qos_for(self.spec.size, self.router_rate_limit_kbps())
+        )
 
     def link_symptom_targets(self, node: str, intf: str) -> dict[str, str] | None:
         """A guest host reaches the public web server through its Site Edge NAT."""

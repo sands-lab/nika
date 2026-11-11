@@ -42,6 +42,8 @@ class AgentSpec:
     # it; every other agent needs an API key.
     subscription: bool = False
     supports_max_tokens: bool = True
+    # Generation API used by the harness; Anthropic-family clients use Messages.
+    model_api: Literal["chat_completions", "responses"] = "chat_completions"
     # ``agent.reasoning_effort`` used when neither the CLI nor the run config
     # sets one. Built-in harnesses that apply the setting default to
     # ``medium``; added agents configure their own.
@@ -116,6 +118,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
         class_path="agent.cli.codex.agent:CodexCliAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
         supports_max_tokens=False,
+        model_api="responses",
         template="codex",
     ),
     AgentSpec(
@@ -150,6 +153,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
         class_path="agent.sdk.codex_sdk.agent:CodexSdkAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
         supports_max_tokens=False,
+        model_api="responses",
         requirements="codex_sdk",
     ),
     AgentSpec(

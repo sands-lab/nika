@@ -231,7 +231,7 @@ The `nika-audit` runner then reviews the same trajectory revision with its local
 
 The runner needs an authenticated Codex CLI and a GitHub account authorized to propose NIKA changes. Configure `HF_TOKEN` for restricted trajectories. The caller uses `pull_request_target` so fork entries can be read with credentials while PR-supplied tests run separately without audit credentials. Only the trusted NIKA checkout is executed.
 
-Each run pins the NIKA commit used for validation and review. Future runs load the latest reviewed KB from `NIKA_REF` (default `dev`), so merged knowledge participates in later audits. Local `submit` and `validate` use the same reviewed deterministic checks.
+Leaderboard CI calls the shared workflow from `dev` and defaults to its latest merged auditor and knowledge base. Both stages use the same checkout version within a run. New runs include subsequently merged knowledge without a manual commit update. Local `submit` and `validate` use the reviewed deterministic checks installed with NIKA.
 
 ### Run-validity gates
 

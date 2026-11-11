@@ -2,7 +2,8 @@ id: FNR-FIXED-DURATION-INJECTOR-EXPIRES
 title: tcp_syn_flood_attack and receiver_resource_contention run for a fixed 3600 s and stop before the end of trials longer than 1 h
 class: fault_not_realized
 severity: warn
-status: open
+status: fixed
+fixed_in: ea317115
 summary: The SYN flood runs under `timeout {duration}s` with duration 3600 (src/nika/problems/security/tcp_syn_flood.py),
   and the receiver contention stress starts with `--duration 3600` (src/nika/problems/endpoint_application/transport.py).
   Neither injector is renewed, so in a trial that runs longer than an hour after injection the fault expires on

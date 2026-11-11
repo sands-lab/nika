@@ -40,6 +40,7 @@ def nika_image(name: str) -> str:
 # Scenario-local images required at deploy time. Upstream Kathara images
 # (kathara/base, kathara/frr, …) are pulled, not listed here.
 NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
+    nika_image("vde-switch"): "Dockerfile.vde-switch",
     nika_image("frr"): "Dockerfile.frr",
     nika_image("base"): "Dockerfile.base",
     nika_image("nginx"): "Dockerfile.nginx",

@@ -2,7 +2,8 @@ id: HARNESS-K3S-NODES-NO-IPERF3
 title: iperf_test fails on the k3s controller and worker nodes of llmd_lab and k8s_lab
 class: harness_defect
 severity: info
-status: open
+status: fixed
+fixed_in: 9c2e43fc
 summary: >-
   iperf_test runs iperf3 on both ends (src/nika/service/kathara/base_api.py). The controller and worker
   nodes of llmd_lab and k8s_lab use the rancher/k3s image, which has no iperf3, so every call that touches

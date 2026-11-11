@@ -21,7 +21,7 @@ The implementation and reviewed knowledge base live in [`src/nika/audit/`](../..
 
 ## Audit a submission
 
-New leaderboard entries trigger the shared CI audit automatically. The trusted workflow pins the scores, trajectory, and NIKA revisions. It runs paired validation, then invokes the review library with the local Codex subscription and `gpt-6-luna` on the `nika-audit` runner. The model has no shell tools.
+New leaderboard entries trigger the shared CI audit automatically. It defaults to the latest merged auditor and knowledge base on `dev`. Validation and model review use the same checkout version within a run. Scores and trajectories keep their selected revisions. CI runs paired validation, then invokes the review library with the local Codex subscription and `gpt-6-luna` on the `nika-audit` runner. The model has no shell tools.
 
 CI copies the reviewed KB into the review output directory. `summary.json` records completion; `audit-candidate.json` records replay when rules are generated. New candidates produce deduplicated GitHub issues and a draft knowledge PR. Treat every generated rule as a proposal until a maintainer accepts its evidence and scope.
 

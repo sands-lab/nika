@@ -2,7 +2,8 @@ id: SIG-K8S-PINGMESH-CLIENT-ONLY
 title: In k8s_lab run_pingmesh_snapshot knows only the client endpoint, so it returns 0 pairs and rejects every other node
 class: signal_invisible
 severity: warn
-status: open
+status: fixed
+fixed_in: ea317115
 summary: k8s_lab declares only the client as a reachability target (src/nika/net_env/k8s_lab/lab.py), and PingMesh
   takes its endpoints from reachability_targets() (src/nika/service/kathara/base_api.py). The mounted PingMesh
   tool therefore cannot produce a single pair in k8s_lab; a call with default arguments returns total_pairs 0,

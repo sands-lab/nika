@@ -83,8 +83,8 @@ def is_remote_server() -> bool:
 def event_origin() -> dict[str, str]:
     """Extra field for log rows the lab-host daemon writes, so they can be told apart.
 
-    The daemon's clock can differ from the agent host's (e.g. a lab restored from
-    a VM snapshot keeps the snapshot's timeline); see ``remote_clock_offset_sec``.
+    The daemon and agent hosts can have different system clocks.
+    See ``remote_clock_offset_sec``.
     """
     return {"origin": "remote"} if is_remote_server() else {}
 

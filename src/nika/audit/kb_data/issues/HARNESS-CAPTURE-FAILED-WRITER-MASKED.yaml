@@ -2,7 +2,8 @@ id: HARNESS-CAPTURE-FAILED-WRITER-MASKED
 title: When the capture writer fails, packet_capture_stop reports a normal 0-packet capture with an artifact path, and packet_capture_inspect then fails with "Capture file missing"
 class: harness_defect
 severity: warn
-status: open
+status: fixed
+fixed_in: ea317115
 summary: stop_capture reads the file size with "wc -c < file 2>/dev/null || echo 0" and never checks whether the
   writer died or left a file (src/nika/service/packet_capture/capture_backend.py); manager.py always returns an
   artifact block. A capture whose writer failed (captured_bytes 0, not even a pcap header) therefore looks like a

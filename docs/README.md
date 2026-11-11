@@ -54,6 +54,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 
 | Goal | Read | Type |
 | --- | --- | --- |
+| Review public evidence for a failure or export source coverage | [Failure sources](operations/failures.md#public-sources) | Reference |
 | Add a scenario, failure, traffic source, or candidate case | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
 | Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
 | Construct and verify routing, SDN and P4 environments | [Environment construction and verification](development/scenario-verification.md) | Explanation |

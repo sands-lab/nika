@@ -18,6 +18,14 @@ Start from the [documentation index](docs/README.md). It maps each contract to i
 * Prefer decisions NIKA can make itself over new configuration options or environment variables.
 * When the user repeatedly asks for the same reusable coding or workflow practice, add it to the matching section of this file. Do not record task-specific decisions.
 
+## Research experiments
+
+* Keep research scripts, ablations, experimental configurations, and results on `experiment` in a separate worktree.
+* Do not merge the experiment branch into `dev` or `main`.
+* Keep reusable runtime features, release validation tools, and durable regression tests in the development workflow.
+* Develop framework fixes on a development branch and bring them into the experiment branch when needed.
+* Keep regression fixtures under `tests/fixtures/`. Development tests must run independently of the experiment worktree.
+
 ## Commit and pull request messages
 
 Commit subjects and pull request titles follow Conventional Commits: `type(scope): imperative summary`, where the type is one of `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, or `revert`. The [`commit-msg` hook](scripts/git-hooks/commit-msg) rejects other subjects, except the ones Git writes for local merges and `fixup!`/`squash!`/`amend!` commits (`./scripts/install.sh` enables it). The `Commit messages` CI check applies the same rule to every pull request commit and title, and also rejects fixup commits, so squash them before merging.

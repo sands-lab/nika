@@ -949,6 +949,7 @@ def release_fields_for_session(job: dict[str, Any]) -> dict[str, Any]:
         "benchmark_n_trials": job.get("n_trials"),
         "scoring_id": (job.get("scoring") or {}).get("id"),
         "nika_git_commit": job.get("nika_git_commit"),
+        "nika_git_dirty": job.get("nika_git_dirty"),
     }
 
 

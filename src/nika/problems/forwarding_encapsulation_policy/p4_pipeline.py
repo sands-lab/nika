@@ -158,7 +158,22 @@ class P4TableEntryMissing(ProblemBase):
         dst = endpoint_in(intent, prefix, exclude=local)
 
         def route_gone(rows: list[dict]) -> bool:
-            routes = [str(row["match"].get("dstAddr")) for row in rows]
+            import ipaddress
+
+            routes = []
+            for row in rows:
+                match = row["match"].get("dstAddr")
+                if isinstance(match, list) and len(match) == 2:
+                    try:
+                        match = str(
+                            ipaddress.IPv4Network(
+                                f"{ipaddress.IPv4Address(match[0])}/{ipaddress.IPv4Address(match[1])}",
+                                strict=False,
+                            )
+                        )
+                    except ValueError:
+                        match = str(match)
+                routes.append(str(match))
             return bool(routes) and prefix not in routes
 
         return OraclePlaybook(

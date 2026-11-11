@@ -1,0 +1,26 @@
+FROM alpine:3.18@sha256:de0eb0b3f2a47ba1eb89389859a9bd88b28e82f5826b6969ad604979713c2d4f AS build
+RUN apk add --no-cache build-base cmake linux-headers curl
+WORKDIR /src
+# Match Kathara's native VDE revision and jumbo-frame support.
+RUN curl -fsSL https://codeload.github.com/virtualsquare/vde-2/tar.gz/306a519716493133793af39ccaf7817232e046a6 -o /tmp/vde.tar.gz \
+    && echo 'a85b65c64ed2107e8ca3e4eb5018347954b87dd21e75be5b5e4187969b6a7e90  /tmp/vde.tar.gz' | sha256sum -c - \
+    && tar xzf /tmp/vde.tar.gz --strip-components=1
+COPY vde/jumbo.patch vde/active-port-scan.patch vde/bitarray-shrink.patch ./
+RUN patch -p1 < jumbo.patch && patch -p1 < active-port-scan.patch && patch -p1 < bitarray-shrink.patch \
+    && cmake -S . -B build -DCMAKE_C_FLAGS=-O2 -DCMAKE_EXE_LINKER_FLAGS=-static \
+       -DENABLE_CRYPTCAB=OFF -DENABLE_VDE_OVER_NS=OFF -DENABLE_ROUTER=OFF \
+       -DENABLE_VXLAN=OFF -DENABLE_TUNTAP=OFF -DENABLE_PCAP=OFF \
+    && cmake --build build --target vde_switch -j2
+COPY vde/hub-check.c ./
+RUN mkdir -p /tmp/native-hub-check-config/vde2 \
+    && cp -r doc/libvdemgmt /tmp/native-hub-check-config/vde2/ \
+    && cc -O2 -static '-DSYSCONFDIR="/tmp/native-hub-check-config"' -Iinclude -Ibuild/include \
+       hub-check.c src/lib/libvdeplug.c src/lib/vdemgmt/libvdemgmt.c \
+       src/common/canonicalize.c src/common/cmdparse.c build/src/common/libvdecommon.a -o /tmp/hub-check \
+    && /tmp/hub-check /src/build/src/vde_switch/vde_switch
+
+FROM scratch
+LABEL io.nika.vde.source="https://github.com/virtualsquare/vde-2/tree/306a519716493133793af39ccaf7817232e046a6"
+COPY --from=build /src/build/src/vde_switch/vde_switch /vde_switch
+COPY --from=build /src/COPYING /src/COPYING.libvdeplug /licenses/
+CMD ["/vde_switch"]

@@ -28,7 +28,7 @@ AB_BINARY = "cache-warmer"
 # -n requests, so set it high enough for the run to reach its time limit.
 _AB_RUN_SECONDS = 300
 _AB_RUN_REQUESTS = 1_000_000
-_AB_WORKER_LOG = "/var/tmp/http-load-{worker}.log"
+_AB_WORKER_LOG = "/var/tmp/http-client-{worker}.log"
 _AB_INSTALL_LOG = "/var/tmp/apt-apache2-utils.log"
 
 

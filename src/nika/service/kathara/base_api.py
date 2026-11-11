@@ -218,12 +218,13 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
         cmd = "ip -j addr"
         # checked: a slow container right after deploy must retry, not hand a
         # "[TIMEOUT] ..." string to json.loads below.
-        result = self.exec_cmd_checked(host_name, cmd)
-
-        if isinstance(result, list):
-            output = "\n".join(result)
-        else:
-            output = result
+        # A successful address read is JSON even when no address is assigned.
+        # Retry one empty exec response before treating it as a parsing failure.
+        for _ in range(2):
+            result = self.exec_cmd_checked(host_name, cmd)
+            output = "\n".join(result) if isinstance(result, list) else result
+            if output.strip():
+                break
 
         try:
             ifaces = json.loads(output)

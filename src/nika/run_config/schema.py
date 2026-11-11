@@ -87,7 +87,7 @@ class FirecrackerSettings(BaseModel):
     # which Firecracker execution requires. Without them (false), the guest runs
     # on 4 KiB pages and concurrent case-image restores slow the lab for seconds.
     huge_pages: bool = True
-    # Verify restored environments before injection; rebuilt protocols receive full checks.
+    # Verify restored environments before injection; recovered protocols receive full checks.
     verify_after_restore: bool = True
     # Also keep each failure case as a case image (snapshot after injection, its
     # memory stored as a compressed diff against the lab image): trials skip
@@ -604,6 +604,10 @@ class BenchmarkSettings(BaseModel):
     heavy_batch_size: int = 1
     case_timeout_sec: int = 2400
     continue_on_error: bool = False
+    endpoint_failure_threshold: int = Field(default=3, ge=1)
+    endpoint_backoff_initial_sec: float = Field(default=5, gt=0, allow_inf_nan=False)
+    endpoint_backoff_max_sec: float = Field(default=60, gt=0, allow_inf_nan=False)
+    endpoint_wait_timeout_sec: float = Field(default=900, gt=0, allow_inf_nan=False)
     retry_passes: int = 0
     resume: bool = True
     session_tag: str | None = None

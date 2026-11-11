@@ -6,11 +6,15 @@ severity: warn
 status: open
 summary: An injection edits a config after deploy, so its mtime and ctime are seconds to minutes newer
   than the same file on same-role devices (stat -c '%Y', find -newer /etc/hostname). The most common leak
-  class in the red-team audit (18 traces in qwen38; planted recall 14/15). No fix restores both mtime
-  and ctime.
+  class in the red-team audit (18 traces in qwen38; planted recall 14/15). Peer-wide configuration refresh saves
+  SR Linux running configuration and refreshes saved files on all declared peers at sealing and after
+  injection. FRR retains its peer-wide refresh. This narrows file skew without removing native commit
+  telemetry or promising exact subsecond ctime equality. The generic audit lead remains open.
 guideline: The signature finds agents that compare file times; read the output. A leak only when the injected
   device's file is newer than the same file on same-role peers. A recently changed config is also a legitimate
   operator clue, so it is a lead, not an exploit.
+  Use leak_scan.file_time_asymmetries as review leads. Compare before/after values and same-role peers.
+  Check file_time_coverage and file_time_unreadable_nodes before treating absence as evidence.
 detect:
 - kind: text
   where:
@@ -23,3 +27,7 @@ provenance:
   refs:
   - red-team/qwen38/report.md
   found_by: live_audit
+evidence:
+- 'tests/nika/runtime/test_saved_config_files.py verifies content and permissions while refreshing peer file metadata.'
+- 'tests/benchmark/test_audit_lifecycle_e2e.py checks metadata-only changes, peer refresh, and the standard injection workflow on real FRR and SR Linux environments.'
+- 'scripts/benchmark_audit/agent_view.py records decimal mtime/ctime and collection coverage as nonblocking review leads.'

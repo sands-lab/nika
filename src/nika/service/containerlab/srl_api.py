@@ -107,7 +107,9 @@ class SRLAPIMixin:
         *,
         timeout: float = 30.0,
     ) -> str:
-        script = "sr_cli <<'EOF'\n" + "\n".join(lines) + "\nEOF"
+        script = (
+            "PYTHONDONTWRITEBYTECODE=1 sr_cli <<'EOF'\n" + "\n".join(lines) + "\nEOF"
+        )
         return self.exec_cmd(device_name, script, timeout=timeout)
 
     def _srl_candidate(
@@ -131,7 +133,30 @@ class SRLAPIMixin:
     ) -> str:
         """Run a one-shot ``sr_cli`` command on ``device_name``."""
         escaped = command.replace("\\", "\\\\").replace('"', '\\"')
-        return self.exec_cmd(device_name, f'sr_cli "{escaped}"', timeout=timeout)
+        return self.exec_cmd(
+            device_name,
+            f'PYTHONDONTWRITEBYTECODE=1 sr_cli "{escaped}"',
+            timeout=timeout,
+        )
+
+    def srl_align_saved_configs(
+        self: SupportsSRL, nodes: list[str], timestamp: float
+    ) -> None:
+        """Save each peer's running configuration and refresh the saved-file metadata."""
+        from nika.runtime.shared.config_files import rewrite_saved_config_files
+        from nika.utils.parallel import bounded_parallel_map
+
+        def save(node):
+            output = self.srl_exec_cli(node, "save startup")
+            if "Saved current running configuration" not in output:
+                raise RuntimeError(
+                    f"Could not save SR Linux configuration on {node}: {output}"
+                )
+
+        bounded_parallel_map(save, nodes)
+        rewrite_saved_config_files(
+            self.exec_cmd, nodes, "/etc/opt/srlinux", "config.json", timestamp
+        )
 
     def srl_get_bgp_as(self: SupportsSRL, device_name: str) -> int:
         output = self.srl_exec_cli(

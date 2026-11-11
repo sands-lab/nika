@@ -21,7 +21,7 @@ on:
         required: true
         type: string
       nika_ref:
-        required: true
+        default: dev
         type: string
       trajectories_repository:
         default: nika-bench/nika-trajectories

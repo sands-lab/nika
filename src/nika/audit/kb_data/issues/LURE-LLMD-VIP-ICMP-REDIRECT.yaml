@@ -2,7 +2,8 @@ id: LURE-LLMD-VIP-ICMP-REDIRECT
 title: llmd_lab gateway VIP 200.0.0.240 answers ping with ICMP Redirect and Host Unreachable
 class: healthy_lure
 severity: warn
-status: open
+status: fixed
+fixed_in: 9d550c6f
 summary: >-
   On fault-free llmd_lab, ping to the MetalLB L2 gateway VIP 200.0.0.240 returns ICMP Redirect (New nexthop
   200.0.0.240) and Destination Host Unreachable from 200.0.0.1, while TCP to the VIP works. This is MetalLB

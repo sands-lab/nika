@@ -2,7 +2,8 @@ id: LEAK-NIKA-SESSION-ID-HEADER
 title: NIKA-Session-Id header visible to the agent
 class: shortcut
 severity: info
-status: open
+status: fixed
+fixed_in: 3338054e
 summary: >-
   The NIKA-Session-Id header used between the harness and the MCP servers
   appears in agent-visible text, so the agent can tell it runs inside the

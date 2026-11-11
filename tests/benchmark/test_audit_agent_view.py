@@ -6,12 +6,13 @@ import re
 
 import pytest
 
-from experiment.audit.agent_view import (
+from scripts.benchmark_audit.agent_view import (
     SNAPSHOT_MARK,
     bgp_peer_states,
     classify_rounds,
     diff_snapshots,
     fault_tokens,
+    file_time_asymmetries,
     mask_line,
     parse_global_addresses,
     parse_ping_batch,
@@ -21,7 +22,7 @@ from experiment.audit.agent_view import (
     token_pattern,
     zone_names,
 )
-from experiment.audit.environment import CaseAudit, CaseIdentity, StageResult
+from scripts.benchmark_audit.environment import CaseAudit, CaseIdentity, StageResult
 
 pytestmark = pytest.mark.unit
 
@@ -272,3 +273,154 @@ def test_global_addresses_lead_with_eth0_not_kernel_order() -> None:
         "7: eth10   inet 10.9.0.1/24 scope global eth10\n"
     )
     assert parse_global_addresses(output)[4] == ["10.200.0.7", "20.200.0.1", "10.9.0.1"]
+
+
+def test_file_times_keep_nanosecond_precision_and_ignore_malformed_records():
+    parsed = parse_snapshot(
+        "@@@file_times\n100.000000001\t100.000000002\t/etc/a file.conf\n"
+        "bad\t1\t/etc/invalid\nnan\t1\t/etc/nonfinite\n"
+    )
+    assert parsed["file_times"] == {
+        "/etc/a file.conf": {"mtime": "100.000000001", "ctime": "100.000000002"}
+    }
+    assert "file_times" not in parsed["text"]
+
+
+def test_file_time_leads_compare_same_platform_peers_and_keep_metadata_only_changes():
+    from nika.runtime.spec import NodeIdentity, NodeRole
+    from scripts.benchmark_audit.live import _leak_stage
+
+    router = NodeIdentity(NodeRole.ROUTER, ("linux", "frr"))
+    machines = {
+        "r1": router,
+        "r2": router,
+        "srl": NodeIdentity(NodeRole.ROUTER, ("nokia_srlinux",)),
+        "pc": NodeIdentity(NodeRole.HOST, ("linux", "frr")),
+        "unknown": None,
+    }
+
+    def snapshot(mtime, ctime):
+        return {
+            "files": {"/etc/config": "same digest"},
+            "file_times": {"/etc/config": {"mtime": mtime, "ctime": ctime}},
+        }
+
+    before = {node: snapshot("100.000000001", "100.000000001") for node in machines}
+    after = {**before, "r1": snapshot("100.000000002", "100.000000003")}
+    leads = file_time_asymmetries(before, after, machines)
+    assert len(leads) == 1
+    assert leads[0]["node"] == "r1" and leads[0]["path"] == "/etc/config"
+    assert set(leads[0]["times"]) == {"mtime", "ctime"}
+    assert leads[0]["times"]["mtime"]["unchanged_peers"] == {"r2": "100.000000001"}
+    evidence = {"nodes_scanned": 4, "flagged_count": 0, "file_time_asymmetries": leads}
+    assert _leak_stage(lambda: evidence).status == "pass"
+    # Peer-wide refresh and unavailable metadata provide no target-only lead.
+    assert not file_time_asymmetries(
+        before, {node: after["r1"] for node in machines}, machines
+    )
+    assert not file_time_asymmetries(before, {**after, "r2": None}, machines)
+
+
+def test_file_time_leads_do_not_mix_distinct_services():
+    from nika.runtime.spec import NodeIdentity, NodeRole
+
+    machines = {
+        "dns": NodeIdentity(NodeRole.SERVICE, ("linux",), service_type="dns"),
+        "web": NodeIdentity(NodeRole.SERVICE, ("linux",), service_type="web"),
+    }
+
+    def snapshot(value):
+        return {"file_times": {"/etc/config": {"mtime": value, "ctime": value}}}
+
+    before = {node: snapshot("100") for node in machines}
+    assert not file_time_asymmetries(
+        before, {**before, "dns": snapshot("200")}, machines
+    )
+
+
+def test_cached_audit_requires_current_clean_source(tmp_path, monkeypatch):
+    import json
+    from scripts.benchmark_audit import matrix
+    from scripts.benchmark_audit.environment import identity_from_row
+    from scripts.benchmark_audit.provenance import AuditProvenance
+
+    row = {
+        "scenario": "simple_bgp",
+        "problem": "link_down",
+        "inject": {"host_name": "pc1", "intf_name": "eth0"},
+    }
+    monkeypatch.setattr(
+        "scripts.benchmark_audit.provenance.read_git_commit", lambda: ("fixture", False)
+    )
+    path = tmp_path / "audit.json"
+    monkeypatch.setattr(matrix, "result_path", lambda row, repeat: path)
+    stages = [
+        StageResult(stage=name, status="pass")
+        for name in ("baseline_agent_view", "inject_artifact", "leak_scan")
+    ]
+    audit = CaseAudit(
+        identity=identity_from_row(row),
+        stages=stages,
+        symptom_probe=matrix.declared_probe("link_down"),
+        provenance=AuditProvenance(
+            git_commit="fixture",
+            git_dirty=False,
+            started_at="2026-11-10T00:00:00Z",
+            completed_at="2026-11-10T00:01:00Z",
+            session_id="fixture",
+            images={"pc1": {"image_id": "fixture"}},
+        ),
+    )
+
+    def save():
+        path.write_text(json.dumps({"audit": audit.model_dump()}))
+
+    save()
+    assert matrix.result_current(row)
+    audit.provenance.git_commit = "older"
+    save()
+    assert not matrix.result_current(row)
+    audit.provenance.git_commit = "fixture"
+    audit.provenance.git_dirty = True
+    save()
+    assert not matrix.result_current(row)
+    audit.provenance.git_dirty = False
+    save()
+    monkeypatch.setattr(
+        "scripts.benchmark_audit.provenance.read_git_commit", lambda: ("fixture", True)
+    )
+    assert not matrix.result_current(row)
+    monkeypatch.setattr(
+        "scripts.benchmark_audit.provenance.read_git_commit", lambda: ("fixture", False)
+    )
+    audit.provenance.completed_at = None
+    save()
+    assert not matrix.result_current(row)
+    audit.provenance.completed_at = "2026-11-10T00:01:00Z"
+    old = audit.model_dump()
+    old["provenance"]["source_sha256"] = "unused historical field"
+    path.write_text(json.dumps({"audit": old}))
+    assert not matrix.result_current(row)
+    path.write_text("{")
+    assert not matrix.result_current(row)
+
+
+def test_scan_reports_missing_metadata_without_inventing_time_leads():
+    from nika.runtime.spec import NodeIdentity, NodeRole
+    from scripts.benchmark_audit.agent_view import LeakScan
+
+    router = NodeIdentity(NodeRole.ROUTER, ("linux", "frr"))
+    raw = "@@@files\n" + "a" * 32 + "  /etc/config\n@@@file_times\n"
+    scan = LeakScan(
+        lambda *args: raw, machines={"r1": router, "r2": router}, fault="link_down"
+    )
+    scan.capture_before()
+    result = scan.capture_after_and_diff()
+    assert result["file_time_unreadable_nodes"] == ["r1", "r2"]
+    assert result["file_time_asymmetry_count"] == 0
+    assert result["file_time_coverage"]["r1"] == {
+        "before": 0,
+        "after": 0,
+        "files_before": 1,
+        "files_after": 1,
+    }

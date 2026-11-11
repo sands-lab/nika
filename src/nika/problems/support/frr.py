@@ -6,8 +6,6 @@ import shlex
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
-from nika.utils.parallel import bounded_parallel_map
-
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
@@ -37,12 +35,9 @@ def frr_rewrite_saved_configs(
     which would otherwise be the one file with a recent birth and change time.
     The content stays the same.
     """
-    cmd = (
-        f'for f in {FRR_DIR}/*.conf; do [ -f "$f" ] && '
-        'cp -p "$f" "$f.new" && mv -f "$f.new" "$f"; done; '
-        f"touch -c -d @{int(timestamp)} {FRR_DIR} {FRR_DIR}/*.conf"
-    )
-    bounded_parallel_map(lambda device: runtime.exec(device, cmd), list(devices))
+    from nika.runtime.shared.config_files import rewrite_saved_config_files
+
+    rewrite_saved_config_files(runtime.exec, devices, FRR_DIR, "*.conf", timestamp)
 
 
 def frr_config_command(*lines: str) -> str:
