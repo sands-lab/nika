@@ -348,10 +348,8 @@ def validate_leaderboard_submission(
             issues.append(issue)
         audit = paired.audit
     else:
-        issues.append(
-            ValidationIssue(
-                "WARNING_TRAJECTORY_AUDIT",
-                summary="Trajectory audit not run: provide --trajectories or the paired sibling directory.",
-            )
+        issues.add(
+            "WARNING_TRAJECTORY_AUDIT_NOT_RUN",
+            "Provide --trajectories or the paired sibling directory.",
         )
     return ValidationReport(issues=issues.issues, reference=reference, audit=audit)
