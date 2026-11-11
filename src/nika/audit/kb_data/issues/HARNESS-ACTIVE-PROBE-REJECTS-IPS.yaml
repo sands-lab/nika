@@ -20,5 +20,5 @@ provenance:
   date: '2026-10-25'
   refs:
   - src/nika/traffic/active_probe.py
-  - nika01:/home/wangz0s/.paseo/worktrees/329o0vrn/nika-prerelease-fixes//workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-validity/active-probe.json
+  - tests/traffic/test_active_probe.py
   found_by: deterministic

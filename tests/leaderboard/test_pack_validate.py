@@ -1361,3 +1361,21 @@ def test_ci_bounds_waiting_for_a_pending_trajectory_upload(
             trajectories_repo="test/trajectories",
         )
     assert calls[0] == 0 and calls[-1] == 600
+
+
+def test_missing_trajectories_reports_audit_not_run(mini_release_env):
+    _, result_dir = mini_release_env
+    packed = pack_leaderboard_submission(
+        result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+    )
+    shutil.rmtree(packed.trajectories_dir)
+    report = validate_leaderboard_submission(packed.scores_dir)
+    assert report.ok and report.audit is None
+    codes = [issue.code for issue in report.issues]
+    assert "WARNING_TRAJECTORY_AUDIT_NOT_RUN" in codes
+    assert "WARNING_TRAJECTORY_AUDIT" not in codes
+    serialized = report.to_dict(package=str(packed.scores_dir))
+    assert any(
+        issue["code"] == "WARNING_TRAJECTORY_AUDIT_NOT_RUN"
+        for issue in serialized["warnings"]
+    )

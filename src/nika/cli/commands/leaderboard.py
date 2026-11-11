@@ -30,7 +30,7 @@ def leaderboard_validate(
         min=0.0,
         max=1.0,
         help="Fail when truncated_final_turn or infra_error flags exceed this "
-        "fraction of trials; other run-validity flags only warn.",
+        "fraction of trials. Empty traces and absent faults always fail; other flags warn.",
     ),
     trajectories: Optional[Path] = typer.Option(
         None,

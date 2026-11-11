@@ -29,7 +29,7 @@ class IssueSpec:
 
 _REPACK = (
     "Re-pack with `nika leaderboard submit --dry-run` from the release run "
-    "directory instead of editing package files by hand."
+    "directory with the original metadata options instead of editing package files by hand."
 )
 
 ISSUE_SPECS: dict[str, IssueSpec] = {
@@ -40,8 +40,13 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     ),
     "WARNING_TRAJECTORY_AUDIT": IssueSpec(
         "trajectory audit needs review",
-        "The audit reported warnings or its paired trajectories were unavailable.",
-        "Provide the paired trajectories and review the cited observations.",
+        "Recorded trajectories match known audit findings that require review.",
+        "Inspect audit.json and address or explain the cited findings.",
+    ),
+    "WARNING_TRAJECTORY_AUDIT_NOT_RUN": IssueSpec(
+        "trajectory audit did not run",
+        "Paired trajectories were not supplied and no sibling package was found.",
+        "Provide --trajectories or --fetch-trajectories to audit paired evidence.",
     ),
     "ERROR_PACKAGE_INCOMPLETE": IssueSpec(
         "package files are missing or contain symbolic links",
@@ -50,7 +55,7 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     ),
     "ERROR_METADATA_INVALID": IssueSpec(
         "metadata.yaml is invalid",
-        "A required field is empty, a field is misspelled, or the YAML does not parse.",
+        "A required value is empty, a field has an invalid type or name, or the YAML does not parse.",
         "Compare metadata.yaml with `nika leaderboard template` and fill every "
         "required field.",
     ),
@@ -68,27 +73,27 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     ),
     "ERROR_RELEASE_UNAVAILABLE": IssueSpec(
         "the official release could not be read",
-        "The release has no `v<version>` tag in sands-lab/nika yet, or "
+        "The release has no declared published reference in sands-lab/nika, or "
         "GitHub could not be reached.",
         "Check the network connection and that the release version is published. "
         "For an offline check only, pass `--release-source local`; leaderboard "
         "CI still validates against the official release.",
     ),
     "ERROR_BENCHMARK_MISMATCH": IssueSpec(
-        "the package identity does not match the release",
-        "The run used different release settings (case count, trials per case, "
-        "or scoring) than the official release.",
-        "Run the official release with `nika benchmark run --release <version>` "
-        "and pack that run.",
+        "the package identity or run's release settings differ from the official release",
+        "The package identity or the release settings at its recorded NIKA "
+        "commit do not match the published reference.",
+        "Follow the linked release-drift recovery to rerun from the official "
+        "reference with the original agent and model settings, then pack that run.",
     ),
     "ERROR_RELEASE_DRIFT": IssueSpec(
-        "task definitions or settings differ from the official release",
-        "The package was produced with task definitions or settings that do not match the "
+        "task definitions differ from the official release",
+        "The package was produced with task definitions that do not match the "
         "official release, usually because the NIKA checkout used for the run is "
         "older or newer than the release commit.",
-        "Follow the linked release-drift recovery to rerun from the official "
-        "reference with the original agent and model settings into a new result "
-        "directory. Keep the original results.",
+        "Create a separate checkout of the reported release commit, rerun the "
+        "release with the original agent and model settings into a new result "
+        "directory, and pack that run. Keep the original results.",
     ),
     "ERROR_TRIALS_MISSING": IssueSpec(
         "trials are missing",
@@ -121,8 +126,8 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     ),
     "ERROR_RUN_VALIDITY": IssueSpec(
         "harness faults exceed the allowed rate",
-        "Too many trials ended with a truncated final turn or an infrastructure "
-        "error, which points at the harness rather than the agent.",
+        "The trial rate for `truncated_final_turn` or `infra_error` exceeds "
+        "the configured limit. Each flag's rate is checked separately.",
         "Fix the harness configuration (for example the output token limit), "
         "re-run the affected trials, and pack again.",
     ),

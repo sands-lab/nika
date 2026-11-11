@@ -28,7 +28,7 @@ provenance:
   - dc_clos__healthy__m__t02:23
   - src/nika/traffic/active_probe.py
   - tests/nika/service/test_mcp_tools_live.py
-  - nika01:/home/wangz0s/.paseo/worktrees/329o0vrn/nika-prerelease-fixes//workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-validity/active-probe.json
+  - tests/traffic/test_active_probe.py
   found_by: agentic
 evidence:
 - 'dc_clos__healthy__m__t02 (20261012_react_gemma_4_31b_it) step 23: "destination_port": 80, ... "result": "Traceback
