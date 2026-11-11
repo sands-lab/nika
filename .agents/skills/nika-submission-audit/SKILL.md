@@ -34,7 +34,8 @@ The audit writes its evidence and decisions to `--workdir`:
 | Stage | Evidence and output |
 | --- | --- |
 | Deterministic checks | `audit.json` lists known issues, generic leads, re-graded scores, and harness fingerprints. |
-| Trial review | `scan.jsonl`, `groups.json`, and `verdicts.json` contain three scans per trial, grouped findings, and judgments. Groups need support from two trials or two scans unless measured confirmation supplies additional evidence. |
+| Trial scans | `scan-calls.jsonl` preserves completed trial-sample attempts, including failures; `scan.jsonl` contains each sample's current result. |
+| Group review | `groups.json` and `verdicts.json` contain grouped findings and judgments. Groups need support from two trials or two scans unless measured confirmation supplies additional evidence. |
 | Recording | Confirmed groups become scoped issue files. Existing signatures and instance-specific checks suppress duplicate review within their applicable scope. |
 | Cross-trial review | `cohort.json` contains task, healthy-run, tool, and prompt comparisons. Prompt contrasts require matched deployments and commits, repeated fault-side wording, and no healthy occurrence. Summaries use measured counts. |
 | Source verification | `contracts.json`, `briefs.json`, and `boundaries.json` combine observed prompts or network output with reviewed source. Separate factual verification precedes judgment. |
@@ -44,7 +45,7 @@ Source-backed detectors bind their observations to reviewed provider contents. A
 
 When a shared-text signature matches many uncited trials, static-disclosure validation can check every distinct scoped output and matched fragment. Each fragment must establish the complete disclosure by itself, and an empty control must be rejected. Accepted detectors also require the producing tool. Other recording failures remain available for review.
 
-Successful model replies are cached against their evidence, prompts, and selected model parameters. Failed replies remain errors. The review library can reuse successful cached replies; Each CI review uses a new output directory. Malformed table or validation replies may receive one bounded format retry; valid replies are preserved. Reasoning-enabled HTTP requests use streaming, with ordinary HTTP as a fallback for endpoints that reject streaming. Interrupted streams remain errors and are not automatically replayed.
+Successful model replies are cached against their evidence, prompts, and selected model parameters. Trial scans checkpoint completed samples, so the review library can reuse their successful results after an interruption. When retries are enabled, failed CLI samples receive one failed-only retry before grouping; remaining failures keep the review incomplete, and their replies and costs remain in the artifacts. Each CI review uses a new output directory. Malformed table or validation replies may receive one bounded format retry; valid replies are preserved. Reasoning-enabled HTTP requests use streaming, with ordinary HTTP as a fallback for endpoints that reject streaming. Interrupted streams remain errors and are not automatically replayed.
 
 To check existing rules through the installed CLI, run:
 

@@ -187,13 +187,33 @@ def read_evidence(
     calls = calls if calls is not None else []
     if not 0 <= max_requests <= 6:
         raise ValueError("source request budget must be between zero and six")
+    format_failed = False
     for turn in range(max_requests + 1):
         data = {**packet, "source_observations": observations}
         if turn == max_requests:
             data["instruction"] = "Source budget exhausted; return finish now."
         reply = chat(client, cfg, system, json.dumps(data))
         calls.append(reply)
-        action = _source_action(reply)
+        try:
+            action = _source_action(reply)
+        except ValueError:
+            if (
+                reply.get("error")
+                or reply.get("finish") != "stop"
+                or turn == max_requests
+                or format_failed
+            ):
+                raise
+            format_failed = True
+            observations.append(
+                {
+                    "source_request": {},
+                    "source_result": {
+                        "error": "Return exactly one JSON action per reply."
+                    },
+                }
+            )
+            continue
         allowed = {"search", "read", "list", "finish"}
         if action.get("action") not in allowed:
             nested = [

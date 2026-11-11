@@ -265,6 +265,7 @@ def audit_package(
                 out / "review",
                 command=REVIEW_COMMAND,
                 repo=repo,
+                workers=min(8, os.cpu_count() or 1),
             )
             if os.environ.get("GITHUB_ACTIONS") == "true":
                 publish_proposals(package, source, out / "review", trajectories)

@@ -256,6 +256,26 @@ def inspect_source(candidate: dict, repo: Path, cfg: ScanConfig, work: Path) -> 
                     "source_result": request_source(repo, candidate["commit"], request),
                 }
             )
+        repair_reads = 0
+        if resume:
+            read = {
+                o["source_result"].get("path")
+                for o in observations
+                if o["source_request"].get("action") == "read"
+            }
+            providers = previous.get("facts", {}).get("provider_files") or []
+            missing = [p for p in dict.fromkeys(providers) if p not in read]
+            for provider in missing[:2]:
+                request = {"action": "read", "path": provider, "start": 1, "end": 180}
+                observations.append(
+                    {
+                        "source_request": request,
+                        "source_result": request_source(
+                            repo, candidate["commit"], request
+                        ),
+                    }
+                )
+                repair_reads += 1
         with httpx.Client() as client:
             record["reader"] = read_evidence(
                 client,
@@ -279,7 +299,7 @@ def inspect_source(candidate: dict, repo: Path, cfg: ScanConfig, work: Path) -> 
                 READER,
                 observations=observations,
                 calls=calls,
-                max_requests=2 if resume else 6,
+                max_requests=2 - repair_reads if resume else 6,
             )
             reply = chat(
                 client,
