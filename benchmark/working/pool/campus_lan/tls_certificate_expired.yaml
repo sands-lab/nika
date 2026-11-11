@@ -9,10 +9,8 @@ failure:
       load_mbps: 1.0
     inject:
       client_host: pc_1_1_1_1
-      control_https_url: https://web1.local/packages/catalog.txt
+      control_host: web_server_1
       host_name: web_server_0
-      http_url: http://web0.local/packages/catalog.txt
-      https_url: https://web0.local/packages/catalog.txt
     root_causes:
     - resource:
         kind: node
@@ -25,10 +23,8 @@ failure:
       load_mbps: 1.0
     inject:
       client_host: pc_1_1_1_1
-      control_https_url: https://web1.local/packages/catalog.txt
+      control_host: web_server_1
       host_name: web_server_0
-      http_url: http://web0.local/packages/catalog.txt
-      https_url: https://web0.local/packages/catalog.txt
     root_causes:
     - resource:
         kind: node
@@ -41,10 +37,8 @@ failure:
       load_mbps: 1.0
     inject:
       client_host: pc_1_1_1_1
-      control_https_url: https://web1.local/packages/catalog.txt
+      control_host: web_server_1
       host_name: web_server_0
-      http_url: http://web0.local/packages/catalog.txt
-      https_url: https://web0.local/packages/catalog.txt
     root_causes:
     - resource:
         kind: node
@@ -56,10 +50,8 @@ failure:
       load_mbps: 1.0
     inject:
       client_host: pc_1_1_1_1
-      control_https_url: https://web1.local/packages/catalog.txt
+      control_host: web_server_1
       host_name: web_server_0
-      http_url: http://web0.local/packages/catalog.txt
-      https_url: https://web0.local/packages/catalog.txt
     root_causes:
     - resource:
         kind: node
@@ -71,10 +63,8 @@ failure:
       load_mbps: 1.0
     inject:
       client_host: pc_1_1_1_1
-      control_https_url: https://web1.local/packages/catalog.txt
+      control_host: web_server_1
       host_name: web_server_0
-      http_url: http://web0.local/packages/catalog.txt
-      https_url: https://web0.local/packages/catalog.txt
     root_causes:
     - resource:
         kind: node
