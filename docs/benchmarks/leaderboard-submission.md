@@ -209,14 +209,15 @@ uv run nika leaderboard validate results/my-run/20261027_codex_gpt_6_astra
 
 ### `ERROR_RELEASE_DRIFT`
 
-The package was produced with task definitions that differ from the official release, usually because the NIKA checkout used for the run is older or newer than the release. The error lists the changed tasks and the official commit. Fetch that commit and create a separate checkout before rerunning. Use the reported commit for legacy releases too; they have no release tag. Install the dependencies in that checkout, run the release into a new result directory, and pack that run. Keep the original results:
+The package was produced with task definitions that differ from the official release, usually because the NIKA checkout used for the run is older or newer than the release. The error lists the changed tasks and the official commit. Fetch that commit and create a separate checkout before rerunning. Use the reported commit for legacy releases too; they have no release tag. Install that checkout's dependencies and restore the original agent implementation. Prepare a compatible run config with the original model revision, provider, serving and harness settings, including any options previously supplied on the command line. Pass its absolute path as `<original-run-config>` below, configure the original provider's credentials, and run into a new result directory. Keep the original results:
 
 ```shell
 git fetch origin <official-commit>
 git worktree add <release-checkout> <official-commit>
 cd <release-checkout>
 uv sync
-uv run nika benchmark run --release <version> --split <split> --result_dir <new-results>
+uv run nika benchmark run --release <version> --split <split> \
+  --run-config <original-run-config> --result_dir <new-results>
 ```
 
 ### `ERROR_TRIALS_MISSING`

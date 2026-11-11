@@ -170,8 +170,12 @@ def release_drift_issue(
         fix=(
             f"Fetch the reported reference (`git fetch origin {target}`) and create "
             f"a separate checkout (`git worktree add <release-checkout> {target}`). "
-            "Install that checkout's dependencies, rerun the release into a new result "
+            "Install that checkout's dependencies and restore the original agent "
+            "implementation and model, provider, serving, and harness settings. "
+            "Pass the original settings in a compatible run config at an absolute path. "
+            "Rerun the release into a new result "
             f"directory with `nika benchmark run --release {version} --split {release.split} "
-            "--result_dir <new-results>`, and pack that run. Keep the original results."
+            "--run-config <original-run-config> --result_dir <new-results>`, "
+            "and pack that run. Keep the original results."
         ),
     )
