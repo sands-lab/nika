@@ -61,7 +61,7 @@ The container runs privileged with the host's `/dev`, because AgentENV starts ea
 
 - On Linux, your user needs read/write access to `/dev/kvm`, usually through the `kvm` group. `sbx diagnose` checks virtualization support. See [Manual sbx installation](installation.md#install-a-sandbox-runtime) for other install methods.
 - `sbx login` authenticates Docker; agent credentials require separate setup.
-- NIKA runs agents under the Balanced global network policy of sbx, which it sets when sbx has no policy yet. Under Open (`allow-all`), runs stop before anything is deployed; see [Runs stop because sbx allows all traffic](#runs-stop-because-sbx-allows-all-traffic).
+- NIKA supports the Balanced and deny-all global network policies of sbx. It initializes Balanced only when sbx has no policy. Under Open (`allow-all`), runs stop before anything is deployed; see [Runs stop because sbx allows all traffic](#runs-stop-because-sbx-allows-all-traffic).
 
 ### Connect to E2B cloud or another E2B-compatible service
 
@@ -278,7 +278,11 @@ Claude Code runs with `--strict-mcp-config` and without `WebSearch`, `WebFetch`,
 
 NIKA limits each agent sandbox to its MCP gateway and model proxy by denying, for that sandbox, every host the global sbx policy allows. In sbx a deny always wins over an allow, so under the Open preset (`allow-all`, global rule `**`) the deny would also block the gateway and the proxy, and the agent could reach nothing. NIKA therefore stops the run with an error before it deploys anything.
 
-Switch the global policy to Balanced:
+To keep your host's sbx policy, use [AgentENV on this host](#run-agentenv-in-docker) with `./scripts/install.sh --with-agentenv`, or [connect to E2B cloud](#connect-to-e2b-cloud-or-another-e2b-compatible-service). Both use `nika.sandbox.backend: e2b` and confine each sandbox independently of sbx. Run your original NIKA command again after configuring the selected runtime.
+
+NIKA retains sbx support and does not reset an existing host policy.
+
+Changing the host policy affects other sandboxes. If you choose Balanced instead:
 
 ```bash
 sbx policy reset   # stops running sandboxes, then asks for a preset: choose Balanced
