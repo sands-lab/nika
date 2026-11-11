@@ -209,7 +209,7 @@ uv run nika leaderboard validate results/my-run/20261027_codex_gpt_6_astra
 
 ### `ERROR_RELEASE_DRIFT`
 
-The package was produced with task definitions that differ from the official release, usually because the NIKA checkout used for the run is older or newer than the release. NIKA reports this when all trials of a task are missing but trials with the same task name and a different hash are present, or when the release files at the run's recorded NIKA commit define a task differently, for example with other ground truth. The error lists the changed tasks and the official commit. Fetch that commit and create a separate checkout before rerunning. Use the reported commit for legacy releases too; they have no release tag. Install the dependencies in that checkout, run the release into a new result directory, and pack that run. Keep the original results:
+The package was produced with task definitions that differ from the official release, usually because the NIKA checkout used for the run is older or newer than the release. The error lists the changed tasks and the official commit. Fetch that commit and create a separate checkout before rerunning. Use the reported commit for legacy releases too; they have no release tag. Install the dependencies in that checkout, run the release into a new result directory, and pack that run. Keep the original results:
 
 ```shell
 git fetch origin <official-commit>
@@ -265,7 +265,7 @@ A required package file or directory is missing. Pack again with `nika leaderboa
 
 ### `ERROR_METADATA_INVALID`
 
-`metadata.yaml` misses a required field, has an unknown field, or does not parse. Compare it with `nika leaderboard template`.
+`metadata.yaml` has an empty required value, an invalid list or field type, or invalid YAML. Compare it with `nika leaderboard template` and the field named in the error.
 
 ### `ERROR_IDENTITY_INVALID`
 

@@ -56,7 +56,7 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     ),
     "ERROR_METADATA_INVALID": IssueSpec(
         "metadata.yaml is invalid",
-        "A required field is empty, a field is misspelled, or the YAML does not parse.",
+        "A required value is empty, a field has an invalid type, or the YAML does not parse.",
         "Compare metadata.yaml with `nika leaderboard template` and fill every "
         "required field.",
     ),
