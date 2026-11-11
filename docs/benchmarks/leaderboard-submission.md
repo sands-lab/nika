@@ -14,7 +14,7 @@ Publish the result of an official benchmark release run on the NIKA leaderboard.
 - Hugging Face authentication through `hf auth login`, or `HF_TOKEN` in the environment or the repository-root `.env`. The token must permit proposing dataset changes.
 
 > [!IMPORTANT]
-> The run must include every trial the release defines for its split. Agent failures and timeouts count as finished trials with a zero score. Infrastructure and grading errors must be repaired and rerun first.
+> The run must include every trial the release defines for its split. Agent failures and timeouts count as finished trials with a zero score. Retry infrastructure errors. Repair grading inputs and regrade the existing agent submissions; see [grading-error recovery](#error_grading_error).
 
 **Terms** (see the [glossary](../../GLOSSARY.md)):
 

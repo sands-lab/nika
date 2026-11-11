@@ -63,7 +63,7 @@ The user guide intentionally does not tell users to check out the tag manually; 
 
 ## Coverage and scoring
 
-- Coverage is exact: `case_count × n_trials` finished slots, with both values from the release. Example for 0.2.0: test 85 × 3 = 255, dev 84 × 3 = 252. Runs limited by `--task-id` or a single trial fail unless the directory already holds every required trial.
+- Coverage is exact: `case_count × n_trials` finished slots, with both values from the release. Runs limited by `--task-id` or a single trial fail unless the directory already holds every required trial.
 - Agents submit `(resource_id, fault_type)` pairs; scoring uses set metrics on those pairs. Primary means use the fixed denominator `N = case_count × n_trials`; non-`scored` trials contribute 0. Full rules: [root-cause evaluation](../benchmarks/root-cause-evaluation.md#score-a-submission).
 - `score_status` (in each trial's `run.json`): `scored`, `no_submission` (agent fault, counts as 0, do not rerun), `infra_error` (no submission and missing ground truth or env/LLM API/MCP failure evidence; auto-retried by resume and `--retry-passes`), `grading_error` (submission exists but ground truth or scorer failed; regrade, do not rerun the agent). Any `grading_error` or residual `infra_error` rejects the package with no threshold (`ERROR_GRADING_ERROR`, `ERROR_INFRA_ERROR`).
 
@@ -81,7 +81,7 @@ The user guide intentionally does not tell users to check out the tag manually; 
 | `fault_absent_at_cleanup` | A `fault_presence_recheck` before cleanup read `absent`: the agent likely mutated the network, or the fault self-healed | `WARNING_RUN_VALIDITY` |
 | `infra_error` | Trial failed to start, lacks ground truth, or has `score_status=infra_error` | `ERROR_RUN_VALIDITY` above `--max-harness-rate` |
 
-`HARNESS_FLAGS = (truncated_final_turn, infra_error)`; `DEFAULT_MAX_HARNESS_RATE = 0.05`. The `infra_error` flag is distinct from the `infra_error` score status: a trial can carry the flag without that status. Design intent: harness flags indicate a broken harness rather than agent skill, so a small rate is tolerated; warning flags reflect agent behavior and must stay in the scored package.
+`HARNESS_FLAGS = (truncated_final_turn, infra_error)`; the threshold is selected by `--max-harness-rate`. The `infra_error` flag is distinct from the `infra_error` score status: a trial can carry the flag without that status. Design intent: harness flags indicate a broken harness rather than agent skill, so a small rate is tolerated; warning flags reflect agent behavior and must stay in the scored package.
 
 ## Package layouts
 
