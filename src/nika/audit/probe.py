@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from auditlib.source import read_source, source_files
+from nika.audit.source import read_source, source_files
 
 
 class ProbePlan(BaseModel):

@@ -31,6 +31,8 @@ from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+
+from nika.audit.leaks import fault_tokens
 from typing import Any
 
 Exec = Callable[[str, str, float], str]
@@ -565,26 +567,7 @@ BACKUP_NAME = re.compile(
 EMPTY_MD5 = "d41d8cd98f00b204e9800998ecf8427e"
 # Word pairs of a fault id that are also native keywords of the tools the
 # fault configures (nft's ICMP code ``frag-needed``); the rule is the fault.
-NATIVE_KEYWORDS = frozenset({"frag[-_]needed"})
 SNAPSHOT_MARK = "__agentview_snapshot__"
-
-
-def fault_tokens(fault: str) -> list[str]:
-    """Regex alternatives that name ``fault`` (registry id and its phrases).
-
-    Every run of two or more consecutive words of the id, joined by ``_`` or
-    ``-``, plus the whole id without separators when it has three or more
-    words (class names such as ``HostIncorrectDns``). Single words are left
-    out: ``dns`` or ``loss`` appear in any healthy config.
-    """
-    words = [w for w in fault.lower().split("_") if w]
-    tokens: list[str] = []
-    for size in range(len(words), 1, -1):
-        for start in range(len(words) - size + 1):
-            tokens.append("[-_]".join(words[start : start + size]))
-    if len(words) >= 3:
-        tokens.append("".join(words))
-    return [t for t in dict.fromkeys(tokens) if t not in NATIVE_KEYWORDS]
 
 
 def token_pattern(fault: str) -> str:

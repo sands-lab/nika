@@ -13,18 +13,23 @@ from pathlib import Path
 import httpx
 import yaml
 
-from auditlib.adjudicate import _verdict, system_prompt
-from auditlib.capture_probe import (
+from nika.audit.adjudicate import _verdict, system_prompt
+from nika.audit.capture_probe import (
     CapturePlan,
     confirms_start_failure,
     run_capture_probe,
 )
-from auditlib.contracts import _object, read_evidence
-from auditlib.curate import covered_by_signature, to_pattern
-from auditlib.detectors import TrialContext
-from auditlib.kb import Issue, load_kb
-from auditlib.scan import ScanConfig, chat
-from auditlib.source import SourceUnavailable, read_source, request_source, source_hash
+from nika.audit.contracts import _object, read_evidence
+from nika.audit.curate import covered_by_signature, to_pattern
+from nika.audit.detectors import TrialContext
+from nika.audit.kb import Issue, load_kb
+from nika.audit.scan import ScanConfig, chat
+from nika.audit.source import (
+    SourceUnavailable,
+    read_source,
+    request_source,
+    source_hash,
+)
 
 READER = """Acquire production source for the recorded capture lifecycle and selected node image.
 Read the capture API, launch implementation, and image binding for the selected node class.

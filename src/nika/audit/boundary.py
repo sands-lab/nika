@@ -14,18 +14,18 @@ from pathlib import Path
 import httpx
 import yaml
 
-from auditlib.adjudicate import _verdict, system_prompt
-from auditlib.detectors import TrialContext, in_scope, run_trial
-from auditlib.kb import Issue, Signature, load_kb
-from auditlib.scan import ScanConfig, chat
-from auditlib.source import (
+from nika.audit.adjudicate import _verdict, system_prompt
+from nika.audit.detectors import TrialContext, in_scope, run_trial
+from nika.audit.kb import Issue, Signature, load_kb
+from nika.audit.scan import ScanConfig, chat
+from nika.audit.source import (
     SourceUnavailable,
     read_source,
     source_files,
     source_hash,
     verified_provider,
 )
-from auditlib.trace import Trial
+from nika.audit.trace import Trial
 
 _ASSIGN = re.compile(
     r"^ip\s+(?:addr|address)\s+add\s+(\d+(?:\.\d+){3})/\d+\s+dev\s+([\w.:-]+)(?:\s|$)",

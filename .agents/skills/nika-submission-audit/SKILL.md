@@ -7,7 +7,7 @@ description: Audit a NIKA leaderboard submission or benchmark run by reading the
 
 Find defects in a benchmark, its harness, or a leaderboard submission from recorded trajectories. Record confirmed issues so later audits detect them with deterministic checks.
 
-The built-in method consists of the reviewer guides in `references/`, `kb/taxonomy.yaml`, `kb/policy.yaml`, and generic checks in `kb/checks/`. The learned memory consists of concrete issues in `kb/issues/` and [audit lessons](references/lessons.md). Update learned memory through reviewed pull requests.
+The implementation and reviewed knowledge base live in [`src/nika/audit/`](../../../src/nika/audit/). The built-in checks and tool policy are in `src/nika/audit/kb_data/`; confirmed issues are in its `issues/` directory. Reviewer guides remain in `references/`, and [audit lessons](references/lessons.md) record recurring review mistakes. Update this knowledge through reviewed pull requests.
 
 ## Rules
 
@@ -21,17 +21,11 @@ The built-in method consists of the reviewer guides in `references/`, `kb/taxono
 
 ## Audit a submission
 
-Run commands from the NIKA checkout. Review requires an OpenAI-compatible chat endpoint and a local trajectories package or benchmark result directory.
+New leaderboard entries trigger the shared CI audit automatically. It defaults to the latest merged auditor and knowledge base on `dev`. Validation and model review use the same checkout version within a run. Scores and trajectories keep their selected revisions. CI runs paired validation, then invokes the review library with the local Codex subscription and `gpt-6-luna` on the `nika-audit` runner. The model has no shell tools.
 
-For an authenticated endpoint, set `NIKA_AUDIT_LLM_KEY` in the command's environment.
+CI copies the reviewed KB into the review output directory. `summary.json` records completion; `audit-candidate.json` records replay when rules are generated. New candidates produce deduplicated GitHub issues and a draft knowledge PR. Treat every generated rule as a proposal until a maintainer accepts its evidence and scope.
 
-```bash
-AUDIT=".agents/skills/nika-submission-audit/scripts/audit.py"
-uv run python "$AUDIT" review <trajectories-dir> --workdir audit-work \
-  --base-url http://<host>:<port>/v1 --model <model> --repo .
-```
-
-For published trajectories, `fetch <slug> --release <version>` downloads the package to `audit-trajectories/trajectories/<version>/<slug>`. Add `--history <nika-leaderboard checkout>` to include earlier submissions in cross-trial tables. Every subcommand accepts `--kb <dir>` to use a separate issue memory.
+Reviewer tools such as `packet`, `cite-check`, `kb-validate`, and `kb-check` remain available through `uv run python -m nika.audit.cli`. For published trajectories, its `fetch <slug> --release <version>` command downloads the package to `audit-trajectories/trajectories/<version>/<slug>`.
 
 `--repo` enables source verification at recorded commits and checks whether known issues recur after their fixes. Source-assisted checks require those commits in the checkout. Parser and capture confirmation can run isolated Docker probes; those probes require Docker and locally cached images pinned by digest. Missing dependencies, unsupported source layouts, and failed requests remain explicit in the output.
 
@@ -50,13 +44,12 @@ Source-backed detectors bind their observations to reviewed provider contents. A
 
 When a shared-text signature matches many uncited trials, static-disclosure validation can check every distinct scoped output and matched fragment. Each fragment must establish the complete disclosure by itself, and an empty control must be rejected. Accepted detectors also require the producing tool. Other recording failures remain available for review.
 
-Successful model replies are cached against their evidence, prompts, and selected model parameters. Failed replies remain errors and are retried on a rerun. Malformed table or validation replies may receive one bounded format retry; valid replies are preserved. Reasoning-enabled HTTP requests use streaming, with ordinary HTTP as a fallback for endpoints that reject streaming. Interrupted streams remain errors and are not automatically replayed.
+Successful model replies are cached against their evidence, prompts, and selected model parameters. Failed replies remain errors. The review library can reuse successful cached replies; Each CI review uses a new output directory. Malformed table or validation replies may receive one bounded format retry; valid replies are preserved. Reasoning-enabled HTTP requests use streaming, with ordinary HTTP as a fallback for endpoints that reject streaming. Interrupted streams remain errors and are not automatically replayed.
 
-To check only existing rules, use the deterministic path:
+To check existing rules through the installed CLI, run:
 
 ```bash
-uv run python "$AUDIT" run <trajectories-dir> \
-  --out audit.json --markdown audit.md --repo .
+uv run python -m nika.audit.cli run <trajectories-dir> --out audit.json --repo .
 ```
 
 This command makes no model calls. Source-backed rules that cannot be evaluated are reported as unsupported.

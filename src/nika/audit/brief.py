@@ -11,18 +11,18 @@ from pathlib import Path
 import httpx
 import yaml
 
-from auditlib.adjudicate import _verdict, system_prompt
-from auditlib.contracts import _object, read_evidence
-from auditlib.detectors import in_scope
-from auditlib.kb import Issue, SourceRead, load_kb
-from auditlib.scan import ScanConfig, chat
-from auditlib.source import (
+from nika.audit.adjudicate import _verdict, system_prompt
+from nika.audit.contracts import _object, read_evidence
+from nika.audit.detectors import in_scope
+from nika.audit.kb import Issue, SourceRead, load_kb
+from nika.audit.scan import ScanConfig, chat
+from nika.audit.source import (
     SourceUnavailable,
     request_source,
     source_hash,
     verified_provider,
 )
-from auditlib.trace import Trial
+from nika.audit.trace import Trial
 
 READER = """Acquire source evidence for a network task's initial brief.
 Inspect the summary provider and the selected deployment's node/link declarations.

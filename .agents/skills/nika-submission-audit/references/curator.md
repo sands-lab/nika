@@ -4,7 +4,7 @@ Add knowledge one issue at a time, so each change can be attributed, reviewed, a
 
 ## Write the issue
 
-Create `kb/issues/<ID>.yaml` in the skill directory (or in the `--kb` snapshot you work on). IDs are upper-case words joined by `-`, starting with a class prefix (`LEAK-`, `HARNESS-`, `POLICY-`, `LURE-`, `FNR-`, `SIG-`, `LABEL-`, `GRADE-`, `AGENT-`, `OOS-`, `RUN-`, `HIDDEN-`).
+Create `src/nika/audit/kb_data/issues/<ID>.yaml` in the NIKA checkout (or in the `--kb` snapshot you work on). IDs are upper-case words joined by `-`, starting with a class prefix (`LEAK-`, `HARNESS-`, `POLICY-`, `LURE-`, `FNR-`, `SIG-`, `LABEL-`, `GRADE-`, `AGENT-`, `OOS-`, `RUN-`, `HIDDEN-`).
 
 ```yaml
 id: LEAK-EXAMPLE-NAME
@@ -30,7 +30,7 @@ provenance:
 evidence: ['<trial_id> step <n>: <excerpt>']
 ```
 
-Signature kinds and fields are documented on `Signature` in `scripts/auditlib/kb.py`. Prefer the narrowest signature that still matches every source trial. Set `fixed_in` only together with `status: fixed`.
+Signature kinds and fields are documented on `Signature` in `src/nika/audit/kb.py`. Prefer the narrowest signature that still matches every source trial. Set `fixed_in` only together with `status: fixed`.
 
 ## Check it
 

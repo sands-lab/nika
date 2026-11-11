@@ -9,7 +9,7 @@ Implementation: [`workflows/leaderboard/`](../../src/nika/workflows/leaderboard/
 
 **Prerequisites:**
 
-- A finished official `nika benchmark run --release …` against a current (non-deprecated) frozen release
+- A finished official `nika benchmark run --release …` against a current (non-deprecated) benchmark release
 - Authenticated [`gh`](https://cli.github.com/) access (`gh auth login` or `GH_TOKEN` with `repo` scope)
 - Hugging Face authentication through `hf auth login`, or `HF_TOKEN` in the environment / repo-root `.env`. Use a token that permits proposing dataset changes. You do not need collaborator access to the public dataset to open a PR. `uv sync` installs `huggingface_hub` and `hf`.
 
@@ -37,7 +37,7 @@ For an open-weight model, `submit` also records which Hugging Face model the run
 Use a template when you want to supply a longer README, code links, tools, skills, or other metadata. Pass `--submission` instead of `--name` and `--authors`.
 
 ```shell
-# Use the current frozen release.
+# Use the current benchmark release.
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run -a <agent> -m <model>
 
 nika leaderboard template -o results/my-run/submission
@@ -204,10 +204,32 @@ Short system description, authors, and links to code / report / site (if any).
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
 - No `grading_error` or residual `infra_error` scoring status (`infra_error` is auto-retried during the run; leftovers reject the pack)
 - [Run-validity gates](#run-validity-gates) based on trial artifacts
-- Sibling trajectories package has the required per-trial files and matching trial set
+- Paired trajectories have the required files, matching trial set, and the same per-trial metrics as the scores package
+- The deterministic trajectory audit checks allowed tools, known shortcut signatures, harness consistency, and re-grading
 - No secrets or absolute paths in package text
 
 See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-submission) for per-trial metrics, `score_status`, and aggregation.
+
+### Audit recorded evidence
+
+`submit` audits its paired trajectories during validation and includes `audit.json` in the scores package. A blocking verdict stops submission; warnings require review. You can repeat the same checks against a scores package and downloaded trajectories:
+
+```shell
+uv run nika leaderboard validate <scores-package> \
+  --fetch-trajectories --audit-out audit.json --audit-repo .
+```
+
+The download selects the merged trajectories or their open Hub PR, pins its commit, and records that revision in the audit report. For local paired data, use `--trajectories <dir>`. Validation also discovers an existing sibling directory. If no trajectories are available, scores-only validation reports that the audit did not run.
+
+The [reviewed knowledge base](../../src/nika/audit/kb_data/) defines blocking and warning findings.
+
+### Automatic trajectory review
+
+Leaderboard CI validates each changed entry against its paired trajectories and reviews the recorded agent behavior. New audits use the latest merged knowledge base. Model review requires a completed trajectory audit and no detected secrets in the scores package. Validation errors still fail the entry check even when model review runs.
+
+Open the pull request's validation check to inspect the audit summary and download its evidence artifacts. The `audit.json` report lists known issues with trial and step references. Review the cited observations when addressing warnings or blocking findings; a successful CI job does not dismiss reported warnings.
+
+Newly proposed audit rules require maintainer review before adoption. For reviewer setup and workflow maintenance, see [Run leaderboard submission audits](../development/testing.md#run-leaderboard-submission-audits).
 
 ### Run-validity gates
 

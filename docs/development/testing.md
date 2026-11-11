@@ -117,7 +117,7 @@ Documentation review and submission review use separate GitHub Actions runner re
 | `nika-audit` | `sands-lab/nika` | `nika-audit` |
 | `leaderboard-audit` | `sands-lab/nika-leaderboard` | `nika-audit` |
 
-Configure each runner in `~/.local/share/nika/github-runners/<instance>` using GitHub's runner registration instructions. Audit registrations use `--no-default-labels --labels nika-audit` so ordinary self-hosted jobs cannot select them. Keep registration credentials outside the repository. Install Git, Python 3, `uv`, GitHub CLI, and Codex CLI for the runner user. Authenticate GitHub CLI for audit proposal publication and run `codex login status` to check model access. Both audit registrations need the auditor's dependencies; the workflow installs the pinned NIKA checkout. Model access and repository secrets remain separate from runner registration.
+Configure each runner in `~/.local/share/nika/github-runners/<instance>` using GitHub's runner registration instructions. Audit registrations use `--no-default-labels --labels nika-audit` so ordinary self-hosted jobs cannot select them. Keep registration credentials outside the repository. Install Git, Python 3, `uv`, GitHub CLI, and Codex CLI for the runner user. Authenticate GitHub CLI for audit proposal publication and run `codex login status` to check model access. Both audit registrations need the auditor's dependencies; the workflow installs its selected NIKA checkout. Model access and repository secrets remain separate from runner registration.
 
 Use the shared [systemd user service](../../config/systemd/nika-github-runner@.service) for all instances:
 
@@ -130,6 +130,14 @@ systemctl --user enable --now nika-github-runner@docs-review.service \
 ```
 
 Enable user lingering with `loginctl enable-linger <user>` if these services must survive logout. Inspect an instance with `systemctl --user status nika-github-runner@<instance>` and `journalctl --user -u nika-github-runner@<instance>`. Before moving a registration, wait for its current job to finish and stop its service. Verify the replacement with a real workflow before removing the old registration and service. A repository-scoped runner accepts jobs only from its registered repository, including jobs in a reusable workflow called by that repository.
+
+### Run leaderboard submission audits
+
+Leaderboard CI calls the shared [submission audit workflow](../../.github/workflows/submission-audit.yml) from `dev` and defaults to its latest merged auditor and knowledge base. Both stages use the same checkout version within a run. Later runs include newly merged knowledge without a manual commit update. Local `submit` and `validate` use the deterministic checks installed with NIKA.
+
+The `nika-audit` runner validates paired scores and trajectories, then reviews the same trajectory revision with its Codex login and `gpt-6-luna`. Shell tools are disabled for the model. The review keeps proposed rules in a knowledge-base copy and replays them before publishing artifacts. New candidates open deduplicated issues and a draft NIKA knowledge PR; maintainers verify their cited steps and scope before merging.
+
+Configure the caller repository's `HF_TOKEN` secret for restricted trajectories. The leaderboard caller uses `pull_request_target` so fork scores can be read as data while PR-supplied tests run separately without audit credentials. Only the trusted NIKA checkout is executed. Runner authentication and service setup are described in [Maintain self-hosted review runners](#maintain-self-hosted-review-runners).
 
 ### Use the documentation review fallback
 

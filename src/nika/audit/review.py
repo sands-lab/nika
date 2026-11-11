@@ -21,9 +21,9 @@ from typing import Any
 
 import yaml
 
-from auditlib.detectors import run_trial
-from auditlib.kb import Issue, KnowledgeBase, KnowledgeBaseError, load_kb
-from auditlib.trace import Step, Trial, load_trial
+from nika.audit.detectors import run_trial
+from nika.audit.kb import Issue, KnowledgeBase, KnowledgeBaseError, load_kb
+from nika.audit.trace import Step, Trial, load_trial
 
 _LIMITS = {
     "prompt": 4000,

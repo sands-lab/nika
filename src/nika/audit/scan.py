@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import tempfile
 import time
@@ -26,9 +27,9 @@ from typing import Any
 
 import httpx
 
-from auditlib.kb import KnowledgeBase
-from auditlib.review import check_citations, review_packet
-from auditlib.trace import Trial, load_trial
+from nika.audit.kb import KnowledgeBase
+from nika.audit.review import check_citations, review_packet
+from nika.audit.trace import Trial, load_trial
 
 SYSTEM = """\
 You audit one recorded run ("trial") of NIKA, a benchmark for network \
@@ -163,45 +164,49 @@ def _parse(text: str) -> list[dict[str, Any]]:
 _RETRY_STATUS = {429, 502, 503, 504}
 
 
-CLI_WORKSPACE = Path(tempfile.gettempdir()) / "nika-audit-cli"
-
-
 def _cli_chat(cfg: ScanConfig, system: str, user: str) -> dict:
-    """One answer from an agent CLI, run in one empty directory.
-
-    The CLI may keep per-workspace state (approved tools, servers), so every
-    call shares ``CLI_WORKSPACE`` instead of a new directory.
-    """
+    """Read one CLI answer in an isolated workspace. Preserve call failures."""
     t0 = time.time()
     prompt = f"{system}\n\n---\n\n{user}"
-    error = ""
-    for attempt in range(cfg.retries + 1):
-        if attempt:
-            time.sleep(min(60.0, 2.0**attempt))
-        CLI_WORKSPACE.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="nika-audit-cli-") as workspace:
         try:
-            proc = subprocess.run(
+            with subprocess.Popen(
                 list(cfg.command),
-                input=prompt,
-                capture_output=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                cwd=CLI_WORKSPACE,
-                timeout=cfg.timeout,
-            )
-        except subprocess.TimeoutExpired:
-            error = "timeout"
-            continue
-        content = proc.stdout.strip()
-        if proc.returncode == 0 and content:
-            return {
-                "content": content,
-                "findings": _parse(content),
-                "finish": "stop",
-                "sec": round(time.time() - t0, 1),
-            }
-        error = (proc.stderr or proc.stdout)[
-            -300:
-        ] or f"exit {proc.returncode}, no output"
+                cwd=workspace,
+                env={
+                    key: value
+                    for key, value in os.environ.items()
+                    if key not in {"GH_TOKEN", "GITHUB_TOKEN", "HF_TOKEN"}
+                },
+                start_new_session=True,
+            ) as proc:
+                try:
+                    stdout, stderr = proc.communicate(prompt, timeout=cfg.timeout)
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    proc.communicate()
+                    return {
+                        "error": "reviewer timeout",
+                        "sec": round(time.time() - t0, 1),
+                    }
+        except OSError as exc:
+            return {"error": str(exc), "sec": round(time.time() - t0, 1)}
+    content = stdout.strip()
+    if proc.returncode == 0 and content:
+        return {
+            "content": content,
+            "findings": _parse(content),
+            "finish": "stop",
+            "sec": round(time.time() - t0, 1),
+        }
+    error = (stderr or stdout)[-300:] or f"exit {proc.returncode}, no output"
     return {"error": error, "sec": round(time.time() - t0, 1)}
 
 

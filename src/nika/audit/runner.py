@@ -24,12 +24,18 @@ from typing import Any
 
 import yaml
 
-from auditlib.cohort import TrialRecord, run_metrics
-from auditlib.detectors import Hit, in_scope, run_trial, tool_stats
-from auditlib.kb import KnowledgeBase, Policy, load_kb
-from auditlib.regrade import regrade_trial
-from auditlib.source import SourceUnavailable, source_absent, verified_provider
-from auditlib.trace import Trial, _fingerprint, load_trial, split_tool_name, trial_dirs
+from nika.audit.cohort import TrialRecord, run_metrics
+from nika.audit.detectors import Hit, in_scope, run_trial, tool_stats
+from nika.audit.kb import KnowledgeBase, Policy, load_kb
+from nika.audit.regrade import regrade_trial
+from nika.audit.source import SourceUnavailable, source_absent, verified_provider
+from nika.audit.trace import (
+    Trial,
+    _fingerprint,
+    load_trial,
+    split_tool_name,
+    trial_dirs,
+)
 
 SCHEMA = "nika-audit/1"
 _FINGERPRINT_RUN_KEYS = (
@@ -79,7 +85,7 @@ def read_package(root: Path) -> AuditInput:
     bench = identity.get("benchmark") or {}
     first = trials[0].run if trials else {}
     package = {
-        "path": str(root),
+        "path": root.name,
         "slug": root.name,
         "release": bench.get("version") or first.get("benchmark_version"),
         "agent_type": run.get("agent_type") or first.get("agent_type"),

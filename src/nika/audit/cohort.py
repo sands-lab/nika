@@ -20,7 +20,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from auditlib.kb import Issue, KnowledgeBase, Signature
+from nika.audit.kb import Issue, KnowledgeBase, Signature
 
 _QUICK_SOLVE_CALLS = 3
 _SAMPLE = 8

@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 
-from auditlib.cohort import METRICS
-from auditlib.kb import load_kb
+from nika.audit.cohort import METRICS
+from nika.audit.kb import load_kb
 from nika.mcp.registry import MCP_SERVER_SPECS
 
 pytestmark = pytest.mark.contract

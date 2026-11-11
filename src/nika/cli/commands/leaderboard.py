@@ -25,11 +25,77 @@ def leaderboard_validate(
         help="Fail when truncated_final_turn or infra_error flags exceed this "
         "fraction of trials; other run-validity flags only warn.",
     ),
+    trajectories: Optional[Path] = typer.Option(
+        None,
+        "--trajectories",
+        help="Paired trajectories directory; otherwise use an existing sibling.",
+    ),
+    audit_out: Optional[Path] = typer.Option(
+        None, "--audit-out", help="Write the recomputed trajectory audit JSON."
+    ),
+    audit_repo: Optional[Path] = typer.Option(
+        None, "--audit-repo", help="NIKA checkout for source-backed audit checks."
+    ),
+    fetch_trajectories: bool = typer.Option(
+        False,
+        "--fetch-trajectories",
+        help="Download paired trajectories at an immutable Hub revision before validation.",
+    ),
+    traj_repo: str = typer.Option(
+        DEFAULT_TRAJECTORIES_REPO,
+        "--traj-repo",
+        help="Trajectories dataset repository.",
+    ),
 ) -> None:
     """Validate a scores package locally or in leaderboard GitHub CI."""
     from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 
-    report = validate_leaderboard_submission(package, max_harness_rate=max_harness_rate)
+    import json
+    import tempfile
+    from contextlib import ExitStack
+
+    if fetch_trajectories and trajectories is not None:
+        raise typer.BadParameter("Choose --trajectories or --fetch-trajectories.")
+    with ExitStack() as cleanup:
+        source = None
+        if fetch_trajectories:
+            import yaml
+            from nika.audit.fetch import TrajectoryFetchError
+            from nika.audit.fetch import fetch_trajectories as fetch
+            from nika.workflows.leaderboard.schema import PackageIdentity
+
+            identity = PackageIdentity.model_validate(
+                yaml.safe_load((package / "results" / "identity.yaml").read_text())
+            )
+            downloaded = Path(
+                cleanup.enter_context(tempfile.TemporaryDirectory(prefix="nika-audit-"))
+            )
+            try:
+                trajectories = fetch(
+                    package.name, identity.benchmark.version, downloaded, repo=traj_repo
+                )
+            except TrajectoryFetchError as exc:
+                typer.secho(
+                    f"Trajectory audit not run: {exc}", fg=typer.colors.RED, err=True
+                )
+                raise typer.Exit(code=1) from exc
+            source = json.loads((downloaded / "fetch-source.json").read_text())
+        report = validate_leaderboard_submission(
+            package,
+            max_harness_rate=max_harness_rate,
+            trajectories_dir=trajectories,
+            audit_repo=audit_repo,
+        )
+        if report.audit is not None and source is not None:
+            report.audit["trajectory_source"] = source
+    if audit_out is not None and report.audit is not None:
+        from nika.audit.runner import write_report
+
+        write_report(report.audit, audit_out)
+    if report.audit is not None:
+        from nika.audit.runner import render_markdown
+
+        typer.echo(render_markdown(report.audit))
     for warning in report.warnings:
         typer.secho(warning, fg=typer.colors.YELLOW, err=True)
     if not report.ok:

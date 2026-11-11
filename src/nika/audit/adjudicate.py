@@ -18,9 +18,9 @@ from typing import Any
 
 import httpx
 
-from auditlib.kb import KnowledgeBase
-from auditlib.scan import ScanConfig, chat
-from auditlib.trace import Trial
+from nika.audit.kb import KnowledgeBase
+from nika.audit.scan import ScanConfig, chat
+from nika.audit.trace import Trial
 
 VERDICTS = ("real", "by_design", "agent_mistake", "unclear")
 
@@ -45,6 +45,10 @@ behaviour of the protocol or software, and would not mislead a careful agent.
 wrong command or argument, a misreading, or a change it made itself. The \
 benchmark and tools behaved as documented.
 - unclear: the evidence shown cannot settle it.
+
+Commands through an authorized MCP tool can inspect the named network node. \
+For out_of_scope, identify the prohibited boundary and evidence that the call crossed it. \
+A broad node filesystem search alone does not establish a boundary violation.
 
 Judge from the evidence shown, not from the claim's wording. Reply with JSON \
 only: {{"verdict": "<one of real, by_design, agent_mistake, unclear>", \

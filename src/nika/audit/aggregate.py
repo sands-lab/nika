@@ -16,7 +16,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
-from auditlib.trace import Trial
+from nika.audit.trace import Trial
 
 _MASKS = [
     (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?\b"), "<ip>"),
@@ -85,7 +85,7 @@ def group_findings(
     *,
     min_overlap: float = 0.5,
 ) -> list[dict[str, Any]]:
-    """Group the supported findings of scan *records* (``auditlib.scan.scan_trials`` output).
+    """Group the supported findings of scan *records* (``nika.audit.scan.scan_trials`` output).
 
     Returns group summaries, most widespread and most agreed first.
     """

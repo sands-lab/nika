@@ -12,7 +12,7 @@
    recorded issue's text signature already matches their evidence.
 6. Cross-trial issues: per-environment tables of cases, healthy tasks, and
    tools are read with the same questions; real findings become issues with
-   statistical signatures (``auditlib.cohort_audit``).
+   statistical signatures (``nika.audit.cohort_audit``).
 
 Every intermediate result is written to *workdir*, so a step can be inspected
 or resumed. The issue files land in ``<kb_dir>/issues`` for a maintainer to
@@ -36,26 +36,26 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from auditlib.adjudicate import adjudicate_groups, group_prompt, system_prompt
-from auditlib.aggregate import group_findings
-from auditlib.cohort_audit import (
+from nika.audit.adjudicate import adjudicate_groups, group_prompt, system_prompt
+from nika.audit.aggregate import group_findings
+from nika.audit.cohort_audit import (
     build_rows,
     judge,
     prompt_rows,
     scan_rows,
 )
-from auditlib.cohort_audit import curate as curate_cohort
-from auditlib.curate import covered_by_signature, curate_group, recorded_by
-from auditlib.curate_validate import validate_group
-from auditlib.contracts import audit_contracts
-from auditlib.brief import audit_briefs
-from auditlib.boundary import audit_boundaries
-from auditlib.capture import audit_captures
-from auditlib.normalization import audit_normalizations
-from auditlib.kb import load_kb
-from auditlib.runner import audit_trajectories, write_report
-from auditlib.scan import ScanConfig, scan_trials
-from auditlib.trace import load_trial, trial_dirs
+from nika.audit.cohort_audit import curate as curate_cohort
+from nika.audit.curate import covered_by_signature, curate_group, recorded_by
+from nika.audit.curate_validate import validate_group
+from nika.audit.contracts import audit_contracts
+from nika.audit.brief import audit_briefs
+from nika.audit.boundary import audit_boundaries
+from nika.audit.capture import audit_captures
+from nika.audit.normalization import audit_normalizations
+from nika.audit.kb import load_kb
+from nika.audit.runner import audit_trajectories, write_report
+from nika.audit.scan import ScanConfig, scan_trials
+from nika.audit.trace import load_trial, trial_dirs
 
 
 def _align(verdicts: list, results: list) -> list:
