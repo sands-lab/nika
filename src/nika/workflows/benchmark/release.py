@@ -21,6 +21,7 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     image_repository,
 )
 from nika.problems.compat.v010 import RELEASE_VERSION as RELEASE_010
+from nika.problems.rca.models import RootCause
 from nika.net_env.net_env_pool import (
     deployment_needs_licensed_images,
     get_net_env_instance,
@@ -30,6 +31,8 @@ from nika.net_env.net_env_pool import (
     scenario_family,
     scenario_requires_topo_size,
 )
+from nika.net_env.isp.identity import is_isp_scenario, isp_topo_from_scenario
+from nika.net_env.isp.profiles import default_device_profile
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.problems.registry import (
     compatible_columns,
@@ -52,9 +55,11 @@ from nika.benchmark_engine.protocol import (
 )
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.benchmark.candidate_context import (
+    deployment_environment_key,
     normalize_topo_scale,
     selection_context_key,
 )
+from nika.workflows.benchmark.multi_fault import row_problems
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
 BENCHMARK_ID = "nika-bench"
@@ -563,12 +568,13 @@ def verify_dev_test_isolation(
     dev_cases: list[dict[str, Any]],
     test_cases: list[dict[str, Any]],
     allow_context_overlap: bool = False,
+    require_unseen_networks: bool = True,
 ) -> None:
     """Ensure Dev/Test use the same taxonomy and disjoint deployment contexts."""
     if not dev_cases or not test_cases:
         raise ReleaseError("Both Dev and Test splits must be non-empty")
-    dev_problems = {row["problem"] for row in dev_cases}
-    test_problems = {row["problem"] for row in test_cases}
+    dev_problems = {problem for row in dev_cases for problem in row_problems(row)}
+    test_problems = {problem for row in test_cases for problem in row_problems(row)}
     if dev_problems != test_problems:
         only_dev = sorted(dev_problems - test_problems)
         only_test = sorted(test_problems - dev_problems)
@@ -580,13 +586,72 @@ def verify_dev_test_isolation(
         raise ReleaseError(
             f"Dev/Test exact isolation failed: {len(exact_overlap)} shared case(s)"
         )
-    context_overlap = {selection_context_key(row) for row in dev_cases} & {
-        selection_context_key(row) for row in test_cases
+    fixed_clusters = {"k8s_lab", "llmd_lab"} if require_unseen_networks else set()
+    context_overlap = {
+        selection_context_key(row)
+        for row in dev_cases
+        if row["scenario"] not in fixed_clusters
+    } & {
+        selection_context_key(row)
+        for row in test_cases
+        if row["scenario"] not in fixed_clusters
     }
     if context_overlap and not allow_context_overlap:
         raise ReleaseError(
             "Dev/Test semantic isolation failed: "
             f"{len(context_overlap)} shared failure-context pair(s)"
+        )
+    if not require_unseen_networks:
+        return
+
+    def networks(rows: list[dict[str, Any]]) -> set[tuple[Any, ...]]:
+        identities = set()
+        for row in rows:
+            scenario = row["scenario"]
+            if is_isp_scenario(scenario):
+                identities.add(("isp_graph", isp_topo_from_scenario(scenario)))
+            elif scenario in fixed_clusters:
+                if is_healthy_case(row["problem"]):
+                    continue
+                roots = row.get("root_causes") or []
+                if not roots:
+                    raise ReleaseError(
+                        f"{scenario} requires resolved root_causes resources "
+                        "to check Dev/Test component isolation"
+                    )
+                try:
+                    identities.update(
+                        (scenario, RootCause.model_validate(rc).resource_id)
+                        for rc in roots
+                    )
+                except ValueError as exc:
+                    raise ReleaseError(
+                        f"{scenario} requires resolved root_causes resources "
+                        "to check Dev/Test component isolation"
+                    ) from exc
+            else:
+                backend = resolve_scenario_backend(
+                    scenario,
+                    backend=row.get("backend"),
+                    default_when_ambiguous="kathara",
+                )
+                identities.add(
+                    deployment_environment_key(
+                        {
+                            **row,
+                            "backend": backend,
+                            "device_profile": row.get("device_profile")
+                            or default_device_profile(backend),
+                        }
+                    )
+                )
+        return identities
+
+    overlap = networks(dev_cases) & networks(test_cases)
+    if overlap:
+        raise ReleaseError(
+            "Dev/Test network isolation failed: "
+            f"{len(overlap)} shared variant(s), ISP graph(s), or cluster component(s)"
         )
 
 
@@ -624,9 +689,16 @@ def _validate_release_splits(
     keeps its failures while the registry grows, so it only needs every failure
     it lists to still be registered.
     """
-    verify_dev_test_isolation(dev_cases=dev_cases, test_cases=test_cases)
+    verify_dev_test_isolation(
+        dev_cases=dev_cases,
+        test_cases=test_cases,
+        require_unseen_networks=not frozen,
+    )
     failures = {
-        str(row["problem"]) for row in dev_cases if not is_healthy_case(row["problem"])
+        problem
+        for row in dev_cases
+        for problem in row_problems(row)
+        if not is_healthy_case(problem)
     }
     if frozen:
         if failures - expected_failures:
@@ -748,7 +820,10 @@ def preflight_release(
         if is_010:
             # 0.1.0 predates the distinct deployment-context split rule.
             verify_dev_test_isolation(
-                dev_cases=dev, test_cases=test, allow_context_overlap=True
+                dev_cases=dev,
+                test_cases=test,
+                allow_context_overlap=True,
+                require_unseen_networks=False,
             )
         else:
             _validate_release_splits(

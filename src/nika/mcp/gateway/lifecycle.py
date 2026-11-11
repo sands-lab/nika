@@ -72,6 +72,8 @@ class McpGatewayManager:
             # gateway just closed loses the request (ECONNRESET), so let the
             # client close idle connections instead.
             timeout_keep_alive=300,
+            # An idle SSE stream must not keep a finished gateway alive.
+            timeout_graceful_shutdown=2,
         )
         self._server = uvicorn.Server(config)
         self._thread = threading.Thread(
@@ -85,11 +87,17 @@ class McpGatewayManager:
     def _wait_until_ready(self, timeout_sec: float = 10.0) -> None:
         deadline = time.monotonic() + timeout_sec
         while time.monotonic() < deadline:
-            try:
-                with socket.create_connection((self.host, self.port), timeout=0.2):
-                    return
-            except OSError:
-                time.sleep(0.05)
+            if self._thread is None or not self._thread.is_alive():
+                raise RuntimeError(
+                    f"MCP gateway exited before startup at {self.host}:{self.port}"
+                )
+            if self._server is not None and self._server.started:
+                try:
+                    with socket.create_connection((self.host, self.port), timeout=0.2):
+                        return
+                except OSError:
+                    pass
+            time.sleep(0.05)
         raise TimeoutError(
             f"MCP gateway did not become ready at {self.host}:{self.port}"
         )
@@ -99,6 +107,10 @@ class McpGatewayManager:
             self._server.should_exit = True
         if self._thread is not None:
             self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                raise TimeoutError(
+                    f"MCP gateway did not stop at {self.host}:{self.port}"
+                )
         self._server = None
         self._thread = None
 
@@ -143,20 +155,23 @@ def start_gateway(
     bind_port = pick_free_port(bind_host) if int(port) == 0 else int(port)
 
     manager = McpGatewayManager(host=bind_host, port=bind_port, backend=backend)
-    manager.start()
+    with _manager_lock:
+        _live_managers.add(manager)
+    try:
+        manager.start()
+    except BaseException:
+        _shutdown_manager(manager)
+        raise
     with _manager_lock:
         _active_manager = manager
-        _live_managers.add(manager)
     os.environ[ENV_GATEWAY_URL] = manager.base_url
     return manager
 
 
 def stop_gateway() -> None:
     """Stop the active MCP gateway if running."""
-    global _active_manager
     with _manager_lock:
         manager = _active_manager
-        _active_manager = None
     _shutdown_manager(manager, clear_registry=True)
 
 
@@ -178,6 +193,8 @@ def _shutdown_manager(
             clear_sessions()
         return
 
+    # Keep the manager registered if its service could not be stopped.
+    manager.stop()
     with _manager_lock:
         _live_managers.discard(manager)
         if _active_manager is manager:
@@ -187,7 +204,6 @@ def _shutdown_manager(
         if _active_manager is None and _live_managers:
             _active_manager = next(iter(_live_managers))
 
-    manager.stop()
     if os.environ.get(ENV_GATEWAY_URL) == manager.base_url:
         os.environ.pop(ENV_GATEWAY_URL, None)
         os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
@@ -254,40 +270,43 @@ def mcp_gateway_for_session(
         bind_host = SANDBOX_GATEWAY_BIND_HOST
     resolved_backend = backend or resolve_session_backend(scenario_name)
     manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
-    if sandbox:
-        set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
-    from nika.utils.session_store import SessionStore
-
-    from nika.run_config.loader import get_run_config
-
-    access = access or configured_access()
-    row = SessionStore().get_session(session_id)
-    node_roles = node_roles_for_session(session_id)
-    snapshot = policy_snapshot(
-        role=access.role, policy=access.policy, node_roles=node_roles
-    )
-    session_dir = str(row["session_dir"])
-    agent_session_id = str(row.get("agent_session_id") or "").strip() or None
-    register_session(
-        session_id,
-        agent_session_id=agent_session_id,
-        scenario_name=scenario_name,
-        session_dir=session_dir,
-        access_policy=snapshot["diagnosis"],
-        tool_call_limits=(
-            get_run_config().agent.tool_call_limits
-            if tool_call_limits is None
-            else tool_call_limits
-        ),
-        node_roles=node_roles,
-        diagnosis_servers=session_diagnosis_servers(
-            row, scenario_name=scenario_name, backend=resolved_backend
-        ),
-    )
+    registered = False
     try:
+        if sandbox:
+            set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
+        from nika.utils.session_store import SessionStore
+
+        from nika.run_config.loader import get_run_config
+
+        access = access or configured_access()
+        row = SessionStore().get_session(session_id)
+        node_roles = node_roles_for_session(session_id)
+        snapshot = policy_snapshot(
+            role=access.role, policy=access.policy, node_roles=node_roles
+        )
+        session_dir = str(row["session_dir"])
+        agent_session_id = str(row.get("agent_session_id") or "").strip() or None
+        register_session(
+            session_id,
+            agent_session_id=agent_session_id,
+            scenario_name=scenario_name,
+            session_dir=session_dir,
+            access_policy=snapshot["diagnosis"],
+            tool_call_limits=(
+                get_run_config().agent.tool_call_limits
+                if tool_call_limits is None
+                else tool_call_limits
+            ),
+            node_roles=node_roles,
+            diagnosis_servers=session_diagnosis_servers(
+                row, scenario_name=scenario_name, backend=resolved_backend
+            ),
+        )
+        registered = True
         yield manager
     finally:
-        unregister_session(session_id)
+        if registered:
+            unregister_session(session_id)
         _shutdown_manager(manager)
 
 

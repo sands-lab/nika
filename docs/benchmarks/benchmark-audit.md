@@ -33,11 +33,12 @@ For a fault task, the audit checks:
 3. The standard NIKA injection workflow verifies the fault, aligns saved configurations, and writes the injection record and ground truth.
 4. A scan compares agent-readable files and network state before and after injection.
 5. The declared symptom appears while an independent control path stays healthy, where the topology provides one.
-6. The fault artifact and symptom persist through two further observation windows.
+6. The reference Oracle diagnoses the injected task through the session's MCP tools and records a solved result in `oracle.json`.
+7. The fault artifact and symptom persist through two further observation windows.
 
-Healthy tasks run the environment and agent-view checks without injection. Only `pass` admits a task. Missing, unsupported, skipped, and failed checks stay distinct. When no independent control path exists, the audit records that limitation and relies on the baseline, negative control, and repeated symptom checks.
+Healthy tasks run the environment, agent-view, and Oracle checks without injection. The Oracle runs on the same deployed lab; its evidence and failed steps remain in the session artifacts. A missing or unsolved Oracle result prevents admission. Only `pass` admits a task. Missing, unsupported, skipped, and failed checks stay distinct. When no independent control path exists, the audit records that limitation and relies on the baseline, negative control, and repeated symptom checks.
 
-A stored result counts only for the current clean commit, with completed provenance and the required agent-view stages. Old or incompatible records require another run. The matrix reports how many selected tasks have current passing evidence; historical pass counts do not establish current admission.
+A stored result counts only for the current clean commit, with completed provenance and the required agent-view and Oracle stages. Old or incompatible records require another run. The matrix reports how many selected tasks have current passing evidence; historical pass counts do not establish current admission.
 
 ### Injection traces
 

@@ -112,8 +112,12 @@ def record_injection_verify(*, fault: str, verify_result: dict[str, Any]) -> Non
 
 def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
     """Read artifacts on the bound instance. Never constructs a new problem."""
+    from nika.workflows.schedule import scheduler_for
+
+    scheduler = scheduler_for(session_id)
+    scheduled = scheduler is not None and not scheduler.plan.static
     bound = bound_injected_problem(session_id)
-    if bound is None:
+    if bound is None and not scheduled:
         return {
             "present": False,
             "fault": None,
@@ -123,10 +127,14 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
             "error": "injected problem instance is not bound in this process",
             "unbound": True,
         }
-    problem, params = bound
-    fault = fault_label(problem)
+    problem, params = bound if bound is not None else (None, None)
+    fault = fault_label(problem) if problem is not None else "scheduled"
     try:
-        raw = recheck_artifact_with_retry(problem, params)
+        raw = (
+            scheduler.recheck_artifact()
+            if scheduled
+            else recheck_artifact_with_retry(problem, params)
+        )
     except Exception as exc:  # noqa: BLE001 - the trial records the read error
         return {
             "present": False,
@@ -147,13 +155,14 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
         }
     present = bool(raw.get("present"))
     error = raw.get("error")
-    if not present and not error:
+    if not present and not error and not raw.get("not_applicable"):
         error = "fault artifact absent"
     evidence = raw.get("evidence") if isinstance(raw.get("evidence"), dict) else {}
     if getattr(problem, "dynamic_artifact", False):
         evidence = {**evidence, "dynamic_artifact": True}
     return {
         "present": present,
+        "not_applicable": bool(raw.get("not_applicable")),
         "fault": raw.get("fault") or fault,
         "scope": "artifact",
         "check": "recheck_artifact",

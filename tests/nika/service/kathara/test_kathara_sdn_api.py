@@ -24,7 +24,7 @@ def test_sdn_onos_rest_and_ovs_exec() -> None:
 
     def _exec(host: str, command: str, timeout: float = 15) -> str:
         if "/onos/v1/devices" in command:
-            return '{"devices":[{"id":"of:1"}]}'
+            return '{"devices":[{"id":"of:1"}]}\n200'
         if "ovs-ofctl" in command:
             return "OFPST_FLOW reply"
         return "ok"

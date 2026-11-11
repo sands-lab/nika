@@ -18,12 +18,16 @@ from agent.llm.endpoints import (
     ENV_CLAUDE_CODE_OAUTH_TOKEN,
 )
 
-# Claude Code connects MCP servers in the background and gives up on one after
-# 30 s; the first turn then runs without its tools. A slow sandbox, or the e2b
-# tunnel, can miss that window, so wait longer for them.
-MCP_CONNECT_WAIT_ENV = {
+# Claude Code can start a turn while MCP servers are still pending. Allow
+# sandbox connections time to initialize; workers also reject unavailable
+# required servers before accepting a diagnosis.
+MCP_TIMEOUT_ENV = {
     "MCP_TIMEOUT": "120000",
     "CLAUDE_CODE_MCP_STARTUP_WAIT_MS": "120000",
+    # PingMesh can legitimately run beyond the HTTP client's default request
+    # deadline. Keep its result in the current diagnosis turn.
+    "MCP_TOOL_TIMEOUT": "300000",
+    "CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS": "0",
 }
 
 # Built-in tools that reach the internet. The agent gets the network only
@@ -85,7 +89,7 @@ def claude_env(
 
     With *alias_auth_token*, an API key is also offered as the auth token.
     """
-    env = {**MCP_CONNECT_WAIT_ENV, **ISOLATION_ENV}
+    env = {**MCP_TIMEOUT_ENV, **ISOLATION_ENV}
     # Keep the sandbox's installed Claude Code version for the whole run.
     env["DISABLE_AUTOUPDATER"] = "1"
     api_key = os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()

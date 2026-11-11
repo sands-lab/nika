@@ -18,10 +18,13 @@ It closes only the session it started.
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
+import json
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -544,6 +547,40 @@ def _leak_stage(measure: Callable[[], dict[str, Any]]) -> StageResult:
     return _timed("leak_scan", stage)
 
 
+def _oracle_stage(session_id: str) -> StageResult:
+    """Require the reference playbook to diagnose this lab through MCP."""
+    from nika.agents.oracle.agent import ORACLE_FILENAME, OracleAgent
+    from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+
+    def diagnose() -> StageResult:
+        agent = OracleAgent(session_id, stream_output=False)
+        with mcp_gateway_for_session(session_id, scenario_name=agent.scenario_name):
+            asyncio.run(agent.diagnose(agent.session.task_description))
+        path = Path(agent.session_dir) / ORACLE_FILENAME
+        result = json.loads(path.read_text())
+        faults = result.get("faults") or []
+        solved = (
+            result.get("solved") is True
+            and bool(faults)
+            and all(fault.get("confirmed") is True for fault in faults)
+        )
+        return _stage(
+            "oracle",
+            "pass" if solved else "fail",
+            None if solved else "Oracle did not confirm the task from live evidence",
+            {
+                "path": str(path),
+                "solved": solved,
+                "faults": [
+                    {key: value for key, value in fault.items() if key != "steps"}
+                    for fault in faults
+                ],
+            },
+        )
+
+    return _timed("oracle", diagnose)
+
+
 def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
     """Audit a case whose lab is already deployed. Does not close the session."""
     from nika.net_env.isp.identity import is_isp_scenario
@@ -586,8 +623,12 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
         )
 
     if is_healthy_case(fault):
+        from nika.workflows.benchmark.healthy import write_healthy_session_artifacts
+
         clock = time.monotonic()
         stages.append(view("agent_view"))
+        write_healthy_session_artifacts(session_id)
+        stages.append(_oracle_stage(session_id))
         # The agent view runs inside the wait, so final_lab keeps its offset.
         time.sleep(
             max(0.0, PERSISTENCE_WAIT_SEC + FINAL_WAIT_SEC - (time.monotonic() - clock))
@@ -674,6 +715,7 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
 
     stages.append(_timed("symptom", symptom))
     stages.append(_control_stage(fault, symptom_payload))
+    stages.append(_oracle_stage(session_id))
 
     for label, wait in (
         ("persistence", PERSISTENCE_WAIT_SEC),

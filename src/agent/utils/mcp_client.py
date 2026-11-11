@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+from collections.abc import Iterable
 from datetime import timedelta
 from typing import Any
 
@@ -80,6 +81,23 @@ def _adapter_supports_session_kwargs() -> bool:
             if connection is not None:
                 return "session_kwargs" in getattr(connection, "__annotations__", {})
     return False
+
+
+def mcp_startup_error(servers: list[dict], expected: Iterable[str]) -> str | None:
+    """Reject a phase that cannot use all of its declared MCP servers."""
+    statuses = {
+        server.get("name"): server.get("status")
+        for server in servers
+        if isinstance(server, dict)
+    }
+    unavailable = [
+        f"{name}={statuses.get(name, 'missing')}"
+        for name in sorted(expected)
+        if statuses.get(name) != "connected"
+    ]
+    if unavailable:
+        return "Required MCP servers are not connected: " + ", ".join(unavailable)
+    return None
 
 
 def _flatten_exception(exc: BaseException) -> str:

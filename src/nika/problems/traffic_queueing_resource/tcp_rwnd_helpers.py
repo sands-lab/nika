@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import re
 import time
+import re
+import shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,7 @@ from nika.net_env.verify import (
     iperf_throughput_bps,
     median_float,
     ping_stats,
+    tcp_socket_stats,
 )
 
 if TYPE_CHECKING:
@@ -35,7 +37,7 @@ RTT_READY_TIMEOUT_SEC = 60.0
 class SysctlSnapshot:
     moderate_rcvbuf: str
     tcp_rmem: str
-    rmem_max: str
+    rmem_max: str | None
 
 
 @dataclass(frozen=True)
@@ -48,11 +50,9 @@ class PathBaseline:
 
 
 def sysctl_get(runtime: "LabRuntime", host: str, key: str) -> str:
-    return exec_or_empty(runtime, host, f"sysctl -n {key}", timeout=10).strip()
-
-
-def _proc_path_for_sysctl(key: str) -> str:
-    return "/proc/sys/" + key.replace(".", "/")
+    return exec_or_empty(
+        runtime, host, f"sysctl -n {shlex.quote(key)} 2>/dev/null", timeout=10
+    ).strip()
 
 
 def sysctl_set(
@@ -69,7 +69,7 @@ def sysctl_set(
     or read-only failures return False instead of raising (Docker often keeps
     ``net.core.rmem_max`` read-only even in privileged containers).
     """
-    path = _proc_path_for_sysctl(key)
+    path = "/proc/sys/" + key.replace(".", "/")
     out = runtime.exec(
         host,
         f"printf '%s' '{value}' > {path} 2>&1; echo EXIT:$?",
@@ -88,11 +88,16 @@ def sysctl_set(
 
 
 def read_sysctl_snapshot(runtime: "LabRuntime", host: str) -> SysctlSnapshot:
-    return SysctlSnapshot(
-        moderate_rcvbuf=sysctl_get(runtime, host, SYSCTL_MODERATE),
-        tcp_rmem=sysctl_get(runtime, host, SYSCTL_TCP_RMEM),
-        rmem_max=sysctl_get(runtime, host, SYSCTL_RMEM_MAX),
-    )
+    moderate = sysctl_get(runtime, host, SYSCTL_MODERATE)
+    rmem = sysctl_get(runtime, host, SYSCTL_TCP_RMEM)
+    rmem_max = sysctl_get(runtime, host, SYSCTL_RMEM_MAX) or None
+    if (
+        moderate not in {"0", "1"}
+        or re.fullmatch(r"\d+\s+\d+\s+\d+", rmem) is None
+        or (rmem_max is not None and not rmem_max.isdigit())
+    ):
+        raise RuntimeError(f"Cannot read TCP receive-buffer settings on {host}")
+    return SysctlSnapshot(moderate, rmem, rmem_max)
 
 
 def write_sysctl_snapshot(
@@ -105,6 +110,10 @@ def write_sysctl_snapshot(
     """Apply snapshot. Returns whether rmem_max was successfully updated."""
     sysctl_set(runtime, host, SYSCTL_MODERATE, snap.moderate_rcvbuf)
     sysctl_set(runtime, host, SYSCTL_TCP_RMEM, " ".join(snap.tcp_rmem.split()))
+    if snap.rmem_max is None:
+        if require_rmem_max:
+            raise RuntimeError(f"{SYSCTL_RMEM_MAX} is unavailable on {host}")
+        return False
     return sysctl_set(
         runtime,
         host,
@@ -154,25 +163,13 @@ def primary_ipv4(runtime: "LabRuntime", host: str) -> str | None:
     return line.split("/")[0]
 
 
-_SS_CONN_RE = re.compile(r"(\S+:\d+)\s+(\S+):\d+\s*$")
-_SS_BYTES_RE = re.compile(r"bytes_received:(\d+)")
-
-
 def _bytes_from(runtime: "LabRuntime", host: str, peer_ip: str) -> dict[str, int]:
-    """Bytes received so far on each of ``host``'s TCP connections from ``peer_ip``."""
-    out = exec_or_empty(runtime, host, "ss -tinH state established", timeout=10)
-    counts: dict[str, int] = {}
-    local = ""
-    for line in out.splitlines():
-        # Socket lines start at column 0; their details follow indented.
-        conn = None if line[:1].isspace() else _SS_CONN_RE.search(line)
-        if conn:
-            local = conn.group(1) if conn.group(2) == peer_ip else ""
-            continue
-        received = _SS_BYTES_RE.search(line)
-        if local and received:
-            counts[local] = int(received.group(1))
-    return counts
+    """Bytes received on established connections from ``peer_ip``."""
+    return {
+        sock.local: sock.bytes_received
+        for sock in tcp_socket_stats(runtime, host)
+        if sock.peer.rsplit(":", 1)[0].strip("[]").removeprefix("::ffff:") == peer_ip
+    }
 
 
 def measure_path_baseline(

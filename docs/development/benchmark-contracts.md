@@ -65,6 +65,8 @@ The frontend sends task rows, including expected root causes, rather than task I
 
 For engines returning `scheduled: true`, the frontend opens the gateway before starting the timeline and waiting for its agent-start boundary. It observes completion and revisions through `schedule_operation`; the engine performs failure injection, traffic changes, and recovery on the lab controller. Engines that omit this field keep their existing immediate-start behavior. Explicit scheduled tasks require an engine that supports this operation.
 
+For a timed schedule, `fault_check` checks every currently active fault occurrence on its injecting instance. Planned recovery removes that occurrence from the presence requirement. With no active faults, the result is `not_applicable`; other active faults must still be present. A missing active artifact remains `absent`, and a scheduler failure remains an error. Checks hold the scheduler's mutation locks so injection and recovery cannot produce a partial observation. Agent observations of recovered faults remain valid evidence for the task's diagnosis.
+
 The frontend records `ready: true` in the trial's `run.json` after `begin` returns. Failure handling and resume use that field to determine whether the agent received a valid task. The frontend asks the engine to score completed trials, including on resume when metrics are missing. It does not grade the answer itself.
 
 ### Trial states

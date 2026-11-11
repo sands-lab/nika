@@ -383,30 +383,87 @@ def median_throughput_bps(
 
 def _start_iperf3_server(runtime: "LabRuntime", host: str, port: int) -> str | None:
     """Start a one-shot iperf3 server and wait until it listens; return its PID."""
+    probe = (
+        f"ss -Hltnp 'sport = :{port}' 2>/dev/null || "
+        f"netstat -ltnp 2>/dev/null | grep ':{port} ' || true"
+    )
+    # Never consume a listener belonging to scenario traffic or another probe.
+    if f":{port}" in exec_or_empty(runtime, host, probe, timeout=5):
+        return None
     output = runtime.exec(
         host,
-        f"rm -f /tmp/iperf3_s_{port}.log; "
-        f"nohup iperf3 -s -p {port} -1 >/tmp/iperf3_s_{port}.log 2>&1 & echo $!",
+        f"nohup iperf3 -s -p {port} -1 >/dev/null 2>&1 & echo $!",
         timeout=10,
     )
     tokens = output.split()
     pid = tokens[-1] if tokens and tokens[-1].isdigit() else None
-    probe = (
-        f"ss -Hltn 'sport = :{port}' 2>/dev/null || "
-        f"netstat -ltn 2>/dev/null | grep ':{port} ' || true"
-    )
+    if pid is None:
+        return None
     deadline = time.monotonic() + 2.0
     while time.monotonic() < deadline:
-        if f":{port}" in exec_or_empty(runtime, host, probe, timeout=5):
-            break
+        listeners = exec_or_empty(runtime, host, probe, timeout=5)
+        if f"pid={pid}," in listeners or any(
+            item.startswith(f"{pid}/") for item in listeners.split()
+        ):
+            return pid
         time.sleep(0.1)
-    return pid
+    _stop_iperf3_server(runtime, host, pid)
+    return None
 
 
 def _stop_iperf3_server(runtime: "LabRuntime", host: str, pid: str | None) -> None:
     # Kill only the server started here; scenario background iperf3 stays up.
     if pid:
         runtime.exec(host, f"kill {pid} 2>/dev/null || true", timeout=5)
+
+
+@dataclass(frozen=True)
+class TcpSocketStats:
+    local: str
+    peer: str
+    cookie: str
+    receive_buffer: int
+    bytes_received: int
+
+
+def _parse_tcp_socket_stats(output: str) -> list[TcpSocketStats]:
+    import re
+
+    sockets = []
+    for line in output.splitlines():
+        fields = line.split()
+        if fields[:1] == ["ESTAB"]:
+            fields = fields[1:]
+        if len(fields) < 4 or not all(field.isdigit() for field in fields[:2]):
+            continue
+        cookie = re.search(r"\bsk:(\w+)", line)
+        buffer = re.search(r"\brb(\d+)", line)
+        received = re.search(r"\bbytes_received:(\d+)", line)
+        if cookie is None or buffer is None:
+            raise ValueError(f"TCP socket identity or receive buffer missing: {line}")
+        sockets.append(
+            TcpSocketStats(
+                fields[2],
+                fields[3],
+                cookie[1],
+                int(buffer[1]),
+                int(received[1]) if received else 0,
+            )
+        )
+    return sockets
+
+
+def tcp_socket_stats(runtime: "LabRuntime", host: str) -> list[TcpSocketStats]:
+    """Read established TCP socket identities, buffers, and delivered bytes."""
+    output = runtime.exec(
+        host,
+        "ss -tinemHO state established; printf '\\nstatus=%s\\n' \"$?\"",
+        timeout=10,
+    ).strip()
+    body, _, status = output.rpartition("\n")
+    if status != "status=0":
+        raise RuntimeError(f"Cannot inspect TCP sockets on {host}: {output}")
+    return _parse_tcp_socket_stats(body)
 
 
 def iperf_throughput_bps(
@@ -436,6 +493,8 @@ def iperf_tcp_metrics(
 ) -> tuple[float | None, int | None]:
     """Run iperf3 and return (bits_per_second, retransmits) or (None, None)."""
     pid = _start_iperf3_server(runtime, dst_host, port)
+    if pid is None:
+        return None, None
     try:
         # Capture JSON on stdout; file redirects are unreliable through some
         # exec shells.
