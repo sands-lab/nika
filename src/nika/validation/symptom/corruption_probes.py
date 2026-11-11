@@ -6,6 +6,7 @@ metrics the symptom reads, and keeps both on the problem.
 
 from __future__ import annotations
 
+import base64
 import ipaddress
 import json
 import re
@@ -19,6 +20,7 @@ from nika.net_env.verify import (
     ping_stats,
 )
 from nika.problems.base import build_verify_result
+from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.runtime.base import LabRuntime
 from nika.runtime.spec import NodeRole
 from nika.validation.symptom.addressing_probes import healthy_read, lab_addresses
@@ -45,7 +47,9 @@ CSUM_ERRORS_MIN = 5
 def _ends(problem: Any, params: Any) -> dict[str, Any]:
     """The scenario path across the fault and the host that owns its destination."""
     topo_size = getattr(problem.net_env, "topo_size", None) or "s"
-    path = _resolve_path(problem.scenario_name, params, topo_size=topo_size)
+    path = _resolve_path(
+        problem.scenario_name, params, topo_size=topo_size, net_env=problem.net_env
+    )
     if path is None or not path.dst_ip:
         return {"error": "no_probe_path"}
     dst_ip = ipaddress.ip_address(path.dst_ip)
@@ -58,8 +62,35 @@ def _ends(problem: Any, params: Any) -> dict[str, Any]:
         None,
     )
     if owner is None:
-        return {"error": "no_node_owns_the_probe_destination", "dst": path.dst_ip}
+        return _host_behind(problem, path.src_host, path.dst_ip)
     return {"src": path.src_host, "dst": path.dst_ip, "dst_host": owner}
+
+
+def _host_behind(problem: Any, src: str, router_ip: str) -> dict[str, Any]:
+    """An end host that ``src`` reaches through the router address ``router_ip``.
+
+    A native router (XRd, RouterOS) keeps its addresses outside Linux and runs
+    no iperf3, so the probe measures toward a host whose traceroute from
+    ``src`` passes that address, crossing the same link.
+    """
+    runtime = problem.runtime
+    addresses = lab_addresses(runtime)
+    hosts = [
+        node
+        for node in addresses
+        if node != src
+        and addresses[node]
+        and getattr(problem.net_env.machine_identities.get(node), "role", None)
+        in {NodeRole.HOST, NodeRole.SERVICE}
+    ]
+    for host in hosts[:12]:
+        ip = str(ipaddress.ip_interface(addresses[host][0][1]).ip)
+        trace = exec_or_empty(
+            runtime, src, f"traceroute -n -q 1 -w 1 -m 8 {ip}", timeout=20
+        )
+        if router_ip in re.findall(r"\b\d+\.\d+\.\d+\.\d+\b", trace):
+            return {"src": src, "dst": ip, "dst_host": host, "via": router_ip}
+    return {"error": "no_end_host_behind_the_probe_destination", "dst": router_ip}
 
 
 def _iperf(
@@ -97,8 +128,12 @@ def _iperf(
 
 
 def _goodput(runtime: LabRuntime, ends: dict[str, Any], port: int) -> dict[str, Any]:
-    """Receiver-side TCP goodput from ``src`` toward ``dst``."""
-    return _iperf(runtime, ends, port=port, args=f"-t {IPERF_SECONDS}", seconds=15)
+    """Receiver-side TCP goodput from ``src`` toward ``dst``.
+
+    With ``ends["reverse"]`` the data flows from ``dst`` back to ``src``.
+    """
+    args = f"-t {IPERF_SECONDS}" + (" -R" if ends.get("reverse") else "")
+    return _iperf(runtime, ends, port=port, args=args, seconds=15)
 
 
 def _link_corruption_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
@@ -117,15 +152,73 @@ def _link_corruption_reading(problem: Any, ends: dict[str, Any]) -> dict[str, An
     }
 
 
+def _data_flows_back(problem: Any, params: Any, ends: dict[str, Any]) -> bool:
+    """Whether data must flow from ``dst`` to ``src`` to leave the corrupted port.
+
+    Corruption acts on the target interface's egress. When the target's route
+    to the destination leaves through another interface (or the target owns
+    the destination), the probe data must flow back toward the observer.
+    Without a Linux route lookup on the target, only ownership decides.
+    """
+    egress = _egress_device(problem.runtime, params.host_name, ends["dst"])
+    if egress is None:
+        return ends["dst_host"] == params.host_name
+    route_interface = egress
+    if route_interface == params.intf_name:
+        return False
+    master = (
+        exec_or_empty(
+            problem.runtime,
+            params.host_name,
+            f"readlink /sys/class/net/{params.intf_name}/master",
+        )
+        .strip()
+        .rsplit("/", 1)[-1]
+    )
+    return route_interface != master
+
+
+def _egress_device(runtime: LabRuntime, host: str, ip: str) -> str | None:
+    """The physical interface that carries the host's packets toward ``ip``.
+
+    A route through a tunnel (WireGuard, GRE, IPIP, VXLAN) leaves through the
+    interface that reaches the tunnel's remote endpoint, so the lookup follows
+    the endpoint to the underlay.
+    """
+    device = None
+    for _hop in range(3):
+        route = exec_or_empty(runtime, host, f"ip -4 route get {ip}")
+        match = re.search(r"\bdev (\S+)", route)
+        if match is None:
+            return device
+        device = match.group(1)
+        link = exec_or_empty(runtime, host, f"ip -d link show dev {device}")
+        if re.search(r"^\s+wireguard\b", link, re.M):
+            endpoints = exec_or_empty(runtime, host, f"wg show {device} endpoints")
+            remote = re.search(r"\s(\d+\.\d+\.\d+\.\d+):\d+", endpoints)
+        else:
+            remote = re.search(r"\bremote (\d+\.\d+\.\d+\.\d+)", link)
+        if remote is None:
+            return device
+        ip = remote.group(1)
+    return device
+
+
 def link_corruption_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     ends = _ends(problem, params)
     if "error" in ends:
         return False, ends
+    ends["reverse"] = _data_flows_back(problem, params, ends)
     # A busy host can drop a few healthy echoes; re-read before judging the path.
     reading, _reads = healthy_read(
         lambda: _link_corruption_reading(problem, ends),
         lambda r: 0.0 if r["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX else 1.0,
     )
+    # Host load can only lower a goodput sample, so the higher of two healthy
+    # samples is the path's rate.
+    second = _goodput(problem.runtime, ends, port=15221)
+    if (second.get("received_bps") or 0) > (reading["tcp"].get("received_bps") or 0):
+        reading = {**reading, "tcp": second}
     problem._audit_corruption = {"ends": ends, "before": reading}
     ok = reading["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX and bool(
         reading["tcp"]["received_bps"]
@@ -149,10 +242,8 @@ def evaluate_link_corruption_symptom(
         and after["echo_loss_percent"] >= LOSS_MIN_PERCENT
         and before["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX
     )
-    goodput_drop = (
-        bool(before_bps)
-        and after_bps is not None
-        and float(after_bps) < float(before_bps) * THROUGHPUT_MAX_RATIO
+    goodput_drop = bool(before_bps) and (
+        after_bps is None or float(after_bps) < float(before_bps) * THROUGHPUT_MAX_RATIO
     )
     verified = frame_loss and goodput_drop
     return verified, build_verify_result(
@@ -208,24 +299,36 @@ def _crossing_ends(problem: Any, params: Any) -> dict[str, Any]:
     """End hosts whose traffic leaves the forwarding device through ``intf_name``.
 
     The scenario path is kept when the device routes its destination out of
-    that port, or when the device is a switch without its own routes. On a
-    router whose port the scenario path does not use, the receiver is an end
-    host the device routes out of that port, and the sender is an end host
-    whose traceroute to it passes the device.
+    that port, when the device is a switch without its own routes, or when its
+    Linux routing table does not route the destination out of any of its
+    topology ports (SR Linux routes outside the container's kernel). Kernel
+    names are compared after ``kernel_data_interface`` mapping, so SONiC
+    ``Ethernet<n>`` matches topology ``eth<k>``. On a router whose port the
+    scenario path does not use, the receiver is an end host the device routes
+    out of that port, and the sender is an end host whose traceroute to it
+    passes the device.
     """
+    from nika.problems.rca.inventory import interfaces_for_node, kernel_data_interface
+
     runtime = problem.runtime
     device, intf = params.forwarding_device, params.intf_name
     ends = _ends(problem, params)
     identity = problem.net_env.machine_identities.get(device)
     if getattr(identity, "role", None) is not NodeRole.ROUTER:
         return ends
+    topology_ports = set(interfaces_for_node(problem.net_env, device))
+    kernel_ports = {
+        kernel_data_interface(problem.net_env, device, name) for name in topology_ports
+    }
+    inject_dev = kernel_data_interface(problem.net_env, device, intf)
 
     def egresses(ip: str) -> bool:
-        route = exec_or_empty(runtime, device, f"ip -o route get {ip}")
-        return f" dev {intf} " in f"{route} "
+        return _egress_device(runtime, device, ip) == inject_dev
 
-    if "error" not in ends and egresses(ends["dst"]):
-        return ends
+    if "error" not in ends:
+        dev = _egress_device(runtime, device, ends["dst"])
+        if dev == inject_dev or dev not in kernel_ports:
+            return ends
     addresses = lab_addresses(runtime)
     device_ips = {
         str(ipaddress.ip_interface(address).ip) for _i, address in addresses[device]
@@ -356,6 +459,133 @@ def evaluate_link_capacity_symptom(
         bool(before_bps)
         and bool(after_bps)
         and float(after_bps) < float(before_bps) * CAPACITY_MAX_RATIO
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={**state["ends"], "before": state["before"], "after": after},
+    )
+
+
+# Fresh TCP connections per reading; each gets a new ephemeral port and so a
+# new five-tuple. Connections whose SYN the device drops time out.
+CONNECT_ATTEMPTS = 48
+CONNECT_TIMEOUT_SEC = 2
+CONNECT_FAILURES_MIN = 2
+# Echo loss above this means the path is down, not a per-flow black hole.
+CONNECT_ECHO_LOSS_MAX = 10.0
+_LISTEN_PORT = 15241
+_LISTENER = (
+    "import socket\n"
+    "s = socket.socket()\n"
+    "s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n"
+    f"s.bind(('', {_LISTEN_PORT}))\n"
+    "s.listen(256)\n"
+    "while True:\n"
+    "    s.accept()[0].close()\n"
+)
+_LISTENER_B64 = base64.b64encode(_LISTENER.encode()).decode()
+
+
+def _connect_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
+    """Failed fresh TCP connects from ``src`` to ``dst``, and echo loss on the same pair."""
+    runtime = problem.runtime
+    pid = exec_or_empty(
+        runtime,
+        ends["dst_host"],
+        f'nohup python3 -c "$(echo {_LISTENER_B64} | base64 -d)" '
+        ">/dev/null 2>&1 & echo $!",
+    ).split()
+    try:
+        ready = False
+        deadline = time.monotonic() + 5
+        while pid and pid[-1].isdigit() and time.monotonic() < deadline:
+            sockets = exec_or_empty(
+                runtime,
+                ends["dst_host"],
+                f"ss -Hltnp 'sport = :{_LISTEN_PORT}'",
+            )
+            if f"pid={pid[-1]}," in sockets:
+                ready = True
+                break
+            time.sleep(0.1)
+        if not ready:
+            return {
+                "attempts": 0,
+                "failed": 0,
+                "echo_loss_percent": None,
+                "error": "listener_not_ready",
+            }
+        out = exec_or_empty(
+            runtime,
+            ends["src"],
+            f"for i in $(seq {CONNECT_ATTEMPTS}); do "
+            f"timeout {CONNECT_TIMEOUT_SEC} bash -c "
+            f"'</dev/tcp/{ends['dst']}/{_LISTEN_PORT}' 2>/dev/null "
+            "&& echo ok || echo fail; done",
+            timeout=CONNECT_ATTEMPTS * (CONNECT_TIMEOUT_SEC + 1) + 10,
+        )
+    finally:
+        if pid and pid[-1].isdigit():
+            exec_or_empty(runtime, ends["dst_host"], f"kill {pid[-1]} 2>/dev/null")
+    echo = ping_stats(runtime, ends["src"], ends["dst"], count=20, interval_sec=0.2)
+    results = out.split()
+    return {
+        "attempts": len(results),
+        "failed": results.count("fail"),
+        "echo_loss_percent": echo.loss_percent,
+    }
+
+
+def _facing_ends(problem: Any, params: Any) -> dict[str, Any]:
+    """Send to the end host behind ``intf_name``, so every flow to it crosses the port.
+
+    Falls back to ``_crossing_ends`` when the port does not face an end host.
+    """
+    device, intf = params.forwarding_device, params.intf_name
+    peer = None
+    for _key, tps in iter_link_termination_points(problem.net_env):
+        ends = [parse_endpoint(str(tp)) for tp in tps]
+        if len(ends) == 2 and (device, intf) in ends:
+            peer = next(end for end in ends if end != (device, intf))
+    identity = problem.net_env.machine_identities.get(peer[0]) if peer else None
+    if getattr(identity, "role", None) not in {NodeRole.HOST, NodeRole.SERVICE}:
+        return _crossing_ends(problem, params)
+    addresses = dict(lab_addresses(problem.runtime).get(peer[0], []))
+    path = _resolve_path(
+        problem.scenario_name,
+        params,
+        topo_size=getattr(problem.net_env, "topo_size", None) or "s",
+    )
+    src = path.src_host if path is not None else None
+    if peer[1] not in addresses or not src or src == peer[0]:
+        return _crossing_ends(problem, params)
+    dst = str(ipaddress.ip_interface(addresses[peer[1]]).ip)
+    return {"src": src, "dst": dst, "dst_host": peer[0]}
+
+
+def flow_blackhole_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    ends = _facing_ends(problem, params)
+    if "error" in ends:
+        return False, ends
+    reading = _connect_reading(problem, ends)
+    problem._audit_flow_blackhole = {"ends": ends, "before": reading}
+    ok = reading["attempts"] == CONNECT_ATTEMPTS and reading["failed"] == 0
+    return ok, {**ends, **reading}
+
+
+def flow_blackhole(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Some fresh TCP connections across the device fail while echo still passes."""
+    state = getattr(problem, "_audit_flow_blackhole", None) or {}
+    if not state:
+        return False, {"error": "no_baseline_reading"}
+    after = _connect_reading(problem, state["ends"])
+    loss = after["echo_loss_percent"]
+    verified = (
+        after["attempts"] == CONNECT_ATTEMPTS
+        and CONNECT_FAILURES_MIN <= after["failed"] < CONNECT_ATTEMPTS
+        and loss is not None
+        and loss <= CONNECT_ECHO_LOSS_MAX
     )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,

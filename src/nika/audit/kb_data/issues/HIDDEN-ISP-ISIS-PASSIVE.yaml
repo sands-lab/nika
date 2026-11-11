@@ -1,0 +1,19 @@
+id: HIDDEN-ISP-ISIS-PASSIVE
+title: ISP IS-IS passive interfaces misconfigured
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: Router-level passive-interface was rejected, so access interfaces sent IIHs (H11).
+scope:
+  scenarios:
+  - isp_abilene
+  healthy: true
+guideline: 'A hidden fault in the fault-free lab: agents that report it on a healthy task are right. Confirm
+  it with references/live-confirm.md (hidden fault or lure) before counting the trial as a false positive.'
+provenance:
+  source: healthy-hunter paper_cases
+  date: '2026-10-12'
+  refs:
+  - healthy-hunter
+  found_by: live_audit

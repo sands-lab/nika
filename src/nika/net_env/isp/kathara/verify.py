@@ -426,7 +426,9 @@ def _verify_intent(
             if intent.bgp_route is not None:
                 expected = intent.bgp_route
                 selected = [
-                    path for path in output.get("paths", []) if _selected_bgp_path(path)
+                    path
+                    for path in output.get("paths", [])
+                    if not expected.selected or _selected_bgp_path(path)
                 ]
                 paths = [
                     path.get("aspath", {}).get("string", path.get("path", ""))
@@ -440,17 +442,7 @@ def _verify_intent(
                     "expected_exit_asn": expected.exit_asn,
                     "expected_origin_asn": expected.origin_asn,
                 }
-                passed = bool(selected) == expected.present and all(
-                    (
-                        expected.exit_asn is None
-                        or path.split()[:1] == [str(expected.exit_asn)]
-                    )
-                    and (
-                        expected.origin_asn is None
-                        or path.split()[-1:] == [str(expected.origin_asn)]
-                    )
-                    for path in paths
-                )
+                passed = expected.satisfied_by(path.split() for path in paths)
             else:
                 expected = intent.route_policy
                 available = runtime.json(

@@ -18,7 +18,7 @@ import shutil
 import sys
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -28,6 +28,7 @@ from agent.protocols import DIAGNOSIS, SUBMISSION
 from agent.runtime.contract import (
     ENV_WORKSPACE,
     REPORT_FILENAME,
+    TASK_FILENAME,
     SUBMISSION_CONTEXT_FILENAME,
 )
 from agent.runtime.task import LlmClientSettings, Task
@@ -50,6 +51,9 @@ from nika.agents.sandbox.workspace import (
     write_results_manifest,
     write_workspace_text,
 )
+from nika.runtime.factory import resolve_backend
+from nika.runtime.meta import device_profile_for
+from nika.run_config.loader import get_run_config
 from nika.telemetry import telemetry_for_session
 from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.logger import elapsed_ms, log_event
@@ -148,6 +152,7 @@ class SandboxManager:
         self,
         *,
         session: Session,
+        task_description: str,
         spec: AgentSpec,
         model: str,
         max_steps: int | None,
@@ -164,13 +169,13 @@ class SandboxManager:
         ``session_id`` is the opaque agent handle only.
         """
         scenario_name = getattr(session, "scenario_name", "") or ""
-        backend = getattr(session, "backend", "") or "kathara"
+        backend = resolve_backend(session)
         agent_sid = resolve_agent_session_id(session)
         llm, mcp_read_timeout, enable_skills = _run_settings()
         return Task(
             session_id=agent_sid,
             agent_class=spec.class_path,
-            task_description=session.task_description,
+            task_description=task_description,
             # Bake the session-specific gateway URL into the workspace.
             # Parallel trials share the host process environment, so resolving
             # it later from NIKA_MCP_GATEWAY_* can pick up a sibling's value.
@@ -180,6 +185,7 @@ class SandboxManager:
                 backend=backend,
                 gateway_agent_url=mcp_gateway_agent_url.rstrip("/"),
                 telemetry=telemetry_for_session(session),
+                device_profile=device_profile_for(session),
             ),
             model=model,
             llm_provider=llm_provider,
@@ -249,6 +255,7 @@ class SandboxManager:
         self,
         *,
         session: Session,
+        task_description: str,
         agent_type: str,
         model: str,
         max_steps: int | None,
@@ -269,6 +276,7 @@ class SandboxManager:
             call_log = ModelCallLog(
                 session_dir / MODEL_CALLS_FILENAME,
                 max_requests=max_steps if max_steps is not None else 20,
+                expected_model=model if get_run_config().agent.fixed_model else None,
             )
             credential_env = backend.prepare_host(
                 agent_type=agent_type, llm_provider=llm_provider, call_log=call_log
@@ -278,6 +286,7 @@ class SandboxManager:
             )
             task = self.build_task(
                 session=session,
+                task_description=task_description,
                 spec=spec,
                 model=model,
                 max_steps=max_steps,
@@ -509,34 +518,67 @@ class SandboxManager:
         workspace = sandbox_session.workspace_dir
         mirror = sandbox_session.trace_mirror
         call_log = sandbox_session.call_log
-        exhausted = self._run_step(
-            sandbox_session=sandbox_session,
-            phase=DIAGNOSIS,
-            stream_output=stream_output,
-            timeout_sec=remaining(),
-            budget_sec=timeout_sec,
-        )
-        if exhausted:
-            report = self._budget_report(
-                sandbox_session, session_dir=session.session_dir
+        from nika.workflows.schedule import continuation_prompt, scheduler_for
+
+        scheduler = scheduler_for(session.session_id)
+        while True:
+            observed_complete = scheduler.complete.is_set() if scheduler else True
+            revision = scheduler.observation_revision() if scheduler else 0
+            exhausted = self._run_step(
+                sandbox_session=sandbox_session,
+                phase=DIAGNOSIS,
+                stream_output=stream_output,
+                timeout_sec=remaining(),
+                budget_sec=timeout_sec,
             )
-            # The submission step reads the frozen report from the workspace.
-            write_workspace_text(
-                workspace / REPORT_FILENAME,
-                json.dumps({"report": report}, ensure_ascii=False),
-            )
-            self.backend.push_files(sandbox_id, workspace, [REPORT_FILENAME])
-        else:
-            self.backend.pull_files(sandbox_id, workspace, [REPORT_FILENAME])
-            report_path = workspace / REPORT_FILENAME
-            try:
-                report = json.loads(read_workspace_text(report_path))["report"]
-            except (OSError, ValueError, KeyError, TypeError) as exc:
+            if exhausted:
+                report = self._budget_report(
+                    sandbox_session, session_dir=session.session_dir
+                )
+                # The submission step reads the frozen report from the workspace.
+                write_workspace_text(
+                    workspace / REPORT_FILENAME,
+                    json.dumps({"report": report}, ensure_ascii=False),
+                )
+                self.backend.push_files(sandbox_id, workspace, [REPORT_FILENAME])
+            else:
+                self.backend.pull_files(sandbox_id, workspace, [REPORT_FILENAME])
+                report_path = workspace / REPORT_FILENAME
+                try:
+                    report = json.loads(read_workspace_text(report_path))["report"]
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    raise RuntimeError(
+                        f"Agent diagnosis step left no report: {exc}"
+                    ) from exc
+                if not isinstance(report, str):
+                    raise RuntimeError("Agent diagnosis step left a non-text report")
+            if scheduler is None:
+                break
+            scheduler.raise_if_failed()
+            if observed_complete:
+                break
+            if exhausted:
                 raise RuntimeError(
-                    f"Agent diagnosis step left no report: {exc}"
-                ) from exc
-            if not isinstance(report, str):
-                raise RuntimeError("Agent diagnosis step left a non-text report")
+                    "Diagnosis request budget exhausted before observation completed"
+                )
+            while (
+                not scheduler.complete.is_set()
+                and scheduler.observation_revision() == revision
+            ):
+                if remaining() is not None and remaining() <= 0:
+                    from nika.agents.registry import AgentTimeoutError
+
+                    raise AgentTimeoutError(
+                        "Agent observation exceeded agent.timeout_sec"
+                    )
+                scheduler.wait_for_progress(revision, 1.0)
+            task_path = workspace / TASK_FILENAME
+            task = json.loads(read_workspace_text(task_path))
+            task["task_description"] = continuation_prompt(
+                session.task_description, report
+            )
+            write_workspace_text(task_path, json.dumps(task, ensure_ascii=False))
+            self.backend.push_files(sandbox_id, workspace, [TASK_FILENAME])
         if mirror is not None:
             mirror.set_phase(SUBMISSION)
         if call_log is not None:
@@ -661,6 +703,7 @@ class SandboxManager:
         self,
         *,
         session: Session,
+        task_description: str,
         agent_type: str,
         model: str,
         max_steps: int | None,
@@ -672,10 +715,12 @@ class SandboxManager:
         gateway_port: int,
         stream_output: bool = True,
         report_mapper: ReportMapper | None = None,
+        before_diagnosis: Callable[[], None] | None = None,
     ) -> SandboxRunResult:
         """Create a sandbox, run the agent, collect artifacts."""
         with self.open_session(
             session=session,
+            task_description=task_description,
             agent_type=agent_type,
             model=model,
             max_steps=max_steps,
@@ -686,6 +731,8 @@ class SandboxManager:
             gateway_port=gateway_port,
             stream_output=stream_output,
         ) as sandbox_session:
+            if before_diagnosis is not None:
+                before_diagnosis()
             self._run_in_sandbox(
                 sandbox_session=sandbox_session,
                 stream_output=stream_output,

@@ -666,14 +666,26 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
     def fake_agent(**kwargs):
         agent_effect(session_path)
 
+    def fake_score(*, session_dir, **kwargs):
+        (Path(session_dir) / "eval_metrics.json").write_text("{}", encoding="utf-8")
+
+    def fake_begin(handle):
+        from nika.benchmark_engine.protocol import AgentTask
+
+        fake_inject(session_id=handle.session_id)
+        return AgentTask(task_description="Diagnose the network.")
+
     with (
         patch(
-            "nika.workflows.benchmark.run.start_net_env",
+            "nika.benchmark_engine.engine.start_net_env",
             side_effect=fake_start_net_env,
         ),
-        patch("nika.workflows.benchmark.run.inject_failure", side_effect=fake_inject),
+        patch(
+            "nika.benchmark_engine.engine.BenchmarkEngine.begin", side_effect=fake_begin
+        ),
         patch("nika.workflows.benchmark.run.start_agent", side_effect=fake_agent),
-        patch("nika.workflows.benchmark.run.close_session"),
+        patch("nika.benchmark_engine.engine.close_session"),
+        patch("nika.benchmark_engine.engine.run_eval_metrics", side_effect=fake_score),
         patch("nika.workflows.benchmark.run._stamp_release_meta"),
         patch("nika.workflows.benchmark.run._stamp_trial_meta"),
         patch(
@@ -681,7 +693,10 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
             side_effect=lambda *a, **k: type(
                 "S",
                 (),
-                {"update_session": lambda self, key, value: None},
+                {
+                    "update_session": lambda self, key, value: None,
+                    "task_description": "Diagnose the network.",
+                },
             )(),
         ),
     ):

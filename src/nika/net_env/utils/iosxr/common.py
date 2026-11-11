@@ -31,7 +31,11 @@ _ZTP_APPLY_COMMAND = "/bin/bash -c 'source /pkg/bin/ztp_helper.sh; xrapply {file
 
 # Kathara memory limit per XRd router. XRd Control Plane needs about 2 GiB
 # resident; the limit leaves boot headroom.
-XRD_MEMORY = "3g"
+# Memory one XRd router needs; Firecracker sizes IOS XR lab VMs from it.
+ROUTER_MEMORY_MIB = 3072
+# CPU one XRd router needs, millicores; Kathara gives each router 1.0 CPU.
+ROUTER_CPU_MILLIS = 1000
+XRD_MEMORY = f"{ROUTER_MEMORY_MIB // 1024}g"
 
 
 def iosxr_interface(name: str) -> str:
@@ -41,6 +45,13 @@ def iosxr_interface(name: str) -> str:
     if match := re.fullmatch(r"eth(0|[1-9][0-9]*)", name):
         return f"GigabitEthernet0/0/0/{match[1]}"
     raise ValueError(f"Unsupported IOS XR interface: {name!r}")
+
+
+def container_interface(name: str) -> str | None:
+    """Invert :func:`iosxr_interface` for data ports; other names give ``None``."""
+    if match := re.fullmatch(r"(?:GigabitEthernet|Gi)0/0/0/(0|[1-9][0-9]*)", name):
+        return f"eth{match[1]}"
+    return None
 
 
 def configure_xrd_router(
@@ -54,6 +65,9 @@ def configure_xrd_router(
     The machine keeps its name and links; ``linux_interfaces`` are the data
     ports XR takes over, named as :func:`iosxr_interface` maps them.
     """
+    data_interfaces = [name for name in linux_interfaces if name != "lo"]
+    if not data_interfaces:
+        raise ValueError("XRd requires an Ethernet data interface")
     machine.update_meta({"image": IMAGE, "mem": XRD_MEMORY, "cpus": 1.0})
     machine.add_meta("privileged", True)
     machine.add_meta("ipv6", True)
@@ -61,14 +75,14 @@ def configure_xrd_router(
     machine.add_meta(
         "env",
         build_xr_interfaces_env(
-            *((name, iosxr_interface(name)) for name in linux_interfaces)
+            *((name, iosxr_interface(name)) for name in data_interfaces)
         ),
     )
     machine.add_meta("env", XR_ZTP_DISABLE_ENV)
     machine.create_file_from_string(config, CONFIG_FILE_PATH)
     lab.create_file_from_list(
         build_xr_startup_script(
-            CONFIG_FILE_PATH, wait_iface=iosxr_interface(linux_interfaces[0])
+            CONFIG_FILE_PATH, wait_iface=iosxr_interface(data_interfaces[0])
         ),
         f"{machine.name}.startup",
     )
@@ -88,18 +102,22 @@ def build_xr_startup_script(
     *,
     wait_iface: str,
 ) -> list[str]:
-    """Kathara startup: wait for XR, then retry failed native configuration calls."""
-    check_cmd_1 = (
-        _CLI_COMMAND.format(command="show run")
-        + " | egrep -e 'No configuration change' -e 'No such file or directory'"
+    """Kathara startup: wait for XR, then retry failed native configuration calls.
+
+    XR is ready when its CLI lists ``wait_iface``. Its configuration stays
+    uncommitted until ``xrapply`` runs, so readiness cannot wait for a commit.
+    """
+    ready_cmd = (
+        _CLI_COMMAND.format(command="show ipv4 interface brief")
+        + f" | grep -q '^{wait_iface} '"
     )
-    check_cmd_2 = (
-        _CLI_COMMAND.format(command=f"sh ip interface {wait_iface}")
-        + " | egrep -e 'ipv4 protocol is Down'"
-    )
-    check_cmd_3 = (
-        _CLI_COMMAND.format(command=f"sh ipv6 interface {wait_iface}")
-        + " | egrep -e 'ipv6 protocol is Down'"
+    wait_ready = "\n".join(
+        [
+            "for _xr_wait in $(seq 1 300); do",
+            f"  {ready_cmd} && break",
+            "  sleep 3",
+            "done",
+        ]
     )
 
     # Namespace initialization can fail with multiple native error strings.
@@ -123,12 +141,7 @@ def build_xr_startup_script(
 
     return [
         "pgrep xrd-startup; while [[ $? -eq 0 ]]; do sleep 3; pgrep xrd-startup; done",
-        check_cmd_1,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_1}; done",
-        check_cmd_2,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_2}; done",
-        check_cmd_3,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_3}; done",
+        wait_ready,
         "source /pkg/bin/ztp_helper.sh; ztp_disable; ztp_kill_all; killall -9 pyztp2",
         apply_with_retry,
     ]

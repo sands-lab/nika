@@ -1,0 +1,17 @@
+{
+  "digest": "79d547ddbeebddacaeaa0cc701dd9d330ef7e92963f60752c842866a96fd6e06",
+  "netlab": "26.10",
+  "routers": [
+    "berlin",
+    "erlangen",
+    "essen",
+    "frankfurt",
+    "hamburg",
+    "hannover",
+    "ip",
+    "koeln",
+    "leipzig",
+    "muenchen",
+    "stuttgart"
+  ]
+}

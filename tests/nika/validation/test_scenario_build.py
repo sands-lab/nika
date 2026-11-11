@@ -20,7 +20,8 @@ def test_saved_build_requires_successful_validation(tmp_path, status):
 @pytest.mark.contract
 def test_saved_completion_cannot_fall_back_to_default_parameters(tmp_path):
     specimen = (
-        Path(__file__).resolve().parents[3] / "experiment/scenario_validation/clos.json"
+        Path(__file__).resolve().parents[3]
+        / "tests/fixtures/scenario_validation/clos.json"
     )
     (tmp_path / "summary.json").write_text('{"status": "passed"}')
     (tmp_path / "original-spec.json").write_text(specimen.read_text())
@@ -46,7 +47,8 @@ def test_saved_build_deploys_with_original_requirements(
     from tests.support.scenario_validation import assert_scenario_acceptance
 
     specimen = (
-        Path(__file__).resolve().parents[3] / "experiment/scenario_validation/clos.json"
+        Path(__file__).resolve().parents[3]
+        / "tests/fixtures/scenario_validation/clos.json"
     )
     spec = ScenarioExperiment.model_validate_json(specimen.read_text())
     build = tmp_path / "construction"
@@ -110,7 +112,8 @@ def test_saved_build_deploys_with_original_requirements(
 @pytest.mark.contract
 def test_saved_netlab_build_cannot_fall_back_to_local_renderer(tmp_path):
     specimen = (
-        Path(__file__).resolve().parents[3] / "experiment/scenario_validation/clos.json"
+        Path(__file__).resolve().parents[3]
+        / "tests/fixtures/scenario_validation/clos.json"
     )
     (tmp_path / "summary.json").write_text(
         json.dumps({"status": "passed", "configuration": {"generator": "netlab"}})

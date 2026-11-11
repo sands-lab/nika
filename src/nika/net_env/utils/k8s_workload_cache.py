@@ -31,7 +31,9 @@ if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
 
-K3S_IMAGE = "rancher/k3s:v1.34.1-k3s1@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c"
+# The pinned rancher/k3s image plus tcpdump, iperf3, and python3 for node
+# diagnosis (Dockerfile.k3s).
+K3S_NODE_IMAGE = nika_image("k3s")
 
 # System images used by rancher/k3s:v1.34.1-k3s1.
 K3S_SYSTEM_IMAGES = (

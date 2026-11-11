@@ -52,7 +52,7 @@ def _mini_cases_yaml(path: Path) -> Path:
                 "scenario": "dc_clos",
                 "topo_size": "s",
                 "problem": "link_down",
-                "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
             }
         ],
     }
@@ -934,6 +934,46 @@ class TestLeaderboardPackValidate:
         with pytest.raises(LeaderboardPackError, match="official"):
             _pack(result_dir)
 
+    def test_schema_version_and_provenance(self, mini_release_env) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            sibling_trajectories_dir,
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        run_path = result_dir / "run.json"
+        data = json.loads(run_path.read_text(encoding="utf-8"))
+        data["schema_version"] = 1
+        data["provenance"] = {
+            "frontend": {"version": "1.0.0", "commit": "abc", "dirty": False},
+            "engine": {"release": "lb-mini", "api": 1, "commit": "abc", "dirty": False},
+            "host": {"docker": "28.3.2", "kernel": "6.8.0"},
+        }
+        _write_json(run_path, data)
+        package = _pack(result_dir)
+        identity = yaml.safe_load(_identity_path(package).read_text(encoding="utf-8"))
+        assert identity["run"]["schema_version"] == 1
+        assert identity["run"]["provenance"]["host"]["docker"] == "28.3.2"
+        trajectories = sibling_trajectories_dir(package)
+
+        for identity_path in (
+            _identity_path(package),
+            trajectories / IDENTITY_FILENAME,
+        ):
+            identity = yaml.safe_load(identity_path.read_text(encoding="utf-8"))
+            identity["run"]["schema_version"] = 99
+            identity_path.write_text(yaml.safe_dump(identity), encoding="utf-8")
+        for report in (
+            validate_leaderboard_submission(package),
+            validate_trajectory_package(trajectories),
+        ):
+            assert not report.ok
+            assert any("run-record schema version 99" in e for e in report.errors)
+
+        _write_json(run_path, {**data, "schema_version": 99})
+        with pytest.raises(LeaderboardPackError, match="run-record schema version 99"):
+            _pack(result_dir)
+
     def test_pack_rejects_incomplete_trials(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
         trial = next((result_dir / "trials").iterdir())
@@ -963,3 +1003,242 @@ class TestLeaderboardPackValidate:
         (trial / "messages.jsonl").write_text(trace)
         with pytest.raises(LeaderboardPackError, match="no agent trajectory"):
             _pack(result_dir)
+
+
+@pytest.mark.parametrize("defect", ["paired_metrics", "regrade", "tool_policy"])
+def test_validation_audits_paired_trajectory_evidence(mini_release_env, defect):
+    from nika.workflows.leaderboard.validate_trajectories import (
+        sibling_trajectories_dir,
+    )
+
+    _, result_dir = mini_release_env
+    scores = _pack(result_dir)
+    trajectories = sibling_trajectories_dir(scores)
+    trial = next((trajectories / "trials").iterdir())
+    if defect == "paired_metrics":
+        path = trial / "eval_metrics.json"
+        metrics = json.loads(path.read_text())
+        metrics["rca_f1"] = 0
+        _write_json(path, metrics)
+    elif defect == "regrade":
+        _write_json(trial / "submission.json", {"is_anomaly": False, "root_causes": []})
+    else:
+        with (trial / "messages.jsonl").open("a") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "phase": "diagnosis",
+                        "event": "tool_start",
+                        "tool": {"name": "WebSearch"},
+                        "input": {"query": "network fault"},
+                    }
+                )
+                + "\n"
+            )
+    report = validate_leaderboard_submission(scores)
+    assert not report.ok
+    if defect == "paired_metrics":
+        assert any(
+            "metrics differ from paired trajectories" in error
+            for error in report.errors
+        )
+    else:
+        assert report.audit is not None and report.audit["verdict"] == "block"
+        assert report.audit["trials"]
+
+
+def test_ci_keeps_blocking_evidence_reviewable_at_the_same_revision(
+    mini_release_env, tmp_path, monkeypatch
+):
+    from nika.audit import ci
+
+    _, result_dir = mini_release_env
+    package = _pack(result_dir)
+    paired = package.parent / f"{package.name}_trajectories"
+    trial = next((paired / "trials").iterdir())
+    path = trial / "messages.jsonl"
+    path.write_text(
+        path.read_text()
+        + json.dumps(
+            {
+                "phase": "diagnosis",
+                "event": "tool_start",
+                "tool": {"name": "WebSearch"},
+                "input": {"query": "network"},
+            }
+        )
+        + "\n"
+    )
+    original = path.read_bytes()
+    downloads = []
+
+    def fetch(slug, release, destination, *, repo, revision):
+        downloads.append(destination)
+        shutil.copytree(paired, destination / "trajectories")
+        (destination / "fetch-source.json").write_text(
+            json.dumps({"repo": repo, "revision": "a" * 40, "path": slug})
+        )
+        return destination / "trajectories"
+
+    monkeypatch.setattr(ci, "fetch_trajectories", fetch)
+    output = tmp_path / "outputs"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    out = tmp_path / "audit"
+    assert not ci.audit_package(
+        package, out, REPO_ROOT, trajectories_repo="test/trajectories"
+    )
+    assert "reviewable=true" in output.read_text()
+    assert "revision=" + "a" * 40 in output.read_text()
+    assert json.loads((out / "audit.json").read_text())["verdict"] == "block"
+    assert all(not path.exists() for path in downloads)
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("errors", [0, 1])
+def test_review_workflow_preserves_kb_and_reports_failures(
+    mini_release_env, tmp_path, monkeypatch, errors
+):
+    from nika.workflows.leaderboard import review
+
+    _, result_dir = mini_release_env
+    seed = tmp_path / "kb"
+    shutil.copytree(review.KB_DIR, seed)
+    out = tmp_path / "review"
+
+    def propose(path, kb, workdir, *, scan, adjudicate, **kwargs):
+        assert scan.command == adjudicate.command == ("reviewer",)
+        text = (
+            (kb / "issues/LEAK-VTYSH-HISTORY.yaml")
+            .read_text()
+            .replace("LEAK-VTYSH-HISTORY", "LEAK-TEST-CANDIDATE")
+        )
+        (kb / "issues/LEAK-TEST-CANDIDATE.yaml").write_text(text)
+        return {"errors": [errors, 0], "written": ["LEAK-TEST-CANDIDATE"]}
+
+    monkeypatch.setattr(review, "review_submission", propose)
+    summary = review.review_trajectories(result_dir, out, kb=seed, command="reviewer")
+    assert summary["complete"] == (not errors)
+    assert not (seed / "issues/LEAK-TEST-CANDIDATE.yaml").exists()
+    assert (out / "audit-candidate.json").is_file()
+    with pytest.raises(FileExistsError):
+        review.review_trajectories(result_dir, out, command="reviewer")
+
+
+def test_ci_publication_deduplicates_issues_and_preserves_git_history(
+    tmp_path, monkeypatch
+):
+    import subprocess
+    import sys
+    import os
+    from nika.audit.ci import publish_proposals
+    from nika.audit.kb import KB_DIR
+
+    origin = tmp_path / "origin"
+    subprocess.run(
+        ["git", "init", "--initial-branch=dev", str(origin)],
+        check=True,
+        capture_output=True,
+    )
+
+    def git(*args):
+        return subprocess.check_output(
+            ["git", "-C", str(origin), *args], text=True
+        ).strip()
+
+    git("config", "user.name", "Zhihao Wang")
+    git("config", "user.email", "zhihao.wang@kaust.edu.sa")
+    folder = origin / "src/nika/audit/kb_data/issues"
+    folder.mkdir(parents=True)
+    (folder / ".gitkeep").touch()
+    git("add", ".")
+    git(
+        "commit",
+        "-m",
+        "test(audit): create publication fixture",
+        "-m",
+        "Co-authored-by: Codex <codex@openai.com>",
+    )
+    config = tmp_path / "gitconfig"
+    config.write_text(
+        f'[url "{origin}"]\n    insteadOf = https://github.com/sands-lab/nika.git\n'
+    )
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    state = tmp_path / "state.json"
+    state.write_text(
+        json.dumps({"issues": [], "prs": [], "created_issues": 0, "created_prs": 0})
+    )
+    executable = tmp_path / "bin/gh"
+    executable.parent.mkdir()
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        + """import json,os,sys
+from pathlib import Path
+p=Path(os.environ['AUDIT_TEST_STATE']); s=json.loads(p.read_text()); a=sys.argv[1:]
+if a[:2]==['pr','list']: print(json.dumps(s['prs']))
+elif a[:2]==['issue','list']: print(json.dumps(s['issues']))
+elif a[:2]==['issue','create']:
+    s['created_issues']+=1; url='https://github.com/sands-lab/nika/issues/999'
+    s['issues'].append({'url':url,'body':Path(a[a.index('--body-file')+1]).read_text()}); print(url)
+elif a[:2]==['pr','create']:
+    s['created_prs']+=1; url='https://github.com/sands-lab/nika/pull/1000'; s['prs'].append({'state':'OPEN','url':url}); print(url)
+elif a[0]=='api': print('{}')
+else: raise SystemExit(1)
+p.write_text(json.dumps(s))
+"""
+    )
+    executable.chmod(0o755)
+    monkeypatch.setenv("PATH", str(executable.parent) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("AUDIT_TEST_STATE", str(state))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "test/leaderboard")
+    monkeypatch.setenv("GITHUB_RUN_ID", "1")
+    review = tmp_path / "review"
+    (review / "kb/issues").mkdir(parents=True)
+    shutil.copy2(KB_DIR / "issues/LEAK-VTYSH-HISTORY.yaml", review / "kb/issues")
+    (review / "summary.json").write_text(
+        json.dumps({"complete": True, "written": ["LEAK-VTYSH-HISTORY"]})
+    )
+    source = {
+        "repo": "test/trajectories",
+        "revision": "a" * 40,
+        "path": "trajectories/0.2.0/example",
+    }
+    trajectories = tmp_path / "trajectories"
+    trajectories.mkdir()
+    for _ in range(2):
+        publish_proposals(Path("example"), source, review, trajectories)
+    result = json.loads(state.read_text())
+    assert result["created_issues"] == result["created_prs"] == 1
+    branch = "bot/audit/0.2.0/example-" + "a" * 12
+    assert git("rev-list", "--count", branch) == "2"
+    assert git(
+        "show", f"{branch}:src/nika/audit/kb_data/issues/LEAK-VTYSH-HISTORY.yaml"
+    )
+
+
+def test_ci_bounds_waiting_for_a_pending_trajectory_upload(
+    mini_release_env, tmp_path, monkeypatch
+):
+    from nika.audit import ci
+
+    _, result_dir = mini_release_env
+    package = _pack(result_dir)
+    clock = [0]
+    calls = []
+    monkeypatch.setattr(ci.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        ci.time, "sleep", lambda delay: clock.__setitem__(0, clock[0] + delay)
+    )
+
+    def pending(*args, **kwargs):
+        calls.append(clock[0])
+        raise ci.TrajectoryPendingError("upload pending")
+
+    monkeypatch.setattr(ci, "fetch_trajectories", pending)
+    with pytest.raises(ci.TrajectoryPendingError):
+        ci.audit_package(
+            package,
+            tmp_path / "audit",
+            REPO_ROOT,
+            trajectories_repo="test/trajectories",
+        )
+    assert calls[0] == 0 and calls[-1] == 600

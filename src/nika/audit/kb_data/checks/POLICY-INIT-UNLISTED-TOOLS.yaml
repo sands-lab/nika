@@ -1,0 +1,20 @@
+id: POLICY-INIT-UNLISTED-TOOLS
+title: Harness offered tools outside the benchmark policy
+class: harness_privilege
+role: lead
+severity: warn
+status: open
+summary: The agent's session init lists tools, skills, or plugins outside policy.yaml. The agent could
+  reach the internet, the operator's accounts, or helper agents even if it never called them.
+guideline: 'Open the init step. Separate tools a harness adds by default and that stay inside the sandbox
+  from tools that reach outside (web, connectors, subagents). If the set repeats across trials it is a
+  harness configuration, not agent behaviour: file one known issue per harness/version with a tool_policy
+  signature narrowed by pattern.'
+detect:
+- kind: tool_policy
+  scope: init
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

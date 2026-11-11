@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,8 +30,8 @@ from tests.benchmark.trial_helpers import ROW_A, ROW_B, mini_cases_yaml
 pytestmark = pytest.mark.unit
 
 _RUNNER = CliRunner()
-TASK_A = "dc_clos__link_down__s__h0477bc828c02"
-TASK_B = "dc_clos__link_flap__s__hcc30df961cd6"
+TASK_A = "dc_clos__link_down__s__h3566275c1949"
+TASK_B = "dc_clos__link_flap__s__h5bcbcbe7247d"
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +77,7 @@ class TestTaskSelectors:
     def test_describe_payload_includes_inject(self) -> None:
         payload = describe_task_payload(ROW_A)
         assert payload["task_id"] == TASK_A
-        assert payload["inject"] == {"host_name": "client_0", "intf_name": "eth0"}
+        assert payload["inject"] == {"host_name": "client_1_1", "intf_name": "eth0"}
         assert "root_causes" not in payload
 
 
@@ -119,6 +120,7 @@ class TestReleaseTaskIdGate:
         release = load_release("0.2.0", split="test")
         result_dir = tmp_path / "run"
         with (
+            patch("nika.workflows.benchmark.run.release_engine") as engine,
             patch("nika.workflows.benchmark.run.preflight_release") as preflight,
             patch("nika.workflows.benchmark.run.run_benchmark_trials") as runner,
         ):
@@ -135,6 +137,8 @@ class TestReleaseTaskIdGate:
                     release=release,
                     task_ids=["missing-task"],
                 )
+        # 0.2.0 pins a benchmark engine; a bad selector must not start it.
+        engine.assert_not_called()
         preflight.assert_not_called()
         runner.assert_not_called()
         assert not (result_dir / "run.json").exists()
@@ -146,6 +150,11 @@ class TestReleaseTaskIdGate:
         task_id = task_id_for_row(release.cases[0])
         result_dir = tmp_path / "run"
         with (
+            # Run on the in-process engine instead of 0.2.0's engine container.
+            patch(
+                "nika.workflows.benchmark.run.release_engine",
+                lambda *args, **kwargs: nullcontext(),
+            ),
             patch("nika.workflows.benchmark.run.preflight_release"),
             patch(
                 "nika.workflows.benchmark.run._run_trials_batch", return_value=[]
@@ -210,7 +219,7 @@ class TestBenchmarkCatalogCli:
         )
         assert described.exit_code == 0, described.output
         assert f"task_id: {TASK_A}" in described.output
-        assert "host_name: client_0" in described.output
+        assert "host_name: client_1_1" in described.output
         assert "intf_name: eth0" in described.output
 
         from_trial = _RUNNER.invoke(
@@ -285,7 +294,7 @@ class TestBenchmarkCatalogCli:
                 "-s",
                 "s",
                 "--set",
-                "host_name=client_0",
+                "host_name=client_1_1",
                 "--set",
                 "intf_name=eth0",
                 "--task-id",

@@ -10,10 +10,6 @@ from pathlib import Path
 
 from nika.validation.base import ValidationSnapshot
 from nika.validation.batfish.kathara import startup_addresses, startup_static_routes
-from nika.validation.batfish.routeros_isp import (
-    project_routeros_isp,
-    routeros_model_interface,
-)
 from nika.validation.batfish.snapshot import (
     prepare_snapshot,
     _cumulus_frr_snapshot,
@@ -37,6 +33,20 @@ def iosxr_batfish_config(config: str, shutdown=()) -> str:
             config,
             flags=re.S | re.M,
         )
+    # Rewrite equivalent statements into the forms Batfish's XR grammar parses:
+    # one-line static routes and the Level-2 circuit type.
+    config = re.sub(
+        r"^( +)address-family (ipv4|ipv6) unicast (\S+ .+)$",
+        lambda m: f"{m[1]}address-family {m[2]} unicast\n{m[1]} {m[3]}",
+        config,
+        flags=re.M,
+    )
+    config = re.sub(
+        r"^( +)circuit-type level-2$",
+        r"\1circuit-type level-2-only",
+        config,
+        flags=re.M,
+    )
     return "!! IOS XR Configuration 7.0.0\n" + config
 
 
@@ -88,23 +98,7 @@ def vendor_addresses(config, device_profile):
 
 
 def vendor_ospf_interfaces(node, config, device_profile):
-    """Read concrete interface/area/passive bindings for native ISP completion."""
-    if device_profile == "routeros":
-        projected = project_routeros_isp(node, config)
-        addresses = vendor_addresses(config, device_profile)
-        declarations = re.findall(
-            r"^ network ([0-9./]+) area ([0-9.]+)$", projected, re.M
-        )
-        passive = set(re.findall(r"^ passive-interface (\S+)$", projected, re.M))
-        return {
-            interface: (
-                int(IPv4Interface(f"{area}/32").ip),
-                routeros_model_interface(interface) in passive,
-            )
-            for address, interface in addresses
-            for network, area in declarations
-            if IPv4Interface(address).ip in IPv4Interface(network).network
-        }
+    """Read concrete IOS XR interface/area/passive bindings."""
     if device_profile != "iosxr":
         raise ValueError(f"Unsupported native device profile: {device_profile}")
     bindings = {}
@@ -136,158 +130,11 @@ def vendor_ospf_interfaces(node, config, device_profile):
     return bindings
 
 
-def vendor_isis_interfaces(config, device_profile):
-    """Read IS-IS interface/passive bindings from a concrete native configuration."""
-    if device_profile == "routeros":
-        bindings = {}
-        for line in config.splitlines():
-            if not line.startswith("/routing isis interface-template add "):
-                continue
-            parts = shlex.split(line)
-            values = dict(part.split("=", 1) for part in parts if "=" in part)
-            interface = values.get("interfaces", "")
-            if (
-                not interface
-                or "," in interface
-                or interface in bindings
-                or values.get("levels") != "l2"
-            ):
-                raise ValueError("Unsupported RouterOS IS-IS interface binding")
-            bindings[interface] = "passive" in parts
-        return bindings
-    if device_profile != "iosxr":
-        raise ValueError(f"Native IS-IS completion is unsupported on {device_profile}")
-    bindings = {}
-    in_isis, interface = False, None
-    for line in config.splitlines():
-        if re.fullmatch(r"router isis \S+", line):
-            if in_isis or bindings:
-                raise ValueError("Native ISP completion requires one IS-IS instance")
-            in_isis, interface = True, None
-        elif line and not line[0].isspace() and not line.startswith("!"):
-            in_isis = False
-        elif in_isis:
-            if match := re.fullmatch(r" interface (\S+)", line):
-                interface = match[1]
-                if interface in bindings:
-                    raise ValueError("Unsupported IOS XR IS-IS interface binding")
-                bindings[interface] = False
-            elif line == "  passive" and interface:
-                bindings[interface] = True
-            elif line == " !":
-                interface = None
-    return bindings
-
-
-def project_routeros_bgp(node, config, *, shutdown=()):
-    """Accept only the addressed direct-eBGP and exact-prefix-filter subset.
-
-    Parse the concrete candidate, including mutations, rather than regenerating
-    an idealized configuration from the original requirements or solver result.
-    """
-    if "/routing/bgp/template add " in config:
-        return project_routeros_isp(node, config, shutdown=shutdown, require_igp=False)
-    addresses, instances, connections, filters = [], [], [], {}
-    for line in config.splitlines():
-        if not line.strip():
-            continue
-        parts = shlex.split(line)
-        values = dict(part.split("=", 1) for part in parts[4:] if "=" in part)
-        if parts[:3] == ["/system", "identity", "set"]:
-            if parts != ["/system", "identity", "set", f"name={node}"]:
-                raise ValueError("Unsupported RouterOS identity")
-        elif parts[:3] == ["/ip", "address", "add"]:
-            values = dict(part.split("=", 1) for part in parts[3:])
-            if set(values) != {"address", "interface"}:
-                raise ValueError("Unsupported RouterOS addressing")
-            addresses.append(values)
-        elif parts[:4] == ["/routing", "bgp", "instance", "add"]:
-            if set(values) != {"name", "as", "router-id"}:
-                raise ValueError("Unsupported RouterOS BGP instance")
-            instances.append(values)
-        elif parts[:4] == ["/routing", "bgp", "connection", "add"]:
-            if (
-                set(values)
-                - {
-                    "name",
-                    "instance",
-                    "local.role",
-                    "local.address",
-                    "remote.address",
-                    "remote.as",
-                    "output.redistribute",
-                    "output.filter-chain",
-                }
-                or values.get("local.role") != "ebgp"
-                or values.get("output.redistribute") != "connected"
-            ):
-                raise ValueError("Unsupported RouterOS BGP connection")
-            connections.append(values)
-        elif parts[:4] == ["/routing", "filter", "rule", "add"]:
-            if set(values) != {"chain", "rule"}:
-                raise ValueError("Unsupported RouterOS filter attributes")
-            filters.setdefault(values["chain"], []).append(values["rule"])
-        else:
-            raise ValueError(f"Unsupported RouterOS statement: {line}")
-    if len(instances) != 1 or not addresses or not connections:
-        raise ValueError("RouterOS projection requires one instance and direct peers")
-    instance = instances[0]
-    lines = [f"hostname {node}"]
-    for address in addresses:
-        lines += [
-            f"interface {address['interface']}",
-            f" ip address {address['address']}",
-        ]
-        if (node, address["interface"]) in shutdown:
-            lines += [" shutdown"]
-        lines += ["!"]
-    lines += [
-        f"router bgp {instance['as']}",
-        f" bgp router-id {instance['router-id']}",
-        " no bgp ebgp-requires-policy",
-    ]
-    # output.redistribute=connected originates every addressed connected network;
-    # the concrete export chain determines which reaches a peer.
-    lines += [f" network {IPv4Interface(a['address']).network}" for a in addresses]
-    policies = []
-    for index, connection in enumerate(connections):
-        if connection["instance"] != instance["name"] or connection[
-            "local.address"
-        ] not in {str(IPv4Interface(a["address"]).ip) for a in addresses}:
-            raise ValueError("Unsupported RouterOS connection binding")
-        peer = connection["remote.address"]
-        chain = connection.get("output.filter-chain")
-        if chain not in filters or filters[chain][-1] != "reject;":
-            raise ValueError("RouterOS exports require an explicit terminating reject")
-        lines += [
-            f" neighbor {peer} remote-as {connection['remote.as']}",
-            f" neighbor {peer} route-map NC-{index} out",
-        ]
-        for seq, rule in enumerate(filters[chain][:-1], 1):
-            match = re.fullmatch(
-                r"if \(dst == ([0-9./]+) && dst-len == ([0-9]+)\) \{ (accept|reject); \}",
-                rule,
-            )
-            if not match:
-                raise ValueError("Only exact-prefix RouterOS export rules are modeled")
-            prefix, length, action = match.groups()
-            network = IPv4Interface(prefix).network
-            if int(length) != network.prefixlen or str(network) != prefix:
-                raise ValueError("RouterOS exact prefix and length disagree")
-            name = f"NC-{index}-{seq}"
-            policies += [
-                f"ip prefix-list {name} seq 5 permit {prefix}",
-                f"route-map NC-{index} {'permit' if action == 'accept' else 'deny'} {seq * 10}",
-                f" match ip address prefix-list {name}",
-                "!",
-            ]
-    return "\n".join([*lines, "!", *policies]) + "\n"
-
-
 def build_vendor_snapshot(
     env, contract, root: Path, *, configs=None, shutdown=(), routing_model
 ):
-    if routing_model not in {"iosxr-bgp", "routeros-bgp", "iosxr-isp", "routeros-isp"}:
+    """Snapshot concrete IOS XR routers with their routed Linux hosts."""
+    if routing_model not in {"iosxr-bgp", "iosxr-isp"}:
         raise ValueError("Unsupported native BGP platform")
     root = prepare_snapshot(root)
     (root / "configs").mkdir(parents=True, exist_ok=True)
@@ -295,39 +142,16 @@ def build_vendor_snapshot(
     configs = vendor_configs(env) if configs is None else configs
     if set(configs) != set(env.BGP_ROUTERS):
         raise ValueError("Candidate configurations must cover the declared routers")
-    native = routing_model in {"iosxr-bgp", "iosxr-isp"}
     isp = routing_model.endswith("-isp")
-    # Batfish has no IS-IS model for FRR or RouterOS; RouterOS IS-IS projects
-    # to IOS XR syntax, as FRR IS-IS does.
-    routeros_isis = isp and not native and env.plan.igp == "isis"
-
-    def snapshot_interface(native_name):
-        if routeros_isis:
-            from nika.validation.batfish.isis import _native_interface
-
-            return _native_interface(routeros_model_interface(native_name))
-        return native_name if native else routeros_model_interface(native_name)
-
     aliases = {}
     for node, config in configs.items():
-        disabled = [(n, env.BGP_INTERFACE_MAP[i]) for n, i in shutdown if n == node]
-        if native:
-            content = iosxr_batfish_config(config, [i for _, i in disabled])
-        elif routeros_isis:
-            from nika.validation.batfish.routeros_isp import project_routeros_isis
-
-            content = project_routeros_isis(node, config, shutdown=disabled)
-        else:
-            projector = project_routeros_isp if isp else project_routeros_bgp
-            content = _cumulus_frr_snapshot(
-                node,
-                "frr version 10.5\nfrr defaults traditional\n"
-                + projector(node, config, shutdown=disabled),
-            )
-        (root / "configs" / f"{node}.cfg").write_text(content)
+        disabled = [env.BGP_INTERFACE_MAP[i] for n, i in shutdown if n == node]
+        (root / "configs" / f"{node}.cfg").write_text(
+            iosxr_batfish_config(config, disabled)
+        )
         if isp:
             aliases[node] = {
-                snapshot_interface(native_name): logical_name
+                native_name: logical_name
                 for logical_name, native_name in env.BGP_INTERFACE_MAP.items()
             }
     # Linux hosts are concrete routed endpoints with their original default routes.
@@ -367,18 +191,7 @@ def build_vendor_snapshot(
         ]
         if len(endpoints) == 2:
             endpoints = [
-                (
-                    n,
-                    (
-                        snapshot_interface(env.BGP_INTERFACE_MAP[i])
-                        if isp
-                        else routeros_model_interface(env.BGP_INTERFACE_MAP[i])
-                        if not native and "/routing/bgp/template add " in configs[n]
-                        else env.BGP_INTERFACE_MAP[i]
-                    )
-                    if n in configs
-                    else i,
-                )
+                (n, env.BGP_INTERFACE_MAP[i] if n in configs else i)
                 for n, i in endpoints
             ]
             edges.append(_edge(*endpoints[0], *endpoints[1]))
@@ -388,16 +201,10 @@ def build_vendor_snapshot(
         path=root,
         metadata={
             "routing_model": routing_model,
-            "native_config_analysis": native,
+            "native_config_analysis": True,
             **({"interface_aliases": aliases} if isp else {}),
             "scope": "Native IOS-XR IPv4 OSPF/BGP configuration with routed Linux hosts"
-            if native and isp
-            else "Restricted concrete RouterOS IPv4 IS-IS L2 wide metrics projected to IOS XR, BGP/RR, exact-prefix filters and local preference; native execution required"
-            if routeros_isis
-            else "Restricted concrete RouterOS IPv4 OSPFv2 area 0, BGP/RR, exact-prefix filters and local preference; native execution required"
             if isp
-            else "Native IOS-XR IPv4 BGP configuration with routed Linux hosts"
-            if native
-            else "Restricted concrete RouterOS IPv4 direct-eBGP, connected origins and exact-prefix export filters; native execution required",
+            else "Native IOS-XR IPv4 BGP configuration with routed Linux hosts",
         },
     )

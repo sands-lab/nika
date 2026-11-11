@@ -83,13 +83,13 @@ def test_case_export_preserves_task_identity_and_ground_truth(tmp_path: Path) ->
     )
     assert listing.exit_code == 0, listing.output
     entries = json.loads(listing.output)
-    assert [(row["topo_size"], row.get("device_profile")) for row in entries] == [
+    assert {(row["topo_size"], row.get("device_profile")) for row in entries} == {
         ("s", None),
         ("s", "iosxr"),
         ("s", "routeros"),
         ("m", None),
         ("l", None),
-    ]
+    }
     assert all(row["e2e_verification"] == "not_recorded" for row in entries)
     row = entries[0]
     output = tmp_path / "case with spaces.yaml"
@@ -127,7 +127,7 @@ def test_noninteractive_browse_requires_selection() -> None:
 def test_incompatible_case_is_not_offered(tmp_path: Path) -> None:
     catalog = tmp_path / "cases.yaml"
     catalog.write_text(
-        "cases:\n- scenario: dc_clos\n  topo_size: s\n  problem: k8s_coredns_isolated\n  inject:\n    host_name: client_0\n"
+        "cases:\n- scenario: dc_clos\n  topo_size: s\n  problem: k8s_coredns_isolated\n  inject:\n    host_name: client_1_1\n"
     )
     result = CliRunner().invoke(
         app, ["case", "browse", "--catalog", str(catalog), "--json"]

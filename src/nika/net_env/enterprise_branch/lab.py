@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from ipaddress import IPv4Interface, IPv4Network
+from ipaddress import IPv4Address, IPv4Interface, IPv4Network
 
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
@@ -13,6 +14,15 @@ from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.native_routers import NativeRouterEnv
 from nika.net_env.probe_intent import ProbeIntent
+from nika.net_env.synthesis.design import (
+    DesignRouter,
+    PolicyEntry,
+    PrefixEntry,
+    RetainedStatements,
+    RoutingDesign,
+    WireGuardTunnel,
+)
+from nika.net_env.synthesis.configuration import netlab_script_command
 from nika.net_env.enterprise_branch.addressing import (
     VRF_TABLE,
     edge_name_for,
@@ -30,7 +40,10 @@ from nika.net_env.enterprise_branch.topology import (
     LOCAL_ONLY_ROLES,
     MAX_OVERLAY_RTT_MS,
     OVERLAY_ROLES,
+    PUBLIC_SERVICE_GATEWAY,
+    PUBLIC_SERVICE_HOST,
     PUBLIC_SERVICE_IP,
+    PUBLIC_SERVICE_PREFIXLEN,
     SCALE,
     UNDERLAY_ONE_WAY_DELAY_MS,
     BuiltTunnel,
@@ -43,15 +56,13 @@ from nika.net_env.enterprise_branch.topology import (
     build_topo_spec,
     dscp_remark_inject_targets,
     hub_iface_for,
+    overlay_be_kbit,
     overlay_qos_for,
     overlay_qos_startup_cmds,
     primary_hq_peer_targets,
     remote_advertised_prefixes_for_spoke,
 )
-from nika.net_env.enterprise_branch.wireguard import (
-    load_key_pairs,
-    render_wg_conf,
-)
+from nika.net_env.enterprise_branch.wireguard import load_key_pairs
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
@@ -116,6 +127,64 @@ class HostRuntime:
     site: str = ""
 
 
+def _edge_policies(
+    *, is_hub: bool, local_adv_prefixes: list[str], tunnels: dict
+) -> tuple[dict[str, list[PrefixEntry]], dict[str, list[PolicyEntry]], str]:
+    """Return the edge's prefix lists, route maps and overlay export map."""
+    prefix_lists = {
+        "ENTERPRISE": [PrefixEntry("10.0.0.0/8", le=24)],
+        "LOCAL-ADV": [PrefixEntry(prefix) for prefix in local_adv_prefixes]
+        or [PrefixEntry("0.0.0.0/0", permit=False, le=32)],
+    }
+    policies = {
+        "RM-OUT-LOCAL": [PolicyEntry(match_prefix_list="LOCAL-ADV")],
+        "RM-OUT-TRANSIT": [PolicyEntry(match_prefix_list="ENTERPRISE")],
+    }
+    for iface, tunnel in tunnels.items():
+        policies[f"RM-IN-{iface}"] = [
+            PolicyEntry(match_prefix_list="ENTERPRISE", local_preference=tunnel[5])
+        ]
+    return prefix_lists, policies, "RM-OUT-TRANSIT" if is_hub else "RM-OUT-LOCAL"
+
+
+def _vrf_bgp_instance(
+    asn: int, router_id: str, role: str, overlay_roles: tuple[str, ...]
+) -> list[str]:
+    return [
+        f"router bgp {asn} vrf {vrf_name(role)}",
+        f" bgp router-id {router_id}",
+        " no bgp ebgp-requires-policy",
+        " !",
+        " address-family ipv4 unicast",
+        "  redistribute connected",
+        # FRR 10.x accepts `import vrf default` only (no inline route-map).
+        # Guest/IOT have no BGP VRF instance, so they never import overlay.
+        "  import vrf default",
+        *(
+            f"  import vrf {vrf_name(other)}"
+            for other in overlay_roles
+            if other != role
+        ),
+        " exit-address-family",
+        "!",
+        "!",
+    ]
+
+
+def _vrf_leaking(asn: int, router_id: str, overlay_roles: tuple[str, ...]) -> str:
+    """Return the default-table/business-VRF imports for a generated config."""
+    return (
+        "\n".join(f"vrf {vrf_name(role)}\nexit-vrf\n" for role in overlay_roles)
+        + f"\nrouter bgp {asn}\n address-family ipv4 unicast\n"
+        + "".join(f"  import vrf {vrf_name(role)}\n" for role in overlay_roles)
+        + " exit-address-family\n!\n"
+        + "\n".join(
+            "\n".join(_vrf_bgp_instance(asn, router_id, role, overlay_roles)) + "\n"
+            for role in overlay_roles
+        )
+    )
+
+
 def _render_edge_frr(
     *,
     hostname: str,
@@ -128,52 +197,34 @@ def _render_edge_frr(
     peer_asns: dict[str, int],
 ) -> str:
     """Build FRR conf: default-VRF eBGP overlay + per-business-VRF import/export."""
+    prefix_lists, policies, out_map = _edge_policies(
+        is_hub=is_hub, local_adv_prefixes=local_adv_prefixes, tunnels=tunnels
+    )
     lines: list[str] = [
         "!",
         f"hostname {hostname}",
         "!",
         "log file /var/log/frr/frr.log",
         "!",
-        "ip prefix-list ENTERPRISE seq 5 permit 10.0.0.0/8 le 24",
-        "!",
     ]
-    seq = 5
-    if local_adv_prefixes:
-        for prefix in local_adv_prefixes:
-            lines.append(f"ip prefix-list LOCAL-ADV seq {seq} permit {prefix}")
-            seq += 5
-    else:
-        lines.append("ip prefix-list LOCAL-ADV seq 5 deny 0.0.0.0/0 le 32")
-    lines.append("!")
-    lines.extend(
-        [
-            "route-map RM-OUT-LOCAL permit 10",
-            " match ip address prefix-list LOCAL-ADV",
-            "!",
-            "route-map RM-OUT-TRANSIT permit 10",
-            " match ip address prefix-list ENTERPRISE",
-            "!",
-        ]
-    )
-
-    out_map = "RM-OUT-TRANSIT" if is_hub else "RM-OUT-LOCAL"
-    for iface, (
-        _local_cidr,
-        _peer_tun_ip,
-        _port,
-        _remote_site,
-        _primary,
-        local_pref,
-        _rwan,
-    ) in tunnels.items():
-        lines.extend(
-            [
-                f"route-map RM-IN-{iface} permit 10",
-                " match ip address prefix-list ENTERPRISE",
-                f" set local-preference {local_pref}",
-                "!",
-            ]
-        )
+    for name, entries in prefix_lists.items():
+        for seq, entry in enumerate(entries, 1):
+            action = "permit" if entry.permit else "deny"
+            le = f" le {entry.le}" if entry.le is not None else ""
+            lines.append(
+                f"ip prefix-list {name} seq {seq * 5} {action} {entry.prefix}{le}"
+            )
+        lines.append("!")
+    for name, entries in policies.items():
+        for seq, entry in enumerate(entries, 1):
+            lines.append(
+                f"route-map {name} {'permit' if entry.permit else 'deny'} {seq * 10}"
+            )
+            if entry.match_prefix_list:
+                lines.append(f" match ip address prefix-list {entry.match_prefix_list}")
+            if entry.local_preference is not None:
+                lines.append(f" set local-preference {entry.local_preference}")
+            lines.append("!")
 
     for role in overlay_roles:
         vname = vrf_name(role)
@@ -220,31 +271,62 @@ def _render_edge_frr(
     lines.extend([" exit-address-family", "!", "!"])
 
     for role in overlay_roles:
-        vname = vrf_name(role)
-        lines.extend(
-            [
-                f"router bgp {asn} vrf {vname}",
-                f" bgp router-id {router_id}",
-                " no bgp ebgp-requires-policy",
-                " !",
-                " address-family ipv4 unicast",
-                "  redistribute connected",
-                # FRR 10.x accepts `import vrf default` only (no inline route-map).
-                # Guest/IOT have no BGP VRF instance, so they never import overlay.
-                "  import vrf default",
-                " exit-address-family",
-                "!",
-                "!",
-            ]
-        )
+        lines.extend(_vrf_bgp_instance(asn, router_id, role, overlay_roles))
 
     lines.extend(["line vty", "!", ""])
     return "\n".join(lines)
 
 
+def _record_edge_design(
+    router: DesignRouter,
+    *,
+    asn: int,
+    router_id: str,
+    is_hub: bool,
+    overlay_roles: tuple[str, ...],
+    local_adv_prefixes: list[str],
+    tunnels: dict[str, tuple[str, str, int, str, bool, int, str]],
+    peer_asns: dict[str, int],
+    wireguard: dict[str, WireGuardTunnel],
+) -> None:
+    """Record the overlay routing that ``_render_edge_frr`` renders."""
+    prefix_lists, policies, out_map = _edge_policies(
+        is_hub=is_hub, local_adv_prefixes=local_adv_prefixes, tunnels=tunnels
+    )
+    router.asn = asn
+    router.router_id = router_id
+    router.ebgp_requires_policy = False
+    router.prefix_lists = prefix_lists
+    router.policies = policies
+    for iface, (local_cidr, peer_ip, _port, remote_site, *_rest) in tunnels.items():
+        local_ip = local_cidr.split("/")[0]
+        router.add_interface(
+            iface,
+            local_cidr,
+            "tunnel_" + "_".join(sorted((local_ip, peer_ip))),
+            wireguard=wireguard.get(iface),
+        )
+        router.add_neighbor(
+            peer_ip,
+            peer_asns[remote_site],
+            interface=iface,
+            import_policy=f"RM-IN-{iface}",
+            export_policy=out_map,
+        )
+    router.retained.append(
+        RetainedStatements(
+            capability="default-to-business VRF imports",
+            reason="netlab's vrf module leaks routes only between VRFs, not the global table",
+            text=_vrf_leaking(asn, router_id, overlay_roles),
+        )
+    )
+
+
 class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"import_preferences"})
     LAB_NAME = "enterprise_branch"
+    # Deploys the netlab configurations stored under rendered/.
+    STORES_RENDERED_CONFIGS = True
     TOPO_LEVEL = "medium"
     VERIFY_MAX_WAIT_SEC = 240
     # Site edges terminate WireGuard, VRFs and NAT, which XRd does not
@@ -260,6 +342,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         topo_size: TopoSize = "s",
         routing_parameters: dict | None = None,
         device_profile: str | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -273,16 +356,18 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         self._isps: dict[str, IspRuntime] = {}
         self._hosts: dict[str, HostRuntime] = {}
         self._key_pairs = load_key_pairs()
-        self._wan_pool = list(IPv4Network("100.64.0.0/16").subnets(new_prefix=30))
-        self._tun_pool = list(IPv4Network("172.30.0.0/16").subnets(new_prefix=30))
+        self._wan_pool = IPv4Network("100.64.0.0/16").subnets(new_prefix=30)
+        self._tun_pool = IPv4Network("172.30.0.0/16").subnets(new_prefix=30)
         # Per-edge WG ListenPort allocator. Hubs that also terminate spoke-side
         # interconnect tunnels (HQ) must not reuse TunnelSpec.listen_port.
         self._edge_listen_ports: dict[str, int] = {}
+        self.routing_design = RoutingDesign()
 
         self._create_nodes()
         self._wire_lans()
         self._wire_wan()
         self._build_tunnels()
+        self._add_public_service()
         self._write_edge_configs()
         self._write_isp_configs()
         self._write_host_configs()
@@ -317,6 +402,16 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             "browse and upload through the NAT."
         )
         self.apply_device_profile(device_profile)
+        from nika.net_env.synthesis.rendered import (
+            deploy_netlab_scripts,
+            use_rendered_configs,
+        )
+
+        if routing_parameters is not None:
+            # NIKA renders the solved routing; netlab still configures the tunnels.
+            deploy_netlab_scripts(self, routing_parameters)
+        elif rendered:
+            use_rendered_configs(self)
 
     def probe_intent(self) -> ProbeIntent | None:
         """Overlay roles form one reachability domain; each local-only LAN its own."""
@@ -377,11 +472,42 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             pairs.append((edge_name_for(bt.hub), bt.hub_iface))
         return pairs
 
+    def post_restore(self) -> bool:
+        from nika.net_env.enterprise_branch.wireguard import resume_peer_handshakes
+        from nika.utils.parallel import bounded_parallel_map
+        from nika.utils.logger import log_event
+
+        nodes = []
+        for node, identity in self.machine_identities.items():
+            if "wireguard" not in identity.capabilities:
+                continue
+            if node in self.native_routers:
+                log_event(
+                    "env_restore_unsupported",
+                    f"WireGuard session recovery is unavailable for {node}",
+                    node=node,
+                    device_profile=self.native_routers[node],
+                )
+                continue
+            nodes.append(node)
+        if not nodes:
+            return False
+        runtime = self._build_runtime()
+        bounded_parallel_map(
+            lambda edge: resume_peer_handshakes(
+                runtime,
+                edge.name,
+                [(interface, tunnel[1]) for interface, tunnel in edge.tunnels.items()],
+            ),
+            [edge for edge in self._edges.values() if edge.name in nodes],
+        )
+        return True
+
     def _next_wan(self) -> IPv4Network:
-        return self._wan_pool.pop(0)
+        return next(self._wan_pool)
 
     def _next_tun(self) -> IPv4Network:
-        return self._tun_pool.pop(0)
+        return next(self._tun_pool)
 
     def _next_listen_port(self, site: str) -> int:
         """Allocate a unique WireGuard ListenPort on ``site``'s Site Edge."""
@@ -404,6 +530,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             self._edges[site_name] = EdgeRuntime(
                 name=ename, site=site_name, machine=machine, key_idx=key_i
             )
+            self.routing_design.router(ename)
             key_i += 1
 
         for provider in self.spec.providers:
@@ -419,6 +546,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             self._isps[provider] = IspRuntime(
                 name=iname, provider=provider, machine=machine
             )
+            self.routing_design.router(iname)
 
         for site in self.spec.sites.values():
             for lan in site.lans:
@@ -462,13 +590,22 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                 table = VRF_TABLE[lan.role]
                 edge.cmd_list.append(f"ip link add {lan.vrf} type vrf table {table}")
                 edge.cmd_list.append(f"ip link set dev {lan.vrf} up")
+                # A lookup that misses the VRF table must not fall through to
+                # the main table (kernel VRF setup guidance).
+                edge.cmd_list.append(
+                    f"ip route add table {table} unreachable default metric 4278198272"
+                )
             for lan in site.lans:
                 link = f"{edge.name}_{site.name}_{lan.role}"
                 self.lab.connect_machine_to_link(edge.name, link)
                 eth = f"eth{edge.eth_index}"
                 e_ip = lan_edge_ip(site.site_id, lan.role)
                 edge.cmd_list.append(f"ip link set dev {eth} master {lan.vrf}")
-                edge.cmd_list.append(f"ip addr add {e_ip} dev {eth}")
+                edge.cmd_list.append(
+                    self.routing_design.router(edge.name).add_interface(
+                        eth, str(e_ip), link, vrf=lan.vrf
+                    )
+                )
                 edge.cmd_list.append(f"ip link set dev {eth} up")
                 edge.eth_index += 1
                 for host_index, host_name in enumerate(lan.host_names):
@@ -521,9 +658,17 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                 isp_ip = str(subnet.network_address + 2)
                 wan_dev = f"eth{edge.eth_index}"
                 isp_dev = f"eth{isp.eth_index}"
-                edge.cmd_list.append(f"ip addr add {edge_cidr} dev {wan_dev}")
+                edge.cmd_list.append(
+                    self.routing_design.router(edge.name).add_interface(
+                        wan_dev, edge_cidr, link
+                    )
+                )
                 edge.eth_index += 1
-                isp.cmd_list.append(f"ip addr add {isp_cidr} dev {isp_dev}")
+                isp.cmd_list.append(
+                    self.routing_design.router(isp.name).add_interface(
+                        isp_dev, isp_cidr, link
+                    )
+                )
                 isp.eth_index += 1
                 edge.wan[provider] = (edge_cidr, isp_ip, edge_ip, wan_dev)
                 # Healthy regional WAN propagation (Cisco SD-WAN small-branch
@@ -548,8 +693,41 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                             f"ip addr add {public_ip}/32 dev {wan_dev}"
                         )
                         isp.cmd_list.append(
-                            f"ip route add {public_ip}/32 via {edge_ip}"
+                            self.routing_design.router(isp.name).add_static_route(
+                                f"{public_ip}/32", edge_ip
+                            )
                         )
+
+    def _add_public_service(self) -> None:
+        """The public web server on a LAN of the primary provider."""
+        isp = self._isps[self.spec.providers[0]]
+        machine = self.lab.new_machine(
+            PUBLIC_SERVICE_HOST,
+            **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
+        )
+        # Outside the enterprise: no node fault targets it and PingMesh does not
+        # probe it; its provider link can still fail.
+        self.declare_machine(
+            PUBLIC_SERVICE_HOST,
+            role=NodeRole.INFRASTRUCTURE,
+            capabilities=("linux", "http"),
+        )
+        self._connect(isp.name, PUBLIC_SERVICE_HOST, f"{isp.name}_public")
+        isp.cmd_list.append(
+            self.routing_design.router(isp.name).add_interface(
+                f"eth{isp.eth_index}",
+                f"{PUBLIC_SERVICE_GATEWAY}/{PUBLIC_SERVICE_PREFIXLEN}",
+                f"{isp.name}_public",
+            )
+        )
+        isp.eth_index += 1
+        self.lab.create_file_from_list(
+            [
+                f"ip addr add {PUBLIC_SERVICE_IP}/{PUBLIC_SERVICE_PREFIXLEN} dev eth0",
+                f"ip route add default via {PUBLIC_SERVICE_GATEWAY}",
+            ],
+            f"{machine.name}.startup",
+        )
 
     def _build_tunnels(self) -> None:
         for tspec in self.spec.tunnels:
@@ -600,8 +778,16 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         # Underlay host routes to remote WAN endpoints via matching ISP PE
         spoke_isp_gw = spoke.wan[provider][1]
         hub_isp_gw = hub.wan[provider][1]
-        spoke.cmd_list.append(f"ip route add {hub_wan}/32 via {spoke_isp_gw}")
-        hub.cmd_list.append(f"ip route add {spoke_wan}/32 via {hub_isp_gw}")
+        spoke.cmd_list.append(
+            self.routing_design.router(spoke.name).add_static_route(
+                f"{hub_wan}/32", spoke_isp_gw
+            )
+        )
+        hub.cmd_list.append(
+            self.routing_design.router(hub.name).add_static_route(
+                f"{spoke_wan}/32", hub_isp_gw
+            )
+        )
 
         self.built_tunnels.append(
             BuiltTunnel(
@@ -627,39 +813,35 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             edge.cmd_list.insert(0, "sysctl -w net.ipv4.ip_forward=1")
             edge.cmd_list.insert(1, "sysctl -w net.ipv4.conf.all.rp_filter=0")
             edge.cmd_list.insert(2, "sysctl -w net.ipv4.conf.default.rp_filter=0")
-            priv, _pub = self._key_pairs[edge.key_idx]
+            priv, pub = self._key_pairs[edge.key_idx]
 
-            # WireGuard interfaces (endpoint ports from BuiltTunnel)
+            # WireGuard tunnels: netlab generates the interfaces and peers from
+            # these endpoints; the edge startup runs netlab's script.
+            wireguard = {}
             for bt in self.built_tunnels:
                 if site_name == bt.spoke:
-                    iface = bt.spoke_iface
-                    local_cidr = edge.tunnels[iface][0]
-                    listen_port = bt.listen_port_spoke
-                    remote_site = bt.hub
-                    remote_wan = bt.hub_wan_ip
-                    peer_listen = bt.listen_port_hub
+                    iface, listen_port = bt.spoke_iface, bt.listen_port_spoke
                 elif site_name == bt.hub:
-                    iface = bt.hub_iface
-                    local_cidr = edge.tunnels[iface][0]
-                    listen_port = bt.listen_port_hub
-                    remote_site = bt.spoke
-                    remote_wan = bt.spoke_wan_ip
-                    peer_listen = bt.listen_port_spoke
+                    iface, listen_port = bt.hub_iface, bt.listen_port_hub
                 else:
                     continue
-                remote_edge = self._edges[remote_site]
-                _rpriv, rpub = self._key_pairs[remote_edge.key_idx]
-                conf = render_wg_conf(
+                wireguard[iface] = WireGuardTunnel(
+                    source=edge.wan[bt.provider][3],
                     private_key=priv,
-                    address_cidr=local_cidr,
+                    public_key=pub,
                     listen_port=listen_port,
-                    peer_public_key=rpub,
-                    peer_endpoint=f"{remote_wan}:{peer_listen}",
                 )
-                edge.machine.create_file_from_string(
-                    conf, f"/etc/wireguard/{iface}.conf"
+            if wireguard:
+                edge.cmd_list.append(netlab_script_command("tunnel.wireguard"))
+                # netlab's WireGuard script sets per-interface sysctls, which
+                # an unprivileged container cannot write.
+                edge.machine.add_meta("privileged", True)
+            for iface in wireguard:
+                # The startup addresses each tunnel, as it does every Linux
+                # interface; netlab's script creates the interface and peer.
+                edge.cmd_list.append(
+                    f"ip addr replace {edge.tunnels[iface][0]} dev {iface}"
                 )
-                edge.cmd_list.append(f"wg-quick up {iface}")
                 # Healthy overlay egress QoS: EF vs BE classes; no DSCP rewrite.
                 qos = overlay_qos_for(self.spec.size)
                 edge.cmd_list.extend(overlay_qos_startup_cmds(iface, qos))
@@ -704,8 +886,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             local_adv = [lan.prefix for lan in site.lans if lan.advertise]
             peer_asns = {name: s.asn for name, s in self.spec.sites.items()}
             rid = next(iter(edge.wan.values()))[2]
-            frr = _render_edge_frr(
-                hostname=edge.name,
+            design = dict(
                 asn=site.asn,
                 router_id=rid,
                 is_hub=site.is_hub,
@@ -713,6 +894,10 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                 local_adv_prefixes=local_adv,
                 tunnels=edge.tunnels,
                 peer_asns=peer_asns,
+            )
+            frr = _render_edge_frr(hostname=edge.name, **design)
+            _record_edge_design(
+                self.routing_design.router(edge.name), wireguard=wireguard, **design
             )
             edge.machine.create_file_from_path(
                 str(pkg_path("net_env/utils/kathara/bgp/daemons")), "/etc/frr/daemons"
@@ -728,8 +913,6 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
     def _write_isp_configs(self) -> None:
         for isp in self._isps.values():
             isp.cmd_list.insert(0, "sysctl -w net.ipv4.ip_forward=1")
-            if isp.provider == self.spec.providers[0]:
-                isp.cmd_list.append(f"ip addr add {PUBLIC_SERVICE_IP}/32 dev lo")
             isp.machine.create_file_from_string(PROVIDER_DAEMONS, "/etc/frr/daemons")
             isp.machine.create_file_from_path(
                 str(pkg_path("net_env/utils/kathara/bgp/vtysh.conf")),
@@ -769,20 +952,55 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             "l2_endpoints": sorted(corp, key=lambda h: h != "br1_corp_pc"),
         }
 
+    @classmethod
+    def path_rate_limit_kbps(cls, device_profile: str | None) -> int | None:
+        """Under a send cap, business transfers share the shrunk BE class."""
+        cap = super().path_rate_limit_kbps(device_profile)
+        if cap is None:
+            return None
+        return min(overlay_be_kbit(overlay_qos_for(size, cap)) for size in SCALE)
+
+    def background_rate_limit_kbps(self) -> int | None:
+        """Background transfers share the selected topology's best-effort class."""
+        return overlay_be_kbit(
+            overlay_qos_for(self.spec.size, self.router_rate_limit_kbps())
+        )
+
+    def link_symptom_targets(self, node: str, intf: str) -> dict[str, str] | None:
+        """A guest host reaches the public web server through its Site Edge NAT."""
+        machine = self.lab.machines.get(node)
+        match = re.fullmatch(r"eth(\d+)", intf)
+        link = (
+            machine.interfaces.get(int(match.group(1))) if machine and match else None
+        )
+        ends = set(link.link.machines) if link is not None else set()
+        if PUBLIC_SERVICE_HOST not in ends | {node}:
+            return None
+        guest = next(
+            lan.host_names[0]
+            for site in self.spec.sites.values()
+            for lan in site.lans
+            if lan.role == "guest"
+        )
+        return {"observer_device": guest, "probe_dst_ip": PUBLIC_SERVICE_IP}
+
+    def nat_probe_server(self) -> tuple[str, str]:
+        return PUBLIC_SERVICE_HOST, PUBLIC_SERVICE_IP
+
     def business_workload(self):
         from nika.net_env.enterprise_branch.workload import build_workload
-        from nika.traffic.workload import BusinessWorkload
 
-        workload = build_workload(self.spec, self.frr_routers())
-        native = set(self.native_routers)
-        if not native:
-            return workload
-        # Native routers (XRd providers, RouterOS edges) have no Python runtime.
-        return BusinessWorkload(
-            processes=tuple(p for p in workload.processes if p.node not in native),
-            exercises=workload.exercises,
-            settle_sec=workload.settle_sec,
+        workload = build_workload(
+            self.spec, self.frr_routers(), self.router_rate_limit_kbps()
         )
+        # Native routers (XRd providers, RouterOS edges) cannot run the
+        # programs; a process placed there would leave its clients idle.
+        stranded = sorted(
+            {p.node for p in workload.processes} & set(self.native_routers)
+        )
+        if stranded:
+            raise ValueError(f"Business workload placed on native routers: {stranded}")
+        return workload
 
     def _target_size(self) -> TopoSize:
         return self.topo_size if self.topo_size in SCALE else "s"
@@ -791,9 +1009,62 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         """(Branch edge, WireGuard iface) pairs with a primary HQ peer."""
         return primary_hq_peer_targets(self._target_size())
 
+    def wireguard_failover_targets(self) -> list[tuple[str, str, str, str]]:
+        """Standby peers on an independent provider, paired with the primary WAN."""
+        from nika.problems.rca.inventory import (
+            iter_link_termination_points,
+            parse_endpoint,
+        )
+
+        targets = []
+        for spoke in self.spec.branch_names():
+            edge = self._edges[spoke]
+            primary = next(
+                t for t in self.built_tunnels if t.spoke == spoke and t.primary
+            )
+            wan = edge.wan[primary.provider][3]
+            peer = next(
+                parse_endpoint(str(endpoint))
+                for _, endpoints in iter_link_termination_points(self)
+                if f"{edge.name}:{wan}" in {str(e) for e in endpoints}
+                for endpoint in endpoints
+                if str(endpoint) != f"{edge.name}:{wan}"
+            )
+            for tunnel in self.built_tunnels:
+                if (
+                    tunnel.spoke == spoke
+                    and not tunnel.primary
+                    and tunnel.provider != primary.provider
+                ):
+                    targets.append((edge.name, tunnel.spoke_iface, *peer))
+        return targets
+
     def remote_prefixes_for_spoke(self, spoke: str) -> list[str]:
         """Advertised CORP/SERVER prefixes not owned by ``spoke``."""
         return remote_advertised_prefixes_for_spoke(self._target_size(), spoke)
+
+    def restore_link_routes(self, runtime, host: str, interface: str) -> None:
+        """Restore authored kernel routes flushed when a Linux attachment goes down."""
+        if host in self.native_routers:
+            return
+        startup = self.lab.fs.readtext(f"{host}.startup")
+        networks = [
+            IPv4Interface(cidr).network
+            for cidr in re.findall(
+                rf"^ip addr add (\S+) dev {re.escape(interface)}$", startup, re.M
+            )
+        ]
+        for line in startup.splitlines():
+            if not line.startswith("ip route add "):
+                continue
+            gateway = re.search(r"\bvia (\S+)", line)
+            if gateway and any(
+                IPv4Address(gateway[1]) in network for network in networks
+            ):
+                command = line.removesuffix(" || true").replace(
+                    "ip route add ", "ip route replace ", 1
+                )
+                runtime.exec(host, command)
 
     def bgp_hijack_targets(self) -> list[HijackTarget]:
         """Originations that divert another site's traffic to the hijacker."""

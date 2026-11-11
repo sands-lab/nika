@@ -85,7 +85,6 @@ def revoke_network_hosts(sandbox_name: str, *hosts: str) -> None:
                 "policy",
                 "rm",
                 "network",
-                "--force",
                 "--sandbox",
                 sandbox_name,
                 "--resource",
@@ -149,6 +148,46 @@ def allowed_network_resources(policy: Any, sandbox_name: str) -> list[str]:
     return list(dict.fromkeys(r.strip() for r in found if r.strip()))
 
 
+# The resource of sbx's ``allow-all`` preset: every host.
+ALLOW_ALL_RESOURCE = "**"
+
+
+class SbxPolicyError(RuntimeError):
+    """The sbx network policy cannot confine NIKA's agent sandboxes."""
+
+
+def _require_confinable(resources: Iterable[str]) -> None:
+    """Raise when *resources* allow every host.
+
+    NIKA confines a sandbox by denying, for that sandbox, each resource the
+    policy allows, and in sbx a deny always wins over an allow. Denying every
+    host would therefore also block the MCP gateway and the model proxy.
+    """
+    if ALLOW_ALL_RESOURCE not in resources:
+        return
+    raise SbxPolicyError(
+        "Docker Sandboxes allows all network traffic on this host (global "
+        f"rule {ALLOW_ALL_RESOURCE!r}, from the allow-all policy). NIKA limits "
+        "each agent sandbox to its MCP gateway and model proxy by denying the "
+        "hosts the global policy allows, and sbx cannot deny every host while "
+        "allowing those two. To keep your host policy, configure "
+        "AgentENV with `./scripts/install.sh --with-agentenv`, or select "
+        "nika.sandbox.backend: e2b with E2B_API_KEY for E2B cloud. "
+        "See docs/operations/agent-sandbox.md. Alternatively, "
+        "switch the global policy to balanced or "
+        "deny-all: run `sbx policy reset` and choose Balanced. The global "
+        "policy applies to all your sandboxes."
+    )
+
+
+def require_confinable_sbx_policy() -> None:
+    """Stop before a run when the global sbx policy allows every host."""
+    ensure_sbx_ready()
+    proc = run_sbx_checked(["policy", "ls", "--json"], timeout=120)
+    # No sandbox name: only the global rules.
+    _require_confinable(allowed_network_resources(json.loads(proc.stdout), ""))
+
+
 def sandbox_network_lockdown(
     sandbox_name: str,
     *,
@@ -172,6 +211,7 @@ def sandbox_network_lockdown(
         for r in allowed_network_resources(json.loads(proc.stdout), sandbox_name)
         if r not in keep_resources
     ]
+    _require_confinable(resources)
     install_hosts = (
         tuple(setup_hosts)
         + (_PYPI_NETWORK_HOSTS if install_pypi else ())
@@ -253,7 +293,6 @@ def deny_mcp_gateway(
                 "policy",
                 "rm",
                 "network",
-                "--force",
                 "--sandbox",
                 sandbox_name,
                 "--resource",

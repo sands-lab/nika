@@ -110,8 +110,16 @@ Fix every error and rerun. Then check the packed scores package:
 * Package directory is `YYYYMMDD_<framework>_<model>`.
 * README numbers match `metrics.json`, and no placeholder text remains.
 
-Summarize the package name, destinations, model record, and metrics for the
-user and ask for approval.
+Audit the trajectories with the deterministic part of the [submission audit](../nika-submission-audit/SKILL.md):
+
+```shell
+uv run python .agents/skills/nika-submission-audit/scripts/audit.py run <result_dir> \
+  --out <result_dir>/audit.json --repo .
+```
+
+Report the verdict, the known issues, and the leads (generic-check hits that need a reviewer) to the user; never change trials to clear them.
+
+Summarize the package name, destinations, model record, metrics, and audit verdict for the user and ask for approval.
 
 ## 5. Submit and verify
 

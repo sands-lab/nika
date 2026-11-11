@@ -26,7 +26,7 @@ EXPORTER = f"{CONFIG_DIR}/routeros_exporter.py"
 EXPORTER_PORT = 9101
 _VERSION = re.compile(r"\bversion:\s*(\d[\w.]*)", re.I)
 _STATS_ROW = re.compile(
-    r'(?:^|\s)(?:name="(?P<qname>[^"]+)"|(?P<name>ether\d+|lo0|bridge\d+))\s+'
+    r'(?:^|\s)(?:name="(?P<qname>[^"]+)"|(?P<name>ether\d+|loopback|bridge\d+))\s+'
     r"(?:rx-byte[=:]?\s*)?(?P<rx_byte>\d+)\s+"
     r"(?:tx-byte[=:]?\s*)?(?P<tx_byte>\d+)\s+"
     r"(?:rx-packet[=:]?\s*)?(?P<rx_packet>\d+)\s+"
@@ -34,7 +34,7 @@ _STATS_ROW = re.compile(
     re.I,
 )
 _COLUMN_ROW = re.compile(
-    r"^(?P<name>ether\d+|lo0|bridge\d+)\s+"
+    r"^(?P<name>ether\d+|loopback|bridge\d+)\s+"
     r"(?P<rx_byte>\d+)\s+(?P<tx_byte>\d+)\s+"
     r"(?P<rx_packet>\d+)\s+(?P<tx_packet>\d+)"
     r"(?:\s+(?P<rx_drop>\d+)\s+(?P<tx_drop>\d+)"
@@ -42,7 +42,7 @@ _COLUMN_ROW = re.compile(
     re.I | re.M,
 )
 _TERSE = re.compile(
-    r"^\s*\d+\s+(?P<flags>[A-Z]*)\s+(?P<name>ether\d+|lo0|bridge\d+)",
+    r"^\s*\d+\s+(?P<flags>[A-Z]*)\s+(?P<name>ether\d+|loopback|bridge\d+)",
     re.I | re.M,
 )
 _BGP_ADDR = re.compile(r"(?:^|\s)remote\.address=(\S+)")
@@ -130,21 +130,29 @@ def parse_interface_stats(output: str) -> list[dict[str, str | int]]:
 
 
 def parse_bgp_sessions(output: str) -> list[dict[str, str | int]]:
-    """Parse ``/routing bgp session print terse`` rows."""
-    rows: list[dict[str, str | int]] = []
+    """Read configured peers and session flags from RouterOS terse rows."""
+    peers: dict[str, int] = {}
     for line in output.splitlines():
         address = _BGP_ADDR.search(line)
         if not address:
             continue
         established = _BGP_UP.search(line)
-        up = 1 if established and established.group(1).lower() in {"yes", "true"} else 0
-        rows.append({"neighbor": address.group(1), "up": up})
-    return rows
+        flags = re.match(r"^\s*\d+\s+([A-Z]+)\s", line)
+        up = int(
+            established.group(1).lower() in {"yes", "true"}
+            if established
+            else bool(flags and "E" in flags[1])
+        )
+        neighbor, _, prefix = address[1].split("@", 1)[0].partition("/")
+        if prefix and prefix not in {"32", "128"}:
+            continue
+        peers[neighbor] = max(peers.get(neighbor, 0), up)
+    return [{"neighbor": neighbor, "up": up} for neighbor, up in peers.items()]
 
 
 def setup_script(device: dict[str, Any], address: str, collector: str = "") -> str:
     """Assign the extra ether address and optionally enable traffic-flow."""
-    ether = linux_to_ether(str(device["mgmt_iface"]))
+    ether = device.get("mgmt_port") or linux_to_ether(str(device["mgmt_iface"]))
     prefixlen = int(device["prefixlen"])
     cli = CLI_COMMAND
     lines = [
@@ -194,7 +202,7 @@ def syslog_script(address: str, collector: str) -> str:
                 _ssh(
                     cli,
                     f"/system logging action set remote remote={collector} "
-                    f"remote-port={SYSLOG_PORT} src-address={address}",
+                    f"remote-port={SYSLOG_PORT} remote-log-format=syslog src-address={address}",
                 ),
                 _ssh(cli, "/system logging add action=remote topics=info") + " || true",
             ]
@@ -216,7 +224,7 @@ def syslog_enabled(runtime: LabRuntime, name: str) -> bool:
 
 
 def _ssh(cli: str, command: str) -> str:
-    return cli.format(command=command)
+    return f"({cli.format(command=command)})"
 
 
 def exporter_script() -> str:
@@ -257,12 +265,12 @@ def _ssh(address: str, command: str) -> str:
 
 
 COLUMN = re.compile(
-    r"^(ether\d+|lo0|bridge\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)"
+    r"^(ether\d+|loopback|bridge\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)"
     r"(?:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+))?",
     re.I | re.M,
 )
 STATS = re.compile(
-    r'(?:^|\s)(?:name="([^"]+)"|(ether\d+|lo0|bridge\d+))\s+'
+    r'(?:^|\s)(?:name="([^"]+)"|(ether\d+|loopback|bridge\d+))\s+'
     r"(?:rx-byte[=:]?\s*)?(\d+)\s+"
     r"(?:tx-byte[=:]?\s*)?(\d+)\s+"
     r"(?:rx-packet[=:]?\s*)?(\d+)\s+"
@@ -270,7 +278,7 @@ STATS = re.compile(
     re.I,
 )
 TERSE = re.compile(
-    r"^\s*\d+\s+([A-Z]*)\s+(ether\d+|lo0|bridge\d+)",
+    r"^\s*\d+\s+([A-Z]*)\s+(ether\d+|loopback|bridge\d+)",
     re.I | re.M,
 )
 BGP_ADDR = re.compile(r"(?:^|\s)remote\.address=(\S+)")
@@ -308,15 +316,22 @@ def _rows(output: str):
 
 
 def _bgp(output: str):
-    rows = []
+    peers = {}
     for line in output.splitlines():
         address = BGP_ADDR.search(line)
         if not address:
             continue
         flag = BGP_UP.search(line)
-        up = 1 if flag and flag.group(1).lower() in ("yes", "true") else 0
-        rows.append((address.group(1), up))
-    return rows
+        flags = re.match(r"^\s*\d+\s+([A-Z]+)\s", line)
+        up = int(
+            flag.group(1).lower() in ("yes", "true")
+            if flag else bool(flags and "E" in flags[1])
+        )
+        neighbor, _, prefix = address[1].split("@", 1)[0].partition("/")
+        if prefix and prefix not in ("32", "128"):
+            continue
+        peers[neighbor] = max(peers.get(neighbor, 0), up)
+    return list(peers.items())
 
 
 def metrics():
@@ -351,7 +366,9 @@ def metrics():
                 "/interface print terse without-paging",
             )
             try:
-                bgp = _ssh(address, "/routing bgp session print terse without-paging")
+                bgp = _ssh(address,
+                    "/routing bgp connection print terse without-paging; "
+                    "/routing bgp session print terse without-paging")
             except (OSError, subprocess.CalledProcessError):
                 bgp = ""
             return node, _rows(stats), _bgp(bgp)

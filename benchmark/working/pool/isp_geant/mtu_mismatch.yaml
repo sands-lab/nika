@@ -1,0 +1,24 @@
+scenario:
+  name: isp_geant
+failure:
+  fault_type: mtu_mismatch
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: at1_at
+      intf_name: eth1
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: at1_at
+        name: eth1
+      fault_type: mtu_mismatch

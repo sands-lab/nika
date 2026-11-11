@@ -50,7 +50,9 @@ def _collect(runtime, plan, bgp_plan, traffic, *, full):
             commands.extend(
                 [
                     VerifyCommand(node.device_name, SRL_FIB_COMMAND, 30),
-                    VerifyCommand(node.device_name, 'sr_cli "show interface system0"'),
+                    VerifyCommand(
+                        node.device_name, 'sr_cli "show interface system0"', 30
+                    ),
                 ]
             )
         if bgp_plan:
@@ -129,6 +131,7 @@ def _collect(runtime, plan, bgp_plan, traffic, *, full):
                     VerifyCommand(
                         observer,
                         f'sr_cli "ping {origin.ping_address} network-instance default -c 3{source_arg}"',
+                        30,
                     )
                 )
     return collect_verify_commands(runtime, commands)
@@ -294,7 +297,7 @@ def _srl_rows_in_state(output: str, state: str) -> list[set[str]]:
     return rows
 
 
-def _loopback_probes(plan, traffic):
+def _loopback_probes(plan, traffic, router_netns=_SRL_DATA_NETNS):
     loopbacks = {node.device_name: node.loopback for node in plan.nodes}
     hosts = (
         {host.router_device: host.host_name for host in traffic.hosts}
@@ -305,16 +308,16 @@ def _loopback_probes(plan, traffic):
         (
             hosts.get(component[0], component[0]),
             [loopbacks[router] for router in component],
-            None if component[0] in hosts else _SRL_DATA_NETNS,
+            None if component[0] in hosts else router_netns,
         )
         for component in igp_components(plan)
     ]
 
 
-def _loopbacks_reachable(runtime, plan, traffic):
+def _loopbacks_reachable(runtime, plan, traffic, router_netns=_SRL_DATA_NETNS):
     return not any(
         ping_unreachable(runtime, source, targets, count=1, netns=netns)
-        for source, targets, netns in _loopback_probes(plan, traffic)
+        for source, targets, netns in _loopback_probes(plan, traffic, router_netns)
     )
 
 
@@ -325,7 +328,7 @@ def _inventory_addresses_ok(runtime: LabRuntime, plan: IspPlan) -> bool:
             runtime,
             node.device_name,
             'sr_cli "show interface system0"',
-            timeout=20,
+            timeout=30,
         )
         return node.loopback in output
 
@@ -442,7 +445,7 @@ def _srl_ping_ok(
         runtime,
         device,
         f'sr_cli "ping {target} network-instance default -c 3{source_arg}"',
-        timeout=20,
+        timeout=30,
     )
     return "3 received" in output or "3 packets received" in output
 

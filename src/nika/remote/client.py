@@ -8,6 +8,7 @@ import urllib.request
 from typing import Any
 from urllib.parse import urljoin
 
+from nika.benchmark_engine.protocol import AgentAccess
 from nika.remote.artifacts import unpack_session_dir
 from nika.remote.config import RemoteConfig, load_remote_config
 from nika.remote.protocol import (
@@ -99,6 +100,16 @@ class RemoteClient:
             self._request("GET", "/health", timeout=10.0)
         )
 
+    def schedule_operation(
+        self, session_id: str, operation: str, *, body: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        return self._request(
+            "GET" if operation == "status" else "POST",
+            f"/v1/sessions/{session_id}/schedule/{operation}",
+            body=body,
+            timeout=10.0 if operation == "status" else None,
+        )
+
     # Deploy + verify and inject + verify block server-side for as long as the
     # scenario's verify budget allows (up to 30 min for large labs), so these
     # calls wait for the server's answer instead of a fixed client timeout.
@@ -119,9 +130,9 @@ class RemoteClient:
         )
 
     def fault_artifact(
-        self, session_id: str, *, timeout: float = 30.0
+        self, session_id: str, *, timeout: float = 180.0
     ) -> dict[str, Any]:
-        """Bound the network wait for a benchmark artifact recheck."""
+        """Bound the recheck wait, including slow Docker reads and their retry."""
         payload = self._request(
             "GET", f"/v1/sessions/{session_id}/fault-artifact", timeout=timeout
         )
@@ -135,10 +146,14 @@ class RemoteClient:
         *,
         policy_mode: PolicyMode = "two_phase",
         public_host: str | None = None,
+        access: AgentAccess | None = None,
+        tool_call_limits: dict[str, int] | None = None,
     ) -> McpAttachResponse:
         body = McpAttachRequest(
+            tool_call_limits=tool_call_limits,
             policy_mode=policy_mode,
             public_host=public_host or self.config.host,
+            access=access,
         )
         resp = McpAttachResponse.model_validate(
             self._request(
@@ -176,9 +191,12 @@ class RemoteClient:
         new_session_id: str,
         *,
         agent_session_id: str | None = None,
+        restore_runtime: bool = False,
     ) -> SessionRebindResponse:
         body = SessionRebindRequest(
-            session_id=new_session_id, agent_session_id=agent_session_id
+            session_id=new_session_id,
+            agent_session_id=agent_session_id,
+            restore_runtime=restore_runtime,
         ).model_dump()
         return SessionRebindResponse.model_validate(
             self._request("POST", f"/v1/sessions/{session_id}/rebind", body=body)

@@ -1,4 +1,6 @@
+import ipaddress
 import re
+import shlex
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -19,9 +21,105 @@ from nika.problems.support.benchmark_targets import (
     choice_distinct,
     device_interfaces,
     endpoint_target,
+    conflict_hosts,
     require_distinct_hosts,
+    same_segment_pairs,
+    require_same_segment,
+    require_l2_capability,
+    segment_pair_options,
+    segment_host_pairs,
 )
+from nika.problems.support.dhcp import (
+    DHCP_LEASE_CMD,
+    default_gateway,
+    dhcp_client_step,
+    first_nameserver,
+    host_ipv4,
+    lease_option,
+)
+from nika.problems.addressing_neighbor_naming.dns import (
+    _parse_web_url,
+)
+from nika.problems.rca.inventory import iter_link_termination_points
+from nika.problems.support.dns import dns_host_for_domain
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    shell,
+)
+from nika.problems.support.recovery import FileSnapshot, IPv4Snapshot, route_lines
 from nika.utils.logger import system_logger
+
+
+# ------------------------------------------------------------------
+# Oracle helpers: running interface config against the boot config
+# ------------------------------------------------------------------
+
+# Kathara runs each node's startup script under ``set -x`` into this log, so
+# it records the addresses and routes the node was provisioned with.
+BOOT_LOG = "/var/log/startup.log"
+_BOOT_MARK = "--- boot config"
+
+
+def running_vs_boot_cmd(intf: str = "eth0") -> str:
+    """Print the live IPv4 address and default route, then the boot config."""
+    return (
+        f"ip -br link show dev {intf}; "
+        f"ip -4 -o addr show dev {intf} scope global; ip -4 route show default; "
+        f"echo '{_BOOT_MARK}'; "
+        f"grep -E '^\\++ *ip .*(addr|address|route) (add|replace) ' {BOOT_LOG} "
+        "2>/dev/null | head -20"
+    )
+
+
+def _split(output: str) -> tuple[str, str]:
+    live, _, boot = output.partition(_BOOT_MARK)
+    return live, boot
+
+
+def live_ipv4(output: str) -> ipaddress.IPv4Interface | None:
+    return host_ipv4(_split(output)[0])
+
+
+def boot_ipv4(output: str, intf: str = "eth0") -> ipaddress.IPv4Interface | None:
+    m = re.search(
+        rf"ip (?:-4 )?addr(?:ess)? (?:add|replace) (\d+\.\d+\.\d+\.\d+/\d+)"
+        rf"(?: \S+ \S+)* dev {re.escape(intf)}\b",
+        _split(output)[1],
+    )
+    return ipaddress.IPv4Interface(m.group(1)) if m else None
+
+
+def boot_gateway(output: str) -> str | None:
+    m = re.search(
+        r"ip (?:-4 )?route (?:add|replace) (?:default|0\.0\.0\.0/0) via (\S+)",
+        _split(output)[1],
+    )
+    return m.group(1) if m else None
+
+
+def running_vs_boot(
+    node: str, purpose: str, expect: Check, *, intf: str = "eth0", **kw
+) -> OracleStep:
+    return shell(node, running_vs_boot_cmd(intf), purpose, expect, evidence=True, **kw)
+
+
+def segment_peer(net_env, host: str, intf: str = "eth0") -> tuple[str, str] | None:
+    """A non-host node (the gateway) on the same link as *host*:*intf*."""
+    needle = f"{host}:{intf}"
+    hosts = set(getattr(net_env, "hosts", None) or [])
+    for _key, tps in iter_link_termination_points(net_env):
+        endpoints = [str(ep) for ep in tps]
+        if needle not in endpoints:
+            continue
+        peers = [ep.split(":", 1) for ep in endpoints if ep != needle]
+        peers.sort(key=lambda p: p[0] in hosts)
+        return (peers[0][0], peers[0][1]) if peers else None
+    return None
 
 
 def _read_host_ipv4(
@@ -39,10 +137,6 @@ def _read_host_ipv4(
     ).strip()
     match = re.search(r"inet\s+(\S+)", line)
     return match.group(1) if match else None
-
-
-# Route state that ``ip route show`` prints but ``ip route replace`` rejects.
-_ROUTE_STATE_FLAGS = frozenset({"linkdown", "dead", "offload", "trap", "rt_offload"})
 
 
 def _inject_ip_change(
@@ -69,19 +163,12 @@ def _inject_ip_change(
                 f"ip neigh replace {match[1]} lladdr {match[2]} "
                 f"dev {intf_name} nud permanent",
             )
-    static: list[str] = []
-    for line in routes.splitlines():
-        line = line.strip()
-        if line.startswith("nexthop") and static:
-            static[-1] += f" {line}"  # a multipath route's next hops
-        elif line:
-            static.append(line)
     old_addr, new_addr = old_ip.split("/")[0], new_ip.split("/")[0]
     # On-link routes first, so the gateways of the ``via`` routes resolve.
-    for route in sorted(static, key=lambda r: " via " in r):
+    for route in sorted(route_lines(routes), key=lambda r: " via " in r):
         if "proto kernel" in route:
             continue
-        words = [w for w in route.split() if w not in _ROUTE_STATE_FLAGS]
+        words = route.split()
         words = [
             new_addr if w == old_addr and i and words[i - 1] == "src" else w
             for i, w in enumerate(words)
@@ -95,6 +182,25 @@ def _inject_ip_change(
             host_name,
             f"ip route replace default via {new_gateway} dev {intf_name}{onlink}",
         )
+
+
+def _recover_ipv4(problem, host: str) -> dict:
+    snapshot = getattr(problem, "_ipv4_snapshot", None)
+    if snapshot is None:
+        return build_verify_result(
+            fault_type=problem.root_cause_name,
+            verified=False,
+            details={"error": "Pre-injection IPv4 state is unavailable."},
+        )
+    snapshot.restore(
+        problem.runtime,
+        host,
+        injected_ip=getattr(problem, "_recovery_injected_ip", None),
+        injected_gateway=getattr(problem, "_recovery_injected_gateway", None),
+    )
+    return build_verify_result(
+        fault_type=problem.root_cause_name, verified=True, details={"host": host}
+    )
 
 
 # ==========================================
@@ -161,6 +267,9 @@ class HostMissingIP(ProblemBase):
         return [interface_on(self.net_env, params.host_name, params.intf_name)]
 
     def inject_fault(self, params: HostMissingIPParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name, params.intf_name
+        )
         real_ip = self.runtime.get_host_ip(
             params.host_name, params.intf_name, with_prefix=True
         )
@@ -171,6 +280,9 @@ class HostMissingIP(ProblemBase):
         self.logger.info(
             f"Injected missing IP on {params.host_name} from {real_ip} and gateway {real_gateway}."
         )
+
+    def recover_fault(self, params: HostMissingIPParams) -> dict:
+        return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostMissingIPParams) -> dict:
         """Verify that the params.host_name has no global IPv4 address on the interface."""
@@ -186,6 +298,40 @@ class HostMissingIP(ProblemBase):
                 "intf": params.intf_name,
                 "ip_line": ip_line,
             },
+        )
+
+    def oracle_playbook(self, params: HostMissingIPParams) -> OraclePlaybook:
+        host, intf = params.host_name, params.intf_name
+        return OraclePlaybook(
+            finding=(
+                f"{host}:{intf} is up but has lost the IPv4 address it was "
+                "provisioned with, so the host cannot send or receive IP traffic."
+            ),
+            steps=[
+                running_vs_boot(
+                    host,
+                    f"Compare the running address of {host}:{intf} with its boot config.",
+                    all_of(
+                        contains(rf"^{re.escape(intf)}(@\S+)?\s+UP\b", f"{intf} is up"),
+                        Check(
+                            f"{intf} has no IPv4 address now",
+                            lambda o: live_ipv4(o) is None,
+                        ),
+                        Check(
+                            f"the boot config assigns {intf} a static address",
+                            lambda o: boot_ipv4(o, intf) is not None,
+                        ),
+                    ),
+                    intf=intf,
+                ),
+                shell(
+                    host,
+                    DHCP_LEASE_CMD,
+                    f"Check that {host} is not waiting for a DHCP lease.",
+                    contains(r"^dhclient=none", "no DHCP client runs"),
+                    evidence=True,
+                ),
+            ],
         )
 
 
@@ -213,6 +359,10 @@ class HostIPConflict(ProblemBase):
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
+        pairs = same_segment_pairs(ctx.net_env)
+        if pairs:
+            a, b = ctx.rng.choice(pairs)
+            return {"host_name": a, "host_name_2": b}
         servers = ctx.servers
         conflict_pool = list(ctx.host_pool)
         for bucket in (servers.get("web") or [], servers.get("dns") or []):
@@ -228,14 +378,28 @@ class HostIPConflict(ProblemBase):
                     + list(servers.get("dns") or [])
                 )
             )
+        # Both hosts must sit on one segment, so a third node sees the conflict.
+        pairs = segment_host_pairs(ctx.net_env, conflict_hosts(ctx.net_env))
+        if pairs:
+            pair = ctx.rng.choice(pairs)
+            return {"host_name": pair[0], "host_name_2": pair[1]}
         pair = choice_distinct(ctx.rng, conflict_pool, ctx.host0)
         if pair[0] == pair[1] and len(conflict_pool) >= 2:
             pair = [conflict_pool[0], conflict_pool[1]]
         return {"host_name": pair[0], "host_name_2": pair[1]}
 
     @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        pairs = same_segment_pairs(ctx.net_env)
+        if pairs:
+            return [{**base, "host_name": a, "host_name_2": b} for a, b in pairs]
+        return segment_pair_options(ctx, base)
+
+    @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
         require_distinct_hosts(ctx, cls.root_cause_name, inject)
+        require_same_segment(ctx, cls.root_cause_name, inject)
+        require_l2_capability(ctx, cls.root_cause_name, "arp-broadcast")
 
     symptom_desc = "Some hosts experience intermittent connectivity issues."
 
@@ -246,8 +410,15 @@ class HostIPConflict(ProblemBase):
         return [interface_on(self.net_env, params.host_name_2, "eth0")]
 
     def inject_fault(self, params: HostIPConflictParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name_2, "eth0"
+        )
         src_host = params.host_name
         dst_host = params.host_name_2
+        self._recovery_injected_ip = self.runtime.get_host_ip(
+            src_host, "eth0", with_prefix=True
+        )
+        self._recovery_injected_gateway = self.runtime.get_default_gateway(src_host)
         _inject_ip_change(
             self.runtime,
             host_name=dst_host,
@@ -256,6 +427,9 @@ class HostIPConflict(ProblemBase):
             intf_name="eth0",
             new_gateway=self.runtime.get_default_gateway(src_host),
         )
+
+    def recover_fault(self, params: HostIPConflictParams) -> dict:
+        return _recover_ipv4(self, params.host_name_2)
 
     def verify_fault(self, params: HostIPConflictParams) -> dict:
         """Verify both hosts share the same eth0 IP (conflict)."""
@@ -271,6 +445,55 @@ class HostIPConflict(ProblemBase):
             fault_type=self.root_cause_name,
             verified=verified,
             details={"host_a": host_a, "host_b": host_b, "ip_a": ip_a, "ip_b": ip_b},
+        )
+
+    def oracle_playbook(self, params: HostIPConflictParams) -> OraclePlaybook:
+        owner, dup = params.host_name, params.host_name_2
+
+        def duplicate(out):
+            ip = live_ipv4(out.get("owner", ""))
+            addr = str(ip.ip) if ip else "0.0.0.0"
+            return {
+                "host_name": dup,
+                "command": (
+                    f"{running_vs_boot_cmd()}; ip -4 -o addr show dev eth0 "
+                    f"| grep -qwF '{addr}' && echo SAME_ADDRESS={addr} "
+                    f"|| echo DIFFERENT_ADDRESS"
+                ),
+                "timeout": 15,
+            }
+
+        def drifted(o: str) -> bool:
+            live, boot = live_ipv4(o), boot_ipv4(o)
+            return bool(live and boot) and live.ip != boot.ip
+
+        return OraclePlaybook(
+            finding=(
+                f"{dup}:eth0 is configured with the address of {owner}, so the "
+                "two hosts conflict and traffic for that address reaches either."
+            ),
+            steps=[
+                running_vs_boot(
+                    owner,
+                    f"Read the running and boot address of {owner}.",
+                    Check(
+                        f"{owner} runs the address it was provisioned with",
+                        lambda o: bool(live_ipv4(o)) and live_ipv4(o) == boot_ipv4(o),
+                    ),
+                    save_as="owner",
+                ),
+                OracleStep(
+                    f"Check whether {dup} holds the same address, and against its "
+                    "own boot config.",
+                    "exec_shell",
+                    duplicate,
+                    all_of(
+                        contains(r"^SAME_ADDRESS=", f"{dup} holds {owner}'s address"),
+                        Check(f"{dup} was provisioned with another address", drifted),
+                    ),
+                    evidence=True,
+                ),
+            ],
         )
 
 
@@ -315,12 +538,38 @@ class HostIncorrectIP(ProblemBase):
         return [interface_on(self.net_env, params.host_name, "eth0")]
 
     def inject_fault(self, params: HostIncorrectIPParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name, "eth0"
+        )
         old_ip = _read_host_ipv4(self.runtime, params.host_name, "eth0")
         self._original_ip = old_ip
         incorrect_ip = params.incorrect_ip or derive_incorrect_ip(
             self.runtime, params.host_name
         )
+        address = ipaddress.IPv4Interface(incorrect_ip)
+        hook = "/etc/dhcp/dhclient-enter-hooks.d/address"
+        if (
+            self.runtime.exec(
+                params.host_name,
+                "test -d /etc/dhcp/dhclient-enter-hooks.d && echo ready",
+            ).strip()
+            == "ready"
+        ):
+            self._address_renewal_snapshot = FileSnapshot.capture(
+                self.runtime, params.host_name, hook
+            )
+            content = self._address_renewal_snapshot.content or ""
+            content += (
+                '\nif [ "$interface" = eth0 ]; then\n'
+                '  case "$reason" in BOUND|RENEW|REBIND|REBOOT|TIMEOUT)\n'
+                f'    new_ip_address="{address.ip}"\n'
+                f'    new_subnet_mask="{address.network.netmask}"\n'
+                f'    new_broadcast_address="{address.network.broadcast_address}"\n'
+                "    ;; esac\nfi\n"
+            )
+            self.runtime.write_file(params.host_name, hook, content)
         self._injected_ip = incorrect_ip
+        self._recovery_injected_ip = incorrect_ip
         _inject_ip_change(
             self.runtime,
             host_name=params.host_name,
@@ -329,6 +578,12 @@ class HostIncorrectIP(ProblemBase):
             intf_name="eth0",
             new_gateway=self.runtime.get_default_gateway(params.host_name),
         )
+
+    def recover_fault(self, params: HostIncorrectIPParams) -> dict:
+        renewal = getattr(self, "_address_renewal_snapshot", None)
+        if renewal is not None:
+            renewal.restore(self.runtime, params.host_name)
+        return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostIncorrectIPParams) -> dict:
         """Verify that the params.host_name eth0 IP differs from the original address at inject time."""
@@ -363,6 +618,60 @@ class HostIncorrectIP(ProblemBase):
                 "injected_ip": injected,
                 "current_ip": current_ip,
             },
+        )
+
+    def oracle_playbook(self, params: HostIncorrectIPParams) -> OraclePlaybook:
+        host = params.host_name
+
+        def wrong_address(o: str) -> bool:
+            live, boot = live_ipv4(o), boot_ipv4(o)
+            return (
+                bool(live and boot)
+                and live.ip != boot.ip
+                and live.network.prefixlen == boot.network.prefixlen
+            )
+
+        def unique(out):
+            ip = live_ipv4(out.get("cfg", ""))
+            addr = str(ip.ip) if ip else "0.0.0.0"
+            return {
+                "host_name": host,
+                "command": (
+                    f"arping -D -c 2 -w 3 -I eth0 {addr} 2>&1 | tail -3; "
+                    f"ip neigh show dev eth0 | head -5"
+                ),
+                "timeout": 15,
+            }
+
+        return OraclePlaybook(
+            finding=(
+                f"{host}:eth0 runs an address other than the one it was "
+                "provisioned with, so traffic for its real address goes nowhere."
+            ),
+            steps=[
+                running_vs_boot(
+                    host,
+                    f"Compare the running address of {host}:eth0 with its boot config.",
+                    Check(
+                        "the running address differs from the provisioned one "
+                        "(same prefix length)",
+                        wrong_address,
+                    ),
+                    save_as="cfg",
+                ),
+                OracleStep(
+                    f"Check that no other node answers for the running address of {host}.",
+                    "exec_shell",
+                    unique,
+                    # iputils prints "Received 0 response(s)"; Habets arping
+                    # prints "100% unanswered" or "100% packet loss".
+                    contains(
+                        r"Received 0 response|100% (unanswered|packet loss)",
+                        "no other node answers duplicate address detection",
+                    ),
+                    evidence=True,
+                ),
+            ],
         )
 
 
@@ -430,10 +739,14 @@ class HostIncorrectGateway(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: HostIncorrectGatewayParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name, "eth0"
+        )
         new_gateway = params.new_gateway or derive_wrong_gateway(
             self.runtime, params.host_name
         )
         self._injected_gateway = new_gateway
+        self._recovery_injected_gateway = new_gateway
         _inject_ip_change(
             self.runtime,
             host_name=params.host_name,
@@ -442,6 +755,9 @@ class HostIncorrectGateway(ProblemBase):
             intf_name="eth0",
             new_gateway=new_gateway,
         )
+
+    def recover_fault(self, params: HostIncorrectGatewayParams) -> dict:
+        return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostIncorrectGatewayParams) -> dict:
         """Verify that the default route uses the injected wrong gateway."""
@@ -465,6 +781,55 @@ class HostIncorrectGateway(ProblemBase):
                 "route_line": route_line,
                 "expected_gateway": expected_gateway,
             },
+        )
+
+    def oracle_playbook(self, params: HostIncorrectGatewayParams) -> OraclePlaybook:
+        host = params.host_name
+
+        def static_wrong_gateway(o: str) -> bool:
+            gw = default_gateway(o.split(_BOOT_MARK)[0])
+            references = {boot_gateway(o), lease_option(o, "routers")} - {None}
+            return bool(gw) and bool(references) and gw not in references
+
+        def gateway_probe(out):
+            gw = default_gateway(out.get("cfg", "").split(_BOOT_MARK)[0])
+            gw = gw or "0.0.0.0"
+            return {
+                "host_name": host,
+                "command": f"ping -c 2 -W 1 {gw} 2>&1 | tail -2; ip neigh show {gw}",
+                "timeout": 15,
+            }
+
+        return OraclePlaybook(
+            finding=(
+                f"The default route on {host} points at a local, statically set "
+                "next hop that no router answers for, so off-subnet traffic is lost."
+            ),
+            steps=[
+                shell(
+                    host,
+                    f"{running_vs_boot_cmd()}; {DHCP_LEASE_CMD}",
+                    f"Compare the default route of {host} with its boot config and "
+                    "any DHCP lease.",
+                    Check(
+                        "a provisioned or leased gateway is known and the "
+                        "default gateway is neither",
+                        static_wrong_gateway,
+                    ),
+                    evidence=True,
+                    save_as="cfg",
+                ),
+                OracleStep(
+                    "Probe the configured default gateway.",
+                    "exec_shell",
+                    gateway_probe,
+                    all_of(
+                        contains(r" 0 received|100% packet loss", "no reply"),
+                        lacks(r"lladdr", "no node answers ARP for it"),
+                    ),
+                    evidence=True,
+                ),
+            ],
         )
 
 
@@ -507,9 +872,13 @@ class HostIncorrectNetmask(ProblemBase):
         return [interface_on(self.net_env, params.host_name, "eth0")]
 
     def inject_fault(self, params: HostIncorrectNetmaskParams):
+        self._ipv4_snapshot = IPv4Snapshot.capture(
+            self.runtime, params.host_name, "eth0"
+        )
         old_ip = self.runtime.get_host_ip(params.host_name, "eth0", with_prefix=True)
         ip_part = old_ip.split("/")[0]
         new_ip = f"{ip_part}/{params.netmask_prefix}"
+        self._recovery_injected_ip = new_ip
         _inject_ip_change(
             self.runtime,
             host_name=params.host_name,
@@ -518,6 +887,9 @@ class HostIncorrectNetmask(ProblemBase):
             intf_name="eth0",
             new_gateway=self.runtime.get_default_gateway(params.host_name),
         )
+
+    def recover_fault(self, params: HostIncorrectNetmaskParams) -> dict:
+        return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostIncorrectNetmaskParams) -> dict:
         """Verify that eth0 carries the injected ``netmask_prefix``."""
@@ -543,6 +915,54 @@ class HostIncorrectNetmask(ProblemBase):
                 "expected_prefix": params.netmask_prefix,
                 "actual_prefix": prefix,
             },
+        )
+
+    def oracle_playbook(self, params: HostIncorrectNetmaskParams) -> OraclePlaybook:
+        host, prefix = params.host_name, int(params.netmask_prefix)
+
+        def wrong_prefix(o: str) -> bool:
+            live, boot = live_ipv4(o), boot_ipv4(o)
+            return (
+                bool(live and boot)
+                and live.ip == boot.ip
+                and live.network.prefixlen == prefix != boot.network.prefixlen
+                and lease_option(o, "subnet-mask") is None
+            )
+
+        steps = [
+            shell(
+                host,
+                f"{running_vs_boot_cmd()}; {DHCP_LEASE_CMD}",
+                f"Compare the running prefix of {host}:eth0 with its boot config.",
+                Check(
+                    f"eth0 runs /{prefix} instead of its provisioned prefix, "
+                    "not from a DHCP lease",
+                    wrong_prefix,
+                ),
+                evidence=True,
+            )
+        ]
+        peer = segment_peer(self.net_env, host)
+        if peer is not None:
+            node, intf = peer
+            steps.append(
+                shell(
+                    node,
+                    f"ip -4 -o addr show dev {shlex.quote(intf)} scope global",
+                    f"Read the prefix that {node}:{intf} uses on the same segment.",
+                    all_of(
+                        contains(r"inet \d+\.\d+\.\d+\.\d+/\d+", "it has an address"),
+                        lacks(rf"inet \S+/{prefix}\b", f"its prefix is not /{prefix}"),
+                    ),
+                    evidence=True,
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"{host}:eth0 is configured with a /{prefix} netmask, so it treats "
+                "off-subnet destinations as on-link and never routes them."
+            ),
+            steps=steps,
         )
 
 
@@ -594,6 +1014,14 @@ class HostIncorrectDNS(ProblemBase):
         return unused_address_near(self.runtime, real)
 
     def inject_fault(self, params: HostIncorrectDNSParams):
+        self._dns_snapshots = [
+            FileSnapshot.capture(self.runtime, params.host_name, path)
+            for path in (
+                "/etc/resolv.conf",
+                "/etc/hosts",
+                "/etc/dhcp/dhclient-enter-hooks.d/nameservers",
+            )
+        ]
         resolv = self.runtime.exec(params.host_name, "cat /etc/resolv.conf 2>/dev/null")
         fake = self._resolver(params, resolv)
         self._fake_dns_ip = fake
@@ -601,11 +1029,6 @@ class HostIncorrectDNS(ProblemBase):
         lines = [
             line for line in resolv.splitlines() if not line.startswith("nameserver")
         ]
-        self.runtime.write_file(
-            params.host_name,
-            "/etc/resolv.conf",
-            "\n".join([*lines, f"nameserver {fake}"]) + "\n",
-        )
         self.runtime.exec(
             params.host_name,
             # dhclient rewrites resolv.conf at lease renewal. Keep the same
@@ -617,6 +1040,29 @@ class HostIncorrectDNS(ProblemBase):
             # Drop static hosts overrides so name lookups must use DNS.
             "sed -i -E '/\\sweb0\\.(local|pod0)\\s*$/d' /etc/hosts 2>/dev/null || true; "
             "sed -i -E '/\\swebserver/d' /etc/hosts 2>/dev/null || true",
+        )
+        # Install the renewal override before changing the live resolver, so
+        # a lease renewal between the two writes cannot restore the real DNS.
+        self.runtime.write_file(
+            params.host_name,
+            "/etc/resolv.conf",
+            "\n".join([*lines, f"nameserver {fake}"]) + "\n",
+        )
+
+    def recover_fault(self, params: HostIncorrectDNSParams) -> dict:
+        snapshots = getattr(self, "_dns_snapshots", None)
+        if snapshots is None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=False,
+                details={"error": "Pre-injection DNS state is unavailable."},
+            )
+        for snapshot in reversed(snapshots):
+            snapshot.restore(self.runtime, params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=True,
+            details={"host": params.host_name},
         )
 
     def verify_fault(self, params: HostIncorrectDNSParams) -> dict:
@@ -634,4 +1080,67 @@ class HostIncorrectDNS(ProblemBase):
                 "fake_dns_ip": fake,
                 "resolv_conf": resolv.strip(),
             },
+        )
+
+    def oracle_playbook(self, params: HostIncorrectDNSParams) -> OraclePlaybook:
+        host = params.host_name
+        site, domain = next(
+            map(_parse_web_url, getattr(self.net_env, "web_urls", None) or []),
+            ("web0", "local"),
+        )
+        name = f"{site}.{domain}"
+        dns = dns_host_for_domain(self.net_env, domain)
+
+        def local_resolver(o: str) -> bool:
+            ns = first_nameserver(o)
+            return bool(ns) and ns != lease_option(o, "domain-name-servers")
+
+        def lookup(out):
+            ns = first_nameserver(out.get("cfg", "")) or "0.0.0.0"
+            return {
+                "host_name": host,
+                "command": f"dig +time=2 +tries=1 @{ns} {name} 2>&1 | head -12",
+                "timeout": 15,
+            }
+
+        steps = [
+            dhcp_client_step(
+                host,
+                "grep -E '^(nameserver|search)' /etc/resolv.conf",
+                f"Compare the resolver configured on {host} with any DHCP lease.",
+                Check(
+                    "the resolver is set locally, not learned from DHCP",
+                    local_resolver,
+                ),
+                evidence=True,
+                save_as="cfg",
+            ),
+            OracleStep(
+                f"Query the configured resolver for {name}.",
+                "exec_shell",
+                lookup,
+                contains(
+                    r"timed out|no servers could be reached|connection refused",
+                    "the configured resolver does not answer",
+                ),
+                evidence=True,
+            ),
+        ]
+        if dns:
+            steps.append(
+                shell(
+                    dns,
+                    f"dig +time=2 +tries=1 @127.0.0.1 {name} 2>&1 "
+                    "| grep -E 'status:|IN\\s+A'",
+                    f"Check that the lab DNS server {dns} answers for {name}.",
+                    contains(r"status: NOERROR", "the real DNS server answers"),
+                    evidence=True,
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"{host} is configured locally with a resolver address that runs "
+                "no DNS service, so its name lookups fail while DNS itself works."
+            ),
+            steps=steps,
         )

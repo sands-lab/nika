@@ -6,6 +6,16 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.routing_control_plane.ospf import linked_routers
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    contains,
+    process_absent,
+    shell,
+    vtysh,
+)
+from nika.problems.support.polling import wait_until
+from nika.problems.support.recovery import checked_exec
 from nika.problems.support.router_ops import native_fault_ops
 from nika.utils.logger import system_logger
 
@@ -48,11 +58,63 @@ class FrrDown(ProblemBase):
     def root_cause_resources(self, params: FrrDownParams):
         return [node_resource(params.host_name)]
 
+    def oracle_playbook(self, params: FrrDownParams) -> OraclePlaybook:
+        host = params.host_name
+        steps = [
+            shell(
+                host,
+                "ip -br link; ip route | head -40",
+                f"List {host}'s interfaces and the routes it still has.",
+            ),
+            process_absent(
+                host,
+                "zebra|bgpd|ospfd|ospf6d|isisd|staticd|watchfrr",
+                f"Check whether FRR's daemons run on {host}.",
+            ),
+            shell(
+                host,
+                vtysh("show ip route") + " 2>&1 | head -5",
+                f"Query FRR on {host} through vtysh.",
+                contains(
+                    r"failed to connect|is not running|Connection refused",
+                    "vtysh cannot reach the routing daemons",
+                ),
+                evidence=True,
+            ),
+        ]
+        for _intf, peer, _peer_intf in linked_routers(self.net_env, host)[:1]:
+            steps.append(
+                shell(
+                    peer,
+                    "; ".join(
+                        vtysh(show) + " 2>&1 | head -15"
+                        for show in (
+                            "show ip ospf neighbor",
+                            "show isis neighbor",
+                            "show bgp summary",
+                        )
+                    ),
+                    f"Check neighbor {peer}'s routing adjacencies toward {host}.",
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"The FRR routing daemons on {host} are not running, so it holds "
+                "no routing adjacencies and stops exchanging routes."
+            ),
+            steps=steps,
+        )
+
     def inject_fault(self, params: FrrDownParams):
         ops = native_fault_ops(self, params.host_name, "stop_routing_process")
         if ops is not None:
             ops.stop_routing_process()
             return
+        self._routing_was_running = bool(
+            self.runtime.exec(
+                params.host_name, "pgrep -x zebra 2>/dev/null || true"
+            ).strip()
+        )
         # systemctl is a no-op in Kathara; kill FRR daemons directly with pkill.
         # watchfrr must be killed first so it does not restart the routing daemons.
         for daemon in (
@@ -76,6 +138,48 @@ class FrrDown(ProblemBase):
             "pim6d",
         ):
             self.runtime.kill_process(params.host_name, daemon)
+
+    def recover_fault(self, params: FrrDownParams) -> dict:
+        was_running = getattr(self, "_routing_was_running", None)
+        if was_running is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        if not was_running:
+            return build_verify_result(
+                self.root_cause_name,
+                not bool(
+                    self.runtime.exec(
+                        params.host_name, "pgrep -x zebra 2>/dev/null || true"
+                    ).strip()
+                ),
+                {"host": params.host_name, "original_service_running": False},
+            )
+        # Native targets without this operation already reject injection.
+        native_fault_ops(self, params.host_name, "stop_routing_process")
+        zebra = self.runtime.exec(
+            params.host_name, "pgrep -x zebra 2>/dev/null || true"
+        ).strip()
+        if not zebra:
+            checked_exec(
+                self.runtime, params.host_name, "/usr/lib/frr/frrinit.sh start"
+            )
+
+        def running():
+            output = self.runtime.exec(
+                params.host_name, "vtysh -c 'show ip route' 2>&1"
+            )
+            return bool(output.strip()) and not any(
+                error in output.lower()
+                for error in ("failed to connect", "not running", "connection refused")
+            )
+
+        restored = wait_until(running, 60)
+        return build_verify_result(
+            self.root_cause_name,
+            restored,
+            {"host": params.host_name, "routing_available": restored},
+        )
 
     def verify_fault(self, params: FrrDownParams) -> dict:
         """Verify FRR is down by checking zebra is not running and routing is unavailable."""

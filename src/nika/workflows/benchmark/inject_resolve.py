@@ -7,6 +7,7 @@ import random
 from collections import defaultdict
 
 from nika.net_env.net_env_pool import get_net_env_instance
+from nika.runtime.spec import MachineInventory
 from nika.problems.base import ProblemBase
 from nika.problems.registry import get_problem_class, list_avail_problem_instances
 from nika.problems.support.router_ops import (
@@ -117,8 +118,11 @@ def _get_net_env_for_benchmark(
     topo_size: str = "",
     *,
     isp_options: dict[str, str] | None = None,
+    release: str | None = None,
 ):
     kwargs: dict = {}
+    if release is not None:
+        kwargs["environment_release"] = release
     if topo_size and not is_isp_scenario(scenario):
         kwargs["topo_size"] = topo_size
     kwargs.update(_isp_protocol_kwargs(scenario, isp_options))
@@ -141,7 +145,9 @@ def _load_inventory(net_env) -> None:
     net_env.hosts = []
     net_env.routers = []
     net_env.switches = []
-    net_env.servers = defaultdict(list)
+    net_env.servers = defaultdict(
+        list, MachineInventory(net_env.machine_identities).services()
+    )
 
     for node in spec.nodes:
         name = node.name
@@ -149,7 +155,7 @@ def _load_inventory(net_env) -> None:
         image = node.image.lower()
         if any(key in name for key in ("client", "pc", "host")) or kind == "linux":
             net_env.hosts.append(name)
-        elif any(key in kind for key in ("srl", "ceos", "router")) or any(
+        elif any(key in kind for key in ("srl", "ceos", "sonic", "router")) or any(
             key in image for key in ("srl", "ceos", "frr")
         ):
             net_env.routers.append(name)
@@ -314,6 +320,7 @@ def validate_benchmark_case(
             canonical,
             topo_size,
             isp_options=isp_options,
+            release=release,
         )
         _load_inventory(net_env)
     unsupported = unsupported_native_targets(

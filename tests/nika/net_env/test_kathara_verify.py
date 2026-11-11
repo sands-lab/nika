@@ -106,9 +106,15 @@ ALL_NODES = {
     "br2_guest_pc",
     "br2_edge",
     "isp1_core",
+    "internet_web",
     "isp2_core",
     "leaf_1_1",
 }
+_CLOS_MODEL = build_clos_fabric_model("s")
+ALL_NODES.update(
+    _CLOS_MODEL.spines + _CLOS_MODEL.leaves + [e.name for e in _CLOS_MODEL.endpoints]
+)
+
 HOST_ADDRS = {
     "pc1": ("195.11.14.2", "10.0.0.1", "10.1.1.2", "10.0.0.2"),
     "pc2": ("200.1.1.2", "10.0.0.2", "10.7.2.2", "10.0.1.2"),
@@ -178,7 +184,13 @@ def _dc_clos_lab(
     lab = instantiate_with_mocked_kathara(
         "nika.net_env.dc_clos.lab.Kathara.get_instance", lambda: DCClos("s")
     )
-    summaries = {}
+    summaries = {
+        (
+            host,
+            "ip -4 -o addr show dev eth0",
+        ): f"2: eth0 inet {address}/24 scope global eth0"
+        for host, address in lab.client_addresses.items()
+    }
     for router, peers in lab.bgp_neighbors.items():
         down = tuple(p for p in peers if idle == (router, p))
         up = [p for p in peers if p not in down]
@@ -402,8 +414,8 @@ class KatharaVerifyUnitTest:
     def test_dc_clos_startup_one_idle_session_fails(self) -> None:
         # "Total number of neighbors N" and "BGP table version N" must not
         # count as Established sessions.
-        lab, summaries = _dc_clos_lab(idle=("leaf_router_0_1", "172.16.0.6"))
-        assert "172.16.0.6" in lab.bgp_neighbors["leaf_router_0_1"]
+        lab, summaries = _dc_clos_lab(idle=("leaf_2", "172.16.0.5"))
+        assert "172.16.0.5" in lab.bgp_neighbors["leaf_2"]
         result = verify_dc_clos_lab_startup(
             FakeRuntime(overrides=summaries),
             scenario_name="dc_clos",
@@ -414,7 +426,7 @@ class KatharaVerifyUnitTest:
         assert not result["verified"]
         assert not result["checks"]["bgp_sessions_established"]
         assert result["details"]["failures"]["bgp_not_established"] == {
-            "leaf_router_0_1": ["172.16.0.6"]
+            "leaf_2": ["172.16.0.5"]
         }
 
     def test_sdn_l3_clos_startup_verify_passes(self) -> None:

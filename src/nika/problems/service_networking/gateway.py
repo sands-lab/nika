@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 import time
 
@@ -10,8 +11,105 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    shell,
+)
+from nika.problems.support.polling import wait_until
+from nika.problems.support.recovery import FileSnapshot, IPv4Snapshot, checked_exec
 from nika.problems.support.router_ops import native_fault_ops
 from nika.traffic.workload import NAT_SESSIONS, VIP_KEEPALIVE_SESSIONS
+
+# Gateway L4 agent files, as an operator finds them on the gateway.
+_LB_STATUS = "/var/lib/lb-agent/status.json"
+_LB_CONFIG = "/etc/lb-agent/config.json"
+_LB_LOG = "/tmp/lb-agent.log"
+
+
+def _json_field(output: str, key: str) -> float | None:
+    """Numeric *key* of the first JSON object in *output*."""
+    for line in output.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            value = json.loads(line).get(key)
+        except (ValueError, AttributeError):
+            continue
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
+
+def _json_check(description: str, predicate) -> Check:
+    """Check over the learner status JSON fields."""
+
+    def check(output: str) -> bool:
+        fields = {
+            key: _json_field(output, key)
+            for key in (
+                "learning_delay_ms",
+                "max_connections",
+                "learned",
+                "pending",
+                "insert_failures",
+                "last_learn_ms",
+            )
+        }
+        try:
+            return bool(predicate(fields))
+        except TypeError:
+            return False
+
+    return Check(description, check)
+
+
+def _peer_gateway(net_env, gateway: str) -> str | None:
+    model = getattr(net_env, "model", None)
+    gateways = list(getattr(model, "gateways", None) or [])
+    return next((name for name in gateways if name != gateway), None)
+
+
+def _public_service_node(net_env) -> str | None:
+    """Node hosting the public web service the NAT-ed sessions reach."""
+    server = net_env.nat_probe_server()
+    return server[0] if server else None
+
+
+def _lb_agent_steps(
+    gateway: str, peer: str | None, *, status_check: Check, config_check: Check
+) -> list[OracleStep]:
+    steps = [
+        shell(
+            gateway,
+            f"cat {_LB_STATUS}; echo",
+            f"Read the L4 connection learner's live status on {gateway}.",
+            status_check,
+            evidence=True,
+        ),
+    ]
+    if peer:
+        steps.append(
+            shell(
+                peer,
+                f"cat {_LB_STATUS}; echo",
+                f"Compare with the learner on {peer}, a healthy gateway.",
+            )
+        )
+    steps.append(
+        shell(
+            gateway,
+            f"cat {_LB_CONFIG}",
+            f"Read the learner configuration on {gateway}.",
+            config_check,
+            evidence=True,
+        )
+    )
+    return steps
 
 
 class LbConnectionStateExhaustionParams(BaseModel):
@@ -58,7 +156,58 @@ class LbConnectionStateExhaustion(ProblemBase):
     def root_cause_resources(self, params: LbConnectionStateExhaustionParams):
         return [node_resource(params.host_name)]
 
+    def oracle_playbook(
+        self, params: LbConnectionStateExhaustionParams
+    ) -> OraclePlaybook:
+        gateway, limit = params.host_name, params.max_connections
+        steps = _lb_agent_steps(
+            gateway,
+            _peer_gateway(self.net_env, gateway),
+            status_check=_json_check(
+                f"the learner caps the table at {limit} and has rejected inserts for a full table",
+                lambda f: f["max_connections"] == limit and f["insert_failures"] > 0,
+            ),
+            config_check=contains(
+                rf'"max_connections":\s*{limit}\b',
+                f"max_connections is set to {limit}",
+            ),
+        )
+        steps += [
+            shell(
+                gateway,
+                f"grep -E 'lb_conn_table full|backend reset|pool update' {_LB_LOG} "
+                "| tail -15",
+                f"Read the learner log on {gateway}: new connections are not learned "
+                "because lb_conn_table is full.",
+                contains(r"lb_conn_table full", "the log reports lb_conn_table full"),
+                evidence=True,
+                attempts=6,
+                interval_sec=10,
+            ),
+            OracleStep(
+                f"Read lb_conn_table on {gateway} through P4Runtime: it holds only the capped entries.",
+                "p4rt_exec",
+                {"args": f"read-table --switch {gateway} --table lb_conn_table"},
+                Check(
+                    f"lb_conn_table holds between 1 and {limit} entries",
+                    lambda o: 1 <= o.count('"set_lb_dip"') <= limit,
+                ),
+                evidence=True,
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"The L4 learner on {gateway} caps lb_conn_table at {limit} "
+                "connections, below what its client site keeps open, so new "
+                "connections are never pinned and a pool update resets them."
+            ),
+            steps=steps,
+        )
+
     def inject_fault(self, params: LbConnectionStateExhaustionParams):
+        self._lb_config = FileSnapshot.capture(
+            self.runtime, params.host_name, _LB_CONFIG
+        )
         from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
 
         # A connection limit sized for a much smaller site; the agent rereads
@@ -71,6 +220,32 @@ class LbConnectionStateExhaustion(ProblemBase):
             if self.verify_fault(params)["verified"]:
                 return
             time.sleep(1.0)
+
+    def recover_fault(self, params: LbConnectionStateExhaustionParams) -> dict:
+        from nika.net_env.p4_dc_gateway.l4_lb import learner_status
+
+        snapshot = getattr(self, "_lb_config", None)
+        if snapshot is None or snapshot.content is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        # Restore only the field owned by this failure.
+        from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
+
+        original = json.loads(snapshot.content)["max_connections"]
+        set_agent_config(self.runtime, params.host_name, max_connections=original)
+        restored = wait_until(
+            lambda: (
+                learner_status(self.runtime, params.host_name).get("max_connections")
+                == original
+            ),
+            15,
+        )
+        return build_verify_result(
+            self.root_cause_name,
+            restored,
+            {"host": params.host_name, "max_connections": original},
+        )
 
     def verify_fault(self, params: LbConnectionStateExhaustionParams) -> dict:
         from nika.net_env.p4_dc_gateway.l4_lb import learner_status
@@ -125,7 +300,61 @@ class LbPendingConnectionUpdateRace(ProblemBase):
     def root_cause_resources(self, params: LbPendingConnectionUpdateRaceParams):
         return [node_resource(params.host_name)]
 
+    def oracle_playbook(
+        self, params: LbPendingConnectionUpdateRaceParams
+    ) -> OraclePlaybook:
+        from nika.net_env.p4_dc_gateway.topology_model import (
+            CONNECTION_LEARNING_DELAY_MS,
+        )
+
+        gateway, delay = params.host_name, params.learning_delay_ms
+        # Learning that takes longer than a tenth of the configured delay
+        # (and orders of magnitude above the healthy few ms) is lagging.
+        lag_ms = max(10 * CONNECTION_LEARNING_DELAY_MS, delay // 10)
+        steps = _lb_agent_steps(
+            gateway,
+            _peer_gateway(self.net_env, gateway),
+            status_check=_json_check(
+                f"learning lags by about {delay} ms while lb_conn_table has room",
+                lambda f: (
+                    f["learning_delay_ms"] == delay
+                    and (f["last_learn_ms"] or 0) >= lag_ms
+                    and f["learned"] < f["max_connections"]
+                ),
+            ),
+            config_check=contains(
+                rf'"learning_delay_ms":\s*{delay}\b',
+                f"learning_delay_ms is set to {delay}",
+            ),
+        )
+        steps.append(
+            shell(
+                gateway,
+                f"grep -E 'pool update|backend reset|lb_conn_table full' {_LB_LOG} "
+                "| tail -15",
+                f"Read the learner log on {gateway}: pool updates run while "
+                "connections are still pending.",
+                contains(
+                    r"WARNING pool update with \d+ connection\(s\) not yet in lb_conn_table",
+                    "a pool update ran with connections not yet learned",
+                ),
+                attempts=8,
+                interval_sec=15,
+            )
+        )
+        return OraclePlaybook(
+            finding=(
+                f"The L4 learner on {gateway} pins new connections only {delay} ms "
+                "after their SYN, so routine DIP pool updates catch connections "
+                "still pending in lb_conn_table and move them to the new pool."
+            ),
+            steps=steps,
+        )
+
     def inject_fault(self, params: LbPendingConnectionUpdateRaceParams):
+        self._lb_config = FileSnapshot.capture(
+            self.runtime, params.host_name, _LB_CONFIG
+        )
         from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
 
         set_agent_config(
@@ -137,6 +366,32 @@ class LbPendingConnectionUpdateRace(ProblemBase):
             if self.verify_fault(params)["verified"]:
                 return
             time.sleep(0.5)
+
+    def recover_fault(self, params: LbPendingConnectionUpdateRaceParams) -> dict:
+        from nika.net_env.p4_dc_gateway.l4_lb import learner_status
+
+        snapshot = getattr(self, "_lb_config", None)
+        if snapshot is None or snapshot.content is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        # Restore only the field owned by this failure.
+        from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
+
+        original = json.loads(snapshot.content)["learning_delay_ms"]
+        set_agent_config(self.runtime, params.host_name, learning_delay_ms=original)
+        restored = wait_until(
+            lambda: (
+                learner_status(self.runtime, params.host_name).get("learning_delay_ms")
+                == original
+            ),
+            15,
+        )
+        return build_verify_result(
+            self.root_cause_name,
+            restored,
+            {"host": params.host_name, "learning_delay_ms": original},
+        )
 
     def verify_fault(self, params: LbPendingConnectionUpdateRaceParams) -> dict:
         from nika.net_env.p4_dc_gateway.l4_lb import learner_status
@@ -176,7 +431,9 @@ class SnatPortPoolExhaustion(ProblemBase):
     description = "SNAT source-port pool is exhausted."
     symptom_desc = "The available SNAT source-port pool is exhausted for concurrent outbound connections."
     TAGS = ["vpn", "http", "nat"]
-    native_router_operations = frozenset({"add_source_nat", "source_nat_rules"})
+    native_router_operations = frozenset(
+        {"add_source_nat", "source_nat_rules", "save_config", "restore_config"}
+    )
     Params = SnatPortPoolExhaustionParams
     SYMPTOM_WORKLOAD = NAT_SESSIONS
 
@@ -201,11 +458,63 @@ class SnatPortPoolExhaustion(ProblemBase):
     def root_cause_resources(self, params: SnatPortPoolExhaustionParams):
         return [node_resource(params.host_name)]
 
+    def oracle_playbook(self, params: SnatPortPoolExhaustionParams) -> OraclePlaybook:
+        edge, public = params.host_name, params.public_ip
+        first, last = params.port_start, params.port_end
+        size = last - first + 1
+        ports_in_use = (
+            f"conntrack -L -p tcp --reply-dst {public} 2>/dev/null "
+            f"| grep -oE 'dst={re.escape(public)} sport=[0-9]+ dport=[0-9]+' "
+            f"| sed 's/.*dport=//' | awk '$1>={first} && $1<={last}' | sort -u "
+            "| wc -l | sed 's/^/ports_in_use /'"
+        )
+
+        def pool_full(output: str) -> bool:
+            match = re.search(r"^ports_in_use (\d+)$", output, re.M)
+            return bool(match) and int(match.group(1)) >= 0.9 * size
+
+        return OraclePlaybook(
+            finding=(
+                f"A source NAT rule on {edge} translates {params.source_prefix} to "
+                f"{public} with only ports {first}-{last}, and the site's concurrent "
+                "sessions hold every port, so new outbound connections cannot be "
+                "translated."
+            ),
+            steps=[
+                shell(
+                    edge,
+                    "nft -a list chain ip nat POSTROUTING 2>&1 | head -40",
+                    f"Read the source NAT rules on {edge}.",
+                    contains(
+                        rf"ip saddr {re.escape(params.source_prefix)} .*snat to "
+                        rf"{re.escape(public)}:{first}-{last}\b",
+                        f"{params.source_prefix} is translated to {public}:{first}-{last}",
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    edge,
+                    f"echo pool_size {size}; {ports_in_use}; "
+                    "conntrack -C 2>/dev/null | sed 's/^/conntrack_entries /'",
+                    f"Count the translated source ports in use on {public}.",
+                    Check(
+                        f"at least 90% of the {size} pool ports are mapped",
+                        pool_full,
+                    ),
+                    evidence=True,
+                    attempts=3,
+                    interval_sec=10,
+                ),
+            ],
+        )
+
     def inject_fault(self, params: SnatPortPoolExhaustionParams):
         if params.port_end < params.port_start:
             raise ValueError("port_end must be greater than or equal to port_start")
         ops = native_fault_ops(self, params.host_name, "add_source_nat")
         if ops is not None:
+            self._snat_native_config = ops.save_config()
+            self._snat_native_rules = ops.source_nat_rules()
             # Ahead of the healthy pool rule, like the higher-priority nft chain.
             ops.add_source_nat(
                 params.source_prefix,
@@ -214,14 +523,88 @@ class SnatPortPoolExhaustion(ProblemBase):
                 to_ports=f"{params.port_start}-{params.port_end}",
             )
             return
+        self._snat_handles_before = set(
+            re.findall(
+                r"# handle (\d+)",
+                checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    "nft -a list chain ip nat POSTROUTING",
+                ),
+            )
+        )
+        self._snat_owned_handles = None
         # A port-restricted rule placed ahead of the site's own SNAT rule in
         # the edge's POSTROUTING chain, as an operator edit would leave it; a
         # separate chain would exist only on this edge and stand out.
-        self.runtime.exec(
-            params.host_name,
-            f"nft insert rule ip nat POSTROUTING ip protocol tcp "
-            f"ip saddr {params.source_prefix} "
-            f"snat to {params.public_ip}:{params.port_start}-{params.port_end}",
+        try:
+            self.runtime.exec(
+                params.host_name,
+                f"nft insert rule ip nat POSTROUTING ip protocol tcp "
+                f"ip saddr {params.source_prefix} "
+                f"snat to {params.public_ip}:{params.port_start}-{params.port_end}",
+            )
+        finally:
+            chain = checked_exec(
+                self.runtime, params.host_name, "nft -a list chain ip nat POSTROUTING"
+            )
+            self._snat_owned_handles = {
+                match[1]
+                for line in chain.splitlines()
+                if (match := re.search(r"# handle (\d+)", line))
+                and match[1] not in self._snat_handles_before
+                and f"ip saddr {params.source_prefix} " in line
+                and f"snat to {params.public_ip}:{params.port_start}-{params.port_end}"
+                in line
+            }
+
+    def recover_fault(self, params: SnatPortPoolExhaustionParams) -> dict:
+        host = params.host_name
+        ops = native_fault_ops(self, host, "source_nat_rules")
+        if ops is not None:
+            if not hasattr(self, "_snat_native_config"):
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            ops.restore_config(self._snat_native_config)
+            restored = ops.source_nat_rules() == self._snat_native_rules
+        else:
+            owned = getattr(self, "_snat_owned_handles", None)
+            if owned is None:
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            wanted = f"snat to {params.public_ip}:{params.port_start}-{params.port_end}"
+            chain = checked_exec(
+                self.runtime, host, "nft -a list chain ip nat POSTROUTING"
+            )
+            for line in chain.splitlines():
+                match = re.search(r"# handle (\d+)", line)
+                if (
+                    match
+                    and match[1] in owned
+                    and f"ip saddr {params.source_prefix} " in line
+                    and wanted in line
+                ):
+                    checked_exec(
+                        self.runtime,
+                        host,
+                        f"nft delete rule ip nat POSTROUTING handle {match[1]}",
+                    )
+            chain = checked_exec(
+                self.runtime, host, "nft -a list chain ip nat POSTROUTING"
+            )
+            restored = not any(
+                (m := re.search(r"# handle (\d+)", line))
+                and m[1] in owned
+                and f"ip saddr {params.source_prefix} " in line
+                and wanted in line
+                for line in chain.splitlines()
+            )
+        return build_verify_result(
+            self.root_cause_name,
+            bool(restored),
+            {"host": host, "pool_restored": bool(restored)},
         )
 
     def verify_fault(self, params: SnatPortPoolExhaustionParams) -> dict:
@@ -271,6 +654,9 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
     native_router_operations = frozenset(
         {
             "add_source_nat",
+            "source_nat_rules",
+            "save_config",
+            "restore_config",
             "clear_nat_mappings",
             "interface_addresses",
             "nat_mapping_count",
@@ -301,9 +687,102 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
     def root_cause_resources(self, params: NatMappingRemovedWithoutDrainParams):
         return [node_resource(params.host_name)]
 
+    def oracle_playbook(
+        self, params: NatMappingRemovedWithoutDrainParams
+    ) -> OraclePlaybook:
+        edge, wan = params.host_name, params.wan_interface
+        old, new = params.nat_ip_a, params.nat_ip_b
+        prefix = params.source_prefix
+        server = _public_service_node(self.net_env)
+        return OraclePlaybook(
+            finding=(
+                f"{edge} renumbered {prefix}'s source NAT from {old} to {new} and "
+                f"removed {old} from {wan} without draining, so the sessions "
+                f"translated to {old} lost their mappings."
+            ),
+            steps=[
+                shell(
+                    edge,
+                    f"ip -4 -br addr show dev {wan}",
+                    f"Read the WAN addresses on {edge}:{wan}.",
+                    Check(
+                        f"{new} is configured and {old} is gone",
+                        lambda o: (
+                            bool(re.search(rf"\b{re.escape(new)}/", o))
+                            and not re.search(rf"\b{re.escape(old)}/", o)
+                        ),
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    edge,
+                    "nft -a list chain ip nat POSTROUTING 2>&1 | head -40",
+                    f"Read the source NAT rules on {edge}.",
+                    contains(
+                        rf"ip saddr {re.escape(prefix)} .*snat to {re.escape(new)}\b",
+                        f"{prefix} now translates to {new}",
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    edge,
+                    # conntrack reports its count on stderr, so a missing tool
+                    # or a rejected filter cannot read as "0 mappings".
+                    f"echo mappings_on_old $(conntrack -L -p tcp -s {prefix} "
+                    f"--reply-dst {old} 2>&1 >/dev/null); "
+                    f"echo mappings_on_new $(conntrack -L -p tcp -s {prefix} "
+                    f"--reply-dst {new} 2>&1 >/dev/null)",
+                    f"Inspect {prefix}'s NAT mappings: they moved to {new} and none "
+                    f"remain on {old}.",
+                    all_of(
+                        contains(
+                            r"^mappings_on_old conntrack \S+ \(conntrack-tools\): "
+                            r"0 flow entries have been shown\.$",
+                            f"conntrack lists no mapping on {old}",
+                        ),
+                        contains(
+                            r"^mappings_on_new conntrack \S+ \(conntrack-tools\): "
+                            r"[1-9]\d* flow entries have been shown\.$",
+                            f"conntrack lists the prefix's mappings on {new}",
+                        ),
+                    ),
+                    evidence=True,
+                ),
+                *(
+                    [
+                        shell(
+                            server,
+                            "echo sessions_from_old $(ss -Htn state established "
+                            f"'( dst {old} )' | wc -l); ss -Htn state established "
+                            "| awk '{print $4}' | sed 's/:[0-9]*$//' | sort | uniq -c",
+                            f"On the public service {server}, count sessions still "
+                            f"open toward {old}.",
+                            Check(
+                                f"the server still holds sessions from {old}, which "
+                                "were cut rather than drained",
+                                lambda o: (
+                                    bool(
+                                        m := re.search(
+                                            r"^sessions_from_old (\d+)$", o, re.M
+                                        )
+                                    )
+                                    and int(m.group(1)) > 0
+                                ),
+                            ),
+                            evidence=True,
+                        )
+                    ]
+                    if server
+                    else []
+                ),
+            ],
+        )
+
     def inject_fault(self, params: NatMappingRemovedWithoutDrainParams):
         ops = native_fault_ops(self, params.host_name, "clear_nat_mappings")
         if ops is not None:
+            self._nat_native_config = ops.save_config()
+            self._nat_native_rules = ops.source_nat_rules()
             wan, active = params.wan_interface, params.nat_ip_a
             self._before = {
                 "addresses": ops.interface_addresses(wan),
@@ -314,6 +793,9 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
             # Withdraw without draining: drop the mappings that used it.
             ops.clear_nat_mappings(active)
             return
+        self._nat_addresses = IPv4Snapshot.capture(
+            self.runtime, params.host_name, params.wan_interface
+        )
         self._before = self.runtime.exec(
             params.host_name,
             f"ip -4 addr show dev {params.wan_interface}; "
@@ -336,6 +818,11 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
                 f"no SNAT rule for {params.source_prefix} to {params.nat_ip_a} "
                 f"on {params.host_name}"
             )
+        self._nat_original_rule = next(
+            (handles[0], line.split("# handle", 1)[0].strip())
+            for line in chain.splitlines()
+            if (match := re.search(r"# handle (\d+)", line)) and match[1] == handles[0]
+        )
         self.runtime.exec(
             params.host_name,
             f"nft replace rule ip nat POSTROUTING handle {handles[0]} "
@@ -353,6 +840,48 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         self.runtime.exec(
             params.host_name,
             f"conntrack -D -p tcp --orig-dst {params.nat_ip_a} 2>/dev/null || true",
+        )
+
+    def recover_fault(self, params: NatMappingRemovedWithoutDrainParams) -> dict:
+        host = params.host_name
+        ops = native_fault_ops(self, host, "source_nat_rules")
+        if ops is not None:
+            if not hasattr(self, "_nat_native_config"):
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            ops.restore_config(self._nat_native_config)
+            restored = (
+                ops.source_nat_rules() == self._nat_native_rules
+                and ops.interface_addresses(params.wan_interface)
+                == self._before["addresses"]
+            )
+        else:
+            original = getattr(self, "_nat_original_rule", None)
+            if original is None:
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            handle, rule = original
+            checked_exec(
+                self.runtime,
+                host,
+                f"nft replace rule ip nat POSTROUTING handle {handle} {rule}",
+            )
+            self._nat_addresses.restore(self.runtime, host)
+            chain = self.runtime.exec(host, "nft -a list chain ip nat POSTROUTING")
+            restored = any(
+                line.split("# handle", 1)[0].strip() == rule
+                for line in chain.splitlines()
+            )
+        return build_verify_result(
+            self.root_cause_name,
+            bool(restored),
+            {
+                "host": host,
+                "configuration_restored": bool(restored),
+                "session_recovery": "New connections can use the restored mapping. Deleted connection state cannot be restored.",
+            },
         )
 
     def verify_fault(self, params: NatMappingRemovedWithoutDrainParams) -> dict:

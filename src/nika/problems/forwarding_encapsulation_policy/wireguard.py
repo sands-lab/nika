@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import re
 import time
 from ipaddress import ip_network
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -13,15 +14,37 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.net_env.enterprise_branch.addressing import (
+    edge_name_for,
+    lan_edge_ip,
+    lan_host_ip,
+    vrf_name,
+)
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    router_cli,
+    routeros,
+    shell,
+)
 from nika.problems.support.polling import wait_until
-from nika.problems.support.router_ops import RouterFaultOps, native_fault_ops
+from nika.problems.support.wireguard import LinuxWireGuard
+from nika.problems.support.router_ops import (
+    RouterFaultOps,
+    native_fault_ops,
+    native_router_profile,
+)
 from nika.utils.logger import system_logger
 
 # Upper bound for overlay BGP to drop after peer-key change + neighbor clear.
 _SETTLE_SEC = 25
-# AllowedIPs rewrite keeps BGP up; brief pause for syncconf to apply.
+# AllowedIPs rewrite keeps BGP up; brief pause for the peer change to apply.
 _ALLOWED_IPS_SETTLE_SEC = 5
 
 # Fixed unused Curve25519 public key (not any Site Edge key in keys.txt).
@@ -58,22 +81,89 @@ def allowed_ips_for_spoke_hub_peer(
     return ", ".join(entries)
 
 
-def _wg_syncconf(runtime: Any, edge: str, iface: str) -> None:
-    """Apply the edited conf live; the stripped temp file does not outlive the call."""
-    strip = f"/tmp/{iface}.strip"
-    runtime.exec(
-        edge,
-        f"wg-quick strip {iface} > {strip} && wg syncconf {iface} {strip}; "
-        f"rm -f {strip}",
-    )
-
-
 def _bgp_neighbor_established(summary: str, peer_ip: str) -> bool:
     for line in summary.splitlines():
         fields = line.split()
         if peer_ip in line and len(fields) >= 10 and fields[9].isdigit():
             return True
     return False
+
+
+_RECENT_HANDSHAKE = contains(
+    r"\s[1-9][0-9]{8,}\s*$", "the peer has completed a handshake"
+)
+
+
+def _never_handshaked(output: str) -> bool:
+    stamps = [
+        line.split()[-1]
+        for line in output.splitlines()
+        if len(line.split()) == 2 and line.split()[-1].isdigit()
+    ]
+    return bool(stamps) and all(stamp == "0" for stamp in stamps)
+
+
+# A Curve25519 public key in WireGuard's base64 form.
+_WG_KEY = r"[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]="
+
+
+def _compare_peer_key(
+    spoke_iface: str, hub_key_slot: str, *, native: bool = False
+) -> Any:
+    """Compare the spoke's configured peer key with the Hub's own public key."""
+
+    def args(outputs: dict[str, str]) -> dict[str, Any]:
+        match = re.search(rf"^({_WG_KEY})\r?$", outputs.get(hub_key_slot) or "", re.M)
+        if match is None:
+            command = (
+                ':put "HUB_KEY_UNAVAILABLE"' if native else "echo HUB_KEY_UNAVAILABLE"
+            )
+        elif native:
+            hub_key = match.group(1)
+            command = (
+                f":local peer [/interface wireguard peers get [find interface={spoke_iface}] public-key]; "
+                ':put ("configured peer key: " . $peer); '
+                f':put "hub interface key: {hub_key}"; '
+                f':if ($peer = "{hub_key}") do={{ :put "PEER_KEY_MATCHES_HUB" }} '
+                'else={ :put "PEER_KEY_MISMATCH" }; '
+                f"/interface wireguard peers print detail where interface={spoke_iface}; "
+                f":local age [/interface wireguard peers get [find interface={spoke_iface}] last-handshake]; "
+                ':put ("handshake-unavailable=" . '
+                f"(([:len [:tostr $age]] = 0) || ($age = 0s) || ($age > {_SETTLE_SEC}s)))"
+            )
+        else:
+            hub_key = match.group(1)
+            command = (
+                f"peer=$(wg show {spoke_iface} peers); "
+                f'echo "configured peer key: $peer"; '
+                f'echo "hub interface key: {hub_key}"; '
+                f'[ "$peer" = "{hub_key}" ] && echo PEER_KEY_MATCHES_HUB '
+                "|| echo PEER_KEY_MISMATCH; "
+                f"wg show {spoke_iface} endpoints; "
+                f"wg show {spoke_iface} latest-handshakes"
+            )
+        return {"command": command, **({} if native else {"timeout": 15})}
+
+    return args
+
+
+def _initiations_unanswered(spoke_wan: str, hub_wan: str, hub_port: int) -> Any:
+    """Spoke initiations reach the Hub and neither side answers the other."""
+    spoke, hub = re.escape(spoke_wan), re.escape(hub_wan)
+    return all_of(
+        contains(
+            rf"In +IP {spoke}\.\d+ > {hub}\.{hub_port}: UDP, length 148",
+            "handshake initiations from the spoke arrive at the Hub",
+        ),
+        lacks(
+            rf"Out +IP {hub}\.{hub_port} > {spoke}\.\d+: UDP, length 92",
+            "the Hub sends no handshake response",
+        ),
+        lacks(
+            rf"In +IP {spoke}\.\d+ > {hub}\.{hub_port}: UDP, length 92",
+            "the spoke answers no Hub initiation",
+        ),
+    )
 
 
 def _hq_peer_targets(net_env: Any, scenario: str) -> list[tuple[str, str]]:
@@ -126,21 +216,33 @@ class WireGuardPeerKeyMisconfigParams(BaseModel):
     intf_name: str = Field(
         description="WireGuard tunnel interface toward the Hub (e.g. wg_hq)."
     )
+    scope: Literal["branch", "interface"] = Field(
+        default="branch",
+        description="Rewrite every branch tunnel, or only intf_name.",
+    )
 
 
 class WireGuardPeerKeyMisconfiguration(ProblemBase):
-    """Wrong WireGuard peer PublicKey on every tunnel of a Branch Edge.
+    """Wrong WireGuard peer PublicKey on a Branch Edge.
 
     Under full WAN/hub redundancy, a single-tunnel peer-key fault would fail
     over with no user-visible impact. Inject models one bad key rollout on the
     Branch Edge (every Hub peer entry gets the same wrong key), so cross-site
     business for that branch fails while underlay and other branches stay
     healthy. Ground truth labels every WireGuard interface the inject rewrites;
-    ``intf_name`` must be one of them.
+    ``intf_name`` must be one of them. Interface scope instead models a latent
+    key error on one standby tunnel, paired with a primary underlay failure.
+
+    Sources: Google, SIGCOMM 2016 research paper, section 7.1 describes
+    fallback strategies: https://research.google/pubs/pub45623/ .
+    Cloudflare's November 2023 incident report describes untested failover
+    dependencies exposed by a facility outage:
+    https://blog.cloudflare.com/post-mortem-on-cloudflare-control-plane-and-analytics-outage/ .
+    These motivate the failure pattern, rather than document a WireGuard incident.
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    symptom_probe = "path_ping"
+    symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "wireguard_peer_key_misconfiguration"
     root_cause_owner = "interface"
@@ -156,6 +258,8 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         }
     )
     Params = WireGuardPeerKeyMisconfigParams
+    BENCHMARK_COORDINATES = frozenset({"link_down"})
+    MULTI_INJECT_DWELL_SEC = 30.0
     BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (
         "A Branch Site Edge has incorrect Hub WireGuard peer public keys on all "
@@ -185,10 +289,33 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
 
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
-        _validate_hq_peer_target(ctx, cls.root_cause_name, inject)
+        if inject.get("scope", "branch") == "interface":
+            eligible = {
+                (edge_name_for(t.spoke), t.spoke_iface)
+                for t in ctx.net_env.built_tunnels
+                if t.spoke in ctx.net_env.spec.branch_names()
+            }
+            if (inject.get("host_name"), inject.get("intf_name")) not in eligible:
+                raise ValueError("Interface scope requires a branch WireGuard tunnel")
+        else:
+            _validate_hq_peer_target(ctx, cls.root_cause_name, inject)
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        targets = getattr(ctx.net_env, "wireguard_failover_targets", lambda: [])()
+        if not targets:
+            raise ValueError("No independent standby tunnel and primary WAN targets")
+        edge, iface, host, intf = ctx.rng.choice(targets)
+        params_by_problem[cls.root_cause_name] = {
+            "host_name": edge,
+            "intf_name": iface,
+            "scope": "interface",
+        }
+        params_by_problem["link_down"] = {"host_name": host, "intf_name": intf}
+        return params_by_problem
 
     def root_cause_resources(self, params: WireGuardPeerKeyMisconfigParams):
-        tunnels = self._spoke_tunnels(params.host_name)
+        tunnels = self._target_tunnels(params)
         ifaces = sorted({t.spoke_iface for t in tunnels}) or [params.intf_name]
         return [interface_resource(params.host_name, iface) for iface in ifaces]
 
@@ -200,63 +327,57 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         tunnels = getattr(self.net_env, "built_tunnels", None) or []
         return [t for t in tunnels if t.spoke == spoke]
 
+    def _target_tunnels(self, params: WireGuardPeerKeyMisconfigParams) -> list[Any]:
+        return [
+            t
+            for t in self._spoke_tunnels(params.host_name)
+            if params.scope == "branch" or t.spoke_iface == params.intf_name
+        ]
+
+    def _target_ifaces(self, params: WireGuardPeerKeyMisconfigParams) -> list[str]:
+        if params.scope == "interface":
+            return [params.intf_name]
+        return self._wg_ifaces_on_edge(params.host_name)
+
     def _resolve_hub_tunnel_ip(self, edge: str, iface: str) -> str:
         spoke = self._spoke_site(edge)
         tunnels = getattr(self.net_env, "built_tunnels", None) or []
         for tunnel in tunnels:
             if tunnel.spoke == spoke and tunnel.spoke_iface == iface:
                 return tunnel.hub_tunnel_ip
-        conf = self.runtime.exec(
-            edge,
-            f"grep -E '^Address = ' /etc/wireguard/{iface}.conf",
-        ).strip()
-        if "Address = " in conf:
-            cidr = conf.split("=", 1)[1].strip()
-            ip = cidr.split("/", 1)[0]
-            parts = ip.split(".")
-            if len(parts) == 4 and parts[-1] == "2":
-                return ".".join(parts[:-1] + ["1"])
         raise RuntimeError(f"Cannot resolve Hub tunnel IP for {edge}/{iface}")
 
     def _wg_ifaces_on_edge(self, edge: str) -> list[str]:
         tunnels = self._spoke_tunnels(edge)
         if tunnels:
             return sorted({t.spoke_iface for t in tunnels})
-        # Offline / missing built_tunnels: discover conf files.
-        listing = self.runtime.exec(
-            edge, "ls /etc/wireguard/*.conf 2>/dev/null || true"
-        ).strip()
-        ifaces: list[str] = []
-        for token in listing.split():
-            name = token.rsplit("/", 1)[-1]
-            if name.endswith(".conf"):
-                ifaces.append(name[: -len(".conf")])
-        return sorted(ifaces)
+        return LinuxWireGuard(self.runtime, edge).interfaces()
 
     def inject_fault(self, params: WireGuardPeerKeyMisconfigParams):
         edge = params.host_name
         wrong_key = WRONG_HUB_PEER_PUBLIC_KEY
         ops = native_fault_ops(self, edge, "set_tunnel_peer_public_key")
-        ifaces = self._wg_ifaces_on_edge(edge)
+        ifaces = self._target_ifaces(params)
         if not ifaces:
             raise RuntimeError(f"No WireGuard interfaces found on {edge}")
         if params.intf_name not in ifaces:
             raise RuntimeError(
-                f"Primary intf_name {params.intf_name!r} not among {ifaces} on {edge}"
+                f"intf_name {params.intf_name!r} not among {ifaces} on {edge}"
             )
 
         if ops is not None:
+            self._original_peers = {
+                iface: ops.tunnel_peer(iface).public_key for iface in ifaces
+            }
             self._inject_native(ops, edge, ifaces, wrong_key)
             return
+        self._original_peers = {}
         cleared: list[str] = []
+        wireguard = LinuxWireGuard(self.runtime, edge)
         for iface in ifaces:
             hub_tun_ip = self._resolve_hub_tunnel_ip(edge, iface)
-            conf_path = f"/etc/wireguard/{iface}.conf"
-            self.runtime.exec(
-                edge,
-                f"sed -i 's|^PublicKey = .*|PublicKey = {wrong_key}|' {conf_path}",
-            )
-            _wg_syncconf(self.runtime, edge, iface)
+            self._original_peers[iface] = wireguard.tunnel_peer(iface).public_key
+            wireguard.set_tunnel_peer_public_key(iface, wrong_key)
             self.runtime.exec(
                 edge,
                 f"vtysh -c 'clear ip bgp {hub_tun_ip}' 2>/dev/null || true",
@@ -265,7 +386,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
 
         self._hub_tunnel_ips = cleared
         self.logger.info(
-            f"Injected wrong WireGuard Hub peer PublicKey on all WG ifaces of "
+            f"Injected wrong WireGuard Hub peer PublicKey on selected WG ifaces of "
             f"{edge} ({', '.join(ifaces)}); cleared BGP neighbors {cleared}."
         )
         wait_until(
@@ -299,11 +420,133 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         )
         wait_until(lambda: not set(cleared) & ops.bgp_established_peers(), _SETTLE_SEC)
 
+    def oracle_playbook(
+        self, params: WireGuardPeerKeyMisconfigParams
+    ) -> OraclePlaybook:
+        edge = params.host_name
+        tunnels = sorted(self._target_tunnels(params), key=lambda t: t.spoke_iface)
+        primary = next(t for t in tunnels if t.spoke_iface == params.intf_name)
+        native = native_router_profile(self.net_env, edge) == "routeros"
+        steps: list[OracleStep] = [
+            router_cli(
+                self.net_env,
+                edge,
+                f"Check the underlay from {edge} to the Hub WAN address "
+                f"{primary.hub_wan_ip}.",
+                contains(
+                    r"\b[1-9]\d* (?:packets )?received|received=[1-9]\d*",
+                    "the Hub WAN answers",
+                ),
+                frr=f"ping -c 3 -W 1 {primary.hub_wan_ip}",
+                routeros_command=f"/ping {primary.hub_wan_ip} count=3",
+                evidence=True,
+            ),
+        ]
+        for tunnel in tunnels:
+            hub_edge, slot = edge_name_for(tunnel.hub), f"hubkey_{tunnel.spoke_iface}"
+            hub_end = f"{tunnel.hub_wan_ip}:{tunnel.listen_port_hub}"
+            steps.append(
+                router_cli(
+                    self.net_env,
+                    hub_edge,
+                    f"Read the public key of {hub_edge}:{tunnel.hub_iface}, the "
+                    f"Hub end of {edge}:{tunnel.spoke_iface}.",
+                    contains(rf"^{_WG_KEY}\r?$", "the Hub interface has a public key"),
+                    frr=f"wg show {tunnel.hub_iface} public-key",
+                    routeros_command=f":put [/interface wireguard get [find name={tunnel.hub_iface}] public-key]",
+                    evidence=True,
+                    save_as=slot,
+                )
+            )
+            compare = _compare_peer_key(tunnel.spoke_iface, slot, native=native)
+            steps.append(
+                OracleStep(
+                    f"Compare the peer key on {edge}:{tunnel.spoke_iface} with "
+                    "the Hub key and check its endpoint and handshake.",
+                    "routeros_exec" if native else "exec_shell",
+                    lambda out, compare=compare: {
+                        ("router_name" if native else "host_name"): edge,
+                        **compare(out),
+                    },
+                    all_of(
+                        contains(
+                            rf"^configured peer key: {_WG_KEY}\r?$",
+                            "a peer key is configured",
+                        ),
+                        contains(
+                            r"^PEER_KEY_MISMATCH\r?$", "the peer key is not the Hub's"
+                        ),
+                        contains(
+                            (
+                                rf"endpoint-address={re.escape(tunnel.hub_wan_ip)}\s+endpoint-port={tunnel.listen_port_hub}\b"
+                                if native
+                                else rf"\s{re.escape(hub_end)}\s*$"
+                            ),
+                            f"the peer endpoint is the Hub's {hub_end}",
+                        ),
+                        (
+                            contains(
+                                r"^handshake-unavailable=true\s*$",
+                                "the peer has no successful handshake since the key rollout",
+                            )
+                            if native
+                            else Check(
+                                "no handshake has ever completed", _never_handshaked
+                            )
+                        ),
+                    ),
+                    evidence=True,
+                )
+            )
+            if native:
+                steps.append(
+                    routeros(
+                        edge,
+                        f"/interface print count-only where name={tunnel.spoke_iface} and running",
+                        f"Check that {edge}:{tunnel.spoke_iface} remains running.",
+                        contains(
+                            r"^1\s*$",
+                            "the tunnel interface is running",
+                        ),
+                        evidence=True,
+                    )
+                )
+                continue
+            udp = (
+                f"udp and host {tunnel.spoke_wan_ip} and port "
+                f"{tunnel.listen_port_hub} and (udp[4:2] = 156 or udp[4:2] = 100)"
+            )
+            steps.append(
+                shell(
+                    hub_edge,
+                    f"timeout 15 tcpdump -lni any '{udp}' 2>&1 | head -12",
+                    f"Watch handshake packets for {edge}:{tunnel.spoke_iface} on "
+                    f"{hub_edge}: initiations must arrive and go unanswered.",
+                    _initiations_unanswered(
+                        tunnel.spoke_wan_ip, tunnel.hub_wan_ip, tunnel.listen_port_hub
+                    ),
+                    evidence=True,
+                    timeout=30,
+                    attempts=2,
+                    interval_sec=1,
+                )
+            )
+        ifaces = ", ".join(t.spoke_iface for t in tunnels)
+        return OraclePlaybook(
+            finding=(
+                f"The selected WireGuard tunnels on {edge} ({ifaces}) name a peer public "
+                "key that is not its Hub's key: handshake initiations reach the "
+                "Hub but are never answered, so these tunnels stay down despite "
+                "reachable Hub WAN endpoints."
+            ),
+            steps=steps,
+        )
+
     def _verify_native(
         self, ops: RouterFaultOps, params: WireGuardPeerKeyMisconfigParams
     ) -> dict:
         edge, expected = params.host_name, WRONG_HUB_PEER_PUBLIC_KEY
-        ifaces = self._wg_ifaces_on_edge(edge)
+        ifaces = self._target_ifaces(params)
         all_ok = bool(ifaces) and params.intf_name in ifaces
         per_iface: dict[str, dict[str, Any]] = {}
         for iface in ifaces:
@@ -340,15 +583,14 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             return self._verify_native(ops, params)
         edge = params.host_name
         expected = WRONG_HUB_PEER_PUBLIC_KEY
-        ifaces = self._wg_ifaces_on_edge(edge)
+        ifaces = self._target_ifaces(params)
         per_iface: dict[str, dict[str, Any]] = {}
         all_ok = bool(ifaces) and params.intf_name in ifaces
 
+        wireguard = LinuxWireGuard(self.runtime, edge)
         for iface in ifaces:
-            conf = self.runtime.exec(
-                edge, f"grep -E '^PublicKey = ' /etc/wireguard/{iface}.conf || true"
-            ).strip()
-            conf_ok = conf == f"PublicKey = {expected}"
+            peer_key = wireguard.tunnel_peer(iface).public_key
+            conf_ok = peer_key == expected
 
             link = self.runtime.exec(
                 edge, f"ip -o link show {iface} 2>/dev/null || true"
@@ -376,7 +618,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             iface_ok = conf_ok and iface_up and peer_present and handshake_ok
             all_ok = all_ok and iface_ok
             per_iface[iface] = {
-                "conf_public_key_line": conf,
+                "peer_public_key": peer_key,
                 "iface_link": link,
                 "wg_show": wg_show,
                 "latest_handshakes": handshakes,
@@ -396,6 +638,35 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
                 "ifaces": ifaces,
                 "per_iface": per_iface,
             },
+        )
+
+    def recover_fault(self, params: WireGuardPeerKeyMisconfigParams) -> dict:
+        edge = params.host_name
+        native = native_fault_ops(self, edge, "set_tunnel_peer_public_key")
+        ops = native or LinuxWireGuard(self.runtime, edge)
+        original = getattr(self, "_original_peers", {})
+        for iface, key in original.items():
+            ops.set_tunnel_peer_public_key(iface, key)
+        ok = bool(original) and all(
+            ops.tunnel_peer(iface).public_key == key for iface, key in original.items()
+        )
+        expected = set(getattr(self, "_hub_tunnel_ips", []))
+        if ok and expected:
+            from nika.net_env.verify import frr_bgp_established_peers
+
+            def healthy():
+                peers = (
+                    native.bgp_established_peers()
+                    if native is not None
+                    else frr_bgp_established_peers(
+                        self.runtime.exec(edge, "vtysh -c 'show bgp summary json'")
+                    )
+                )
+                return expected <= peers
+
+            ok = wait_until(healthy, 180, interval_s=2)
+        return build_verify_result(
+            fault_type=self.root_cause_name, verified=ok, details={"host": edge}
         )
 
 
@@ -506,18 +777,136 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
         for tunnel in tunnels:
             if tunnel.spoke == spoke and tunnel.spoke_iface == params.intf_name:
                 return tunnel.hub_tunnel_ip
-        conf = self.runtime.exec(
-            params.host_name,
-            f"grep -E '^Address = ' /etc/wireguard/{params.intf_name}.conf",
-        ).strip()
-        if "Address = " in conf:
-            cidr = conf.split("=", 1)[1].strip()
-            ip = cidr.split("/", 1)[0]
-            parts = ip.split(".")
-            if len(parts) == 4 and parts[-1] == "2":
-                return ".".join(parts[:-1] + ["1"])
         raise RuntimeError(
             f"Cannot resolve Hub tunnel IP for {params.host_name}/{params.intf_name}"
+        )
+
+    def _target_host_ip(self, prefix: str) -> str:
+        """Primary host address on the LAN that owns *prefix*."""
+        for site in self.net_env.spec.sites.values():
+            for lan in site.lans:
+                if lan.prefix == prefix:
+                    return str(lan_host_ip(site.site_id, lan.role).ip)
+        return str(ip_network(prefix, strict=False).network_address + 2)
+
+    def oracle_playbook(
+        self, params: WireGuardAllowedIpsMisconfigParams
+    ) -> OraclePlaybook:
+        edge, iface = params.host_name, params.intf_name
+        target = str(ip_network(params.target_prefix, strict=False))
+        target_ip = self._target_host_ip(target)
+        hub_ip = self._resolve_hub_tunnel_ip(params)
+        spoke = self._spoke_site(edge)
+        native = native_router_profile(self.net_env, edge) == "routeros"
+        corp_vrf = vrf_name("corp")
+        source_ip = str(lan_edge_ip(self.net_env.spec.sites[spoke].site_id, "corp").ip)
+        control = next(
+            p
+            for p in self.net_env.remote_prefixes_for_spoke(spoke)
+            if str(ip_network(p, strict=False)) != target
+        )
+        control_ip = self._target_host_ip(control)
+        escaped = target.replace(".", r"\.")
+        return OraclePlaybook(
+            finding=(
+                f"The Hub peer AllowedIPs on {edge}:{iface} omit {target}, so "
+                "WireGuard cryptokey routing refuses traffic that the routing "
+                "table sends into the tunnel."
+            ),
+            steps=[
+                router_cli(
+                    self.net_env,
+                    edge,
+                    f"Find the route {edge} uses for {target}.",
+                    contains(
+                        (
+                            rf"immediate-gw=\S+%{iface}\b"
+                            if native
+                            else rf"^{escaped} .*dev {iface}( |$)"
+                        ),
+                        f"the route to {target} points into {iface}",
+                    ),
+                    frr=f"ip route show vrf {corp_vrf} exact {target}",
+                    routeros_command=f"/routing route print detail where routing-table={corp_vrf} and dst-address={target} and active",
+                    evidence=True,
+                ),
+                router_cli(
+                    self.net_env,
+                    edge,
+                    f"Check the tunnel itself: ping the Hub tunnel address {hub_ip}.",
+                    contains(
+                        r"\b[1-9]\d* (?:packets )?received|received=[1-9]\d*",
+                        "the Hub tunnel address answers",
+                    ),
+                    frr=f"ping -c 3 -W 1 -I {iface} {hub_ip}",
+                    routeros_command=f"/ping {hub_ip} vrf=overlay count=3",
+                    evidence=True,
+                ),
+                router_cli(
+                    self.net_env,
+                    edge,
+                    f"Inspect the cryptokey routing table of {edge}:{iface}.",
+                    all_of(
+                        contains(rf"{hub_ip}/32", "the Hub tunnel address is allowed"),
+                        lacks(escaped, f"{target} is missing from AllowedIPs"),
+                        (
+                            contains(
+                                r"last-handshake=\S+",
+                                "the peer has completed a handshake",
+                            )
+                            if native
+                            else _RECENT_HANDSHAKE
+                        ),
+                    ),
+                    frr=f"wg show {iface} allowed-ips; wg show {iface} latest-handshakes",
+                    routeros_command=f"/interface wireguard peers print detail where interface={iface}",
+                    evidence=True,
+                ),
+                router_cli(
+                    self.net_env,
+                    edge,
+                    "Check that overlay BGP remains Established.",
+                    Check(
+                        "the Hub has an Established BGP session",
+                        (
+                            lambda o: bool(
+                                re.search(
+                                    rf"remote\.address={re.escape(hub_ip)}@overlay\b", o
+                                )
+                            )
+                        )
+                        if native
+                        else (lambda o: _bgp_neighbor_established(o, hub_ip)),
+                    ),
+                    frr="vtysh -c 'show bgp summary'",
+                    routeros_command="/routing bgp session print detail where established=yes",
+                    evidence=True,
+                ),
+                router_cli(
+                    self.net_env,
+                    edge,
+                    f"Probe the omitted prefix at {target_ip} from the corporate VRF.",
+                    contains(
+                        r"received=0\b|100% packet loss|Destination Host Unreachable",
+                        f"traffic to {target_ip} fails",
+                    ),
+                    frr=f"ping -c 2 -W 1 -I {corp_vrf} {target_ip}",
+                    routeros_command=f"/ping {target_ip} vrf={corp_vrf} src-address={source_ip} count=2",
+                    evidence=True,
+                ),
+                router_cli(
+                    self.net_env,
+                    edge,
+                    f"Probe the allowed control prefix at {control_ip} from the corporate VRF.",
+                    contains(
+                        r"\b[1-9]\d* (?:packets )?received|received=[1-9]\d*",
+                        f"{control_ip} answers through {iface}",
+                    ),
+                    frr=f"ping -c 2 -W 1 -I {corp_vrf} {control_ip}",
+                    routeros_command=f"/ping {control_ip} vrf={corp_vrf} src-address={source_ip} count=2",
+                    evidence=True,
+                ),
+            ],
         )
 
     def _local_and_advertised_prefixes(self, spoke: str) -> tuple[list[str], list[str]]:
@@ -552,15 +941,9 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 f"target_prefix {params.target_prefix} still present in allowlist"
             )
 
-        if ops is not None:
-            ops.set_tunnel_peer_allowed_addresses(iface, allowlist.split(", "))
-        else:
-            conf_path = f"/etc/wireguard/{iface}.conf"
-            self.runtime.exec(
-                edge,
-                f"sed -i 's|^AllowedIPs = .*|AllowedIPs = {allowlist}|' {conf_path}",
-            )
-            _wg_syncconf(self.runtime, edge, iface)
+        peer_ops = ops or LinuxWireGuard(self.runtime, edge)
+        self._original_allowed = peer_ops.tunnel_peer(iface).allowed_addresses
+        peer_ops.set_tunnel_peer_allowed_addresses(iface, allowlist.split(", "))
         self.logger.info(
             f"Injected WireGuard AllowedIPs omit of {params.target_prefix} "
             f"on {edge}/{iface} (hub tunnel {hub_tun_ip} retained; BGP untouched)."
@@ -580,13 +963,9 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
         if ops is not None:
             return self._verify_native(ops, params, target, hub_tun_ip)
 
-        conf_line = self.runtime.exec(
-            edge, f"grep -E '^AllowedIPs = ' /etc/wireguard/{iface}.conf || true"
-        ).strip()
-        allowed_value = (
-            conf_line.split("=", 1)[1].strip() if "AllowedIPs = " in conf_line else ""
+        entries = list(
+            LinuxWireGuard(self.runtime, edge).tunnel_peer(iface).allowed_addresses
         )
-        entries = [e.strip() for e in allowed_value.split(",") if e.strip()]
         conf_omits_target = (
             target not in entries and params.target_prefix not in entries
         )
@@ -632,7 +1011,7 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 "intf_name": iface,
                 "target_prefix": params.target_prefix,
                 "hub_tunnel_ip": hub_tun_ip,
-                "allowed_ips_line": conf_line,
+                "allowed_addresses": entries,
                 "conf_omits_target": conf_omits_target,
                 "conf_keeps_tunnel": conf_keeps_tunnel,
                 "latest_handshakes": handshakes,
@@ -686,4 +1065,21 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 "route_interface": route_interface,
                 "route_ok": route_ok,
             },
+        )
+
+    def recover_fault(self, params: WireGuardAllowedIpsMisconfigParams) -> dict:
+        edge, iface = params.host_name, params.intf_name
+        ops = native_fault_ops(
+            self, edge, "set_tunnel_peer_allowed_addresses"
+        ) or LinuxWireGuard(self.runtime, edge)
+        original = getattr(self, "_original_allowed", None)
+        if original is not None:
+            ops.set_tunnel_peer_allowed_addresses(iface, list(original))
+        ok = original is not None and tuple(
+            ops.tunnel_peer(iface).allowed_addresses
+        ) == tuple(original)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=ok,
+            details={"host": edge, "interface": iface},
         )

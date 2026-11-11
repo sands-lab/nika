@@ -122,3 +122,12 @@ def test_manifest_rejects_invalid_fields(field: str, value: str) -> None:
     data = {"id": "ok", "class": "pkg.mod:Agent", field: value}
     with pytest.raises(ValueError):
         AgentManifest.model_validate(data)
+
+
+def test_external_subscription_requires_explicit_manifest_opt_in():
+    plain = AgentManifest(id="test-transport", **{"class": "example:Agent"})
+    enabled = AgentManifest(
+        id="test-transport", subscription=True, **{"class": "example:Agent"}
+    )
+    assert not plain.to_spec(source="test", import_root="/tmp/no-project").subscription
+    assert enabled.to_spec(source="test", import_root="/tmp/no-project").subscription

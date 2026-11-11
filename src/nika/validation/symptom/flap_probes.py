@@ -16,6 +16,7 @@ from nika.net_env.base import ProbePath
 from nika.net_env.verify import exec_or_empty, ping_stats
 from nika.problems.base import build_verify_result
 from nika.runtime.base import LabRuntime
+from nika.validation.symptom.path_probes import echo
 from nika.validation.symptom.probe import _resolve_path
 
 BASELINE_PING_COUNT = 15
@@ -112,12 +113,16 @@ def _echo_train(
 def flap_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Every echo of the train is answered on the healthy path."""
     topo_size = getattr(problem.net_env, "topo_size", None) or "s"
-    path = _resolve_path(problem.scenario_name, params, topo_size=topo_size)
+    path = _resolve_path(
+        problem.scenario_name, params, topo_size=topo_size, net_env=problem.net_env
+    )
     if path is None or not path.dst_ip:
         return False, {"error": "no_probe_path"}
     train = _echo_train(problem.runtime, path.src_host, path.dst_ip)
     if "error" in train:
         return False, train
+    baseline = echo(problem.runtime, path.src_host, path.dst_ip)
+    train = {**train, "ttls": baseline["ttls"]}
     problem._audit_flap_before = train
     return train["loss_percent"] <= 1.0, train
 
@@ -146,17 +151,34 @@ def evaluate_link_flap_symptom(
     )
     if "error" in train:
         return False, {"error": "flap_probe_failed", "after": train}
+    # The flap shows as repeated bursts of consecutive lost echoes between
+    # answered runs. A router that reroutes around the down port cuts each
+    # burst short, so the share of lost echoes has no floor beyond them.
     periodic_loss = (
-        20.0 <= train["loss_percent"] <= 80.0
+        train["loss_percent"] <= 80.0
         and train["down_runs"] >= MIN_CYCLES
         and train["up_runs"] >= MIN_CYCLES
     )
-    return periodic_loss, build_verify_result(
+    # A 1 s / 1 s flap on a meshed IGP link drops the adjacency and the
+    # probe sticks to a longer detour, so later cycles are not lost.
+    after_echo = echo(problem.runtime, before["src"], before["dst"])
+    before_ttls = before.get("ttls") or []
+    rerouted = (
+        bool(before_ttls)
+        and bool(after_echo["ttls"])
+        and max(after_echo["ttls"]) < min(before_ttls)
+        and train["down_runs"] >= 1
+    )
+    verified = periodic_loss or rerouted
+    return verified, build_verify_result(
         fault_type=problem.root_cause_name,
-        verified=periodic_loss,
+        verified=verified,
         details={
             "before": before,
-            "after": train,
-            "comparison": {"periodic_loss": periodic_loss},
+            "after": {**train, "ttls": after_echo["ttls"]},
+            "comparison": {
+                "periodic_loss": periodic_loss,
+                "rerouted": rerouted,
+            },
         },
     )

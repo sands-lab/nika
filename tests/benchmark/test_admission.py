@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from experiment.audit import admission
+from scripts.benchmark_audit import admission
 
 pytestmark = pytest.mark.unit
 

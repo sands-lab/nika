@@ -1,0 +1,19 @@
+id: CASE-QUICK-SOLVE
+title: Case solved with almost no tool calls
+class: shortcut
+role: lead
+severity: warn
+status: open
+summary: Most correct trials of a case used three or fewer tool calls.
+guideline: Symptom-level faults (missing IP, stopped service) can be found fast legitimately. Check that
+  the first tool output shows the symptom, not a name or artifact that states the label.
+detect:
+- kind: metric
+  metric: case_quick_solve_share
+  threshold: 0.67
+  min_trials: 3
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

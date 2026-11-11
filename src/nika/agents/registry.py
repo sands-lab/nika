@@ -42,6 +42,8 @@ class AgentSpec:
     # it; every other agent needs an API key.
     subscription: bool = False
     supports_max_tokens: bool = True
+    # Generation API used by the harness; Anthropic-family clients use Messages.
+    model_api: Literal["chat_completions", "responses"] = "chat_completions"
     # ``agent.reasoning_effort`` used when neither the CLI nor the run config
     # sets one. Built-in harnesses that apply the setting default to
     # ``medium``; added agents configure their own.
@@ -116,6 +118,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
         class_path="agent.cli.codex.agent:CodexCliAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
         supports_max_tokens=False,
+        model_api="responses",
         template="codex",
     ),
     AgentSpec(
@@ -150,6 +153,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
         class_path="agent.sdk.codex_sdk.agent:CodexSdkAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
         supports_max_tokens=False,
+        model_api="responses",
         requirements="codex_sdk",
     ),
     AgentSpec(
@@ -176,6 +180,14 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
         requires_provider=False,
         supports_max_tokens=False,
         default_model="mock",
+        template=None,
+    ),
+    AgentSpec(
+        id="oracle",
+        class_path="nika.agents.oracle.agent:OracleAgent",
+        requires_provider=False,
+        supports_max_tokens=False,
+        default_model="oracle",
         template=None,
     ),
 )
@@ -218,7 +230,25 @@ async def run_pipeline(
     from agent.base import run_submission_phase
     from nika.agents.mcp_config import begin_submission_mcp_phase
 
-    report = await agent.run_diagnosis(task_description)
+    from nika.workflows.schedule import continuation_prompt, scheduler_for
+
+    scheduler = scheduler_for(agent.session_id)
+    prompt = task_description
+    while True:
+        observed_complete = scheduler.complete.is_set() if scheduler else True
+        revision = scheduler.observation_revision() if scheduler else 0
+        report = await agent.run_diagnosis(prompt)
+        if scheduler is None:
+            break
+        scheduler.raise_if_failed()
+        if observed_complete:
+            break
+        while (
+            not scheduler.complete.is_set()
+            and scheduler.observation_revision() == revision
+        ):
+            await asyncio.to_thread(scheduler.wait_for_progress, revision, 1.0)
+        prompt = continuation_prompt(task_description, report)
     context = begin_submission_mcp_phase(agent.session_id, report)
     if report_mapper is None:
         await agent.run_submission(report, context)

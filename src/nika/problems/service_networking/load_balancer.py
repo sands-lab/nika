@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 import shlex
+import statistics
 import time
 from typing import Any
 
@@ -15,6 +17,7 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.oracle import Check, OraclePlaybook, contains, shell
 from nika.problems.support.benchmark_targets import choice, prefer_named
 from nika.problems.support.ab_helpers import (
     AB_BINARY,
@@ -40,12 +43,9 @@ _VIP_PING_HOST = "web99.local"
 # Behavioral gates (fixed workload; not adaptive at runtime).
 # Pinned LB under ab flood typically lands ~0.7–0.9 of quota; 0.80 was flaky.
 _NGINX_CPU_MIN_RATIO = 0.65
-# The release pin of 0.2 CPU is wider than the ab flood on this nginx.
-# Cap the applied quota so that flood fills the slice. At 0.05 CPU nginx still
-# serves ~120 req/s (~2.5 kpps per hop), which saturates the emulated links on
-# the flood path, so the shared farm uplink congested and slowed web0 as well;
-# at 0.02 CPU (~600 pps) the LB accept queue is the only bottleneck.
-_APPLIED_QUOTA_CAP = 0.02
+# Bound LB capacity so the surge queues at the LB while the parallel web
+# path remains responsive on small hosts.
+_APPLIED_QUOTA_CAP = 0.01
 _VIP_TAIL_MIN_RATIO = 2.0
 # web0 shares the campus farm uplink with VIP flood traffic, so mild inflation
 # is expected. Require success and that control stays clearly healthier than VIP.
@@ -59,6 +59,48 @@ _RTT_ABS_MAX_MS = 20.0
 _RTT_MAX_RATIO = 5.0
 _RECOVER_VIP_P95_MAX_RATIO = 2.0
 _MIN_ERROR_COUNT_FOR_DEGRADATION = 3
+
+
+# Oracle gates: the VIP must be clearly slower than the parallel web path, and
+# the LB must hold far more client connections than a browsing client opens.
+_ORACLE_VIP_SLOWDOWN = 3.0
+_ORACLE_LB_CONNECTIONS = 100
+
+
+def _timed_curl(label: str, url: str) -> str:
+    return (
+        "curl -s -o /dev/null -m 10 "
+        f"-w '{label} %{{http_code}} %{{time_total}}\\n' {shlex.quote(url)}"
+    )
+
+
+def _vip_slower_than_control(output: str) -> bool:
+    times: dict[str, list[float]] = {"vip": [], "control": []}
+    codes: dict[str, list[str]] = {"vip": [], "control": []}
+    for label, code, seconds in re.findall(
+        r"^(vip|control) (\d{3}) ([0-9.]+)$", output, re.M
+    ):
+        codes[label].append(code)
+        times[label].append(float(seconds))
+    if not times["vip"] or not times["control"]:
+        return False
+    if any(code != "200" for code in codes["control"]):
+        return False
+    # A failed VIP request counts at the client's 10 s timeout.
+    vip = statistics.median(
+        t if c == "200" else 10.0 for t, c in zip(times["vip"], codes["vip"])
+    )
+    return vip >= _ORACLE_VIP_SLOWDOWN * max(statistics.median(times["control"]), 0.01)
+
+
+def _cpu_throttled(output: str) -> bool:
+    counts = [int(n) for n in re.findall(r"^nr_throttled (\d+)$", output, re.M)]
+    periods = [int(n) for n in re.findall(r"^nr_periods (\d+)$", output, re.M)]
+    if len(counts) < 2 or len(periods) < 2:
+        return False
+    # Most scheduling periods in the sample window hit the CPU limit.
+    window = periods[-1] - periods[0]
+    return window > 0 and (counts[-1] - counts[0]) >= 0.5 * window
 
 
 class LoadBalancerOverloadParams(BaseModel):
@@ -199,6 +241,73 @@ class LoadBalancerOverload(ProblemBase):
 
     def root_cause_resources(self, params: LoadBalancerOverloadParams):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: LoadBalancerOverloadParams) -> OraclePlaybook:
+        lb, client = params.host_name, params.client_host
+        cpu_stat = "grep -E '^nr_(periods|throttled) ' /sys/fs/cgroup/cpu.stat"
+        return OraclePlaybook(
+            finding=(
+                f"The NGINX load balancer on {lb} is overloaded: a surge of client "
+                "connections keeps it at its CPU limit, so requests through the VIP "
+                "slow down while the backends and the parallel web path stay fast."
+            ),
+            steps=[
+                shell(
+                    client,
+                    "for i in $(seq 5); do "
+                    f"({_timed_curl('vip', params.vip_url)}) & "
+                    f"({_timed_curl('control', params.control_url)}) & wait; done",
+                    f"From {client}, time requests through the VIP ({params.vip_url}) "
+                    f"and to the parallel web server ({params.control_url}).",
+                    Check(
+                        f"the VIP is at least {_ORACLE_VIP_SLOWDOWN:g}x slower than "
+                        "the parallel web path, which answers 200",
+                        _vip_slower_than_control,
+                    ),
+                    evidence=True,
+                    timeout=120,
+                    attempts=2,
+                ),
+                shell(
+                    params.backend_probe_host,
+                    "for i in $(seq 3); do "
+                    f"{_timed_curl('backend', params.backend_url)}; done",
+                    f"Request a VIP backend directly ({params.backend_url}).",
+                    contains(r"^backend 200 ", "the backend answers 200"),
+                    evidence=True,
+                    timeout=60,
+                ),
+                shell(
+                    lb,
+                    "cat /proc/net/sockstat",
+                    f"Read the socket counters on {lb}; a CPU-starved LB cannot afford "
+                    "a full connection listing.",
+                    Check(
+                        f"NGINX holds at least {_ORACLE_LB_CONNECTIONS} TCP sockets",
+                        lambda o: (
+                            bool(m := re.search(r"^TCP: inuse (\d+)", o, re.M))
+                            and int(m.group(1)) >= _ORACLE_LB_CONNECTIONS
+                        ),
+                    ),
+                    evidence=True,
+                    timeout=30,
+                ),
+                shell(
+                    lb,
+                    f"cat /sys/fs/cgroup/cpu.max; {cpu_stat}; sleep 3; {cpu_stat}; "
+                    "top -bn1 | head -12",
+                    f"Sample CPU use and throttling of {lb}.",
+                    Check(
+                        "the LB hits its CPU limit in most scheduling periods",
+                        _cpu_throttled,
+                    ),
+                    evidence=True,
+                    timeout=40,
+                    attempts=6,
+                    interval_sec=5,
+                ),
+            ],
+        )
 
     def _parse_load_hosts(self, params: LoadBalancerOverloadParams) -> list[str]:
         hosts = [

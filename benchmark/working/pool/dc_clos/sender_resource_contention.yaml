@@ -4,79 +4,94 @@ failure:
   fault_type: sender_resource_contention
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      client_host: client_0
+      client_host: client_2_1
       cpu_quota: '0.05'
-      dst_ip: 10.0.1.2
+      dst_ip: 10.0.1.11
       duration: '3600'
-      host_name: webserver0_pod0
-      large_url: http://web0.pod0/large.bin
-      small_url: http://web0.pod0/small.bin
+      host_name: web_1
+      large_url: http://10.0.1.11/large.bin
+      small_url: http://10.0.1.11/small.bin
       stress_cpus: '16'
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_1
       fault_type: sender_resource_contention
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      client_host: client_0
+      client_host: client_2_1
       cpu_quota: '0.05'
-      dst_ip: 10.0.1.2
+      dst_ip: 10.0.1.11
       duration: '3600'
-      host_name: webserver0_pod0
-      large_url: http://web0.pod0/large.bin
-      small_url: http://web0.pod0/small.bin
+      host_name: web_1
+      large_url: http://10.0.1.11/large.bin
+      small_url: http://10.0.1.11/small.bin
       stress_cpus: '16'
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_1
       fault_type: sender_resource_contention
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      client_host: client_0
+      client_host: client_2_1
       cpu_quota: '0.05'
-      dst_ip: 10.0.1.2
+      dst_ip: 10.0.1.11
       duration: '3600'
-      host_name: webserver0_pod0
-      large_url: http://web0.pod0/large.bin
-      small_url: http://web0.pod0/small.bin
+      host_name: web_1
+      large_url: http://10.0.1.11/large.bin
+      small_url: http://10.0.1.11/small.bin
       stress_cpus: '16'
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_1
       fault_type: sender_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      client_host: client_0
+      client_host: client_2_1
       cpu_quota: '0.05'
-      dst_ip: 10.0.1.2
+      dst_ip: 10.0.1.11
       duration: '3600'
-      host_name: webserver0_pod0
-      large_url: http://web0.pod0/large.bin
-      small_url: http://web0.pod0/small.bin
+      host_name: web_1
+      large_url: http://10.0.1.11/large.bin
+      small_url: http://10.0.1.11/small.bin
       stress_cpus: '16'
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_1
       fault_type: sender_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      client_host: client_0
+      client_host: client_2_1
       cpu_quota: '0.05'
-      dst_ip: 10.0.1.2
+      dst_ip: 10.0.1.11
       duration: '3600'
-      host_name: webserver0_pod0
-      large_url: http://web0.pod0/large.bin
-      small_url: http://web0.pod0/small.bin
+      host_name: web_1
+      large_url: http://10.0.1.11/large.bin
+      small_url: http://10.0.1.11/small.bin
       stress_cpus: '16'
     root_causes:
     - resource:
         kind: node
-        node: webserver0_pod0
+        node: web_1
       fault_type: sender_resource_contention

@@ -45,7 +45,6 @@ from nika.workflows.leaderboard.schema import (
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 from nika.workflows.leaderboard.validate_trajectories import (
     sibling_trajectories_dir,
-    validate_trajectory_package,
 )
 
 
@@ -353,13 +352,14 @@ def _submit_packed_package(
             )
 
     if not skip_validate:
-        validate_leaderboard_submission(
-            root, release_source=release_source
-        ).raise_if_failed()
-        if traj_root is not None:
-            validate_trajectory_package(
-                traj_root, scores_dir=root, release_source=release_source
-            ).raise_if_failed()
+        report = validate_leaderboard_submission(
+            root, trajectories_dir=traj_root, release_source=release_source
+        )
+        report.raise_if_failed()
+        if report.audit is not None:
+            from nika.audit.runner import write_report
+
+            write_report(report.audit, root / "audit.json")
 
     traj_remote: str | None = None
     traj_pr_url: str | None = None

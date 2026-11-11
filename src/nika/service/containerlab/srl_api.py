@@ -19,6 +19,18 @@ _BGP_ACL_PORTS = ("destination-port", "source-port")
 _CPM_IPV4_ENTRY_RE = re.compile(
     r"^set / acl acl-filter cpm type ipv4 entry (\d+) (.+)$", re.MULTILINE
 )
+# OSPF is IP protocol 89; the default CPM filter accepts it by number.
+_OSPF_ACL_MATCHES = {"match ipv4 protocol 89", "match ipv4 protocol ospf"}
+_SRL_OSPF_INTERFACE_RE = re.compile(
+    r"^(?:set )?/ network-instance default protocols ospf instance (\S+) area (\S+) "
+    r"interface (\S+)\s*(.*)$",
+    re.MULTILINE,
+)
+
+
+def _is_data(subinterface: str) -> bool:
+    return subinterface.startswith("ethernet-")
+
 
 # Containerlab maps SRL YANG interfaces to Linux veth names in the netns.
 _SRL_SUBIF_TO_LINUX: dict[str, str] = {
@@ -44,6 +56,40 @@ def srl_linux_intf(name: str) -> str:
     return name.split(".")[0]
 
 
+def srl_subif(name: str) -> str:
+    """Map a plan, Containerlab, or NOS interface name to an SR Linux subinterface."""
+    base, _, index = name.partition(".")
+    port = srl_linux_intf(base)
+    if port.startswith("e1-"):
+        return port.replace("e1-", "ethernet-1/", 1) + "." + (index or "0")
+    return name if "." in name else name + ".0"
+
+
+def srl_json(output: str) -> dict:
+    """Decode SR Linux JSON and remove YANG module prefixes from object keys."""
+    if not output.lstrip().startswith("{"):
+        raise ValueError(f"SR Linux did not return JSON: {output[:200]}")
+
+    def unqualified(value):
+        if isinstance(value, dict):
+            return {k.split(":")[-1]: unqualified(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [unqualified(v) for v in value]
+        return value
+
+    return unqualified(json.loads(output))
+
+
+def srl_instance(output: str, protocol: str) -> dict:
+    """Read the single configured protocol instance in network-instance default."""
+    data = srl_json(output)
+    ni = next(n for n in data["network-instance"] if n["name"] == "default")
+    instances = ni["protocols"][protocol]["instance"]
+    if len(instances) != 1:
+        raise ValueError(f"Expected one SR Linux {protocol} instance")
+    return instances[0]
+
+
 class SRLAPIMixin:
     """Interfaces to interact with Nokia SR Linux routers in Containerlab labs."""
 
@@ -61,7 +107,9 @@ class SRLAPIMixin:
         *,
         timeout: float = 30.0,
     ) -> str:
-        script = "sr_cli <<'EOF'\n" + "\n".join(lines) + "\nEOF"
+        script = (
+            "PYTHONDONTWRITEBYTECODE=1 sr_cli <<'EOF'\n" + "\n".join(lines) + "\nEOF"
+        )
         return self.exec_cmd(device_name, script, timeout=timeout)
 
     def _srl_candidate(
@@ -85,7 +133,30 @@ class SRLAPIMixin:
     ) -> str:
         """Run a one-shot ``sr_cli`` command on ``device_name``."""
         escaped = command.replace("\\", "\\\\").replace('"', '\\"')
-        return self.exec_cmd(device_name, f'sr_cli "{escaped}"', timeout=timeout)
+        return self.exec_cmd(
+            device_name,
+            f'PYTHONDONTWRITEBYTECODE=1 sr_cli "{escaped}"',
+            timeout=timeout,
+        )
+
+    def srl_align_saved_configs(
+        self: SupportsSRL, nodes: list[str], timestamp: float
+    ) -> None:
+        """Save each peer's running configuration and refresh the saved-file metadata."""
+        from nika.runtime.shared.config_files import rewrite_saved_config_files
+        from nika.utils.parallel import bounded_parallel_map
+
+        def save(node):
+            output = self.srl_exec_cli(node, "save startup")
+            if "Saved current running configuration" not in output:
+                raise RuntimeError(
+                    f"Could not save SR Linux configuration on {node}: {output}"
+                )
+
+        bounded_parallel_map(save, nodes)
+        rewrite_saved_config_files(
+            self.exec_cmd, nodes, "/etc/opt/srlinux", "config.json", timestamp
+        )
 
     def srl_get_bgp_as(self: SupportsSRL, device_name: str) -> int:
         output = self.srl_exec_cli(
@@ -101,6 +172,109 @@ class SRLAPIMixin:
         raise ValueError(
             f"Could not determine BGP ASN on SRL node {device_name!r}: {output!r}"
         )
+
+    def srl_read(
+        self: SupportsSRL, device_name: str, path: str, *, state: bool = True
+    ) -> dict:
+        """Read a configuration or operational subtree as JSON."""
+        datastore = "state" if state else "running"
+        return srl_json(
+            self.srl_exec_cli(device_name, f"info from {datastore} {path} | as json")
+        )
+
+    def srl_protocol_instance(
+        self: SupportsSRL, device_name: str, protocol: str, *, state: bool = True
+    ) -> dict:
+        datastore = "state" if state else "running"
+        return srl_instance(
+            self.srl_exec_cli(
+                device_name,
+                f"info from {datastore} network-instance default protocols {protocol} | as json",
+            ),
+            protocol,
+        )
+
+    def srl_configure(self: SupportsSRL, device_name: str, *commands: str) -> None:
+        """Commit CLI changes, rejecting an unsuccessful candidate transaction."""
+        output = self._srl_candidate(device_name, *commands)
+        if "All changes have been committed" not in output or re.search(
+            r"error:|parsing error|failed to", output, re.I
+        ):
+            raise ValueError(f"SR Linux commit failed on {device_name!r}: {output}")
+
+    def srl_routes(self: SupportsSRL, device_name: str, protocol: str) -> set[str]:
+        """Read active IPv4 prefixes installed by a protocol in the NOS route table."""
+        data = self.srl_read(
+            device_name, "network-instance default route-table ipv4-unicast"
+        )
+        table = data["network-instance"][0]["route-table"]["ipv4-unicast"]
+        route_type = "ospfv2" if protocol == "ospf" else protocol
+        return {
+            row["ipv4-prefix"]
+            for row in table.get("route", [])
+            if row.get("active")
+            and row.get("route-type", "").split(":")[-1].lower() == route_type
+        }
+
+    def srl_ospf_neighbors(self: SupportsSRL, device_name: str) -> list[dict]:
+        instance = srl_instance(
+            self.srl_exec_cli(
+                device_name,
+                "info from state network-instance default protocols ospf instance * area * interface * | as json",
+            ),
+            "ospf",
+        )
+        return [
+            {
+                "router_id": n["router-id"],
+                "address": n["address"],
+                "state": n["adjacency-state"].split(":")[-1],
+                "iface": srl_linux_intf(interface["interface-name"]),
+            }
+            for area in instance.get("area", [])
+            for interface in area.get("interface", [])
+            for n in interface.get("neighbor", [])
+        ]
+
+    def srl_isis_neighbors(self: SupportsSRL, device_name: str) -> list[dict]:
+        instance = srl_instance(
+            self.srl_exec_cli(
+                device_name,
+                "info from state network-instance default protocols isis instance * interface * | as json",
+            ),
+            "isis",
+        )
+        return [
+            {
+                "system": n["neighbor-system-id"].lower(),
+                "state": n["state"],
+                "intf": srl_linux_intf(interface["interface-name"]),
+            }
+            for interface in instance.get("interface", [])
+            for n in interface.get("adjacency", [])
+        ]
+
+    def srl_bgp_neighbors(self: SupportsSRL, device_name: str) -> dict[str, dict]:
+        data = self.srl_read(device_name, "network-instance default protocols bgp")
+        bgp = data["network-instance"][0]["protocols"]["bgp"]
+        return {
+            n["peer-address"]: {"state": n["session-state"], "notification": None}
+            for n in bgp.get("neighbor", [])
+        }
+
+    def srl_bgp_received_prefixes(
+        self: SupportsSRL, device_name: str, peer: str
+    ) -> set[str]:
+        data = self.srl_read(
+            device_name,
+            "network-instance default bgp-rib afi-safi ipv4-unicast ipv4-unicast rib-in-out rib-in-post",
+        )
+        if not data:
+            return set()
+        rib = data["network-instance"][0]["bgp-rib"]["afi-safi"][0]["ipv4-unicast"][
+            "rib-in-out"
+        ].get("rib-in-post", {})
+        return {r["prefix"] for r in rib.get("route", []) if r["neighbor"] == peer}
 
     def srl_set_bgp_as(self: SupportsSRL, device_name: str, asn: int) -> None:
         self._srl_candidate(
@@ -119,36 +293,135 @@ class SRLAPIMixin:
             entries.setdefault(int(seq), []).append(rest)
         return entries
 
+    def _srl_cpm_drop_sequences(
+        self: SupportsSRL, device_name: str, matches: set[str], count: int
+    ) -> list[int]:
+        """Choose ``count`` adjacent free CPM IPv4 filter sequence IDs.
+
+        The drops must precede the lowest entry that accepts traffic with one
+        of ``matches`` (the first entry when none does); they take the middle
+        of the nearest gap with ``count`` free IDs below it.
+        """
+        entries = self._srl_cpm_ipv4_entries(device_name)
+        if not entries:
+            raise ValueError(f"SRL node {device_name!r} has no CPM IPv4 filter entries")
+        accepts = [
+            seq
+            for seq, lines in entries.items()
+            if not matches.isdisjoint(lines)
+            and any(line.startswith("action accept") for line in lines)
+        ]
+        anchor = min(accepts or entries)
+        hi = anchor
+        for lo in [*sorted((seq for seq in entries if seq < anchor), reverse=True), 0]:
+            if hi - lo > count:
+                first = min((lo + hi) // 2, hi - count)
+                return list(range(first, first + count))
+            hi = lo
+        raise ValueError(
+            f"No {count} adjacent free CPM IPv4 filter sequence IDs before entry "
+            f"{anchor} on SRL node {device_name!r}"
+        )
+
     def srl_bgp_acl_drop_179_entries(
         self: SupportsSRL, device_name: str
     ) -> dict[int, str]:
         """Choose free CPM filter sequence IDs for the TCP/179 drop entries.
 
-        The drops must precede the lowest entry accepting TCP/179 (the first
-        entry when none does); they take the middle of the nearest gap with
-        two free IDs below it. Returns sequence ID -> transport port field.
+        Returns sequence ID -> transport port field.
         """
-        entries = self._srl_cpm_ipv4_entries(device_name)
-        if not entries:
-            raise ValueError(f"SRL node {device_name!r} has no CPM IPv4 filter entries")
         bgp_matches = {f"match transport {port} value 179" for port in _BGP_ACL_PORTS}
-        bgp_accepts = [
-            seq
-            for seq, lines in entries.items()
-            if not bgp_matches.isdisjoint(lines)
-            and any(line.startswith("action accept") for line in lines)
-        ]
-        anchor = min(bgp_accepts or entries)
-        hi = anchor
-        for lo in [*sorted((seq for seq in entries if seq < anchor), reverse=True), 0]:
-            if hi - lo > 2:
-                first = min((lo + hi) // 2, hi - 2)
-                return dict(zip((first, first + 1), _BGP_ACL_PORTS))
-            hi = lo
-        raise ValueError(
-            f"No two adjacent free CPM IPv4 filter sequence IDs before entry "
-            f"{anchor} on SRL node {device_name!r}"
+        sequences = self._srl_cpm_drop_sequences(
+            device_name, bgp_matches, len(_BGP_ACL_PORTS)
         )
+        return dict(zip(sequences, _BGP_ACL_PORTS))
+
+    def srl_add_ospf_acl_drop(self: SupportsSRL, device_name: str) -> list[int]:
+        """Drop OSPF (IP protocol 89) in the CPM filter ahead of its accept entry.
+
+        OSPF runs in the ``srbase-default`` netns, so root-netns iptables
+        rules never see it. Returns the drop entry's sequence ID.
+        """
+        sequences = self._srl_cpm_drop_sequences(device_name, _OSPF_ACL_MATCHES, 1)
+        entry = f"/acl acl-filter cpm type ipv4 entry {sequences[0]}"
+        self._srl_candidate(
+            device_name,
+            f"{entry} description {BGP_ACL_DESCRIPTION}",
+            f"{entry} match ipv4 protocol 89",
+            f"{entry} action drop",
+        )
+        # Reset adjacencies so the drop takes effect now instead of at
+        # dead-interval expiry. ``tools`` rejects wildcards, so clear each
+        # OSPF data interface.
+        commands: list[str] = []
+        seen: set[tuple[str, str, str]] = set()
+        for instance, area, iface, _rest in self._srl_ospf_flat(
+            device_name, "running", ""
+        ):
+            if not _is_data(iface):
+                continue
+            key = (instance, area, iface)
+            if key in seen:
+                continue
+            seen.add(key)
+            commands.append(
+                "tools network-instance default protocols ospf "
+                f"instance {instance} area {area} interface {iface} neighbors clear"
+            )
+        if commands:
+            self._srl_run_script(device_name, commands)
+        return sequences
+
+    def srl_ospf_acl_drop_present(
+        self: SupportsSRL, device_name: str, sequences: list[int]
+    ) -> bool:
+        """Return True when every entry in ``sequences`` drops OSPF."""
+        entries = self._srl_cpm_ipv4_entries(device_name)
+        return bool(sequences) and all(
+            not _OSPF_ACL_MATCHES.isdisjoint(entries.get(seq, []))
+            and "action drop" in entries.get(seq, [])
+            for seq in sequences
+        )
+
+    def _srl_ospf_flat(self: SupportsSRL, device_name: str, source: str, leaf: str):
+        output = self.srl_exec_cli(
+            device_name,
+            f"info flat from {source} network-instance default protocols ospf "
+            f"instance * area * interface * {leaf}",
+        )
+        return _SRL_OSPF_INTERFACE_RE.findall(output)
+
+    def srl_ospf_interfaces(self: SupportsSRL, device_name: str) -> list[str]:
+        """Return the data subinterfaces OSPF is configured on."""
+        rows = self._srl_ospf_flat(device_name, "running", "")
+        return sorted(
+            {iface for _instance, _area, iface, _rest in rows if _is_data(iface)}
+        )
+
+    def srl_ospf_neighbor_interfaces(self: SupportsSRL, device_name: str) -> list[str]:
+        """Return the subinterface of each Full OSPF adjacency, one per neighbor."""
+        rows = self._srl_ospf_flat(device_name, "state", "neighbor * adjacency-state")
+        return sorted(
+            iface
+            for _instance, _area, iface, rest in rows
+            if rest.split()[-1:] == ["full"] and _is_data(iface)
+        )
+
+    def srl_remove_ospf_interface(
+        self: SupportsSRL, device_name: str, interface: str
+    ) -> None:
+        """Delete ``interface`` from its OSPF area."""
+        for instance, area, iface, _rest in self._srl_ospf_flat(
+            device_name, "running", ""
+        ):
+            if iface == interface:
+                self._srl_candidate(
+                    device_name,
+                    f"delete /network-instance default protocols ospf instance "
+                    f"{instance} area {area} interface {iface}",
+                )
+                return
+        raise ValueError(f"OSPF does not run on {device_name}:{interface}")
 
     def srl_add_bgp_acl_drop_179(self: SupportsSRL, device_name: str) -> dict[int, str]:
         """Drop BGP TCP/179 in the CPM filter, then reset established peers.
@@ -255,32 +528,6 @@ class SRLAPIMixin:
             f"group {STATIC_NHG}",
         )
         return prefix_str in routes and "blackhole" in nhg.lower()
-
-    def srl_advertise_prefix(self: SupportsSRL, device_name: str, prefix: str) -> None:
-        """Advertise ``prefix`` by attaching it to a dedicated loopback interface."""
-        network = ipaddress.ip_network(prefix, strict=False)
-        if network.prefixlen == 31:
-            hosts = list(network.hosts())
-            host_addr = hosts[-1] if hosts else network.network_address + 1
-            lo_addr = f"{host_addr}/{network.prefixlen}"
-        else:
-            host_addr = next(network.hosts(), network.network_address + 1)
-            lo_addr = f"{host_addr}/{network.prefixlen}"
-
-        self._srl_candidate(
-            device_name,
-            "/interface lo1 admin-state enable",
-            f"/interface lo1 subinterface 0 ipv4 address {lo_addr}",
-            "/network-instance default interface lo1.0",
-        )
-
-    def srl_prefix_advertised(self: SupportsSRL, device_name: str, prefix: str) -> bool:
-        output = self.srl_exec_cli(
-            device_name,
-            f"show network-instance default protocols bgp routes ipv4 prefix {prefix}",
-        )
-        prefix_base = prefix.split("/")[0]
-        return prefix_base in output or prefix in output
 
     def srl_add_blackhole_route_leak(
         self: SupportsSRL, device_name: str, prefix: str

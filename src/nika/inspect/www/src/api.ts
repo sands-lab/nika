@@ -150,9 +150,39 @@ export interface LlmStatsResponse {
   stats: Record<string, LlmRequestStats>;
 }
 
+export interface ScheduleOccurrence {
+  kind: "failure" | "traffic";
+  event_index: number;
+  occurrence_index: number;
+  occurrence_count: number;
+  label: string;
+  state: string;
+  planned_start: number;
+  planned_stop: number | null;
+  actual_start: number | null;
+  verified_at: number | null;
+  actual_stop: number | null;
+}
+
+export interface ScheduleProgress {
+  state: string;
+  started_at: string | null;
+  elapsed_sec: number;
+  completed_operations: number;
+  total_operations: number;
+  active_occurrences: number;
+  agent_start: number | null;
+  agent_actual_start: number | null;
+  next_label: string | null;
+  next_at: number | null;
+  error: string | null;
+  occurrences: ScheduleOccurrence[];
+}
+
 export interface SessionDetail extends SessionSummary {
   run: Record<string, unknown>;
   task_description?: string | null;
+  schedule?: ScheduleProgress | null;
 }
 
 export interface SessionFacets {

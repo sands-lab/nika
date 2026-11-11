@@ -32,7 +32,7 @@ AgentENV needs no account and keeps everything on your host. Docker Sandboxes al
 | [Custom agents](../agents/custom-agents.md) (`custom.<name>`) | `shell` | `langgraph`, plus the class's `dependencies` |
 | [Added agents](../agents/agent-reference.md#custom-agent-registration) | `shell`, or the manifest's `sandbox.base` | `langgraph`, plus the agent's own dependencies |
 
-The templates are Docker's `docker/sandbox-templates` images. sbx runs them directly; E2B runs templates that NIKA builds from them (see [E2B templates](#e2b-templates)). Each package set is pinned in [`src/nika/agents/sandbox/requirements/`](../../src/nika/agents/sandbox/requirements/), so agents need nothing installed in NIKA's environment. Only the `mock` test agent runs in the NIKA process, because it reads the ground truth.
+The templates are Docker's `docker/sandbox-templates` images. sbx runs them directly; E2B runs templates that NIKA builds from them (see [E2B templates](#e2b-templates)). Each package set is pinned in [`src/nika/agents/sandbox/requirements/`](../../src/nika/agents/sandbox/requirements/), so agents need nothing installed in NIKA's environment. Only the `mock` and `oracle` agents run in the NIKA process, because they read the ground truth.
 
 ## Set up the runtime
 
@@ -61,6 +61,7 @@ The container runs privileged with the host's `/dev`, because AgentENV starts ea
 
 - On Linux, your user needs read/write access to `/dev/kvm`, usually through the `kvm` group. `sbx diagnose` checks virtualization support. See [Manual sbx installation](installation.md#install-a-sandbox-runtime) for other install methods.
 - `sbx login` authenticates Docker; agent credentials require separate setup.
+- NIKA supports the Balanced and deny-all global network policies of sbx. It initializes Balanced only when sbx has no policy. Under Open (`allow-all`), runs stop before anything is deployed; see [Runs stop because sbx allows all traffic](#runs-stop-because-sbx-allows-all-traffic).
 
 ### Connect to E2B cloud or another E2B-compatible service
 
@@ -151,7 +152,7 @@ To control each stage, run the same agent on an existing session. `nika env run`
 
 ```bash
 uv run nika env run dc_clos -s s
-uv run nika failure inject link_down --set host_name=client_0 --set intf_name=eth0
+uv run nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
 uv run nika agent run
 uv run nika session close -y
 uv run nika eval metrics --session_id <session_id>
@@ -272,6 +273,22 @@ Each agent run gets its own sandbox, workspace, and host MCP gateway on an ephem
 Claude Code runs with `--strict-mcp-config` and without `WebSearch`, `WebFetch`, or claude.ai connectors; Codex runs with web search disabled. The agent reaches the network only through its MCP tools.
 
 ## Troubleshoot sandbox runs
+
+### Runs stop because sbx allows all traffic
+
+NIKA limits each agent sandbox to its MCP gateway and model proxy by denying, for that sandbox, every host the global sbx policy allows. In sbx a deny always wins over an allow, so under the Open preset (`allow-all`, global rule `**`) the deny would also block the gateway and the proxy, and the agent could reach nothing. NIKA therefore stops the run with an error before it deploys anything.
+
+To keep your host's sbx policy, use [AgentENV on this host](#run-agentenv-in-docker) with `./scripts/install.sh --with-agentenv`, or [connect to E2B cloud](#connect-to-e2b-cloud-or-another-e2b-compatible-service). Both use `nika.sandbox.backend: e2b` and confine each sandbox independently of sbx. Run your original NIKA command again after configuring the selected runtime.
+
+NIKA retains sbx support and does not reset an existing host policy.
+
+Changing the host policy affects other sandboxes. If you choose Balanced instead:
+
+```bash
+sbx policy reset   # stops running sandboxes, then asks for a preset: choose Balanced
+```
+
+The global policy applies to all your sandboxes, and the reset removes the global rules you added; add back the ones your other sandboxes need with `sbx policy allow network`.
 
 ### `sbx create` fails with a KVM error
 

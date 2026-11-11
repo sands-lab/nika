@@ -7,6 +7,7 @@ from uuid import uuid4
 import docker
 
 from nika.net_env.p4_dc_fabric.topology_model import SWITCH_IMAGE
+from nika.utils.docker_files import upload_paths, read_file
 
 
 def compile_forwarding_slice(program: Path, output: Path):
@@ -27,18 +28,18 @@ def compile_forwarding_slice(program: Path, output: Path):
             network_disabled=True,
             mem_limit="2g",
             nano_cpus=2_000_000_000,
-            volumes={
-                str(program.parent): {"bind": "/input", "mode": "ro"},
-                str(output.resolve()): {"bind": "/output", "mode": "rw"},
-            },
         )
         try:
+            upload_paths(container, {"/input": program.parent, "/output": output})
             container.start()
             status = container.wait(timeout=120)["StatusCode"]
             log = container.logs().decode(errors="replace")
             (output / "compiler.log").write_text(log)
             if status:
                 raise RuntimeError("P4 compilation failed; see compiler.log")
+            (output / "pipeline.json").write_bytes(
+                read_file(container, "/output/pipeline.json")
+            )
         finally:
             container.remove(force=True)
     finally:

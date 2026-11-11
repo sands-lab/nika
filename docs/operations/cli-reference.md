@@ -25,6 +25,7 @@ Sessions (`runtime/`) and caches (`.nika_cache/`) live in the main Git checkout 
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
 | `nika observability` | Turn monitoring of benchmark progress and lab CPU and memory `on` / `off`, viewed in Grafana; see [monitor benchmarks and lab resources](resource-monitoring.md) |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
+| `nika engine` | Build the benchmark engine image of a published release; see [benchmark engine](#nika-engine) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `matrix-replay`, `burst`) against the running lab |
 | `nika tui` | Interactive shell with slash commands and guided forms over this CLI (bare `nika` in a terminal opens it too); see [interactive shell](tui.md) |
 
@@ -134,9 +135,8 @@ Aligned with `nika agent run`:
 - **`nika session inspect [--session_id ID] [-c]`**: print the session document as JSON plus a table of `failure_injections`. Pass **`-c` / `--containers`** to also list running lab containers (docker-ps style). Auto-selects when only one session is running.
 - **`nika session containers [--session_id ID]`**: list containers in the session lab (CONTAINER ID, NAME, IMAGE, STATUS, NAMES). Auto-selects when only one session is running.
 - **`nika session close [--session_id ID] [-y]`**: undeploy the lab, mark failure records ended, and remove the runtime session file. If you omit `--session_id` with one running session, NIKA selects it. **`-y`** skips the confirmation prompt.
-- **`nika session wipe [-y]`**: close every running session and wipe all leftover Kathara, Containerlab, and runtime working files.
+- **`nika session wipe [-y]`**: close every running session, stop host flap workers, remove labeled helper containers, and wipe leftover Kathara, Containerlab, and runtime working files.
 
----
 ---
 
 ## `nika inspect`
@@ -161,7 +161,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 ## `nika env`
 
 - **`nika env list`**: print registered scenario ids.
-- **`nika env run NAME [-s s|m|l] [--telemetry KIND] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG] [--result_dir PATH]`**: deploy one instance, run configured runtime verification, create a session, and print `session_id=…`. Repeat `--telemetry` for `netflow`, `prometheus`, and `syslog`; see [Telemetry](network-scenarios.md#telemetry). Batfish follows `nika.static_validation.enabled` (CLI flags override it for one run). Runtime depth follows `nika.runtime_validation.depth` (default `light`).
+- **`nika env run NAME [-s s|m|l] [--telemetry KIND] [--traffic PATTERN[,KEY=VALUE...]] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG] [--result_dir PATH]`**: deploy one instance, run configured runtime verification, create a session, and print `session_id=…`. Repeat `--telemetry` for `netflow`, `prometheus`, and `syslog`; see [Telemetry](network-scenarios.md#telemetry). `--traffic` adds a background traffic profile, such as `--traffic gravity,load_mbps=4`; see [Background traffic profiles](network-scenarios.md#background-traffic-profiles). Batfish follows `nika.static_validation.enabled` (CLI flags override it for one run). Runtime depth follows `nika.runtime_validation.depth` (default `light`).
 
   Deploy options for ISP and multi-backend scenarios:
 
@@ -173,10 +173,9 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
   | `--bgp-mode none\|ibgp_rr\|ebgp` | BGP preset for ISP topology scenarios (default `none`) |
   | `--rpki` / `--no-rpki` | Deprecated for base ISP scenarios. Use the named scenarios `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` |
   | `--backend kathara\|containerlab` | Lab backend. Required when a scenario supports both; ISP defaults to `kathara` |
-  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` on Containerlab; the default follows `--backend`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros`. RouterOS supports only size `s` in these three environments. IOS XR supports only size `s` for `dc_clos`, and all sizes for `campus_lan` and `enterprise_branch`. See [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
+  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux\|sonic` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` and `sonic` on Containerlab; the default follows `--backend`. `min3clos` accepts `nokia_srlinux` (default) and `sonic`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros`. RouterOS supports only size `s` in these three environments. IOS XR supports only size `s` for `dc_clos`, and all sizes for `campus_lan` and `enterprise_branch`. See [SONiC routers](network-scenarios.md#sonic-routers-on-containerlab), [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
----
 ---
 
 ## `nika failure`
@@ -186,7 +185,6 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 - **`nika failure inject PROBLEM [PROBLEM …] [--session_id ID] [--set key=value …]`**: inject for a selected running session and write ground truth. Repeat **`--set`** to override injection parameters (see `describe` for valid keys).
 - **`nika failure ps [--session_id ID]`**: list persisted failure injection records for one session.
 
----
 ---
 
 ## `nika exec`
@@ -206,7 +204,6 @@ Example: `nika exec --timeout 30 pc1 ping -c 3 10.0.0.2`
 Put options before `HOST`. `nika exec` passes every argument after `HOST` to the container command, so a trailing `--timeout 30` becomes a `ping` argument and the timeout stays at 10 seconds.
 
 ---
----
 
 ## `nika config`
 
@@ -217,7 +214,6 @@ The tracked template is `config/nika.example.yaml` (preferred for new setups). P
 
 Lab deployment and verification timings live under `nika.lab`. MCP client and gateway settings live under `nika.mcp`. The `byo.langgraph` LLM client reads timeout and retry settings from `agent.llm`. See the [run configuration reference](configuration.md) for defaults and constraints.
 
----
 ---
 
 ## `nika agent`
@@ -236,7 +232,7 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
   | Scenario type | Label | Example |
   |---------------|--------|---------|
-  | Non-scalable | `{scenario}_{problem}` | `simple_bgp_link_down` |
+  | Non-scalable | `{scenario}_{problem}` | `min3clos_link_down` |
   | Scalable | `{scenario}_{size}_{problem}` with size `s`, `m`, or `l` | `dc_clos_s_link_down` |
 
   Discover pieces with `nika env list` and `nika failure list`.
@@ -269,18 +265,17 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
     --problem dc_clos_s_link_down
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20 \
-    --problem dc_clos_s_link_down --set host_name=pc_0_0 --set intf_name=eth0
+    --problem dc_clos_s_link_down --set host_name=client_1_1 --set intf_name=eth0
 
   # Session mode (manual lab control)
   nika env run dc_clos -s s
-  nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
+  nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
   nika agent run -a cli.codex -m gpt-5-mini -e medium
   nika session close -y
   ```
 
   Manual lab/session commands are documented under **`nika env`**, **`nika failure`**, and **`nika session`** below.
 
----
 ---
 
 ## `nika benchmark`
@@ -323,10 +318,10 @@ nika benchmark run --release 0.2.0 --split test \
 | Command | What it does |
 |---------|----------------|
 | `nika benchmark list` | Without `--release` or `--config`, prints one row per frozen release: version, default split, case count per split, `n_trials`, and status. It reads only the `RELEASE.yaml` manifests and skips preflight. With `--release` (optionally `--split`) or `--config`, prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for each case. Add `--json` for scripts. |
-| `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. |
+| `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. `--oracle` also prints the task's reference diagnosis, the oracle's playbook steps (see [Oracle solver](../benchmarks/oracle-solver.md)). |
 | `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before the run starts. |
 | `nika benchmark run --skip-licensed` | `--config` batch mode only. Leaves out rows that need licensed vendor images: IOS XR and RouterOS `device_profile` rows, `iosxr_simple_bgp`, `routeros_simple_bgp`. Without it, a run that needs a missing licensed image stops before any lab starts and lists the affected rows. |
-| `nika benchmark run --device-profile NAME` | `--config` batch mode only. Repeatable. Runs only rows of these router platforms (`frr`, `nokia_srlinux`, `iosxr`, `routeros`); an explicit `device_profile` takes precedence, otherwise the filter uses the environment's uniquely declared native platform, with `frr` as the fallback. For example, `routeros_simple_bgp` rows count as `routeros` without the field. |
+| `nika benchmark run --device-profile NAME` | `--config` batch mode only. Repeatable. Runs only rows of these router platforms (`frr`, `nokia_srlinux`, `sonic`, `iosxr`, `routeros`); an explicit `device_profile` takes precedence. Otherwise Containerlab rows count as `nokia_srlinux`, and other rows use the environment's uniquely declared native platform, with `frr` as the fallback. For example, `routeros_simple_bgp` rows count as `routeros` without the field. |
 
 ### Run layout and artifacts
 
@@ -336,7 +331,7 @@ For batch `--config` or `--release`, `--result_dir` is the run root (see [Result
 
 Release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`. Ad-hoc `--config` runs write `run.json` only. NIKA writes these files after you confirm the plan. Each trial `run.json` is stamped with `benchmark_id` / `benchmark_version` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live progress of release and ad-hoc runs is under `runtime/benchmark_runs/{run_id}.json`.
 
-The result-dir `run.json` records the run identity: `agent_type`, `model`, `llm_provider`, `max_steps`, `max_tokens`, `reasoning_effort`, `agent_timeout_sec`, `access_role`, `n_trials`, `case_timeout_sec`, `official`, and the release `benchmark_id` / `version` / `split`. A resume with a different value for any of these fails before the plan prints; use a new `--result_dir` instead. Each resume from a different git commit appends an entry to `nika_git_history`.
+The result-dir `run.json` records the run identity: `agent_type`, `model`, `llm_provider`, `max_steps`, `max_tokens`, `reasoning_effort`, `agent_timeout_sec`, `access_role`, `n_trials`, `case_timeout_sec`, `official`, and the release `benchmark_id` / `version` / `split`. A resume with a different value for any of these fails before the plan prints; use a new `--result_dir` instead. Each resume from a different git commit appends an entry to `nika_git_history`. The file also records `schema_version` and a `provenance` block (NIKA version, benchmark engine and its API version, and host Docker and kernel versions); a resume with different provenance appends an entry to `provenance_history`.
 
 ### Console output
 
@@ -392,7 +387,7 @@ A failure after ground truth is written, but before the agent demonstrably start
 
 **`--session-tag TAG`** (`benchmark.session_tag`): embed `TAG` in each session id (`YYYYMMDD-HHMMSS-TAG-{hex}`).
 
-**`--role ROLE`**, **`--run-config PATH`**: same as on `nika agent run`. `--run-config` also sets the config that spawned trial workers load.
+**`--role ROLE`**, **`--run-config PATH`**: same as on `nika agent run`. `--run-config` also sets the config that spawned trial workers load. A release run uses the release's access policy and stops if the role selects a different one.
 
 ```bash
 nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-passes 2 --result_dir results/my-run
@@ -431,7 +426,7 @@ Pass **`SCENARIO`** as the first positional argument (like `nika env run NAME`),
 
 ```shell
 nika benchmark run dc_clos --problem bgp_asn_misconfig -s s \
-  --set host_name=spine_router_0_0 \
+  --set host_name=spine_1 \
   -a byo.langgraph -p openai -m gpt-5-mini -n 20
 nika eval judge -p openai -m gpt-5-mini --result_dir results/
 nika eval summary --result_dir results/
@@ -441,7 +436,6 @@ nika eval summary --result_dir results/
 - Each benchmark case gets its own lab; the lab is torn down when the session closes (before metrics).
 - LLM judge and CSV summary are separate `nika eval` steps, not part of `benchmark run`.
 
----
 ---
 
 ## `nika eval`
@@ -502,7 +496,6 @@ When you compare against the raw CSV:
 The same report prints automatically when `nika benchmark run` finishes.
 
 ---
----
 
 ## `nika leaderboard`
 
@@ -529,7 +522,6 @@ nika leaderboard submit --result_dir results/my-run \
 `nika leaderboard validate PACKAGE` checks a packed scores package, as leaderboard CI does, and exits with status 1 when it finds errors. `--format json` or `--format markdown` prints the full report, with an error code, cause, and fix for each finding, to stdout. See [validation errors](../benchmarks/leaderboard-submission.md#validation-errors).
 
 ---
----
 
 ## `nika observability`
 
@@ -555,7 +547,12 @@ Optional control plane for splitting the agent host from the lab host. See [remo
 
 When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` on the agent host, `env` / `failure` / `agent` / `session` lab ops forward to the daemon transparently.
 
----
+## `nika engine`
+
+A release whose manifest pins a benchmark engine runs on a container selected by its `engine` block. NIKA builds `engine.tag` from a Git tag or commit unless the manifest supplies an available `engine.image`. `nika benchmark run --release` resolves the image, builds it when needed, and starts the container itself; see [benchmark release contracts](../development/benchmark-contracts.md#b-lifecycle-protocol).
+
+- **`nika engine build <ref>`**: build the benchmark engine image of a Git tag or commit ahead of a run. NIKA prints the local image name.
+
 ---
 
 ## `nika traffic`
@@ -633,7 +630,6 @@ Options:
 - **`--pages-min`**, **`--pages-max`**
 - **`--no-loop`**: one browsing session per client host then exit
 
----
 ---
 
 ## Helpful paths

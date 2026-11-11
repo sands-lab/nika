@@ -2,15 +2,48 @@ from pydantic import BaseModel, Field
 
 import hashlib
 import json
+import re
+import shlex
+
+from nika.problems.support.recovery import checked_exec
 
 from nika.problems.rca import node_resource
+from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
 from nika.problems.support.benchmark_targets import endpoint_target
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    shell,
+)
 from nika.utils.logger import system_logger
+
+_MAC = r"[0-9a-f]{2}(?::[0-9a-f]{2}){5}"
+
+
+def _cached_mac_not_owner(output: str) -> bool:
+    """The cached MAC differs from every reference MAC for the same neighbor.
+
+    References are fresh ARP replies and a same-subnet peer's cache entry.
+    """
+    cached_part, _, rest = output.partition("== ARPING")
+    cached = re.search(rf"lladdr ({_MAC})", cached_part, re.IGNORECASE)
+    references = {
+        m.lower()
+        for m in re.findall(
+            rf"(?:reply from \S+ \[|bytes from |== PEER \S+ lladdr )({_MAC})",
+            rest,
+            re.IGNORECASE,
+        )
+    }
+    return bool(cached and references) and cached.group(1).lower() not in references
+
 
 # ==================================================================
 # Problem: Arp cache poisoning causing data plane issues.
@@ -45,6 +78,7 @@ class ArpCachePoisoning(ProblemBase):
     root_cause_name: str = "arp_cache_poisoning"
     description = "ARP cache is poisoned with a false MAC mapping."
     TAGS: str = ["arp"]
+    supported_backends = ("kathara", "containerlab")
 
     Params = ArpCachePoisoningParams
 
@@ -114,6 +148,10 @@ class ArpCachePoisoning(ProblemBase):
 
     def inject_fault(self, params: ArpCachePoisoningParams):
         gateway, dev = self._arp_target(params)
+        self._arp_neighbors = json.loads(
+            checked_exec(self.runtime, params.host_name, "ip -j neigh show")
+        )
+        self._arp_dev = dev
         self._poisoned_neighbor = gateway
         fake_mac = self._fake_mac(params, gateway)
         original = self.runtime.exec(
@@ -146,6 +184,12 @@ class ArpCachePoisoning(ProblemBase):
             "(apt-get update -qq && DEBIAN_FRONTEND=noninteractive "
             "apt-get install -y -qq nftables >/dev/null 2>&1)",
         )
+        self._arp_nft_table = checked_exec(
+            self.runtime,
+            params.host_name,
+            "if nft list tables | grep -qx 'table netdev filter'; then "
+            "nft list table netdev filter; fi",
+        )
         self.runtime.exec(
             params.host_name,
             "nft delete table netdev filter 2>/dev/null || true",
@@ -159,6 +203,68 @@ class ArpCachePoisoning(ProblemBase):
         self.runtime.exec(
             params.host_name,
             f"nft add rule netdev filter egress ether daddr {fake_mac} drop",
+        )
+
+    def recover_fault(self, params: ArpCachePoisoningParams) -> dict:
+        original = getattr(self, "_arp_neighbors", None)
+        if original is None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=False,
+                details={"error": "Pre-injection neighbor state is unavailable."},
+            )
+        gateway = self._poisoned_neighbor
+        dev = self._arp_dev
+        current = json.loads(
+            checked_exec(self.runtime, params.host_name, "ip -j neigh show")
+        )
+        fake = self._fake_mac(params, gateway).lower()
+        for entry in current:
+            if entry.get("dst") == gateway and entry.get("lladdr", "").lower() == fake:
+                checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    f"ip neigh del {shlex.quote(entry['dst'])} dev {shlex.quote(entry['dev'])}",
+                )
+        for entry in original:
+            if not entry.get("lladdr"):
+                continue
+            # Dynamic reachability ages naturally. Restore its MAC in STALE state.
+            state = "permanent" if "PERMANENT" in entry.get("state", []) else "stale"
+            checked_exec(
+                self.runtime,
+                params.host_name,
+                f"ip neigh replace {shlex.quote(entry['dst'])} lladdr {shlex.quote(entry['lladdr'])} "
+                f"dev {shlex.quote(entry['dev'])} nud {state}",
+            )
+        if hasattr(self, "_arp_nft_table"):
+            checked_exec(
+                self.runtime,
+                params.host_name,
+                "if nft list tables | grep -qx 'table netdev filter'; then nft delete table netdev filter; fi",
+            )
+            if self._arp_nft_table:
+                checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    "printf %s " + shlex.quote(self._arp_nft_table) + " | nft -f -",
+                )
+        restored = json.loads(
+            checked_exec(self.runtime, params.host_name, "ip -j neigh show")
+        )
+        entries = {
+            (entry.get("dst"), entry.get("dev"), entry.get("lladdr", "").lower())
+            for entry in restored
+        }
+        expected = {
+            (entry.get("dst"), entry.get("dev"), entry["lladdr"].lower())
+            for entry in original
+            if entry.get("lladdr")
+        }
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=expected.issubset(entries),
+            details={"host": params.host_name, "gateway": gateway, "interface": dev},
         )
 
     def verify_fault(self, params: ArpCachePoisoningParams) -> dict:
@@ -188,4 +294,83 @@ class ArpCachePoisoning(ProblemBase):
                 "neigh_entry": neigh_output,
                 "gateway_neigh": gw_entry,
             },
+        )
+
+    def _same_segment_peer(self, host: str) -> str | None:
+        """Another end host attached to the same device as *host* (topology)."""
+        candidates = list(self.net_env.hosts or [])
+        for bucket in (self.net_env.servers or {}).values():
+            candidates += [name for name in bucket or [] if name not in candidates]
+        attached: dict[str, set[str]] = {}
+        for _key, tps in iter_link_termination_points(self.net_env):
+            nodes = {parse_endpoint(str(tp))[0] for tp in tps}
+            for node in nodes:
+                attached.setdefault(node, set()).update(nodes - {node})
+        uplinks = attached.get(host, set())
+        for peer in candidates:
+            if peer != host and (
+                peer in uplinks or attached.get(peer, set()) & uplinks
+            ):
+                return peer
+        return None
+
+    def oracle_playbook(self, params: ArpCachePoisoningParams) -> OraclePlaybook:
+        host = params.host_name
+        if params.target_ip:
+            target = params.target_ip.split("/")[0]
+            pick = f"nb={target}"
+            label = target
+        else:
+            pick = "nb=$(ip -4 route show default | awk '{print $3; exit}')"
+            label = "the default gateway"
+        dev = "dev=$(ip -4 route get $nb | grep -o 'dev [^ ]*' | cut -d' ' -f2)"
+        peer = self._same_segment_peer(host)
+        steps = [
+            shell(
+                host,
+                "ip -4 route; ip neigh show",
+                f"Show routes and the neighbor (ARP) table on {host}.",
+            )
+        ]
+        if peer:
+            steps.append(
+                shell(
+                    peer,
+                    f"{pick}; ping -c 1 -W 1 $nb >/dev/null 2>&1; ip neigh show $nb",
+                    f"Read the MAC that {peer}, on the same subnet, caches for {label}.",
+                    contains(rf"lladdr {_MAC}", f"{peer} resolves {label}"),
+                    save_as="peer_neigh",
+                )
+            )
+
+        def compare(outputs) -> dict:
+            command = (
+                f"{pick}; {dev}; echo neighbor=$nb dev=$dev; "
+                "echo '== CACHED'; ip neigh show $nb; "
+                "echo '== ARPING'; arping -c 3 -w 4 -I $dev $nb 2>&1 | head -8"
+            )
+            match = re.search(rf"lladdr ({_MAC})", outputs.get("peer_neigh", ""))
+            if peer and match:
+                command += f"; echo '== PEER {peer} lladdr {match.group(1)}'"
+            return {"host_name": host, "command": command, "timeout": 20}
+
+        steps.append(
+            OracleStep(
+                f"Compare {host}'s cached MAC for {label} with the MAC that answers "
+                "a fresh ARP request and the MAC a same-subnet peer caches.",
+                "exec_shell",
+                compare,
+                Check(
+                    "the cached MAC differs from the neighbor's real MAC",
+                    _cached_mac_not_owner,
+                ),
+                evidence=True,
+            )
+        )
+        return OraclePlaybook(
+            finding=(
+                f"{host}'s ARP cache maps {label} to a forged MAC that no "
+                "neighbor owns, so its frames to that neighbor are lost."
+            ),
+            steps=steps,
         )

@@ -39,6 +39,7 @@ from nika.workflows.validation.scenario_spec import (
     ScenarioExperiment,
 )
 from nika.workflows.validation.scenario_build import scenario_start_kwargs
+from nika.workflows.validation.impact import assess_fault_impact
 
 
 # XR commits and configuration replacement can take a minute on a loaded host.
@@ -86,6 +87,7 @@ def validate_scenario_design(
     parameters: RoutingParameters | None = None,
     batfish_verifier: BatfishVerifier | None = None,
     config_generator: str | None = None,
+    compare_methods: bool = False,
 ):
     if spec.routing_model == "netkat":
         from nika.workflows.validation.forwarding import validate_forwarding_design
@@ -107,6 +109,7 @@ def validate_scenario_design(
     # Save original behavior before resolving fixed address/session bindings.
     (output / "original-spec.json").write_text(spec.model_dump_json(indent=2) + "\n")
     native_srl = spec.routing_model in {"srl-bgp", "srl-isp"}
+    native_sonic = spec.routing_model == "sonic"
     native_vendor = spec.routing_model in {
         "iosxr-bgp",
         "routeros-bgp",
@@ -129,6 +132,19 @@ def validate_scenario_design(
                 "the frr or linux-static routing model"
             )
         require_native_validation(env)
+    if native_sonic:
+        if "sonic" not in env.ROUTING_MODELS:
+            raise ValueError(
+                "The sonic routing model requires a SONiC deployment "
+                "(deployment.device_profile: sonic)"
+            )
+        # SONiC routers have no native fault restoration or contract observation
+        # bound in this workflow yet; their runtime checks run in `nika env run`.
+        if runtime:
+            raise ValueError(
+                "SONiC scenario experiments cover static analysis only; native "
+                "execution is not bound for SONiC routers"
+            )
     if config_generator == "netlab":
         from nika.workflows.validation.netlab import check_netlab_scope
 
@@ -137,18 +153,13 @@ def validate_scenario_design(
     if native_srl:
         from nika.net_env.srl_validation import verify_srl_contract
 
-        if spec.routing_model == "srl-isp":
-            from nika.validation.batfish.srl_isp import build_srl_isp_snapshot
-
-            snapshot_builder = build_srl_isp_snapshot
-        else:
-            if "srl-bgp" not in env.ROUTING_MODELS or spec.completion is None:
-                raise ValueError(
-                    "SR Linux routing experiments require a supported completion sketch"
-                )
-            from nika.validation.batfish.srl import build_srl_snapshot
-
-            snapshot_builder = build_srl_snapshot
+        # Static analysis reads the design rendering; see analysis_render.
+        if spec.routing_model != "srl-isp" and (
+            "srl-bgp" not in env.ROUTING_MODELS or spec.completion is None
+        ):
+            raise ValueError(
+                "SR Linux routing experiments require a supported completion sketch"
+            )
         runtime_verifier = verify_srl_contract
         if spec.failure_checks and spec.routing_model != "srl-isp":
             raise ValueError(
@@ -185,10 +196,13 @@ def validate_scenario_design(
             raise ValueError(
                 "Native vendor experiments require vendor-specific configuration restoration"
             )
-    elif spec.routing_model == "frr-isis":
-        from nika.validation.batfish.isis import build_isis_snapshot
+    elif native_sonic:
+        from nika.validation.batfish.sonic import build_sonic_snapshot
 
-        snapshot_builder = build_isis_snapshot
+        snapshot_builder = build_sonic_snapshot
+        runtime_verifier = None
+    elif spec.routing_model == "frr-isis":
+        # Static analysis reads the design rendering; see analysis_render.
         runtime_verifier = verify_isp_contract
     else:
         snapshot_builder = build_kathara_snapshot
@@ -267,6 +281,15 @@ def validate_scenario_design(
     for failure in [*spec.failure_checks, *spec.runtime_counterexamples]:
         if not set(failure.expected_failed_ids) <= runtime_ids:
             raise ValueError("Failure checks must reference original requirement IDs")
+    for failure in spec.failure_checks:
+        if not set(failure.unconstrained_ids) <= runtime_ids:
+            raise ValueError(
+                "Unconstrained fault intents must reference original requirement IDs"
+            )
+        if set(failure.expected_failed_ids) & set(failure.unconstrained_ids):
+            raise ValueError(
+                "Mandatory and unconstrained fault intents must be disjoint"
+            )
     (output / "verification-coverage.json").write_text(
         json.dumps(
             {
@@ -312,11 +335,28 @@ def validate_scenario_design(
         )
     if native_routers:
         runtime_verifier = verify_native_router_contract(env, runtime_verifier)
+    from nika.workflows.validation.netlab import render_design_for_analysis
+
+    # Batfish cannot parse SR Linux or RouterOS. Static analysis reads their
+    # routing design rendered by netlab; native checks read the routers.
+    analysis_render, analysis_syntax = render_design_for_analysis(
+        spec, env, parameters, output / "analysis-netlab"
+    )
+    if spec.routing_model in {"srl-isp", "routeros-isp", "frr-isis"}:
+        from functools import partial
+
+        from nika.validation.batfish.snapshot import build_isp_render_snapshot
+
+        snapshot_builder = partial(build_isp_render_snapshot, device=analysis_syntax)
+    elif spec.routing_model in {"srl-bgp", "routeros-bgp"}:
+        from nika.validation.batfish.snapshot import build_lab_render_snapshot
+
+        snapshot_builder = build_lab_render_snapshot
     generated_configs = None
     if config_generator == "netlab":
         from nika.net_env.synthesis.configuration import apply_routing_configs
         from nika.workflows.validation.netlab import (
-            bind_netlab_controls,
+            bind_runtime_controls,
             generate_configs,
         )
 
@@ -330,7 +370,7 @@ def validate_scenario_design(
                 node: yaml.safe_dump(document, sort_keys=False)
                 for node, document in env.routing_documents.items()
             }
-        spec = bind_netlab_controls(
+        spec = bind_runtime_controls(
             spec,
             control_configs,
             "nokia_srlinux"
@@ -344,6 +384,11 @@ def validate_scenario_design(
         (output / "resolved-spec.json").write_text(
             spec.model_dump_json(indent=2) + "\n"
         )
+    if analysis_render:
+        analysis_dir = output / "analysis-configs"
+        analysis_dir.mkdir(exist_ok=True)
+        for name, config in analysis_render.items():
+            (analysis_dir / f"{name}.conf").write_text(config)
     candidate_dir = output / "candidate-configs"
     candidate_dir.mkdir(exist_ok=True)
     for previous in candidate_dir.iterdir():
@@ -353,6 +398,8 @@ def validate_scenario_design(
     def candidate_configs():
         if native_vendor:
             return vendor_configs(env)
+        if native_sonic:
+            return {name: r.frr_conf for name, r in env.sonic_routers.items()}
         if native_srl:
             import yaml
 
@@ -373,33 +420,68 @@ def validate_scenario_design(
         (candidate_dir / f"{name}.{'yaml' if native_srl else 'conf'}").write_text(
             config
         )
+
+    # Builders of rendered designs and vendor configs take no routing model.
+    builder_kwargs = (
+        {}
+        if native_srl or native_vendor or spec.routing_model == "frr-isis"
+        else {"routing_model": spec.routing_model}
+    )
+
+    def analysis_configs():
+        return {**candidate_configs(), **analysis_render}
+
+    def changed_configs(name, changes, edits):
+        """Configurations of a negative control for static analysis.
+
+        netlab renders the control's design changes on the routers whose
+        analyzed configuration comes from netlab. Text edits apply verbatim
+        elsewhere: to routers NIKA renders itself, and to statements NIKA
+        retains beside netlab's output.
+        """
+        configs = analysis_configs()
+        from_netlab = set(analysis_render) | set(generated_configs or ())
+        for change in changes:
+            if change.node not in from_netlab and change.node not in edits:
+                raise ValueError(f"{name} needs a text edit for {change.node}")
+        changed = {c.node for c in changes}
+        if changed & set(analysis_render):
+            rendered, _ = render_design_for_analysis(
+                spec, env, parameters, output / "changes" / name / "analysis", changes
+            )
+            configs.update({n: rendered[n] for n in analysis_render})
+        deployed = set(generated_configs or ()) - set(analysis_render)
+        if changed & deployed:
+            rendered = generate_configs(
+                spec, env, parameters, output / "changes" / name / "netlab", changes
+            )
+            configs.update({n: rendered[n] for n in deployed})
+        for node, (old, new) in edits.items():
+            if node in changed and node in from_netlab:
+                continue
+            if configs[node].count(old) != 1:
+                raise ValueError(
+                    f"{name} must identify exactly one configuration statement"
+                )
+            configs[node] = configs[node].replace(old, new, 1)
+        return configs
+
     summary = {"static": {}, "runtime": {}, "counterexamples": {}}
+    comparison = None
+    if analysis_render:
+        summary["static_analysis"] = {
+            "design_rendering": analysis_syntax,
+            "rendered_routers": sorted(analysis_render),
+            "scope": "the routing design; native configuration syntax is "
+            "checked only by native execution",
+        }
     if generated_configs is not None:
         from nika.net_env.synthesis.netlab import NETLAB_VERSION
 
+        from nika.workflows.validation.netlab import retained_capabilities
+
         summary["configuration"] = {"generator": "netlab", "version": NETLAB_VERSION}
-        retained = []
-        if spec.routing_model == "srl-bgp":
-            retained.append("existing IPv6 interface addressing")
-        elif native_srl:
-            retained.append("IGP ECMP capacity from the completed sketch")
-        if spec.routing_model == "routeros-bgp" or (
-            getattr(env, "device_profile", None) == "routeros"
-            and getattr(env, "bgp_plan", None)
-        ):
-            retained.append("exact-prefix admission and local-preference filters")
-        elif getattr(env, "bgp_plan", None) and any(
-            peer.session_type == "ibgp" for peer in env.bgp_plan.sessions
-        ):
-            retained.append("iBGP attachment of upstream-generated admission policies")
-        if "import_preferences" in env.ROUTING_PARAMETER_KINDS:
-            retained.append("default-to-business VRF imports")
-        if native_routers:
-            retained.append(
-                "native router static routes, eBGP multipath and open eBGP policies"
-            )
-        if getattr(env, "rpki", False) or getattr(env, "rtbh", False):
-            retained.append("RPKI/RTBH security policy and runtime attachments")
+        retained = retained_capabilities(spec, env)
         if retained:
             summary["configuration"]["retained"] = retained
     if parameters is not None:
@@ -440,7 +522,7 @@ def validate_scenario_design(
             incident = next((i for i in spec.incidents if i.name == name), None)
             shutdown = []
             if incident:
-                if native_srl:
+                if native_srl or native_sonic:
                     endpoint = f"{incident.host_name}:{incident.intf_name}"
                     (link,) = [
                         link
@@ -464,11 +546,8 @@ def validate_scenario_design(
                 contract,
                 output / name,
                 shutdown=shutdown,
-                **(
-                    {}
-                    if native_srl or native_vendor
-                    else {"routing_model": spec.routing_model}
-                ),
+                **({"configs": analysis_configs()} if analysis_render else {}),
+                **builder_kwargs,
             )
             summary["static"][name] = accept(
                 verifier.verify(contract, snapshot), output / f"static-{name}.json"
@@ -477,24 +556,19 @@ def validate_scenario_design(
                 "static %s %s %s", spec.scenario, name, summary["static"][name]
             )
         for mutation in spec.counterexamples:
-            configs = candidate_configs()
-            if configs[mutation.node].count(mutation.old) != 1:
-                raise ValueError(
-                    "Counterexample must identify exactly one concrete configuration statement"
-                )
-            configs[mutation.node] = configs[mutation.node].replace(
-                mutation.old, mutation.new, 1
+            configs = changed_configs(
+                mutation.name,
+                mutation.changes,
+                {}
+                if mutation.old is None
+                else {mutation.node: (mutation.old, mutation.new)},
             )
             snapshot = snapshot_builder(
                 env,
                 spec.healthy,
                 output / mutation.name,
                 configs=configs,
-                **(
-                    {}
-                    if native_srl or native_vendor
-                    else {"routing_model": spec.routing_model}
-                ),
+                **builder_kwargs,
             )
             report = verifier.verify(spec.healthy, snapshot)
             report.write(output / f"counterexample-{mutation.name}.json")
@@ -519,44 +593,41 @@ def validate_scenario_design(
             }
         predicted_failures = {}
         for failure in spec.failure_checks:
-            if not failure.static_edits:
+            if not failure.static_edits and not failure.changes:
                 continue
-            configs = candidate_configs()
-            for node, (old, new) in failure.static_edits.items():
-                if configs[node].count(old) != 1:
-                    raise ValueError(
-                        "A modeled fault must identify one concrete statement per node"
-                    )
-                configs[node] = configs[node].replace(old, new, 1)
+            configs = changed_configs(
+                failure.name, failure.changes, failure.static_edits
+            )
             snapshot = snapshot_builder(
                 env,
                 spec.healthy,
                 output / ("model-" + failure.name),
                 configs=configs,
-                **(
-                    {}
-                    if native_srl or native_vendor
-                    else {"routing_model": spec.routing_model}
-                ),
+                **builder_kwargs,
             )
             report = verifier.verify(spec.healthy, snapshot)
             report.write(output / ("model-" + failure.name + ".json"))
-            failed = {r.intent for r in report.results if r.status == "failed"}
-            if (
-                not set(failure.expected_failed_ids) <= failed
-                or any(r.status not in {"passed", "failed"} for r in report.results)
-                or any(r.status != "passed" for r in report.sanity)
-            ):
+            impact = assess_fault_impact(
+                [report],
+                intent_ids=static_ids,
+                expected_failed_ids=failure.expected_failed_ids,
+                unconstrained_ids=failure.unconstrained_ids,
+            )
+            (output / ("impact-model-" + failure.name + ".json")).write_text(
+                json.dumps(impact, indent=2) + "\n"
+            )
+            if impact["status"] != "passed":
                 raise RuntimeError(
-                    "Modeled fault did not satisfy its original mandatory violations"
+                    f"Modeled fault violated its authored impact requirements: {failure.name}"
                 )
             if failure.requirements:
                 positive = verifier.verify(failure.requirements, snapshot)
                 accept(positive, output / ("model-" + failure.name + "-state.json"))
-            predicted_failures[failure.name] = tuple(sorted(failed))
+            predicted_failures[failure.name] = tuple(impact["failed_ids"])
             summary.setdefault("failure_models", {})[failure.name] = {
                 "mandatory_failed_ids": list(failure.expected_failed_ids),
-                "predicted_failed_ids": sorted(failed),
+                "predicted_failed_ids": impact["failed_ids"],
+                "impact": impact,
             }
         if runtime:
             start_requested = True
@@ -568,6 +639,25 @@ def validate_scenario_design(
             started = True
             session = Session().load_running_session(session_id)
             backend = runtime_for_session(session)
+            if compare_methods:
+                from nika.workflows.validation.method_comparison import (
+                    MethodComparison,
+                )
+
+                comparison = MethodComparison(env, backend, output)
+
+            def static_report(stage):
+                """The Batfish report on the analyzed configurations of a state."""
+                incident = stage.removesuffix("-additional")
+                if stage == "healthy" or stage.endswith(("-restored", "-recovered")):
+                    return output / "static-healthy.json"
+                if stage.startswith("failure-"):
+                    return output / (
+                        "model-" + stage.removeprefix("failure-") + ".json"
+                    )
+                if any(i.name == incident for i in spec.incidents):
+                    return output / f"static-{incident}.json"
+                return None
 
             def run_config(node, command):
                 """Run a configuration operation; native routers commit slowly."""
@@ -596,6 +686,8 @@ def validate_scenario_design(
                         accept(report, output / f"runtime-{name}.json")
                     time.sleep(3)
                 summary["runtime"][name] = {"passed": len(report.results), "failed": 0}
+                if comparison:
+                    comparison.observe(name, contract, [report], static_report(name))
                 system_logger.info(
                     "runtime %s %s %s", spec.scenario, name, summary["runtime"][name]
                 )
@@ -619,12 +711,21 @@ def validate_scenario_design(
                     ]
                     for index, report in enumerate(reports):
                         report.write(output / f"{name}-{index}.json")
-                    results = [r for report in reports for r in report.results]
-                    failed = {r.intent for r in results if r.status == "failed"}
-                    if failed - set(unconstrained_ids) == set(
-                        expected_failed_ids
-                    ) and all(r.status in {"passed", "failed"} for r in results):
-                        return sorted(failed)
+                    impact = assess_fault_impact(
+                        reports,
+                        intent_ids=runtime_ids,
+                        expected_failed_ids=expected_failed_ids,
+                        unconstrained_ids=unconstrained_ids,
+                    )
+                    (output / f"impact-{name}.json").write_text(
+                        json.dumps(impact, indent=2) + "\n"
+                    )
+                    if impact["status"] == "passed":
+                        if comparison:
+                            comparison.observe(
+                                name, spec.healthy, reports[:1], static_report(name)
+                            )
+                        return impact["failed_ids"]
                     if time.monotonic() > deadline:
                         raise RuntimeError(
                             f"Fault did not produce its predeclared original violations: {name}"
@@ -681,15 +782,23 @@ def validate_scenario_design(
                         )
                     failed = reject(
                         "failure-" + failure.name,
-                        predicted_failures.get(
-                            failure.name, failure.expected_failed_ids
-                        ),
+                        failure.expected_failed_ids,
                         failure.unconstrained_ids,
                     )
                     summary.setdefault("failure_compatibility", {})[failure.name] = {
                         "problem": failure.problem,
                         "failed_ids": sorted(failed),
                     }
+                    if failure.name in predicted_failures:
+                        predicted = set(predicted_failures[failure.name])
+                        observed = set(failed) & static_ids
+                        summary["failure_compatibility"][failure.name][
+                            "model_comparison"
+                        ] = {
+                            "scope_ids": sorted(static_ids),
+                            "only_model_failed_ids": sorted(predicted - observed),
+                            "only_runtime_failed_ids": sorted(observed - predicted),
+                        }
                 finally:
                     if native_srl:
                         from nika.service.containerlab.srl_api import (
@@ -793,14 +902,7 @@ def validate_scenario_design(
                     if native_srl
                     else "vtysh -c 'show ip route json'"
                 )
-            node = next(
-                (
-                    intent.source
-                    for intent in spec.healthy.intents
-                    if intent.source is not None
-                ),
-                None,
-            )
+            node = next(iter(env.routers or ()), None)
             if native_vendor:
                 node = next(iter(env.BGP_ROUTERS))
             node = node if node is None or isinstance(node, str) else node.name
@@ -930,6 +1032,8 @@ def validate_scenario_design(
                         pass
             finally:
                 client.close()
+    if comparison:
+        summary["method_comparison"] = comparison.summary
     summary["status"] = "passed"
     summary["validation_scope"] = "static-and-runtime" if runtime else "static-only"
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")

@@ -71,9 +71,7 @@ def test_workload_images_for_supported_scenarios() -> None:
     assert cache.workload_images_for_scenario("k8s_lab") == k8s_images
     assert cache.workload_images_for_scenario("llmd_lab") == llmd_images
     assert cache.workload_images_for_scenario("dc_clos") == ()
-    assert all(
-        "@sha256:" in image for image in (*k8s_images, *llmd_images, cache.K3S_IMAGE)
-    )
+    assert all("@sha256:" in image for image in (*k8s_images, *llmd_images))
     for image in cache.K3S_SYSTEM_IMAGES:
         assert image in k8s_images
         assert image in llmd_images

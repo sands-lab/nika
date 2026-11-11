@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+import uuid
 
 from mcp.server.fastmcp import FastMCP
 
@@ -18,12 +20,13 @@ from nika.mcp.gateway.session_registry import (
     access_token_matches,
     bind_transport_session,
     get_session,
+    reserve_tool_call,
     transport_session_matches,
 )
 from nika.mcp.tool_output import (
     jsonrpc_method,
     rewrite_http_body,
-    tool_output_max_chars,
+    MAX_CHARS,
 )
 
 _MCP_JSON = "application/json"
@@ -162,6 +165,10 @@ class PhaseGateMiddleware:
                         node_roles=entry.node_roles,
                     )
                     allowed, reason = decision.allowed, decision.reason
+                if allowed:
+                    allowed, _ = reserve_tool_call(session_id)
+                    if not allowed:
+                        reason = "primitive_tool_budget_exhausted"
                 if not allowed:
                     record_tool_call(
                         entry.session_dir if entry else "",
@@ -182,8 +189,11 @@ class PhaseGateMiddleware:
             call_name, call_args, _ = _tool_call(body)
             # The phase the call started in, even if it ends after the switch.
             call_phase = entry.phase
+            call_id, call_started = uuid.uuid4().hex, time.monotonic()
 
-            def on_result(result_body: bytes, content_type: str) -> None:
+            def on_result(
+                result_body: bytes, content_type: str, raw_body: bytes
+            ) -> None:
                 is_error, output = tool_result(result_body, content_type)
                 record_tool_call(
                     entry.session_dir,
@@ -193,6 +203,9 @@ class PhaseGateMiddleware:
                     arguments=call_args,
                     is_error=is_error,
                     output=output,
+                    call_id=call_id,
+                    elapsed_ms=round((time.monotonic() - call_started) * 1000, 1),
+                    raw_output=raw_body.decode("utf-8", errors="replace"),
                 )
 
         outbound = (
@@ -256,7 +269,7 @@ class _RewritingSend:
         new_body = rewrite_http_body(
             body,
             content_type=content_type,
-            max_chars=tool_output_max_chars(),
+            max_chars=MAX_CHARS,
             bound_call=self._bound_call,
         )
         headers = [
@@ -266,7 +279,7 @@ class _RewritingSend:
         ]
         headers.append((b"content-length", str(len(new_body)).encode()))
         if self._on_result is not None:
-            self._on_result(new_body, content_type)
+            self._on_result(new_body, content_type, body)
         await self._send(
             {
                 "type": "http.response.start",

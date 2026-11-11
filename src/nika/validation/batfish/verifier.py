@@ -111,7 +111,7 @@ class BatfishVerifier:
                 intent,
                 snapshot,
                 initialized,
-                limitation=_model_limitation(contract, intent),
+                limitation=_model_limitation(contract, intent, snapshot),
             )
             for intent in contract.intents
         )
@@ -223,20 +223,13 @@ class BatfishVerifier:
                         for row in rows
                         if _node(row.get("Node")) == expected.node
                         and str(row.get("Network")) == expected.prefix
-                        and "BEST" in str(row.get("Status", "")).upper()
+                        and (
+                            not expected.selected
+                            or "BEST" in str(row.get("Status", "")).upper()
+                        )
                     ]
                     paths = [str(row.get("AS_Path", "")).split() for row in relevant]
-                    passed = bool(relevant) == expected.present and all(
-                        (
-                            expected.exit_asn is None
-                            or path[:1] == [str(expected.exit_asn)]
-                        )
-                        and (
-                            expected.origin_asn is None
-                            or path[-1:] == [str(expected.origin_asn)]
-                        )
-                        for path in paths
-                    )
+                    passed = expected.satisfied_by(paths)
                 else:
                     relevant = rows
                     expected_action = "PERMIT" if intent.route_policy.permit else "DENY"
@@ -302,12 +295,20 @@ class BatfishVerifier:
 
 
 def _model_limitation(
-    contract: ValidationContract, intent: ValidationIntent
+    contract: ValidationContract,
+    intent: ValidationIntent,
+    snapshot: ValidationSnapshot,
 ) -> str | None:
     if bool(contract.design_source.get("rpki")) and intent.property != "adjacency":
         return (
             "Pinned Batfish does not model FRR RPKI route-map matches; "
             "flow and path results for this snapshot are unsupported"
+        )
+    unmodeled = snapshot.metadata.get("unmodeled_protocols", ())
+    if intent.adjacency is not None and intent.adjacency.protocol in unmodeled:
+        return (
+            f"The {snapshot.metadata.get('routing_model')} snapshot does not model "
+            f"{intent.adjacency.protocol.upper()} adjacencies"
         )
     return None
 

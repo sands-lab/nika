@@ -1,18 +1,17 @@
 """Use the shared specification/analysis/execution workflow for packet fabrics."""
 
 import json
-import shlex
+
+from nika.net_env.utils.endpoint_network import restore_endpoint_network
 from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
 
 from nika.net_env import p4_dc_fabric, p4_dc_gateway
 
+from nika.net_env.clos.requirements import communication_contract
 from nika.net_env.contract import (
-    NetworkEntity,
     TrafficSelector,
-    ValidationContract,
-    ValidationIntent,
 )
 from nika.net_env.isp.kathara.verify import verify_isp_contract
 from nika.net_env.p4_dc_fabric.topology_model import ClosFabricModel as P4Clos
@@ -68,69 +67,8 @@ def build_forwarding_experiment(scenario, *, topo_size="s"):
     """Declare endpoint communication independently of generated forwarding rules."""
     env = load_offline_net_env(scenario, topo_size=topo_size)
     _frontend(env)
+    healthy = communication_contract(env.model, scenario=scenario, topo_size=topo_size)
     endpoints = endpoints_from_model(env.model)
-    clients = {
-        e.name for e in env.model.endpoints if e.role in {"client", "external_client"}
-    }
-    services = {
-        e.name for e in env.model.endpoints if e.role in {"web", "http_service"}
-    }
-    if clients | services != endpoints.keys() or not clients or not services:
-        raise ValueError(
-            "Declare client and service roles before constructing the communication specification"
-        )
-    intents = []
-    for source, src in endpoints.items():
-        entity = NetworkEntity(
-            kind="endpoint", name=source, address=src.address, node=source
-        )
-        for destination, dst in endpoints.items():
-            if not (
-                (source in clients and destination in services)
-                or (source in services and destination in clients)
-            ):
-                continue
-            intents.append(
-                ValidationIntent(
-                    id=f"reach.{source}.{destination}",
-                    description="Declared client-service communication in the fabric",
-                    property="reachability",
-                    expected="reachable",
-                    source=entity,
-                    destination=NetworkEntity(
-                        kind="endpoint",
-                        name=destination,
-                        address=dst.address,
-                        node=destination,
-                    ),
-                    traffic=TrafficSelector(protocol="icmp", round_trip=True),
-                )
-            )
-        intents.append(
-            ValidationIntent(
-                id=f"isolation.{source}.unowned",
-                description="The fabric must not deliver traffic to the unowned test address",
-                property="isolation",
-                expected="unreachable",
-                source=entity,
-                destination=NetworkEntity(
-                    kind="endpoint", name="unowned", address="198.18.0.1"
-                ),
-                traffic=TrafficSelector(protocol="icmp"),
-            )
-        )
-    healthy = ValidationContract(
-        contract_id="fabric-healthy",
-        scenario=scenario,
-        design_source={
-            "method": "Authored client-service ICMP communication and unowned-prefix isolation",
-            "client_endpoints": sorted(clients),
-            "service_endpoints": sorted(services),
-            "topology_model": type(env.model).__name__,
-            "topo_size": topo_size,
-        },
-        intents=tuple(sorted(intents, key=lambda i: i.id)),
-    )
     target = next(iter(endpoints))
     failed = []
     for intent in healthy.intents:
@@ -362,14 +300,12 @@ def validate_forwarding_design(spec, output, *, runtime=False):
             # Apply the same configuration counterexample through the native API.
             if program:
                 from nika.net_env.p4_dc_fabric.fabric_manager.apply import run_manager
+                from nika.problems.support.p4runtime_writes import p4runtime_write
 
-                result = run_manager(
+                result = p4runtime_write(
                     backend,
-                    "delete-lpm",
-                    "--switch",
                     ep.switch,
-                    "--prefix",
-                    f"{ep.address}/32",
+                    [{"type": "DELETE", "lpm": {"prefix": f"{ep.address}/32"}}],
                 )
                 if not result.get("ok"):
                     raise RuntimeError("Native LPM withdrawal failed")
@@ -465,21 +401,7 @@ def validate_forwarding_design(spec, output, *, runtime=False):
                         backend.set_interface_state(
                             params["host_name"], params["intf_name"], "up"
                         )
-                        # Linux can remove routes and permanent neighbors on
-                        # administrative down. Restore the original declarations
-                        # on this endpoint, without replaying service startup.
-                        startup = env.lab.fs.readtext(f"{params['host_name']}.startup")
-                        for line in startup.splitlines():
-                            if not line.startswith(
-                                ("ip route replace ", "ip neigh replace ")
-                            ):
-                                continue
-                            tokens = shlex.split(line)
-                            if tokens[:3] in (
-                                ["ip", "route", "replace"],
-                                ["ip", "neigh", "replace"],
-                            ):
-                                backend.exec(params["host_name"], shlex.join(tokens))
+                        restore_endpoint_network(backend, env, params["host_name"])
                         return (
                             backend.get_interface_operstate(
                                 params["host_name"], params["intf_name"]

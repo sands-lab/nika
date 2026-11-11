@@ -8,7 +8,9 @@ misconfigured host is observed from a peer, never from the host itself.
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
+import shlex
 import time
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -32,16 +34,76 @@ _ARP_COUNT = 4
 _FLAP_ECHOES = 50
 # While the bridge points the shared MAC at one port, echoes to both holders
 # reach that host and only its own are answered: about half of the pair's
-# echoes are lost, and each holder loses some. A healthy LAN loses none.
+# echoes are lost. A healthy LAN loses none.
 _MIN_PAIR_LOSS_PERCENT = 25.0
-_MIN_HOLDER_LOSS_PERCENT = 4.0
+
+
+def _valid_ipv4(text: str) -> str:
+    try:
+        parsed = ipaddress.ip_address(text)
+    except ValueError:
+        return ""
+    return text if parsed.version == 4 else ""
+
+
+def iface_ipv4(runtime: LabRuntime, node: str, iface: str) -> str:
+    """IPv4 address configured on ``iface``, or empty if that port has none."""
+    quoted = shlex.quote(iface)
+    out = exec_or_empty(
+        runtime,
+        node,
+        f"ip -4 -o addr show dev {quoted} scope global | awk '{{print $4}}'",
+    )
+    cidr = next((line.strip() for line in out.splitlines() if line.strip()), "")
+    return _valid_ipv4(cidr.split("/")[0])
 
 
 def _eth0_ip(runtime: LabRuntime, node: str) -> str:
-    out = runtime.exec(
-        node, "ip -4 -o addr show dev eth0 scope global | awk '{print $4}'"
-    )
-    return out.strip().split("/")[0]
+    return iface_ipv4(runtime, node, "eth0")
+
+
+_MGMT_PREFIXES = ("127.", "172.100.", "172.101.", "172.20.", "172.18.")
+_MGMT_IFACES = {"mgmt0", "eth0"}
+
+
+def _probe_ips(runtime: LabRuntime, node: str) -> list[str]:
+    """Data-plane IPv4 addresses on ``node``, loopbacks included, management omitted.
+
+    Kathara hosts keep the pingable address on eth0. Containerlab linux nodes
+    use eth1, and SR Linux / SONiC routers use platform ports plus a routed
+    loopback; eth0/mgmt0 are the Containerlab management network.
+    """
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def add(ip: str) -> None:
+        ip = _valid_ipv4(ip)
+        if ip and ip not in seen and not ip.startswith(_MGMT_PREFIXES):
+            seen.add(ip)
+            found.append(ip)
+
+    getter = getattr(runtime, "get_data_plane_host_ip", None)
+    if callable(getter):
+        add(getter(node, with_prefix=False) or "")
+    output = exec_or_empty(runtime, node, "ip -j -4 addr")
+    try:
+        links = json.loads(output) if output.lstrip().startswith("[") else []
+    except json.JSONDecodeError:
+        links = []
+    if not isinstance(links, list):
+        links = []
+    for link in links:
+        if not isinstance(link, dict):
+            continue
+        name = str(link.get("ifname") or "").split("@", 1)[0]
+        if name in _MGMT_IFACES:
+            continue
+        for addr in link.get("addr_info") or []:
+            if not isinstance(addr, dict) or addr.get("family") not in ("inet", 2):
+                continue
+            add(str(addr.get("local") or ""))
+    add(_eth0_ip(runtime, node))
+    return found
 
 
 def lab_addresses(runtime: LabRuntime) -> dict[str, list[tuple[str, str]]]:
@@ -81,13 +143,18 @@ def _reachable(runtime: LabRuntime, src: str, ip: str) -> bool:
 def _observers(runtime: LabRuntime, target_ip: str, exclude: set[str]) -> dict:
     """Pick a host that reaches ``target_ip`` and one more host as control.
 
-    Labs whose only hosts are the faulted pair (llmd_lab) observe from any
-    other node on the segment.
+    When no client-like host reaches it (llmd_lab's faulted pair, a load
+    balancer's private backends), another node on its segment observes.
     """
     nodes = [node for node in sorted(runtime.list_nodes()) if node not in exclude]
     candidates = [node for node in nodes if node.startswith(_HOST_PREFIXES)] or nodes
+    others = [node for node in nodes if node not in candidates]
     observer = next(
-        (node for node in candidates[:12] if _reachable(runtime, node, target_ip)),
+        (
+            node
+            for node in candidates[:12] + others[:12]
+            if _reachable(runtime, node, target_ip)
+        ),
         None,
     )
     if observer is None:
@@ -95,9 +162,15 @@ def _observers(runtime: LabRuntime, target_ip: str, exclude: set[str]) -> dict:
     for node in candidates + [node for node in nodes if node not in candidates]:
         if node == observer:
             continue
-        ip = _eth0_ip(runtime, node)
-        if ip and ip != target_ip and _reachable(runtime, observer, ip):
-            return {"observer": observer, "control_ip": ip, "target_ip": target_ip}
+        for ip in _probe_ips(runtime, node):
+            if ip != target_ip and _reachable(runtime, observer, ip):
+                return {"observer": observer, "control_ip": ip, "target_ip": target_ip}
+    # An isolated observer (a guest LAN behind NAT) may reach no other host,
+    # and SR Linux, SONiC and native routers expose no Linux address: its own
+    # gateway still shows that the observer's side of the network works.
+    gateway = runtime.get_default_gateway(observer)
+    if gateway and gateway != target_ip and _reachable(runtime, observer, gateway):
+        return {"observer": observer, "control_ip": gateway, "target_ip": target_ip}
     return {}
 
 
@@ -241,6 +314,26 @@ def _mac_conflict_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _holder_macs(problem: Any, ends: dict[str, Any]) -> dict[str, str | None]:
+    """The MAC each holder's address resolves to from the observer.
+
+    ARP requests are broadcast, so both holders receive and answer them
+    whichever port the bridge has learned for their MAC.
+    """
+    macs = {}
+    for role in ("owner", "claimant"):
+        ip = ends[f"{role}_ip"]
+        output = exec_or_empty(
+            problem.runtime,
+            ends["observer"],
+            f"ip neigh flush to {ip}; ping -c 1 -W 1 -q {ip} >/dev/null; "
+            f"ip neigh show to {ip}",
+        )
+        match = re.search(r"\blladdr (\S+)", output)
+        macs[f"{role}_mac"] = match.group(1).lower() if match else None
+    return macs
+
+
 def mac_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """On the healthy segment the observer reaches the pair and the control."""
     ends = _mac_conflict_ends(problem, params)
@@ -251,30 +344,35 @@ def mac_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, An
         lambda: _mac_conflict_reading(problem, ends),
         lambda read: max((1e9 if v is None else v) for v in read.values()),
     )
+    macs = _holder_macs(problem, ends)
     ok = all(loss == 0.0 for loss in reading.values())
-    return ok, {**ends, "echoes": _FLAP_ECHOES, **reading}
+    return ok, {**ends, "echoes": _FLAP_ECHOES, **reading, **macs}
 
 
 def mac_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Traffic to both holders of the MAC is lost; the control's is not.
+    """Both addresses resolve to one MAC and traffic to the pair is lost.
 
     The bridge learns the shared MAC on whichever port sent last, so frames
-    for one host are delivered to the other while both answer traffic. A
-    wrong or stale MAC loses only one host's echoes; a conflict loses both.
+    for one host are delivered to the other. Which host loses traffic, and
+    whether the bridge moves during a reading, depends on when each host last
+    sent, so the reading requires the pair's loss and the shared ARP answer
+    rather than loss at each host. A wrong or stale MAC, or a host that is
+    down, does not answer ARP for both addresses with one MAC.
     """
     ends = getattr(problem, "_audit_mac_ends", None) or {}
     if not ends or "error" in ends:
         return False, {"error": "no_baseline_observer"}
     reading = _mac_conflict_reading(problem, ends)
+    macs = _holder_macs(problem, ends)
+    shared_mac = (
+        macs["owner_mac"] is not None and macs["owner_mac"] == macs["claimant_mac"]
+    )
     control_ok = reading["control_loss_percent"] == 0.0
     holders = [reading[f"{role}_loss_percent"] for role in ("owner", "claimant")]
     measured = None not in holders
     pair_loss = sum(holders) / 2 if measured else None
     verified = (
-        control_ok
-        and measured
-        and pair_loss >= _MIN_PAIR_LOSS_PERCENT
-        and min(holders) >= _MIN_HOLDER_LOSS_PERCENT
+        control_ok and measured and pair_loss >= _MIN_PAIR_LOSS_PERCENT and shared_mac
     )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
@@ -283,9 +381,10 @@ def mac_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             **ends,
             "echoes": _FLAP_ECHOES,
             **reading,
+            **macs,
+            "shared_mac": shared_mac,
             "pair_loss_percent": pair_loss,
             "min_pair_loss_percent": _MIN_PAIR_LOSS_PERCENT,
-            "min_holder_loss_percent": _MIN_HOLDER_LOSS_PERCENT,
             "control_ok": control_ok,
         },
     )
@@ -415,8 +514,8 @@ def _arp_responders(
 def _arp_ends(problem: Any, params: Any) -> dict[str, Any]:
     """A third node on the segment of the copied address, and a control address.
 
-    The control is another node's address on the same segment; exactly one
-    host answers ARP for it before and after inject.
+    The control is another address with one ARP responder on the segment,
+    or a reachable remote endpoint when the segment has only three hosts.
     """
     runtime = problem.runtime
     cidr = runtime.get_host_ip(params.host_name, "eth0", with_prefix=True) or ""
@@ -424,15 +523,32 @@ def _arp_ends(problem: Any, params: Any) -> dict[str, Any]:
         return {}
     network = ipaddress.ip_interface(cidr).network
     pair = {params.host_name, params.host_name_2}
+    addresses = lab_addresses(runtime)
     members = [
         (node, intf, str(ipaddress.ip_interface(address).ip))
-        for node, rows in lab_addresses(runtime).items()
+        for node, rows in addresses.items()
         if node not in pair
         for intf, address in rows
         if ipaddress.ip_interface(address).ip in network
     ]
     observer, intf, _ip = members[0] if members else ("", "", "")
     control = next((ip for node, _i, ip in members if node != observer), None)
+    control_probe = "arp"
+    if not control and observer:
+        control = next(
+            (
+                str(ipaddress.ip_interface(address).ip)
+                for node, rows in addresses.items()
+                if node not in pair | {observer} and node.startswith(_HOST_PREFIXES)
+                for _intf, address in rows
+                if ipaddress.ip_interface(address).ip not in network
+                and _reachable(
+                    runtime, observer, str(ipaddress.ip_interface(address).ip)
+                )
+            ),
+            None,
+        )
+        control_probe = "icmp"
     if not control:
         return {}
     return {
@@ -440,6 +556,7 @@ def _arp_ends(problem: Any, params: Any) -> dict[str, Any]:
         "observer_intf": intf,
         "address": cidr.split("/")[0],
         "control_address": control,
+        "control_probe": control_probe,
         "owner_mac": runtime.get_host_mac_address(params.host_name, "eth0").lower(),
         "claimant_mac": runtime.get_host_mac_address(
             params.host_name_2, "eth0"
@@ -452,10 +569,14 @@ def _arp_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
     macs, raw = _arp_responders(
         runtime, ends["observer"], ends["observer_intf"], ends["address"]
     )
+    reading = {"arp_responders": macs, "raw": raw}
+    if ends.get("control_probe") == "icmp":
+        loss = _loss(runtime, ends["observer"], ends["control_address"])
+        return {**reading, "control_loss_percent": loss, "control_ok": loss == 0.0}
     control, _raw = _arp_responders(
         runtime, ends["observer"], ends["observer_intf"], ends["control_address"]
     )
-    return {"arp_responders": macs, "control_responders": control, "raw": raw}
+    return {**reading, "control_responders": control, "control_ok": len(control) == 1}
 
 
 def ip_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -466,7 +587,7 @@ def ip_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any
         return False, {"error": "no_third_node_on_the_segment"}
     reading = _arp_reading(problem, ends)
     ok = reading["arp_responders"] == [ends["owner_mac"]]
-    return ok and len(reading["control_responders"]) == 1, {**ends, **reading}
+    return ok and reading["control_ok"], {**ends, **reading}
 
 
 def ip_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -475,7 +596,7 @@ def ip_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     if not ends:
         return False, {"error": "no_baseline_observer"}
     reading = _arp_reading(problem, ends)
-    control_ok = len(reading["control_responders"]) == 1
+    control_ok = reading["control_ok"]
     verified = (
         ends["owner_mac"] in reading["arp_responders"]
         and ends["claimant_mac"] in reading["arp_responders"]

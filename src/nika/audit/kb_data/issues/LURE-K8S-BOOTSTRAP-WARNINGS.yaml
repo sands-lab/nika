@@ -1,0 +1,24 @@
+id: LURE-K8S-BOOTSTRAP-WARNINGS
+title: k8s bootstrap Warning events look like faults
+class: healthy_lure
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: Warning events from cluster bootstrap stayed in k8s_list_events on healthy labs, so agents reported
+  failures. Bootstrap events are now cleared.
+scope:
+  scenarios:
+  - k8s_lab
+  - llmd_lab
+detect:
+- kind: text
+  tool: k8s_list_events
+  exclude_authored: false
+  pattern: \bWarning\b.*\b(?:FailedScheduling|BackOff|FailedMount|Unhealthy|FailedCreatePodSandBox)\b
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

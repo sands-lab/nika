@@ -110,6 +110,10 @@ def device_lines(device: dict[str, Any], address: str, version: str = "") -> lis
         "sleep 1",
         'vtysh -c "configure terminal" -c "log syslog informational" '
         ">/dev/null 2>&1 || true",
+        "vtysh -c 'show running-config' 2>/dev/null | "
+        "sed -n '/^router bgp /p' | while IFS= read -r _bgp_instance; do "
+        'vtysh -c "configure terminal" -c "$_bgp_instance" '
+        '-c "bgp log-neighbor-changes" >/dev/null 2>&1 || true; done',
         "ovs-appctl vlog/set syslog:info >/dev/null 2>&1 || true",
     ]
 

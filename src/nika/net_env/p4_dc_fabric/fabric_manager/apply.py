@@ -16,6 +16,7 @@ from nika.net_env.p4_dc_fabric.fabric_manager.intent import (
 from nika.net_env.p4_dc_fabric.topology_model import ClosFabricModel
 from nika.runtime.base import LabRuntime
 from nika.utils.logger import system_logger
+from nika.utils.parallel import bounded_parallel_map
 
 logger = system_logger
 
@@ -181,14 +182,18 @@ def _wait_for_grpc(
     deadline = time.time() + timeout_sec
     pending = list(model.fabric_switches())
     while pending and time.time() < deadline:
-        still = [
-            name
-            for name in pending
-            if not _exec(
-                runtime, name, "pgrep -x simple_switch_grpc", timeout=10
-            ).strip()
-        ]
-        pending = still
+        ready = bounded_parallel_map(
+            lambda name: (
+                name,
+                bool(
+                    _exec(
+                        runtime, name, "pgrep -x simple_switch_grpc", timeout=10
+                    ).strip()
+                ),
+            ),
+            pending,
+        )
+        pending = [name for name, ok in ready if not ok]
         if pending:
             time.sleep(2)
     if pending:

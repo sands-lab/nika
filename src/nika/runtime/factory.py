@@ -105,6 +105,8 @@ def net_env_kwargs_for_session(meta: dict[str, Any] | Any) -> dict[str, Any]:
     scenario_params.pop("runtime_workdir", None)
     # Telemetry is attached after construction (``nika.telemetry``), not a lab kwarg.
     scenario_params.pop("telemetry", None)
+    # Background traffic is started on the deployed lab, not a lab kwarg.
+    scenario_params.pop("traffic", None)
     if scenario_name:
         from nika.net_env.isp.identity import is_isp_scenario
 

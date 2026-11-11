@@ -17,7 +17,7 @@ Implementation: [`remote/server.py`](../../src/nika/remote/server.py) serves the
 git clone https://github.com/sands-lab/nika.git
 cd nika
 ./scripts/install.sh
-nika remote serve --host 0.0.0.0 --port 8700
+uv run nika remote serve --host 0.0.0.0 --port 8700
 ```
 
 Ensure the local machine can reach:
@@ -51,8 +51,8 @@ Leave `enabled: false` for local labs. Remote uses no shared token (trust the ne
 Check connectivity:
 
 ```shell
-nika remote health
-# or: nika remote health --url http://<lab-host>:8700
+uv run nika remote health
+# or: uv run nika remote health --url http://<lab-host>:8700
 ```
 
 ## Run a workflow
@@ -60,15 +60,15 @@ nika remote health
 With remote mode enabled, use the usual workflow commands:
 
 ```shell
-nika env run dc_clos -s s
-nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
-nika session containers
-nika agent run -a mock
-nika session close -y
-nika eval metrics
+uv run nika env run dc_clos -s s
+uv run nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
+uv run nika session containers
+uv run nika agent run -a mock
+uv run nika session close -y
+uv run nika eval metrics
 ```
 
-Artifacts are copied to the local `{nika.result_dir}/{session_id}/` directory (default `results/{session_id}/`), and evaluation runs locally. Remote mode also applies to `nika benchmark run`.
+Artifacts are copied to the local `{nika.result_dir}/{session_id}/` directory (default `results/{session_id}/`), and evaluation runs locally. Remote mode also applies to `nika benchmark run`, except for a release that pins a benchmark engine, such as `0.2.0`, which remote mode cannot run yet ([#308](https://github.com/sands-lab/nika/issues/308)).
 
 While `nika failure inject` and `nika agent run` execute, the agent host follows the remote `nika.jsonl` and `messages.jsonl` and appends new lines to the local copies about once a second, so you can watch a remote trial as it runs.
 

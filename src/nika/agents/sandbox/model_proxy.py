@@ -35,6 +35,7 @@ import threading
 import time
 from collections.abc import AsyncIterator, Callable, Iterator, Mapping
 from contextlib import ExitStack, asynccontextmanager, contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -294,13 +295,34 @@ def create_model_proxy_app(
             if call_log is not None
             else (0, "", False, True)
         )
-        if not allowed:
+        wrong_model = (
+            call_log is not None
+            and call_log.expected_model is not None
+            and counted
+            and (_json_object(body) or {}).get("model") != call_log.expected_model
+        )
+        forbidden_endpoint = (
+            call_log is not None
+            and call_log.expected_model is not None
+            and request.method not in {"GET", "HEAD"}
+            and not counted
+            and not (
+                request.method == "POST"
+                and path.rstrip("/").endswith("/messages/count_tokens")
+            )
+        )
+        if not allowed or wrong_model or forbidden_endpoint:
             refused = {
                 "type": "error",
                 "error": {
                     "type": "invalid_request_error",
-                    "message": "The LLM request budget (max_steps) of this phase "
-                    "is used up.",
+                    "message": (
+                        "The endpoint is outside the fixed-model generation and metadata APIs."
+                        if forbidden_endpoint
+                        else "The model differs from the fixed run model."
+                        if wrong_model
+                        else "The LLM request budget (max_steps) of this phase is used up."
+                    ),
                 },
             }
             call_log.record(
@@ -314,7 +336,7 @@ def create_model_proxy_app(
                 response=json.dumps(refused).encode(),
                 streamed=False,
                 started=started,
-                admitted=False,
+                admitted=allowed,
             )
             return JSONResponse(refused, status_code=400)
         agent_body = body
@@ -526,26 +548,21 @@ def require_agent_credentials(
         raise ValueError(str(exc)) from exc
 
 
-def start_model_proxy(
-    stack: ExitStack,
-    *,
-    env_file: Path,
-    agent_type: str,
-    provider: str,
-    bind_host: str,
-    agent_host: str,
-    call_log: ModelCallLog | None = None,
-) -> tuple[int, dict[str, str]]:
-    """Start the model proxy for one sandbox session until *stack* closes.
+@dataclass(frozen=True)
+class ModelUpstream:
+    url: str
+    credential: str | Callable[[], str] = field(repr=False)
+    extra_headers: dict[str, str] = field(repr=False)
+    anthropic: bool
+    subscription: bool
 
-    Returns the proxy port and the credential env that points the agent's
-    client (Anthropic or OpenAI) at ``http://{agent_host}:{port}``. Without an
-    API key for ``anthropic`` or ``openai``, the host's subscription login is
-    used (see :func:`_subscription_upstream`).
-    """
+
+def resolve_model_upstream(
+    *, env_file: Path, agent_type: str, provider: str
+) -> ModelUpstream:
+    """Resolve the same upstream and authentication for agent calls and recovery probes."""
     from nika.agents.registry import get_agent_spec
     from nika.agents.sandbox.config import load_credential_sources
-    from nika.agents.sandbox.subscription import ENV_CLAUDE_CODE_OAUTH_TOKEN
     from nika.agents.provider_env import (
         CUSTOM_UNAUTHENTICATED_API_KEY,
         ENV_ANTHROPIC_API_KEY,
@@ -579,8 +596,46 @@ def start_model_proxy(
         )
     elif not api_key and provider != "custom":
         raise RuntimeError(f"No API key found for provider {provider!r} in {env_file}.")
+    return ModelUpstream(upstream, credential, extra_headers, anthropic, subscription)
+
+
+def start_model_proxy(
+    stack: ExitStack,
+    *,
+    env_file: Path,
+    agent_type: str,
+    provider: str,
+    bind_host: str,
+    agent_host: str,
+    call_log: ModelCallLog | None = None,
+) -> tuple[int, dict[str, str]]:
+    """Start the model proxy for one sandbox session until *stack* closes.
+
+    Returns the proxy port and the credential env that points the agent's
+    client (Anthropic or OpenAI) at ``http://{agent_host}:{port}``. Without an
+    API key for ``anthropic`` or ``openai``, the host's subscription login is
+    used (see :func:`_subscription_upstream`).
+    """
+    from nika.agents.sandbox.subscription import ENV_CLAUDE_CODE_OAUTH_TOKEN
+    from nika.agents.provider_env import (
+        ENV_ANTHROPIC_API_KEY,
+        ENV_ANTHROPIC_AUTH_TOKEN,
+        ENV_ANTHROPIC_BASE_URL,
+        ENV_OPENAI_API_KEY,
+        ENV_OPENAI_BASE_URL,
+    )
+
+    resolved = resolve_model_upstream(
+        env_file=env_file, agent_type=agent_type, provider=provider
+    )
+    upstream, credential, extra_headers = (
+        resolved.url,
+        resolved.credential,
+        resolved.extra_headers,
+    )
+    anthropic, subscription = resolved.anthropic, resolved.subscription
     if anthropic and provider == "custom":
-        require_anthropic_messages_route(upstream, api_key=api_key)
+        require_anthropic_messages_route(upstream, api_key=str(credential))
     token = new_proxy_token()
     port = stack.enter_context(
         model_proxy(

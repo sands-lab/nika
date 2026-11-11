@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections import defaultdict
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network
 from pathlib import Path
@@ -12,6 +11,7 @@ from pydantic import Field, model_validator
 
 from nika.net_env.contract import ContractModel
 from nika.net_env.isp.bgp.policy import BgpPolicyTerm
+from nika.net_env.isp.igp.plan import IspPlan
 from nika.net_env.synthesis.parameters import (
     BgpExport,
     BgpImport,
@@ -29,7 +29,6 @@ from nika.net_env.synthesis.requirements import (
     BgpAsSelectionRequirement,
     BgpImportPeer,
 )
-from nika.validation.batfish.kathara import startup_addresses
 
 
 class BgpFabricCompletion(ContractModel):
@@ -282,134 +281,42 @@ def complete_routing(spec, env, directory: Path, *, image: str):
             physical.add(
                 (a.local_node, a.remote_node, a.local_address, a.remote_address)
             )
-            srl = getattr(env, "device_profile", None) == "nokia_srlinux"
-            vendor = getattr(env, "device_profile", None) in {"iosxr", "routeros"}
-            if srl:
-                from nika.validation.batfish.srl_isp import (
-                    srl_addresses,
-                    project_srl_isp,
-                )
-
-                document = env.routing_documents[a.local_node]
-                project_srl_isp(a.local_node, document)
-                addresses = [
-                    (addr, "eth" + str(int(iface.split("/")[1].split(".")[0]) - 1))
-                    for addr, iface in srl_addresses(document)
-                    if iface.startswith("ethernet-")
-                ]
-            elif vendor:
-                from nika.validation.batfish.vendor_bgp import (
-                    vendor_addresses,
-                    vendor_configs,
-                    vendor_ospf_interfaces,
-                )
-
-                config = vendor_configs(env)[a.local_node]
-                logical = {
-                    native: name for name, native in env.BGP_INTERFACE_MAP.items()
-                }
-                addresses = [
-                    (address, logical.get(interface, interface))
-                    for address, interface in vendor_addresses(
-                        config, env.device_profile
-                    )
-                ]
-            else:
-                addresses = startup_addresses(
-                    env.lab.fs.readtext(f"{a.local_node}.startup")
-                )
-            found = [
-                (IPv4Interface(addr), iface)
-                for addr, iface in addresses
-                if str(IPv4Interface(addr).ip) == a.local_address
-            ]
-            if len(found) != 1:
-                raise ValueError(
-                    "Link-state address does not identify one concrete interface"
-                )
-            address, interface = found[0]
-            if srl:
-                from nika.net_env.isp.igp.ifaces import srl_subinterface
-
-                protocols = document["srl_nokia-network-instance:network-instance"][0][
-                    "protocols"
-                ]
-                igp = protocols[
-                    "srl_nokia-isis:isis" if isis else "srl_nokia-ospf:ospf"
-                ]["instance"][0]
-                if not isis:
-                    (area,) = igp["area"]
-                    if int(IPv4Address(area["area-id"])) != completion.area:
-                        raise ValueError(
-                            "Link-state area differs from completion sketch"
-                        )
-                rows = igp["interface"] if isis else area["interface"]
-                (row,) = [
-                    r
-                    for r in rows
-                    if r["interface-name"] == srl_subinterface(interface)
-                ]
-                if row.get("passive"):
-                    raise ValueError("Link-state completion requires active interfaces")
-            elif vendor and isis:
-                from nika.validation.batfish.vendor_bgp import vendor_isis_interfaces
-
-                passive = vendor_isis_interfaces(config, env.device_profile).get(
-                    env.BGP_INTERFACE_MAP[interface]
-                )
-                if passive is not False:
-                    raise ValueError(
-                        "IS-IS completion requires active native L2 interfaces"
-                    )
-            elif vendor:
-                binding = vendor_ospf_interfaces(
-                    a.local_node, config, env.device_profile
-                ).get(env.BGP_INTERFACE_MAP[interface])
-                if binding != (completion.area, False):
-                    raise ValueError(
-                        "Link-state completion requires active native interfaces in the declared area"
-                    )
-            else:
-                config = env.lab.machines[a.local_node].fs.readtext("etc/frr/frr.conf")
+            # Bind the declared link to the design: the ISP plan or the
+            # environment's recorded routing design, not rendered configuration.
+            design = getattr(env, "routing_design", None)
+            plan = getattr(env, "plan", None)
+            if design is not None:
                 if isis:
-                    from nika.validation.batfish.isis import parse_frr_isis
-
-                    from nika.validation.batfish.frr_ibgp import (
-                        project_frr_ibgp,
-                        split_frr_ibgp,
+                    raise ValueError("Recorded routing designs declare OSPF only")
+                router = design.routers[a.local_node]
+                found = [
+                    i
+                    for i in router.interfaces
+                    if str(IPv4Interface(i.address).ip) == a.local_address
+                ]
+                if len(found) != 1:
+                    raise ValueError(
+                        "Link-state address does not identify one concrete interface"
                     )
-
-                    igp_config, bgp_fragment = split_frr_ibgp(config)
-                    project_frr_ibgp(
-                        bgp_fragment,
-                        allow_ebgp=env.bgp_plan is not None
-                        and env.bgp_plan.mode == "ebgp",
+                if router.ospf_area(found[0]) != str(IPv4Address(completion.area)):
+                    raise ValueError(
+                        "Link-state completion requires links wholly within the declared area"
                     )
-                    _, configured = parse_frr_isis(a.local_node, igp_config)
-                    iface = configured.get(interface)
-                    if (
-                        iface is None
-                        or not iface["enabled"]
-                        or iface["address"] is None
-                        or iface["passive"]
-                        or str(iface["address"].ip) != a.local_address
-                    ):
-                        raise ValueError(
-                            "IS-IS completion requires active L2 IPv4 interfaces"
-                        )
-                else:
-                    declarations = re.findall(
-                        r"^\s*network ([0-9./]+) area ([0-9.]+)$", config, re.MULTILINE
+                interface = found[0].name
+            elif isinstance(plan, IspPlan):
+                if plan.igp != protocol or (not isis and completion.area != 0):
+                    raise ValueError("Link-state area differs from completion sketch")
+                (node,) = [n for n in plan.nodes if n.device_name == a.local_node]
+                found = [i for i in node.interfaces if i.address == a.local_address]
+                if len(found) != 1:
+                    raise ValueError(
+                        "Link-state address does not identify one concrete interface"
                     )
-                    areas = {
-                        int(IPv4Address(area)) if "." in area else int(area)
-                        for network, area in declarations
-                        if address.ip in IPv4Network(network)
-                    }
-                    if areas != {completion.area}:
-                        raise ValueError(
-                            "Link-state completion requires links wholly within the declared area"
-                        )
+                if found[0].passive:
+                    raise ValueError("Link-state completion requires active interfaces")
+                interface = found[0].name
+            else:
+                raise ValueError("Link-state completion requires a routing design")
             key = "--".join(sorted((a.local_node, a.remote_node)))
             links[key] = dict(
                 id=key,

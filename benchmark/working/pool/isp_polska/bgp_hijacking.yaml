@@ -7,8 +7,491 @@ failure:
     igp: isis
     bgp_mode: ibgp_rr
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: bialystok
+      observer_host: pc_gdansk
+      probe_dst_ip: 203.0.113.1
+      symptom_host: gdansk
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: bialystok
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.115.1
+      symptom_host: poznan
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: bialystok
+      observer_host: pc_rzeszow
+      probe_dst_ip: 203.0.114.1
+      symptom_host: rzeszow
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: bydgoszcz
+      observer_host: pc_bialystok
+      probe_dst_ip: 203.0.113.1
+      symptom_host: bialystok
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: bydgoszcz
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.114.1
+      symptom_host: poznan
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: bydgoszcz
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.115.1
+      symptom_host: poznan
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: gdansk
+      observer_host: pc_bialystok
+      probe_dst_ip: 203.0.113.1
+      symptom_host: bialystok
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: gdansk
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.115.1
+      symptom_host: poznan
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: gdansk
+      observer_host: pc_rzeszow
+      probe_dst_ip: 203.0.114.1
+      symptom_host: rzeszow
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: katowice
+      observer_host: pc_bialystok
+      probe_dst_ip: 203.0.113.1
+      symptom_host: bialystok
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: katowice
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: katowice
+      observer_host: pc_rzeszow
+      probe_dst_ip: 203.0.115.1
+      symptom_host: rzeszow
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: katowice
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: kolobrzeg
+      observer_host: pc_bialystok
+      probe_dst_ip: 203.0.113.1
+      symptom_host: bialystok
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: kolobrzeg
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.114.1
+      symptom_host: poznan
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: kolobrzeg
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.115.1
+      symptom_host: poznan
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: krakow
+      observer_host: pc_bialystok
+      probe_dst_ip: 203.0.113.1
+      symptom_host: bialystok
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: krakow
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.115.1
+      symptom_host: poznan
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: lodz
+      observer_host: pc_bialystok
+      probe_dst_ip: 203.0.113.1
+      symptom_host: bialystok
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: lodz
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: lodz
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.115.1
+      symptom_host: poznan
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: lodz
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: poznan
+      observer_host: pc_bialystok
+      probe_dst_ip: 203.0.113.1
+      symptom_host: bialystok
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: poznan
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: poznan
+      observer_host: pc_rzeszow
+      probe_dst_ip: 203.0.115.1
+      symptom_host: rzeszow
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: poznan
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: rzeszow
+      observer_host: pc_bialystok
+      probe_dst_ip: 203.0.113.1
+      symptom_host: bialystok
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: rzeszow
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: szczecin
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.115.1
+      symptom_host: poznan
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: szczecin
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: warsaw
+      observer_host: pc_bialystok
+      probe_dst_ip: 203.0.113.1
+      symptom_host: bialystok
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: warsaw
+      observer_host: pc_poznan
+      probe_dst_ip: 203.0.115.1
+      symptom_host: poznan
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bialystok
       observer_host: pc_gdansk
@@ -26,6 +509,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bialystok
       observer_host: pc_poznan
@@ -43,6 +529,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bialystok
       observer_host: pc_rzeszow
@@ -60,6 +549,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bydgoszcz
       observer_host: pc_bialystok
@@ -77,6 +569,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bydgoszcz
       observer_host: pc_poznan
@@ -94,6 +589,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bydgoszcz
       observer_host: pc_poznan
@@ -111,6 +609,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: gdansk
       observer_host: pc_bialystok
@@ -128,6 +629,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: gdansk
       observer_host: pc_poznan
@@ -145,6 +649,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: gdansk
       observer_host: pc_rzeszow
@@ -162,6 +669,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: katowice
       observer_host: pc_bialystok
@@ -179,6 +689,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: katowice
       observer_host: pc_rzeszow
@@ -196,6 +709,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kolobrzeg
       observer_host: pc_bialystok
@@ -213,6 +729,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kolobrzeg
       observer_host: pc_poznan
@@ -230,6 +749,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kolobrzeg
       observer_host: pc_poznan
@@ -247,6 +769,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: krakow
       observer_host: pc_bialystok
@@ -264,6 +789,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: krakow
       observer_host: pc_poznan
@@ -281,6 +809,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: lodz
       observer_host: pc_bialystok
@@ -298,6 +829,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: lodz
       observer_host: pc_poznan
@@ -315,6 +849,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: poznan
       observer_host: pc_bialystok
@@ -332,6 +869,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: poznan
       observer_host: pc_rzeszow
@@ -349,6 +889,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: rzeszow
       observer_host: pc_bialystok
@@ -366,6 +909,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: szczecin
       observer_host: pc_poznan
@@ -383,6 +929,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: warsaw
       observer_host: pc_bialystok
@@ -400,6 +949,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: warsaw
       observer_host: pc_poznan
@@ -417,6 +969,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bialystok
       peer_host: pc_bialystok
@@ -434,6 +989,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bydgoszcz
       peer_host: pc_bialystok
@@ -451,6 +1009,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: gdansk
       peer_host: pc_bialystok
@@ -468,6 +1029,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: katowice
       peer_host: pc_bialystok
@@ -485,6 +1049,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kolobrzeg
       peer_host: pc_bialystok
@@ -502,6 +1069,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: krakow
       peer_host: pc_bialystok
@@ -519,6 +1089,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: lodz
       peer_host: pc_bialystok
@@ -536,6 +1109,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: poznan
       peer_host: pc_bialystok
@@ -553,6 +1129,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: rzeszow
       peer_host: pc_bialystok
@@ -570,6 +1149,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: szczecin
       peer_host: pc_bialystok
@@ -587,6 +1169,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: warsaw
       peer_host: pc_bialystok
@@ -604,6 +1189,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: wroclaw
       peer_host: pc_bialystok
@@ -621,6 +1209,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bialystok
       peer_host: pc_bialystok
@@ -638,6 +1229,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bydgoszcz
       peer_host: pc_bialystok
@@ -655,6 +1249,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: gdansk
       peer_host: pc_bialystok
@@ -672,6 +1269,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: katowice
       peer_host: pc_bialystok
@@ -689,6 +1289,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kolobrzeg
       peer_host: pc_bialystok
@@ -706,6 +1309,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: krakow
       peer_host: pc_bialystok
@@ -723,6 +1329,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: lodz
       peer_host: pc_bialystok
@@ -740,6 +1349,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: poznan
       peer_host: pc_bialystok
@@ -757,6 +1369,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: rzeszow
       peer_host: pc_bialystok
@@ -774,6 +1389,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: szczecin
       peer_host: pc_bialystok
@@ -791,6 +1409,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: warsaw
       peer_host: pc_bialystok
@@ -808,6 +1429,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: wroclaw
       peer_host: pc_bialystok

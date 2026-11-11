@@ -58,10 +58,12 @@ class NativeRouterValidation:
     """Vendor projection used by specification-driven validation."""
 
     # Linux interface name -> interface name in the Batfish snapshot (the
-    # native name, or the Linux name for a projection into another syntax).
+    # native name, or the Linux name when the design is analyzed as FRR).
     interface: Callable[[str], str]
     # (config, snapshot interfaces shut down) -> Batfish snapshot file content.
-    batfish_config: Callable[[str, Sequence[str]], str]
+    # None when Batfish has no parser for the platform: static analysis then
+    # reads the router's routing design rendered by netlab as FRR.
+    batfish_config: Callable[[str, Sequence[str]], str] | None
     # (node, config) -> concrete interfaces for the runtime verifier.
     node: Callable[[str, str], NativeRouterNode]
     # (runtime, contract, plan) -> ValidationReport for native observations.
@@ -73,14 +75,11 @@ class NativeRouterValidation:
     # machine, and the netlab device that generates it (if any).
     config_file: str | None = None
     netlab_device: str | None = None
-    # (router, FRR configuration, Linux startup) -> native statements NIKA
-    # appends to netlab output.
-    netlab_retained: Callable[[str, str, str], str] | None = None
-    # (config, snapshot interfaces shut down) -> Batfish content of the
-    # router's default-table addressing and static routes, for environments
-    # analyzed with the Linux static model. Without it the full projection
-    # (``batfish_config``) is analyzed.
-    static_underlay: Callable[[str, Sequence[str]], str] | None = None
+    # (router design, bound (peer, direction) policies) -> native statements
+    # NIKA appends to netlab output for capabilities netlab does not emit.
+    netlab_retained: Callable[[object, set[tuple[str, str]]], str] | None = None
+    # Capability and netlab limitation that the retained statements cover.
+    netlab_retained_capability: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +94,10 @@ class NativeRouterPlatform:
     # (runtime, node) -> provider of failure operations; see
     # ``nika.problems.support.router_ops``. None when no failure is supported.
     fault_ops: Callable[[object, str], object] | None = None
+    # Most kbit/s an interface of this platform sends, when the image caps it.
+    interface_rate_kbps: int | None = None
+    # Memory one router reserves in the admission estimate (bytes).
+    memory_per_router: int = 1024**3
 
 
 # Vendor modules exposing ``PLATFORM``; add a profile here to support it.
@@ -102,6 +105,13 @@ _PLATFORMS = {
     "iosxr": "nika.net_env.utils.iosxr.platform",
     "routeros": "nika.net_env.utils.routeros.platform",
 }
+
+
+def platform_rate_limit_kbps(profile: str | None) -> int | None:
+    """Per-interface send cap of native ``profile``'s routers, or ``None``."""
+    if profile not in _PLATFORMS:
+        return None
+    return native_platform(profile).interface_rate_kbps
 
 
 def native_profiles() -> frozenset[str]:
@@ -183,12 +193,35 @@ class NativeRouterEnv:
         by_role = self.router_roles()
         return tuple(sorted({name for role in roles for name in by_role.get(role, ())}))
 
+    def native_lab_memory(self) -> int | None:
+        """Estimated bytes the lab needs; ``None`` without native routers."""
+        if not self.native_routers:
+            return None
+        from nika.net_env.utils.native_admission import native_lab_memory
+
+        routers = len(self.native_routers)
+        return native_lab_memory(
+            routers=routers,
+            per_router=native_platform(self.device_profile).memory_per_router,
+            hosts=len(self.lab.machines) - routers,
+        )
+
     def deploy(self):
         if self.native_routers:
             native_platform(self.device_profile).check_deployable(self)
         super().deploy()
         for node, commands in self.native_netns_commands.items():
             run_in_network_namespace(self, node, commands)
+
+
+def design_analyzed_routers(env) -> dict[str, str]:
+    """Return native routers analyzed through their FRR design, with profiles."""
+    return {
+        name: profile
+        for name, profile in getattr(env, "native_routers", {}).items()
+        if (validation := native_platform(profile).validation) is not None
+        and validation.batfish_config is None
+    }
 
 
 def require_native_validation(env) -> None:

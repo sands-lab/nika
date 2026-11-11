@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
+
+from nika.benchmark_engine.protocol import AgentAccess
 
 PolicyMode = Literal["two_phase"]
 
@@ -15,6 +17,9 @@ FOLLOWED_LOGS = ("nika.jsonl", "messages.jsonl")
 class HealthResponse(BaseModel):
     status: str = "ok"
     role: str = "nika-remote"
+    # Host versions recorded in run provenance; ``None`` from older daemons.
+    docker: str | None = None
+    kernel: str | None = None
 
 
 class EnvStartRequest(BaseModel):
@@ -33,8 +38,20 @@ class EnvStartRequest(BaseModel):
     rpki: bool | None = None
     backend: str | None = None
     device_profile: str | None = None
+    release: str | None = None
     static_validation: bool = False
     telemetry: list[str] = Field(default_factory=list)
+    traffic: dict[str, Any] | None = None
+    defer_background_traffic: bool = False
+    defer_business_traffic: bool = False
+
+
+class SchedulePrepareRequest(BaseModel):
+    schedule: dict[str, Any]
+    traffic: dict[str, Any] | None = None
+    benchmark_version: str | None = None
+    expected_root_causes: list[dict[str, Any]] | None = None
+    restored: bool = False
 
 
 class EnvStartResponse(BaseModel):
@@ -45,7 +62,7 @@ class EnvStartResponse(BaseModel):
 class FailureInjectRequest(BaseModel):
     session_id: str
     problem_names: list[str]
-    param_overrides: dict[str, str] = Field(default_factory=dict)
+    param_overrides: dict[str, Any] = Field(default_factory=dict)
     # Benchmark root causes the injected ground truth must match.
     expected_root_causes: list[dict[str, Any]] | None = None
 
@@ -56,8 +73,13 @@ class FailureInjectResponse(BaseModel):
 
 
 class McpAttachRequest(BaseModel):
+    tool_call_limits: (
+        dict[Literal["diagnosis", "submission"], Annotated[int, Field(ge=0)]] | None
+    ) = None
     policy_mode: PolicyMode = "two_phase"
     public_host: str | None = None
+    # The access policy the gateway enforces; ``None``: the server's run config.
+    access: AgentAccess | None = None
 
 
 class McpAttachResponse(BaseModel):
@@ -81,6 +103,8 @@ class SessionRebindRequest(BaseModel):
     session_id: str
     # Minted by the agent host: a restored lab host's clock is the snapshot's.
     agent_session_id: str | None = None
+    # Healthy image restores resume transient protocols before failure injection.
+    restore_runtime: bool = False
 
 
 class SessionRebindResponse(BaseModel):

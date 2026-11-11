@@ -4,6 +4,9 @@ failure:
   fault_type: device_forwarding_packet_corruption
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: hq_edge
       intf_name: eth4
@@ -16,6 +19,9 @@ failure:
       fault_type: device_forwarding_packet_corruption
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: hq_edge
       intf_name: eth4
@@ -27,6 +33,9 @@ failure:
         node: hq_edge
       fault_type: device_forwarding_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: hq_edge
       intf_name: eth5
@@ -38,6 +47,9 @@ failure:
         node: hq_edge
       fault_type: device_forwarding_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: hq_edge
       intf_name: eth5

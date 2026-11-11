@@ -24,6 +24,7 @@ import functools
 import hashlib
 import json
 import os
+import platform
 import shutil
 import socket
 import subprocess
@@ -145,18 +146,26 @@ def _copy_caches(uds: Path) -> None:
 
 
 def _host_plugins() -> list[str]:
-    """Kathara network plugins enabled in this host's Docker."""
+    """Guest network plugins, including image-only host Docker stores."""
     out = subprocess.run(
         ["docker", "plugin", "ls", "--format", "{{.Name}} {{.Enabled}}"],
         capture_output=True,
         text=True,
         check=True,
     ).stdout.splitlines()
-    return [
+    plugins = [
         line.split()[0]
         for line in out
         if line.startswith("kathara/katharanp") and line.endswith("true")
     ]
+    if plugins:
+        return plugins
+    # The host needs no network plugin when every lab runs inside Firecracker.
+    # Use the installer's standard plugin in the guest without activating it here.
+    arch = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine())
+    if arch is None:
+        raise VmmError("Unsupported host architecture for the guest network plugin")
+    return [f"kathara/katharanp_vde:{arch}"]
 
 
 def _finish_in_firecracker(build_dir: Path, kernel_version: str, key: str) -> None:
@@ -416,6 +425,8 @@ def _build_rootfs(build_dir: Path) -> str:
     _docker(
         "run",
         "-d",
+        "--network",
+        "host",
         "--name",
         name,
         UBUNTU_IMAGE,
@@ -476,6 +487,8 @@ def _build_rootfs(build_dir: Path) -> str:
                 "run",
                 "-i",
                 "--rm",
+                "--network",
+                "host",
                 "-v",
                 f"{build_dir}:/out",
                 "-v",
@@ -556,13 +569,18 @@ def _containerd_store() -> bool:
 
 
 def _vendor_images() -> list[str]:
-    """Vendor router images this host prepared (``install.sh --with-vendor-images``)."""
+    """Router images this host prepared outside a registry pull.
+
+    RouterOS and XRd come from ``install.sh --with-vendor-images``; the SONiC
+    virtual switch is a build-pipeline download (``nika images prepare``).
+    """
     from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
     from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
+    from nika.net_env.utils.sonic.common import IMAGE as SONIC_IMAGE
 
     return [
         ref
-        for ref in (ROUTEROS_IMAGE, XRD_IMAGE)
+        for ref in (ROUTEROS_IMAGE, XRD_IMAGE, SONIC_IMAGE)
         if subprocess.run(
             ["docker", "image", "inspect", ref], capture_output=True, check=False
         ).returncode

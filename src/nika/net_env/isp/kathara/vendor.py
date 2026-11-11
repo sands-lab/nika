@@ -27,12 +27,15 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     image_exists,
     nika_image,
 )
+from nika.net_env.isp.rendered import IspRendered
 from nika.runtime.spec import NodeRole
 
 
-class IspVendor(NetworkEnvBase):
+class IspVendor(IspRendered, NetworkEnvBase):
     """Compile any catalog ISP graph to a supported native OSPF/BGP platform."""
 
+    # Synthetic WAN traffic matrices follow a gravity model (Roughan, CCR 2005).
+    BASELINE_TRAFFIC = {"pattern": "gravity", "load_mbps": 1.0}
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
@@ -54,6 +57,7 @@ class IspVendor(NetworkEnvBase):
         topo_size: str | None = None,
         routing_parameters: dict | None = None,
         routing_model: str | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -86,8 +90,7 @@ class IspVendor(NetworkEnvBase):
             first_interface_index=1 if self.device_profile == "routeros" else 0,
         )
         plan = compile_isp_plan(config)
-        # The customer site needs a Kathara FRR host and export policy.
-        self.bgp_plan = compile_bgp_plan(plan, self.bgp_mode, customer_site=False)
+        self.bgp_plan = compile_bgp_plan(plan, self.bgp_mode)
         plan = scope_igp_to_bgp_as(plan, self.bgp_plan)
         if routing_parameters is not None:
             from nika.net_env.synthesis.parameters import (
@@ -143,6 +146,11 @@ class IspVendor(NetworkEnvBase):
 
             native_interface = routeros_interface
             self.deployment_configs = render_routeros_isp(self.plan, self.bgp_plan)
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import current_configs
+
+            # Native routers read their configuration at boot, before startup.
+            self.deployment_configs = current_configs(self) or self.deployment_configs
         self._native_interface = native_interface
         self.BGP_CONFIG_PATH = CONFIG_FILE_PATH
         self.BGP_ROUTERS = {node.device_name: node for node in self.plan.nodes}
@@ -166,8 +174,16 @@ class IspVendor(NetworkEnvBase):
             f"ISP {self.plan.topology_name}: {self.device_profile}, "
             f"{self.plan.igp.upper()}, {bgp_desc}"
         )
-        self.desc += design_notes(self.plan, self.bgp_plan, router_services=False)
+        self.desc += design_notes(
+            self.plan, self.bgp_plan, workload=self.business_workload()
+        )
         for node in self.plan.nodes:
+            customer_iface = (
+                self.bgp_plan.customer_interface(node) if self.bgp_plan else None
+            )
+            interfaces = [iface.name for iface in node.interfaces]
+            if customer_iface:
+                interfaces.append(customer_iface)
             if self.device_profile == "routeros":
                 from nika.net_env.utils.routeros.common import add_routeros_router
 
@@ -175,7 +191,7 @@ class IspVendor(NetworkEnvBase):
                     self.lab,
                     node.device_name,
                     config=self.deployment_configs[node.device_name],
-                    data_interfaces=len(node.interfaces),
+                    data_interfaces=len(interfaces),
                 )
             else:
                 machine = self.lab.new_machine(
@@ -198,7 +214,7 @@ class IspVendor(NetworkEnvBase):
                     self.lab,
                     machine,
                     self.deployment_configs[node.device_name],
-                    [iface.name for iface in node.interfaces],
+                    interfaces,
                 )
         for link in self.plan.links:
             self.lab.connect_machine_to_link(
@@ -237,10 +253,26 @@ class IspVendor(NetworkEnvBase):
             self.lab.connect_machine_to_link(
                 edge.host_name, edge.collision_domain, machine_iface_number=0
             )
+        from nika.net_env.isp.kathara.customer import attach_customer_site
+
+        attach_customer_site(
+            self,
+            {
+                "image": nika_image("base"),
+                "shell": "/bin/sh",
+                "mem": "256m",
+                "cpus": 0.5,
+            },
+        )
         self.load_machines()
 
     def probe_intent(self) -> ProbeIntent | None:
         return stub_probe_intent(self.bgp_plan, self.traffic)
+
+    def traffic_demands(self):
+        from nika.net_env.isp.workload import stub_demands
+
+        return stub_demands(self.plan, self.traffic, self.topo)
 
     def business_workload(self):
         from nika.net_env.isp.workload import build_isp_workload
@@ -252,6 +284,7 @@ class IspVendor(NetworkEnvBase):
             self.topo,
             router_services=False,
             router_iface=self._native_interface,
+            rate_limit_kbps=self.router_rate_limit_kbps(),
         )
 
     @classmethod
@@ -262,21 +295,33 @@ class IspVendor(NetworkEnvBase):
 
         return isp_topology_probe_path(topo, deploy_kwargs.get("bgp_mode"))
 
+    def _memory_inputs(self) -> dict[str, int]:
+        from nika.net_env.native_routers import native_platform
+
+        return {
+            "routers": len(self.plan.nodes),
+            "per_router": native_platform(self.device_profile).memory_per_router,
+            "hosts": len(self.traffic.hosts)
+            + int(
+                self.bgp_plan is not None and self.bgp_plan.customer_site is not None
+            ),
+        }
+
+    def native_lab_memory(self) -> int:
+        """Estimated bytes the lab needs (see ``native_lab_memory``)."""
+        from nika.net_env.utils.native_admission import native_lab_memory
+
+        return native_lab_memory(**self._memory_inputs())
+
     def deploy(self):
         if not image_exists(self._image):
             raise RuntimeError(
                 f"Native ISP image {self._image!r} must be installed locally"
             )
-        from nika.net_env.utils.native_admission import (
-            GIB,
-            require_native_lab_memory,
-        )
+        from nika.net_env.utils.native_admission import require_native_lab_memory
 
         require_native_lab_memory(
-            f"Native ISP {self.device_profile}",
-            routers=len(self.plan.nodes),
-            per_router=3 * GIB if self.device_profile == "iosxr" else GIB,
-            hosts=len(self.traffic.hosts),
+            f"Native ISP {self.device_profile}", **self._memory_inputs()
         )
         super().deploy()
 

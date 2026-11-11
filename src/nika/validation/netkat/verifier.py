@@ -9,6 +9,7 @@ from uuid import uuid4
 import docker
 
 from nika.net_env.contract import ValidationReport, ValidationResult
+from nika.utils.docker_files import upload_paths
 from nika.validation.netkat.model import ForwardingNetwork, prefix_test
 
 KATCH_IMAGE = "julesjacobs/katch@sha256:7184375abfbcf38e6c1e176637507272006d4e4bfa8ce30dab60069dcd6da410"
@@ -136,15 +137,17 @@ class NetKatVerifier:
                     network_disabled=True,
                     mem_limit="2g",
                     nano_cpus=2_000_000_000,
-                    volumes={
-                        str(snapshot.path.resolve()): {"bind": "/work", "mode": "ro"},
-                        str(Path(__file__).resolve().parent): {
-                            "bind": "/adapter",
-                            "mode": "ro",
-                        },
-                    },
                 )
                 try:
+                    upload_paths(
+                        container,
+                        {
+                            "/work": snapshot.path,
+                            "/adapter/KatchBatch.java": Path(__file__).with_name(
+                                "KatchBatch.java"
+                            ),
+                        },
+                    )
                     container.start()
                     try:
                         status = container.wait(timeout=remaining)["StatusCode"]

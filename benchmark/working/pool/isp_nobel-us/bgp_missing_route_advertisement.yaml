@@ -7,8 +7,71 @@ failure:
     igp: isis
     bgp_mode: ibgp_rr
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: seattle
+      peer_host: pc_seattle
+      prefix: 203.0.113.0/24
+      probe_dst_ip: 203.0.113.1
+      symptom_host: ann_arbor
+    root_causes:
+    - resource:
+        kind: node
+        node: seattle
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: urbana_champaign
+      peer_host: pc_urbana_champaign
+      prefix: 203.0.114.0/24
+      probe_dst_ip: 203.0.114.1
+      symptom_host: ann_arbor
+    root_causes:
+    - resource:
+        kind: node
+        node: urbana_champaign
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: washington
+      peer_host: pc_washington
+      prefix: 203.0.115.0/24
+      probe_dst_ip: 203.0.115.1
+      symptom_host: ann_arbor
+    root_causes:
+    - resource:
+        kind: node
+        node: washington
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: seattle
       peer_host: pc_seattle
@@ -26,6 +89,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: urbana_champaign
       peer_host: pc_urbana_champaign
@@ -43,6 +109,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: washington
       peer_host: pc_washington
@@ -60,6 +129,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: seattle
       peer_host: pc_seattle
@@ -77,6 +149,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: urbana_champaign
       peer_host: pc_urbana_champaign
@@ -94,6 +169,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: washington
       peer_host: pc_washington
@@ -111,6 +189,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: seattle
       peer_host: pc_seattle
@@ -128,6 +209,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: urbana_champaign
       peer_host: pc_urbana_champaign
@@ -145,6 +229,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: washington
       peer_host: pc_washington

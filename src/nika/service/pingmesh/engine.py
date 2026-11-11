@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
+import os
+import shlex
+import uuid
 import statistics
 from collections.abc import Callable
 from datetime import UTC, datetime
+from time import monotonic
 from typing import Any
 
 from nika.net_env.probe_intent import ProbeIntent
@@ -38,6 +43,10 @@ RESOLVE_TIMEOUT_SEC = 20.0
 MAX_CONCURRENT_PROBES = 16
 # Seconds past the last echo request before ping gives up on a silent pair.
 PING_DEADLINE_SLACK_SEC = 2
+# Worst-case seconds for the probe waves. With RESOLVE_TIMEOUT_SEC it stays
+# under the default MCP tool timeout (nika.mcp.read_timeout_sec, 120 s), so a
+# snapshot returns results instead of timing out the agent's tool call.
+PROBE_BUDGET_SEC = 90.0
 EXEC_TIMEOUT_SENTINEL = "[TIMEOUT]"
 _ANOMALY_ORDER: dict[AnomalyType, int] = {
     "policy_violation": 0,
@@ -50,6 +59,12 @@ _ANOMALY_ORDER: dict[AnomalyType, int] = {
 
 def _clamp_count(count: int) -> int:
     return max(MIN_COUNT, min(MAX_COUNT, count))
+
+
+def _pair_ceiling(count: int) -> int:
+    """Most pairs whose probe waves fit in PROBE_BUDGET_SEC at worst case."""
+    wave_sec = ping_exec_timeout(count) + 5
+    return MAX_CONCURRENT_PROBES * max(1, int(PROBE_BUDGET_SEC // wave_sec))
 
 
 def _validate_selection(
@@ -262,21 +277,69 @@ async def _probe_pair(
     """Probe one pair; a failure of this pair never aborts the rest."""
     if not target_ip:
         return _failed_stats("unknown", "target address could not be resolved")
-    budget = ping_exec_timeout(count)
     deadline = count + PING_DEADLINE_SLACK_SEC
-    command = f"ping -c {count} -w {deadline} -n -q {target_ip}"
+    budget = ping_exec_timeout(count)
+    from nika.runtime.shared.processes import process_command
+
+    launched = None
+    pidfile = f"/tmp/net-probe-{uuid.uuid4().hex}.json"
+    interrupted = False
     try:
         async with slots:
-            output = await asyncio.wait_for(
-                api.exec_cmd_async(source, command, timeout=budget),
-                timeout=budget + 5,
+            command = shlex.join(
+                process_command(
+                    "run",
+                    pidfile,
+                    "ping",
+                    "-c",
+                    str(count),
+                    "-w",
+                    str(deadline),
+                    "-n",
+                    "-q",
+                    target_ip,
+                )
             )
+            launched = asyncio.create_task(
+                api.exec_cmd_async(source, command, timeout=budget)
+            )
+            output = await asyncio.wait_for(
+                asyncio.shield(launched), timeout=budget + 5
+            )
+            interrupted = isinstance(output, str) and output.startswith(
+                EXEC_TIMEOUT_SENTINEL
+            )
+    except asyncio.CancelledError:
+        interrupted = True
+        raise
     except asyncio.TimeoutError:
+        interrupted = True
         return _failed_stats("timeout", f"probe from {source} timed out")
     except Exception as exc:  # noqa: BLE001 - one pair must not fail the snapshot
+        interrupted = True
         return _failed_stats(
             "error", f"probe from {source} failed: {type(exc).__name__}"
         )
+    finally:
+        if interrupted and launched is not None:
+            cleanup = shlex.join(process_command("cancel", pidfile))
+            try:
+                await asyncio.wait_for(
+                    api.exec_cmd_async(source, cleanup, timeout=5), timeout=6
+                )
+                await asyncio.wait_for(asyncio.shield(launched), timeout=3)
+            except Exception:
+                # Report cleanup trouble; never kill by a reused PID or broad name.
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Probe cleanup did not finish on %s", source
+                )
+            finally:
+                if not launched.done():
+                    launched.cancel()
+                await asyncio.gather(launched, return_exceptions=True)
+
     if not isinstance(output, str):
         return _failed_stats("unknown", "Unable to parse ping output")
     if output.startswith(EXEC_TIMEOUT_SENTINEL):
@@ -341,7 +404,10 @@ async def run_pingmesh_snapshot(
     )
     is_isolated = intent.isolation_matcher() if intent else (lambda _a, _b: False)
     pairs, candidate_pairs = _build_pairs(
-        resolved_sources, resolved_targets, max_pairs, is_isolated=is_isolated
+        resolved_sources,
+        resolved_targets,
+        min(max_pairs, _pair_ceiling(count)),
+        is_isolated=is_isolated,
     )
     if not pairs:
         raise ValueError(
@@ -350,13 +416,52 @@ async def run_pingmesh_snapshot(
 
     probed = sorted({name for pair in pairs for name in pair})
     endpoint_ips = await _resolve_endpoint_ips(api, probed)
-    slots = asyncio.Semaphore(MAX_CONCURRENT_PROBES)
-    stats_list = await asyncio.gather(
-        *(
-            _probe_pair(api, src, endpoint_ips.get(dst), count, slots)
-            for src, dst in pairs
-        )
-    )
+    cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 1
+    # Both runtime APIs dispatch execs through asyncio's default executor,
+    # whose worker limit is min(32, CPUs + 4). Queued execs would spend their
+    # per-pair timeout waiting for a worker before their ping even starts.
+    max_concurrency = min(MAX_CONCURRENT_PROBES, cpus + 4)
+    # Leave capacity for the lab's normal traffic and protocol processing.
+    concurrency = min(max_concurrency, max(1, cpus // 2))
+    slots = asyncio.Semaphore(concurrency)
+    probe_started = monotonic()
+
+    async def expand_before_deadline() -> None:
+        # Start below the vCPU count to limit probe-induced scheduling latency.
+        # Reserve waves of ping deadlines plus launch/return slack. The
+        # snapshot budget also bounds execs that stop responding.
+        wave_sec = count + PING_DEADLINE_SLACK_SEC + 1
+        while True:
+            remaining_pairs = sum(not probe.done() for probe in probes)
+            if not remaining_pairs:
+                return
+            reserved_sec = math.ceil(remaining_pairs / max_concurrency) * wave_sec
+            delay = PROBE_BUDGET_SEC - (monotonic() - probe_started) - reserved_sec
+            await asyncio.sleep(max(0, delay))
+            if delay <= 0:
+                break
+        for _ in range(max_concurrency - concurrency):
+            slots.release()
+
+    expansion = asyncio.create_task(expand_before_deadline())
+    probes = [
+        asyncio.create_task(_probe_pair(api, src, endpoint_ips.get(dst), count, slots))
+        for src, dst in pairs
+    ]
+    try:
+        done, _pending = await asyncio.wait(probes, timeout=PROBE_BUDGET_SEC)
+        stats_list = [
+            probe.result()
+            if probe in done
+            else _failed_stats("timeout", f"probe from {src} exceeded snapshot budget")
+            for (src, _), probe in zip(pairs, probes)
+        ]
+    finally:
+        expansion.cancel()
+        for probe in probes:
+            if not probe.done():
+                probe.cancel()
+        await asyncio.gather(expansion, *probes, return_exceptions=True)
 
     results: list[PingPairResult] = []
     anomalies: list[PingAnomaly] = []

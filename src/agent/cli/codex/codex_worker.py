@@ -42,7 +42,7 @@ from agent.utils.loggers import (
     PendingToolCallTracker,
     tool_event_payload,
 )
-from agent.utils.mcp_client import session_mcp_config
+from agent.utils.mcp_client import mcp_read_timeout_seconds, session_mcp_config
 from agent.utils.skills import prepare_codex_workspace
 from agent.utils.usage import normalize_usage
 
@@ -127,7 +127,7 @@ class CodexSubprocessStallError(Exception):
             if reconnect_failure
             else "no Codex progress"
         )
-        super().__init__(f"stalled after {stall_s}s without {reason}")
+        super().__init__(f"stalled after {stall_s}s: {reason}")
 
 
 class CodexFatalError(Exception):
@@ -298,8 +298,13 @@ def _build_mcp_toml(
     *,
     provider: str | None = None,
     base_url: str | None = None,
+    tool_timeout_sec: float | None = None,
 ) -> str:
-    """Serialise Codex ``config.toml``: approvals, optional provider, MCP servers."""
+    """Serialise Codex ``config.toml``: approvals, optional provider, MCP servers.
+
+    *tool_timeout_sec* bounds each MCP tool call, so a slow host tool returns a
+    tool error to the agent before the stall timer kills Codex.
+    """
     lines: list[str] = [
         'approval_policy = "never"',
         'sandbox_mode = "workspace-write"',
@@ -346,6 +351,8 @@ def _build_mcp_toml(
         )
     for name, srv in servers.items():
         lines.append(f"[mcp_servers.{name}]")
+        if tool_timeout_sec is not None:
+            lines.append(f"tool_timeout_sec = {float(tool_timeout_sec)}")
         if srv.get("transport") == "http":
             lines.append(f'url = "{srv["url"]}"')
             # A troubleshooting run without its MCP tools can appear to finish
@@ -486,7 +493,12 @@ class CodexWorker:
         )
         config_path = self._codex_home / "config.toml"
         config_path.write_text(
-            _build_mcp_toml(servers, provider=self.llm_provider), encoding="utf-8"
+            _build_mcp_toml(
+                servers,
+                provider=self.llm_provider,
+                tool_timeout_sec=mcp_read_timeout_seconds(),
+            ),
+            encoding="utf-8",
         )
         if self.llm_provider == "openai":
             merge_native_codex_providers(config_path)

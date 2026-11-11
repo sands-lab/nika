@@ -47,8 +47,8 @@ def _write_mini_catalog(tmp_path: Path) -> Path:
                 "failure": {
                     "fault_type": "link_down",
                     "cases": [
-                        _link_down_case("client_0"),
-                        _link_down_case("super_spine_router_0", "eth2"),
+                        _link_down_case("client_1_1"),
+                        _link_down_case("spine_1", "eth2"),
                     ],
                 },
             },
@@ -76,7 +76,7 @@ def test_collapse_candidates_keeps_one_per_context(tmp_path: Path) -> None:
     collapsed = collapse_candidates(rows)
     failure_rows = [row for row in collapsed if row["problem"] == "link_down"]
     assert len(failure_rows) == 1
-    assert failure_rows[0]["inject"]["host_name"] == "client_0"
+    assert failure_rows[0]["inject"]["host_name"] == "client_1_1"
 
 
 def test_audit_mini_catalog_passes(tmp_path: Path) -> None:

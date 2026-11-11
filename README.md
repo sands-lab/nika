@@ -69,10 +69,10 @@ Choose the network environment you want to troubleshoot. See the [environment re
 
 | Network type | Environments | Emulator | What they run |
 | --- | --- | --- | --- |
-| Data center Clos | [`dc_clos`](docs/operations/network-scenarios.md#data-center-clos-scenario), [`min3clos`](docs/operations/network-scenarios.md#min3clos) | Kathará (`dc_clos`), Containerlab (`min3clos`) | FRR or Nokia SR Linux routed fabrics |
+| Data center Clos | [`dc_clos`](docs/operations/network-scenarios.md#data-center-clos-scenario), [`min3clos`](docs/operations/network-scenarios.md#min3clos) | Kathará (`dc_clos`), Containerlab (`min3clos`) | FRR, Nokia SR Linux, or SONiC routed fabrics |
 | Campus LAN | [`campus_lan`](docs/operations/network-scenarios.md#campus-lan-scenario) | Kathará | OSPF, DHCP, DNS, and web services |
 | Enterprise WAN | [`enterprise_branch`](docs/operations/network-scenarios.md#enterprise_branch) | Kathará | Provider underlay and WireGuard/eBGP overlay |
-| ISP backbone | [`isp_abilene`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), [`isp_france`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), and other SNDlib topologies | Kathará or Containerlab | SNDlib backbone graphs with configurable routing |
+| ISP backbone | [`isp_abilene`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), [`isp_france`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), and other SNDlib topologies | Kathará or Containerlab | SNDlib backbone graphs on FRR, Nokia SR Linux, or SONiC |
 | SDN fabric | [`sdn_l3_clos`](docs/operations/network-scenarios.md#sdn_l3_clos) | Kathará | ONOS and OVS Clos fabric |
 | P4 fabric | [`p4_dc_fabric`](docs/operations/network-scenarios.md#p4_dc_fabric), [`p4_dc_gateway`](docs/operations/network-scenarios.md#p4_dc_gateway) | Kathará | BMv2 switches and P4Runtime |
 | Kubernetes networking | [`k8s_lab`](docs/operations/network-scenarios.md#k8s_lab), [`llmd_lab`](docs/operations/network-scenarios.md#llmd_lab) | Kathará | k3s clusters in emulated networks |
@@ -81,20 +81,20 @@ Choose the network environment you want to troubleshoot. See the [environment re
 
 ### Network incidents
 
-Explore the [network incidents](docs/operations/failures.md) included in the working benchmark:
+Explore the registered [network incidents](docs/operations/failures.md). The [working pool](docs/benchmarks/benchmark-configuration.md#working-matrix) is the task space that `nika benchmark run` runs by default:
 
-| Failure domain | Failure types | Tasks |
-| --- | ---: | ---: |
-| Link & Interface | 6 | 267 |
-| Routing & Control Plane | 8 | 196 |
-| Forwarding, Encapsulation & Policy | 26 | 324 |
-| Service Networking | 6 | 17 |
-| Management & Orchestration Plane | 4 | 11 |
-| Addressing, Neighbor & Naming | 13 | 132 |
-| Endpoint & Application | 2 | 38 |
-| Traffic, Queueing & Resource | 3 | 25 |
-| Security | 7 | 88 |
-| **Total** | **75** | **1,098** |
+| Failure domain | Registered failure types |
+| --- | ---: |
+| Link & Interface | 6 |
+| Routing & Control Plane | 22 |
+| Forwarding, Encapsulation & Policy | 29 |
+| Service Networking | 11 |
+| Management & Orchestration Plane | 9 |
+| Addressing, Neighbor & Naming | 13 |
+| Endpoint & Application | 2 |
+| Traffic, Queueing & Resource | 4 |
+| Security | 7 |
+| **Total** | **103** |
 
 See the [failure reference](docs/operations/failures.md#registered-failures) for individual faults and injection options.
 
@@ -255,11 +255,11 @@ Pick the path that matches what you're trying to do:
 
 ## Network management benchmarks
 
-NIKA is part of a growing ecosystem. The table below compares NIKA with other benchmarks in terms of their focus, agent interactivity, variety, scale, and realism. While the best benchmark depends on your use case, NIKA currently outstands  for realistic agentic evaluations in online environments**.
+NIKA is part of a growing ecosystem. The table below compares NIKA with other benchmarks in terms of their focus, agent interactivity, variety, scale, and realism. NIKA runs agents against executable network incidents with live interaction.
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 75 registered fault types <br> 40 network environments | ⭐️⭐️ <br> 1,098 tasks | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 103 registered fault types <br> 40 network environments | ⭐️⭐️ <br> [Working-pool task counts](docs/operations/failures.md#domain-boundaries) | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |

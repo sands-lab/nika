@@ -2,7 +2,7 @@
 
 Start with the root [README](../README.md) to install NIKA and run one incident. Use the references below to choose a network, inspect available agent tools, or run a benchmark.
 
-The [glossary](../GLOSSARY.md) defines the terms these documents use, such as agent, harness, scenario, and case.
+The [glossary](../GLOSSARY.md) defines the terms these documents use, such as task, environment, device profile, agent, and harness.
 
 Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for questions, agent discussion, and contributions.
 
@@ -16,6 +16,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Pick tasks, agents, and sessions interactively instead of typing flags | [Interactive shell (`nika tui`)](operations/tui.md) | How-to |
 | Browse finished or running session trajectories in a browser | [Browse sessions with `nika inspect`](operations/session-inspect.md) | How-to |
 | Compare network types, scenarios, backends, and prerequisites | [Network scenarios](operations/network-scenarios.md) | Reference |
+| Deploy a Clos or SNDlib ISP on SONiC routers | [SONiC routers on Containerlab](operations/network-scenarios.md#sonic-routers-on-containerlab) | How-to |
 | Recover from common lab, host, and run failures | [Troubleshooting](operations/troubleshooting.md) | How-to |
 | Select, inspect, and inject a failure | [Failure taxonomy and reference](operations/failures.md) | Reference |
 | Run the lab host and agent host separately | [Remote lab execution](operations/remote.md) | How-to |
@@ -30,6 +31,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Choose an agent and run hosted or self-hosted models | [Choose and run an agent](agents/agent-implementations.md) | How-to |
 | Check provider support, limits, and telemetry semantics | [Agent reference](agents/agent-reference.md) | Reference |
 | Build your own agent | [Custom agent integration](agents/custom-agents.md) | How-to |
+| Execute isolated episodes from an optimizer or sampling client | [External rollout clients](development/rollout-clients.md) | How-to |
 | Start from a complete agent built on another framework | [NOOA agent example](agents/nooa-example.md) | Example |
 | Find Pingmesh, INT, packet capture, and other agent tools | [MCP servers](agents/mcp-servers.md) | Reference |
 | Add reusable instructions for Claude, Codex, OpenCode, or DeepSeek Harness agents | [Configure agent skills](agents/agent-skills.md) | How-to |
@@ -40,9 +42,11 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Goal | Read | Type |
 | --- | --- | --- |
 | Run a frozen release or an ad-hoc case matrix, or inspect generated coverage | [Benchmark configuration](benchmarks/benchmark-configuration.md) | Reference |
+| Schedule failures, recovery, traffic, and agent startup | [Incident scheduling](benchmarks/scheduling.md) | Reference |
 | Understand what release version numbers mean and when they change | [Versioning policy](../VERSIONING.md) | Reference |
 | Run the 0.1.0 case collection | [Run release 0.1.0](compat/release-0.1.0.md) | How-to |
 | Understand ground truth, agent submissions, and scores | [Root-cause ground truth and scoring](benchmarks/root-cause-evaluation.md) | Reference |
+| Check that tasks are solvable and see each task's reference diagnosis | [Oracle solver](benchmarks/oracle-solver.md) | How-to |
 | Package a completed official release run | [Leaderboard submission](benchmarks/leaderboard-submission.md) | How-to |
 | Size hosts and `batch_size` from measured scenario startup cost | [Scenario startup performance](benchmarks/scenario_perf.md) | Reference |
 
@@ -50,10 +54,12 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 
 | Goal | Read | Type |
 | --- | --- | --- |
+| Review public evidence for a failure or export source coverage | [Failure sources](operations/failures.md#public-sources) | Reference |
 | Add a scenario, failure, traffic source, or candidate case | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
 | Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
 | Construct and verify routing, SDN and P4 environments | [Environment construction and verification](development/scenario-verification.md) | Explanation |
 | Check which release 0.2.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
+| Integrate the frontend with a release's benchmark engine | [Benchmark release contracts](development/benchmark-contracts.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
 
 ## Maintain the documentation
@@ -75,5 +81,6 @@ uv run nika agent list
 | Failure registry and labels | [`registry.py`](../src/nika/problems/registry.py), [`base.py`](../src/nika/problems/base.py), [`rca/`](../src/nika/problems/rca/) |
 | Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/nika/agents/registry.py) |
 | MCP server catalog and selection | [`mcp/registry.py`](../src/nika/mcp/registry.py), [`mcp/servers/`](../src/nika/mcp/servers/), [`mcp/gateway/`](../src/nika/mcp/gateway/) |
+| Benchmark release contracts | [`benchmark_engine/protocol.py`](../src/nika/benchmark_engine/protocol.py), [`benchmark_engine/engine.py`](../src/nika/benchmark_engine/engine.py), [`benchmark-contracts.md`](development/benchmark-contracts.md) |
 | Benchmark generation | [`workflows/benchmark/`](../src/nika/workflows/benchmark/) (`nika benchmark generate` / `select`) |
 | Test suites | [`tests/`](../tests/) |

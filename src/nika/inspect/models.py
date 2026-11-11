@@ -183,9 +183,39 @@ class LlmStatsResponse(BaseModel):
     stats: dict[str, LlmRequestStats] = Field(default_factory=dict)
 
 
+class ScheduleOccurrence(BaseModel):
+    event_index: int
+    occurrence_index: int
+    occurrence_count: int
+    label: str
+    kind: Literal["failure", "traffic"] = "failure"
+    state: str = "pending"
+    planned_start: float
+    planned_stop: float | None = None
+    actual_start: float | None = None
+    verified_at: float | None = None
+    actual_stop: float | None = None
+
+
+class ScheduleProgress(BaseModel):
+    state: str
+    started_at: str | None = None
+    elapsed_sec: float = 0
+    completed_operations: int
+    total_operations: int
+    active_occurrences: int
+    agent_start: float | None = None
+    agent_actual_start: float | None = None
+    next_label: str | None = None
+    next_at: float | None = None
+    error: str | None = None
+    occurrences: list[ScheduleOccurrence] = Field(default_factory=list)
+
+
 class SessionDetail(SessionSummary):
     run: dict[str, Any] = Field(default_factory=dict)
     task_description: str | None = None
+    schedule: ScheduleProgress | None = None
 
 
 class SessionFacets(BaseModel):

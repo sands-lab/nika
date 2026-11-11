@@ -6,6 +6,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -21,6 +24,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -36,6 +42,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -51,6 +60,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -66,6 +78,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -81,6 +96,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -96,6 +114,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -111,6 +132,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -126,6 +150,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -141,6 +168,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -156,6 +186,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -171,6 +204,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -186,6 +222,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -201,6 +240,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -216,6 +258,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -231,6 +276,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -246,6 +294,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -261,6 +312,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -276,6 +330,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -291,6 +348,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -306,6 +366,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -321,6 +384,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -336,6 +402,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -351,6 +420,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -366,6 +438,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -381,6 +456,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -396,6 +474,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -411,6 +492,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -426,6 +510,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -441,6 +528,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -456,6 +546,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -471,6 +564,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -486,6 +582,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -501,6 +600,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -516,6 +618,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -531,6 +636,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -546,6 +654,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -561,6 +672,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -576,6 +690,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -591,6 +708,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -606,6 +726,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -621,6 +744,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -636,6 +762,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: muenchen
@@ -651,6 +780,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: muenchen
@@ -666,6 +798,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: nuernberg

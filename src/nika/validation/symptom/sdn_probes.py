@@ -33,6 +33,8 @@ from nika.net_env.sdn_l3_clos.fabric_manager.apply import onos_flow_snapshot
 from nika.net_env.sdn_l3_clos.topology_model import ONOS_OOB_IP, ONOS_REST_PORT
 from nika.net_env.verify import ping_stats
 from nika.problems.base import build_verify_result
+from nika.traffic.profiles import endpoint_names
+from nika.traffic.workload import paused_workload
 from nika.problems.forwarding_encapsulation_policy.flow_rules import (
     _device_id_for_switch,
     _onos_post_flow,
@@ -48,6 +50,9 @@ _LOG = "/tmp/probe-shadow.log"
 _HEALTHY_LOSS_PERCENT = 1.0
 # Loop evidence: packets the faulted link carries per offered flow.
 _LOOP_PACKETS_PER_FLOW = 5.0
+
+# Seconds for transfers already handed to the kernel to drain before counting.
+_QUIET_SETTLE_SEC = 8.0
 
 
 def _min_loss_percent(model: Any, switch: str) -> float:
@@ -225,9 +230,16 @@ def _loop_sample(problem: Any, params: Any) -> dict[str, Any] | None:
     )
     if not targets or source is None or control is None:
         return None
-    before = _link_packets(problem, spine, ports[spine])
-    path = _flows(problem, source, targets[0])
-    after = _link_packets(problem, spine, ports[spine])
+    # Port counters count every packet, so the lab's traffic holds still.
+    with paused_workload(
+        problem.runtime,
+        problem.net_env.business_workload(),
+        _QUIET_SETTLE_SEC,
+        hosts=endpoint_names(problem.net_env),
+    ):
+        before = _link_packets(problem, spine, ports[spine])
+        path = _flows(problem, source, targets[0])
+        after = _link_packets(problem, spine, ports[spine])
     link_packets = after - before if before is not None and after is not None else None
     return {
         "path": path,
@@ -298,9 +310,11 @@ def _switch_connections(problem: Any) -> tuple[dict[str, bool], dict[str, str]]:
     """
     states: dict[str, bool] = {}
     errors: dict[str, str] = {}
-    for switch, item in _switch_controller_state(
-        problem.runtime, problem.net_env
-    ).items():
+    try:
+        observations = _switch_controller_state(problem.runtime, problem.net_env)
+    except Exception as exc:  # noqa: BLE001 - runtime transports use different errors
+        return {}, {"controller_state": str(exc)}
+    for switch, item in observations.items():
         value = item["is_connected"].strip('"').lower()
         if value in {"true", "false"}:
             states[switch] = value == "true"
@@ -417,5 +431,48 @@ def controller_lost(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             "program": program,
             "forwarding": forwarding,
             "control_ok": control_ok,
+        },
+    )
+
+
+_CONFLICT_SAMPLES = 10
+_CONFLICT_SAMPLE_SEC = 3.0
+
+
+def switch_controller_conflict(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    """The target switch keeps losing its controller; the other switches stay on.
+
+    The controller closes each new channel from the target soon after it
+    opens, so most samples read disconnected. Installed flows keep forwarding.
+    """
+    target = params.host_name
+    samples: list[dict[str, bool]] = []
+    for _ in range(_CONFLICT_SAMPLES):
+        states, errors = _switch_connections(problem)
+        if errors:
+            return False, {"error": "switch_controller_query_failed", "details": errors}
+        samples.append(states)
+        time.sleep(_CONFLICT_SAMPLE_SEC)
+    down = sum(1 for states in samples if states.get(target) is False)
+    others_up = all(
+        up for states in samples for name, up in states.items() if name != target
+    )
+    forwarding = _forwarding(problem)
+    verified = (
+        down >= _CONFLICT_SAMPLES * 0.8
+        and others_up
+        and forwarding["loss_percent"] == 0.0
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "switch": target,
+            "disconnected_samples": down,
+            "samples": _CONFLICT_SAMPLES,
+            "other_switches_connected": others_up,
+            "forwarding": forwarding,
         },
     )

@@ -77,10 +77,11 @@ echo 'fs.inotify.max_user_watches=64000' | sudo tee -a /etc/sysctl.d/99-nika-ino
 sudo sysctl --system
 ```
 
-4. Wipe leftover labs and retry:
+4. List sessions, replace `SESSION_ID` with the affected session's ID, close it, and retry:
 
 ```shell
-uv run nika session wipe -y
+uv run nika session ps
+uv run nika session close --session_id SESSION_ID
 uv run nika env run iosxr_simple_bgp
 ```
 
@@ -187,8 +188,11 @@ The running kernel has no `vrf` module. Ubuntu `-virtual` and cloud kernels ship
 sudo apt-get install linux-modules-extra-$(uname -r)
 sudo modprobe vrf
 echo vrf | sudo tee /etc/modules-load.d/nika-vrf.conf
-uv run nika session wipe -y
+uv run nika session ps
+uv run nika session close --session_id SESSION_ID
 ```
+
+Replace `SESSION_ID` with the affected session's ID from `nika session ps`.
 
 Re-running `./scripts/install.sh` does the same. After a kernel upgrade, install the matching `linux-modules-extra` package before the next `enterprise_branch` lab.
 
@@ -219,10 +223,11 @@ Typical scenarios: `min3clos`, `isp_*` with `--backend containerlab` (especially
 
 ### Fix
 
-1. Wipe leftovers:
+1. List sessions and replace `SESSION_ID` with the affected session's ID before closing it:
 
 ```shell
-uv run nika session wipe -y
+uv run nika session ps
+uv run nika session close --session_id SESSION_ID
 ```
 
 2. Lower deploy concurrency in `config/nika.yaml` (copy from `config/nika.example.yaml` if needed):
@@ -248,7 +253,7 @@ Deploy completes and prints a `session_id=…`. During deploy, `ps` / `pgrep -a 
 ### Notes
 
 - Lower workers slow deploy; they do not reduce steady-state memory once every node is up.
-- If the lab is still too large after `containerlab_max_workers: 1`, use a smaller topology or a host with more RAM. Catalog Containerlab ISP cases already prefer topologies with at most 11 routers.
+- If the environment is still too large after `containerlab_max_workers: 1`, use a smaller topology or a host with more RAM. Benchmark Containerlab ISP tasks use topologies with at most 11 SR Linux routers or 55 SONiC routers ([SNDlib ISP scenarios](network-scenarios.md#sndlib-isp-scenarios)), and task selection prefers the smaller ones.
 - Setting details: [`nika.lab.containerlab_max_workers`](configuration.md#lab-lifecycle-settings).
 
 ## Firecracker image build fails with RemoteDisconnected
@@ -257,9 +262,13 @@ Deploy completes and prints a `session_id=…`. During deploy, `ps` / `pgrep -a 
 
 Open `console.log` in the failed build directory (`runtime/firecracker/images/<key>.build/` by default; `<key>` is the id in the `[firecracker] building lab image` line). `nika firecracker clean` deletes abandoned builds, so read the log first. If it shows an OOM-kill, raise `nika.execution.firecracker.vm_memory_overrides` for the environment. See [VM size](firecracker.md#vm-size).
 
-## Containerlab link faults fail with a sudo password prompt
+## Containerlab deploy or link faults fail with a sudo password prompt
 
-Failure injection on a Containerlab lab stops with an error like this:
+Deploying a Containerlab environment, or injecting a link fault on one, stops with an error like this:
+
+```text
+Joining Containerlab wires failed: sudo: a password is required
+```
 
 ```text
 host command failed (tc qdisc replace dev veth1a2b root netem loss 30%): sudo: a password is required
@@ -267,15 +276,15 @@ host command failed (tc qdisc replace dev veth1a2b root netem loss 30%): sudo: a
 
 ### Cause
 
-NIKA applies Containerlab link faults to the host side of the lab link. It runs `tc`, `ip`, `nsenter`, and `sh` through `sudo -n`, which fails instead of prompting when your user has no passwordless `sudo` rule for them. NIKA cannot change your sudoers policy.
+Every Containerlab environment joins node-to-node links on the host with `ip` and `tc`, and link faults then act on those host ends. NIKA runs `tc`, `ip`, `nsenter`, and `sh` through `sudo -n`, which fails instead of prompting when your user has no passwordless `sudo` rule for them. NIKA cannot change your sudoers policy.
 
 ### Fix
 
-Add the sudoers rule from [Allow Containerlab link faults](installation.md#allow-containerlab-link-faults), then re-run the same command.
+Add the sudoers rule from [Allow passwordless sudo for Containerlab](installation.md#allow-passwordless-sudo-for-containerlab), then re-run the same command.
 
 ### Confirm success
 
-`sudo -n "$(command -v tc)" qdisc show dev lo` prints the loopback qdisc without a prompt, and the fault injects.
+`sudo -n "$(command -v tc)" qdisc show dev lo` prints the loopback qdisc without a prompt. Deploying a Containerlab environment and injecting a link fault then succeed.
 
 ## Host routes overlap Docker subnets
 
@@ -434,7 +443,7 @@ uv run nika env run dc_clos --size s --backend kathara
 Use the `session_id` printed by that command to inspect connectivity and close only this test session:
 
 ```shell
-uv run nika exec --session_id SESSION_ID client_0 ping -c 3 10.0.1.2
+uv run nika exec --session_id SESSION_ID client_1_1 ping -c 3 10.0.2.11
 uv run nika session close --session_id SESSION_ID
 ```
 

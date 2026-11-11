@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
+from nika.benchmark_engine.protocol import UnsupportedContractVersion
 from nika.config import REPO_ROOT
 from nika.evaluator.validity import (
     DEFAULT_MAX_HARNESS_RATE,
@@ -17,6 +18,8 @@ from nika.evaluator.validity import (
 )
 from nika.workflows.benchmark.official_release import ReleaseSource
 from nika.workflows.benchmark.release import BenchmarkRelease
+from nika.workflows.benchmark.provenance import check_schema_version
+
 from nika.workflows.benchmark.trials import expand_trials
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
@@ -110,6 +113,8 @@ def validate_leaderboard_submission(
     *,
     max_harness_rate: float = DEFAULT_MAX_HARNESS_RATE,
     release_source: ReleaseSource = "official",
+    trajectories_dir: str | Path | None = None,
+    audit_repo: Path | None = None,
 ) -> ValidationReport:
     """Validate a leaderboard submission package. Returns a report (does not raise).
 
@@ -165,6 +170,13 @@ def validate_leaderboard_submission(
         return _failed(
             "ERROR_IDENTITY_INVALID",
             f"invalid {RESULTS_DIRNAME}/{IDENTITY_FILENAME}: {exc}",
+        )
+
+    try:
+        check_schema_version(identity.run.schema_version)
+    except UnsupportedContractVersion as exc:
+        return _failed(
+            "ERROR_IDENTITY_INVALID", f"{RESULTS_DIRNAME}/{IDENTITY_FILENAME}: {exc}"
         )
 
     try:
@@ -302,5 +314,31 @@ def validate_leaderboard_submission(
         )
 
     issues.extend("ERROR_SECRET_FOUND", scan_package_dir(root))
+    from nika.workflows.leaderboard.validate_trajectories import (
+        sibling_trajectories_dir,
+        validate_trajectory_package,
+    )
 
-    return ValidationReport(issues=issues.issues, reference=reference)
+    audit = None
+    trajectories = (
+        Path(trajectories_dir)
+        if trajectories_dir is not None
+        else sibling_trajectories_dir(root)
+    )
+    if trajectories_dir is not None or trajectories.is_dir():
+        paired = validate_trajectory_package(
+            trajectories,
+            scores_dir=root,
+            audit_repo=audit_repo,
+            release_source=release_source,
+        )
+        for issue in paired.issues:
+            if issue not in issues.issues:
+                issues.append(issue)
+        audit = paired.audit
+    else:
+        issues.add(
+            "WARNING_TRAJECTORY_AUDIT_NOT_RUN",
+            "Provide --trajectories or the paired sibling directory.",
+        )
+    return ValidationReport(issues=issues.issues, reference=reference, audit=audit)

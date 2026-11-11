@@ -485,6 +485,29 @@ def test_srl_names_map_to_default_netns_port(name: str, device: str) -> None:
     assert srl_linux_intf(name) == device
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("sonic", "name", "device"),
+    [
+        (True, "Ethernet0", "eth1"),
+        (True, "Ethernet8", "eth3"),
+        (True, "eth2", "eth2"),
+        (False, "Ethernet0", "Ethernet0"),
+    ],
+)
+def test_sonic_ports_map_to_container_data_interface(
+    sonic: bool, name: str, device: str
+) -> None:
+    from nika.service.packet_capture.capture_backend import capture_device
+
+    runtime = MagicMock(backend="containerlab")
+    runtime.uses_srl_router.return_value = False
+    runtime.exec.side_effect = lambda node, command, timeout=None: (
+        "sonic" if "sonic-cfggen" in command and sonic else ""
+    )
+    assert capture_device(runtime, "leaf1", name) == device
+
+
 # --- live e2e ---------------------------------------------------------------
 
 
@@ -665,3 +688,18 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert missing["returned"] == 0
         assert missing["total_available"] == 0
         assert not (session_dir / "packet_captures").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("profile", "server"),
+    [
+        ("iosxr", "kathara_iosxr_mcp_server"),
+        ("routeros", "kathara_routeros_mcp_server"),
+    ],
+)
+def test_device_profile_sessions_get_their_router_cli(profile, server) -> None:
+    from nika.mcp.registry import select_diagnosis_servers
+
+    assert server not in select_diagnosis_servers("dc_clos")
+    assert server in select_diagnosis_servers("dc_clos", device_profile=profile)

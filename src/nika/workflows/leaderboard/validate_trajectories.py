@@ -9,9 +9,12 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
+from nika.benchmark_engine.protocol import UnsupportedContractVersion
 from nika.config import REPO_ROOT
 from nika.evaluator.validity import has_agent_trace
 from nika.workflows.benchmark.official_release import ReleaseSource
+from nika.workflows.benchmark.provenance import check_schema_version
+
 from nika.workflows.benchmark.trials import expand_trials
 from nika.workflows.leaderboard.issues import (
     IssueCollector,
@@ -77,6 +80,7 @@ def validate_trajectory_package(
     *,
     scores_dir: str | Path | None = None,
     release_source: ReleaseSource = "official",
+    audit_repo: Path | None = None,
 ) -> ValidationReport:
     """Validate a trajectories package (optionally against its scores sibling).
 
@@ -122,6 +126,11 @@ def validate_trajectory_package(
         identity = PackageIdentity.model_validate(_load_yaml(identity_path))
     except ValidationError as exc:
         return _failed("ERROR_IDENTITY_INVALID", f"invalid {IDENTITY_FILENAME}: {exc}")
+
+    try:
+        check_schema_version(identity.run.schema_version)
+    except UnsupportedContractVersion as exc:
+        return _failed("ERROR_IDENTITY_INVALID", f"{IDENTITY_FILENAME}: {exc}")
 
     if not identity.scores_package:
         issues.add(
@@ -261,6 +270,31 @@ def validate_trajectory_package(
                         except ValidationError:
                             continue
                         score_ids.add(trial.trial_id)
+                        if trial.trial_id not in present_ids:
+                            continue
+                        metrics_path = (
+                            trials_root / trial.trial_id / "eval_metrics.json"
+                        )
+                        if metrics_path.is_file():
+                            from nika.workflows.leaderboard.aggregate import (
+                                extract_trial_metrics,
+                            )
+
+                            try:
+                                recorded = extract_trial_metrics(
+                                    _load_json(metrics_path)
+                                )
+                            except (OSError, json.JSONDecodeError, TypeError) as exc:
+                                issues.add(
+                                    "ERROR_TRAJECTORY_INVALID",
+                                    f"invalid {trial.trial_id}/eval_metrics.json: {exc}",
+                                )
+                            else:
+                                if trial.metrics != recorded:
+                                    issues.add(
+                                        "ERROR_PACKAGE_PAIR_MISMATCH",
+                                        f"{trial.trial_id}: scores metrics differ from paired trajectories",
+                                    )
                     if score_ids != present_ids:
                         issues.add(
                             "ERROR_PACKAGE_PAIR_MISMATCH",
@@ -274,4 +308,19 @@ def validate_trajectory_package(
             else "ERROR_SECRET_FOUND"
         )
         issues.add(code, finding)
-    return ValidationReport(issues=issues.issues, reference=reference)
+    audit = None
+    if not issues.has_errors:
+        from nika.audit.runner import audit_trajectories
+
+        audit = audit_trajectories(root, repo=audit_repo)
+        verdict = audit["verdict"]
+        summary = (
+            f"Trajectory audit: {verdict} ({audit['package']['n_trials']} trials)."
+        )
+        if verdict == "block":
+            issues.add("ERROR_TRAJECTORY_AUDIT", summary + " Review the audit report.")
+        elif verdict == "warn":
+            issues.add(
+                "WARNING_TRAJECTORY_AUDIT", summary + " Review the audit report."
+            )
+    return ValidationReport(issues=issues.issues, reference=reference, audit=audit)

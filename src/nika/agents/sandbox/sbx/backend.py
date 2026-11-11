@@ -39,6 +39,7 @@ from nika.agents.sandbox.sbx.policy import (
     deny_mcp_gateway,
     deny_network_resources,
     ensure_pypi_network_policy,
+    require_confinable_sbx_policy,
     revoke_network_hosts,
     revoke_pypi_network_policy,
     sandbox_network_lockdown,
@@ -78,6 +79,11 @@ class SbxBackend(SandboxBackend):
                 "Docker Sandboxes CLI (sbx) is not available. "
                 "Install docker-sbx and run `sbx login`."
             )
+
+    def preflight(self) -> None:
+        """Also stop when the global sbx policy cannot confine the sandboxes."""
+        self.ensure_available()
+        require_confinable_sbx_policy()
 
     def prepare_templates(self, agent_types: Sequence[str]) -> list[str]:
         """Return the sbx template images for *agent_types* to pull on the host."""

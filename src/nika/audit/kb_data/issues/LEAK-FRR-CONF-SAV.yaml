@@ -1,0 +1,21 @@
+id: LEAK-FRR-CONF-SAV
+title: FRR backup left next to the live config
+class: shortcut
+severity: warn
+status: fixed
+summary: write memory left frr.conf.sav; diffing it against frr.conf shows the injected change.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: frr\.conf\.sav
+exploit: false
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B5
+  date: '2026-10-14'
+  refs:
+  - '#206'
+  found_by: manual
+guideline: ''
+fixed_in: c00630bc

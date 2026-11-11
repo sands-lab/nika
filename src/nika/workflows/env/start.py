@@ -41,6 +41,7 @@ from nika.net_env.net_env_pool import (
     get_net_env_instance,
     resolve_scenario_backend,
     resolve_scenario_id,
+    scenario_containerlab_device_profiles,
     scenario_device_profiles,
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
@@ -48,6 +49,12 @@ from nika.net_env.net_env_pool import (
 from nika.net_env.verify import LabVerifyTimeoutError, verify_lab_with_retry
 from nika.problems.support.polling import wait_until
 from nika.run_config.loader import get_run_config
+from nika.traffic.profiles import (
+    TrafficProfile,
+    normalize_traffic,
+    start_background_traffic,
+    stop_background_traffic,
+)
 from nika.telemetry import (
     apply_telemetry,
     configure_telemetry,
@@ -142,6 +149,7 @@ def _resolve_isp_kwargs(
             else normalize_device_profile(device_profile)
         )
         native = scenario_device_profiles(scenario)
+        containerlab = scenario_containerlab_device_profiles(scenario)
         protocol_flags = any(
             value is not None
             for key, value in provided.items()
@@ -153,6 +161,13 @@ def _resolve_isp_kwargs(
                 "--metric-strategy/--constant-metric/--bgp-mode/--rpki; those "
                 "flags are only valid for ISP topology scenarios (e.g. isp_abilene)."
             )
+        if containerlab:
+            if profile not in (None, *containerlab):
+                raise ValueError(
+                    f"Scenario '{scenario}' does not support device_profile="
+                    f"{profile!r}; supported: {', '.join(containerlab)}."
+                )
+            return {} if profile is None else {"device_profile": profile}
         if profile not in (None, "frr", *native):
             raise ValueError(
                 f"Scenario '{scenario}' does not support device_profile="
@@ -299,17 +314,26 @@ def start_net_env(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    release: str | None = None,
     static_validation: bool | None = None,
     routing_parameters: dict | None = None,
     routing_model: str | None = None,
     routing_configs: dict[str, str] | None = None,
     telemetry: Iterable[str] | None = None,
+    traffic: TrafficProfile | dict | str | None = None,
+    defer_background_traffic: bool = False,
+    defer_business_traffic: bool = False,
 ) -> str:
-    """Deploy the lab for ``scenario`` and create a new runtime session."""
+    """Deploy the lab for ``scenario`` and create a new runtime session.
+
+    ``traffic`` adds a background traffic profile (:mod:`nika.traffic.profiles`)
+    on top of the scenario's business workload.
+    """
     from nika.remote.config import is_remote_enabled
 
     canonical = resolve_scenario_id(scenario)
     telemetry_kinds = normalize_telemetry(telemetry)
+    traffic_profile = normalize_traffic(traffic)
     static_validation_enabled = (
         static_validation
         if static_validation is not None
@@ -344,8 +368,12 @@ def start_net_env(
             rpki=rpki,
             backend=backend,
             device_profile=device_profile,
+            release=release,
             static_validation=static_validation_enabled,
             telemetry=list(telemetry_kinds),
+            traffic=traffic_profile.case_value() if traffic_profile else None,
+            defer_background_traffic=defer_background_traffic,
+            defer_business_traffic=defer_business_traffic,
         )
 
     size = _normalize_topo_size(topo_size)
@@ -406,6 +434,8 @@ def start_net_env(
         session_tag=session_tag, suffix=suffix
     )
     net_env_kwargs: dict = {"lab_name": lab_name, **isp_kwargs}
+    if release is not None:
+        net_env_kwargs["environment_release"] = release
     # Do not pass topo_size into ISP labs (topology is baked into scenario ID).
     if size is not None and not is_isp_scenario(canonical):
         net_env_kwargs["topo_size"] = size
@@ -429,6 +459,13 @@ def start_net_env(
             prepare_runtime()
     if resolved_backend == "containerlab":
         net_env._ensure_runtime_files()
+    spec = net_env.get_lab_spec()
+    net_env.metadata["topology_counts"] = {
+        "node_count": len(spec.nodes)
+        if spec is not None
+        else len(net_env.lab.machines),
+        "link_count": len(net_env.get_topology()),
+    }
     if telemetry_kinds:
         # Wire the telemetry network before deploy; the lab check phase later
         # configures only the devices that support it.
@@ -441,6 +478,8 @@ def start_net_env(
     if is_isp_scenario(canonical):
         scenario_params["topo"] = getattr(net_env, "topo", None)
     scenario_params.update(isp_kwargs)
+    if release is not None:
+        scenario_params["environment_release"] = release
     probe_intent = net_env.probe_intent()
     if probe_intent is not None:
         net_env.metadata[PROBE_INTENT_METADATA_KEY] = probe_intent.model_dump(
@@ -448,6 +487,8 @@ def start_net_env(
         )
     if telemetry_kinds:
         scenario_params["telemetry"] = list(telemetry_kinds)
+    if traffic_profile:
+        scenario_params["traffic"] = traffic_profile.case_value()
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     metadata = getattr(net_env, "metadata", None)
@@ -518,6 +559,7 @@ def start_net_env(
                     )
 
         lab_exists = net_env.lab_exists()
+        lab_reused = lab_exists and not redeploy
         from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
 
         if canonical in K8S_SCENARIOS:
@@ -525,12 +567,16 @@ def start_net_env(
         if redeploy or not lab_exists:
             # When run config selects a sandbox agent, prepare its sandbox
             # template alongside lab images (not at per-case agent start). A
-            # lab-host daemon has no agents: they run on the client's host.
+            # lab-host daemon and a benchmark engine container have no agents:
+            # they run on the frontend's host, which prepared the template.
             from nika.agents.sandbox.backend import prepare_configured_sandbox_templates
+            from nika.benchmark_engine import is_engine_server
             from nika.remote.config import is_remote_server
 
             images = (
-                [] if is_remote_server() else prepare_configured_sandbox_templates()
+                []
+                if is_remote_server() or is_engine_server()
+                else prepare_configured_sandbox_templates()
             )
             from nika.net_env.utils.kathara.docker_files.docker_images import (
                 ensure_nika_docker_images,
@@ -632,10 +678,16 @@ def start_net_env(
                 error_type=type(post_deploy_exc).__name__,
             )
 
+        net_env.seal_baseline()
+
         # Every case of a scenario carries the same traffic, so a workload
         # that does not start fails the session start.
         workload_started = time.perf_counter()
-        workload = net_env.start_business_workload()
+        workload = (
+            net_env.start_business_workload(services_only=True)
+            if defer_business_traffic
+            else net_env.start_business_workload()
+        )
         if workload is not None:
             log_event(
                 "env_workload",
@@ -646,6 +698,26 @@ def start_net_env(
                 process_count=len(workload.processes),
                 node_count=len(workload.nodes),
                 duration_ms=elapsed_ms(workload_started),
+            )
+        if lab_reused:
+            # The reused lab may still run an earlier session's profile.
+            stop_background_traffic(net_env)
+        if traffic_profile and not defer_background_traffic:
+            traffic_started = time.perf_counter()
+            effective, background = start_background_traffic(net_env, traffic_profile)
+            log_event(
+                "env_traffic",
+                f"Started {traffic_profile.pattern} background traffic for "
+                f"{scenario} ({resolved_session_id}): "
+                f"{len(background.processes)} processes on "
+                f"{len(background.nodes)} hosts",
+                scenario=scenario,
+                session_id=resolved_session_id,
+                traffic=traffic_profile.case_value(),
+                traffic_effective=effective.case_value(),
+                process_count=len(background.processes),
+                node_count=len(background.nodes),
+                duration_ms=elapsed_ms(traffic_started),
             )
     except BaseException as exc:
         # Session is registered before deploy; clean up so interrupted starts

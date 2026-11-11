@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shlex
 import time
 
@@ -9,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
+from nika.problems.support.oracle import Check, OraclePlaybook, OracleStep, shell
 from nika.problems.support.process_identity import NEUTRAL_PROBE_NAME, exec_as
 
 _COLLECTOR_FRESH_SEC = 30.0
@@ -60,6 +62,108 @@ class TcpSynFloodAttack(ProblemBase):
 
     def root_cause_resources(self, params: TcpSynFloodAttackParams):
         return [node_resource(params.attacker_device)]
+
+    def oracle_playbook(self, params: TcpSynFloodAttackParams) -> OraclePlaybook:
+        model = getattr(self.net_env, "model", None)
+        attacker, target, port = (
+            params.attacker_device,
+            params.target_ip,
+            params.target_port,
+        )
+        attacker_ip = next(
+            (c.ip for c in getattr(model, "clients", []) if c.name == attacker), None
+        )
+        server = next(
+            (s.name for s in getattr(model, "services", []) if s.ip == target), None
+        )
+        # One SYN flow per source port: far more concurrent flows from one
+        # client than its regular sessions open.
+        min_flows = max(10, params.flows // 4)
+        steps: list[OracleStep] = []
+        if server:
+            peers = (
+                f"ss -Htn state syn-recv '( sport = :{port} )' | awk '{{print $4}}' "
+                "| sed 's/:[0-9]*$//' | sort | uniq -c | sort -rn"
+            )
+            steps += [
+                shell(
+                    server,
+                    f"echo half_open $(ss -Htn state syn-recv '( sport = :{port} )' "
+                    f"| wc -l); {peers} | head -5; "
+                    f"echo top $({peers} | head -1)",
+                    f"Count half-open connections on {server} ({target}:{port}) per client.",
+                    Check(
+                        f"at least {min_flows} half-open connections"
+                        + (f", mostly from {attacker_ip}" if attacker_ip else ""),
+                        lambda o: (
+                            bool(m := re.search(r"^top (\d+) (\S+)$", o, re.M))
+                            and int(m.group(1)) >= min_flows
+                            and (attacker_ip is None or m.group(2) == attacker_ip)
+                        ),
+                    ),
+                    evidence=True,
+                    attempts=2,
+                ),
+                shell(
+                    server,
+                    f"timeout 2 tcpdump -nl -c 3000 'tcp dst port {port} and "
+                    "(tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn)' 2>/dev/null "
+                    '| awk \'{for (i = 1; i < NF; i++) if ($i == "IP") '
+                    '{sub(/\\.[0-9]+$/, "", $(i+1)); print $(i+1); break}}\' '
+                    "| sort | uniq -c | sort -rn | head -5 | sed 's/^ */syns /'",
+                    f"Sample connection-opening SYNs arriving at {server} for two "
+                    "seconds, per source.",
+                    Check(
+                        f"one source sends at least {min_flows} SYNs in two seconds"
+                        + (f" ({attacker_ip})" if attacker_ip else ""),
+                        lambda o: (
+                            bool(m := re.search(r"^syns (\d+) (\S+)$", o, re.M))
+                            and int(m.group(1)) >= min_flows
+                            and (attacker_ip is None or m.group(2) == attacker_ip)
+                        ),
+                    ),
+                    evidence=True,
+                    timeout=15,
+                ),
+            ]
+
+        steps += [
+            OracleStep(
+                f"Query INT telemetry for the latest packets from {attacker} "
+                f"({attacker_ip}) to {target}:{port}, to trace the flood's source.",
+                "int_query_telemetry",
+                {
+                    "start_time": "-30",
+                    "dst": target,
+                    "dst_port": port,
+                    **({"src": attacker_ip} if attacker_ip else {}),
+                    "limit": 2,
+                },
+            ),
+            shell(
+                attacker,
+                "echo syn_senders $(ps -eo args | grep -cE "
+                f"'^[^ ]+ -S .*-p {port} .*{re.escape(target)}$'); "
+                f"ps -eo args | grep -E -- ' -S .*{re.escape(target)}$' | head -3",
+                f"List the processes on {attacker} sending to {target}:{port}.",
+                Check(
+                    "processes send SYN-only packets to the service",
+                    lambda o: (
+                        bool(m := re.search(r"^syn_senders (\d+)$", o, re.M))
+                        and int(m.group(1)) >= 1
+                    ),
+                ),
+                evidence=True,
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"{attacker} floods {target}:{port} with SYN-only packets across "
+                f"{params.flows} source ports and never completes the handshakes, "
+                "leaving half-open connections on the service."
+            ),
+            steps=steps,
+        )
 
     def inject_fault(self, params: TcpSynFloodAttackParams):
         interval_us = max(1, 1_000_000 // params.rate_pps)

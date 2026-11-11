@@ -45,20 +45,20 @@ Multi-fault benchmark rows use a `problems` list and nested `inject` maps. The n
   problem: mtu_mismatch+icmp_frag_needed_filter_misconfiguration
   inject:
     mtu_mismatch:
-      host_name: leaf_router_0_1
-      intf_name: eth2
+      host_name: leaf_2
+      intf_name: eth3
       mtu: "500"
     icmp_frag_needed_filter_misconfiguration:
-      host_name: leaf_router_0_1
+      host_name: leaf_2
   root_causes:
     - resource:
         kind: interface
-        node: leaf_router_0_1
-        name: eth2
+        node: leaf_2
+        name: eth3
       fault_type: mtu_mismatch
     - resource:
         kind: node
-        node: leaf_router_0_1
+        node: leaf_2
       fault_type: icmp_frag_needed_filter_misconfiguration
 ```
 

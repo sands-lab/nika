@@ -12,7 +12,7 @@ from typing import Any
 from nika.workflows.benchmark.official_release import ReleaseReference
 
 GUIDE_URL = (
-    "https://github.com/sands-lab/nika/blob/main/docs/benchmarks/"
+    "https://github.com/sands-lab/nika/blob/dev/docs/benchmarks/"
     "leaderboard-submission.md"
 )
 # Items listed inline in one-line errors and in text output.
@@ -33,6 +33,21 @@ _REPACK = (
 )
 
 ISSUE_SPECS: dict[str, IssueSpec] = {
+    "ERROR_TRAJECTORY_AUDIT": IssueSpec(
+        "trajectory audit found a blocking issue",
+        "Recorded trajectories match a blocking benchmark, harness, or submission check.",
+        "Inspect audit.json and its cited trial steps before accepting the entry.",
+    ),
+    "WARNING_TRAJECTORY_AUDIT": IssueSpec(
+        "trajectory audit needs review",
+        "Recorded trajectories match known audit findings that require review.",
+        "Inspect audit.json and address or explain the cited findings.",
+    ),
+    "WARNING_TRAJECTORY_AUDIT_NOT_RUN": IssueSpec(
+        "trajectory audit did not run",
+        "Paired trajectories were not supplied and no sibling package was found.",
+        "Provide --trajectories or --fetch-trajectories to audit paired evidence.",
+    ),
     "ERROR_PACKAGE_INCOMPLETE": IssueSpec(
         "required package files are missing",
         "The package was not written by `nika leaderboard submit`, or files were "
@@ -59,7 +74,7 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     ),
     "ERROR_RELEASE_UNAVAILABLE": IssueSpec(
         "the official release could not be read",
-        "The release has no `v<version>` tag in sands-lab/nika yet, or "
+        "The release has no declared published reference in sands-lab/nika, or "
         "GitHub could not be reached.",
         "Check the network connection and that the release version is published. "
         "For an offline check only, pass `--release-source local`; leaderboard "
@@ -303,6 +318,7 @@ class ValidationReport:
 
     issues: list[ValidationIssue] = field(default_factory=list)
     reference: ReleaseReference | None = None
+    audit: dict[str, Any] | None = None
 
     @property
     def ok(self) -> bool:
@@ -333,6 +349,7 @@ class ValidationReport:
             "package": package,
             "ok": self.ok,
             "release": self.reference.to_dict() if self.reference else None,
+            "audit": self.audit,
             "errors": [i.to_dict() for i in self.issues if i.severity == "error"],
             "warnings": [i.to_dict() for i in self.issues if i.severity == "warning"],
         }

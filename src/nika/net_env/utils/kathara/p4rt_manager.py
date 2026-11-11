@@ -319,8 +319,16 @@ def lpm_entity(index: P4InfoIndex, entry: dict[str, Any], *, kind: str = "INSERT
     table.table_id = index.table_id(TABLE_IPV4)
     mf = table.match.add()
     mf.field_id = index.match_field_id(TABLE_IPV4, "dstAddr")
-    mf.lpm.value = encode_ipv4(str(network.network_address))
-    mf.lpm.prefix_len = int(network.prefixlen)
+    field = next(
+        f for f in index.tables[TABLE_IPV4].match_fields if f.id == mf.field_id
+    )
+    if field.match_type == p4info_pb2.MatchField.TERNARY:
+        mf.ternary.value = encode_ipv4(str(entry.get("value", network.network_address)))
+        mf.ternary.mask = encode_ipv4(str(entry.get("mask", network.netmask)))
+        table.priority = network.prefixlen + 1
+    else:
+        mf.lpm.value = encode_ipv4(str(network.network_address))
+        mf.lpm.prefix_len = int(network.prefixlen)
     if kind != "DELETE":
         table.action.action_profile_group_id = int(entry["group_id"])
     return _update(entity, kind)
@@ -724,6 +732,15 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
             for mf in item.match:
                 if mf.HasField("lpm"):
                     prefix = decode_prefix(mf.lpm.value, mf.lpm.prefix_len)
+                elif mf.HasField("ternary"):
+                    value = str(ipaddress.IPv4Address(mf.ternary.value.rjust(4, b"\0")))
+                    mask = str(ipaddress.IPv4Address(mf.ternary.mask.rjust(4, b"\0")))
+                    try:
+                        prefix = str(
+                            ipaddress.IPv4Network(f"{value}/{mask}", strict=False)
+                        )
+                    except ValueError:
+                        prefix = f"{value}&&&{mask}"
             ipv4_lpm.append(
                 {
                     "prefix": prefix,
@@ -927,6 +944,7 @@ def table_rows(
             {
                 "match": match,
                 "priority": int(entry.priority),
+                "group_id": int(entry.action.action_profile_group_id),
                 "action": _short(action.preamble.name) if action else None,
                 "params": {
                     names.get(int(p.param_id), str(p.param_id)): decode_u(p.value)
@@ -984,6 +1002,27 @@ def cmd_counters(args: argparse.Namespace) -> None:
     print(json.dumps({"ok": True, "summary": summary, "counters": payload}))
 
 
+def cmd_delete_lpm(args: argparse.Namespace) -> None:
+    intent = load_json(args.intent)
+    index = P4InfoIndex(load_p4info(args.p4info))
+    switch = intent["switches"][args.switch]
+    client = connect(switch)
+    try:
+        statuses = controller_write(
+            client,
+            index,
+            args.switch,
+            [lpm_entity(index, {"prefix": args.prefix}, kind="DELETE")],
+        )
+    finally:
+        client.close()
+    print(
+        json.dumps(
+            {"ok": all(s["code"] == "OK" for s in statuses), "statuses": statuses}
+        )
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="P4Runtime fabric manager", fromfile_prefix_chars="@"
@@ -996,6 +1035,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_apply = sub.add_parser("apply")
     p_apply.add_argument("--switch")
     p_apply.set_defaults(func=cmd_apply)
+
+    p_delete = sub.add_parser("delete-lpm")
+    p_delete.add_argument("--switch", required=True)
+    p_delete.add_argument("--prefix", required=True)
+    p_delete.set_defaults(func=cmd_delete_lpm)
 
     p_read = sub.add_parser("read")
     selection = p_read.add_mutually_exclusive_group()

@@ -1,6 +1,6 @@
 from langchain.agents import create_agent
-from langchain.agents.middleware import ModelCallLimitMiddleware
-from langchain_core.messages import HumanMessage
+from langchain.agents.middleware import ModelCallLimitMiddleware, before_model
+from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools.structured import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
@@ -17,6 +17,19 @@ from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.llm.model_factory import load_model
 from agent.utils.mcp_client import harden_mcp_tools, session_mcp_config
 from agent.protocols import SUBMISSION
+
+
+@before_model(can_jump_to=["end"])
+def finish_accepted_submission(state, runtime):  # noqa: ARG001
+    """A successful submit completes the phase without another model request."""
+    last = state["messages"][-1]
+    if (
+        isinstance(last, ToolMessage)
+        and last.name == "submit"
+        and message_text(last).strip() == "Submission success."
+    ):
+        return {"jump_to": "end"}
+    return None
 
 
 class SubmissionPhase:
@@ -58,6 +71,7 @@ class SubmissionPhase:
             # after_model hooks run in reverse order: list the retry first so
             # the call limit counts a truncated turn before it is re-prompted.
             middleware=[
+                finish_accepted_submission,
                 TruncationRetryMiddleware(),
                 ModelCallLimitMiddleware(
                     run_limit=self.max_steps,

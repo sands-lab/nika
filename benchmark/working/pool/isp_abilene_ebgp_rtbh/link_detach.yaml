@@ -6,6 +6,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlam5
       intf_name: eth0
@@ -21,6 +24,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlang
       intf_name: eth1
@@ -36,6 +42,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlang
       intf_name: eth2
@@ -51,6 +60,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlang
       intf_name: eth3
@@ -66,6 +78,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: chinng
       intf_name: eth0
@@ -81,6 +96,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: chinng
       intf_name: eth1
@@ -96,6 +114,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dnvrng
       intf_name: eth0
@@ -111,6 +132,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dnvrng
       intf_name: eth1
@@ -126,6 +150,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dnvrng
       intf_name: eth2
@@ -141,6 +168,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hstnng
       intf_name: eth1
@@ -156,6 +186,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hstnng
       intf_name: eth2
@@ -171,6 +204,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: iplsng
       intf_name: eth2
@@ -186,6 +222,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: losang
       intf_name: eth1
@@ -201,6 +240,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nycmng
       intf_name: eth1
@@ -216,6 +258,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: snvang
       intf_name: eth2

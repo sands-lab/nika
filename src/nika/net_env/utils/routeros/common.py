@@ -24,6 +24,11 @@ from nika.service.lab.routeros_api import CLI_COMMAND
 
 # MikroTik licensing blocks redistributing / auto-building this image like nika/*.
 IMAGE = "vrnetlab/mikrotik_routeros:7.21.5"
+# Memory one RouterOS router (CHR VM in its vrnetlab container) needs;
+# admission and Firecracker VM sizing use it.
+ROUTER_MEMORY_MIB = 1024
+# CPU one RouterOS router needs, millicores; Kathara gives each router 1.0 CPU.
+ROUTER_CPU_MILLIS = 1000
 
 # vrnetlab FTPs this file into the VM after boot. RouterOS imports a file named
 # ``*.auto.rsc`` on upload and writes the import result to ``*.auto.log``.
@@ -39,7 +44,8 @@ MAX_DATA_INTERFACES = 30
 # QEMU does not propagate a container interface's link state to the guest NIC.
 # vrnetlab keeps its own monitor connection open, so NIKA adds a second monitor
 # and a watcher that mirrors each data interface's state with ``set_link``.
-# Link failures then reach RouterOS as carrier loss, as they do on FRR.
+# Link failures then reach RouterOS as carrier loss, as they do on FRR; an
+# interface missing from the container counts as down.
 LINK_MONITOR_PORT = 4100
 LINK_WATCHER_PATH = "/usr/local/bin/link-carrier"
 _LINK_WATCHER = rf"""#!/bin/bash
@@ -49,7 +55,9 @@ declare -A applied
 while true; do
   for pair in "$@"; do
     iface=${{pair%%:*}}; nic=${{pair##*:}}
-    [ "$(cat /sys/class/net/$iface/operstate 2>/dev/null)" = down ] && link=off || link=on
+    # A detached interface has no operstate and takes the carrier with it.
+    state=$(cat /sys/class/net/$iface/operstate 2>/dev/null)
+    [ -n "$state" ] && [ "$state" != down ] && link=on || link=off
     [ "${{applied[$nic]}}" = "$link" ] && continue
     # vrnetlab names the QEMU netdev of data NIC N pNN.
     printf 'set_link p%02d %s\n' "$nic" "$link" \
@@ -65,10 +73,17 @@ CONTAINER_MEMORY = "1g"
 _BRIDGED_PREFIX = "dp"
 
 
+# A CHR with the free license sends at most 1 Mbit/s per interface.
+INTERFACE_RATE_KBPS = 1000
+
+
 def routeros_interface(name: str) -> str:
-    """Translate a reserved-layout container interface to its RouterOS port."""
+    """Translate a reserved-layout container interface to its RouterOS port.
+
+    The loopback bridge takes the name netlab's RouterOS templates give it.
+    """
     if name == "lo":
-        return "lo0"
+        return "loopback"
     if re.fullmatch(r"eth[0-9]+", name):
         return f"ether{int(name[3:]) + 1}"
     raise ValueError(f"Unsupported RouterOS interface {name!r}")
@@ -86,6 +101,16 @@ def routeros_port(net_env, node: str, name: str) -> str:
     if node in (getattr(net_env, "native_routers", None) or {}):
         return bridged_interface(name)
     return routeros_interface(name)
+
+
+def routeros_container_interface(net_env, node: str, port: str) -> str | None:
+    """Invert :func:`routeros_port`; ports without a container link give ``None``."""
+    match = re.fullmatch(r"ether([0-9]+)", port)
+    if match is None:
+        return None
+    converted = node in (getattr(net_env, "native_routers", None) or {})
+    index = int(match[1]) - (2 if converted else 1)
+    return f"eth{index}" if index >= (0 if converted else 1) else None
 
 
 def require_routeros_image(image: str = IMAGE) -> None:
@@ -175,19 +200,7 @@ def configure_routeros_router(
         f"ip link set {_BRIDGED_PREFIX}0 up",
     ]
     for name, index in zip(interfaces, indices):
-        veth, peer, bridge = f"{_BRIDGED_PREFIX}{index}", f"vp{index}", f"bp{index}"
-        setup.extend(
-            [
-                f"ip link add {veth} type veth peer name {peer}",
-                f"ip link add {bridge} type bridge",
-                f"ip link set {name} master {bridge}",
-                f"ip link set {peer} master {bridge}",
-                f"ip link set {name} up",
-                f"ip link set {peer} up",
-                f"ip link set {veth} up",
-                f"ip link set {bridge} up",
-            ]
-        )
+        setup.extend(_bridged_link_setup(name, index))
     set_routeros_startup(
         lab,
         machine.name,
@@ -195,6 +208,38 @@ def configure_routeros_router(
         setup=setup,
         link_commands=link_commands,
     )
+
+
+def bridge_member_command(name: str) -> str:
+    """Attach a converted router's ``ethN`` to the bridge of its RouterOS port."""
+    return f"ip link set {name} master bp{int(name[3:]) + 1}"
+
+
+def _bridged_link_setup(name: str, index: int) -> list[str]:
+    veth, peer, bridge = f"{_BRIDGED_PREFIX}{index}", f"vp{index}", f"bp{index}"
+    return [
+        f"ip link add {veth} type veth peer name {peer}",
+        f"ip link add {bridge} type bridge",
+        f"ip link set {name} master {bridge}",
+        f"ip link set {peer} master {bridge}",
+        f"ip link set {name} up",
+        f"ip link set {peer} up",
+        f"ip link set {veth} up",
+        f"ip link set {bridge} up",
+    ]
+
+
+def append_routeros_interface(lab: Lab, machine: Machine, interface: str) -> None:
+    """Bridge an interface attached after a router's initial conversion."""
+    count = int(machine.meta["envs"]["CLAB_INTFS"])
+    if interface != f"eth{count}" or count >= MAX_DATA_INTERFACES:
+        raise ValueError(f"Cannot append RouterOS interface {machine.name}:{interface}")
+    startup = lab.fs.readtext(f"{machine.name}.startup")
+    setup = _bridged_link_setup(interface, count + 1)
+    lab.create_file_from_string(
+        startup.rstrip() + "\n" + "\n".join(setup) + "\n", f"{machine.name}.startup"
+    )
+    machine.add_meta("env", f"CLAB_INTFS={count + 1}")
 
 
 def _boot_meta(machine: Machine, data_nics: int) -> None:

@@ -67,8 +67,10 @@ def wants_case_image(row: dict[str, Any]) -> bool:
     """Case images are on and the row injects a failure."""
     from nika.workflows.benchmark.healthy import is_healthy_case
 
-    return firecracker_settings().case_images and not is_healthy_case(
-        row.get("problem")
+    return (
+        row.get("schedule") is None
+        and firecracker_settings().case_images
+        and not is_healthy_case(row.get("problem"))
     )
 
 
@@ -114,7 +116,7 @@ def ensure_case(row: dict[str, Any]) -> CaseImage:
         build = cases_dir() / f"{key}.build"
         if build.exists():
             shutil.rmtree(build)  # an interrupted build; we hold its lock
-        require_build_space(str(row["scenario"]))
+        require_build_space(variant_for_row(row))
         build.mkdir(parents=True)
         try:
             _build_case(build, key, row)
@@ -131,7 +133,7 @@ def ensure_case(row: dict[str, Any]) -> CaseImage:
 def _build_case(build: Path, key: str, row: dict[str, Any]) -> None:
     from nika.firecracker.trial import TrialLab
     from nika.utils.session_store import SessionStore
-    from nika.workflows.benchmark.multi_fault import row_inject_args
+    from nika.workflows.benchmark.multi_fault import nested_inject_map, row_problems
     from nika.workflows.failure.inject import inject_failure
 
     (build / "builder.json").write_text(
@@ -139,7 +141,15 @@ def _build_case(build: Path, key: str, row: dict[str, Any]) -> None:
     )
     session_id = f"case-{key}"
     results = build / "results"
-    problems, overrides, expected = row_inject_args(row)
+    problems = row_problems(row)
+    overrides = (
+        nested_inject_map(row) if len(problems) > 1 else dict(row.get("inject") or {})
+    )
+    expected = (
+        None
+        if row.get("root_causes_status") == "unresolved"
+        else row.get("root_causes")
+    )
     timings: dict[str, float] = {}
     with TrialLab(variant_for_row(row), trial_key=session_id, owner=str(build)) as lab:
         assert lab.image is not None

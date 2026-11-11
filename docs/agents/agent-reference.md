@@ -19,7 +19,7 @@ Use [Choose and run an agent](agent-implementations.md) for setup walkthroughs a
 | `sdk.claude_sdk` | `claude-agent-sdk`, two sessions | Sandbox, `shell` template | Shared Claude skills |
 | `community.sade` | Claude Agent SDK with a 15-skill library | Sandbox, `shell` template | SADE library |
 
-The deterministic `mock` agent supports tests and pipeline checks. It reads the ground truth, so it is the only agent that runs in the NIKA process. Do not use it for benchmark comparisons.
+Two deterministic agents read the ground truth, so they run in the NIKA process and are not for benchmark comparisons. The `mock` agent supports tests and pipeline checks. The `oracle` agent runs each task's reference diagnosis and checks that the task can be solved with the agent tools; see [Oracle solver](../benchmarks/oracle-solver.md).
 
 ## Shared run contract
 
@@ -76,7 +76,7 @@ Harnesses also pass `max_steps` to their own turn limit, so most stop by themsel
 | `cli.codex` | NIKA counts model responses in the `codex exec --json` stream and stops Codex when a response past the limit starts |
 | `sdk.claude_sdk`, `community.sade` | Claude Agent SDK `max_turns` |
 | `sdk.codex_sdk` | NIKA counts `thread/tokenUsage/updated` notifications, one per model response, and interrupts the turn past the limit |
-| `mock` | Not applicable (no LLM; runs in the NIKA process) |
+| `mock`, `oracle` | Not applicable (no LLM; runs in the NIKA process) |
 
 ## Providers
 

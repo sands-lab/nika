@@ -3,6 +3,7 @@
 import ipaddress
 import json
 import re
+import shlex
 
 from pydantic import BaseModel, Field
 
@@ -11,9 +12,19 @@ from nika.problems.support.benchmark_targets import (
     require_role_member,
 )
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
+from nika.problems.support.recovery import route_lines
 from nika.problems.support.router_ops import native_fault_ops
 
 from nika.problems.rca import node_resource
+from nika.problems.support.oracle import (
+    srl_cli,
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    shell,
+    vtysh,
+)
 
 from nika.problems.base import (
     FailureDomain,
@@ -45,6 +56,37 @@ def _is_endpoint_host(name: str, *, kind: str = "") -> bool:
     return any(key in name for key in ("client", "pc", "host")) or lowered == "linux"
 
 
+_BLACKHOLE_RE = re.compile(r"^blackhole (\d+\.\d+\.\d+\.\d+/\d+)", re.MULTILINE)
+
+
+def _blackhole_prefixes(output: str) -> list[str]:
+    return list(dict.fromkeys(_BLACKHOLE_RE.findall(output or "")))[:3]
+
+
+def _blackhole_overrides_rib(output: str) -> bool:
+    """A kernel blackhole is selected for a prefix the RIB also learns elsewhere."""
+    entries = re.split(r"(?=^Routing entry for )", output, flags=re.MULTILINE)
+    by_prefix: dict[str, list[str]] = {}
+    for entry in entries:
+        head = re.match(r"Routing entry for (\S+)", entry)
+        if head:
+            by_prefix.setdefault(head.group(1), []).append(entry)
+    for blocks in by_prefix.values():
+        local = any(
+            re.search(r'Known via "(kernel|static)"', b)
+            and re.search(r"Selected|, best\b", b)
+            and re.search(r"blackhole", b)
+            for b in blocks
+        )
+        learned = any(
+            re.search(r'Known via "(bgp|ospf|isis)"', b) and "blackhole" not in b
+            for b in blocks
+        )
+        if local and learned:
+            return True
+    return False
+
+
 class StaticBlackHole(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
@@ -53,7 +95,13 @@ class StaticBlackHole(ProblemBase):
     description = "A static blackhole route drops traffic to a prefix locally."
     TAGS: str = ["bgp"]
     native_router_operations = frozenset(
-        {"add_blackhole_route", "blackhole_routes", "remote_bgp_prefixes"}
+        {
+            "add_blackhole_route",
+            "blackhole_routes",
+            "remote_bgp_prefixes",
+            "save_config",
+            "restore_config",
+        }
     )
     supported_backends = ("kathara", "containerlab")
 
@@ -165,18 +213,37 @@ class StaticBlackHole(ProblemBase):
         self._blackhole_network = self.blackhole_network(params)
         host_network = ipaddress.ip_network(self._blackhole_network, strict=False)
         match self.lab_backend:
+            case _ if ops := native_fault_ops(
+                self, params.host_name, "add_blackhole_route"
+            ):
+                self._native_saved = (ops, ops.save_config())
+                self._native_blackholes = sorted(ops.blackhole_routes())
+                ops.add_blackhole_route(str(host_network))
             case "containerlab":
+                self._srl_paths = [
+                    f"/network-instance default static-routes route {host_network}",
+                    "/network-instance default next-hop-groups group static-nhg-1",
+                ]
+                self._srl_saved = [
+                    self.runtime.srl_run_script(
+                        params.host_name, [f"info flat from running {path}"]
+                    )
+                    for path in self._srl_paths
+                ]
                 self.runtime.srl_add_blackhole_static(
                     params.host_name, self._blackhole_network
                 )
-            case "kathara" if ops := native_fault_ops(
-                self, params.host_name, "add_blackhole_route"
-            ):
-                ops.add_blackhole_route(str(host_network))
             case "kathara":
                 # A VRF router forwards end-host traffic from the VRF's table,
                 # so the blackhole goes into every table that routes the prefix.
+                self._original_routes = {}
                 for table in self._tables_routing(params.host_name, host_network):
+                    self._original_routes[table] = route_lines(
+                        self.runtime.exec(
+                            params.host_name,
+                            f"ip -4 route show table {table} exact {host_network}",
+                        )
+                    )
                     self.runtime.exec(
                         params.host_name,
                         f"ip route replace blackhole {host_network} table {table}",
@@ -187,6 +254,70 @@ class StaticBlackHole(ProblemBase):
                 )
         self.logger.info(
             f"Injected addition of blackhole route {host_network} on {params.host_name}."
+        )
+
+    def recover_fault(self, params: StaticBlackHoleParams) -> dict:
+        network = getattr(self, "_blackhole_network", None)
+        if hasattr(self, "_native_saved"):
+            ops, saved = self._native_saved
+            ops.restore_config(saved)
+            ok = sorted(ops.blackhole_routes()) == self._native_blackholes
+        elif hasattr(self, "_srl_saved"):
+            commands = [
+                "enter candidate",
+                *[f"delete {path}" for path in self._srl_paths],
+            ]
+            commands += [
+                line.strip().removeprefix("set ")
+                for saved in self._srl_saved
+                for line in saved.splitlines()
+                if line.strip().startswith("set /")
+            ]
+            self.runtime.srl_run_script(params.host_name, [*commands, "commit now"])
+            ok = all(
+                self.runtime.srl_run_script(
+                    params.host_name, [f"info flat from running {path}"]
+                )
+                == saved
+                for path, saved in zip(self._srl_paths, self._srl_saved)
+            )
+        else:
+            original = getattr(self, "_original_routes", {})
+            for table, routes in original.items():
+                current = self.runtime.exec(
+                    params.host_name, f"ip -4 route show table {table} exact {network}"
+                )
+                if any(
+                    line.startswith(f"blackhole {network}")
+                    for line in current.splitlines()
+                ):
+                    self.runtime.exec(
+                        params.host_name,
+                        f"ip route del blackhole {network} table {table}",
+                    )
+                for route in routes:
+                    self.runtime.exec(
+                        params.host_name,
+                        "ip route replace "
+                        + shlex.join(route.split())
+                        + f" table {table}",
+                    )
+            ok = bool(original) and all(
+                sorted(
+                    route_lines(
+                        self.runtime.exec(
+                            params.host_name,
+                            f"ip -4 route show table {table} exact {network}",
+                        )
+                    )
+                )
+                == sorted(routes)
+                for table, routes in original.items()
+            )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=ok,
+            details={"host": params.host_name, "network": network},
         )
 
     def _tables_routing(self, router: str, network) -> list[str]:
@@ -211,16 +342,7 @@ class StaticBlackHole(ProblemBase):
                 )
             )
         match self.lab_backend:
-            case "containerlab":
-                verified = self.runtime.srl_blackhole_static_present(
-                    params.host_name, host_network
-                )
-                return build_verify_result(
-                    fault_type=self.root_cause_name,
-                    verified=verified,
-                    details={"host": params.host_name, "network": host_network},
-                )
-            case "kathara" if ops := native_fault_ops(
+            case _ if ops := native_fault_ops(
                 self, params.host_name, "blackhole_routes"
             ):
                 network = str(ipaddress.ip_network(host_network, strict=False))
@@ -233,6 +355,15 @@ class StaticBlackHole(ProblemBase):
                         "network": host_network,
                         "blackhole_routes": routes,
                     },
+                )
+            case "containerlab":
+                verified = self.runtime.srl_blackhole_static_present(
+                    params.host_name, host_network
+                )
+                return build_verify_result(
+                    fault_type=self.root_cause_name,
+                    verified=verified,
+                    details={"host": params.host_name, "network": host_network},
                 )
             case "kathara":
                 route_output = self.runtime.exec(
@@ -256,3 +387,77 @@ class StaticBlackHole(ProblemBase):
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
                 )
+
+    def oracle_playbook(self, params: StaticBlackHoleParams) -> OraclePlaybook:
+        host = params.host_name
+        finding = (
+            f"A locally configured static blackhole route on {host} overrides "
+            "the learned route to a remote prefix and silently drops that traffic."
+        )
+        if srl_cli(self.net_env, host):
+            return OraclePlaybook(
+                finding=finding,
+                steps=[
+                    OracleStep(
+                        f"List static routes on {host}.",
+                        "srl_exec_cli",
+                        {
+                            "device_name": host,
+                            "command": "info flat from running network-instance "
+                            "default static-routes",
+                        },
+                        contains(
+                            r"static-routes route \S+ next-hop-group",
+                            "a static route points at a next-hop group",
+                        ),
+                        evidence=True,
+                    ),
+                    OracleStep(
+                        f"Inspect the next-hop groups on {host}.",
+                        "srl_exec_cli",
+                        {
+                            "device_name": host,
+                            "command": "info flat from running network-instance "
+                            "default next-hop-groups",
+                        },
+                        contains(
+                            r"group \S+ blackhole", "a next-hop group discards traffic"
+                        ),
+                        evidence=True,
+                    ),
+                ],
+            )
+
+        def rib_lookup(outputs) -> dict:
+            prefixes = _blackhole_prefixes(outputs.get("blackholes", ""))
+            command = (
+                vtysh(*(f"show ip route vrf all {p}" for p in prefixes)) + " | head -60"
+                if prefixes
+                else "echo NO_BLACKHOLE_ROUTE"
+            )
+            return {"host_name": host, "command": command, "timeout": 20}
+
+        return OraclePlaybook(
+            finding=finding,
+            steps=[
+                shell(
+                    host,
+                    "ip route show table all type blackhole 2>&1 | head -20",
+                    f"List blackhole routes in every routing table on {host}.",
+                    contains(r"^blackhole \d", "a blackhole route is installed"),
+                    evidence=True,
+                    save_as="blackholes",
+                ),
+                OracleStep(
+                    f"Look up each blackholed prefix in {host}'s routing daemon RIB.",
+                    "exec_shell",
+                    rib_lookup,
+                    Check(
+                        "a locally installed (kernel/static) blackhole is selected "
+                        "over a route the RIB learns from a routing protocol",
+                        _blackhole_overrides_rib,
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )

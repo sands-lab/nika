@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from nika.agents.mcp_config import select_session_servers, session_http_headers
-from nika.mcp.registry import MCP_SERVER_SPECS
 
 
 def build_sandbox_mcp_servers(
@@ -15,11 +14,15 @@ def build_sandbox_mcp_servers(
     backend: str | None,
     gateway_agent_url: str,
     telemetry: Iterable[str] = (),
+    device_profile: str | None = None,
 ) -> dict:
     """Build HTTP MCP client entries reachable from inside an sbx microVM."""
     base = gateway_agent_url.rstrip("/")
     server_names = select_session_servers(
-        scenario_name, backend=backend, telemetry=telemetry
+        scenario_name,
+        backend=backend,
+        telemetry=telemetry,
+        device_profile=device_profile,
     )
     headers = session_http_headers(session_id)
     return {
@@ -29,5 +32,4 @@ def build_sandbox_mcp_servers(
             "headers": headers,
         }
         for name in server_names
-        if name in MCP_SERVER_SPECS
     }

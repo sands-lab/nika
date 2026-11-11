@@ -40,6 +40,7 @@ def nika_image(name: str) -> str:
 # Scenario-local images required at deploy time. Upstream Kathara images
 # (kathara/base, kathara/frr, …) are pulled, not listed here.
 NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
+    nika_image("vde-switch"): "Dockerfile.vde-switch",
     nika_image("frr"): "Dockerfile.frr",
     nika_image("base"): "Dockerfile.base",
     nika_image("nginx"): "Dockerfile.nginx",
@@ -49,6 +50,7 @@ NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
     nika_image("fabric-controller"): "Dockerfile.fabric-controller",
     nika_image("tc-bpf"): "Dockerfile.tc-bpf",
     nika_image("skopeo"): "Dockerfile.skopeo",
+    nika_image("k3s"): "Dockerfile.k3s",
     nika_image("routinator"): "../isp/rpki/Dockerfile.routinator",
     nika_image("telemetry-collector"): "Dockerfile.telemetry-collector",
 }
@@ -93,7 +95,7 @@ def _get_client() -> docker.DockerClient:
 
 def image_exists(image: str) -> bool:
     try:
-        _get_client().images.get(image)
+        _get_client().images.get(_docker_image_ref(image))
     except ImageNotFound:
         return False
     return True
@@ -128,6 +130,13 @@ def image_repository(ref: str) -> str:
     if ":" in name.rsplit("/", 1)[-1]:
         name = name.rsplit(":", 1)[0]
     return name
+
+
+def _docker_image_ref(image: str) -> str:
+    """Use the repository and digest for pinned Docker API references."""
+    if "@" not in image:
+        return image
+    return f"{image_repository(image)}@{image.split('@', 1)[1]}"
 
 
 def _split_image_tag(image: str) -> tuple[str, str | None]:
@@ -188,7 +197,7 @@ def _require_platform_support(image: str, docker_platform: str) -> None:
 def image_architecture(image: str) -> str | None:
     """Return the local image Architecture attribute, or None if missing."""
     try:
-        img = _get_client().images.get(image)
+        img = _get_client().images.get(_docker_image_ref(image))
     except ImageNotFound:
         return None
     return img.attrs.get("Architecture")
@@ -327,7 +336,7 @@ def _copy_sources(dockerfile: Path) -> list[Path]:
 
 def _local_image_id(image: str) -> str | None:
     try:
-        return _get_client().images.get(image).id
+        return _get_client().images.get(_docker_image_ref(image)).id
     except ImageNotFound:
         return None
 
@@ -335,7 +344,7 @@ def _local_image_id(image: str) -> str | None:
 def _image_build_hash(image: str) -> str | None:
     """Return the build-hash label of a local image, or None if absent."""
     try:
-        labels = _get_client().images.get(image).labels or {}
+        labels = _get_client().images.get(_docker_image_ref(image)).labels or {}
     except ImageNotFound:
         return None
     return labels.get(BUILD_HASH_LABEL)
@@ -473,9 +482,11 @@ def pull_image(image: str, *, platform: str | None = None) -> None:
         print(f"Pulling Docker image {image}...")
     try:
         if docker_platform:
-            _get_client().images.pull(image, platform=docker_platform)
+            _get_client().images.pull(
+                _docker_image_ref(image), platform=docker_platform
+            )
         else:
-            _get_client().images.pull(image)
+            _get_client().images.pull(_docker_image_ref(image))
     except APIError as exc:
         raise RuntimeError(f"Failed to pull Docker image {image}") from exc
 
@@ -497,7 +508,7 @@ def _tag_pinned_image(image: str) -> None:
         return
     repo, tag = _split_image_tag(name)
     print(f"Tagging Docker image {image} as {name}...")
-    if not _get_client().images.get(image).tag(repo, tag=tag):
+    if not _get_client().images.get(_docker_image_ref(image)).tag(repo, tag=tag):
         raise RuntimeError(f"Failed to tag Docker image {image} as {name}")
 
 

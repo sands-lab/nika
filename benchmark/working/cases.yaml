@@ -1,21 +1,20 @@
 selection:
   seed: 42
 cases:
-- scenario: p4_dc_gateway
+- scenario: p4_dc_fabric
   problem: arp_acl_block
   inject:
-    host_name: client_1
+    host_name: client_1_1
   topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: client_1
+      node: client_1_1
     fault_type: arp_acl_block
-- scenario: llmd_lab
+- scenario: k8s_lab
   problem: arp_cache_poisoning
   inject:
     host_name: client
-    target_ip: 200.0.0.8
   root_causes:
   - resource:
       kind: node
@@ -70,10 +69,10 @@ cases:
   problem: bgp_hijacking
   inject:
     host_name: n10
-    observer_host: pc_n1
-    probe_dst_ip: 203.0.115.1
-    symptom_host: n1
-    target_network: 203.0.115.0/24
+    observer_host: pc_n13
+    probe_dst_ip: 203.0.114.1
+    symptom_host: n13
+    target_network: 203.0.114.0/24
   topo_size: m
   igp: isis
   bgp_mode: ibgp_rr
@@ -107,14 +106,14 @@ cases:
       kind: node
       node: nl1_nl
     fault_type: bgp_max_prefix_exceeded
-- scenario: isp_zib54
+- scenario: isp_brain
   problem: bgp_missing_route_advertisement
   inject:
-    host_name: n7
-    peer_host: pc_n7
+    host_name: zib97
+    peer_host: pc_zib97
     prefix: 203.0.113.0/24
     probe_dst_ip: 203.0.113.1
-    symptom_host: n1
+    symptom_host: adh
   topo_size: l
   igp: isis
   bgp_mode: ibgp_rr
@@ -124,7 +123,7 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: n7
+      node: zib97
     fault_type: bgp_missing_route_advertisement
 - scenario: isp_abilene_ebgp_rpki
   problem: bgp_rpki_invalid_route_leak
@@ -136,47 +135,32 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: dnvrng
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
       node: kscyng
     fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: losang
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: snvang
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: sttlng
-    fault_type: bgp_rpki_invalid_route_leak
-- scenario: p4_dc_fabric
+- scenario: p4_dc_gateway
   problem: bmv2_switch_down
   inject:
-    host_name: leaf_1
+    host_name: gateway_1
   topo_size: l
   root_causes:
   - resource:
       kind: node
-      node: leaf_1
+      node: gateway_1
     fault_type: bmv2_switch_down
-- scenario: sdn_l3_clos
+- scenario: enterprise_branch
   problem: device_forwarding_packet_corruption
   inject:
-    forwarding_device: leaf_2
-    intf_name: eth0
-    observer_device: client_1_1
-    probe_dst_ip: 10.0.2.11
+    forwarding_device: hq_edge
+    intf_name: eth4
+    probe_dst_ip: 10.0.20.2
     seed: '42'
   topo_size: s
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: node
-      node: leaf_2
+      node: hq_edge
     fault_type: device_forwarding_packet_corruption
 - scenario: campus_lan
   problem: dhcp_missing_subnet
@@ -239,45 +223,45 @@ cases:
   problem: dns_lookup_latency
   inject:
     delay_ms: '1000'
-    host_name: dns_pod0
+    host_name: web_1
     intf_name: eth0
   topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: dns_pod0
+      node: web_1
     fault_type: dns_lookup_latency
 - scenario: dc_clos
   problem: dns_port_blocked
   inject:
-    host_name: dns_pod0
+    host_name: web_1
   topo_size: m
   root_causes:
   - resource:
       kind: node
-      node: dns_pod0
+      node: web_1
     fault_type: dns_port_blocked
 - scenario: dc_clos
   problem: dns_record_error
   inject:
-    host_name: dns_pod0
-    target_domain: pod0
-    target_website: web0
+    host_name: web_1
+    target_domain: fabric
+    target_website: web-12
   topo_size: l
   root_causes:
   - resource:
       kind: node
-      node: dns_pod0
+      node: web_1
     fault_type: dns_record_error
 - scenario: dc_clos
   problem: dns_service_down
   inject:
-    host_name: dns_pod0
+    host_name: web_1
   topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: dns_pod0
+      node: web_1
     fault_type: dns_service_down
 - scenario: sdn_l3_clos
   problem: flow_rule_loop
@@ -287,6 +271,8 @@ cases:
     port_name: eth5
     port_name_2: eth5
   topo_size: m
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: node
@@ -314,12 +300,12 @@ cases:
 - scenario: dc_clos
   problem: host_incorrect_dns
   inject:
-    host_name: client_0
+    host_name: client_1_1
   topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: client_0
+      node: client_1_1
     fault_type: host_incorrect_dns
 - scenario: k8s_lab
   problem: host_incorrect_gateway
@@ -330,15 +316,14 @@ cases:
       kind: node
       node: client
     fault_type: host_incorrect_gateway
-- scenario: enterprise_branch
+- scenario: llmd_lab
   problem: host_incorrect_ip
   inject:
-    host_name: br1_corp_pc
-  topo_size: m
+    host_name: client
   root_causes:
   - resource:
       kind: interface
-      node: br1_corp_pc
+      node: client
       name: eth0
     fault_type: host_incorrect_ip
 - scenario: enterprise_branch
@@ -346,42 +331,42 @@ cases:
   inject:
     host_name: br1_corp_pc
     netmask_prefix: '8'
-  topo_size: l
+  topo_size: m
   root_causes:
   - resource:
       kind: interface
       node: br1_corp_pc
       name: eth0
     fault_type: host_incorrect_netmask
-- scenario: p4_dc_fabric
+- scenario: enterprise_branch
   problem: host_ip_conflict
   inject:
-    host_name: client_1_1
-    host_name_2: client_2_1
-  topo_size: s
+    host_name: br6_corp_pc
+    host_name_2: br6_corp_pc2
+  topo_size: l
   root_causes:
   - resource:
       kind: interface
-      node: client_2_1
+      node: br6_corp_pc2
       name: eth0
     fault_type: host_ip_conflict
 - scenario: p4_dc_gateway
   problem: host_missing_ip
   inject:
-    host_name: client_4
+    host_name: client_1
     intf_name: eth0
-  topo_size: m
+  topo_size: s
   root_causes:
   - resource:
       kind: interface
-      node: client_4
+      node: client_1
       name: eth0
     fault_type: host_missing_ip
-- scenario: isp_ta2
+- scenario: isp_nobel-germany
   problem: host_static_blackhole
   inject:
-    host_name: n1
-  topo_size: l
+    host_name: berlin
+  topo_size: m
   igp: isis
   bgp_mode: ibgp_rr
   rpki: false
@@ -390,7 +375,7 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: n1
+      node: berlin
     fault_type: host_static_blackhole
 - scenario: llmd_lab
   problem: http_acl_block
@@ -401,10 +386,25 @@ cases:
       kind: node
       node: client
     fault_type: http_acl_block
-- scenario: isp_nobel-us
+- scenario: isp_cost266
   problem: icmp_acl_block
   inject:
-    host_name: pc_ann_arbor
+    host_name: pc_amsterdam
+  topo_size: l
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  backend: kathara
+  device_profile: frr
+  root_causes:
+  - resource:
+      kind: node
+      node: pc_amsterdam
+    fault_type: icmp_acl_block
+- scenario: isp_abilene
+  problem: icmp_frag_needed_filter_misconfiguration
+  inject:
+    host_name: atlam5
   topo_size: s
   igp: isis
   bgp_mode: none
@@ -414,33 +414,20 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: pc_ann_arbor
-    fault_type: icmp_acl_block
-- scenario: isp_geant_ebgp_rpki
-  problem: icmp_frag_needed_filter_misconfiguration
-  inject:
-    host_name: at1_at
-  topo_size: m
-  backend: kathara
-  device_profile: frr
-  root_causes:
-  - resource:
-      kind: node
-      node: at1_at
+      node: atlam5
     fault_type: icmp_frag_needed_filter_misconfiguration
-- scenario: p4_dc_gateway
+- scenario: p4_dc_fabric
   problem: incast_traffic_network_limitation
   inject:
-    duration: '3600'
-    host_name: service_1_1
-    observer_device: client_1
-    probe_dst_ip: 10.0.1.11
-  topo_size: l
+    host_name: web_2
+    observer_device: client_1_1
+    probe_dst_ip: 10.0.2.11
+  topo_size: m
   root_causes:
   - resource:
       kind: interface
-      node: leaf_1
-      name: eth8
+      node: leaf_2
+      name: eth0
     fault_type: incast_traffic_network_limitation
 - scenario: p4_dc_gateway
   problem: int_insufficient_mtu_headroom
@@ -449,7 +436,7 @@ cases:
     host_name: gateway_1
     int_mtu: '1480'
     intf_name: eth1
-  topo_size: s
+  topo_size: m
   root_causes:
   - resource:
       kind: interface
@@ -466,35 +453,34 @@ cases:
       kind: node
       node: controller
     fault_type: k8s_clusterip_routing_broken
-- scenario: k8s_lab
+- scenario: llmd_lab
   problem: k8s_coredns_isolated
   inject:
     control_node: controller
+    node_name: controller
     symptom_host: worker1
   root_causes:
   - resource:
-      kind: k8s
-      name: kube-dns
-      namespace: kube-system
-      k8s_kind: Service
+      kind: node
+      node: controller
     fault_type: k8s_coredns_isolated
-- scenario: llmd_lab
+- scenario: k8s_lab
   problem: k8s_networkpolicy_deny
   inject:
     control_node: controller
-    control_url: http://200.0.0.8/
-    namespace: llm-d
-    pod_selector: gateway.networking.k8s.io/gateway-name=llm-d-gateway
+    control_url: http://datacenter.com/weather?location=London
+    namespace: word-ns
+    pod_selector: app=word
     symptom_host: client
-    symptom_url: http://llmd/v1/models
+    symptom_url: http://datacenter.com/word
   root_causes:
   - resource:
       kind: k8s
       name: default-deny-ingress
-      namespace: llm-d
+      namespace: word-ns
       k8s_kind: NetworkPolicy
     fault_type: k8s_networkpolicy_deny
-- scenario: k8s_lab
+- scenario: llmd_lab
   problem: k8s_worker_apiserver_partition
   inject:
     control_node: controller
@@ -505,25 +491,58 @@ cases:
       node: worker1
     fault_type: k8s_worker_apiserver_partition
 - scenario: p4_dc_gateway
+  problem: lb_connection_state_exhaustion
+  inject:
+    host_name: gateway_1
+    max_connections: '4'
+  topo_size: l
+  root_causes:
+  - resource:
+      kind: node
+      node: gateway_1
+    fault_type: lb_connection_state_exhaustion
+- scenario: p4_dc_gateway
   problem: lb_pending_connection_update_race
   inject:
     host_name: gateway_1
     learning_delay_ms: '8000'
     seed: '42'
-  topo_size: m
+  topo_size: s
   root_causes:
   - resource:
       kind: node
       node: gateway_1
     fault_type: lb_pending_connection_update_race
-- scenario: isp_dfn-bwin
+- scenario: isp_pioro40
+  problem: link_capacity_bottleneck
+  inject:
+    burst: 16kb
+    host_name: n13
+    intf_name: eth1
+    limit: 32kb
+    peer_host: pc_n28
+    probe_dst_ip: 10.254.0.86
+    rate: 512kbit
+    symptom_host: pc_n13
+  topo_size: l
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  backend: kathara
+  device_profile: frr
+  root_causes:
+  - resource:
+      kind: link
+      name: n13:eth1--n28:eth2
+    fault_type: link_capacity_bottleneck
+- scenario: isp_pdh
   problem: link_detach
   inject:
-    host_name: berlin
-    intf_name: eth0
-    peer_host: pc_frankfurt
-    probe_dst_ip: 10.254.0.6
-    symptom_host: pc_berlin
+    host_name: n10
+    intf_name: eth1
+    peer_host: pc_n9
+    probe_dst_ip: 10.254.0.42
+    symptom_host: pc_n10
   topo_size: s
   igp: isis
   bgp_mode: none
@@ -533,17 +552,17 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: berlin
-      name: eth0
+      node: n10
+      name: eth1
     fault_type: link_detach
-- scenario: isp_janos-us
+- scenario: isp_nobel-eu
   problem: link_down
   inject:
-    host_name: albany
+    host_name: amsterdam
     intf_name: eth0
-    peer_host: pc_cleveland
-    probe_dst_ip: 10.254.0.22
-    symptom_host: pc_albany
+    peer_host: pc_brussels
+    probe_dst_ip: 10.254.0.26
+    symptom_host: pc_amsterdam
   topo_size: m
   igp: isis
   bgp_mode: none
@@ -553,7 +572,7 @@ cases:
   root_causes:
   - resource:
       kind: link
-      name: albany:eth0--cleveland:eth4
+      name: amsterdam:eth0--brussels:eth0
     fault_type: link_down
 - scenario: isp_janos-us-ca
   problem: link_flap
@@ -571,6 +590,8 @@ cases:
   rpki: false
   backend: kathara
   device_profile: frr
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: link
@@ -582,6 +603,8 @@ cases:
     corruption_percentage: '8'
     host_name: as1r1
     intf_name: eth0
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: link
@@ -605,45 +628,36 @@ cases:
     probe_requests: '60'
     vip_url: http://web99.local/small
     warmup_sec: '5'
-  topo_size: s
+  topo_size: m
   root_causes:
   - resource:
       kind: node
       node: load_balancer
     fault_type: load_balancer_overload
-- scenario: p4_dc_fabric
+- scenario: k8s_lab
   problem: mac_address_conflict
   inject:
-    host_name: web_2
-    host_name_2: client_3_2
-  topo_size: m
+    host_name: spine_1_2
+    host_name_2: core_1_2
   root_causes:
   - resource:
       kind: interface
-      node: web_2
+      node: spine_1_2
       name: eth0
     fault_type: mac_address_conflict
-- scenario: isp_abilene
+- scenario: isp_geant_ebgp_rpki
   problem: mtu_mismatch
   inject:
-    host_name: atlam5
+    host_name: at1_at
     intf_name: eth0
     mtu: '500'
-  topo_size: s
-  igp: isis
-  bgp_mode: none
-  rpki: false
+  topo_size: m
   backend: kathara
   device_profile: frr
   root_causes:
   - resource:
       kind: interface
-      node: atlam5
-      name: eth0
-    fault_type: mtu_mismatch
-  - resource:
-      kind: interface
-      node: atlang
+      node: at1_at
       name: eth0
     fault_type: mtu_mismatch
 - scenario: enterprise_branch
@@ -653,18 +667,18 @@ cases:
     nat_ip_a: 198.18.1.10
     nat_ip_b: 198.18.1.11
     source_prefix: 10.1.40.0/24
-    wan_interface: eth3
-  topo_size: l
+    wan_interface: eth2
+  topo_size: s
   root_causes:
   - resource:
       kind: node
       node: br1_edge
     fault_type: nat_mapping_removed_without_drain
-- scenario: isp_norway
+- scenario: isp_zib54
   problem: ospf_acl_block
   inject:
     host_name: n1
-  topo_size: m
+  topo_size: l
   igp: ospf
   bgp_mode: none
   rpki: false
@@ -675,25 +689,10 @@ cases:
       kind: node
       node: n1
     fault_type: ospf_acl_block
-- scenario: isp_india35
+- scenario: isp_dfn-bwin
   problem: ospf_area_misconfiguration
   inject:
-    host_name: n_0
-  topo_size: l
-  igp: ospf
-  bgp_mode: none
-  rpki: false
-  backend: kathara
-  device_profile: frr
-  root_causes:
-  - resource:
-      kind: node
-      node: n_0
-    fault_type: ospf_area_misconfiguration
-- scenario: isp_di-yuan
-  problem: ospf_neighbor_missing
-  inject:
-    host_name: n_1
+    host_name: berlin
   topo_size: s
   igp: ospf
   bgp_mode: none
@@ -703,13 +702,30 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: n_1
+      node: berlin
+    fault_type: ospf_area_misconfiguration
+- scenario: isp_giul39
+  problem: ospf_neighbor_missing
+  inject:
+    host_name: n1
+  topo_size: l
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  backend: kathara
+  device_profile: frr
+  root_causes:
+  - resource:
+      kind: node
+      node: n1
     fault_type: ospf_neighbor_missing
 - scenario: p4_dc_fabric
   problem: p4_action_selector_member_misconfig
   inject:
     host_name: leaf_1
-  topo_size: m
+  topo_size: l
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: node
@@ -719,7 +735,9 @@ cases:
   problem: p4_ecmp_group_member_missing
   inject:
     host_name: leaf_1
-  topo_size: l
+  topo_size: s
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: node
@@ -751,21 +769,23 @@ cases:
       kind: node
       node: leaf_1
     fault_type: p4_table_entry_misconfig
-- scenario: p4_dc_gateway
+- scenario: p4_dc_fabric
   problem: p4_table_entry_missing
   inject:
-    host_name: gateway_1
-  topo_size: l
+    host_name: leaf_1
+    observer_device: client_1_1
+    probe_dst_ip: 10.0.2.11
+  topo_size: m
   root_causes:
   - resource:
       kind: node
-      node: gateway_1
+      node: leaf_1
     fault_type: p4_table_entry_missing
 - scenario: p4_dc_fabric
   problem: p4_table_resource_exhaustion
   inject:
     host_name: leaf_1
-  topo_size: s
+  topo_size: l
   root_causes:
   - resource:
       kind: node
@@ -775,44 +795,44 @@ cases:
   problem: p4_tcam_entry_corruption
   inject:
     control_source: client_2
-    host_name: gateway_3
-    target_ip: 10.0.4.11
-  topo_size: m
+    host_name: spine_1
+    target_ip: 10.0.1.12
+  topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: gateway_3
+      node: spine_1
     fault_type: p4_tcam_entry_corruption
 - scenario: p4_dc_fabric
   problem: p4runtime_partial_write
   inject:
     host_name: leaf_1
-  topo_size: l
+  topo_size: m
   root_causes:
   - resource:
       kind: node
       node: leaf_1
     fault_type: p4runtime_partial_write
-- scenario: p4_dc_fabric
+- scenario: p4_dc_gateway
   problem: p4runtime_pipeline_mismatch
   inject:
-    host_name: leaf_1
-  topo_size: s
+    host_name: gateway_1
+  topo_size: l
   root_causes:
   - resource:
       kind: node
-      node: leaf_1
+      node: gateway_1
     fault_type: p4runtime_pipeline_mismatch
-- scenario: enterprise_branch
+- scenario: sdn_l3_clos
   problem: receiver_resource_contention
   inject:
     duration: '3600'
-    host_name: br1_corp_pc
+    host_name: client_1_1
   topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: br1_corp_pc
+      node: client_1_1
     fault_type: receiver_resource_contention
 - scenario: sdn_l3_clos
   problem: sdn_controller_crash
@@ -863,7 +883,7 @@ cases:
     port_start: '40000'
     public_ip: 198.18.1.10
     source_prefix: 10.1.40.0/24
-  topo_size: m
+  topo_size: s
   root_causes:
   - resource:
       kind: node
@@ -900,7 +920,7 @@ cases:
     sender_host: hq_srv
     sender_ip: 10.0.20.2
     small_url: http://10.0.20.2/small.bin
-  topo_size: m
+  topo_size: l
   root_causes:
   - resource:
       kind: node
@@ -914,9 +934,9 @@ cases:
     flows: '100'
     rate_pps: '1000'
     seed: '42'
-    target_ip: 10.0.4.12
+    target_ip: 10.0.1.12
     target_port: '80'
-  topo_size: l
+  topo_size: m
   root_causes:
   - resource:
       kind: node
@@ -931,7 +951,7 @@ cases:
     host_name: hq_edge
     intf_name: wg_br1
     src_host: hq_corp_pc
-  topo_size: s
+  topo_size: m
   root_causes:
   - resource:
       kind: interface
@@ -941,15 +961,15 @@ cases:
 - scenario: dc_clos
   problem: web_dos_attack
   inject:
-    attacker_device: client_0
-    host_name: webserver0_pod0
-    observer_device: dns_pod0
-    probe_url: http://10.0.1.2/small.bin
-  topo_size: m
+    attacker_device: client_4_2
+    host_name: web_2
+    observer_device: client_1_1
+    probe_url: http://10.0.2.11/
+  topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: webserver0_pod0
+      node: web_2
     fault_type: web_dos_attack
 - scenario: enterprise_branch
   problem: wireguard_allowed_ips_misconfiguration
@@ -957,7 +977,7 @@ cases:
     host_name: br1_edge
     intf_name: wg_hq
     target_prefix: 10.0.20.0/24
-  topo_size: l
+  topo_size: m
   root_causes:
   - resource:
       kind: interface
@@ -969,7 +989,7 @@ cases:
   inject:
     host_name: br1_edge
     intf_name: wg_hq
-  topo_size: s
+  topo_size: l
   root_causes:
   - resource:
       kind: interface
@@ -989,39 +1009,25 @@ cases:
 - scenario: dc_clos
   problem: arp_acl_block
   inject:
-    host_name: client_0
-  topo_size: m
+    host_name: client_1_1
+  topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: client_0
+      node: client_1_1
     fault_type: arp_acl_block
-- scenario: k8s_lab
+- scenario: llmd_lab
   problem: arp_cache_poisoning
   inject:
     host_name: client
+    target_ip: 200.0.0.8
   root_causes:
   - resource:
       kind: node
       node: client
     fault_type: arp_cache_poisoning
-- scenario: isp_pdh
-  problem: bgp_acl_block
-  inject:
-    host_name: n1
-  topo_size: s
-  igp: isis
-  bgp_mode: ibgp_rr
-  rpki: false
-  backend: containerlab
-  device_profile: nokia_srlinux
-  root_causes:
-  - resource:
-      kind: node
-      node: n1
-    fault_type: bgp_acl_block
 - scenario: isp_dfn-gwin
-  problem: bgp_asn_misconfig
+  problem: bgp_acl_block
   inject:
     host_name: berlin
   topo_size: s
@@ -1034,6 +1040,21 @@ cases:
   - resource:
       kind: node
       node: berlin
+    fault_type: bgp_acl_block
+- scenario: isp_di-yuan
+  problem: bgp_asn_misconfig
+  inject:
+    host_name: n_1
+  topo_size: s
+  igp: isis
+  bgp_mode: ibgp_rr
+  rpki: false
+  backend: containerlab
+  device_profile: nokia_srlinux
+  root_causes:
+  - resource:
+      kind: node
+      node: n_1
     fault_type: bgp_asn_misconfig
 - scenario: isp_dfn-bwin_ebgp_rtbh
   problem: bgp_blackhole_community_leak
@@ -1050,15 +1071,15 @@ cases:
       kind: node
       node: frankfurt
     fault_type: bgp_blackhole_community_leak
-- scenario: isp_brain
+- scenario: isp_france
   problem: bgp_hijacking
   inject:
-    host_name: adh
-    observer_host: pc_adh10
+    host_name: n01
+    observer_host: pc_n09
     probe_dst_ip: 203.0.113.1
-    symptom_host: adh10
+    symptom_host: n09
     target_network: 203.0.113.0/24
-  topo_size: l
+  topo_size: m
   igp: isis
   bgp_mode: ibgp_rr
   rpki: false
@@ -1067,15 +1088,15 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: adh
+      node: n01
     fault_type: bgp_hijacking
 - scenario: isp_abilene
   problem: bgp_max_prefix_exceeded
   inject:
     flood_count: '120'
-    neighbor_ip: 10.0.0.21
-    peer_name: losang
-    receiver_name: hstnng
+    neighbor_ip: 10.0.0.23
+    peer_name: kscyng
+    receiver_name: iplsng
   topo_size: s
   igp: ospf
   bgp_mode: ebgp
@@ -1085,11 +1106,11 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: hstnng
+      node: iplsng
     fault_type: bgp_max_prefix_exceeded
   - resource:
       kind: node
-      node: losang
+      node: kscyng
     fault_type: bgp_max_prefix_exceeded
 - scenario: isp_dfn-bwin
   problem: bgp_missing_route_advertisement
@@ -1120,51 +1141,33 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: be1_be
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
       node: es1_es
     fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: fr1_fr
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: il1_il
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: lu1_lu
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: nl1_nl
-    fault_type: bgp_rpki_invalid_route_leak
-- scenario: p4_dc_gateway
+- scenario: p4_dc_fabric
   problem: bmv2_switch_down
   inject:
-    host_name: gateway_1
+    host_name: leaf_1
   topo_size: l
   root_causes:
   - resource:
       kind: node
-      node: gateway_1
+      node: leaf_1
     fault_type: bmv2_switch_down
-- scenario: campus_lan
+- scenario: sdn_l3_clos
   problem: device_forwarding_packet_corruption
   inject:
-    forwarding_device: router_core_2
-    intf_name: eth3
-    observer_device: pc_1_1_1_1
-    probe_dst_ip: 10.200.0.3
+    forwarding_device: leaf_2
+    intf_name: eth0
+    observer_device: client_1_1
+    probe_dst_ip: 10.0.2.11
     seed: '42'
-  topo_size: m
+  topo_size: l
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: node
-      node: router_core_2
+      node: leaf_2
     fault_type: device_forwarding_packet_corruption
 - scenario: campus_lan
   problem: dhcp_missing_subnet
@@ -1194,7 +1197,7 @@ cases:
   inject:
     host_name: dhcp_server
     host_name_2: pc_1_1_1_1
-  topo_size: l
+  topo_size: m
   root_causes:
   - resource:
       kind: node
@@ -1229,7 +1232,7 @@ cases:
     delay_ms: '1000'
     host_name: dns_server
     intf_name: eth0
-  topo_size: m
+  topo_size: l
   root_causes:
   - resource:
       kind: node
@@ -1239,7 +1242,7 @@ cases:
   problem: dns_port_blocked
   inject:
     host_name: dns_server
-  topo_size: l
+  topo_size: m
   root_causes:
   - resource:
       kind: node
@@ -1250,8 +1253,8 @@ cases:
   inject:
     host_name: dns_server
     target_domain: local
-    target_website: web99
-  topo_size: s
+    target_website: web3
+  topo_size: l
   root_causes:
   - resource:
       kind: node
@@ -1261,7 +1264,7 @@ cases:
   problem: dns_service_down
   inject:
     host_name: dns_server
-  topo_size: m
+  topo_size: s
   root_causes:
   - resource:
       kind: node
@@ -1275,6 +1278,8 @@ cases:
     port_name: eth7
     port_name_2: eth6
   topo_size: l
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: node
@@ -1283,18 +1288,18 @@ cases:
 - scenario: sdn_l3_clos
   problem: flow_rule_shadowing
   inject:
-    host_name: spine_1
-  topo_size: s
+    host_name: leaf_1
+  topo_size: m
   root_causes:
   - resource:
       kind: node
-      node: spine_1
+      node: leaf_1
     fault_type: flow_rule_shadowing
-- scenario: isp_nobel-germany
+- scenario: isp_polska
   problem: frr_service_down
   inject:
-    host_name: berlin
-  topo_size: m
+    host_name: bialystok
+  topo_size: s
   igp: isis
   bgp_mode: none
   rpki: false
@@ -1303,13 +1308,13 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: berlin
+      node: bialystok
     fault_type: frr_service_down
 - scenario: campus_lan
   problem: host_incorrect_dns
   inject:
     host_name: pc_1_1_1_1
-  topo_size: l
+  topo_size: m
   root_causes:
   - resource:
       kind: node
@@ -1318,14 +1323,14 @@ cases:
 - scenario: dc_clos
   problem: host_incorrect_gateway
   inject:
-    host_name: client_0
-  topo_size: s
+    host_name: client_10_1
+  topo_size: l
   root_causes:
   - resource:
       kind: node
-      node: client_0
+      node: client_10_1
     fault_type: host_incorrect_gateway
-- scenario: llmd_lab
+- scenario: k8s_lab
   problem: host_incorrect_ip
   inject:
     host_name: client
@@ -1357,7 +1362,7 @@ cases:
       node: web
       name: eth0
     fault_type: host_ip_conflict
-- scenario: llmd_lab
+- scenario: k8s_lab
   problem: host_missing_ip
   inject:
     host_name: client
@@ -1383,7 +1388,7 @@ cases:
       kind: node
       node: berlin
     fault_type: host_static_blackhole
-- scenario: sdn_l3_clos
+- scenario: dc_clos
   problem: http_acl_block
   inject:
     host_name: client_1_1
@@ -1393,10 +1398,10 @@ cases:
       kind: node
       node: client_1_1
     fault_type: http_acl_block
-- scenario: isp_pioro40
+- scenario: isp_india35
   problem: icmp_acl_block
   inject:
-    host_name: pc_n0
+    host_name: pc_n_0
   topo_size: l
   igp: isis
   bgp_mode: none
@@ -1406,7 +1411,7 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: pc_n0
+      node: pc_n_0
     fault_type: icmp_acl_block
 - scenario: k8s_lab
   problem: icmp_frag_needed_filter_misconfiguration
@@ -1417,6 +1422,19 @@ cases:
       kind: node
       node: leaf_1_1
     fault_type: icmp_frag_needed_filter_misconfiguration
+- scenario: p4_dc_gateway
+  problem: incast_traffic_network_limitation
+  inject:
+    host_name: service_1_1
+    observer_device: client_1
+    probe_dst_ip: 10.0.1.11
+  topo_size: s
+  root_causes:
+  - resource:
+      kind: interface
+      node: leaf_1
+      name: eth2
+    fault_type: incast_traffic_network_limitation
 - scenario: p4_dc_gateway
   problem: int_insufficient_mtu_headroom
   inject:
@@ -1441,35 +1459,34 @@ cases:
       kind: node
       node: controller
     fault_type: k8s_clusterip_routing_broken
-- scenario: llmd_lab
+- scenario: k8s_lab
   problem: k8s_coredns_isolated
   inject:
     control_node: controller
+    node_name: controller
     symptom_host: worker1
   root_causes:
   - resource:
-      kind: k8s
-      name: kube-dns
-      namespace: kube-system
-      k8s_kind: Service
+      kind: node
+      node: controller
     fault_type: k8s_coredns_isolated
-- scenario: k8s_lab
+- scenario: llmd_lab
   problem: k8s_networkpolicy_deny
   inject:
     control_node: controller
-    control_url: http://datacenter.com/weather?location=London
-    namespace: word-ns
-    pod_selector: app=word
+    control_url: http://200.0.0.8/
+    namespace: llm-d
+    pod_selector: gateway.networking.k8s.io/gateway-name=llm-d-gateway
     symptom_host: client
-    symptom_url: http://datacenter.com/word
+    symptom_url: http://llmd/v1/models
   root_causes:
   - resource:
       kind: k8s
       name: default-deny-ingress
-      namespace: word-ns
+      namespace: llm-d
       k8s_kind: NetworkPolicy
     fault_type: k8s_networkpolicy_deny
-- scenario: llmd_lab
+- scenario: k8s_lab
   problem: k8s_worker_apiserver_partition
   inject:
     control_node: controller
@@ -1480,12 +1497,23 @@ cases:
       node: worker1
     fault_type: k8s_worker_apiserver_partition
 - scenario: p4_dc_gateway
+  problem: lb_connection_state_exhaustion
+  inject:
+    host_name: gateway_1
+    max_connections: '4'
+  topo_size: m
+  root_causes:
+  - resource:
+      kind: node
+      node: gateway_1
+    fault_type: lb_connection_state_exhaustion
+- scenario: p4_dc_gateway
   problem: lb_pending_connection_update_race
   inject:
     host_name: gateway_1
     learning_delay_ms: '8000'
     seed: '42'
-  topo_size: s
+  topo_size: m
   root_causes:
   - resource:
       kind: node
@@ -1513,14 +1541,14 @@ cases:
       kind: link
       name: frankfurt:e1-4--koeln:e1-2
     fault_type: link_capacity_bottleneck
-- scenario: isp_di-yuan
+- scenario: isp_dfn-bwin
   problem: link_detach
   inject:
-    host_name: n_10
+    host_name: berlin
     intf_name: e1-1
-    peer_host: pc_n_9
-    probe_dst_ip: 10.254.0.42
-    symptom_host: pc_n_10
+    peer_host: pc_frankfurt
+    probe_dst_ip: 10.254.0.6
+    symptom_host: pc_berlin
   topo_size: s
   igp: isis
   bgp_mode: none
@@ -1530,7 +1558,7 @@ cases:
   root_causes:
   - resource:
       kind: interface
-      node: n_10
+      node: berlin
       name: e1-1
     fault_type: link_detach
 - scenario: isp_dfn-bwin
@@ -1568,30 +1596,34 @@ cases:
   rpki: false
   backend: containerlab
   device_profile: nokia_srlinux
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: link
       name: berlin:e1-1--frankfurt:e1-1
     fault_type: link_flap
-- scenario: isp_newyork
+- scenario: isp_ta2
   problem: link_packet_corruption
   inject:
     corruption_percentage: '10'
     host_name: n10
     intf_name: eth0
-    peer_host: pc_n4
-    probe_dst_ip: 10.254.0.42
+    peer_host: pc_n2
+    probe_dst_ip: 10.254.0.46
     symptom_host: pc_n10
-  topo_size: m
+  topo_size: l
   igp: isis
   bgp_mode: none
   rpki: false
   backend: kathara
   device_profile: frr
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: link
-      name: n10:eth0--n4:eth4
+      name: n10:eth0--n2:eth0
     fault_type: link_packet_corruption
 - scenario: campus_lan
   problem: load_balancer_overload
@@ -1654,11 +1686,11 @@ cases:
       kind: node
       node: br1_edge
     fault_type: nat_mapping_removed_without_drain
-- scenario: isp_cost266
+- scenario: isp_newyork
   problem: ospf_acl_block
   inject:
-    host_name: amsterdam
-  topo_size: l
+    host_name: n1
+  topo_size: m
   igp: ospf
   bgp_mode: none
   rpki: false
@@ -1667,12 +1699,12 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: amsterdam
+      node: n1
     fault_type: ospf_acl_block
-- scenario: isp_france
+- scenario: isp_janos-us
   problem: ospf_area_misconfiguration
   inject:
-    host_name: n01
+    host_name: albany
   topo_size: m
   igp: ospf
   bgp_mode: none
@@ -1682,13 +1714,13 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: n01
+      node: albany
     fault_type: ospf_area_misconfiguration
-- scenario: isp_nobel-eu
+- scenario: isp_atlanta
   problem: ospf_neighbor_missing
   inject:
-    host_name: amsterdam
-  topo_size: m
+    host_name: n1
+  topo_size: s
   igp: ospf
   bgp_mode: none
   rpki: false
@@ -1697,13 +1729,15 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: amsterdam
+      node: n1
     fault_type: ospf_neighbor_missing
 - scenario: p4_dc_gateway
   problem: p4_action_selector_member_misconfig
   inject:
     host_name: leaf_1
   topo_size: l
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: node
@@ -1714,6 +1748,8 @@ cases:
   inject:
     host_name: leaf_1
   topo_size: l
+  traffic:
+    pattern: uniform
   root_causes:
   - resource:
       kind: node
@@ -1743,12 +1779,10 @@ cases:
       kind: node
       node: leaf_1
     fault_type: p4_table_entry_misconfig
-- scenario: p4_dc_fabric
+- scenario: p4_dc_gateway
   problem: p4_table_entry_missing
   inject:
     host_name: leaf_1
-    observer_device: client_1_1
-    probe_dst_ip: 10.0.2.11
   topo_size: s
   root_causes:
   - resource:
@@ -1787,29 +1821,29 @@ cases:
       kind: node
       node: leaf_1
     fault_type: p4runtime_partial_write
-- scenario: p4_dc_gateway
+- scenario: p4_dc_fabric
   problem: p4runtime_pipeline_mismatch
   inject:
-    host_name: gateway_1
+    host_name: leaf_1
   topo_size: m
   root_causes:
   - resource:
       kind: node
-      node: gateway_1
+      node: leaf_1
     fault_type: p4runtime_pipeline_mismatch
 - scenario: dc_clos
   problem: receiver_resource_contention
   inject:
     duration: '3600'
-    host_name: client_0
-    large_url: http://web0.pod0/large.bin
-    peer_host: webserver0_pod0
+    host_name: client_10_1
+    large_url: http://10.0.1.11/large.bin
+    peer_host: web_1
     stress_cpus: '4'
   topo_size: l
   root_causes:
   - resource:
       kind: node
-      node: client_0
+      node: client_10_1
     fault_type: receiver_resource_contention
 - scenario: sdn_l3_clos
   problem: sdn_controller_crash
@@ -1821,7 +1855,7 @@ cases:
       kind: node
       node: onos
     fault_type: sdn_controller_crash
-- scenario: p4_dc_fabric
+- scenario: dc_clos
   problem: sender_resource_contention
   inject:
     client_host: client_2_1
@@ -1912,9 +1946,9 @@ cases:
     flows: '100'
     rate_pps: '1000'
     seed: '42'
-    target_ip: 10.0.1.12
+    target_ip: 10.0.4.12
     target_port: '80'
-  topo_size: m
+  topo_size: l
   root_causes:
   - resource:
       kind: node
@@ -1929,7 +1963,7 @@ cases:
     host_name: hq_edge
     intf_name: wg_br1
     src_host: hq_corp_pc
-  topo_size: l
+  topo_size: s
   root_causes:
   - resource:
       kind: interface
@@ -1939,11 +1973,11 @@ cases:
 - scenario: p4_dc_fabric
   problem: web_dos_attack
   inject:
-    attacker_device: client_4_1
+    attacker_device: client_8_3
     host_name: web_2
     observer_device: client_1_1
     probe_url: http://10.0.2.11/
-  topo_size: s
+  topo_size: m
   root_causes:
   - resource:
       kind: node
@@ -1955,7 +1989,7 @@ cases:
     host_name: br1_edge
     intf_name: wg_hq
     target_prefix: 10.0.20.0/24
-  topo_size: m
+  topo_size: l
   root_causes:
   - resource:
       kind: interface
@@ -1967,7 +2001,7 @@ cases:
   inject:
     host_name: br1_edge
     intf_name: wg_hq
-  topo_size: l
+  topo_size: m
   root_causes:
   - resource:
       kind: interface
@@ -2063,6 +2097,16 @@ cases:
   backend: kathara
   device_profile: frr
   root_causes: []
+- scenario: isp_atlanta
+  problem: healthy
+  inject: {}
+  topo_size: s
+  igp: ospf
+  bgp_mode: none
+  rpki: false
+  backend: kathara
+  device_profile: frr
+  root_causes: []
 - scenario: isp_brain
   problem: healthy
   inject: {}
@@ -2077,7 +2121,7 @@ cases:
   problem: healthy
   inject: {}
   topo_size: l
-  igp: ospf
+  igp: isis
   bgp_mode: none
   rpki: false
   backend: kathara
@@ -2107,7 +2151,7 @@ cases:
   problem: healthy
   inject: {}
   topo_size: s
-  igp: isis
+  igp: ospf
   bgp_mode: none
   rpki: false
   backend: kathara
@@ -2135,27 +2179,17 @@ cases:
   inject: {}
   topo_size: s
   igp: isis
-  bgp_mode: none
+  bgp_mode: ibgp_rr
   rpki: false
   backend: containerlab
   device_profile: nokia_srlinux
-  root_causes: []
-- scenario: isp_di-yuan
-  problem: healthy
-  inject: {}
-  topo_size: s
-  igp: ospf
-  bgp_mode: none
-  rpki: false
-  backend: kathara
-  device_profile: frr
   root_causes: []
 - scenario: isp_france
   problem: healthy
   inject: {}
   topo_size: m
-  igp: ospf
-  bgp_mode: none
+  igp: isis
+  bgp_mode: ibgp_rr
   rpki: false
   backend: kathara
   device_profile: frr
@@ -2191,7 +2225,7 @@ cases:
   problem: healthy
   inject: {}
   topo_size: l
-  igp: isis
+  igp: ospf
   bgp_mode: none
   rpki: false
   backend: kathara
@@ -2201,7 +2235,7 @@ cases:
   problem: healthy
   inject: {}
   topo_size: l
-  igp: ospf
+  igp: isis
   bgp_mode: none
   rpki: false
   backend: kathara
@@ -2211,7 +2245,7 @@ cases:
   problem: healthy
   inject: {}
   topo_size: m
-  igp: isis
+  igp: ospf
   bgp_mode: none
   rpki: false
   backend: kathara
@@ -2231,7 +2265,7 @@ cases:
   problem: healthy
   inject: {}
   topo_size: m
-  igp: isis
+  igp: ospf
   bgp_mode: none
   rpki: false
   backend: kathara
@@ -2241,7 +2275,7 @@ cases:
   problem: healthy
   inject: {}
   topo_size: m
-  igp: ospf
+  igp: isis
   bgp_mode: none
   rpki: false
   backend: kathara
@@ -2252,27 +2286,7 @@ cases:
   inject: {}
   topo_size: m
   igp: isis
-  bgp_mode: none
-  rpki: false
-  backend: kathara
-  device_profile: frr
-  root_causes: []
-- scenario: isp_nobel-us
-  problem: healthy
-  inject: {}
-  topo_size: s
-  igp: isis
-  bgp_mode: none
-  rpki: false
-  backend: kathara
-  device_profile: frr
-  root_causes: []
-- scenario: isp_norway
-  problem: healthy
-  inject: {}
-  topo_size: m
-  igp: ospf
-  bgp_mode: none
+  bgp_mode: ibgp_rr
   rpki: false
   backend: kathara
   device_profile: frr
@@ -2282,15 +2296,25 @@ cases:
   inject: {}
   topo_size: s
   igp: isis
-  bgp_mode: ibgp_rr
+  bgp_mode: none
   rpki: false
-  backend: containerlab
-  device_profile: nokia_srlinux
+  backend: kathara
+  device_profile: frr
   root_causes: []
 - scenario: isp_pioro40
   problem: healthy
   inject: {}
   topo_size: l
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  backend: kathara
+  device_profile: frr
+  root_causes: []
+- scenario: isp_polska
+  problem: healthy
+  inject: {}
+  topo_size: s
   igp: isis
   bgp_mode: none
   rpki: false
@@ -2322,7 +2346,7 @@ cases:
   inject: {}
   topo_size: l
   igp: isis
-  bgp_mode: ibgp_rr
+  bgp_mode: none
   rpki: false
   backend: kathara
   device_profile: frr
@@ -2331,8 +2355,8 @@ cases:
   problem: healthy
   inject: {}
   topo_size: l
-  igp: isis
-  bgp_mode: ibgp_rr
+  igp: ospf
+  bgp_mode: none
   rpki: false
   backend: kathara
   device_profile: frr

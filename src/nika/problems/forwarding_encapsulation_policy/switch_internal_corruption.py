@@ -1,6 +1,7 @@
 """Silent, flow-dependent corruption in a forwarding device."""
 
 import re
+from collections import defaultdict
 
 from pydantic import BaseModel, Field
 
@@ -8,8 +9,17 @@ from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.rca.inventory import (
     interfaces_for_node,
+    kernel_data_interface,
     iter_link_termination_points,
     parse_endpoint,
+)
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    shell,
 )
 from nika.problems.support.benchmark_targets import (
     choice,
@@ -20,8 +30,10 @@ from nika.problems.support.benchmark_targets import (
 )
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
+from nika.traffic.workload import BULK_TRANSIT
 from nika.problems.forwarding_encapsulation_policy.switch_internal_corruption_bpf import (
     SwitchNamespaceBitflip,
+    SwitchEgressClassifier,
 )
 
 
@@ -46,16 +58,10 @@ def _spine_egress_toward_leaf(net_env, leaf_router: str) -> tuple[str, str] | No
                 continue
             other_ep = endpoints[1 - idx]
             other_host, other_intf = parse_endpoint(other_ep)
-            if other_host.startswith("spine_router_"):
+            if other_host.startswith("spine_"):
                 matches.append((other_host, other_intf))
     if not matches:
         return None
-    leaf_match = re.search(r"leaf_router_(\d+)_(\d+)", leaf_router)
-    if leaf_match is not None:
-        preferred = f"spine_router_{leaf_match.group(1)}_{leaf_match.group(2)}"
-        for host, intf in matches:
-            if host == preferred:
-                return host, intf
     return sorted(matches)[0]
 
 
@@ -69,9 +75,35 @@ def _leaf_router_for_web(net_env, web_host: str) -> tuple[str, str] | None:
             continue
         other = endpoints[0] if endpoints[1] == web_ep else endpoints[1]
         peer_host, peer_intf = parse_endpoint(other)
-        if peer_host.startswith("leaf_router_"):
+        if peer_host.startswith("leaf_"):
             return peer_host, peer_intf
     return None
+
+
+def _workload_transit_egress(net_env) -> tuple[str, str] | None:
+    """Forwarding-device egress that the scenario's bulk business traffic crosses.
+
+    Prefers a device with no end host attached (a spine or core), so the
+    affected flows cross the fabric between two edge devices.
+    """
+    workload = net_env.business_workload()
+    if workload is None:
+        return None
+    forwarding = set(net_env.routers or []) | set(net_env.switches or [])
+    hops = sorted(
+        (node, intf)
+        for node, intf in workload.targets(BULK_TRANSIT)
+        if node in forwarding
+    )
+    if not hops:
+        return None
+    hosts = set(net_env.hosts or [])
+    edge = set()
+    for _key, tps in iter_link_termination_points(net_env):
+        nodes = {parse_endpoint(str(ep))[0] for ep in tps}
+        if nodes & hosts:
+            edge |= nodes
+    return next((hop for hop in hops if hop[0] not in edge), hops[0])
 
 
 def _probe_path_corruption_target(ctx) -> dict[str, str]:
@@ -117,7 +149,7 @@ def _probe_path_corruption_target(ctx) -> dict[str, str]:
 
     if scenario == "dc_clos":
         web_hosts = list(ctx.servers.get("web") or [])
-        web = prefer_named(web_hosts, "webserver0_pod0", first(web_hosts) or ctx.web0)
+        web = prefer_named(web_hosts, "web_1", first(web_hosts) or ctx.web0)
         leaf_match = _leaf_router_for_web(net_env, web) if web else None
         if leaf_match is not None:
             leaf_router, _leaf_intf = leaf_match
@@ -158,6 +190,11 @@ def _probe_path_corruption_target(ctx) -> dict[str, str]:
         )
         return params
 
+    transit = _workload_transit_egress(net_env)
+    if transit is not None:
+        params.update(forwarding_device=transit[0], intf_name=transit[1])
+        return params
+
     target = choice(rng, forwarding, forwarding[0])
     interfaces = device_interfaces(net_env).get(target) or []
     params.update(
@@ -165,6 +202,77 @@ def _probe_path_corruption_target(ctx) -> dict[str, str]:
         intf_name=interfaces[-1] if interfaces else "eth0",
     )
     return params
+
+
+def _tcp_probe_pair(net_env, device: str, intf: str) -> tuple[str, str, bool]:
+    """(client, web server, upload) whose TCP payload leaves ``device:intf``.
+
+    Nodes reachable from the interface's peer without crossing ``device`` sit
+    downstream of the egress. A downstream web server receives client uploads
+    through it; otherwise a downstream client downloads through it.
+    """
+    adjacency: dict[str, set[str]] = defaultdict(set)
+    downstream: set[str] = set()
+    for _key, tps in iter_link_termination_points(net_env):
+        endpoints = [str(ep) for ep in tps]
+        nodes = [parse_endpoint(ep)[0] for ep in endpoints]
+        if f"{device}:{intf}" in endpoints:
+            downstream.update(n for n in nodes if n != device)
+        for node in nodes:
+            adjacency[node].update(n for n in nodes if n != node)
+    queue = list(downstream)
+    while queue:
+        for nxt in adjacency[queue.pop()] - downstream - {device}:
+            downstream.add(nxt)
+            queue.append(nxt)
+    webs = sorted((getattr(net_env, "servers", None) or {}).get("web") or [])
+    clients = sorted(
+        name
+        for name, identity in net_env.machine_identities.items()
+        if identity.role == NodeRole.HOST
+    )
+    for web in webs:
+        client = next((c for c in clients if c not in downstream), None)
+        if web in downstream and client:
+            return client, web, True
+    web = next((w for w in webs if w not in downstream), None)
+    client = next((c for c in clients if c in downstream), None)
+    if web and client:
+        return client, web, False
+    raise ValueError(f"no client/web pair crosses {device}:{intf}")
+
+
+def _server_ip(outputs) -> str:
+    match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)/", outputs.get("corrupt_server", ""))
+    return match.group(1) if match else "0.0.0.0"
+
+
+def _tcp_transfers(client: str, upload: bool, flows: int = 24) -> OracleStep:
+    """Many short TCP transfers, each on a fresh five-tuple."""
+    transfer = (
+        "head -c 65536 /dev/zero | curl -s -o /dev/null -m 3 --data-binary @- "
+        "http://{ip}/"
+        if upload
+        else "curl -s -o /dev/null -m 3 -r 0-131071 http://{ip}/large.bin"
+    )
+
+    def args(outputs):
+        command = (
+            f"ok=0; failed=0; for i in $(seq {flows}); do "
+            f"if {transfer.format(ip=_server_ip(outputs))}; "
+            "then ok=$((ok+1)); else failed=$((failed+1)); fi; done; "
+            "echo ok=$ok failed=$failed"
+        )
+        return {"host_name": client, "command": command, "timeout": flows * 4 + 20}
+
+    direction = "upload to" if upload else "download from"
+    return OracleStep(
+        f"Run {flows} short TCP transfers from {client} that {direction} the web "
+        "server; a corrupted flow stalls until it times out.",
+        "exec_shell",
+        args,
+        contains(r"failed=[1-9]", "some transfers stall"),
+    )
 
 
 class DeviceForwardingPacketCorruption(ProblemBase):
@@ -180,10 +288,25 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         "checksum drops and retransmissions while links and BGP remain healthy."
     )
     TAGS = ["forwarding_device"]
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
     Params = SwitchInternalPacketCorruptionParams
+    # Egress classifier that carries the fault.
+    INJECTOR = SwitchNamespaceBitflip
 
     BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile: str) -> bool:
+        """Containerlab router platforms only.
+
+        On Containerlab the classifier sits on the host-side wire end, outside
+        the router OS, so any platform works. On Kathara it is loaded in the
+        node's Linux namespace, which a native IOS XR or RouterOS dataplane
+        does not use.
+        """
+        from nika.net_env.isp.profiles import SUPPORTED_BACKEND_PROFILE_PAIRS
+
+        return ("containerlab", device_profile) in SUPPORTED_BACKEND_PROFILE_PAIRS
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -197,7 +320,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         forwarding_devices = set(net_env.routers or []) | set(net_env.switches or [])
         if target not in forwarding_devices:
             raise ValueError(
-                "device_forwarding_packet_corruption requires a router or switch target"
+                f"{cls.root_cause_name} requires a router or switch target"
             )
         if target_intf not in (ctx.ifaces_by_device.get(target) or []):
             raise ValueError(
@@ -206,6 +329,9 @@ class DeviceForwardingPacketCorruption(ProblemBase):
 
     def root_cause_resources(self, params: SwitchInternalPacketCorruptionParams):
         return [node_resource(params.forwarding_device)]
+
+    def _classifier(self) -> SwitchEgressClassifier:
+        return self.INJECTOR(self.runtime, self.lab_backend)
 
     def inject_fault(self, params: SwitchInternalPacketCorruptionParams) -> None:
         if params.intf_name not in interfaces_for_node(
@@ -217,16 +343,16 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         identity = self.net_env.machine_identities.get(params.forwarding_device)
         if identity is None or identity.role not in {NodeRole.ROUTER, NodeRole.SWITCH}:
             raise RuntimeCapabilityError(
-                "device_forwarding_packet_corruption requires a router or switch target"
+                f"{self.root_cause_name} requires a router or switch target"
             )
-        self._bitflip_token = SwitchNamespaceBitflip(self.runtime).attach(
+        self._classifier().attach(
             params.forwarding_device, params.intf_name, params.seed
         )
 
     def verify_fault(self, params: SwitchInternalPacketCorruptionParams) -> dict:
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=SwitchNamespaceBitflip(self.runtime).attached(
+            verified=self._classifier().attached(
                 params.forwarding_device, params.intf_name
             ),
             details={
@@ -235,13 +361,79 @@ class DeviceForwardingPacketCorruption(ProblemBase):
             },
         )
 
-    def recover_fault(self, params: SwitchInternalPacketCorruptionParams) -> dict:
-        injector = SwitchNamespaceBitflip(self.runtime)
-        injector.detach(
-            params.forwarding_device,
-            params.intf_name,
-            getattr(self, "_bitflip_token", None),
+    def oracle_playbook(
+        self, params: SwitchInternalPacketCorruptionParams
+    ) -> OraclePlaybook:
+        device, intf = params.forwarding_device, params.intf_name
+        client, web, upload = _tcp_probe_pair(self.net_env, device, intf)
+        receiver = web if upload else client
+
+        def checksum_delta(outputs):
+            before = re.search(
+                r"TcpInCsumErrors\s+(\d+)", outputs.get("corrupt_before", "")
+            )
+            if before is None:
+                raise ValueError("TCP checksum baseline is missing")
+            return {
+                "host_name": receiver,
+                "command": "nstat -asz TcpInCsumErrors | "
+                f"awk -v before={before.group(1)} "
+                "'/^TcpInCsumErrors / {print \"TcpInCsumErrorsDelta\", $2-before}'",
+            }
+
+        # Containerlab applies corruption on the host wire, outside node tools.
+        host_wires = self.lab_backend == "containerlab"
+        return OraclePlaybook(
+            finding=(
+                f"TCP payloads crossing {device}:{intf} are corrupted, so "
+                "receivers drop those segments with bad checksums while "
+                "links and routing stay healthy."
+            ),
+            steps=[
+                shell(
+                    web,
+                    f"ip -4 -o addr show dev {kernel_data_interface(self.net_env, web)} scope global",
+                    f"Look up the address of web server {web}.",
+                    save_as="corrupt_server",
+                ),
+                shell(
+                    receiver,
+                    "nstat -asz TcpInCsumErrors",
+                    f"Record the TCP checksum error counter on receiver {receiver}.",
+                    save_as="corrupt_before",
+                ),
+                _tcp_transfers(client, upload),
+                OracleStep(
+                    f"Measure new TCP checksum errors on receiver {receiver}.",
+                    "exec_shell",
+                    checksum_delta,
+                    contains(
+                        r"TcpInCsumErrorsDelta\s+[1-9]",
+                        "the transfers produce new TCP checksum errors",
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    device,
+                    f"tc qdisc show dev {intf}; tc filter show dev {intf} egress",
+                    f"Inspect the egress datapath of {device}:{intf}.",
+                    lacks(r"netem", "no netem impairment on the link")
+                    if host_wires
+                    else all_of(
+                        lacks(r"netem", "no netem impairment on the link"),
+                        contains(
+                            r"\bbpf\b.*direct-action",
+                            "an eBPF classifier rewrites egress packets",
+                        ),
+                    ),
+                    evidence=not host_wires,
+                ),
+            ],
         )
+
+    def recover_fault(self, params: SwitchInternalPacketCorruptionParams) -> dict:
+        injector = self._classifier()
+        injector.detach(params.forwarding_device, params.intf_name)
         return {
             "verified": not injector.attached(
                 params.forwarding_device, params.intf_name

@@ -7,8 +7,431 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: ann_arbor
+      intf_name: eth1
+      peer_host: pc_princeton
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: link
+        name: ann_arbor:eth1--princeton:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: ann_arbor
+      intf_name: eth2
+      peer_host: pc_ithaca
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: link
+        name: ann_arbor:eth2--ithaca:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: ann_arbor
+      intf_name: eth3
+      peer_host: pc_salt_lake_city
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: link
+        name: ann_arbor:eth3--salt_lake_city:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: atlanta
+      intf_name: eth1
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth1--pittsburgh:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: atlanta
+      intf_name: eth2
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_atlanta
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth2--houston:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: boulder
+      intf_name: eth1
+      peer_host: pc_lincoln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_boulder
+    root_causes:
+    - resource:
+        kind: link
+        name: boulder:eth1--lincoln:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: boulder
+      intf_name: eth2
+      peer_host: pc_houston
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_boulder
+    root_causes:
+    - resource:
+        kind: link
+        name: boulder:eth2--houston:eth4
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: boulder
+      intf_name: eth3
+      peer_host: pc_salt_lake_city
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_boulder
+    root_causes:
+    - resource:
+        kind: link
+        name: boulder:eth3--salt_lake_city:eth3
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: houston
+      intf_name: eth1
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_houston
+    root_causes:
+    - resource:
+        kind: link
+        name: houston:eth1--washington:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: houston
+      intf_name: eth3
+      peer_host: pc_san_diego
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_houston
+    root_causes:
+    - resource:
+        kind: link
+        name: houston:eth3--san_diego:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: ithaca
+      intf_name: eth1
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_ithaca
+    root_causes:
+    - resource:
+        kind: link
+        name: ithaca:eth1--washington:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: ithaca
+      intf_name: eth3
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_ithaca
+    root_causes:
+    - resource:
+        kind: link
+        name: ithaca:eth3--pittsburgh:eth4
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: lincoln
+      intf_name: eth1
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_lincoln
+    root_causes:
+    - resource:
+        kind: link
+        name: lincoln:eth1--urbana_champaign:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: palo_alto
+      intf_name: eth1
+      peer_host: pc_san_diego
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: link
+        name: palo_alto:eth1--san_diego:eth1
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: palo_alto
+      intf_name: eth2
+      peer_host: pc_salt_lake_city
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: link
+        name: palo_alto:eth2--salt_lake_city:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: palo_alto
+      intf_name: eth3
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: link
+        name: palo_alto:eth3--seattle:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pittsburgh
+      intf_name: eth2
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: link
+        name: pittsburgh:eth2--urbana_champaign:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pittsburgh
+      intf_name: eth3
+      peer_host: pc_princeton
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: link
+        name: pittsburgh:eth3--princeton:eth2
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: princeton
+      intf_name: eth3
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_princeton
+    root_causes:
+    - resource:
+        kind: link
+        name: princeton:eth3--washington:eth3
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: san_diego
+      intf_name: eth3
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_san_diego
+    root_causes:
+    - resource:
+        kind: link
+        name: san_diego:eth3--seattle:eth3
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: seattle
+      intf_name: eth1
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_seattle
+    root_causes:
+    - resource:
+        kind: link
+        name: seattle:eth1--urbana_champaign:eth3
+      fault_type: link_down
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ann_arbor
       intf_name: eth0
@@ -26,6 +449,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ann_arbor
       intf_name: eth1
@@ -43,6 +469,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ann_arbor
       intf_name: eth2
@@ -60,6 +489,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlanta
       intf_name: eth0
@@ -77,6 +509,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlanta
       intf_name: eth1
@@ -94,6 +529,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: boulder
       intf_name: eth0
@@ -111,6 +549,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: boulder
       intf_name: eth1
@@ -128,6 +569,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: boulder
       intf_name: eth2
@@ -145,6 +589,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: houston
       intf_name: eth0
@@ -162,6 +609,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: houston
       intf_name: eth2
@@ -179,6 +629,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ithaca
       intf_name: eth0
@@ -196,6 +649,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ithaca
       intf_name: eth2
@@ -213,6 +669,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: lincoln
       intf_name: eth0
@@ -230,6 +689,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: palo_alto
       intf_name: eth0
@@ -247,6 +709,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: palo_alto
       intf_name: eth1
@@ -264,6 +729,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: palo_alto
       intf_name: eth2
@@ -281,6 +749,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pittsburgh
       intf_name: eth1
@@ -298,6 +769,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pittsburgh
       intf_name: eth2
@@ -315,6 +789,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: princeton
       intf_name: eth2
@@ -332,6 +809,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: san_diego
       intf_name: eth2
@@ -349,6 +829,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: seattle
       intf_name: eth0
@@ -366,6 +849,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ann_arbor
       intf_name: eth0
@@ -383,6 +869,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ann_arbor
       intf_name: eth1
@@ -400,6 +889,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ann_arbor
       intf_name: eth2
@@ -417,6 +909,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlanta
       intf_name: eth0
@@ -434,6 +929,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlanta
       intf_name: eth1
@@ -451,6 +949,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: boulder
       intf_name: eth0
@@ -468,6 +969,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: boulder
       intf_name: eth1
@@ -485,6 +989,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: boulder
       intf_name: eth2
@@ -502,6 +1009,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: houston
       intf_name: eth0
@@ -519,6 +1029,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: houston
       intf_name: eth2
@@ -536,6 +1049,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ithaca
       intf_name: eth0
@@ -553,6 +1069,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ithaca
       intf_name: eth2
@@ -570,6 +1089,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: lincoln
       intf_name: eth0
@@ -587,6 +1109,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: palo_alto
       intf_name: eth0
@@ -604,6 +1129,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: palo_alto
       intf_name: eth1
@@ -621,6 +1149,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: palo_alto
       intf_name: eth2
@@ -638,6 +1169,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pittsburgh
       intf_name: eth1
@@ -655,6 +1189,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pittsburgh
       intf_name: eth2
@@ -672,6 +1209,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: princeton
       intf_name: eth2
@@ -689,6 +1229,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: san_diego
       intf_name: eth2
@@ -706,6 +1249,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: seattle
       intf_name: eth0
@@ -723,6 +1269,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ann_arbor
       intf_name: eth1
@@ -740,6 +1289,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ann_arbor
       intf_name: eth2
@@ -757,6 +1309,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ann_arbor
       intf_name: eth3
@@ -774,6 +1329,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlanta
       intf_name: eth1
@@ -791,6 +1349,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlanta
       intf_name: eth2
@@ -808,6 +1369,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: boulder
       intf_name: eth1
@@ -825,6 +1389,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: boulder
       intf_name: eth2
@@ -842,6 +1409,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: boulder
       intf_name: eth3
@@ -859,6 +1429,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: houston
       intf_name: eth1
@@ -876,6 +1449,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: houston
       intf_name: eth3
@@ -893,6 +1469,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ithaca
       intf_name: eth1
@@ -910,6 +1489,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: ithaca
       intf_name: eth3
@@ -927,6 +1509,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: lincoln
       intf_name: eth1
@@ -944,6 +1529,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: palo_alto
       intf_name: eth1
@@ -961,6 +1549,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: palo_alto
       intf_name: eth2
@@ -978,6 +1569,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: palo_alto
       intf_name: eth3
@@ -995,6 +1589,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pittsburgh
       intf_name: eth2
@@ -1012,6 +1609,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pittsburgh
       intf_name: eth3
@@ -1029,6 +1629,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: princeton
       intf_name: eth3
@@ -1046,6 +1649,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: san_diego
       intf_name: eth3
@@ -1063,6 +1669,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: seattle
       intf_name: eth1

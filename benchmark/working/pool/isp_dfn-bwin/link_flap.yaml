@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -16,7 +19,7 @@ failure:
       peer_host: pc_frankfurt
       probe_dst_ip: 10.254.0.6
       symptom_host: pc_berlin
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -28,6 +31,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -35,7 +41,7 @@ failure:
       peer_host: pc_hamburg
       probe_dst_ip: 10.254.0.10
       symptom_host: pc_berlin
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -47,6 +53,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -54,7 +63,7 @@ failure:
       peer_host: pc_hannover
       probe_dst_ip: 10.254.0.14
       symptom_host: pc_berlin
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -66,6 +75,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -73,7 +85,7 @@ failure:
       peer_host: pc_karlsruhe
       probe_dst_ip: 10.254.0.18
       symptom_host: pc_berlin
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -85,6 +97,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -92,7 +107,7 @@ failure:
       peer_host: pc_koeln
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_berlin
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -104,6 +119,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -111,7 +129,7 @@ failure:
       peer_host: pc_leipzig
       probe_dst_ip: 10.254.0.26
       symptom_host: pc_berlin
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -123,6 +141,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -130,7 +151,7 @@ failure:
       peer_host: pc_muenchen
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_berlin
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -142,6 +163,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -149,7 +173,7 @@ failure:
       peer_host: pc_nuernberg
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_berlin
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -161,6 +185,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -168,7 +195,7 @@ failure:
       peer_host: pc_stuttgart
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_berlin
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -180,6 +207,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -187,7 +217,7 @@ failure:
       peer_host: pc_hamburg
       probe_dst_ip: 10.254.0.10
       symptom_host: pc_frankfurt
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -199,6 +229,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -206,7 +239,7 @@ failure:
       peer_host: pc_hannover
       probe_dst_ip: 10.254.0.14
       symptom_host: pc_frankfurt
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -218,6 +251,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -225,7 +261,7 @@ failure:
       peer_host: pc_koeln
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_frankfurt
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -237,6 +273,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -244,7 +283,7 @@ failure:
       peer_host: pc_leipzig
       probe_dst_ip: 10.254.0.26
       symptom_host: pc_frankfurt
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -256,6 +295,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -263,7 +305,7 @@ failure:
       peer_host: pc_muenchen
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_frankfurt
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -275,6 +317,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -282,7 +327,7 @@ failure:
       peer_host: pc_stuttgart
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_frankfurt
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -294,6 +339,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -301,7 +349,7 @@ failure:
       peer_host: pc_karlsruhe
       probe_dst_ip: 10.254.0.18
       symptom_host: pc_frankfurt
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -313,6 +361,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -320,7 +371,7 @@ failure:
       peer_host: pc_nuernberg
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_frankfurt
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -332,6 +383,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -339,7 +393,7 @@ failure:
       peer_host: pc_hannover
       probe_dst_ip: 10.254.0.14
       symptom_host: pc_hamburg
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -351,6 +405,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -358,7 +415,7 @@ failure:
       peer_host: pc_koeln
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_hamburg
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -370,6 +427,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -377,7 +437,7 @@ failure:
       peer_host: pc_leipzig
       probe_dst_ip: 10.254.0.26
       symptom_host: pc_hamburg
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -389,6 +449,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -396,7 +459,7 @@ failure:
       peer_host: pc_muenchen
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_hamburg
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -408,6 +471,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -415,7 +481,7 @@ failure:
       peer_host: pc_stuttgart
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_hamburg
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -427,6 +493,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -434,7 +503,7 @@ failure:
       peer_host: pc_karlsruhe
       probe_dst_ip: 10.254.0.18
       symptom_host: pc_hamburg
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -446,6 +515,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -453,7 +525,7 @@ failure:
       peer_host: pc_nuernberg
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_hamburg
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -465,6 +537,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -472,7 +547,7 @@ failure:
       peer_host: pc_koeln
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_hannover
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -484,6 +559,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -491,7 +569,7 @@ failure:
       peer_host: pc_leipzig
       probe_dst_ip: 10.254.0.26
       symptom_host: pc_hannover
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -503,6 +581,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -510,7 +591,7 @@ failure:
       peer_host: pc_muenchen
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_hannover
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -522,6 +603,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -529,7 +613,7 @@ failure:
       peer_host: pc_stuttgart
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_hannover
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -541,6 +625,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -548,7 +635,7 @@ failure:
       peer_host: pc_karlsruhe
       probe_dst_ip: 10.254.0.18
       symptom_host: pc_hannover
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -560,6 +647,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -567,7 +657,7 @@ failure:
       peer_host: pc_nuernberg
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_hannover
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -579,6 +669,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -586,7 +679,7 @@ failure:
       peer_host: pc_koeln
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_karlsruhe
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -598,6 +691,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -605,7 +701,7 @@ failure:
       peer_host: pc_leipzig
       probe_dst_ip: 10.254.0.26
       symptom_host: pc_karlsruhe
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -617,6 +713,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -624,7 +723,7 @@ failure:
       peer_host: pc_muenchen
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_karlsruhe
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -636,6 +735,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -643,7 +745,7 @@ failure:
       peer_host: pc_stuttgart
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_karlsruhe
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -655,6 +757,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -662,7 +767,7 @@ failure:
       peer_host: pc_nuernberg
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_karlsruhe
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -674,6 +779,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -681,7 +789,7 @@ failure:
       peer_host: pc_leipzig
       probe_dst_ip: 10.254.0.26
       symptom_host: pc_koeln
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -693,6 +801,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -700,7 +811,7 @@ failure:
       peer_host: pc_muenchen
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_koeln
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -712,6 +823,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -719,7 +833,7 @@ failure:
       peer_host: pc_stuttgart
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_koeln
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -731,6 +845,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -738,7 +855,7 @@ failure:
       peer_host: pc_nuernberg
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_koeln
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -750,6 +867,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leipzig
@@ -757,7 +877,7 @@ failure:
       peer_host: pc_muenchen
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_leipzig
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -769,6 +889,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leipzig
@@ -776,7 +899,7 @@ failure:
       peer_host: pc_stuttgart
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_leipzig
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -788,6 +911,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leipzig
@@ -795,7 +921,7 @@ failure:
       peer_host: pc_nuernberg
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_leipzig
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -807,6 +933,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: muenchen
@@ -814,7 +943,7 @@ failure:
       peer_host: pc_stuttgart
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_muenchen
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -826,6 +955,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: muenchen
@@ -833,7 +965,7 @@ failure:
       peer_host: pc_nuernberg
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_muenchen
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -845,6 +977,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: nuernberg
@@ -852,7 +987,7 @@ failure:
       peer_host: pc_stuttgart
       probe_dst_ip: 10.254.0.38
       symptom_host: pc_nuernberg
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
@@ -862,8 +997,1001 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth1
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth1--frankfurt:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth2
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_berlin
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth2--hamburg:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth3
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_berlin
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth3--hannover:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth4
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_berlin
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth4--karlsruhe:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_berlin
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth5--koeln:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_berlin
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth6--leipzig:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_berlin
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth7--muenchen:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth8
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_berlin
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth8--nuernberg:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_berlin
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth9--stuttgart:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth2
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_frankfurt
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth2--hamburg:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth3
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_frankfurt
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth3--hannover:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth4
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_frankfurt
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth4--koeln:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth5
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_frankfurt
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth5--leipzig:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth6
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_frankfurt
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth6--muenchen:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth7
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_frankfurt
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth7--stuttgart:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth8
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_frankfurt
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth8--karlsruhe:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_frankfurt
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth9--nuernberg:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth3
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_hamburg
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth3--hannover:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth4
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hamburg
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth4--koeln:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth5
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hamburg
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth5--leipzig:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth6
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hamburg
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth6--muenchen:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth7
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hamburg
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth7--stuttgart:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth8
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_hamburg
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth8--karlsruhe:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hamburg
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth9--nuernberg:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth4
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hannover
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth4--koeln:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth5
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hannover
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth5--leipzig:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth6
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hannover
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth6--muenchen:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth7
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hannover
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth7--stuttgart:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth8
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_hannover
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth8--karlsruhe:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hannover
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth9--nuernberg:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: karlsruhe
+      intf_name: eth5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_karlsruhe
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth5--koeln:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: karlsruhe
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_karlsruhe
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth6--leipzig:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: karlsruhe
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_karlsruhe
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth7--muenchen:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: karlsruhe
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_karlsruhe
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth8--stuttgart:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: karlsruhe
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_karlsruhe
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth9--nuernberg:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: koeln
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_koeln
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth6--leipzig:eth6
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: koeln
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_koeln
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth7--muenchen:eth6
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: koeln
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_koeln
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth8--stuttgart:eth6
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: koeln
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_koeln
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth9--nuernberg:eth6
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: leipzig
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_leipzig
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth7--muenchen:eth7
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: leipzig
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_leipzig
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth8--stuttgart:eth7
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: leipzig
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_leipzig
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth9--nuernberg:eth7
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: muenchen
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_muenchen
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: muenchen:eth8--stuttgart:eth8
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: muenchen
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_muenchen
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: muenchen:eth9--nuernberg:eth8
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      down_time: '1'
+      host_name: nuernberg
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_nuernberg
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: nuernberg:eth9--stuttgart:eth9
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -883,6 +2011,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -902,6 +2033,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -921,6 +2055,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -940,6 +2077,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -959,6 +2099,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -978,6 +2121,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -997,6 +2143,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1016,6 +2165,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1035,6 +2187,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1054,6 +2209,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1073,6 +2231,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1092,6 +2253,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1111,6 +2275,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1130,6 +2297,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1149,6 +2319,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1168,6 +2341,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1187,6 +2363,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -1206,6 +2385,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -1225,6 +2407,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -1244,6 +2429,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -1263,6 +2451,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -1282,6 +2473,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -1301,6 +2495,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -1320,6 +2517,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -1339,6 +2539,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -1358,6 +2561,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -1377,6 +2583,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -1396,6 +2605,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -1415,6 +2627,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -1434,6 +2649,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -1453,6 +2671,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -1472,6 +2693,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -1491,6 +2715,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -1510,6 +2737,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -1529,6 +2759,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -1548,6 +2781,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -1567,6 +2803,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -1586,6 +2825,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -1605,6 +2847,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leipzig
@@ -1624,6 +2869,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leipzig
@@ -1643,6 +2891,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leipzig
@@ -1662,6 +2913,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: muenchen
@@ -1681,6 +2935,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: muenchen
@@ -1700,6 +2957,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: nuernberg
@@ -1719,6 +2979,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1738,6 +3001,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1757,6 +3023,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1776,6 +3045,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1795,6 +3067,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1814,6 +3089,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1833,6 +3111,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1852,6 +3133,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1871,6 +3155,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: berlin
@@ -1890,6 +3177,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1909,6 +3199,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1928,6 +3221,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1947,6 +3243,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1966,6 +3265,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1985,6 +3287,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2004,6 +3309,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2023,6 +3331,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2042,6 +3353,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2061,6 +3375,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2080,6 +3397,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2099,6 +3419,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2118,6 +3441,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2137,6 +3463,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2156,6 +3485,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2175,6 +3507,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -2194,6 +3529,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -2213,6 +3551,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -2232,6 +3573,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -2251,6 +3595,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -2270,6 +3617,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hannover
@@ -2289,6 +3639,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -2308,6 +3661,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -2327,6 +3683,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -2346,6 +3705,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -2365,6 +3727,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: karlsruhe
@@ -2384,6 +3749,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -2403,6 +3771,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -2422,6 +3793,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -2441,6 +3815,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: koeln
@@ -2460,6 +3837,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leipzig
@@ -2479,6 +3859,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leipzig
@@ -2498,6 +3881,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leipzig
@@ -2517,6 +3903,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: muenchen
@@ -2536,6 +3925,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: muenchen
@@ -2555,6 +3947,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: nuernberg

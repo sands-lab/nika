@@ -297,12 +297,9 @@ sync_python() {
 # and check it against the release's checksums.txt.
 fetch_release() {
   local base="$1" archive="$2" dest="$3"
-  need_cmd curl
+  local release="${base#https://github.com/}"
   log "Downloading ${base}/${archive}"
-  curl -fsSL -o "${dest}/${archive}" "${base}/${archive}"
-  curl -fsSL -o "${dest}/checksums.txt" "${base}/checksums.txt"
-  (cd "${dest}" && grep " ${archive}\$" checksums.txt | sha256sum -c --quiet -) \
-    || die "checksum mismatch for ${archive}"
+  "${ROOT}/scripts/download-release.sh" "${release%/releases/download/*}" "${release##*/}" "$archive" "${dest}/${archive}"
   tar -xzf "${dest}/${archive}" -C "${dest}"
 }
 

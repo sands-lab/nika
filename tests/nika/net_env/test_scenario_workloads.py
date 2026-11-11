@@ -46,3 +46,15 @@ def test_campus_lab_pcs_refresh_the_catalog_with_gzip() -> None:
     syncing = {p.node for p in workload.processes if "--gzip" in p.args}
     assert syncing and all(node.startswith("pc_2_") for node in syncing)
     assert len(syncing) == 64
+
+
+@pytest.mark.parametrize("size", ["s", "m", "l"])
+def test_sdn_web_traffic_stays_within_the_fabric_budget(size: str) -> None:
+    workload = get_net_env_instance("sdn_l3_clos", topo_size=size).business_workload()
+    rates = [
+        float(p.args[p.args.index("--max-kbps") + 1])
+        for p in workload.processes
+        if p.app == "browser"
+    ]
+    assert rates and all(rate > 0 for rate in rates)
+    assert sum(rates) <= 6000

@@ -22,11 +22,19 @@ affects only `nika benchmark run`.
 
 ## When to use it
 
-Use Firecracker execution when you run a benchmark release more than once on a
-host, such as several agents or models on the same tasks, or when its
-environments take minutes to deploy. On release 0.2.0's test split, the time
-trials spend outside the agent drops from 10.8 h to 0.9 h per run, and 85 tasks
-ran in 2 h 30 min including the one-time builds instead of 5 h 55 min. Restored
+Firecracker execution runs working YAML matrices and releases that do not pin a
+[benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol).
+It cannot run a release that pins one yet, such as `--release 0.2.0`. To run
+release 0.2.0's tasks, pass its task file as a matrix, for example
+`--config benchmark/releases/0.2.0/test.yaml`; such a run uses the current
+NIKA's code instead of the release's engine and is not an official release run.
+
+Use Firecracker execution when you run the same tasks more than once on a host,
+such as several agents or models, or when their environments take minutes to
+deploy. On release 0.2.0's test split, measured before the release pinned its
+engine, the time trials spend outside the agent drops from 10.8 h to 0.9 h per
+run, and 85 tasks ran in 2 h 30 min including the one-time builds instead of
+5 h 55 min. Restored
 labs give the same scores as native ones with the mock agent; with a real agent,
 scores differed on some tasks in both directions (see
 [Compatibility and scores](#compatibility-and-scores)).
@@ -112,8 +120,9 @@ image.
 The root needs room for the base image (12 GiB) plus the lab images you keep:
 each holds the memory its lab uses, compressed to 0.3–4 GiB, and release 0.2.0's
 test split needs 23 GiB ([per environment](#per-environment)). NIKA starts a
-build only while the root has room for the VM's whole `vm_memory` (4–20 GiB)
-per running build. Rebuilding the base briefly needs room for two bases.
+build only while the root has room for the VM's whole `vm_memory` per running
+build: 4–20 GiB for release 0.2.0, more for RouterOS and IOS XR labs (see
+[VM size](#vm-size)). Rebuilding the base briefly needs room for two bases.
 
 To keep the images elsewhere, such as on a separate disk, set
 `nika.execution.firecracker.root` to a directory on btrfs or XFS before you run
@@ -122,8 +131,9 @@ the installer.
 ## Base image
 
 Every lab image starts from a base image (Ubuntu with Docker, NIKA and this
-host's runtime images, plus the vendor images it has, such as RouterOS; see
-[Prepare vendor images](installation.md#prepare-vendor-images)). The first
+host's runtime images, plus the router images it has: RouterOS and Cisco XRd
+(see [Prepare vendor images](installation.md#prepare-vendor-images)) and the
+SONiC virtual switch that `nika images prepare` downloads). The first
 Firecracker run builds it, which takes about 20 minutes, and later runs rebuild
 it when this host's runtime images or Kathara plugins, or NIKA's base image
 setup, change. Other code changes do not: lab images receive the current
@@ -145,7 +155,7 @@ the host, over vsock.
 Run benchmarks as usual:
 
 ```shell
-nika benchmark run --release 0.2.0 --split test
+nika benchmark run --config benchmark/working/cases.yaml
 ```
 
 With Firecracker execution, every trial of the run uses a Firecracker VM, and
@@ -184,7 +194,9 @@ in the lab takes 7–9 s while several copies restore at once.
 
 ### VM size
 
-Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. Larger labs get more by default: 8 GiB for `dc_clos`, `k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`). 11 SR Linux nodes use about 10 host cores natively, so `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 20 GiB and 12 vCPUs. `dc_clos` size l uses about 4.2 GiB in the guest. An image build warns when a lab leaves less than a quarter of its VM memory free; raise `vm_memory_overrides` for that environment:
+Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. A variant whose routers run a router platform (`device_profile` SR Linux, SONiC, IOS XR or RouterOS) is sized from what it deploys. Memory is 1 GiB for the guest, the platform's memory per router (SONiC 256 MiB, RouterOS 1 GiB, SR Linux 1.5 GiB, IOS XR 3 GiB) and 64 MiB per other node, rounded up to whole GiB. Those per-router figures are the sizing budget; [scenario startup performance](../benchmarks/scenario_perf.md#sonic-containerlab) records measured Containerlab memory. vCPUs are 1 for the guest plus the platform's CPU per router (SONiC 250 millicores; SR Linux, RouterOS and IOS XR 1 vCPU), rounded up, and not below the default `vm_cpus`. `isp_pdh` gets 4 vCPUs and 5 GiB on SONiC, and 12 vCPUs and 19 GiB on SR Linux.
+
+Other large labs get 8 GiB by default: `dc_clos`, `k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`). That 8 GiB is also a floor when a named router platform would otherwise size the VM smaller, so min3clos stays at 8 GiB on SONiC and SR Linux. `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 12 vCPUs when they have no router platform. `dc_clos` size l uses about 4.2 GiB in the guest. An image build warns when a lab leaves less than a quarter of its VM memory free; raise `vm_memory_overrides` for that environment, or for one variant with `<scenario>@<device_profile>`:
 
 ```yaml
 nika:
@@ -192,9 +204,10 @@ nika:
     firecracker:
       vm_memory_overrides:
         k8s_lab: 12GiB
+        isp_pdh@sonic: 6GiB
 ```
 
-Use `vm_cpus_overrides` to change an environment's vCPU allocation. Both override maps take precedence over the sizes above. Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's commands) from starving the copies next to it.
+Use `vm_cpus_overrides` the same way for vCPUs (`isp_pdh: 16` or `isp_pdh@sonic: 6`). Both override maps take precedence over the sizes above. Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's commands) from starving the copies next to it.
 
 ### Case images (optional)
 
@@ -244,9 +257,8 @@ about 100 s for `isp_pdh` (15 GiB).
   * `run.json` → `firecracker`: restore timings and the lab image used.
   * `env_stop` records that the lab was discarded with its VM copy;
     `failures_ended` and `session_cleared` come from the VM.
-* After restore, the lab passes the same startup verification as a native deploy
-  before the failure is injected. Set `verify_after_restore: false` to skip it.
-  [Case images](#case-images-optional) check the injected failure instead.
+* Restored environment images resume transient protocols before failure injection. In `enterprise_branch`, Linux WireGuard edges retain their peers and running configuration while renegotiating session keys. Linux invalidates old sending keys when the VM generation changes. NIKA briefly suppresses handshake initiations at one end of each tunnel to prevent simultaneous retries from colliding, then removes its temporary rules. RouterOS peers keep their restored state, and NIKA records unsupported recovery in the environment logs.
+* Environments with protocol recovery pass full environment verification; other environments use the configured [`nika.runtime_validation.depth`](configuration.md#runtime-validation). Set `verify_after_restore: false` to skip verification. Protocol recovery still runs. [Case images](#case-images-optional) preserve their injected state, run protocol recovery, then check that the injected failure remains. They skip healthy-environment verification.
 * Lab-host events in `nika.jsonl` and `messages.jsonl` carry
   `"origin": "remote"` and stream to the host about once a second.
 * Teardown discards the VM copy instead of undeploying the lab.
@@ -256,10 +268,10 @@ about 100 s for `isp_pdh` (15 GiB).
 
 ### Clock
 
-A restored VM continues on its lab image's timeline: its clock is not stepped, so
-logs, leases, uptimes and protocol timers inside the lab stay consistent. As a
-result, the lab clock is behind the host by the image's age. `run.json`
-records the difference as `remote_clock_offset_sec`.
+Before exposing a restored environment, NIKA aligns its UTC clock with the
+restore host. Guest uptime and monotonic protocol timers continue from the saved
+state. `run.json` records any clock difference between the agent and lab hosts
+as `remote_clock_offset_sec`.
 
 * Agent timing metrics use host timestamps only.
 * `nika inspect` shifts lab-host rows onto the host clock, so the timeline stays
@@ -267,6 +279,8 @@ records the difference as `remote_clock_offset_sec`.
 * The log files themselves keep the lab-host time.
 
 ## Manage lab images
+
+Lab images and restored trials record the native VDE helper image ID so you can identify their forwarding implementation. Fresh guests install the helper before deployment; existing snapshots use their saved hub. The helper reduces forwarding overhead while preserving Kathará’s port capacity and flooding behavior.
 
 | Command | Effect |
 |---|---|
@@ -314,8 +328,8 @@ build per environment variant and the disk to keep the result. A lab image
 build costs about one native deploy and holds 0.3–4 GiB; after that, a trial
 restores its lab in seconds instead of deploying and undeploying it.
 
-For release 0.2.0 (test split, 85 tasks × 3 trials), measured on a 16 vCPU host
-that is itself a VM, with huge pages:
+For release 0.2.0 (test split, 85 tasks × 3 trials), measured before the release
+pinned its engine, on a 16 vCPU host that is itself a VM, with huge pages:
 
 | | Native | Lab images | Lab and case images |
 |---|---:|---:|---:|
@@ -337,7 +351,7 @@ once, tools that probe the network (ping meshes, HTTP tests) took 20–150%
 longer in their median than in the native run, which ran fewer trials at once.
 
 While a lab image is built, its snapshot temporarily needs the VM's whole
-`vm_memory` (4–20 GiB) of free disk. Disk sizes are with btrfs, where NIKA stores
+`vm_memory` of free disk (see [VM size](#vm-size)). Disk sizes are with btrfs, where NIKA stores
 images zstd-compressed (about 3.5× smaller); on XFS they are uncompressed. See
 [Huge pages and disk](#huge-pages-and-disk).
 

@@ -1,5 +1,13 @@
+from nika.problems.support.nft_recovery import NftDropRecovery
+import shlex
+import json
+
+from nika.problems.support.recovery import checked_exec
+import re
+
 from pydantic import BaseModel, Field
 
+from nika.net_env.net_env_pool import get_probe_path
 from nika.net_env.verify import frr_bgp_has_established_session
 from nika.problems.rca import node_resource
 from nika.problems.base import (
@@ -13,9 +21,97 @@ from nika.problems.support.benchmark_targets import (
     prefer_named,
 )
 from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
+from nika.problems.support.dns import dns_client_steps
+from nika.problems.support.oracle import (
+    FILTER_DUMP,
+    any_of,
+    iptables_rule,
+    srl_cli,
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    http_probe,
+    lacks,
+    ping_works,
+    process_running,
+    shell,
+    vtysh,
+)
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
+
+
+class _AclRecovery:
+    def _add_drop_rule(self, node, rule, *, family="inet"):
+        if not hasattr(self, "_nft_recovery"):
+            self._nft_recovery = NftDropRecovery()
+        self._nft_recovery.add(self.runtime, node, rule, family=family)
+
+    def recover_fault(self, params) -> dict:
+        if hasattr(self, "_native_saved"):
+            ops, saved = self._native_saved
+            ops.restore_config(saved)
+            check = getattr(
+                ops, getattr(self, "_native_filter_check", "bgp_transport_blocked")
+            )
+            ok = check() == self._native_blocked
+        elif hasattr(self, "_srl_acl_entries"):
+            self.runtime.srl_run_script(
+                params.host_name,
+                [
+                    "enter candidate",
+                    *[
+                        f"delete /acl acl-filter cpm type ipv4 entry {seq}"
+                        for seq in self._srl_acl_entries
+                    ],
+                    "commit now",
+                ],
+            )
+            ok = all(
+                not self.runtime.srl_bgp_acl_drop_179_present(
+                    params.host_name, {seq: port}
+                )
+                for seq, port in self._srl_acl_entries.items()
+            )
+        else:
+            recovery = getattr(self, "_nft_recovery", None)
+            ok = recovery is not None and recovery.restore(self.runtime)
+        if hasattr(self, "_neighbors"):
+            for row in self._neighbors:
+                checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    "ip neigh replace "
+                    + shlex.join(
+                        [
+                            row["dst"],
+                            "dev",
+                            row["dev"],
+                            "lladdr",
+                            row["lladdr"],
+                            "nud",
+                            "permanent",
+                        ]
+                    ),
+                )
+            current = json.loads(
+                checked_exec(
+                    self.runtime, params.host_name, "ip -j neigh show nud permanent"
+                )
+            )
+            present = {(r["dst"], r["dev"], r.get("lladdr")) for r in current}
+            ok = ok and all(
+                (r["dst"], r["dev"], r.get("lladdr")) in present
+                for r in self._neighbors
+            )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=ok,
+            details={"host": params.host_name},
+        )
 
 
 def _verify_nft_drop(
@@ -30,6 +126,116 @@ def _verify_nft_drop(
         fault_type=problem.root_cause_name,
         verified=all(present.values()),
         details={"host": host_name, "family": family, "rules_present": present},
+    )
+
+
+# Default IPv4 gateway of the node the command runs on.
+_GW = "gw=$(ip -4 route show default | awk '{print $3; exit}')"
+
+
+def _nft_drops(node: str, expect: Check, purpose: str) -> OracleStep:
+    """Evidence: the node's packet filter rules (nftables and iptables)."""
+    return shell(node, FILTER_DUMP, purpose, expect, evidence=True)
+
+
+def _nft_table_rule(family: str, rule: str, description: str) -> Check:
+    """A rule matching *rule* sits in an nftables table of *family*."""
+    rule_rx = re.compile(rule)
+
+    def predicate(output: str) -> bool:
+        current = None
+        for line in output.splitlines():
+            table = re.search(r"\btable (\S+) \S+", line)
+            if table:
+                current = table.group(1)
+            elif current == family and rule_rx.search(line):
+                return True
+        return False
+
+    return Check(f"{description} (nftables {family} table)", predicate)
+
+
+def _gateway_probe(node: str, purpose: str, expect: Check, *, evidence: bool):
+    """Ping the node's default gateway, then show its neighbor entry."""
+    return shell(
+        node,
+        f"{_GW}; echo gateway=$gw; ping -c 2 -W 1 $gw 2>&1 | tail -2; "
+        "ip neigh show $gw",
+        purpose,
+        expect,
+        evidence=evidence,
+        timeout=20,
+    )
+
+
+def _probe_path(problem: ProblemBase):
+    topo_size = getattr(problem.net_env, "topo_size", None) or "s"
+    return get_probe_path(
+        problem.scenario_name or "", topo_size=topo_size, net_env=problem.net_env
+    )
+
+
+def _tcp_still_works(problem: ProblemBase, host: str) -> OracleStep:
+    """Evidence: non-ICMP traffic from *host* still crosses the network.
+
+    Uses the scenario's HTTP service when it has one, else a TCP connection to
+    the default gateway, where a refusal (RST) also proves reachability.
+    """
+    path = _probe_path(problem)
+    if path is not None and path.http_url:
+        return http_probe(
+            host,
+            path.http_url,
+            f"Fetch the service URL from {host} over TCP.",
+            contains(r"http_code:[1-5]\d\d", "HTTP over TCP still gets responses"),
+            evidence=True,
+            times=2,
+        )
+    return shell(
+        host,
+        f'{_GW}; timeout 3 bash -c "exec 3<>/dev/tcp/$gw/179" 2>&1 '
+        "&& echo TCP_CONNECTED || echo TCP_RC=$?",
+        f"Open a TCP connection from {host} to its gateway.",
+        contains(
+            r"TCP_CONNECTED|Connection refused",
+            "the gateway answers TCP (connect or RST)",
+        ),
+        evidence=True,
+    )
+
+
+_FRR_PEER_RE = re.compile(
+    r"^\S+\s+4\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\S+\s+(\S+)", re.MULTILINE
+)
+
+
+def _frr_bgp_all_down(output: str) -> bool:
+    """``show bgp summary`` lists peers and none is Established."""
+    states = _FRR_PEER_RE.findall(output)
+    return bool(states) and not any(state.isdigit() for state in states)
+
+
+def _srl_bgp_all_down(output: str) -> bool:
+    """SR Linux ``show ... bgp neighbor`` lists peers and none is established."""
+    states = []
+    for line in output.splitlines():
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) > 6 and re.fullmatch(r"\d+\.\d+\.\d+\.\d+", cells[2]):
+            states.append(cells[6].lower())
+    return bool(states) and "established" not in states
+
+
+def _srl_cpm_drop_179(output: str) -> bool:
+    """An SRL CPM IPv4 filter entry matches TCP port 179 and drops it."""
+    entries: dict[str, set[str]] = {}
+    for seq, rest in re.findall(
+        r"acl-filter cpm type ipv4 entry (\d+) (.+)$", output, re.MULTILINE
+    ):
+        entries.setdefault(seq, set()).add(rest.strip())
+    return any(
+        any(re.search(r"match transport \S+ value 179$", r) for r in rules)
+        and "action drop" in rules
+        for rules in entries.values()
     )
 
 
@@ -57,7 +263,7 @@ class BGPAclBlockParams(BaseModel):
     host_name: str = Field(description="Target router host name.")
 
 
-class BGPAclBlock(ProblemBase):
+class BGPAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
     symptom_class = "control_plane"
@@ -65,7 +271,13 @@ class BGPAclBlock(ProblemBase):
     description = "BGP control-plane traffic is blocked by an ACL."
     TAGS: str = ["bgp"]
     native_router_operations = frozenset(
-        {"bgp_established_peers", "bgp_transport_blocked", "block_bgp_transport"}
+        {
+            "bgp_established_peers",
+            "bgp_transport_blocked",
+            "block_bgp_transport",
+            "save_config",
+            "restore_config",
+        }
     )
     supported_backends = ("kathara", "containerlab")
 
@@ -90,19 +302,22 @@ class BGPAclBlock(ProblemBase):
     def inject_fault(self, params: BGPAclBlockParams):
         ops = native_fault_ops(self, params.host_name, "block_bgp_transport")
         if ops is not None:
+            self._native_saved = (ops, ops.save_config())
+            self._native_blocked = ops.bgp_transport_blocked()
             ops.block_bgp_transport()
             wait_until(lambda: not ops.bgp_established_peers(), 8)
             return
         match self.lab_backend:
             case "containerlab":
-                self._srl_acl_entries = self.runtime.srl_add_bgp_acl_drop_179(
+                self._srl_acl_entries = self.runtime.srl_bgp_acl_drop_179_entries(
                     params.host_name
                 )
+                self.runtime.srl_add_bgp_acl_drop_179(params.host_name)
             case "kathara":
-                self.runtime.add_nft_drop_rule(
+                self._add_drop_rule(
                     params.host_name, "tcp dport 179 drop", family="inet"
                 )
-                self.runtime.add_nft_drop_rule(
+                self._add_drop_rule(
                     params.host_name, "tcp sport 179 drop", family="inet"
                 )
                 # Hard-reset every session so the ACL takes effect now instead
@@ -157,6 +372,100 @@ class BGPAclBlock(ProblemBase):
                     f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
                 )
 
+    def oracle_playbook(self, params: BGPAclBlockParams) -> OraclePlaybook:
+        host = params.host_name
+        finding = (
+            f"An ACL on {host} drops BGP's TCP port 179, so its BGP sessions "
+            "cannot re-establish and the routes they carried are lost."
+        )
+        if srl_cli(self.net_env, host):
+            return OraclePlaybook(
+                finding=finding,
+                steps=[
+                    OracleStep(
+                        f"Check BGP session state on {host}.",
+                        "srl_exec_cli",
+                        {
+                            "device_name": host,
+                            "command": "show network-instance default protocols bgp neighbor",
+                        },
+                        Check(
+                            "every BGP peer is down (none established)",
+                            _srl_bgp_all_down,
+                        ),
+                        evidence=True,
+                        attempts=6,
+                        interval_sec=10,
+                    ),
+                    OracleStep(
+                        f"Inspect the CPM (control-plane) IPv4 ACL on {host}.",
+                        "srl_exec_cli",
+                        {
+                            "device_name": host,
+                            "command": "info flat from running acl acl-filter cpm type ipv4 "
+                            '| grep -E "value 179|action"',
+                        },
+                        Check(
+                            "a CPM filter entry drops TCP port 179",
+                            _srl_cpm_drop_179,
+                        ),
+                        evidence=True,
+                    ),
+                ],
+            )
+        return OraclePlaybook(
+            finding=finding,
+            steps=[
+                shell(
+                    host,
+                    vtysh("show bgp summary"),
+                    f"Check BGP session state on {host}.",
+                    Check(
+                        "every BGP peer is down (no Established session)",
+                        _frr_bgp_all_down,
+                    ),
+                    evidence=True,
+                    attempts=6,
+                    interval_sec=10,
+                    timeout=20,
+                ),
+                shell(
+                    host,
+                    "ss -tn state all '( sport = :179 or dport = :179 )' | head -20",
+                    f"Look at BGP TCP connections on {host}.",
+                    lacks(r"^ESTAB", "no BGP TCP connection is established"),
+                ),
+                _nft_drops(
+                    host,
+                    any_of(
+                        all_of(
+                            _nft_table_rule(
+                                "inet",
+                                r"tcp dport 179 drop",
+                                "a rule drops TCP destination port 179",
+                            ),
+                            _nft_table_rule(
+                                "inet",
+                                r"tcp sport 179 drop",
+                                "a rule drops TCP source port 179",
+                            ),
+                        ),
+                        all_of(
+                            iptables_rule(
+                                r"-p tcp .*--dport 179",
+                                "a rule drops TCP destination port 179",
+                            ),
+                            iptables_rule(
+                                r"-p tcp .*--sport 179",
+                                "a rule drops TCP source port 179",
+                            ),
+                        ),
+                    ),
+                    f"Inspect the packet filter on {host} for rules on BGP's TCP port 179.",
+                ),
+            ],
+        )
+
 
 # ==================================================================
 # Problem: OSPF Access Policy Misconfiguration - ACL blocking OSPF traffic
@@ -169,13 +478,64 @@ class OSPFAclBlockParams(BaseModel):
     host_name: str = Field(description="Target router host name.")
 
 
-class OSPFAclBlock(ProblemBase):
+def _xr_ospf_drop_applied(output: str) -> bool:
+    """The running ACL drops OSPF on every configured OSPF data interface."""
+    ospf_interfaces = set(
+        re.findall(r"^  interface (GigabitEthernet\S+)$", output, re.M)
+    )
+    filters = {
+        interface: re.search(r"^ ipv4 access-group (\S+) ingress$", body, re.M)
+        for interface, body in re.findall(
+            r"^interface (\S+)\n(.*?)(?=^!|\Z)", output, re.M | re.S
+        )
+    }
+    acls = dict(
+        re.findall(r"^ipv4 access-list (\S+)\n(.*?)(?=^!|\Z)", output, re.M | re.S)
+    )
+
+    def drops_ospf(acl: str) -> bool:
+        entries = sorted(
+            (int(seq), rule)
+            for seq, rule in re.findall(r"^ (\d+) (.+)$", acl, re.M)
+            if not rule.startswith("remark ")
+        )
+        return bool(entries) and entries[0][1] in {
+            "deny ospf any any",
+            "deny 89 any any",
+        }
+
+    return bool(ospf_interfaces) and all(
+        (applied := filters.get(interface)) is not None
+        and drops_ospf(acls.get(applied[1], ""))
+        for interface in ospf_interfaces
+    )
+
+
+def _xr_ospf_no_adjacencies(output: str) -> bool:
+    counts = re.findall(r"Adjacent neighbor count is (\d+)", output, re.I)
+    return bool(counts) and all(int(count) == 0 for count in counts)
+
+
+def _routeros_ospf_drop(output: str) -> bool:
+    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+    return any(
+        row.get("chain") == "input"
+        and row.get("protocol") in {"ospf", "89"}
+        and row.get("action") == "drop"
+        for row in routeros_terse_rows(output)
+    )
+
+
+class OSPFAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "ospf_acl_block"
     description = "OSPF control-plane traffic is blocked by an ACL."
     TAGS: str = ["ospf"]
+    native_router_operations = frozenset({"block_ospf", "ospf_blocked"})
+    supported_backends = ("kathara", "containerlab")
 
     Params = OSPFAclBlockParams
 
@@ -187,17 +547,142 @@ class OSPFAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: OSPFAclBlockParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "ip protocol ospf drop", family="inet"
-        )
+        ops = native_fault_ops(self, params.host_name, "block_ospf")
+        if ops is not None:
+            self._native_saved = (ops, ops.save_config())
+            self._native_blocked = ops.ospf_blocked()
+            self._native_filter_check = "ospf_blocked"
+            ops.block_ospf()
+            return
+        match self.lab_backend:
+            case "containerlab":
+                self._srl_acl_entries = self.runtime.srl_add_ospf_acl_drop(
+                    params.host_name
+                )
+                # Neighbor clear is best-effort; the OSPF dead interval is 40s.
+                if not wait_until(
+                    lambda: (
+                        not self.runtime.srl_ospf_neighbor_interfaces(params.host_name)
+                    ),
+                    40,
+                ):
+                    neighbors = self.runtime.srl_ospf_neighbor_interfaces(
+                        params.host_name
+                    )
+                    raise RuntimeError(
+                        f"OSPF ACL drop on {params.host_name} left Full "
+                        f"adjacencies: {neighbors}"
+                    )
+            case "kathara":
+                self._add_drop_rule(
+                    params.host_name, "ip protocol ospf drop", family="inet"
+                )
+            case backend:
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
+                )
+
+    def recover_fault(self, params):
+        if hasattr(self, "_srl_acl_entries"):
+            entries = self._srl_acl_entries
+            self.runtime.srl_run_script(
+                params.host_name,
+                [
+                    "enter candidate",
+                    *(
+                        f"delete /acl acl-filter cpm type ipv4 entry {seq}"
+                        for seq in entries
+                    ),
+                    "commit now",
+                ],
+            )
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=bool(entries)
+                and all(
+                    not self.runtime.srl_ospf_acl_drop_present(params.host_name, [seq])
+                    for seq in entries
+                ),
+                details={"host": params.host_name},
+            )
+        return super().recover_fault(params)
 
     def verify_fault(self, params: OSPFAclBlockParams) -> dict:
-        """Verify nftables has a rule blocking OSPF protocol."""
-        return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")
+        """Verify the router's packet filter drops OSPF."""
+        ops = native_fault_ops(self, params.host_name, "ospf_blocked")
+        if ops is not None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=ops.ospf_blocked(),
+                details={"host": params.host_name, "profile": ops.profile},
+            )
+        match self.lab_backend:
+            case "containerlab":
+                entries = getattr(self, "_srl_acl_entries", [])
+                neighbors = self.runtime.srl_ospf_neighbor_interfaces(params.host_name)
+                verified = (
+                    self.runtime.srl_ospf_acl_drop_present(params.host_name, entries)
+                    and not neighbors
+                )
+                return build_verify_result(
+                    fault_type=self.root_cause_name,
+                    verified=verified,
+                    details={
+                        "host": params.host_name,
+                        "srl_acl_entries": entries,
+                        "ospf_full_neighbors": neighbors,
+                    },
+                )
+            case "kathara":
+                return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")
+            case backend:
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
+                )
+
+    def oracle_playbook(self, params: OSPFAclBlockParams) -> OraclePlaybook:
+        host = params.host_name
+        return OraclePlaybook(
+            finding=(
+                f"An ACL on {host} drops OSPF (IP protocol 89), so its OSPF "
+                "adjacencies time out and routes through it are withdrawn."
+            ),
+            steps=[
+                shell(
+                    host,
+                    vtysh("show ip ospf neighbor"),
+                    f"Check OSPF adjacencies on {host}.",
+                    all_of(
+                        contains(r"Neighbor ID", "OSPF answers"),
+                        lacks(r"\bFull/", "no OSPF neighbor is Full"),
+                    ),
+                    evidence=True,
+                    attempts=8,
+                    interval_sec=10,
+                    timeout=20,
+                ),
+                shell(
+                    host,
+                    vtysh("show ip ospf interface")
+                    + " | grep -E 'is up|Area|Hello|Neighbor Count' | head -40",
+                    f"Confirm OSPF is still enabled on {host}'s interfaces with its configured area and timers.",
+                    contains(r"Area \S+", "OSPF runs on the interfaces"),
+                    timeout=20,
+                ),
+                _nft_drops(
+                    host,
+                    any_of(
+                        _nft_table_rule(
+                            "inet", r"ip protocol (ospf|89) drop", "a rule drops OSPF"
+                        ),
+                        iptables_rule(r"-p (ospf|89)\b", "a rule drops OSPF"),
+                    ),
+                    f"Inspect the packet filter on {host} for rules on OSPF.",
+                ),
+            ],
+        )
 
 
-# ==================================================================
-# Problem: ARP Access Policy Misconfiguration - ACL blocking ARP traffic
 # ==================================================================
 
 
@@ -207,7 +692,7 @@ class ARPAclBlockParams(BaseModel):
     host_name: str = Field(description="Target host name.")
 
 
-class ARPAclBlock(ProblemBase):
+class ARPAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "path_ping"
     symptom_class = "unreachable"
@@ -227,7 +712,12 @@ class ARPAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: ARPAclBlockParams):
-        self.runtime.add_nft_drop_rule(params.host_name, "drop", family="arp")
+        self._neighbors = json.loads(
+            checked_exec(
+                self.runtime, params.host_name, "ip -j neigh show nud permanent"
+            )
+        )
+        self._add_drop_rule(params.host_name, "drop", family="arp")
         # Clos/P4 startups install nud permanent GW neigh; flush all leaves those.
         self.runtime.exec(params.host_name, "ip neigh flush nud permanent")
         self.runtime.exec(params.host_name, "ip neigh flush all")
@@ -235,6 +725,44 @@ class ARPAclBlock(ProblemBase):
     def verify_fault(self, params: ARPAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ARP traffic."""
         return _verify_nft_drop(self, params.host_name, "drop", family="arp")
+
+    def oracle_playbook(self, params: ARPAclBlockParams) -> OraclePlaybook:
+        host = params.host_name
+        return OraclePlaybook(
+            finding=(
+                f"An ARP-family nftables rule on {host} drops all ARP, so it "
+                "cannot resolve its gateway or neighbors."
+            ),
+            steps=[
+                shell(
+                    host,
+                    "ip -br addr; ip -4 route",
+                    f"Show addressing and routes on {host}.",
+                ),
+                _gateway_probe(
+                    host,
+                    f"Ping the default gateway from {host} and read its neighbor entry.",
+                    all_of(
+                        contains(
+                            r"\b0 received|100% packet loss",
+                            "the gateway does not answer",
+                        ),
+                        contains(
+                            r"\b(FAILED|INCOMPLETE)\b",
+                            "ARP resolution for the gateway fails (FAILED/INCOMPLETE)",
+                        ),
+                    ),
+                    evidence=True,
+                ),
+                _nft_drops(
+                    host,
+                    _nft_table_rule(
+                        "arp", r"^\d+:\s*drop$", "a rule drops every ARP frame"
+                    ),
+                    f"Inspect the packet filter on {host}, including the ARP family.",
+                ),
+            ],
+        )
 
 
 # ==================================================================
@@ -248,7 +776,7 @@ class IcmpAclBlockParams(BaseModel):
     host_name: str = Field(description="Target host name.")
 
 
-class IcmpAclBlock(ProblemBase):
+class IcmpAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "path_ping"
     symptom_class = "unreachable"
@@ -266,14 +794,46 @@ class IcmpAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: IcmpAclBlockParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "ip protocol icmp drop", family="ip"
-        )
+        self._add_drop_rule(params.host_name, "ip protocol icmp drop", family="ip")
 
     def verify_fault(self, params: IcmpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ICMP traffic."""
         return _verify_nft_drop(
             self, params.host_name, "ip protocol icmp drop", family="ip"
+        )
+
+    def oracle_playbook(self, params: IcmpAclBlockParams) -> OraclePlaybook:
+        host = params.host_name
+        return OraclePlaybook(
+            finding=(
+                f"An nftables rule on {host} drops ICMP, so its pings fail "
+                "while ARP and other traffic still work."
+            ),
+            steps=[
+                _gateway_probe(
+                    host,
+                    f"Ping the default gateway from {host} and read its neighbor entry.",
+                    all_of(
+                        contains(
+                            r"\b0 received|100% packet loss",
+                            "the gateway does not answer pings",
+                        ),
+                        contains(
+                            r"lladdr [0-9a-f:]{17}", "the gateway's MAC is resolved"
+                        ),
+                        lacks(r"\b(FAILED|INCOMPLETE)\b", "ARP resolution succeeds"),
+                    ),
+                    evidence=True,
+                ),
+                _tcp_still_works(self, host),
+                _nft_drops(
+                    host,
+                    _nft_table_rule(
+                        "ip", r"ip protocol icmp drop", "a rule drops IP protocol ICMP"
+                    ),
+                    f"Inspect the packet filter on {host}.",
+                ),
+            ],
         )
 
 
@@ -288,7 +848,7 @@ class HttpAclBlockParams(BaseModel):
     host_name: str = Field(description="Target host name.")
 
 
-class HttpAclBlock(ProblemBase):
+class HttpAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "path_http"
     symptom_class = "unreachable"
@@ -306,13 +866,52 @@ class HttpAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: HttpAclBlockParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "tcp dport 80 drop", family="inet"
-        )
+        self._add_drop_rule(params.host_name, "tcp dport 80 drop", family="inet")
 
     def verify_fault(self, params: HttpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking HTTP (port 80) traffic."""
         return _verify_nft_drop(self, params.host_name, "tcp dport 80 drop")
+
+    def oracle_playbook(self, params: HttpAclBlockParams) -> OraclePlaybook:
+        host = params.host_name
+        path = _probe_path(self)
+        steps = []
+        if path is not None and (path.icmp_ip or path.dst_ip):
+            steps.append(
+                ping_works(
+                    host,
+                    path.icmp_ip or path.dst_ip,
+                    f"Check that {host} still reaches the service host by ICMP.",
+                    evidence=True,
+                )
+            )
+        if path is not None and path.http_url:
+            steps.append(
+                http_probe(
+                    host,
+                    path.http_url,
+                    f"Fetch the service URL from {host}.",
+                    contains(r"http_code:000", "HTTP requests get no response"),
+                    evidence=True,
+                    times=2,
+                )
+            )
+        steps.append(
+            _nft_drops(
+                host,
+                _nft_table_rule(
+                    "inet", r"tcp dport 80 drop", "a rule drops TCP destination port 80"
+                ),
+                f"Inspect the packet filter on {host}.",
+            )
+        )
+        return OraclePlaybook(
+            finding=(
+                f"An nftables rule on {host} drops TCP port 80, so its HTTP "
+                "requests time out."
+            ),
+            steps=steps,
+        )
 
 
 # ==================================================================
@@ -326,7 +925,7 @@ class DNSPortBlockedParams(BaseModel):
     host_name: str = Field(description="Target DNS server host name.")
 
 
-class DNSPortBlocked(ProblemBase):
+class DNSPortBlocked(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
     symptom_class = "unreachable"
@@ -345,15 +944,57 @@ class DNSPortBlocked(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DNSPortBlockedParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "tcp dport 53 drop", family="inet"
-        )
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "udp dport 53 drop", family="inet"
-        )
+        self._add_drop_rule(params.host_name, "tcp dport 53 drop", family="inet")
+        self._add_drop_rule(params.host_name, "udp dport 53 drop", family="inet")
 
     def verify_fault(self, params: DNSPortBlockedParams) -> dict:
         """Verify nftables has rules blocking DNS port 53."""
         return _verify_nft_drop(
             self, params.host_name, "tcp dport 53 drop", "udp dport 53 drop"
+        )
+
+    def oracle_playbook(self, params: DNSPortBlockedParams) -> OraclePlaybook:
+        host = params.host_name
+        steps = dns_client_steps(
+            self.net_env,
+            host,
+            contains(
+                r"timed out|no servers could be reached",
+                "DNS queries time out without any reply",
+            ),
+            evidence=True,
+        )
+        steps += [
+            process_running(
+                host,
+                "named",
+                f"Check that the DNS daemon still runs on {host}.",
+                evidence=True,
+            ),
+            shell(
+                host,
+                "ss -lnu | grep -E ':53\\b' | head -5 || true",
+                f"Check that {host} still listens on UDP port 53.",
+                contains(r":53\b", "a UDP :53 listener is present"),
+                evidence=True,
+            ),
+            _nft_drops(
+                host,
+                all_of(
+                    _nft_table_rule(
+                        "inet", r"udp dport 53 drop", "a rule drops UDP port 53"
+                    ),
+                    _nft_table_rule(
+                        "inet", r"tcp dport 53 drop", "a rule drops TCP port 53"
+                    ),
+                ),
+                f"Inspect the packet filter on {host}.",
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"The DNS daemon on {host} is running, but an nftables rule "
+                "drops port 53, so clients' queries time out."
+            ),
+            steps=steps,
         )

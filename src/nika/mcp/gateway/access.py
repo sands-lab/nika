@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from nika.benchmark_engine.protocol import AccessPolicy, AgentAccess
 from nika.runtime.spec import NodeRole
 
 
@@ -27,6 +28,7 @@ TOOL_NODE_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "iosxr_exec": ("router_name",),
     "routeros_exec": ("router_name",),
     "srl_exec_cli": ("device_name",),
+    "sonic_exec_cli": ("device_name",),
     "sdn_onos_rest": (),
     "p4rt_exec": (),
     "int_query_telemetry": (),
@@ -142,3 +144,14 @@ def node_roles_for_session(session_id: str) -> dict[str, str]:
         for name, identity in getattr(env, "machine_identities", {}).items()
         if identity.role in set(NodeRole)
     }
+
+
+def configured_access() -> AgentAccess:
+    """The access policy that the run config's ``agent.access.role`` selects."""
+    from nika.run_config.loader import get_run_config
+
+    access = get_run_config().agent.access
+    return AgentAccess(
+        role=access.role,
+        policy=AccessPolicy(**access.roles[access.role].model_dump()),
+    )

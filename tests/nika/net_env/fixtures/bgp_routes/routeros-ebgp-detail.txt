@@ -1,0 +1,20 @@
+Flags: X - disabled, F - filtered, U - unreachable, A - active;
+c - connect, s - static, r - rip, b - bgp, n - bgp-net, o - ospf, i - isis, d - dhcp, v - vpn, m - modem, a - ldp-address, l - ldp-mapping, g - slaac, y - bgp-mpls-vpn, e - evpn;
+H - hw-offloaded; + - ecmp, B - blackhole
+  b   afi=ip contribution=best-candidate dst-address=172.31.255.28/30
+       routing-table=main gateway=193.10.11.2 immediate-gw=193.10.11.2%ether2
+       distance=20 scope=40 target-scope=10 belongs-to="bgp-IP-193.10.11.2"
+       bgp.session=to-peer-1 .as-path="2" .origin=incomplete
+       debug.fwp-ptr=0x202822A0
+
+  b   afi=ip contribution=best-candidate dst-address=193.10.11.0/24
+       routing-table=main gateway=193.10.11.2 immediate-gw=193.10.11.2%ether2
+       distance=20 scope=40 target-scope=10 belongs-to="bgp-IP-193.10.11.2"
+       bgp.session=to-peer-1 .as-path="2" .origin=incomplete
+       debug.fwp-ptr=0x202822A0
+
+ Ab   afi=ip contribution=active dst-address=200.1.1.0/24 routing-table=main
+       gateway=193.10.11.2 immediate-gw=193.10.11.2%ether2 distance=20
+       scope=40 target-scope=10 belongs-to="bgp-IP-193.10.11.2"
+       bgp.session=to-peer-1 .as-path="2" .origin=incomplete
+       debug.fwp-ptr=0x202822A0

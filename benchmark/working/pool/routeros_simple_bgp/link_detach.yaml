@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: link_detach
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: pc1
       intf_name: eth0
     root_causes:
@@ -12,7 +15,10 @@ failure:
         node: pc1
         name: eth0
       fault_type: link_detach
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: pc2
       intf_name: eth0
     root_causes:
@@ -20,4 +26,16 @@ failure:
         kind: interface
         node: pc2
         name: eth0
+      fault_type: link_detach
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: router1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: router1
+        name: eth1
       fault_type: link_detach

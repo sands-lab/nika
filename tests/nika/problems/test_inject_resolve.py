@@ -19,10 +19,10 @@ pytestmark = pytest.mark.contract
     [
         (
             "dc_clos",
-            "webserver0_pod0",
-            "client_0",
-            "dns_pod0",
-            "http://10.0.1.2/small.bin",
+            "web_2",
+            "client_4_2",
+            "client_1_1",
+            "http://10.0.2.11/",
         ),
         (
             "campus_lan",
@@ -31,8 +31,8 @@ pytestmark = pytest.mark.contract
             "pc_2_1_1_1",
             "http://10.200.0.3/",
         ),
-        ("sdn_l3_clos", "web_2", "client_4_1", "client_1_1", "http://10.0.2.11/"),
-        ("p4_dc_fabric", "web_2", "client_4_1", "client_1_1", "http://10.0.2.11/"),
+        ("sdn_l3_clos", "web_2", "client_4_2", "client_1_1", "http://10.0.2.11/"),
+        ("p4_dc_fabric", "web_2", "client_4_2", "client_1_1", "http://10.0.2.11/"),
     ],
 )
 def test_web_dos_resolves_one_independently_observed_http_path(
@@ -79,18 +79,8 @@ def test_bgp_missing_route_advertisement_rejects_spine_target() -> None:
         validate_benchmark_case(
             "dc_clos",
             "bgp_missing_route_advertisement",
-            {"host_name": "spine_router_2_2"},
+            {"host_name": "spine_2"},
             "l",
-        )
-
-
-def test_bgp_missing_route_advertisement_rejects_dc_clos_super_spine() -> None:
-    with pytest.raises(ValueError, match="leaf router"):
-        validate_benchmark_case(
-            "dc_clos",
-            "bgp_missing_route_advertisement",
-            {"host_name": "super_spine_router_0"},
-            "s",
         )
 
 
@@ -193,7 +183,7 @@ def test_host_static_blackhole_rejects_spine_target() -> None:
         validate_benchmark_case(
             "dc_clos",
             "host_static_blackhole",
-            {"host_name": "spine_router_3_0"},
+            {"host_name": "spine_3"},
             "l",
         )
 
@@ -276,9 +266,7 @@ def test_mtu_mismatch_resolves_to_intermediate_router() -> None:
     params = resolve_inject_params("mtu_mismatch", "dc_clos", "s", seed=1)
     assert params["mtu"] == "500"
     assert "intf_name" in params
-    assert params["host_name"].startswith(
-        ("leaf_router_", "spine_router_", "super_spine_router_")
-    )
+    assert params["host_name"].startswith(("leaf_", "spine_"))
     cls = get_problem_class("mtu_mismatch")
     assert cls is not None
     assert "dc_clos" in (cls.COMPATIBLE_COLUMNS or set())
@@ -289,6 +277,15 @@ def test_mtu_mismatch_k8s_lab_uses_controller_facing_leaf() -> None:
     params = resolve_inject_params("mtu_mismatch", "k8s_lab", "s", seed=1)
     assert params["host_name"] == "leaf_1_1"
     assert params["intf_name"] == "eth2"
+
+
+@pytest.mark.parametrize("scenario", ["k8s_lab", "llmd_lab"])
+def test_vxlan_neighbor_stale_picks_distinct_k8s_nodes(scenario: str) -> None:
+    params = resolve_inject_params("k8s_vxlan_neighbor_stale", scenario, "s", seed=1)
+    assert params["node_name"]
+    assert params["peer_name"]
+    assert params["node_name"] != params["peer_name"]
+    validate_benchmark_case(scenario, "k8s_vxlan_neighbor_stale", params, "s")
 
 
 def test_icmp_frag_needed_filter_resolves_on_dc_clos() -> None:
@@ -596,7 +593,7 @@ def test_mac_address_conflict_prefers_endpoint_hosts() -> None:
     inject = resolve_inject_params("mac_address_conflict", "dc_clos", "s", seed=7)
     assert inject["host_name"] != inject["host_name_2"], inject
     for name in (inject["host_name"], inject["host_name_2"]):
-        assert not str(name).startswith(("spine", "super_spine")), inject
+        assert not str(name).startswith("spine"), inject
     validate_benchmark_case("dc_clos", "mac_address_conflict", inject, "s")
 
 
@@ -667,8 +664,8 @@ def test_link_flap_core_inject_timing_and_probe_fields(
         assert params["probe_dst_ip"] == "10.0.0.27"
         assert params["observer_device"] == "client1"
     elif scenario == "dc_clos":
-        assert params["host_name"] == "client_0"
-        assert params["probe_dst_ip"] == "10.0.1.2"
+        assert params["host_name"] == "client_1_1"
+        assert params["probe_dst_ip"] == "10.0.2.11"
     elif scenario == "enterprise_branch":
         assert params["probe_dst_ip"] == "10.0.20.2"
     elif scenario == "simple_bgp":
@@ -756,8 +753,8 @@ def test_bmv2_switch_down_inject_params_prefer_path_critical_switch(seed: int) -
 
 def test_sender_resource_contention_inject_params_target_dc_clos_http_server() -> None:
     params = resolve_inject_params("sender_resource_contention", "dc_clos", "s", seed=1)
-    assert params["host_name"] == "webserver0_pod0"
-    assert params["client_host"] == "client_0"
+    assert params["host_name"] == "web_1"
+    assert params["client_host"] == "client_2_1"
     assert params["large_url"].endswith("/large.bin")
     assert params["small_url"].endswith("/small.bin")
     assert float(params["cpu_quota"]) == 0.05
@@ -804,7 +801,7 @@ def test_load_balancer_overload_inject_params_target_campus_lan_vip() -> None:
 
 def test_dns_lookup_latency_pins_probe_resolver() -> None:
     dc = resolve_inject_params("dns_lookup_latency", "dc_clos", "l", seed=42)
-    assert dc["host_name"] == "dns_pod0"
+    assert dc["host_name"] == "web_1"
     assert enumerate_inject_params("dns_lookup_latency", "dc_clos", "l") == [dc]
     campus = resolve_inject_params("dns_lookup_latency", "campus_lan", "m", seed=42)
     assert campus["host_name"] == "dns_server"
@@ -812,20 +809,35 @@ def test_dns_lookup_latency_pins_probe_resolver() -> None:
 
 @pytest.mark.parametrize("topo_size", ["s", "m", "l"])
 def test_dns_record_error_pairs_dns_host_with_owned_zone(topo_size: str) -> None:
-    """dc_clos dns_pod{N} only serves zone pod{N}; inject targets must match."""
+    """Every DNS endpoint serves the declared fabric zone and web records."""
     params = resolve_inject_params("dns_record_error", "dc_clos", topo_size, seed=42)
-    assert params["host_name"].removeprefix("dns_") == params["target_domain"]
+    assert params["target_domain"] == "fabric"
+    assert params["target_website"].startswith("web-")
     validate_benchmark_case("dc_clos", "dns_record_error", params, topo_size)
     for row in enumerate_inject_params("dns_record_error", "dc_clos", topo_size):
-        assert row["host_name"].removeprefix("dns_") == row["target_domain"]
+        assert row["target_domain"] == "fabric"
+        assert row["target_website"].startswith("web-")
     with pytest.raises(ValueError, match="does not serve zone"):
         validate_benchmark_case(
             "dc_clos",
             "dns_record_error",
             {
-                "host_name": "dns_pod0",
+                "host_name": "web_1",
                 "target_website": "web0",
                 "target_domain": "pod1",
             },
             "m",
         )
+
+
+@pytest.mark.parametrize("topo_size", ["s", "m", "l"])
+def test_device_flow_blackhole_targets_server_facing_port(topo_size: str) -> None:
+    """enterprise_branch m/l must pin the HQ server port, not an ISP uplink."""
+    inject = resolve_inject_params(
+        "device_flow_blackhole", "enterprise_branch", topo_size, seed=42
+    )
+    assert inject["forwarding_device"] == "hq_edge"
+    assert inject["intf_name"] == ("eth0" if topo_size == "s" else "eth1")
+    validate_benchmark_case(
+        "enterprise_branch", "device_flow_blackhole", inject, topo_size
+    )

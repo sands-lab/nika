@@ -4,6 +4,9 @@ failure:
   fault_type: link_packet_corruption
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_1
@@ -16,6 +19,9 @@ failure:
         name: client_1:eth0--gateway_1:eth0
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_2
@@ -28,6 +34,9 @@ failure:
         name: client_2:eth0--gateway_2:eth0
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -40,6 +49,9 @@ failure:
         name: gateway_1:eth1--spine_1:eth0
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -52,6 +64,9 @@ failure:
         name: gateway_1:eth2--spine_2:eth0
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -64,6 +79,9 @@ failure:
         name: gateway_2:eth1--spine_1:eth1
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -76,6 +94,9 @@ failure:
         name: gateway_2:eth2--spine_2:eth1
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -88,6 +109,9 @@ failure:
         name: leaf_1:eth0--spine_1:eth2
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -100,6 +124,9 @@ failure:
         name: leaf_1:eth1--spine_2:eth2
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -112,6 +139,9 @@ failure:
         name: leaf_1:eth2--service_1_1:eth0
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -124,6 +154,9 @@ failure:
         name: leaf_1:eth3--service_1_2:eth0
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -136,6 +169,9 @@ failure:
         name: leaf_2:eth0--spine_1:eth3
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -148,6 +184,9 @@ failure:
         name: leaf_2:eth1--spine_2:eth3
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -160,6 +199,9 @@ failure:
         name: leaf_2:eth2--service_2_1:eth0
       fault_type: link_packet_corruption
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -172,6 +214,9 @@ failure:
         name: leaf_2:eth3--service_2_2:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_1
@@ -184,6 +229,9 @@ failure:
         name: client_1:eth0--gateway_1:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_2
@@ -196,6 +244,9 @@ failure:
         name: client_2:eth0--gateway_2:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_3
@@ -208,6 +259,9 @@ failure:
         name: client_3:eth0--gateway_3:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_4
@@ -220,6 +274,9 @@ failure:
         name: client_4:eth0--gateway_4:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -232,6 +289,9 @@ failure:
         name: gateway_1:eth1--spine_1:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -244,6 +304,9 @@ failure:
         name: gateway_1:eth2--spine_2:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -256,6 +319,9 @@ failure:
         name: gateway_1:eth3--spine_3:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -268,6 +334,9 @@ failure:
         name: gateway_1:eth4--spine_4:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -280,6 +349,9 @@ failure:
         name: gateway_2:eth1--spine_1:eth1
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -292,6 +364,9 @@ failure:
         name: gateway_2:eth2--spine_2:eth1
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -304,6 +379,9 @@ failure:
         name: gateway_2:eth3--spine_3:eth1
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -316,6 +394,9 @@ failure:
         name: gateway_2:eth4--spine_4:eth1
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -328,6 +409,9 @@ failure:
         name: gateway_3:eth1--spine_1:eth2
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -340,6 +424,9 @@ failure:
         name: gateway_3:eth2--spine_2:eth2
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -352,6 +439,9 @@ failure:
         name: gateway_3:eth3--spine_3:eth2
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -364,6 +454,9 @@ failure:
         name: gateway_3:eth4--spine_4:eth2
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -376,6 +469,9 @@ failure:
         name: gateway_4:eth1--spine_1:eth3
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -388,6 +484,9 @@ failure:
         name: gateway_4:eth2--spine_2:eth3
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -400,6 +499,9 @@ failure:
         name: gateway_4:eth3--spine_3:eth3
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -412,6 +514,9 @@ failure:
         name: gateway_4:eth4--spine_4:eth3
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -424,6 +529,9 @@ failure:
         name: leaf_1:eth0--spine_1:eth4
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -436,6 +544,9 @@ failure:
         name: leaf_1:eth1--spine_2:eth4
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -448,6 +559,9 @@ failure:
         name: leaf_1:eth2--spine_3:eth4
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -460,6 +574,9 @@ failure:
         name: leaf_1:eth3--spine_4:eth4
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -472,6 +589,9 @@ failure:
         name: leaf_1:eth4--service_1_1:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -484,6 +604,9 @@ failure:
         name: leaf_1:eth5--service_1_2:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -496,6 +619,9 @@ failure:
         name: leaf_2:eth0--spine_1:eth5
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -508,6 +634,9 @@ failure:
         name: leaf_2:eth1--spine_2:eth5
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -520,6 +649,9 @@ failure:
         name: leaf_2:eth2--spine_3:eth5
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -532,6 +664,9 @@ failure:
         name: leaf_2:eth3--spine_4:eth5
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -544,6 +679,9 @@ failure:
         name: leaf_2:eth4--service_2_1:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -556,6 +694,9 @@ failure:
         name: leaf_2:eth5--service_2_2:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -568,6 +709,9 @@ failure:
         name: leaf_3:eth0--spine_1:eth6
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -580,6 +724,9 @@ failure:
         name: leaf_3:eth1--spine_2:eth6
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -592,6 +739,9 @@ failure:
         name: leaf_3:eth2--spine_3:eth6
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -604,6 +754,9 @@ failure:
         name: leaf_3:eth3--spine_4:eth6
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -616,6 +769,9 @@ failure:
         name: leaf_3:eth4--service_3_1:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -628,6 +784,9 @@ failure:
         name: leaf_3:eth5--service_3_2:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -640,6 +799,9 @@ failure:
         name: leaf_4:eth0--spine_1:eth7
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -652,6 +814,9 @@ failure:
         name: leaf_4:eth1--spine_2:eth7
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -664,6 +829,9 @@ failure:
         name: leaf_4:eth2--spine_3:eth7
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -676,6 +844,9 @@ failure:
         name: leaf_4:eth3--spine_4:eth7
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -688,6 +859,9 @@ failure:
         name: leaf_4:eth4--service_4_1:eth0
       fault_type: link_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -700,6 +874,9 @@ failure:
         name: leaf_4:eth5--service_4_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_1
@@ -712,6 +889,9 @@ failure:
         name: client_1:eth0--gateway_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_2
@@ -724,6 +904,9 @@ failure:
         name: client_2:eth0--gateway_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_3
@@ -736,6 +919,9 @@ failure:
         name: client_3:eth0--gateway_3:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_4
@@ -748,6 +934,9 @@ failure:
         name: client_4:eth0--gateway_4:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_5
@@ -760,6 +949,9 @@ failure:
         name: client_5:eth0--gateway_5:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_6
@@ -772,6 +964,9 @@ failure:
         name: client_6:eth0--gateway_6:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_7
@@ -784,6 +979,9 @@ failure:
         name: client_7:eth0--gateway_7:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: client_8
@@ -796,6 +994,9 @@ failure:
         name: client_8:eth0--gateway_8:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -808,6 +1009,9 @@ failure:
         name: gateway_1:eth1--spine_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -820,6 +1024,9 @@ failure:
         name: gateway_1:eth2--spine_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -832,6 +1039,9 @@ failure:
         name: gateway_1:eth3--spine_3:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -844,6 +1054,9 @@ failure:
         name: gateway_1:eth4--spine_4:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -856,6 +1069,9 @@ failure:
         name: gateway_1:eth5--spine_5:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -868,6 +1084,9 @@ failure:
         name: gateway_1:eth6--spine_6:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -880,6 +1099,9 @@ failure:
         name: gateway_1:eth7--spine_7:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_1
@@ -892,6 +1114,9 @@ failure:
         name: gateway_1:eth8--spine_8:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -904,6 +1129,9 @@ failure:
         name: gateway_2:eth1--spine_1:eth1
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -916,6 +1144,9 @@ failure:
         name: gateway_2:eth2--spine_2:eth1
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -928,6 +1159,9 @@ failure:
         name: gateway_2:eth3--spine_3:eth1
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -940,6 +1174,9 @@ failure:
         name: gateway_2:eth4--spine_4:eth1
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -952,6 +1189,9 @@ failure:
         name: gateway_2:eth5--spine_5:eth1
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -964,6 +1204,9 @@ failure:
         name: gateway_2:eth6--spine_6:eth1
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -976,6 +1219,9 @@ failure:
         name: gateway_2:eth7--spine_7:eth1
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_2
@@ -988,6 +1234,9 @@ failure:
         name: gateway_2:eth8--spine_8:eth1
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -1000,6 +1249,9 @@ failure:
         name: gateway_3:eth1--spine_1:eth2
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -1012,6 +1264,9 @@ failure:
         name: gateway_3:eth2--spine_2:eth2
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -1024,6 +1279,9 @@ failure:
         name: gateway_3:eth3--spine_3:eth2
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -1036,6 +1294,9 @@ failure:
         name: gateway_3:eth4--spine_4:eth2
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -1048,6 +1309,9 @@ failure:
         name: gateway_3:eth5--spine_5:eth2
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -1060,6 +1324,9 @@ failure:
         name: gateway_3:eth6--spine_6:eth2
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -1072,6 +1339,9 @@ failure:
         name: gateway_3:eth7--spine_7:eth2
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_3
@@ -1084,6 +1354,9 @@ failure:
         name: gateway_3:eth8--spine_8:eth2
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -1096,6 +1369,9 @@ failure:
         name: gateway_4:eth1--spine_1:eth3
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -1108,6 +1384,9 @@ failure:
         name: gateway_4:eth2--spine_2:eth3
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -1120,6 +1399,9 @@ failure:
         name: gateway_4:eth3--spine_3:eth3
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -1132,6 +1414,9 @@ failure:
         name: gateway_4:eth4--spine_4:eth3
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -1144,6 +1429,9 @@ failure:
         name: gateway_4:eth5--spine_5:eth3
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -1156,6 +1444,9 @@ failure:
         name: gateway_4:eth6--spine_6:eth3
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -1168,6 +1459,9 @@ failure:
         name: gateway_4:eth7--spine_7:eth3
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_4
@@ -1180,6 +1474,9 @@ failure:
         name: gateway_4:eth8--spine_8:eth3
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_5
@@ -1192,6 +1489,9 @@ failure:
         name: gateway_5:eth1--spine_1:eth4
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_5
@@ -1204,6 +1504,9 @@ failure:
         name: gateway_5:eth2--spine_2:eth4
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_5
@@ -1216,6 +1519,9 @@ failure:
         name: gateway_5:eth3--spine_3:eth4
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_5
@@ -1228,6 +1534,9 @@ failure:
         name: gateway_5:eth4--spine_4:eth4
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_5
@@ -1240,6 +1549,9 @@ failure:
         name: gateway_5:eth5--spine_5:eth4
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_5
@@ -1252,6 +1564,9 @@ failure:
         name: gateway_5:eth6--spine_6:eth4
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_5
@@ -1264,6 +1579,9 @@ failure:
         name: gateway_5:eth7--spine_7:eth4
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_5
@@ -1276,6 +1594,9 @@ failure:
         name: gateway_5:eth8--spine_8:eth4
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_6
@@ -1288,6 +1609,9 @@ failure:
         name: gateway_6:eth1--spine_1:eth5
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_6
@@ -1300,6 +1624,9 @@ failure:
         name: gateway_6:eth2--spine_2:eth5
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_6
@@ -1312,6 +1639,9 @@ failure:
         name: gateway_6:eth3--spine_3:eth5
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_6
@@ -1324,6 +1654,9 @@ failure:
         name: gateway_6:eth4--spine_4:eth5
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_6
@@ -1336,6 +1669,9 @@ failure:
         name: gateway_6:eth5--spine_5:eth5
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_6
@@ -1348,6 +1684,9 @@ failure:
         name: gateway_6:eth6--spine_6:eth5
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_6
@@ -1360,6 +1699,9 @@ failure:
         name: gateway_6:eth7--spine_7:eth5
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_6
@@ -1372,6 +1714,9 @@ failure:
         name: gateway_6:eth8--spine_8:eth5
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_7
@@ -1384,6 +1729,9 @@ failure:
         name: gateway_7:eth1--spine_1:eth6
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_7
@@ -1396,6 +1744,9 @@ failure:
         name: gateway_7:eth2--spine_2:eth6
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_7
@@ -1408,6 +1759,9 @@ failure:
         name: gateway_7:eth3--spine_3:eth6
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_7
@@ -1420,6 +1774,9 @@ failure:
         name: gateway_7:eth4--spine_4:eth6
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_7
@@ -1432,6 +1789,9 @@ failure:
         name: gateway_7:eth5--spine_5:eth6
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_7
@@ -1444,6 +1804,9 @@ failure:
         name: gateway_7:eth6--spine_6:eth6
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_7
@@ -1456,6 +1819,9 @@ failure:
         name: gateway_7:eth7--spine_7:eth6
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_7
@@ -1468,6 +1834,9 @@ failure:
         name: gateway_7:eth8--spine_8:eth6
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_8
@@ -1480,6 +1849,9 @@ failure:
         name: gateway_8:eth1--spine_1:eth7
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_8
@@ -1492,6 +1864,9 @@ failure:
         name: gateway_8:eth2--spine_2:eth7
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_8
@@ -1504,6 +1879,9 @@ failure:
         name: gateway_8:eth3--spine_3:eth7
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_8
@@ -1516,6 +1894,9 @@ failure:
         name: gateway_8:eth4--spine_4:eth7
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_8
@@ -1528,6 +1909,9 @@ failure:
         name: gateway_8:eth5--spine_5:eth7
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_8
@@ -1540,6 +1924,9 @@ failure:
         name: gateway_8:eth6--spine_6:eth7
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_8
@@ -1552,6 +1939,9 @@ failure:
         name: gateway_8:eth7--spine_7:eth7
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gateway_8
@@ -1564,6 +1954,9 @@ failure:
         name: gateway_8:eth8--spine_8:eth7
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1576,6 +1969,9 @@ failure:
         name: leaf_1:eth0--spine_1:eth8
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1588,6 +1984,9 @@ failure:
         name: leaf_1:eth1--spine_2:eth8
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1600,6 +1999,9 @@ failure:
         name: leaf_1:eth2--spine_3:eth8
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1612,6 +2014,9 @@ failure:
         name: leaf_1:eth3--spine_4:eth8
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1624,6 +2029,9 @@ failure:
         name: leaf_1:eth4--spine_5:eth8
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1636,6 +2044,9 @@ failure:
         name: leaf_1:eth5--spine_6:eth8
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1648,6 +2059,9 @@ failure:
         name: leaf_1:eth6--spine_7:eth8
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1660,6 +2074,9 @@ failure:
         name: leaf_1:eth7--spine_8:eth8
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1672,6 +2089,9 @@ failure:
         name: leaf_1:eth8--service_1_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_1
@@ -1684,6 +2104,9 @@ failure:
         name: leaf_1:eth9--service_1_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1696,6 +2119,9 @@ failure:
         name: leaf_2:eth0--spine_1:eth9
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1708,6 +2134,9 @@ failure:
         name: leaf_2:eth1--spine_2:eth9
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1720,6 +2149,9 @@ failure:
         name: leaf_2:eth2--spine_3:eth9
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1732,6 +2164,9 @@ failure:
         name: leaf_2:eth3--spine_4:eth9
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1744,6 +2179,9 @@ failure:
         name: leaf_2:eth4--spine_5:eth9
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1756,6 +2194,9 @@ failure:
         name: leaf_2:eth5--spine_6:eth9
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1768,6 +2209,9 @@ failure:
         name: leaf_2:eth6--spine_7:eth9
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1780,6 +2224,9 @@ failure:
         name: leaf_2:eth7--spine_8:eth9
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1792,6 +2239,9 @@ failure:
         name: leaf_2:eth8--service_2_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_2
@@ -1804,6 +2254,9 @@ failure:
         name: leaf_2:eth9--service_2_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1816,6 +2269,9 @@ failure:
         name: leaf_3:eth0--spine_1:eth10
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1828,6 +2284,9 @@ failure:
         name: leaf_3:eth1--spine_2:eth10
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1840,6 +2299,9 @@ failure:
         name: leaf_3:eth2--spine_3:eth10
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1852,6 +2314,9 @@ failure:
         name: leaf_3:eth3--spine_4:eth10
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1864,6 +2329,9 @@ failure:
         name: leaf_3:eth4--spine_5:eth10
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1876,6 +2344,9 @@ failure:
         name: leaf_3:eth5--spine_6:eth10
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1888,6 +2359,9 @@ failure:
         name: leaf_3:eth6--spine_7:eth10
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1900,6 +2374,9 @@ failure:
         name: leaf_3:eth7--spine_8:eth10
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1912,6 +2389,9 @@ failure:
         name: leaf_3:eth8--service_3_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_3
@@ -1924,6 +2404,9 @@ failure:
         name: leaf_3:eth9--service_3_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -1936,6 +2419,9 @@ failure:
         name: leaf_4:eth0--spine_1:eth11
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -1948,6 +2434,9 @@ failure:
         name: leaf_4:eth1--spine_2:eth11
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -1960,6 +2449,9 @@ failure:
         name: leaf_4:eth2--spine_3:eth11
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -1972,6 +2464,9 @@ failure:
         name: leaf_4:eth3--spine_4:eth11
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -1984,6 +2479,9 @@ failure:
         name: leaf_4:eth4--spine_5:eth11
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -1996,6 +2494,9 @@ failure:
         name: leaf_4:eth5--spine_6:eth11
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -2008,6 +2509,9 @@ failure:
         name: leaf_4:eth6--spine_7:eth11
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -2020,6 +2524,9 @@ failure:
         name: leaf_4:eth7--spine_8:eth11
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -2032,6 +2539,9 @@ failure:
         name: leaf_4:eth8--service_4_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_4
@@ -2044,6 +2554,9 @@ failure:
         name: leaf_4:eth9--service_4_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2056,6 +2569,9 @@ failure:
         name: leaf_5:eth0--spine_1:eth12
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2068,6 +2584,9 @@ failure:
         name: leaf_5:eth1--spine_2:eth12
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2080,6 +2599,9 @@ failure:
         name: leaf_5:eth2--spine_3:eth12
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2092,6 +2614,9 @@ failure:
         name: leaf_5:eth3--spine_4:eth12
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2104,6 +2629,9 @@ failure:
         name: leaf_5:eth4--spine_5:eth12
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2116,6 +2644,9 @@ failure:
         name: leaf_5:eth5--spine_6:eth12
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2128,6 +2659,9 @@ failure:
         name: leaf_5:eth6--spine_7:eth12
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2140,6 +2674,9 @@ failure:
         name: leaf_5:eth7--spine_8:eth12
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2152,6 +2689,9 @@ failure:
         name: leaf_5:eth8--service_5_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_5
@@ -2164,6 +2704,9 @@ failure:
         name: leaf_5:eth9--service_5_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2176,6 +2719,9 @@ failure:
         name: leaf_6:eth0--spine_1:eth13
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2188,6 +2734,9 @@ failure:
         name: leaf_6:eth1--spine_2:eth13
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2200,6 +2749,9 @@ failure:
         name: leaf_6:eth2--spine_3:eth13
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2212,6 +2764,9 @@ failure:
         name: leaf_6:eth3--spine_4:eth13
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2224,6 +2779,9 @@ failure:
         name: leaf_6:eth4--spine_5:eth13
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2236,6 +2794,9 @@ failure:
         name: leaf_6:eth5--spine_6:eth13
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2248,6 +2809,9 @@ failure:
         name: leaf_6:eth6--spine_7:eth13
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2260,6 +2824,9 @@ failure:
         name: leaf_6:eth7--spine_8:eth13
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2272,6 +2839,9 @@ failure:
         name: leaf_6:eth8--service_6_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_6
@@ -2284,6 +2854,9 @@ failure:
         name: leaf_6:eth9--service_6_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2296,6 +2869,9 @@ failure:
         name: leaf_7:eth0--spine_1:eth14
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2308,6 +2884,9 @@ failure:
         name: leaf_7:eth1--spine_2:eth14
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2320,6 +2899,9 @@ failure:
         name: leaf_7:eth2--spine_3:eth14
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2332,6 +2914,9 @@ failure:
         name: leaf_7:eth3--spine_4:eth14
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2344,6 +2929,9 @@ failure:
         name: leaf_7:eth4--spine_5:eth14
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2356,6 +2944,9 @@ failure:
         name: leaf_7:eth5--spine_6:eth14
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2368,6 +2959,9 @@ failure:
         name: leaf_7:eth6--spine_7:eth14
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2380,6 +2974,9 @@ failure:
         name: leaf_7:eth7--spine_8:eth14
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2392,6 +2989,9 @@ failure:
         name: leaf_7:eth8--service_7_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_7
@@ -2404,6 +3004,9 @@ failure:
         name: leaf_7:eth9--service_7_2:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8
@@ -2416,6 +3019,9 @@ failure:
         name: leaf_8:eth0--spine_1:eth15
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8
@@ -2428,6 +3034,9 @@ failure:
         name: leaf_8:eth1--spine_2:eth15
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8
@@ -2440,6 +3049,9 @@ failure:
         name: leaf_8:eth2--spine_3:eth15
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8
@@ -2452,6 +3064,9 @@ failure:
         name: leaf_8:eth3--spine_4:eth15
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8
@@ -2464,6 +3079,9 @@ failure:
         name: leaf_8:eth4--spine_5:eth15
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8
@@ -2476,6 +3094,9 @@ failure:
         name: leaf_8:eth5--spine_6:eth15
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8
@@ -2488,6 +3109,9 @@ failure:
         name: leaf_8:eth6--spine_7:eth15
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8
@@ -2500,6 +3124,9 @@ failure:
         name: leaf_8:eth7--spine_8:eth15
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8
@@ -2512,6 +3139,9 @@ failure:
         name: leaf_8:eth8--service_8_1:eth0
       fault_type: link_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: leaf_8

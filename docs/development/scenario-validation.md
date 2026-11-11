@@ -11,13 +11,13 @@ Every current scenario uses a **two-layer** healthy baseline, aligned with failu
 
 `verify_lab_with_retry()` follows `nika.runtime_validation.depth`: `light` (default) polls `startup_verify_lab()` when implemented and otherwise falls back to `verify_lab()`; `full` always polls `verify_lab()`. Production workflows do not import `evaluate_scenario`. Pre-deploy Batfish remains separate and off by default (`nika.static_validation.enabled`).
 
-Base `isp_<topology>` scenarios on Kathara with FRR also create a design-time validation contract and can run Batfish static validation. Static and runtime evidence remain separate because they answer different questions.
+Base `isp_<topology>` scenarios and `min3clos` also create a design-time validation contract. Batfish static validation can check that contract for ISP scenarios on Kathara with FRR and for ISP scenarios and `min3clos` on Containerlab with SONiC. Static and runtime evidence remain separate because they answer different questions.
 
 ## Specification-driven experiments
 
 To construct and verify an environment before using it in a benchmark, follow
 [scenario construction and verification](scenario-verification.md) and the
-[experiment guide](../../experiment/scenario_validation/README.md).
+[experiment guide](https://github.com/sands-lab/nika/blob/experiment/experiment/scenario_validation/README.md).
 The shared workflow checks original requirements through NetComplete, netlab,
 Batfish or NetKAT where supported, followed by native execution and recovery.
 These experiments are opt-in; normal benchmark startup keeps its existing defaults.
@@ -77,8 +77,8 @@ The scenario registry in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool
 | `sdn_l3_clos` | Kathara | ONOS-controlled OVS L3 Clos and ECMP |  | [`sdn_l3_clos/verify.py`](../../src/nika/net_env/sdn_l3_clos/verify.py) |
 | `p4_dc_fabric` | Kathara | P4Runtime-programmed Clos forwarding and ECMP |  | [`p4_dc_fabric/verify.py`](../../src/nika/net_env/p4_dc_fabric/verify.py) |
 | `p4_dc_gateway` | Kathara | P4 gateway-spine-leaf service path and complete INT-MX telemetry |  | [`p4_dc_gateway/verify.py`](../../src/nika/net_env/p4_dc_gateway/verify.py) |
-| `isp_<topology>` | Kathara or Containerlab | SNDlib or Topology Zoo IGP/BGP forwarding, adjacency, and policy | Kathara + FRR only | [`kathara/verify.py`](../../src/nika/net_env/isp/kathara/verify.py), [`containerlab/verify.py`](../../src/nika/net_env/isp/containerlab/verify.py) |
-| `min3clos` | Containerlab | SR Linux eBGP Clos client connectivity |  | [`min3clos/verify.py`](../../src/nika/net_env/min3clos/verify.py) |
+| `isp_<topology>` | Kathara or Containerlab | SNDlib or Topology Zoo IGP/BGP forwarding, adjacency, and policy | Kathara + FRR; Containerlab + SONiC | [`kathara/verify.py`](../../src/nika/net_env/isp/kathara/verify.py), [`containerlab/verify.py`](../../src/nika/net_env/isp/containerlab/verify.py) |
+| `min3clos` | Containerlab | SR Linux or SONiC eBGP Clos client connectivity | SONiC | [`min3clos/verify.py`](../../src/nika/net_env/min3clos/verify.py) |
 | `k8s_lab` | Kathara | BGP fat-tree and k3s Word application |  | [`k8s_lab/verify.py`](../../src/nika/net_env/k8s_lab/verify.py) |
 | `llmd_lab` | Kathara | L2 k3s inference cluster and gateway API |  | [`llmd_lab/verify.py`](../../src/nika/net_env/llmd_lab/verify.py) |
 
@@ -88,19 +88,17 @@ Each row below corresponds to one runtime check or one generated family of check
 
 ### `dc_clos`
 
-`dc_clos` provides an eBGP Clos fabric that connects DNS and HTTP endpoints on different leaves with external clients.
+`dc_clos` checks the declared fabric and services at the selected size. Readiness requires every node, planned eBGP peer and client address; the full check also tests DNS and named HTTP delivery from every client.
 
-| Target | Measurement | Purpose | Expected result |
-| --- | --- | --- | --- |
-| `host`: sampled fabric nodes and `pc_0_0`/`pc_0_1` | Compare expected names with `runtime.list_nodes()` | Confirm minimum fabric deployment | Every expected node exists |
-| `super_spine_router_0` | Parse `show bgp summary` | Confirm fabric BGP convergence | At least two neighbors are established |
-| `leaf_router_0_0` | Parse `show bgp summary` | Confirm leaf BGP convergence | At least one neighbor is established |
-| `pc_0_0`, `pc_0_1` | Inspect `eth0` IPv4 address | Confirm endpoint addressing | Addresses `10.0.0.2` and `10.0.1.2` are present |
-| `pc_0_0` to gateway and remote leaf host | ICMP ping to `10.0.0.1` and `10.0.1.2` | Confirm first-hop and cross-leaf forwarding | One reply from each target |
-| `service`: sampled fabric, DNS, Web, and client nodes | Compare expected names with `runtime.list_nodes()` | Confirm service topology deployment | Every expected node exists |
-| `super_spine_router_0`, `client_0` | BGP summary and client IPv4 inspection | Confirm routing convergence and client addressing | BGP establishes; client has `192.168.0.2` |
-| `client_0` to DNS and Web endpoints | ICMP ping to `10.0.0.2` and `10.0.1.2` | Confirm client-to-pod forwarding | One reply from each target |
-| `dns_pod0`, `client_0` | Check `named`; request `http://web0.pod0/` | Confirm DNS service and Web delivery | `named` is active; HTTP returns `200` |
+| Target | Measurement | Expected result |
+| --- | --- | --- |
+| Every declared node | Compare expected names with `runtime.list_nodes()` | Every node is deployed |
+| Every router and planned peer | Parse the router's BGP summary | Every planned peer is established |
+| Every client | Inspect its `eth0` IPv4 address | The declared rack address is present |
+| Every client to the declared DNS servers | Ping and query the declared service names | A reply and the expected DNS answer |
+| Every client to each named web service | Request URLs such as `http://web-2.fabric` | HTTP returns `200` |
+
+The checks use each router's native query for mixed IOS XR or RouterOS deployments. The shared topology and service declarations are described under [Data-center Clos](../operations/network-scenarios.md#data-center-clos-scenario).
 
 ### `campus_lan`
 
@@ -244,16 +242,19 @@ ISP stub checks select the first and last host in each IGP component, plus contr
 | `llm-d` Gateway | Read `status.addresses[0].value` | Confirm gateway service address | Address starts with `200.0.0.` |
 | Client to models API | Request live Gateway VIP `/v1/models` (hostname synced to MetalLB address) | Confirm inference gateway path | HTTP returns `200` |
 
-## ISP Batfish static validation
+## Batfish static validation
 
-Batfish static validation applies only when an `isp_<topology>` scenario uses the Kathara backend, the FRR device profile, and a contract-bearing deployment. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run. The first run builds the pinned Batfish image from `scripts/batfish`.
+Batfish static validation applies to an `isp_<topology>` scenario on the Kathara backend with the FRR device profile, and to `isp_<topology>` and `min3clos` on Containerlab with the SONiC device profile. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run. The first run builds the pinned Batfish image from `scripts/batfish`.
 
 ```shell
 uv sync --extra batfish
 uv run nika env run isp_abilene --igp ospf --static-validation
+uv run nika env run min3clos --device-profile sonic --static-validation
 ```
 
-[`snapshot.py`](../../src/nika/validation/batfish/snapshot.py) writes the exact generated FRR configuration for each ISP router into Batfish's concatenated Cumulus format. It also writes traffic hosts and `batfish/layer1_topology.json`. The adapter does not synthesize another routing configuration.
+The `min3clos` contract requires its four eBGP sessions, the OSPF adjacency of each leaf with the spine, and ICMP between the client gateways of both leaves.
+
+[`snapshot.py`](../../src/nika/validation/batfish/snapshot.py) writes the exact generated FRR configuration for each Kathara ISP router into Batfish's concatenated Cumulus format. It also writes traffic hosts and `batfish/layer1_topology.json`. The adapter does not synthesize another routing configuration.
 
 [`compiler.py`](../../src/nika/validation/batfish/compiler.py) compiles supported contract intents into counterexample searches.
 
@@ -269,6 +270,22 @@ uv run nika env run isp_abilene --igp ospf --static-validation
 Batfish also reports configuration parse results, undefined references, duplicate BGP or OSPF router IDs, and forwarding loops. It records an uncompileable intent as `unsupported` and keeps it in coverage. NIKA records Batfish adjacency evidence as static and model-predicted; the live FRR verifier supplies separate evidence for the same intent ID.
 
 The pinned Batfish version does not model FRR `match rpki invalid`. An RPKI ISP run still validates adjacency intents statically, while flow and waypoint intents are `unsupported`; the Kathara runtime verifier checks deployed RPKI behavior.
+
+### SONiC snapshots
+
+[`sonic.py`](../../src/nika/validation/batfish/sonic.py) writes each SONiC router's deployed `config_db.json` and `frr.conf` to `sonic_configs/<router>/`, the layout Batfish's SONiC parser reads. It also writes ISP traffic hosts and the Layer 1 topology under SONiC port names. Batfish takes ports, IPv4 addresses and loopbacks from CONFIG_DB and OSPFv2, BGP, prefix lists and route maps from FRR. Reports name interfaces by the design's names (`eth0`, `lo`), which `interface_aliases` in the snapshot metadata maps to SONiC ports.
+
+| Construct | Static model |
+| --- | --- |
+| OSPFv2, BGP, prefix lists, route maps, loopbacks | Parsed natively from the deployed files |
+| IS-IS as the only IGP | The FRR design behind the SONiC files is projected to IOS XR, as for Kathara FRR IS-IS |
+| IS-IS next to OSPF (`min3clos`) | Not modeled; IS-IS adjacency intents are `unsupported`, and forwarding follows OSPF |
+| IPv6 addresses and routing | Not modeled |
+| OSPF interface cost | Must be set explicitly; Batfish has no bandwidth for SONiC ports from which to derive it |
+| OSPF `non-broadcast` network type and `neighbor ... poll-interval` | Ignored by the parser, so Batfish forms these adjacencies as on a broadcast network; the same holds for Kathara FRR |
+| SONiC zebra and FPM statements, `no bgp network import-check` | Ignored by the parser; they do not select routes |
+
+Batfish records the ignored lines as parse warnings, and the configuration parse check accepts the resulting partially recognized files.
 
 ## Validation contract schema
 

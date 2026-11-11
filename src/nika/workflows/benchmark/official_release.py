@@ -1,7 +1,7 @@
-"""Official benchmark release reference: the ``v<version>`` tag on NIKA.
+"""Official benchmark release files, independent of the auditor checkout.
 
 Leaderboard checks compute expected trials from the release files at the commit
-that tag names in :data:`OFFICIAL_REPO`, not from the local checkout, so a local
+the published reference names in :data:`OFFICIAL_REPO`, not the local checkout, so a local
 check and leaderboard CI read the same task definitions. A commit's files never
 change, so they are read from the local Git objects when present and from
 GitHub otherwise.
@@ -35,6 +35,12 @@ from nika.workflows.benchmark.trials import task_id_for_row
 
 OFFICIAL_REPO = "sands-lab/nika"
 RELEASE_TAG_PREFIX = "v"
+# These releases predate Git tags. This main-branch revision is also the
+# published reference previously selected by leaderboard CI.
+LEGACY_RELEASE_COMMITS = {
+    "0.1.0": "ac4422d8a4a03be2b905e28edf72993d467e1b81",
+    "0.2.0": "ac4422d8a4a03be2b905e28edf72993d467e1b81",
+}
 RELEASES_RELPATH = "benchmark/releases"
 MANIFEST_FILENAME = "RELEASE.yaml"
 
@@ -77,7 +83,8 @@ class ReleaseReference:
                 f"local checkout {RELEASES_RELPATH}/{self.version} "
                 "(not authoritative for leaderboard submissions)"
             )
-        return f"{self.repo}@{self.commit} (tag {self.tag})"
+        suffix = f" (tag {self.tag})" if self.tag else " (legacy published reference)"
+        return f"{self.repo}@{self.commit}{suffix}"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -107,7 +114,9 @@ def _git_env() -> dict[str, str]:
 
 
 def resolve_release_commit(version: str, *, repo: str = OFFICIAL_REPO) -> str:
-    """Return the commit SHA that the ``v<version>`` tag names on GitHub."""
+    """Resolve a published legacy reference or the release's Git tag."""
+    if repo == OFFICIAL_REPO and version in LEGACY_RELEASE_COMMITS:
+        return LEGACY_RELEASE_COMMITS[version]
     tag = release_tag(version)
     url = f"https://github.com/{repo}.git"
     try:
@@ -225,7 +234,7 @@ def load_reference_release(
 ) -> tuple[BenchmarkRelease, ReleaseReference]:
     """Load the release a leaderboard check compares against.
 
-    ``official`` reads the files at the ``v<version>`` tag. ``local``
+    ``official`` reads the published legacy reference or ``v<version>`` tag. ``local``
     reads ``benchmark/releases/<version>/`` from this checkout and is meant for
     offline development only.
     """
@@ -245,7 +254,7 @@ def load_reference_release(
         version=release.version,
         source="official",
         repo=OFFICIAL_REPO,
-        tag=release_tag(selector),
+        tag=None if selector in LEGACY_RELEASE_COMMITS else release_tag(selector),
         commit=commit,
     )
 
@@ -307,6 +316,6 @@ def describe_drift(
         lines.append(f"  Changed settings: {', '.join(drift.changed_settings)}.")
     lines.append(
         "  Results from this run will NOT qualify for a leaderboard submission. "
-        f"Check out {reference.tag} to run the official release."
+        f"Check out {reference.tag or reference.commit} to run the official release."
     )
     return "\n".join(lines)

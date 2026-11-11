@@ -78,18 +78,21 @@ nika:
       # trial copies (relative to the NIKA checkout; uninstall removes it).
       root: runtime/firecracker
       vm_cpus: 4
-      # Scenario id -> vCPUs, merged over NIKA's sizes for large SR Linux
-      # labs (isp_pdh, isp_di-yuan, isp_dfn-gwin: 12).
+      # Scenario id or <scenario>@<device_profile> -> vCPUs. Overrides the
+      # size NIKA derives from the variant's router platform and its 12
+      # vCPUs for isp_pdh, isp_di-yuan and isp_dfn-gwin,
+      # e.g. {isp_pdh: 16, isp_pdh@sonic: 6}.
       vm_cpus_overrides: {}
       vm_memory: 4GiB
-      # Scenario id -> VM memory, merged over NIKA's sizes for large labs
-      # (dc_clos, k8s_lab, llmd_lab, min3clos, iosxr_simple_bgp: 8GiB; isp_pdh,
-      # isp_di-yuan, isp_dfn-gwin: 20GiB), e.g. {k8s_lab: 12GiB}.
+      # Scenario id or <scenario>@<device_profile> -> VM memory. Overrides the
+      # size NIKA derives from the variant's router platform and its 8GiB for
+      # dc_clos, k8s_lab, llmd_lab, min3clos and iosxr_simple_bgp,
+      # e.g. {k8s_lab: 12GiB, isp_pdh@sonic: 6GiB}.
       vm_memory_overrides: {}
       # 2 MiB huge pages, required: reserve them on the host first (see the
       # docs). Each running copy holds its own huge pages.
       huge_pages: true
-      # Verify the lab again after each restore, as a native deploy does.
+      # Verify restored environments before injection; rebuilt protocols receive full checks.
       verify_after_restore: true
       # Also keep each failure task as a case image (snapshot right after
       # injection, tens of MiB each): trials skip verification and injection,
@@ -125,7 +128,7 @@ nika:
     deploy_attempts: 3
     # Wait this many seconds for Kathara machines to start.
     deploy_ready_timeout_sec: 90
-    # Wait this many seconds for services after containers start.
+    # Wait this many seconds after deploy when the environment has no readiness verifier.
     deploy_settle_sec: 5
     # Wait this many seconds for Kathara containers to stop.
     undeploy_verify_timeout_sec: 30
@@ -147,9 +150,6 @@ nika:
     gateway_host: "127.0.0.1"
     # Bind the MCP gateway to this port. Set 0 to choose a free port.
     gateway_port: 0
-    # Cap MCP tool text returned to the agent. Over this size, keep the first
-    # and last halves and elide the middle (mini-swe-agent style). 0 disables.
-    tool_output_max_chars: 10000
   static_validation:
     # Run supported topology checks with Batfish before deployment.
     enabled: false
@@ -200,6 +200,13 @@ benchmark:
   continue_on_error: false
   # Retry failed or incomplete trials with this many extra passes.
   retry_passes: 0
+  # Pause admission after this many consecutive endpoint failures.
+  endpoint_failure_threshold: 3
+  # Wait between recovery probes, doubling up to the maximum.
+  endpoint_backoff_initial_sec: 5
+  endpoint_backoff_max_sec: 60
+  # Abort with pending trials available for resume after this wait.
+  endpoint_wait_timeout_sec: 900
   # Reuse completed trial slots instead of running them again.
   resume: true
   # Add this tag to generated session IDs.

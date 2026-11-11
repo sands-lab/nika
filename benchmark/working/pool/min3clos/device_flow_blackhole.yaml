@@ -1,0 +1,30 @@
+scenario:
+  name: min3clos
+failure:
+  fault_type: device_flow_blackhole
+  cases:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      forwarding_device: leaf2
+      intf_name: e1-2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf2
+      fault_type: device_flow_blackhole
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      forwarding_device: leaf2
+      intf_name: eth2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf2
+      fault_type: device_flow_blackhole

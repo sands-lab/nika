@@ -29,8 +29,12 @@ def instantiate_with_mocked_kathara(
 
 
 def assert_verify_success(result: dict) -> None:
-    assert result["verified"], result["checks"]
-    assert all(result["checks"].values()), result["checks"]
+    evidence = {
+        "checks": result["checks"],
+        "collection": result.get("details", {}).get("collection"),
+    }
+    assert result["verified"], evidence
+    assert all(result["checks"].values()), evidence
 
 
 # Unit scenario fixtures supply observations; the batch transport itself is

@@ -6,6 +6,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlam5
       observer_host: pc_atlang
@@ -20,6 +23,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlang
       observer_host: pc_atlam5
@@ -34,6 +40,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: chinng
       observer_host: pc_iplsng
@@ -48,6 +57,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dnvrng
       observer_host: pc_snvang
@@ -62,6 +74,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hstnng
       observer_host: pc_atlam5
@@ -76,6 +91,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: iplsng
       observer_host: pc_chinng
@@ -90,6 +108,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kscyng
       observer_host: pc_dnvrng
@@ -104,6 +125,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: snvang
       observer_host: pc_dnvrng
@@ -118,6 +142,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: sttlng
       observer_host: pc_dnvrng

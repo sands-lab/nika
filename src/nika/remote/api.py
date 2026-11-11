@@ -23,6 +23,7 @@ from nika.remote.handlers import (
     handle_session_log,
     handle_session_rebind,
     handle_session_verify,
+    handle_schedule,
 )
 from nika.remote.protocol import (
     EnvStartRequest,
@@ -32,6 +33,7 @@ from nika.remote.protocol import (
     McpAttachRequest,
     SessionCloseRequest,
     SessionRebindRequest,
+    SchedulePrepareRequest,
 )
 
 
@@ -43,7 +45,32 @@ def _error_response(exc: BaseException, *, status: int = 400) -> JSONResponse:
 
 
 async def health(_request: Request) -> JSONResponse:
-    return JSONResponse(HealthResponse().model_dump())
+    from nika.benchmark_engine.host import local_host_info
+
+    host = await run_in_threadpool(local_host_info)
+    return JSONResponse(
+        HealthResponse(docker=host.docker, kernel=host.kernel).model_dump()
+    )
+
+
+async def session_schedule(request: Request) -> JSONResponse:
+    operation = request.path_params["operation"]
+    if (request.method == "GET") != (operation == "status"):
+        return JSONResponse({"error": "Method not allowed"}, status_code=405)
+    try:
+        body = (
+            SchedulePrepareRequest.model_validate(await request.json())
+            if operation == "prepare"
+            else None
+        )
+        result = await run_in_threadpool(
+            handle_schedule, request.path_params["session_id"], operation, body
+        )
+        return JSONResponse(result)
+    except FileNotFoundError as exc:
+        return _error_response(exc, status=404)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(exc, status=400)
 
 
 async def env_start(request: Request) -> JSONResponse:
@@ -216,6 +243,11 @@ def create_remote_app() -> Starlette:
         Route("/health", health, methods=["GET"]),
         Route("/v1/env/start", env_start, methods=["POST"]),
         Route("/v1/failure/inject", failure_inject, methods=["POST"]),
+        Route(
+            "/v1/sessions/{session_id}/schedule/{operation}",
+            session_schedule,
+            methods=["GET", "POST"],
+        ),
         Route(
             "/v1/sessions/{session_id}/fault-artifact",
             fault_artifact,

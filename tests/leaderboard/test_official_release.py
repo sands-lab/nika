@@ -178,15 +178,26 @@ def test_resolve_release_commit_reads_the_tagged_commit(
 ) -> None:
     tag_object, commit = "a" * 40, "b" * 40
     _ls_remote(
-        f"{tag_object}\trefs/tags/v0.2.0\n{commit}\trefs/tags/v0.2.0^{{}}\n",
+        f"{tag_object}\trefs/tags/v9.9.9\n{commit}\trefs/tags/v9.9.9^{{}}\n",
         monkeypatch,
     )
     # Annotated tag: the peeled ``^{}`` entry names the commit.
-    assert resolve_release_commit("0.2.0") == commit
+    assert resolve_release_commit("9.9.9") == commit
 
     _ls_remote("", monkeypatch)
-    with pytest.raises(OfficialReleaseUnavailable, match="no tag v0.2.0"):
-        resolve_release_commit("0.2.0")
+    with pytest.raises(OfficialReleaseUnavailable, match="no tag v9.9.9"):
+        resolve_release_commit("9.9.9")
+
+
+@pytest.mark.parametrize("version", ["0.1.0", "0.2.0"])
+def test_legacy_release_reference_does_not_depend_on_a_missing_tag(
+    monkeypatch, version
+):
+    def unexpected_network(*args, **kwargs):
+        pytest.fail("A legacy release uses its declared published commit")
+
+    monkeypatch.setattr(official_release.subprocess, "run", unexpected_network)
+    assert resolve_release_commit(version) == "ac4422d8a4a03be2b905e28edf72993d467e1b81"
 
 
 def test_every_issue_code_has_a_guide_section() -> None:

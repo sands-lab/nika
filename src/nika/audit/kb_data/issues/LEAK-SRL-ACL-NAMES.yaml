@@ -1,0 +1,21 @@
+id: LEAK-SRL-ACL-NAMES
+title: SR Linux ACL and policy names state the fault
+class: shortcut
+severity: block
+status: fixed
+summary: Injected SR Linux ACLs and policies were named nika_bgp_block, nika_blackhole, nika_bgp_withdraw.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: nika_bgp_block|nika_blackhole|nika_bgp_withdraw
+exploit: false
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B5
+  date: '2026-10-14'
+  refs:
+  - '#206'
+  found_by: manual
+guideline: ''
+fixed_in: c00630bc

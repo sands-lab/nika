@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import re
 from ipaddress import IPv4Interface
-from pathlib import Path
 
 from nika.net_env.isp.igp.frr import ISIS_PROCESS
-from nika.validation.base import ValidationSnapshot
-from nika.validation.batfish.snapshot import prepare_snapshot, _edge
 from nika.validation.batfish.frr_ibgp import project_frr_ibgp, split_frr_ibgp
 
 
@@ -265,97 +261,6 @@ def project_frr_isis(
     )
 
 
-def build_isis_snapshot(
-    env,
-    contract,
-    root: str | Path,
-    *,
-    configs=None,
-    shutdown=(),
-    routing_model="frr-isis",
-) -> ValidationSnapshot:
-    """Build an IOS XR IS-IS Batfish model from concrete FRR configs."""
-    if routing_model != "frr-isis":
-        raise ValueError("Unsupported IS-IS routing projection")
-    plan = env.plan
-    if (
-        plan.igp != "isis"
-        or (env.bgp_plan is not None and env.bgp_plan.mode not in {"ibgp_rr", "ebgp"})
-        or env.rpki
-        or env.rtbh
-    ):
-        raise ValueError(
-            "IS-IS projection requires an ordinary no-BGP, iBGP RR, or eBGP ISP profile"
-        )
-    deployment_configs = env.deployment_configs if configs is None else configs
-    expected = {node.device_name for node in plan.nodes}
-    if set(deployment_configs) != expected:
-        raise ValueError(
-            "deployment config devices do not match ISP plan: "
-            f"missing={sorted(expected - set(deployment_configs))}, "
-            f"unknown={sorted(set(deployment_configs) - expected)}"
-        )
-    snapshot_root = prepare_snapshot(root)
-    configs_dir = snapshot_root / "configs"
-    batfish_dir = snapshot_root / "batfish"
-    configs_dir.mkdir(parents=True, exist_ok=True)
-    batfish_dir.mkdir(parents=True, exist_ok=True)
-    aliases = {}
-    plan_nodes = {node.device_name: node for node in plan.nodes}
-    stubs = env.bgp_plan.stub_interfaces() if env.bgp_plan is not None else {}
-    for node, config in sorted(deployment_configs.items()):
-        igp_config, _ = split_frr_ibgp(config)
-        _, interfaces = parse_frr_isis(node, igp_config)
-        _validate_startup_addresses(node, plan_nodes[node].startup_commands, interfaces)
-        native_map = {_native_interface(name): name for name in interfaces}
-        aliases[node] = native_map
-        projected = project_frr_isis(
-            node,
-            config,
-            shutdown=shutdown,
-            # A registered ASN fault can turn an intended iBGP peer into a
-            # mismatched external peer. Analyze the concrete ASN rather than
-            # assuming the original sketch remained same-AS.
-            allow_ebgp=env.bgp_plan is not None,
-            stub_addresses=stubs.get(node, ()),
-        )
-        (configs_dir / f"{node}.cfg").write_text(projected, encoding="utf-8")
-
-    edges = []
-    for link in sorted(plan.links, key=lambda item: item.link_id):
-        edges.append(
-            _edge(
-                link.endpoint_a,
-                _native_interface(link.iface_a),
-                link.endpoint_b,
-                _native_interface(link.iface_b),
-            )
-        )
-    (batfish_dir / "layer1_topology.json").write_text(
-        json.dumps({"edges": edges}, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    metadata = {
-        "contract_id": contract.contract_id,
-        "topology": plan.topology_name,
-        "router_count": len(plan.nodes),
-        "layer1_edge_count": len(edges),
-        "routing_model": routing_model,
-        "native_config_analysis": False,
-        "interface_aliases": aliases,
-        "scope": "FRR IPv4 IS-IS L2-only wide metrics and optional ordinary iBGP RR or direct eBGP projected to IOS XR; connected router interfaces only",
-    }
-    Path(root).mkdir(parents=True, exist_ok=True)
-    (Path(root) / "batfish-snapshot-metadata.json").write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    return ValidationSnapshot(
-        snapshot_id=contract.contract_id,
-        path=snapshot_root,
-        metadata=metadata,
-    )
-
-
 def _native_interface(original: str) -> str:
     if original == "lo":
         return "Loopback0"
@@ -363,42 +268,3 @@ def _native_interface(original: str) -> str:
     if match is None:
         raise ValueError(f"Unsupported FRR interface name {original!r}")
     return f"GigabitEthernet0/0/0/{match.group(1)}"
-
-
-def _validate_startup_addresses(node, commands, interfaces) -> None:
-    """Reject Linux route/host startup behavior outside the projected config."""
-    expected = {
-        (str(details["address"]), name)
-        for name, details in interfaces.items()
-        if details["address"] is not None
-    }
-    found = set()
-    allowed_boot = {
-        "service frr start",
-        "bash -c 'for i in 1 2 3 4 5 6 7 8 9 10; do vtysh -c \"show version\" >/dev/null 2>&1 && break; sleep 1; done'",
-        "vtysh -f /etc/frr/frr.conf",
-    }
-    for command in commands:
-        match = re.fullmatch(
-            r"ip addr add ([0-9.]+/[0-9]+) dev (lo|eth[0-9]+)", command
-        )
-        if match:
-            try:
-                address = str(IPv4Interface(match.group(1)))
-            except ValueError as exc:
-                raise ValueError(
-                    f"Unsupported startup address on {node}: {command}"
-                ) from exc
-            found.add((address, match.group(2)))
-        elif re.fullmatch(r"ip link set dev eth[0-9]+ mtu [0-9]+", command):
-            # Link MTU does not change the routing control plane.
-            continue
-        elif command not in allowed_boot:
-            raise ValueError(
-                f"Unsupported ISP router startup command on {node}: {command}"
-            )
-    if found != expected:
-        raise ValueError(
-            f"FRR IS-IS interface addresses on {node} do not match router startup: "
-            f"missing={sorted(expected - found)}, unknown={sorted(found - expected)}"
-        )

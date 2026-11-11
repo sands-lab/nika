@@ -15,6 +15,7 @@ from nika.net_env.verify import exec_or_empty, srl_bgp_established_peers
 from nika.problems.base import build_verify_result
 from nika.problems.rca.inventory import (
     iter_link_termination_points,
+    kernel_data_interface,
     parse_endpoint,
     resolve_default_intf,
 )
@@ -25,6 +26,7 @@ from nika.validation.symptom.addressing_probes import (
     address_baseline,
     address_unreachable,
     healthy_read,
+    iface_ipv4,
     lab_addresses,
 )
 from nika.validation.symptom.probe import _is_endpoint_host, _resolve_path
@@ -73,7 +75,13 @@ def echo(
 def _is_end_host(problem: Any, node: str) -> bool:
     identity = problem.net_env.machine_identities.get(node)
     if identity is not None:
-        return identity.role in {NodeRole.HOST, NodeRole.SERVICE}
+        # Infrastructure servers, such as a public web server or an RPKI
+        # validator, are endpoints too: they terminate traffic, not forward it.
+        return identity.role in {
+            NodeRole.HOST,
+            NodeRole.SERVICE,
+            NodeRole.INFRASTRUCTURE,
+        }
     return _is_endpoint_host(node)
 
 
@@ -89,11 +97,16 @@ def link_path_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
     """
     host = params.host_name
     if _is_end_host(problem, host):
-        intf = resolve_default_intf(params.intf_name, problem.net_env)
+        intf = resolve_default_intf(params.intf_name, problem.net_env, host)
         problem._audit_link_path = {"mode": "end_host"}
         ok, evidence = address_baseline(problem, host, intf)
         return ok, {"mode": "end_host", **evidence}
-    path = _resolve_path(problem.scenario_name, params, topo_size=_topo_size(problem))
+    path = _resolve_path(
+        problem.scenario_name,
+        params,
+        topo_size=_topo_size(problem),
+        net_env=problem.net_env,
+    )
     if path is None or not path.dst_ip:
         return False, {"error": "no_probe_path"}
     before = _clean_echo(problem.runtime, path.src_host, path.dst_ip)
@@ -184,6 +197,13 @@ def largest_df_packet(runtime: LabRuntime, src: str, dst: str) -> int | None:
     return low + 28
 
 
+def _link_ipv4(problem: Any, node: str, intf: str) -> str:
+    """Data-plane IPv4 on ``node``'s topology interface ``intf``."""
+    return iface_ipv4(
+        problem.runtime, node, kernel_data_interface(problem.net_env, node, intf)
+    )
+
+
 def _mtu_ends(problem: Any, params: Any) -> dict[str, str] | None:
     """Endpoints whose traffic must cross the shrunk interface, and the probe.
 
@@ -192,8 +212,8 @@ def _mtu_ends(problem: Any, params: Any) -> dict[str, str] | None:
     On a shared segment, an end host on that segment pings the node's address
     there, and the replies leave through the shrunk interface.
     """
-    runtime = problem.runtime
-    host, intf = params.host_name, params.intf_name
+    host = params.host_name
+    intf = resolve_default_intf(params.intf_name, problem.net_env, host)
     endpoint = f"{host}:{intf}"
     members = next(
         (
@@ -205,10 +225,10 @@ def _mtu_ends(problem: Any, params: Any) -> dict[str, str] | None:
     )
     if len(members) == 2:
         peer, peer_intf = parse_endpoint(next(m for m in members if m != endpoint))
-        address = runtime.get_host_ip(peer, peer_intf, with_prefix=True)
-        if not peer or not address:
+        address = _link_ipv4(problem, peer, peer_intf) if peer else ""
+        if not address:
             return None
-        return {"src": host, "dst": address.split("/")[0], "probe": "forward_df"}
+        return {"src": host, "dst": address, "probe": "forward_df"}
     src = next(
         (
             node
@@ -217,10 +237,10 @@ def _mtu_ends(problem: Any, params: Any) -> dict[str, str] | None:
         ),
         None,
     )
-    address = runtime.get_host_ip(host, intf, with_prefix=True)
+    address = _link_ipv4(problem, host, intf)
     if src is None or not address:
         return None
-    return {"src": src, "dst": address.split("/")[0], "probe": "reply_size"}
+    return {"src": src, "dst": address, "probe": "reply_size"}
 
 
 def _largest_packet(runtime: LabRuntime, ends: dict[str, str]) -> int | None:

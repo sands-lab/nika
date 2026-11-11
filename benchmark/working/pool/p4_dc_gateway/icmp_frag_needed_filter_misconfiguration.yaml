@@ -4,6 +4,9 @@ failure:
   fault_type: icmp_frag_needed_filter_misconfiguration
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: gateway_1
     root_causes:
@@ -12,6 +15,9 @@ failure:
         node: gateway_1
       fault_type: icmp_frag_needed_filter_misconfiguration
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: gateway_1
     root_causes:
@@ -20,6 +26,9 @@ failure:
         node: gateway_1
       fault_type: icmp_frag_needed_filter_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: gateway_1
     root_causes:

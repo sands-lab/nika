@@ -1,0 +1,16 @@
+--------------------- show bgp ipv4 unicast 198.18.0.0/24 ---------------------
+BGP routing table entry for 198.18.0.0/24
+Versions:
+  Process           bRIB/RIB   SendTblVer
+  Speaker                  6            6
+Last Modified: Nov  3 16:51:36.576 for 00:00:23
+Paths: (1 available, best #1)
+  Advertised IPv4 Unicast paths to update-groups (with more than one peer):
+    0.3
+  Path #1: Received by speaker 0
+  Advertised IPv4 Unicast paths to update-groups (with more than one peer):
+    0.3
+  Local
+    10.255.0.1 (metric 11) from 10.255.0.1 (10.255.0.1)
+      Origin IGP, metric 0, localpref 100, valid, internal, best, group-best
+      Received Path ID 0, Local Path ID 1, version 6

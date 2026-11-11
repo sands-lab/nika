@@ -45,6 +45,8 @@ from rich.table import Table
 from rich.text import Text
 
 from nika.evaluator.result_log import MESSAGES_FILENAME
+from nika.inspect.models import ScheduleProgress
+from nika.inspect.schedule import format_schedule_event, read_schedule_progress
 
 OutputMode = Literal["human", "agent"]
 
@@ -353,6 +355,7 @@ class _MessagesTail:
     """Byte-offset tail of ``messages.jsonl`` for one trial session."""
 
     path: Path
+    formatter: Callable[[dict[str, Any]], str | None] = format_trajectory_event
     offset: int = 0
     pending: str = ""
     lines: deque[str] = field(default_factory=lambda: deque(maxlen=_TRAJ_KEEP))
@@ -393,7 +396,7 @@ class _MessagesTail:
                 continue
             if not isinstance(event, dict):
                 continue
-            line = format_trajectory_event(event)
+            line = self.formatter(event)
             if line:
                 self.lines.append(line)
                 new_lines.append(line)
@@ -407,6 +410,9 @@ class _SessionState:
     started: float = field(default_factory=time.monotonic)
     session_dir: Path | None = None
     tail: _MessagesTail | None = None
+    schedule_tail: _MessagesTail | None = None
+    schedule: ScheduleProgress | None = None
+    feed: deque[str] = field(default_factory=lambda: deque(maxlen=_TRAJ_KEEP))
 
 
 @dataclass
@@ -640,18 +646,26 @@ class BenchmarkProgress:
             print(self._stats.score_line())
             if self._inspect_url:
                 print(f"Inspect: {self._inspect_url}")
+            self._painter = threading.Thread(
+                target=self._plain_poll_loop,
+                name="nika-benchmark-progress-poll",
+                daemon=True,
+            )
+            self._painter.start()
         return self
 
     def __exit__(self, *exc: object) -> None:
-        if self._out is None:
-            self._progress = None
-            self._task_id = None
-            return
         self._stop.set()
         self._wake.set()
         if self._painter is not None:
             self._painter.join(timeout=1.0)
             self._painter = None
+        if self._out is None:
+            with self._lock:
+                self._poll_trajectories()
+            self._progress = None
+            self._task_id = None
+            return
         interrupted = bool(
             exc
             and exc[0] is not None
@@ -858,6 +872,9 @@ class BenchmarkProgress:
                     self._running.append(label)
             state.session_dir = path
             state.tail = _MessagesTail(path=path / MESSAGES_FILENAME)
+            state.schedule_tail = _MessagesTail(
+                path=path / "schedule-events.jsonl", formatter=format_schedule_event
+            )
         self._request_paint()
 
     def set_phase(self, label: str, phase: str) -> None:
@@ -902,10 +919,8 @@ class BenchmarkProgress:
             if label in self._running:
                 self._running.remove(label)
             state = self._sessions.pop(label, None)
-            if state is not None and state.tail is not None:
-                state.tail.poll()
-                for line in state.tail.lines:
-                    self._traj_feed.append(line)
+            if state is not None:
+                self._poll_session(state)
             self._stats.observe(metrics, failed=failed)
             self.completed = min(self.total, self.completed + 1)
             mark = "✗ fail" if failed else "✓ done"
@@ -937,9 +952,25 @@ class BenchmarkProgress:
     def _poll_trajectories(self) -> None:
         for label in list(self._running):
             state = self._sessions.get(label)
-            if state is not None and state.tail is not None:
-                for line in state.tail.poll():
-                    self._traj_feed.append(line)
+            if state is not None:
+                self._poll_session(state)
+
+    def _poll_session(self, state: _SessionState) -> None:
+        for tail in (state.schedule_tail, state.tail):
+            if tail is None:
+                continue
+            for line in tail.poll():
+                state.feed.append(line)
+                self._traj_feed.append(line)
+                if not self._use_live and tail is state.schedule_tail:
+                    print(f"  {state.label} | {line}", flush=True)
+        if state.session_dir is not None:
+            state.schedule = read_schedule_progress(state.session_dir)
+
+    def _plain_poll_loop(self) -> None:
+        while not self._stop.wait(_TICK_S):
+            with self._lock:
+                self._poll_trajectories()
 
     def _job_panel(self) -> Panel:
         assert self._progress is not None
@@ -1027,7 +1058,12 @@ class BenchmarkProgress:
         traj_rows = self._session_traj_rows(box_rows)
 
         header = f"phase  {phase} · {_fmt_elapsed(now - started)}"
-        traj = list(state.tail.lines) if state and state.tail else []
+        schedule = state.schedule if state else None
+        if schedule:
+            if schedule.agent_actual_start is None and phase == "agent":
+                header = f"phase  schedule: waiting for agent · {_fmt_elapsed(now - started)}"
+            traj_rows = max(0, traj_rows - 1)
+        traj = list(state.feed) if state else []
         if not traj and self._traj_feed and not self._running:
             traj = list(self._traj_feed)
         shown = traj[-traj_rows:]
@@ -1038,6 +1074,15 @@ class BenchmarkProgress:
         body = Table.grid(expand=True)
         body.add_column(no_wrap=True, overflow="ellipsis")
         body.add_row(Text(header, style="bold"))
+        if schedule:
+            summary = (
+                f"schedule {schedule.state} · +{schedule.elapsed_sec:.1f}s · "
+                f"{schedule.completed_operations}/{schedule.total_operations} operations · "
+                f"{schedule.active_occurrences} active"
+            )
+            if schedule.next_label:
+                summary += f" · next +{schedule.next_at:g}s: {schedule.next_label}"
+            body.add_row(Text(summary, style="cyan"))
         for line in scroll_lines:
             body.add_row(
                 Text(f"  {line}" if line else " ", style="dim" if not line else "")

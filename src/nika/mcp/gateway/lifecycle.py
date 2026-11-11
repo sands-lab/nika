@@ -6,14 +6,19 @@ import os
 import socket
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
-from typing import Iterator
+from typing import Any, Iterator
 
 import uvicorn
 
 from nika.mcp.gateway.app import create_gateway_app, reset_gateway_mcp_state
-from nika.mcp.gateway.access import node_roles_for_session, policy_snapshot
+from nika.mcp.gateway.access import (
+    AgentAccess,
+    configured_access,
+    node_roles_for_session,
+    policy_snapshot,
+)
 from nika.mcp.gateway.session_registry import (
     clear_sessions,
     register_session,
@@ -208,7 +213,7 @@ def _shutdown_manager(
             clear_sessions()
 
 
-def _resolve_session_backend(scenario_name: str) -> str | None:
+def resolve_session_backend(scenario_name: str) -> str | None:
     if not scenario_name:
         return None
     try:
@@ -233,31 +238,34 @@ def mcp_gateway_for_session(
     sandbox: bool = False,
     sandbox_agent_host: str = SANDBOX_GATEWAY_AGENT_HOST,
     backend: str | None = None,
+    access: AgentAccess | None = None,
+    tool_call_limits: dict[str, int] | None = None,
 ) -> Iterator[McpGatewayManager]:
     """Start gateway, register *session_id*, expose URL via env, then clean up.
 
-    Only the ``two_phase`` policy mode exists; other values are rejected.
+    *access* is the diagnosis access policy the gateway enforces; without it,
+    the run config's ``agent.access.role`` selects one. Only the ``two_phase``
+    policy mode exists; other values are rejected.
     """
     if policy_mode != "two_phase":
         raise ValueError(f"unsupported MCP gateway policy_mode: {policy_mode!r}")
     bind_host = host
     if sandbox and bind_host is None:
         bind_host = SANDBOX_GATEWAY_BIND_HOST
-    resolved_backend = backend or _resolve_session_backend(scenario_name)
+    resolved_backend = backend or resolve_session_backend(scenario_name)
     manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
     if sandbox:
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
-    from nika.mcp.registry import select_diagnosis_servers
-    from nika.run_config.loader import get_run_config
-    from nika.telemetry import telemetry_for_session
     from nika.utils.session_store import SessionStore
 
-    access = get_run_config().agent.access
-    role = access.role
-    policy = access.roles[role]
+    from nika.run_config.loader import get_run_config
+
+    access = access or configured_access()
     row = SessionStore().get_session(session_id)
     node_roles = node_roles_for_session(session_id)
-    snapshot = policy_snapshot(role=role, policy=policy, node_roles=node_roles)
+    snapshot = policy_snapshot(
+        role=access.role, policy=access.policy, node_roles=node_roles
+    )
     session_dir = str(row["session_dir"])
     agent_session_id = str(row.get("agent_session_id") or "").strip() or None
     register_session(
@@ -266,15 +274,14 @@ def mcp_gateway_for_session(
         scenario_name=scenario_name,
         session_dir=session_dir,
         access_policy=snapshot["diagnosis"],
+        tool_call_limits=(
+            get_run_config().agent.tool_call_limits
+            if tool_call_limits is None
+            else tool_call_limits
+        ),
         node_roles=node_roles,
-        diagnosis_servers=(
-            select_diagnosis_servers(
-                scenario_name,
-                backend=resolved_backend,
-                telemetry=telemetry_for_session(row),
-            )
-            if scenario_name
-            else None
+        diagnosis_servers=session_diagnosis_servers(
+            row, scenario_name=scenario_name, backend=resolved_backend
         ),
     )
     try:
@@ -282,3 +289,58 @@ def mcp_gateway_for_session(
     finally:
         unregister_session(session_id)
         _shutdown_manager(manager)
+
+
+class GatewayLeases:
+    """Open MCP gateways of a process that serves several trials, by session id."""
+
+    def __init__(self) -> None:
+        self._open: dict[str, ExitStack] = {}
+        self._lock = threading.Lock()
+
+    def open(self, session_id: str, **kwargs: Any) -> McpGatewayManager:
+        """Open *session_id*'s gateway, replacing one already open.
+
+        *kwargs* go to :func:`mcp_gateway_for_session`.
+        """
+        self.close(session_id)
+        stack = ExitStack()
+        manager = stack.enter_context(mcp_gateway_for_session(session_id, **kwargs))
+        with self._lock:
+            self._open[session_id] = stack
+        return manager
+
+    def close(self, session_id: str) -> bool:
+        """Close *session_id*'s gateway; ``False`` if none was open."""
+        with self._lock:
+            stack = self._open.pop(session_id, None)
+        if stack is None:
+            return False
+        stack.close()
+        return True
+
+    def __contains__(self, session_id: object) -> bool:
+        with self._lock:
+            return session_id in self._open
+
+    def __iter__(self) -> Iterator[str]:
+        with self._lock:
+            return iter(list(self._open))
+
+
+def session_diagnosis_servers(
+    row: dict, *, scenario_name: str, backend: str | None
+) -> list[str] | None:
+    """Diagnosis MCP servers of a session (``None``: every mounted server)."""
+    from nika.mcp.registry import select_diagnosis_servers
+    from nika.runtime.meta import device_profile_for
+    from nika.telemetry import telemetry_for_session
+
+    if not scenario_name:
+        return None
+    return select_diagnosis_servers(
+        scenario_name,
+        backend=backend,
+        telemetry=telemetry_for_session(row),
+        device_profile=device_profile_for(row),
+    )

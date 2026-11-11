@@ -14,7 +14,6 @@ hands the ports back to the hub and removes the helper.
 from __future__ import annotations
 
 import hashlib
-import ipaddress
 import shlex
 import time
 from dataclasses import dataclass
@@ -23,10 +22,21 @@ from pathlib import Path
 import docker
 
 from nika.runtime.base import RuntimeCapabilityError
-from nika.runtime.shared.containers import docker_client
+from nika.runtime.shared.containers import docker_client, isolated_container_pid
+from nika.runtime.shared.processes import process_command, process_source
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.runtime.shared.link_faults import corrupt_commands
 
-_SPLICE_SOURCE = (Path(__file__).with_name("vde_splice.py")).read_text()
+_SPLICE_SOURCE = (
+    (Path(__file__).with_name("vde_splice.py"))
+    .read_text()
+    .replace(
+        "from __future__ import annotations",
+        "from __future__ import annotations\n"
+        "_PROCESS_HELPERS = {'__name__': 'nika_controller_processes'}\n"
+        f"exec({process_source()!r}, _PROCESS_HELPERS)",
+    )
+)
 _READY = "/run/splice.ready"
 _LOG = "/run/splice.log"
 _PID = "/run/splice.pid"
@@ -85,8 +95,7 @@ class KatharaVdeFaultProxy:
         endpoint, peer = self._link_ends(node, intf)
         hub = self._hub_ctl(endpoint)
         container = self.runtime.get_container(endpoint.node)
-        container.reload()
-        node_pid = container.attrs["State"]["Pid"]
+        node_pid = isolated_container_pid(container)
         key = self._key(node, intf)
         labels = {
             "nika.fault_proxy": key,
@@ -135,31 +144,10 @@ class KatharaVdeFaultProxy:
     def _set_corrupt(
         self, state: VdeFaultProxyState, devices: tuple[str, ...], percentage: int
     ) -> None:
-        """Corrupt IP frames and drop other frames at the same rate.
-
-        A real link's FCS discards every damaged frame. netem has no FCS: it
-        delivers the damaged frame, and only IP-family receivers catch it with
-        their own checksums. ARP has none, so a delivered bit flip in an ARP
-        reply would poison the peer's neighbor cache and cut the link for a
-        reachable-time. Non-IP frames are therefore lost instead of corrupted.
-        """
+        """Corrupt IP frames and drop other frames (``corrupt_commands``)."""
         proxy = self._client.containers.get(state.proxy_id)
         for dev in devices:
-            script = " && ".join(
-                [
-                    f"tc qdisc replace dev {dev} root handle 1: prio bands 2 "
-                    f"priomap {' '.join(['0'] * 16)}",
-                    f"tc qdisc replace dev {dev} parent 1:1 handle 10: "
-                    f"netem loss {percentage}%",
-                    f"tc qdisc replace dev {dev} parent 1:2 handle 20: "
-                    f"netem corrupt {percentage}%",
-                    *(
-                        f"tc filter replace dev {dev} parent 1: protocol {proto} "
-                        f"prio {prio} u32 match u32 0 0 flowid 1:2"
-                        for prio, proto in ((1, "ip"), (2, "ipv6"))
-                    ),
-                ]
-            )
+            script = " && ".join(corrupt_commands(dev, percentage))
             result = proxy.exec_run(["/bin/sh", "-c", script])
             if result.exit_code:
                 raise RuntimeCapabilityError(
@@ -186,40 +174,6 @@ class KatharaVdeFaultProxy:
             raise RuntimeCapabilityError(
                 f"could not configure controller-side VDE proxy: {result.output.decode(errors='ignore')}"
             )
-
-    def set_dst_drop(self, state: VdeFaultProxyState, value: str, mask: str) -> None:
-        """Drop IPv4 frames toward the peer whose destination matches value/mask.
-
-        *mask* may be non-contiguous (a ternary match), which ``u32`` matches
-        on the destination address word of the IPv4 header.
-        """
-        val, msk = _ipv4_word(value), _ipv4_word(mask)
-        proxy = self._client.containers.get(state.proxy_id)
-        result = proxy.exec_run(
-            [
-                "/bin/sh",
-                "-c",
-                "tc qdisc replace dev eth1 root handle 1: prio && "
-                "tc filter replace dev eth1 parent 1: protocol ip prio 1 u32 "
-                f"match u32 0x{val & msk:08x} 0x{msk:08x} at 16 action drop",
-            ]
-        )
-        if result.exit_code:
-            raise RuntimeCapabilityError(
-                f"could not configure controller-side VDE proxy filter: "
-                f"{result.output.decode(errors='ignore')}"
-            )
-
-    def dst_drop_configured(
-        self, state: VdeFaultProxyState, value: str, mask: str
-    ) -> bool:
-        val, msk = _ipv4_word(value), _ipv4_word(mask)
-        proxy = self._client.containers.get(state.proxy_id)
-        result = proxy.exec_run(["tc", "filter", "show", "dev", "eth1"])
-        return (
-            result.exit_code == 0
-            and f"match {val & msk:08x}/{msk:08x} at 16".encode() in result.output
-        )
 
     def qdisc_show(self, state: VdeFaultProxyState) -> str:
         """``tc qdisc show`` of the proxy port toward the peer."""
@@ -305,8 +259,9 @@ cleanup() {{
     ip link set dev eth1 up >/dev/null 2>&1 || true
     rm -f "$PID_FILE"
 }}
-trap cleanup EXIT INT TERM
-echo $$ > "$PID_FILE"
+trap cleanup EXIT
+trap 'exit 0' INT TERM
+{shlex.join(process_command("record", pid_path))} $$ || exit 1
 while true; do
     ip link set dev eth1 down
     sleep {down_time}
@@ -329,14 +284,7 @@ done
     def link_flap_running(self, state: VdeFaultProxyState) -> bool:
         pid_path = self._flap_pid_path(state)
         proxy = self._client.containers.get(state.proxy_id)
-        result = proxy.exec_run(
-            [
-                "/bin/sh",
-                "-c",
-                f"if [ -r {shlex.quote(pid_path)} ] && "
-                f'kill -0 "$(cat {shlex.quote(pid_path)})" 2>/dev/null; then echo running; fi',
-            ]
-        )
+        result = proxy.exec_run(process_command("running", pid_path))
         return result.exit_code == 0 and result.output.strip() == b"running"
 
     def stop_link_flap(self, state: VdeFaultProxyState) -> None:
@@ -345,17 +293,12 @@ done
             proxy = self._client.containers.get(state.proxy_id)
         except docker.errors.NotFound:
             return
-        proxy.exec_run(
-            [
-                "/bin/sh",
-                "-c",
-                f"if [ -r {shlex.quote(pid_path)} ]; then "
-                f'/bin/kill -KILL -- -"$(cat {shlex.quote(pid_path)})" 2>/dev/null || '
-                f'/bin/kill -KILL "$(cat {shlex.quote(pid_path)})" 2>/dev/null || true; fi; '
-                "ip link set dev eth1 up >/dev/null 2>&1 || true; "
-                f"rm -f {shlex.quote(pid_path)}",
-            ]
-        )
+        result = proxy.exec_run(process_command("stop", pid_path))
+        if result.exit_code:
+            raise RuntimeCapabilityError(
+                "could not stop verified controller-side flap worker"
+            )
+        proxy.exec_run(["ip", "link", "set", "dev", "eth1", "up"])
 
     def remove(
         self, state: VdeFaultProxyState, *, suppress_errors: bool = False
@@ -409,7 +352,11 @@ done
             for item in (_SPLICE_SOURCE, hub, node_pid, intf, _SPLICE_MTU, _READY)
         )
         proxy.exec_run(
-            ["/bin/sh", "-c", f"echo $$ >{_PID}; exec python3 -c {args} >{_LOG} 2>&1"],
+            [
+                "/bin/sh",
+                "-c",
+                f"{shlex.join(process_command('record', _PID))} $$ && exec python3 -c {args} >{_LOG} 2>&1",
+            ],
             detach=True,
         )
         started = time.monotonic()
@@ -417,10 +364,10 @@ done
         while time.monotonic() < deadline:
             if proxy.exec_run(["test", "-s", _READY]).exit_code == 0:
                 return
-            alive = proxy.exec_run(
-                ["/bin/sh", "-c", f'[ -s {_PID} ] && kill -0 "$(cat {_PID})"']
-            )
-            if alive.exit_code and time.monotonic() > started + 2:
+            alive = proxy.exec_run(process_command("running", _PID))
+            if (
+                alive.exit_code or alive.output.strip() != b"running"
+            ) and time.monotonic() > started + 2:
                 break
             time.sleep(0.2)
         log = proxy.exec_run(["cat", _LOG]).output.decode(errors="ignore")
@@ -429,21 +376,75 @@ done
     @staticmethod
     def _stop_splice(proxy) -> None:
         """Hand the ports back to the hub and confirm it forwards again."""
-        result = proxy.exec_run(
-            [
-                "/bin/sh",
-                "-c",
-                f"[ -s {_READY} ] || exit 0; read relay hub < {_READY}; "
-                'kill -TERM "$relay" 2>/dev/null; n=0; '
-                'while kill -0 "$relay" 2>/dev/null && [ "$n" -lt 50 ]; do '
-                "sleep 0.1; n=$((n + 1)); done; "
-                'kill -KILL "$relay" 2>/dev/null; kill -CONT "$hub" 2>/dev/null; '
-                f"rm -f {_READY}; "
-                '! grep -q "^State:.*stopped" "/proc/$hub/status" 2>/dev/null',
-            ]
+        script = (
+            process_source()
+            + f"""
+import re
+import subprocess
+import time
+path = {_READY!r}
+if not Path(path).is_file():
+    raise SystemExit(0)
+record = read_identity(path)
+if not isinstance(record, dict):
+    raise RuntimeError("Refusing unverified VDE relay and hub identities")
+# Pin the namespace while the native child still exists, so a killed relay
+# cannot leave its owned VDE socket directory behind in the plugin mount.
+namespace = None
+native = record.get("native")
+native_fd = owned_pidfd(native) if native else None
+if native_fd is not None:
+    try:
+        namespace = os.open(f"/proc/{{native[0]}}/ns/mnt", os.O_RDONLY)
+    except FileNotFoundError:
+        pass
+    finally:
+        os.close(native_fd)
+cleanup_error = None
+try:
+    stop_owned(record.get("relay"))
+    if native:
+        stop_owned(native)
+    directory = record.get("directory", "")
+    if namespace is not None and re.fullmatch(r"/tmp/nika-vde-[0-9a-f]{{32}}", directory):
+        subprocess.run(
+            ["nsenter", f"--mount=/proc/self/fd/{{namespace}}", "--", "rm", "-rf", "--", directory],
+            pass_fds=(namespace,), check=True,
         )
+except Exception as exc:
+    cleanup_error = exc
+finally:
+    if namespace is not None:
+        os.close(namespace)
+hub = record.get("hub")
+fd = owned_pidfd(hub)
+if fd is not None:
+    try:
+        send_pidfd(fd, signal.SIGCONT)
+        for _ in range(50):
+            try:
+                state = Path(f"/proc/{{hub[0]}}/status").read_text()
+            except FileNotFoundError:
+                break
+            if not any(line.startswith("State:") and "stopped" in line for line in state.splitlines()):
+                break
+            time.sleep(0.02)
+        else:
+            raise RuntimeError("VDE hub did not resume after the splice")
+    except ProcessLookupError:
+        pass
+    finally:
+        os.close(fd)
+if cleanup_error is not None:
+    raise cleanup_error
+Path(path).unlink(missing_ok=True)
+"""
+        )
+        result = proxy.exec_run(["python3", "-c", script])
         if result.exit_code:
-            raise RuntimeCapabilityError("VDE hub did not resume after the splice")
+            raise RuntimeCapabilityError(
+                f"VDE hub did not resume after the splice: {result.output.decode(errors='ignore')}"
+            )
 
     def _remove_container(self, ref: str) -> None:
         try:
@@ -515,7 +516,3 @@ done
             raise RuntimeCapabilityError(
                 "controller-side link flap worker did not start"
             )
-
-
-def _ipv4_word(address: str) -> int:
-    return int(ipaddress.IPv4Address(address))

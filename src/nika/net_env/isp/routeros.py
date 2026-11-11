@@ -12,6 +12,8 @@ from nika.net_env.utils.routeros.common import MAX_DATA_INTERFACES, routeros_int
 
 __all__ = ["render_routeros_isp", "routeros_interface", "routeros_isp_readiness"]
 
+LOOPBACK = routeros_interface("lo")
+
 SUPPORTED_IGPS = ("ospf", "isis")
 
 
@@ -50,8 +52,8 @@ def render_routeros_isp(
     for node in plan.nodes:
         lines = [
             f"/system identity set name={node.device_name}",
-            "/interface bridge add name=lo0 protocol-mode=none",
-            f"/ip address add address={node.loopback}/32 interface=lo0",
+            f"/interface bridge add name={LOOPBACK} protocol-mode=none",
+            f"/ip address add address={node.loopback}/32 interface={LOOPBACK}",
             *(
                 f"/ip address add address={iface.address}/{iface.prefixlen} "
                 f"interface={routeros_interface(iface.name)}"
@@ -59,6 +61,12 @@ def render_routeros_isp(
             ),
             *(_render_ospf(node) if plan.igp == "ospf" else _render_isis(node)),
         ]
+        site = bgp_plan.customer_site if bgp_plan is not None else None
+        if site is not None and node.device_name == site.provider:
+            lines.append(
+                f"/ip address add address={site.gateway}/{site.prefix.split('/')[1]} "
+                f"interface={routeros_interface(bgp_plan.customer_interface(node))}"
+            )
         if bgp_plan is not None:
             lines.extend(_render_bgp(bgp_nodes[node.device_name], bgp_plan))
         result[node.device_name] = "\n".join(lines) + "\n"
@@ -69,7 +77,7 @@ def _render_ospf(node: PlannedNode) -> list[str]:
     lines = [
         f"/routing ospf instance add name=CORE version=2 router-id={node.router_id}",
         "/routing ospf area add name=backbone instance=CORE area-id=0.0.0.0",
-        "/routing ospf interface-template add area=backbone interfaces=lo0 "
+        f"/routing ospf interface-template add area=backbone interfaces={LOOPBACK} "
         f"networks={node.loopback}/32 type=broadcast passive cost=1",
     ]
     for iface in node.interfaces:
@@ -95,7 +103,7 @@ def _render_isis(node: PlannedNode) -> list[str]:
     lines = [
         f"/routing isis instance add name=CORE afi=ip areas={area} "
         f"system-id={system_id} metric-type=wide",
-        "/routing isis interface-template add instance=CORE interfaces=lo0 "
+        f"/routing isis interface-template add instance=CORE interfaces={LOOPBACK} "
         "levels=l2 passive",
     ]
     for iface in node.interfaces:
@@ -125,6 +133,8 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
     ):
         raise ValueError("RouterOS ISP does not support BGP security profiles")
     lines = []
+    site = plan.customer_site
+    customer_provider = site is not None and node.device_name == site.provider
     if node.originated:
         lines.append("/interface bridge add name=lo1 protocol-mode=none")
     for origin in sorted(node.originated, key=lambda item: item.prefix):
@@ -136,12 +146,25 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
                 f"address={origin.prefix}",
             ]
         )
+    if customer_provider:
+        lines.append(
+            f"/ip firewall address-list add list=BGP-ORIGINS address={site.prefix}"
+        )
     # Match the ordinary FRR BUSINESS policy, including the dormant fault prefix.
     prefixes = business_prefixes(origin.prefix for origin in plan.originated)
     for chain in ("BGP-IN", "BGP-OUT"):
         for prefix in prefixes:
             lines.append(_filter_rule(chain, f"if (dst == {prefix}) {{ accept; }}"))
+        if site is not None and chain == "BGP-IN":
+            lines.append(
+                _filter_rule(chain, f"if (dst == {site.prefix}) {{ accept; }}")
+            )
         lines.append(_filter_rule(chain, "reject;"))
+    if customer_provider:
+        lines += [
+            _filter_rule("CUSTOMER-OUT", f"if (dst == {site.prefix}) {{ accept; }}"),
+            _filter_rule("CUSTOMER-OUT", "jump BGP-OUT;"),
+        ]
     inbound = {}
     for index, (neighbor, terms) in enumerate(node.import_policies):
         chain = f"NC-IN-{index}"
@@ -168,15 +191,20 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
         role = session.session_type
         if session.route_reflector_client:
             role = "ibgp-rr"
+        outbound_chain = "BGP-OUT"
+        if site and session.session_type == "ibgp":
+            outbound_chain = "BGP-IN"
+        elif customer_provider and session.remote_ip == site.partner_ip:
+            outbound_chain = "CUSTOMER-OUT"
         command = (
             f"/routing bgp connection add name=peer-{index} instance=CORE "
             f"local.role={role} local.address={session.local_ip} "
             f"remote.address={session.remote_ip} remote.as={session.remote_asn} "
             "afi=ip connect=yes listen=yes "
             f"input.filter={inbound.get(session.remote_ip, 'BGP-IN')} "
-            "output.filter-chain=BGP-OUT"
+            f"output.filter-chain={outbound_chain}"
         )
-        if node.originated:
+        if node.originated or customer_provider:
             command += " output.network=BGP-ORIGINS"
         if plan.mode == "ebgp":
             # Keep reflected next hops unchanged (RFC 4456 section 4).

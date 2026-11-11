@@ -13,6 +13,8 @@ from nika.problems.support.benchmark_targets import (
     p4_gateway_port_target,
     p4_port_options,
 )
+from nika.problems.support.p4_oracle import table_read, bmv2_ports
+from nika.problems.support.oracle import OraclePlaybook, contains
 from nika.problems.support.p4_gateway import set_ecn_threshold
 
 
@@ -53,8 +55,28 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
         return [interface_resource(params.host_name, params.intf_name)]
 
     def inject_fault(self, params: P4EcnThresholdMisconfigurationParams):
+        self._original_threshold = read_runtime_config_value(
+            self.runtime, params.host_name, "ecn_config", params.bmv2_port
+        )
+        if self._original_threshold is None:
+            raise RuntimeError("Cannot read the ECN threshold before injection")
         set_ecn_threshold(
             self.runtime, params.host_name, params.bmv2_port, params.threshold
+        )
+
+    def recover_fault(self, params: P4EcnThresholdMisconfigurationParams) -> dict:
+        original = getattr(self, "_original_threshold", None)
+        if original is not None:
+            set_ecn_threshold(
+                self.runtime, params.host_name, params.bmv2_port, original
+            )
+        observed = read_runtime_config_value(
+            self.runtime, params.host_name, "ecn_config", params.bmv2_port
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=original is not None and observed == original,
+            details={"original_threshold": original, "observed_threshold": observed},
         )
 
     def verify_fault(self, params: P4EcnThresholdMisconfigurationParams) -> dict:
@@ -69,4 +91,43 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
                 "threshold": params.threshold,
                 "observed_threshold": observed,
             },
+        )
+
+    def oracle_playbook(
+        self, params: P4EcnThresholdMisconfigurationParams
+    ) -> OraclePlaybook:
+        switch, intf, port = params.host_name, params.intf_name, params.bmv2_port
+
+        def raised(rows: list[dict]) -> bool:
+            thresholds = {
+                int(row["match"]["egress_port"]): int(row["params"]["threshold"])
+                for row in rows
+            }
+            others = [t for p, t in thresholds.items() if p != port]
+            return (
+                thresholds.get(port) == params.threshold
+                and bool(others)
+                and max(others) < params.threshold
+            )
+
+        return OraclePlaybook(
+            finding=(
+                f"The ECN marking threshold of {switch}:{intf} (BMv2 port {port}) is "
+                f"{params.threshold} packets, far above the other ports, so the "
+                "queue builds before any packet is CE-marked."
+            ),
+            steps=[
+                bmv2_ports(
+                    switch,
+                    contains(rf"(^|\s){port}@{intf}\b", f"port {port} is {intf}"),
+                ),
+                table_read(
+                    switch,
+                    "ecn_config",
+                    f"port {port} marks ECN only at depth {params.threshold}, "
+                    "above every other port's threshold",
+                    raised,
+                    f"Read the per-port ECN marking thresholds on {switch}.",
+                ),
+            ],
         )

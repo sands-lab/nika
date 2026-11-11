@@ -75,8 +75,10 @@ def fanout_processes(
     count: int,
     size: int,
     period: str,
+    port: int = FANOUT_PORT,
     worker_command: str = "shard",
     aggregator_command: str = "query-frontend",
+    seed: str | None = None,
 ) -> list[WorkloadProcess]:
     """A query front end on ``aggregator`` and one shard per ``workers`` node.
 
@@ -87,13 +89,14 @@ def fanout_processes(
             node=node,
             app="fanout",
             command=worker_command,
-            args=("worker", "--port", str(FANOUT_PORT)),
+            traffic_source=False,
+            args=("worker", "--port", str(port)),
         )
         for node in workers
     ]
     targets: list[str] = []
     for ip in workers.values():
-        targets += ["--worker", f"{ip}:{FANOUT_PORT}"]
+        targets += ["--worker", f"{ip}:{port}"]
     processes.append(
         WorkloadProcess(
             node=aggregator,
@@ -103,7 +106,7 @@ def fanout_processes(
                 "aggregator",
                 *targets,
                 "--port",
-                str(FANOUT_PORT),
+                str(port),
                 "--count",
                 str(count),
                 "--size",
@@ -111,7 +114,7 @@ def fanout_processes(
                 "--period",
                 period,
                 "--seed",
-                seed_for(aggregator),
+                seed or seed_for(aggregator),
             ),
         )
     )

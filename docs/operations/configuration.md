@@ -128,7 +128,7 @@ NIKA stores `runtime/` and `.nika_cache/` at the root of the main Git checkout (
 | --- | ---: | --- |
 | `nika.lab.deploy_attempts` | `3` | Kathara deployment attempts. Must be at least `1`. |
 | `nika.lab.deploy_ready_timeout_sec` | `90` | Time allowed for all Kathara machines to enter the running state. Must be non-negative. |
-| `nika.lab.deploy_settle_sec` | `5` | Delay after deploy on Kathara and Containerlab. NIKA applies it only to scenarios without a readiness verifier. Must be non-negative. |
+| `nika.lab.deploy_settle_sec` | `5` | Delay after deploy on Kathara and Containerlab. NIKA skips it when the environment defines `startup_verify_lab()` or overrides `verify_lab()`. Must be non-negative. |
 | `nika.lab.undeploy_verify_timeout_sec` | `30` | Time allowed for Kathara containers to disappear after undeploy. Must be non-negative. |
 | `nika.lab.ready_max_wait_sec` | `180` | Default startup-verification polling window for scenarios that implement `verify_lab()`. A scenario-level `VERIFY_MAX_WAIT_SEC` overrides it. Must be non-negative. |
 | `nika.lab.ready_retry_delay_sec` | `5` | Default delay between startup-verification attempts. A scenario-level `VERIFY_RETRY_DELAY_SEC` overrides it. Must be non-negative. |
@@ -140,10 +140,9 @@ NIKA stores `runtime/` and `.nika_cache/` at the root of the main Git checkout (
 
 | Key | Default | Meaning and constraints |
 | --- | ---: | --- |
-| `nika.mcp.read_timeout_sec` | `120` | MCP request timeout used by the shared LangGraph, AutoGen, and mcp-agent clients. Non-positive values disable it. |
+| `nika.mcp.read_timeout_sec` | `120` | MCP request timeout for the shared LangGraph, AutoGen, and mcp-agent clients, and the per-call `tool_timeout_sec` for the Codex agents (`cli.codex`, `sdk.codex_sdk`). Non-positive values disable the shared clients' timeout and leave `tool_timeout_sec` unset, so Codex uses its own default. |
 | `nika.mcp.gateway_host` | `127.0.0.1` | Host address for the session MCP gateway. |
 | `nika.mcp.gateway_port` | `0` | Gateway port. `0` selects a free port; negative values are invalid. |
-| `nika.mcp.tool_output_max_chars` | `10000` | Characters of MCP tool text returned to the agent. Longer output keeps the first and last halves and marks how many characters were elided (mini-swe-agent style), with a warning to use `head`/`tail`/`grep` or redirect to a file. `0` disables truncation. Negative values are invalid. |
 
 ### Static validation
 

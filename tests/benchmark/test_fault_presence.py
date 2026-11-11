@@ -91,7 +91,9 @@ def test_remote_artifact_is_checked_during_and_before_cleanup(
     (tmp_path / "ground_truth.json").write_text(
         json.dumps({"is_anomaly": True}), encoding="utf-8"
     )
-    monkeypatch.setattr(presence, "_remote_lab", lambda: True)
+    from nika.benchmark_engine import engine as engine_module
+
+    monkeypatch.setattr(engine_module, "remote_lab", lambda: True)
     calls: list[str] = []
 
     def remote_check(_self: RemoteClient, session_id: str) -> dict:
@@ -107,12 +109,9 @@ def test_remote_artifact_is_checked_during_and_before_cleanup(
     watch = PresenceWatch("s-remote", tmp_path, delay_sec=30)
     watch.start()
     watch.finish()
-    assert len(calls) == 3
-    assert [item["phase"] for item in logged] == [
-        "post_inject",
-        "during_agent",
-        "before_cleanup",
-    ]
+    # The engine's timeline logs the post-inject read, not the watch.
+    assert len(calls) == 2
+    assert [item["phase"] for item in logged] == ["during_agent", "before_cleanup"]
     assert logged[-1]["result"] == "absent"
 
 

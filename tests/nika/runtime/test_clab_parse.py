@@ -57,3 +57,25 @@ class ClabParseTest:
         assert len(spec.nodes) == 5
 
         assert "leaf1" in env.get_info()
+
+
+def test_in_memory_document_matches_yaml_roundtrip(tmp_path):
+    import yaml
+
+    data = {
+        "name": "example",
+        "topology": {
+            "nodes": {
+                "r1": {
+                    "kind": "nokia_srlinux",
+                    "image": "router:local",
+                    "binds": ["a:b:ro"],
+                },
+                "pc": {"kind": "linux", "exec": ["ip route add default via 192.0.2.1"]},
+            },
+            "links": [{"endpoints": ["r1:e1-1", "pc:eth1"]}],
+        },
+    }
+    path = tmp_path / "topology.clab.yml"
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+    assert parse_clab_topology(data) == parse_clab_topology(path)

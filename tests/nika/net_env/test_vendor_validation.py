@@ -20,6 +20,8 @@ BGP router identifier 192.0.2.1, local AS number 65001
 Neighbor        Spk AS      MsgRcvd MsgSent TblVer InQ OutQ Up/Down State/PfxRcd
 192.0.2.2       0   65002   31      28      0      0   0    00:10:01 4
 192.0.2.3       0   65003   0       0       0      0   0    never    Active
+192.0.2.4       0   65004   12      10      0      0   0    00:03:07 0!
+192.0.2.5       0   65005   40      30      0      0   0    00:00:12 Idle (PfxCt)
 """
 
     local_asn, peers = _parse_iosxr_bgp_summary(output)
@@ -29,6 +31,10 @@ Neighbor        Spk AS      MsgRcvd MsgSent TblVer InQ OutQ Up/Down State/PfxRcd
     assert peers["192.0.2.2"].local_asn == 65001
     assert peers["192.0.2.2"].established
     assert not peers["192.0.2.3"].established
+    # "!" marks an Established eBGP session that has no route policy.
+    assert peers["192.0.2.4"].established
+    # XR names why a session is down after its state.
+    assert not peers["192.0.2.5"].established
 
 
 @pytest.mark.parametrize(

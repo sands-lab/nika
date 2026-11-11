@@ -2,4 +2,10 @@ scenario:
   name: min3clos
 healthy:
   variants:
-  - {}
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0

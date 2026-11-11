@@ -18,16 +18,20 @@ Start from the [documentation index](docs/README.md). It maps each contract to i
 * Prefer decisions NIKA can make itself over new configuration options or environment variables.
 * When the user repeatedly asks for the same reusable coding or workflow practice, add it to the matching section of this file. Do not record task-specific decisions.
 
+## Research experiments
+
+* Keep research scripts, ablations, experimental configurations, and results on `experiment` in a separate worktree.
+* Do not merge the experiment branch into `dev` or `main`.
+* Keep reusable runtime features, release validation tools, and durable regression tests in the development workflow.
+* Develop framework fixes on a development branch and bring them into the experiment branch when needed.
+* Keep regression fixtures under `tests/fixtures/`. Development tests must run independently of the experiment worktree.
+
 ## Commit and pull request messages
 
 Commit subjects and pull request titles follow Conventional Commits: `type(scope): imperative summary`, where the type is one of `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, or `revert`. The [`commit-msg` hook](scripts/git-hooks/commit-msg) rejects other subjects, except the ones Git writes for local merges and `fixup!`/`squash!`/`amend!` commits (`./scripts/install.sh` enables it). The `Commit messages` CI check applies the same rule to every pull request commit and title, and also rejects fixup commits, so squash them before merging.
 
 * The pull request title is the Conventional Commit line without a PR number. The merge commit subject is that line followed by `(#<PR number>)`.
 * The body is a short summary followed by `Fixes #<issue>` (or `Closes` or `Resolves`) so the merge closes the issue. Use one keyword per issue. When the work only contributes to an issue, write `Refs #<issue>` instead; it links the issue without closing it. Omit both when there is no issue.
-
-## Labels
-
-Label every issue and pull request you open with the repository's existing labels (`gh label list`); do not create new ones. Use `bug` for defects, `enhancement` for features, and `documentation` for docs. Add `bug-from-audit` for bugs that could bias agent diagnosis, `agent-ready` for well-scoped issues an agent can implement, and `needs-human` for issues that need a human design decision. Pass them with `--label` on `gh issue create` and `gh pr create`.
 
 ## Leaderboard submissions
 
@@ -76,7 +80,7 @@ A test that creates external resources must clean up only what it owns, includin
 * Remove temporary or overly specific test code.
 * Review the diff for unintended changes.
 * Run `uv run ruff format` and `uv run ruff check`.
-* Before you create a commit and push it, if `README.md` or `docs/` changed, apply the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md) and confirm Letta Docs Review is PASS; read the latest review comment on the PR and fix blocking findings first.
+* If you are about to push a commit on a PR, and if `README.md` or `docs/` changed, apply the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md) to sanitize the doc and make it consistent with changes and user's expectations.
 
 A test is not complete if its assertions pass but its resources remain, or if it does not exercise the intended runtime behavior.
 

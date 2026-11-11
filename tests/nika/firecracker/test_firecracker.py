@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,11 +21,132 @@ from nika.firecracker import image
 pytestmark = pytest.mark.unit
 
 
+@pytest.mark.parametrize("injected", [False, True])
+@pytest.mark.parametrize("verify", [False, True])
+def test_restored_images_resume_protocols_and_keep_case_fault_checks(injected, verify):
+    from types import SimpleNamespace
+    from nika.firecracker.trial import TrialLab
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"execution": {"firecracker": {"verify_after_restore": verify}}}}
+        )
+    )
+    lab = TrialLab({}, trial_key="owned", owner="test")
+    lab.image = SimpleNamespace(session_id="image")
+    if injected:
+        lab.case = SimpleNamespace(session_id="injected", key="case")
+    with (
+        patch(
+            "nika.remote.workflows.remote_rebind_session", return_value="trial"
+        ) as rebind,
+        patch("nika.remote.workflows._client") as client,
+        patch("nika.firecracker.trial._record_trial_timings"),
+    ):
+        client.return_value.fault_artifact.return_value = {"present": True}
+        assert lab.attach(session_id="trial") == "trial"
+    assert rebind.call_args.kwargs["restore_runtime"] is True
+    assert client.return_value.fault_artifact.call_count == int(injected)
+    assert client.return_value.verify_session.call_count == int(verify and not injected)
+
+
+def test_scheduled_trials_restore_uninjected_workloads_at_their_planned_start():
+    from nika.firecracker.case import wants_case_image
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"execution": {"firecracker": {"case_images": True}}}}
+        )
+    )
+    row = {
+        "scenario": "dc_clos",
+        "topo_size": "s",
+        "problem": "link_down",
+        "traffic": {"pattern": "incast"},
+        "schedule": {
+            "agent_start": 0,
+            "events": [
+                {"traffic": "business", "at": 10},
+                {"traffic": "background", "at": 20},
+                {
+                    "problem": "link_down",
+                    "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                    "at": 30,
+                },
+            ],
+        },
+    }
+    assert not wants_case_image(row)
+    params = image.variant_for_row(row)
+    assert params["defer_business_traffic"] is True
+    assert params["defer_background_traffic"] is True
+    static = {key: value for key, value in row.items() if key != "schedule"}
+    assert wants_case_image(static)
+    assert "defer_business_traffic" not in image.variant_for_row(static)
+    assert (
+        image.variant_for_row(
+            {**row, "schedule": {**row["schedule"], "agent_start": 99}}
+        )
+        == params
+    )
+
+
 @pytest.fixture(autouse=True)
 def _clean_run_config():
     reset_run_config()
     yield
     reset_run_config()
+
+
+@pytest.mark.parametrize("sync_fails", [False, True])
+def test_restored_vm_synchronizes_utc_before_lab_exposure(
+    tmp_path, monkeypatch, sync_fails
+):
+    import re
+    import time
+    from types import SimpleNamespace
+    from nika.firecracker import trial
+
+    lab = object.__new__(trial.TrialLab)
+    lab.image = SimpleNamespace(key="healthy", path=tmp_path / "image")
+    lab.case = None
+    lab.dir = tmp_path / "restored"
+    lab.trial_key = "clock-test"
+    lab.owner = "clock-test"
+    lab.timings = {}
+    lab.sandbox_backend = None
+    calls = []
+    before = time.time()
+
+    def synchronize(uds, command, *, timeout):
+        assert calls == ["ready"]
+        assert uds == lab.dir / trial.VSOCK
+        timestamp = float(re.search(r"@([0-9.]+)", command)[1])
+        assert before <= timestamp <= time.time()
+        calls.append("synchronized")
+        if sync_fails:
+            raise trial.VmmError("Clock synchronization failed")
+
+    def expose(backend):
+        assert calls == ["ready", "synchronized"]
+        raise RuntimeError("Lab exposure reached")
+
+    monkeypatch.setattr(
+        trial, "firecracker_settings", lambda: SimpleNamespace(huge_pages=False)
+    )
+    monkeypatch.setattr(trial, "_clone", lambda *args: None)
+    monkeypatch.setattr(trial, "firecracker_binary", lambda: "firecracker")
+    monkeypatch.setattr(trial, "Firecracker", MagicMock())
+    monkeypatch.setattr(
+        trial, "wait_http_ok", lambda *args, **kw: calls.append("ready")
+    )
+    monkeypatch.setattr(trial, "guest_exec", synchronize)
+    monkeypatch.setattr(trial, "gateway_route", expose)
+    with pytest.raises(
+        RuntimeError,
+        match="Clock synchronization failed" if sync_fails else "Lab exposure reached",
+    ):
+        lab._restore()
 
 
 def test_firecracker_settings_default_off_and_validated() -> None:
@@ -35,21 +157,64 @@ def test_firecracker_settings_default_off_and_validated() -> None:
         FirecrackerSettings(vm_memory_overrides={"isp_pdh": "20480MiB"})
     with pytest.raises(ValidationError):
         FirecrackerSettings(vm_cpus_overrides={"isp_pdh": 0})
-    assert FirecrackerSettings().vm_memory_overrides["dc_clos"] == "8GiB"
-    assert FirecrackerSettings().vm_cpus_overrides["isp_pdh"] == 12
+    assert FirecrackerSettings().vm_memory_overrides == {}
+    assert FirecrackerSettings().vm_cpus_overrides == {}
     set_run_config(RunConfig())
-    assert image.vm_memory_mib("dc_clos") == 8192
-    assert image.vm_cpus("isp_pdh") == 12
-    assert image.vm_cpus("campus_lan") == 4
-    # User overrides merge over the built-in sizes of large labs.
-    overrides = FirecrackerSettings(
-        vm_memory_overrides={"k8s_lab": "12GiB"},
-        vm_cpus_overrides={"isp_pdh": 8},
+    assert image.vm_memory_mib({"scenario": "dc_clos"}) == 8192
+    assert image.vm_cpus({"scenario": "isp_pdh"}) == 12
+    assert image.vm_cpus({"scenario": "campus_lan"}) == 4
+    set_run_config(
+        RunConfig.model_validate(
+            {
+                "nika": {
+                    "execution": {"firecracker": {"vm_cpus_overrides": {"isp_pdh": 8}}}
+                }
+            }
+        )
     )
-    assert overrides.vm_memory_overrides["k8s_lab"] == "12GiB"
-    assert overrides.vm_memory_overrides["isp_pdh"] == "20GiB"
-    assert overrides.vm_cpus_overrides["isp_pdh"] == 8
-    assert overrides.vm_cpus_overrides["isp_di-yuan"] == 12
+    assert image.vm_cpus({"scenario": "isp_pdh"}) == 8
+    assert image.vm_cpus({"scenario": "isp_di-yuan"}) == 12
+
+
+def test_vm_memory_follows_the_router_platform_a_variant_deploys() -> None:
+    """Router platforms size their VMs; configured overrides win over both sizes."""
+    pdh = {"scenario": "isp_pdh", "backend": "containerlab", "igp": "isis"}
+    sonic = {**pdh, "device_profile": "sonic"}
+    srl = {**pdh, "device_profile": "nokia_srlinux"}
+    set_run_config(RunConfig())
+    # 11 routers and 11 hosts: 1 GiB + 11 x 256 MiB + 11 x 64 MiB -> 5 GiB.
+    assert image.vm_memory_mib(sonic) == 5 * 1024
+    # The same graph on SR Linux needs 11 x 1.5 GiB.
+    assert image.vm_memory_mib(srl) == 19 * 1024
+    assert image.vm_memory_mib({"scenario": "min3clos"}) == 8 * 1024
+    # 1 guest vCPU + 11 x 250 millicores -> 4; SR Linux 11 x 1 vCPU -> 12.
+    assert image.vm_cpus(sonic) == 4
+    assert image.vm_cpus(srl) == 12
+    assert image.vm_cpus({"scenario": "min3clos"}) == 4
+    min3clos_sonic = {"scenario": "min3clos", "device_profile": "sonic"}
+    min3clos_srl = {"scenario": "min3clos", "device_profile": "nokia_srlinux"}
+    # Three routers plus two hosts: the platform formula is under the 8 GiB /
+    # 4 vCPU min3clos floor, so named profiles keep that floor.
+    assert image._platform_nodes(json.dumps(min3clos_sonic, sort_keys=True)) == (3, 2)
+    assert image._platform_nodes(json.dumps(min3clos_srl, sort_keys=True)) == (3, 2)
+    assert image.vm_memory_mib(min3clos_sonic) == 8 * 1024
+    assert image.vm_memory_mib(min3clos_srl) == 8 * 1024
+    assert image.vm_cpus(min3clos_sonic) == 4
+    assert image.vm_cpus(min3clos_srl) == 4
+    run_config = RunConfig()
+    run_config.nika.execution.firecracker.vm_memory_overrides = {
+        "isp_pdh": "12GiB",
+        "isp_pdh@sonic": "3GiB",
+    }
+    run_config.nika.execution.firecracker.vm_cpus_overrides = {
+        "isp_pdh": 8,
+        "isp_pdh@sonic": 2,
+    }
+    set_run_config(run_config)
+    assert image.vm_memory_mib(sonic) == 3 * 1024
+    assert image.vm_memory_mib(srl) == 12 * 1024
+    assert image.vm_cpus(sonic) == 2
+    assert image.vm_cpus(srl) == 8
 
 
 def test_override_routes_lab_ops_and_maps_gateway_port() -> None:
@@ -137,7 +302,6 @@ def test_image_build_liveness_protects_running_builds() -> None:
 
 
 def test_remote_gateway_yields_the_port_this_host_dials() -> None:
-    from nika.remote import workflows
     from nika.remote.client import RemoteClient
     from nika.remote.protocol import McpAttachResponse
 
@@ -151,16 +315,11 @@ def test_remote_gateway_yields_the_port_this_host_dials() -> None:
     attach = McpAttachResponse(
         session_id="s1", gateway_port=8800, gateway_base_url="http://0.0.0.0:8800"
     )
-    with (
-        remote_override(cfg),
-        patch.object(workflows, "_client", return_value=client),
-        patch.object(client, "_request", return_value=attach.model_dump()),
-        patch.object(client, "mcp_detach"),
-    ):
-        with workflows.remote_mcp_gateway("s1") as (url, port):
-            # E2B tunnels dial (url host, port) from this host: both must point
-            # at the local forwarder, not the lab VM's gateway port.
-            assert (url, port) == ("http://127.0.0.1:41001", 41001)
+    with patch.object(client, "_request", return_value=attach.model_dump()):
+        url = client.mcp_attach("s1").gateway_base_url
+    # E2B tunnels dial the agent URL's host and port from this host: both must
+    # point at the local forwarder, not the lab VM's gateway port.
+    assert url == "http://127.0.0.1:41001"
 
 
 def test_gateway_route_follows_the_sandbox_runtime() -> None:
@@ -417,3 +576,20 @@ def test_case_image_needs_the_lab_image_build_it_was_taken_from(tmp_path) -> Non
     # The lab image was rebuilt under the same key: its memory differs.
     (lab / "meta.json").write_text(json.dumps({"session_id": "s", "created": 2.0}))
     assert case._ready_case("case1") is None
+
+
+def test_guest_plugin_does_not_require_activation_in_image_only_store(monkeypatch):
+    from types import SimpleNamespace
+    from nika.firecracker import base
+
+    monkeypatch.setattr(
+        base.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout="")
+    )
+    monkeypatch.setattr(base.platform, "machine", lambda: "x86_64")
+    assert base._host_plugins() == ["kathara/katharanp_vde:amd64"]
+    monkeypatch.setattr(
+        base.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(stdout="kathara/katharanp_vde:pinned true\n"),
+    )
+    assert base._host_plugins() == ["kathara/katharanp_vde:pinned"]

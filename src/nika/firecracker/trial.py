@@ -33,6 +33,7 @@ from nika.firecracker.image import (
     DAEMON_PORT,
     GATEWAY_PORT,
     MEMORY,
+    META,
     STATE,
     LabImage,
     _clone,
@@ -46,6 +47,7 @@ from nika.firecracker.vmm import (
     VmmError,
     VsockForwarder,
     firecracker_binary,
+    guest_exec,
     kill_pid_file,
     pid_alive,
     wait_http_ok,
@@ -162,6 +164,8 @@ class TrialLab:
                 raise
             log = (self.dir / "uffd.log").read_text(errors="replace").strip()
             raise VmmError(f"{err}; page server log: {log.splitlines()[-1:]}") from err
+        # Snapshot time is stale; align UTC logs before exposing the restored lab.
+        guest_exec(uds, f"date --set=@{time.time():.6f} >/dev/null", timeout=30)
         self.timings["ready_sec"] = round(time.monotonic() - started, 2)
         if server is not None:
             _watch_page_server(server, vm, self.trial_key, self._released)
@@ -198,6 +202,7 @@ class TrialLab:
             new_session_id=session_id,
             result_dir=result_dir,
             session_dir=session_dir,
+            restore_runtime=True,
         )
         if self.case is not None:
             # The lab carries its failure: check the injected artifact instead.
@@ -309,6 +314,11 @@ def _record_trial_timings(
     from nika.utils.session_store import SessionStore
 
     restored = {"image": image.key, **({"case": case.key} if case else {})}
+    metadata = image.path / META
+    if metadata.is_file():
+        native_hub = json.loads(metadata.read_text()).get("native_hub")
+        if native_hub:
+            restored["native_hub"] = native_hub
     SessionStore().update_session(session_id, {"firecracker": {**restored, **timings}})
     what = f"case image {case.key}" if case else f"lab image {image.key}"
     log_event(

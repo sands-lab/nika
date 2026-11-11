@@ -3,51 +3,54 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 from uuid import uuid4
+
+import docker
+
+from nika.utils.docker_files import read_file, upload_paths
 
 
 def run_netcomplete(payload, directory: Path, *, image: str, timeout: float = 300):
     directory = directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "input.json").write_text(json.dumps(payload, indent=2) + "\n")
-    # Never accept a stale solution when an invocation fails.
     (directory / "solution.json").unlink(missing_ok=True)
-    container = f"nika-netcomplete-{uuid4().hex[:12]}"
-    adapter = Path(__file__).with_name("netcomplete_adapter.py")
+    client = docker.from_env()
     try:
-        with (directory / "solver.log").open("w") as log:
-            subprocess.run(
-                [
-                    "docker",
-                    "run",
-                    "--rm",
-                    "--name",
-                    container,
-                    "--network",
-                    "none",
-                    "-v",
-                    f"{directory}:/experiment",
-                    "-v",
-                    f"{adapter}:/adapter.py:ro",
-                    image,
-                    "python",
-                    "/adapter.py",
-                    "/experiment/input.json",
-                    "/experiment/solution.json",
-                ],
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                check=True,
-                timeout=timeout,
-            )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError(
-            f"NetComplete failed; see {directory / 'solver.log'}"
-        ) from exc
-    finally:
-        subprocess.run(
-            ["docker", "rm", "-f", container], capture_output=True, check=False
+        container = client.containers.create(
+            image,
+            command=[
+                "python",
+                "/adapter.py",
+                "/experiment/input.json",
+                "/experiment/solution.json",
+            ],
+            name=f"nika-netcomplete-{uuid4().hex[:12]}",
+            network_disabled=True,
         )
+        try:
+            upload_paths(
+                container,
+                {
+                    "/adapter.py": Path(__file__).with_name("netcomplete_adapter.py"),
+                    "/experiment": directory,
+                },
+            )
+            container.start()
+            try:
+                status = container.wait(timeout=timeout)["StatusCode"]
+            finally:
+                (directory / "solver.log").write_bytes(container.logs())
+            if status:
+                raise RuntimeError(
+                    f"NetComplete failed; see {directory / 'solver.log'}"
+                )
+            (directory / "solution.json").write_bytes(
+                read_file(container, "/experiment/solution.json")
+            )
+        finally:
+            container.remove(force=True)
+    finally:
+        client.close()
     return json.loads((directory / "solution.json").read_text())

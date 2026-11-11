@@ -120,6 +120,9 @@ def wipe_runtime_artifacts(
 def wipe_kathara_labs() -> None:
     """Remove all Kathara devices and collision domains for the current user."""
     try:
+        from nika.runtime.shared.containers import remove_lab_helpers
+
+        remove_lab_helpers(all_labs=True)
         import nika.runtime.kathara.patch  # noqa: F401  # privileged-without-root before wipe
         from Kathara.manager.Kathara import Kathara
 
@@ -187,6 +190,9 @@ def load_session_meta_for_close(
 
 def wipe_all_containerlab_labs() -> None:
     """Remove all Containerlab labs and their orphaned Docker networks."""
+    from nika.service.containerlab.host_tc import HostTcController
+
+    HostTcController.cleanup_lab(all_labs=True)
     try:
         result = subprocess.run(
             ["clab", "destroy", "--all", "--cleanup", "--yes", "--log-level", "error"],
@@ -260,11 +266,17 @@ def remove_orphaned_containerlab_management_network(lab_name: str | None) -> Non
         )
 
 
-def _cleanup_session_sandbox(session_meta: dict, *, session_id: str) -> None:
+def cleanup_session_sandbox(session_meta: dict, *, session_id: str) -> None:
     """Best-effort remove this session's agent sandbox after hard-kill/close.
 
     Scoped to ``agent_session_id`` only — never wipes other concurrent sandboxes.
+    A benchmark engine container skips it: agents run on the frontend's host,
+    which removes their sandboxes.
     """
+    from nika.benchmark_engine import is_engine_server
+
+    if is_engine_server():
+        return
     try:
         from nika.agents.sandbox.backend import cleanup_sandbox_for_session
 
@@ -311,7 +323,7 @@ def _cleanup_local_sandboxes(session_id: str | None, *, stop_all: bool) -> None:
             continue
         if meta.get("session_dir"):
             bind_session_dir(meta["session_dir"])
-        _cleanup_session_sandbox(meta, session_id=sid)
+        cleanup_session_sandbox(meta, session_id=sid)
 
 
 def _clear_orphan_session_record(
@@ -430,10 +442,14 @@ def _stop_session_record(
     if session_meta.get("session_dir"):
         # Bind first so every event below lands in this session's nika.jsonl.
         bind_session_dir(session_meta["session_dir"])
+    from nika.workflows.schedule import cancel_session_schedule
+
+    if cancel_session_schedule(session_meta):
+        return
     # Drop this session's sandbox before lab undeploy so a slow/failed undeploy
     # cannot leave a hard-killed worker's microVM behind. Scoped by
     # agent_session_id only (safe with concurrent benchmarks).
-    _cleanup_session_sandbox(session_meta, session_id=session.session_id)
+    cleanup_session_sandbox(session_meta, session_id=session.session_id)
     backend = resolve_backend(session_meta)
     if session_meta.get("remote"):
         # A remote-mode session whose lab host this process is not connected
@@ -553,7 +569,7 @@ def _clear_session_record(
 
     # Covers stop_all forced cleanup when ``_stop_session_record`` failed
     # before its early sandbox pass. Idempotent when the early pass already ran.
-    _cleanup_session_sandbox(session_meta, session_id=session_id)
+    cleanup_session_sandbox(session_meta, session_id=session_id)
 
     try:
         ended_cnt = session.store.mark_session_failures_ended(
@@ -611,6 +627,12 @@ def close_session(
 
     if is_remote_enabled():
         from nika.remote.workflows import remote_close_session
+        from nika.workflows.schedule import cancel_session_schedule
+
+        if session_id and cancel_session_schedule(
+            load_session_meta_for_close(session_id)
+        ):
+            return
 
         # The lab runs on the remote host, but the agent's sandbox runs here.
         _cleanup_local_sandboxes(session_id, stop_all=stop_all)

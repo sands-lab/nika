@@ -58,6 +58,9 @@ class NetEnvSpec:
     # binding names the class that deploys the same scenario on that platform;
     # the scenario default remains the class bound above.
     device_profiles: Mapping[str, BackendEnvBinding] | None = None
+    # Router platforms a Containerlab-only scenario runs with ``device_profile``;
+    # the first is the default.
+    containerlab_device_profiles: tuple[str, ...] = ()
     # Designed unloaded RTT of the benchmark WAN flow, when specified.
     nominal_path_rtt_ms: float | None = None
 
@@ -369,8 +372,18 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         class_name="ContainerlabMin3Clos",
         family="srl_clos",
         coverage_major=True,
-        tags=("clos", "srl", "bgp", "link", "containerlab", "fabric"),
+        tags=(
+            "clos",
+            "srl",
+            "bgp",
+            "link",
+            "containerlab",
+            "fabric",
+            "forwarding_device",
+            "arp",
+        ),
         supported_backends=("containerlab",),
+        containerlab_device_profiles=("nokia_srlinux", "sonic"),
         topo_size=5,
     ),
     "k8s_lab": NetEnvSpec(
@@ -616,16 +629,54 @@ def scenario_path_bdp_limit_bytes(
     Unknown RTTs or unrestricted profiles have no declared ceiling. Runtime
     calibration must still check the actual flow before changing TCP buffers.
     """
-    bandwidth_bps = {"routeros": 1_000_000}.get(device_profile)
+    from nika.net_env.native_routers import platform_rate_limit_kbps
+
+    rate_kbps = platform_rate_limit_kbps(device_profile)
     rtt_ms = _require_scenario(scenario_name).nominal_path_rtt_ms
-    if bandwidth_bps is None or rtt_ms is None:
+    if rate_kbps is None or rtt_ms is None:
         return None
-    return bandwidth_bps * rtt_ms / 8000
+    return rate_kbps * 1000 * rtt_ms / 8000
+
+
+def scenario_path_rate_limit_kbps(
+    scenario_name: str, device_profile: str | None = None
+) -> int | None:
+    """Kbit/s the scenario's paths carry at most under ``device_profile``, or None.
+
+    See ``NetworkEnvBase.path_rate_limit_kbps``.
+    """
+    spec = _require_scenario(scenario_name)
+    binding = (spec.device_profiles or {}).get(device_profile or "")
+    if binding is None:
+        binding = spec.binding_for(spec.supported_backends[0])
+    cls = getattr(import_module(binding.module), binding.class_name)
+    return cls.path_rate_limit_kbps(device_profile)
+
+
+def scenario_baseline_traffic(
+    scenario_name: str, device_profile: str | None = None
+) -> dict:
+    """Background traffic profile every generated case of the scenario runs.
+
+    See ``NetworkEnvBase.BASELINE_TRAFFIC``.
+    """
+    spec = _require_scenario(scenario_name)
+    binding = (spec.device_profiles or {}).get(device_profile or "")
+    if binding is None:
+        binding = spec.binding_for(spec.supported_backends[0])
+    return dict(
+        getattr(import_module(binding.module), binding.class_name).BASELINE_TRAFFIC
+    )
 
 
 def scenario_device_profiles(scenario_name: str) -> tuple[str, ...]:
     """Return native router profiles selectable for ``scenario_name`` on Kathara."""
     return tuple(sorted(_require_scenario(scenario_name).device_profiles or {}))
+
+
+def scenario_containerlab_device_profiles(scenario_name: str) -> tuple[str, ...]:
+    """Return router platforms selectable for a Containerlab-only scenario."""
+    return _require_scenario(scenario_name).containerlab_device_profiles
 
 
 def scenario_device_profile_sizes(
@@ -712,7 +763,11 @@ def resolve_scenario_backend(
 
 
 def get_net_env_instance(
-    scenario_name: str, *, backend: str | None = None, **kwargs
+    scenario_name: str,
+    *,
+    backend: str | None = None,
+    environment_release: str | None = None,
+    **kwargs,
 ) -> NetworkEnvBase:
     """Get an instance of the specified network environment.
 
@@ -740,6 +795,9 @@ def get_net_env_instance(
     native = (spec.device_profiles or {}).get(merged.get("device_profile"))
     if resolved == "kathara" and native is not None:
         cls = getattr(import_module(native.module), native.class_name)
+    from nika.net_env.compat import release_environment_class
+
+    cls = release_environment_class(canonical, environment_release, cls)
     lab_name = merged.pop("lab_name", None)
     topology_file = merged.pop("topology_file", None)
     runtime_workdir = merged.pop("runtime_workdir", None)
@@ -798,6 +856,7 @@ def get_probe_path(
     *,
     topo_size: str = "s",
     deploy_overrides: Mapping[str, Any] | None = None,
+    net_env: NetworkEnvBase | None = None,
 ) -> ProbePath | None:
     """Default probe path declared by the scenario's lab class, if any.
 
@@ -812,11 +871,20 @@ def get_probe_path(
         backend = resolve_scenario_backend(
             scenario_name, default_when_ambiguous="kathara"
         )
-        cls = _load_net_env_class(scenario_name, backend=backend)
-        return cls.default_probe_path(
-            topo_size=topo_size,
-            **{**(spec.deploy_defaults or {}), **(deploy_overrides or {})},
+        cls = (
+            type(net_env)
+            if net_env is not None
+            else _load_net_env_class(scenario_name, backend=backend)
         )
+        deployment = dict(spec.deploy_defaults or {})
+        if net_env is not None:
+            topo_size = getattr(net_env, "topo_size", None) or topo_size
+            for key in ("topo", "igp", "bgp_mode", "rpki", "device_profile"):
+                value = getattr(net_env, key, None)
+                if value is not None:
+                    deployment[key] = value
+        deployment.update(deploy_overrides or {})
+        return cls.default_probe_path(topo_size=topo_size, **deployment)
     except Exception as exc:  # noqa: BLE001
         system_logger.warning(f"No default probe path for {scenario_name!r}: {exc}")
         return None

@@ -37,7 +37,7 @@ def test_ospf_uses_typed_costs_and_only_active_neighbors():
     iface = replace(node.interfaces[0], name="eth1", metric=37, passive=True)
     plan = replace(plan, nodes=(replace(node, interfaces=(iface,)), *plan.nodes[1:]))
     config = render_routeros_isp(plan)[node.device_name]
-    assert routeros_interface("lo") == "lo0"
+    assert routeros_interface("lo") == "loopback"
     assert routeros_interface("eth0") == "ether1"
     assert routeros_interface("eth1") == "ether2"
     assert f"address={iface.address}/{iface.prefixlen} interface=ether2" in config
@@ -121,7 +121,7 @@ def test_isis_matches_frr_level2_domain_and_passive_edges():
     config = render_routeros_isp(plan)[node.device_name]
     system_id = ".".join(isis_net_from_router_id(node.router_id).split(".")[2:5])
     assert f"areas=49.0001 system-id={system_id} metric-type=wide" in config
-    assert "interfaces=lo0 levels=l2 passive" in config
+    assert "interfaces=loopback levels=l2 passive" in config
     active = node.interfaces[0]
     assert (
         f"interfaces={routeros_interface(active.name)} levels=l2 ptp "

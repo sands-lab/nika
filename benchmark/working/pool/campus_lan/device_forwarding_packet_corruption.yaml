@@ -4,6 +4,9 @@ failure:
   fault_type: device_forwarding_packet_corruption
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: router_core_2
       intf_name: eth2
@@ -16,6 +19,9 @@ failure:
         node: router_core_2
       fault_type: device_forwarding_packet_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: router_core_2
       intf_name: eth3
@@ -28,6 +34,9 @@ failure:
         node: router_core_2
       fault_type: device_forwarding_packet_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       forwarding_device: router_core_2
       intf_name: eth5

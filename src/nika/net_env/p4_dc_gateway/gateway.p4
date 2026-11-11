@@ -149,7 +149,7 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
     }
     @name("ipv4_lpm") table ipv4Lpm {
         key = {
-            hdr.ipv4.dstAddr: lpm; hdr.ipv4.srcAddr: selector;
+            hdr.ipv4.dstAddr: ternary; hdr.ipv4.srcAddr: selector;
             hdr.ipv4.protocol: selector; meta.srcPort: selector; meta.dstPort: selector;
         }
         actions = { forward; drop; }

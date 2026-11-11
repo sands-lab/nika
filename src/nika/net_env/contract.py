@@ -198,16 +198,34 @@ class BgpRouteExpectation(ContractModel):
     prefix: str
     exit_asn: int | None = Field(default=None, ge=1, le=4294967295)
     origin_asn: int | None = Field(default=None, ge=1, le=4294967295)
+    # False: no such route; with origin_asn, none originated in that AS.
     present: bool = True
+    # True checks the best path; False checks every path the router accepted.
+    selected: bool = True
 
     @model_validator(mode="after")
     def validate_prefix(self) -> BgpRouteExpectation:
         IPv4Network(self.prefix)
-        if not self.present and (
-            self.exit_asn is not None or self.origin_asn is not None
-        ):
-            raise ValueError("An absent BGP route cannot constrain AS attributes")
+        if not self.present and self.exit_asn is not None:
+            raise ValueError("An absent BGP route cannot constrain its exit AS")
         return self
+
+    def satisfied_by(self, paths) -> bool:
+        """Check the selected AS paths, each a sequence of ASNs, origin last."""
+        paths = [[str(asn) for asn in path] for path in paths]
+        origin = [str(self.origin_asn)]
+        if not self.present:
+            if self.origin_asn is None:
+                return not paths
+            return not any(path[-1:] == origin for path in paths)
+        matching = [
+            path
+            for path in paths
+            if (self.exit_asn is None or path[:1] == [str(self.exit_asn)])
+            and (self.origin_asn is None or path[-1:] == origin)
+        ]
+        # Every best path must match; among accepted paths, one suffices.
+        return bool(matching) and (not self.selected or len(matching) == len(paths))
 
 
 class RoutePolicyExpectation(ContractModel):

@@ -13,7 +13,9 @@ from nika.agents.registry import get_agent_spec
 from nika.agents.sandbox.config import resolve_sandbox_config
 from nika.agents.sandbox.sbx.backend import SbxBackend
 from nika.agents.sandbox.sbx.policy import (
+    SbxPolicyError,
     allowed_network_resources,
+    require_confinable_sbx_policy,
     resource_matches_host,
     sandbox_network_lockdown,
 )
@@ -193,7 +195,6 @@ def test_create_denies_global_allows_per_sandbox(tmp_path) -> None:
             "policy",
             "rm",
             "network",
-            "--force",
             "--sandbox",
             name,
             "--resource",
@@ -205,6 +206,43 @@ def test_create_denies_global_allows_per_sandbox(tmp_path) -> None:
         for c in calls
         if c[:2] in (["policy", "allow"], ["policy", "deny"])
     )
+
+
+def test_allow_all_policy_stops_before_the_sandbox_is_locked_out() -> None:
+    """Denying every host would also block the gateway and the model proxy."""
+    allow_all = {
+        "rules": [
+            {
+                "name": "default-allow-all",
+                "applies_to": "all",
+                "resource_type": "network",
+                "decision": "allow",
+                "resources": ["**"],
+            }
+        ]
+    }
+
+    def policy_ls(*_args, **_kwargs):
+        return SimpleNamespace(stdout=json.dumps(allow_all))
+
+    with (
+        patch("nika.agents.sandbox.sbx.policy.ensure_sbx_ready"),
+        patch("nika.agents.sandbox.sbx.policy.run_sbx_checked", side_effect=policy_ls),
+    ):
+        # At run start, before anything is deployed.
+        with pytest.raises(SbxPolicyError, match="sbx policy reset") as error:
+            require_confinable_sbx_policy()
+        assert "--with-agentenv" in str(error.value)
+        assert "E2B_API_KEY" in str(error.value)
+        # And before a sandbox gets a deny it could not recover from.
+        with pytest.raises(SbxPolicyError, match="allow-all"):
+            sandbox_network_lockdown(_SANDBOX, keep_resources=("localhost:41000",))
+
+    with (
+        patch("nika.agents.sandbox.sbx.policy.ensure_sbx_ready"),
+        patch("nika.agents.sandbox.sbx.policy.run_sbx_checked", side_effect=_policy_ls),
+    ):
+        require_confinable_sbx_policy()
 
 
 def test_create_removes_sandbox_when_lockdown_fails(tmp_path) -> None:

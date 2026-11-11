@@ -13,7 +13,7 @@ def test_vrf_requires_explicit_static_underlay_scope(tmp_path):
     spec = ScenarioExperiment.model_validate_json(
         (
             Path(__file__).resolve().parents[3]
-            / "experiment/scenario_validation/enterprise.json"
+            / "tests/fixtures/scenario_validation/enterprise.json"
         ).read_text()
     )
     env = EnterpriseBranch()
@@ -67,7 +67,7 @@ def test_snapshot_rebuild_removes_obsolete_devices(tmp_path):
     spec = ScenarioExperiment.model_validate_json(
         (
             Path(__file__).resolve().parents[3]
-            / "experiment/scenario_validation/clos.json"
+            / "tests/fixtures/scenario_validation/clos.json"
         ).read_text()
     )
     env = get_net_env_instance(spec.scenario, topo_size=spec.topo_size)
@@ -80,4 +80,6 @@ def test_snapshot_rebuild_removes_obsolete_devices(tmp_path):
     build_kathara_snapshot(env, spec.healthy, tmp_path)
     assert not obsolete.exists()
     assert not (old_hosts / "obsolete-host.json").exists()
-    assert (snapshot.path / "configs/leaf_router_0_0.cfg").exists()
+    assert (snapshot.path / "configs/leaf_1.cfg").exists()
+    for endpoint in env.model.endpoints:
+        assert (snapshot.path / "configs" / f"{endpoint.name}.cfg").exists()

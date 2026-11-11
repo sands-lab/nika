@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +15,7 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import (
     containerlab_prerequisites,
     docker_available,
+    docker_image_available,
     linux_vrf_available,
     privileged_lab_supported,
 )
@@ -102,6 +105,254 @@ def _incast_e2e_cases() -> list[FailureE2ECase]:
 
 
 CORE_E2E_CASES = (
+    *(
+        FailureE2ECase(
+            problem="rib_fib_inconsistency",
+            scenario=scenario,
+            env_run_args=("-s", "s"),
+            inject_params={"host_name": host},
+            sleep_after_inject_sec=30,
+        )
+        for scenario, host in (
+            ("dc_clos", "super_spine_router_0"),
+            ("campus_lan", "router_dist_1_1"),
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="rib_fib_inconsistency",
+            scenario=scenario,
+            env_run_args=("--igp", igp, "--bgp-mode", mode),
+            isp_options={"igp": igp, "bgp_mode": mode, "rpki": False},
+            inject_seed=seed,
+            sleep_after_inject_sec=30,
+        )
+        for scenario in ("isp_abilene",)
+        for seed, igp, mode in (
+            (1, "isis", "none"),
+            (2, "ospf", "none"),
+            (3, "isis", "ibgp_rr"),
+            (4, "ospf", "ebgp"),
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="rib_fib_inconsistency",
+            scenario=scenario,
+            sleep_after_inject_sec=30,
+        )
+        for scenario in (
+            "isp_abilene_ebgp_rpki",
+            "isp_abilene_ebgp_rtbh",
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="ospf_acl_block",
+            scenario=scenario,
+            env_run_args=(
+                (("-s", "s") if scenario == "campus_lan" else ("--igp", "ospf"))
+                + (("--device-profile", profile) if profile != "frr" else ())
+            ),
+            isp_options=(
+                {
+                    "igp": "ospf",
+                    "bgp_mode": "none",
+                    "rpki": False,
+                    "device_profile": profile,
+                }
+                if scenario == "isp_abilene"
+                else None
+            ),
+            inject_params={
+                "host_name": "router_core_1" if scenario == "campus_lan" else "sttlng"
+            },
+        )
+        for scenario in ("campus_lan", "isp_abilene")
+        for profile in ("frr", "iosxr", "routeros")
+    ),
+    *(
+        FailureE2ECase(
+            problem="vrf_route_target_mismatch",
+            scenario="enterprise_branch",
+            env_run_args=("-s", "s")
+            + (("--device-profile", profile) if profile == "routeros" else ()),
+            inject_params={"host_name": host, "vrf_name": vrf},
+            inject_seed=seed,
+        )
+        for profile in ("frr", "routeros")
+        for host, vrf, seed in (
+            ("br1_edge", "vrf_corp", 1),
+            ("hq_edge", "vrf_server", 2),
+        )
+    ),
+    FailureE2ECase(
+        problem="vrf_route_target_mismatch",
+        scenario="enterprise_branch",
+        env_run_args=("-s", "s", "--device-profile", "iosxr"),
+        inject_params={"host_name": "br1_edge"},
+    ),
+    *(
+        FailureE2ECase(
+            problem="overlay_qos_ef_undersized",
+            scenario="enterprise_branch",
+            topo_size=size,
+            env_run_args=("-s", size)
+            + (("--device-profile", profile) if profile == "routeros" else ()),
+        )
+        for profile in ("frr", "routeros")
+        for size in (("s",) if profile == "routeros" else ("s", "m", "l"))
+    ),
+    *(
+        FailureE2ECase(
+            problem="ospf_stub_area_mismatch",
+            scenario="campus_lan",
+            env_run_args=("-s", "s")
+            + (("--device-profile", profile) if profile != "frr" else ()),
+            inject_params=(
+                {"host_name": "router_core_1", "intf_name": "eth2"}
+                if profile == "iosxr"
+                else {"host_name": "router_dist_1_1", "intf_name": "eth0"}
+            ),
+        )
+        for profile in ("frr", "iosxr", "routeros")
+    ),
+    *(
+        FailureE2ECase(
+            problem="bgp_address_family_not_activated",
+            scenario=scenario,
+            env_run_args=("-s", "s", "--device-profile", "routeros"),
+            inject_params={"host_name": host},
+        )
+        for scenario, host in (
+            ("dc_clos", "leaf_router_0_0"),
+            ("enterprise_branch", "br1_edge"),
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="bgp_address_family_not_activated",
+            scenario="isp_abilene",
+            env_run_args=(
+                "--igp",
+                "isis" if mode == "ibgp_rr" else "ospf",
+                "--bgp-mode",
+                mode,
+                "--device-profile",
+                "routeros",
+            ),
+            isp_options={
+                "igp": "isis" if mode == "ibgp_rr" else "ospf",
+                "bgp_mode": mode,
+                "rpki": False,
+            },
+            inject_params={"host_name": "sttlng" if mode == "ibgp_rr" else "atlang"},
+            inject_seed=0 if mode == "ebgp" else 1,
+        )
+        for mode in ("ebgp", "ibgp_rr")
+    ),
+    *(
+        FailureE2ECase(
+            problem="ospf_hello_interval_mismatch",
+            scenario=scenario,
+            env_run_args=(
+                (("-s", "s") if scenario == "campus_lan" else ("--igp", "ospf"))
+                + (("--device-profile", profile) if profile != "frr" else ())
+            ),
+            isp_options=(
+                {
+                    "igp": "ospf",
+                    "bgp_mode": "none",
+                    "rpki": False,
+                    "device_profile": profile,
+                }
+                if scenario == "isp_abilene"
+                else None
+            ),
+            inject_params=(
+                {"host_name": "router_core_1", "intf_name": "eth2"}
+                if scenario == "campus_lan"
+                else None
+            ),
+        )
+        for scenario in ("campus_lan", "isp_abilene")
+        for profile in ("frr", "iosxr", "routeros")
+    ),
+    FailureE2ECase(
+        problem="bgp_max_prefix_exceeded",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "ospf", "--bgp-mode", "ebgp"),
+        isp_options={"igp": "ospf", "bgp_mode": "ebgp", "rpki": False},
+    ),
+    FailureE2ECase(
+        problem="ospf_neighbor_missing",
+        scenario="campus_lan",
+        env_run_args=("-s", "s"),
+        inject_params={"host_name": "router_core_1"},
+    ),
+    FailureE2ECase(
+        problem="ospf_neighbor_missing",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "ospf"),
+        isp_options={"igp": "ospf", "bgp_mode": "none", "rpki": False},
+    ),
+    *(
+        FailureE2ECase(
+            problem="bgp_max_prefix_exceeded",
+            scenario=scenario,
+            env_run_args=(
+                "--igp",
+                "ospf",
+                "--bgp-mode",
+                "ebgp",
+                "--device-profile",
+                profile,
+            ),
+            isp_options={
+                "igp": "ospf",
+                "bgp_mode": "ebgp",
+                "rpki": False,
+                "device_profile": profile,
+            },
+        )
+        for scenario in ("isp_abilene", "isp_geant")
+        for profile in ("iosxr", "routeros")
+    ),
+    *(
+        FailureE2ECase(
+            problem="ospf_neighbor_missing",
+            scenario="campus_lan",
+            env_run_args=("-s", "s", "--device-profile", profile),
+            inject_params={"host_name": "router_core_1"},
+        )
+        for profile in ("iosxr", "routeros")
+    ),
+    *(
+        FailureE2ECase(
+            problem="ospf_neighbor_missing",
+            scenario=scenario,
+            env_run_args=("--igp", "ospf", "--device-profile", profile),
+            isp_options={
+                "igp": "ospf",
+                "bgp_mode": "none",
+                "rpki": False,
+                "device_profile": profile,
+            },
+        )
+        for scenario in ("isp_abilene",)
+        for profile in ("iosxr", "routeros")
+    ),
+    FailureE2ECase(
+        problem="bgp_hijacking",
+        scenario="simple_bgp",
+        inject_params={
+            "host_name": "router2",
+            "target_network": "200.1.1.0/25",
+            "symptom_host": "router1",
+            "observer_host": "pc1",
+            "probe_dst_ip": "200.1.1.3",
+        },
+    ),
     FailureE2ECase(
         problem="receiver_resource_contention",
         scenario="dc_clos",
@@ -149,11 +400,357 @@ CORE_E2E_CASES = (
         param_overrides={"baseline_trials": "1", "iperf_duration_sec": "3"},
     ),
     FailureE2ECase(
+        problem="device_flow_blackhole",
+        scenario="dc_clos",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="device_flow_blackhole",
+        scenario="dc_clos",
+        env_run_args=("-s", "s", "--device-profile", "routeros"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="bgp_ttl_security_mismatch",
+        scenario="dc_clos",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    *[
+        FailureE2ECase(
+            problem="ospf_area_range_suppression",
+            scenario="campus_lan",
+            topo_size=size,
+            env_run_args=(
+                "-s",
+                size,
+                *(("--device-profile", profile) if profile else ()),
+            ),
+            inject_params={"host_name": host, "area": "0.0.0.1"},
+            inject_seed=1 if host == "router_core_1" else 2,
+        )
+        for profile, size, host in (
+            (None, "s", "router_core_1"),
+            (None, "s", "router_core_2"),
+            ("iosxr", "s", "router_core_1"),
+            ("routeros", "s", "router_core_2"),
+        )
+    ],
+    *(
+        FailureE2ECase(
+            problem="bgp_md5_password_mismatch",
+            scenario=scenario,
+            env_run_args=("-s", "s", *profile_args),
+            inject_params={"host_name": host},
+        )
+        for scenario, host in (
+            ("dc_clos", "leaf_router_0_0"),
+            ("enterprise_branch", "br1_edge"),
+        )
+        for profile_args in (
+            (),
+            ("--device-profile", "iosxr"),
+            ("--device-profile", "routeros"),
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="bgp_md5_password_mismatch",
+            scenario="isp_abilene",
+            env_run_args=(
+                "--igp",
+                "isis" if mode == "ibgp_rr" else "ospf",
+                "--bgp-mode",
+                mode,
+                *profile_args,
+            ),
+            isp_options={
+                "igp": "isis" if mode == "ibgp_rr" else "ospf",
+                "bgp_mode": mode,
+                "rpki": False,
+            },
+            inject_params=(
+                {"host_name": "atlang", "neighbor_ip": "10.0.0.5"}
+                if mode == "ebgp"
+                else {"host_name": "sttlng"}
+            ),
+            inject_seed=0 if mode == "ebgp" else 1,
+        )
+        for mode in ("ebgp", "ibgp_rr")
+        for profile_args in (
+            (),
+            ("--device-profile", "iosxr"),
+            ("--device-profile", "routeros"),
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="bgp_md5_password_mismatch",
+            scenario=scenario,
+            topo_size="",
+            inject_params={"host_name": "router1"},
+        )
+        for scenario in ("iosxr_simple_bgp", "routeros_simple_bgp")
+    ),
+    # The adjacent-neighbor branch (campus_lan area 1) and the LSA-shadowing
+    # branch (single-area ISP).
+    FailureE2ECase(
+        problem="ospf_duplicate_router_id",
+        scenario="campus_lan",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="ospf_duplicate_router_id",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "ospf", "--bgp-mode", "ebgp"),
+        isp_options={"igp": "ospf", "bgp_mode": "ebgp", "rpki": False},
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="ospf_network_type_mismatch",
+        scenario="campus_lan",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="ospf_network_type_mismatch",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "ospf"),
+        isp_options={"igp": "ospf", "bgp_mode": "none", "rpki": False},
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="ospf_network_type_mismatch",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "ospf", "--device-profile", "routeros"),
+        isp_options={
+            "igp": "ospf",
+            "bgp_mode": "none",
+            "rpki": False,
+            "device_profile": "routeros",
+        },
+        inject_params={"host_name": "atlang", "intf_name": "eth1"},
+    ),
+    FailureE2ECase(
+        problem="ospf_network_type_mismatch",
+        scenario="campus_lan",
+        env_run_args=("-s", "s", "--device-profile", "routeros"),
+        inject_params={"host_name": "router_core_1", "intf_name": "eth2"},
+    ),
+    FailureE2ECase(
+        problem="switch_datapath_id_conflict",
+        scenario="sdn_l3_clos",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="k8s_service_target_port_mismatch",
+        scenario="k8s_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="k8s_service_target_port_mismatch",
+        scenario="llmd_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="k8s_service_selector_mismatch",
+        scenario="k8s_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="k8s_service_selector_mismatch",
+        scenario="llmd_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    *(
+        FailureE2ECase(
+            problem="k8s_vxlan_neighbor_stale",
+            scenario=scenario,
+            topo_size="",
+            inject_seed=1,
+        )
+        for scenario in ("k8s_lab", "llmd_lab")
+    ),
+    FailureE2ECase(
+        problem="k8s_ingress_rate_limit_misconfig",
+        scenario="k8s_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="k8s_ingress_class_mismatch",
+        scenario="k8s_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    *(
+        FailureE2ECase(
+            problem="k8s_coredns_forward_loop",
+            scenario=scenario,
+            topo_size="",
+        )
+        for scenario in ("k8s_lab", "llmd_lab")
+    ),
+    *(
+        FailureE2ECase(
+            problem="k8s_readiness_probe_misconfig",
+            scenario=scenario,
+            topo_size="",
+            inject_seed=1,
+        )
+        for scenario in ("k8s_lab", "llmd_lab")
+    ),
+    FailureE2ECase(
+        problem="k8s_deployment_replicas_zero",
+        scenario="k8s_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="k8s_deployment_replicas_zero",
+        scenario="llmd_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="k8s_node_noexecute_taint",
+        scenario="k8s_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="lb_advertisement_missing",
+        scenario="k8s_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="ospf_duplicate_router_id",
+        scenario="campus_lan",
+        env_run_args=("-s", "s", "--device-profile", "routeros"),
+        inject_params={"host_name": "router_dist_1_1"},
+    ),
+    FailureE2ECase(
+        problem="ospf_duplicate_router_id",
+        scenario="isp_abilene",
+        env_run_args=(
+            "--igp",
+            "ospf",
+            "--bgp-mode",
+            "ebgp",
+            "--device-profile",
+            "iosxr",
+        ),
+        isp_options={"igp": "ospf", "bgp_mode": "ebgp", "rpki": False},
+        inject_params={"host_name": "chinng"},
+    ),
+    FailureE2ECase(
+        problem="bgp_ttl_security_mismatch",
+        scenario="iosxr_simple_bgp",
+        topo_size="",
+        inject_params={"host_name": "router1"},
+        sleep_after_inject_sec=30.0,
+    ),
+    FailureE2ECase(
+        problem="bgp_ttl_security_mismatch",
+        scenario="dc_clos",
+        env_run_args=("-s", "s", "--device-profile", "iosxr"),
+        inject_params={"host_name": "leaf_router_0_0"},
+        sleep_after_inject_sec=30.0,
+    ),
+    FailureE2ECase(
+        problem="lb_advertisement_missing",
+        scenario="llmd_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    # Native routers only: IOS XR's RFC 8212 default and RouterOS's
+    # undefined filter chain.
+    *(
+        FailureE2ECase(
+            problem="bgp_session_policy_missing",
+            scenario="dc_clos",
+            env_run_args=("-s", "s", "--device-profile", profile),
+            inject_params={"host_name": "leaf_router_0_1"},
+        )
+        for profile in ("iosxr", "routeros")
+    ),
+    *(
+        FailureE2ECase(
+            problem="bgp_prefix_list_length_mismatch",
+            scenario="enterprise_branch",
+            env_run_args=("-s", "s")
+            + (("--device-profile", profile) if profile != "frr" else ()),
+            inject_params={"host_name": "br1_edge"},
+        )
+        for profile in ("frr", "routeros", "iosxr")
+    ),
+    FailureE2ECase(
+        problem="bgp_session_policy_missing",
+        scenario="enterprise_branch",
+        env_run_args=("-s", "s", "--device-profile", "routeros"),
+        inject_params={"host_name": "br1_edge"},
+    ),
+    FailureE2ECase(
+        problem="isis_metric_style_mismatch",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "isis"),
+        isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+        inject_seed=1,
+    ),
+    *(
+        FailureE2ECase(
+            problem="isis_metric_style_mismatch",
+            scenario="isp_arpanet196912",
+            env_run_args=("--igp", "isis", "--device-profile", profile),
+            isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+            inject_seed=1,
+        )
+        for profile in ("iosxr", "routeros")
+    ),
+    FailureE2ECase(
+        problem="isis_circuit_level_mismatch",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "isis"),
+        isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+        inject_seed=1,
+    ),
+    *(
+        FailureE2ECase(
+            problem="isis_circuit_level_mismatch",
+            scenario="isp_arpanet196912",
+            env_run_args=("--igp", "isis", "--device-profile", profile),
+            isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+            inject_seed=1,
+        )
+        for profile in ("iosxr", "routeros")
+    ),
+    FailureE2ECase(
+        problem="isis_authentication_mismatch",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "isis"),
+        isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="isis_authentication_mismatch",
+        scenario="isp_arpanet196912",
+        env_run_args=("--igp", "isis", "--device-profile", "iosxr"),
+        isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+        inject_seed=1,
+    ),
+    FailureE2ECase(
         problem="bmv2_switch_down",
         scenario="p4_dc_fabric",
         env_run_args=("-s", "s"),
         inject_seed=0,
-        checks=frozenset({"verify", "symptom"}),
         sleep_after_inject_sec=1.0,
     ),
     FailureE2ECase(
@@ -162,8 +759,6 @@ CORE_E2E_CASES = (
         env_run_args=(),
         topo_size="",
         inject_params={"host_name": "leaf1"},
-        # StaticBlackHole has no recover_fault; assert verify + dataplane symptom.
-        checks=frozenset({"verify", "symptom"}),
         sleep_after_inject_sec=2.0,
     ),
 )
@@ -176,7 +771,6 @@ def _pipeline_mismatch_e2e_cases() -> list[FailureE2ECase]:
             scenario="p4_dc_fabric",
             env_run_args=("-s", "s"),
             inject_seed=0,
-            checks=frozenset({"verify", "symptom"}),
             sleep_after_inject_sec=2.0,
         )
     ]
@@ -185,6 +779,67 @@ def _pipeline_mismatch_e2e_cases() -> list[FailureE2ECase]:
 def _all_e2e_cases() -> list[FailureE2ECase]:
     return [
         *CORE_E2E_CASES,
+        *(
+            FailureE2ECase(
+                problem=problem,
+                scenario="isp_dfn-bwin",
+                topo_size="",
+                env_run_args=("--backend", "containerlab", "--igp", "isis"),
+                isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+                inject_params={"host_name": "berlin"},
+            )
+            for problem in (
+                "isis_circuit_level_mismatch",
+                "isis_authentication_mismatch",
+            )
+        ),
+        *(
+            FailureE2ECase(
+                problem=problem,
+                scenario="isp_abilene",
+                topo_size="",
+                env_run_args=(
+                    "--backend",
+                    "containerlab",
+                    "--igp",
+                    "ospf",
+                    "--bgp-mode",
+                    "ebgp",
+                ),
+                isp_options={"igp": "ospf", "bgp_mode": "ebgp", "rpki": False},
+                inject_params={
+                    "host_name": "atlang",
+                    **(
+                        {"intf_name": "e1-1"}
+                        if problem == "ospf_hello_interval_mismatch"
+                        else {}
+                    ),
+                },
+            )
+            for problem in (
+                "ospf_duplicate_router_id",
+                "ospf_hello_interval_mismatch",
+                "ospf_neighbor_missing",
+            )
+        ),
+        *(
+            FailureE2ECase(
+                problem="bgp_md5_password_mismatch",
+                scenario="isp_abilene",
+                topo_size="",
+                env_run_args=(
+                    "--backend",
+                    "containerlab",
+                    "--igp",
+                    igp,
+                    "--bgp-mode",
+                    mode,
+                ),
+                isp_options={"igp": igp, "bgp_mode": mode, "rpki": False},
+                inject_seed=1,
+            )
+            for igp, mode in (("isis", "ibgp_rr"), ("ospf", "ebgp"))
+        ),
         *_link_detach_e2e_cases(),
         *_incast_e2e_cases(),
         *_pipeline_mismatch_e2e_cases(),
@@ -192,8 +847,29 @@ def _all_e2e_cases() -> list[FailureE2ECase]:
     ]
 
 
+# Licensed router images by ``--device-profile``.
+_VENDOR_IMAGES = {
+    "iosxr": "ios-xr/xrd-control-plane:26.2.1",
+    "routeros": "vrnetlab/mikrotik_routeros:7.21.5",
+}
+
+
+def _device_profile(case: FailureE2ECase) -> str | None:
+    args = list(case.env_run_args)
+    if "--device-profile" in args:
+        return args[args.index("--device-profile") + 1]
+    standalone = case.scenario.removesuffix("_simple_bgp")
+    return standalone if standalone in _VENDOR_IMAGES else None
+
+
 def _case_id(case: FailureE2ECase) -> str:
     parts = [case.problem, case.scenario]
+    if profile := _device_profile(case):
+        parts.append(profile)
+    if "--backend" in case.env_run_args:
+        parts.append(case.env_run_args[case.env_run_args.index("--backend") + 1])
+        if "--bgp-mode" in case.env_run_args:
+            parts.append(case.env_run_args[case.env_run_args.index("--bgp-mode") + 1])
     if case.inject_seed != 1:
         parts.append(f"seed{case.inject_seed}")
     if case.topo_size not in ("", "s"):
@@ -206,7 +882,12 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
         return "docker required"
     if case.scenario == "enterprise_branch" and not linux_vrf_available():
         return "host kernel lacks Linux VRF"
-    if case.scenario == "min3clos" and not containerlab_prerequisites():
+    profile = _device_profile(case)
+    if profile and not docker_image_available(_VENDOR_IMAGES[profile]):
+        return f"{_VENDOR_IMAGES[profile]} image not installed"
+    if (
+        case.scenario == "min3clos" or "containerlab" in case.env_run_args
+    ) and not containerlab_prerequisites():
         return "containerlab/gnmic not available"
     # Shared GHA runners: netns move for link_detach is unreliable.
     if case.problem == "link_detach" and artifact_verify_only():
@@ -226,8 +907,8 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
 @pytest.mark.parametrize("case", _all_e2e_cases(), ids=_case_id)
 class TestFailureE2E(IntegrationTestCase):
     def _start_case_session(self, case: FailureE2ECase) -> str:
-        """Start env; retry once for k8s_lab (shared-runner k3s flake)."""
-        attempts = 2 if case.scenario == "k8s_lab" else 1
+        """Start env; retry once for k3s labs (shared-runner k3s flake)."""
+        attempts = 2 if case.scenario in {"k8s_lab", "llmd_lab"} else 1
         last_exc: BaseException | None = None
         for attempt in range(attempts):
             session_id = None
@@ -260,3 +941,77 @@ class TestFailureE2E(IntegrationTestCase):
         finally:
             if session_id is not None:
                 self._close_session(session_id)
+
+
+class TestLatentBackupE2E(IntegrationTestCase):
+    @pytest.mark.parametrize(
+        "profile",
+        ["frr", "routeros"],
+        ids=lambda p: f"latent-backup-enterprise_branch-{p}",
+    )
+    def test_primary_failure_exposes_standby(self, profile):
+        from tests.support.latent_backup_e2e import run_latent_backup_e2e
+
+        case = FailureE2ECase(
+            problem="wireguard_peer_key_misconfiguration",
+            scenario="enterprise_branch",
+            env_run_args=("--device-profile", profile) if profile != "frr" else (),
+        )
+        if reason := _skip_reason(case):
+            pytest.skip(reason)
+        run_latent_backup_e2e(self, profile)
+
+
+@pytest.mark.parametrize("profile", ("frr", "routeros"))
+@pytest.mark.parametrize(
+    "problem,params",
+    (
+        (
+            "wireguard_peer_key_misconfiguration",
+            {"host_name": "br1_edge", "intf_name": "wg_hq"},
+        ),
+        (
+            "wireguard_allowed_ips_misconfiguration",
+            {
+                "host_name": "br1_edge",
+                "intf_name": "wg_hq",
+                "target_prefix": "10.0.20.0/24",
+            },
+        ),
+        (
+            "vrf_dscp_remarking",
+            {
+                "host_name": "hq_edge",
+                "intf_name": "wg_br1",
+                "src_host": "hq_corp_pc",
+                "dst_host": "br1_corp_pc",
+            },
+        ),
+    ),
+    ids=("wireguard_peer_key", "wireguard_allowed_ips", "vrf_dscp_remarking"),
+)
+class TestEnterpriseOracleE2E(IntegrationTestCase):
+    def test_oracle_confirms_site_edge_fault(self, profile, problem, params):
+        from nika.workflows.eval.session import run_eval_metrics
+
+        args = ("-s", "s") + (("--device-profile", profile) if profile != "frr" else ())
+        case = FailureE2ECase(problem, "enterprise_branch", env_run_args=args)
+        if reason := _skip_reason(case):
+            pytest.skip(reason)
+        session_id = None
+        try:
+            session_id = self._start_env(case.scenario, list(args))
+            self._assert_session_ready(session_id, case.scenario)
+            self._inject_failure(problem, params, session_id=session_id)
+            self._run_agent(agent_type="oracle", session_id=session_id)
+            result_dir = Path(self._session_row(session_id)["session_dir"])
+            oracle = json.loads((result_dir / "oracle.json").read_text())
+            assert oracle["solved"] is True, oracle
+        finally:
+            if session_id is not None:
+                self._close_session(session_id)
+        run_eval_metrics(session_id=session_id)
+        metrics = json.loads((result_dir / "eval_metrics.json").read_text())
+        assert metrics["detection_score"] == 1.0, metrics
+        assert metrics["rca_accuracy"] == 1.0, metrics
+        assert metrics["rca_f1"] == 1.0, metrics

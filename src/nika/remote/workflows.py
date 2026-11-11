@@ -4,17 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
 import time
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
-from urllib.parse import urlparse
+from typing import Any
 from uuid import uuid4
 
-from nika.agents.sandbox.config import ENV_GATEWAY_SESSION_TOKEN
 from nika.config import resolve_results_root
 from nika.remote.client import RemoteClient
 from nika.remote.config import load_remote_config
@@ -22,12 +18,6 @@ from nika.remote.protocol import (
     FOLLOWED_LOGS,
     EnvStartRequest,
     FailureInjectRequest,
-    PolicyMode,
-)
-from nika.mcp.gateway.lifecycle import (
-    ENV_GATEWAY_AGENT_URL,
-    ENV_GATEWAY_PHASE_TOKEN,
-    ENV_GATEWAY_URL,
 )
 from nika.utils.logger import bind_session_dir, log_event
 from nika.utils.agent_session_id import make_agent_session_id
@@ -54,6 +44,20 @@ LOCAL_ONLY_KEYS = (
     "sandbox_domain",
     "remote_clock_offset_sec",
     "firecracker",
+    "benchmark_id",
+    "benchmark_version",
+    "benchmark_split",
+    "benchmark_job_id",
+    "benchmark_run_id",
+    "benchmark_official",
+    "benchmark_n_trials",
+    "benchmark_fingerprint",
+    "scoring_id",
+    "nika_git_commit",
+    "candidate_option_id",
+    "trial_id",
+    "trial_index",
+    "case_key",
 )
 
 
@@ -282,8 +286,12 @@ def remote_start_net_env(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    release: str | None = None,
     static_validation: bool = False,
     telemetry: list[str] | None = None,
+    traffic: dict[str, Any] | None = None,
+    defer_background_traffic: bool = False,
+    defer_business_traffic: bool = False,
 ) -> str:
     """Deploy a lab on the remote host and mirror the session locally."""
     suffix = uuid4().hex[:6]
@@ -308,8 +316,12 @@ def remote_start_net_env(
             rpki=rpki,
             backend=backend,
             device_profile=device_profile,
+            release=release,
             static_validation=static_validation,
             telemetry=list(telemetry or []),
+            traffic=traffic,
+            defer_background_traffic=defer_background_traffic,
+            defer_business_traffic=defer_business_traffic,
         )
     )
     session = _mirror_session_locally(
@@ -335,6 +347,7 @@ def remote_rebind_session(
     new_session_id: str | None = None,
     result_dir: str | None = None,
     session_dir: str | None = None,
+    restore_runtime: bool = False,
 ) -> str:
     """Give a running remote session a fresh identity and mirror it locally.
 
@@ -344,7 +357,10 @@ def remote_rebind_session(
     resolved_id = new_session_id or make_session_id()
     client = _client()
     resp = client.rebind_session(
-        session_id, resolved_id, agent_session_id=make_agent_session_id()
+        session_id,
+        resolved_id,
+        agent_session_id=make_agent_session_id(),
+        restore_runtime=restore_runtime,
     )
     session = _mirror_session_locally(
         resp.session, result_dir=result_dir, session_dir=session_dir
@@ -365,7 +381,7 @@ def remote_inject_failure(
     problem_names: list[str],
     *,
     session_id: str | None = None,
-    param_overrides: dict[str, str] | None = None,
+    param_overrides: dict[str, Any] | None = None,
     expected_root_causes: list | None = None,
 ) -> None:
     """Inject faults on the remote host and sync artifacts locally."""
@@ -391,45 +407,6 @@ def remote_inject_failure(
         problems=problem_names,
         remote=True,
     )
-
-
-@contextmanager
-def remote_mcp_gateway(
-    session_id: str,
-    *,
-    policy_mode: PolicyMode = "two_phase",
-) -> Iterator[tuple[str, int]]:
-    """Attach a remote MCP gateway; yield ``(gateway_base_url, port)``."""
-    client = _client()
-    cfg = load_remote_config()
-    attach = client.mcp_attach(
-        session_id,
-        policy_mode=policy_mode,
-        public_host=cfg.host,
-    )
-    exported = {
-        ENV_GATEWAY_URL: attach.gateway_base_url,
-        ENV_GATEWAY_AGENT_URL: attach.gateway_base_url,
-        # Host orchestration advances the phase; sandbox env filters NIKA_*TOKEN.
-        ENV_GATEWAY_PHASE_TOKEN: attach.phase_token,
-        ENV_GATEWAY_SESSION_TOKEN: attach.session_token,
-    }
-    prior = {key: os.environ.get(key) for key in exported}
-    os.environ.update(exported)
-    # The port this host dials; it differs from the lab host's gateway port when
-    # the client maps it (e.g. a local forwarder to a lab VM).
-    port = urlparse(attach.gateway_base_url).port or attach.gateway_port
-    try:
-        yield attach.gateway_base_url, port
-    finally:
-        try:
-            client.mcp_detach(session_id)
-        finally:
-            for key, value in prior.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
 
 
 def remote_close_session(

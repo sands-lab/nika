@@ -162,6 +162,28 @@ Chart names combine the model, normalized harness name, optimization methods, an
 
 Both land under `<release_version>/{YYYYMMDD}_{slug}/`, in `submissions/` on GitHub and in `trajectories/` on Hugging Face. The `{slug}` combines the public harness and model names.
 
+### Audit recorded evidence
+
+`submit` audits its paired trajectories during validation and includes `audit.json` in the scores package. A blocking verdict stops submission; warnings require review. You can repeat the same checks against a scores package and downloaded trajectories:
+
+```shell
+uv run nika leaderboard validate <scores-package> \
+  --fetch-trajectories --audit-out audit.json --audit-repo .
+```
+
+The download selects the merged trajectories or their open Hub PR, pins its commit, and records that revision in the audit report. For local paired data, use `--trajectories <dir>`. Validation also discovers an existing sibling directory. If no trajectories are available, scores-only validation reports that the audit did not run.
+
+The [reviewed knowledge base](../../src/nika/audit/kb_data/) defines blocking and warning findings.
+
+### Automatic trajectory review
+
+Leaderboard CI validates each changed entry against its paired trajectories and reviews the recorded agent behavior. New audits use the latest merged knowledge base. Model review requires a completed trajectory audit and no detected secrets in the scores package. Validation errors still fail the entry check even when model review runs.
+
+Open the pull request's validation check to inspect the audit summary and download its evidence artifacts. The `audit.json` report lists known issues with trial and step references. Review the cited observations when addressing warnings or blocking findings; a successful CI job does not dismiss reported warnings.
+
+Newly proposed audit rules require maintainer review before adoption. For reviewer setup and workflow maintenance, see [Run leaderboard submission audits](../development/testing.md#run-leaderboard-submission-audits).
+
+
 ## 🔍 How validation works
 
 `submit` runs the same checks as leaderboard CI. You need the details below only when a check fails. It verifies that:
@@ -203,7 +225,7 @@ The package contains trials that the release does not define, for example from a
 
 ### `ERROR_RELEASE_UNAVAILABLE`
 
-NIKA could not read the official release: the version has no release tag yet, or GitHub could not be reached. Check the version and the network connection.
+NIKA could not read the official release: the version has no published reference yet, or GitHub could not be reached. Check the version and the network connection.
 
 ### `ERROR_BENCHMARK_MISMATCH`
 
@@ -280,3 +302,15 @@ Some trials show signs of a problem that does not block the submission. Review t
 ### `WARNING_NON_DEFAULT_PRIMARY`
 
 The release declares a primary metric other than `rca_f1`. No action is needed when the release defines it.
+
+### `ERROR_TRAJECTORY_AUDIT`
+
+The trajectory audit found a blocking issue. Open `audit.json`, inspect its cited trial steps, and address the finding before submitting.
+
+### `WARNING_TRAJECTORY_AUDIT`
+
+The trajectory audit found issues that need review. Inspect the cited observations in `audit.json` and address or explain them.
+
+### `WARNING_TRAJECTORY_AUDIT_NOT_RUN`
+
+No paired trajectories were available. Pass `--trajectories <dir>` or `--fetch-trajectories` to validate the recorded evidence too.

@@ -27,7 +27,7 @@ def test_pending_imports_wait_and_rejected_imports_fail_fast():
 def test_first_container_interface_is_reserved_for_management():
     assert routeros_interface("eth0") == "ether1"
     assert routeros_interface("eth1") == "ether2"
-    assert routeros_interface("lo") == "lo0"
+    assert routeros_interface("lo") == "loopback"
     with pytest.raises(ValueError):
         routeros_interface("wg0")
 

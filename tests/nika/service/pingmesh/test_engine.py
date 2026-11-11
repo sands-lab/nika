@@ -82,6 +82,17 @@ class RunPingmeshSnapshotTest:
 
         assert snapshot["summary"]["total_pairs"] == 2
 
+    async def test_pair_count_fits_time_budget(self) -> None:
+        api = MagicMock()
+        api.hosts = [f"pc{i}" for i in range(12)]
+        api.servers = {}
+        api.get_host_ip.side_effect = lambda name: f"10.0.0.{name[2:]}"
+        api.exec_cmd_async = AsyncMock(return_value=OK_OUTPUT)
+        snapshot = await run_pingmesh_snapshot(api, count=20, max_pairs=500)
+
+        assert snapshot["summary"]["total_pairs"] == 32
+        assert snapshot["summary"]["capped"] is True
+
     async def test_no_endpoints_raises(self) -> None:
         api = MagicMock()
         api.hosts = []
@@ -230,3 +241,83 @@ class BuildPairsTest:
         pairs, _ = _build_pairs(names, names, 6)
 
         assert len(pairs) == 6
+
+
+@pytest.mark.parametrize("count,pairs", [(4, 64), (20, 32)])
+@pytest.mark.parametrize("expand", [False, True])
+async def test_probe_scheduling_preserves_samples_and_latency_detection(
+    monkeypatch, count, pairs, expand
+):
+    import asyncio
+    from nika.service.pingmesh import engine
+
+    monkeypatch.setattr(engine.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(engine.os, "process_cpu_count", lambda: 4, raising=False)
+    now = 0.0
+    monkeypatch.setattr(engine, "monotonic", lambda: now)
+    original_sleep = asyncio.sleep
+    active = peak = 0
+    expansion_waits = []
+
+    async def sleep(delay):
+        nonlocal now
+        expansion_waits.append(delay)
+        if expand:
+            now += delay
+            await original_sleep(0)
+        else:
+            await original_sleep(3600)
+
+    monkeypatch.setattr(engine.asyncio, "sleep", sleep)
+
+    async def execute(host, command, timeout):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await original_sleep(0.001)
+        active -= 1
+        return HIGH_LATENCY_OUTPUT if host == "pc0" else OK_OUTPUT
+
+    api = MagicMock()
+    api.hosts = [f"pc{i}" for i in range(12)]
+    api.servers = {}
+    api.get_host_ip.side_effect = lambda name: f"10.0.0.{int(name[2:]) + 1}"
+    api.exec_cmd_async = AsyncMock(side_effect=execute)
+    before = asyncio.all_tasks()
+    result = await engine.run_pingmesh_snapshot(api, count=count, max_pairs=64)
+    assert result["summary"]["total_pairs"] == pairs
+    assert result["summary"]["high_latency"] > 0
+    assert peak == (8 if expand else 2)
+    assert expansion_waits
+    if count == 20:
+        assert expansion_waits[0] == 0
+    else:
+        assert 0 < expansion_waits[0] < engine.PROBE_BUDGET_SEC
+    assert asyncio.all_tasks() == before
+
+
+async def test_snapshot_budget_returns_completed_pairs_and_cancels_stalled_probes(
+    monkeypatch,
+):
+    import asyncio
+    from nika.service.pingmesh import engine
+
+    monkeypatch.setattr(engine, "PROBE_BUDGET_SEC", 0.05)
+    blocked = asyncio.Event()
+
+    async def execute(host, command, timeout):
+        if host == "pc1":
+            return OK_OUTPUT
+        await blocked.wait()
+
+    api = MagicMock()
+    api.hosts = ["pc1", "pc2", "pc3"]
+    api.servers = {}
+    api.get_host_ip.side_effect = lambda name: f"10.0.0.{name[-1]}"
+    api.exec_cmd_async = AsyncMock(side_effect=execute)
+    before = asyncio.all_tasks()
+    result = await engine.run_pingmesh_snapshot(api, include_healthy=True)
+    assert result["summary"]["total_pairs"] == 6
+    assert result["summary"]["reachable_pairs"] == 2
+    assert result["summary"]["unknown"] == 4
+    assert asyncio.all_tasks() == before

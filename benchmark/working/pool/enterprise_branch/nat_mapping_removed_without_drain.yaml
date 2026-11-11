@@ -4,6 +4,9 @@ failure:
   fault_type: nat_mapping_removed_without_drain
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       nat_ip_a: 198.18.1.10
@@ -17,6 +20,9 @@ failure:
       fault_type: nat_mapping_removed_without_drain
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       nat_ip_a: 198.18.1.10
@@ -30,6 +36,9 @@ failure:
       fault_type: nat_mapping_removed_without_drain
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       nat_ip_a: 198.18.1.10
@@ -42,6 +51,9 @@ failure:
         node: br1_edge
       fault_type: nat_mapping_removed_without_drain
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       nat_ip_a: 198.18.1.10
@@ -54,6 +66,9 @@ failure:
         node: br1_edge
       fault_type: nat_mapping_removed_without_drain
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       nat_ip_a: 198.18.1.10

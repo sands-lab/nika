@@ -7,8 +7,459 @@ failure:
     igp: ospf
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: amsterdam
+    root_causes:
+    - resource:
+        kind: node
+        node: amsterdam
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: athens
+    root_causes:
+    - resource:
+        kind: node
+        node: athens
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: barcelona
+    root_causes:
+    - resource:
+        kind: node
+        node: barcelona
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: belgrade
+    root_causes:
+    - resource:
+        kind: node
+        node: belgrade
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+    root_causes:
+    - resource:
+        kind: node
+        node: berlin
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: bordeaux
+    root_causes:
+    - resource:
+        kind: node
+        node: bordeaux
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: brussels
+    root_causes:
+    - resource:
+        kind: node
+        node: brussels
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: budapest
+    root_causes:
+    - resource:
+        kind: node
+        node: budapest
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: copenhagen
+    root_causes:
+    - resource:
+        kind: node
+        node: copenhagen
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: dublin
+    root_causes:
+    - resource:
+        kind: node
+        node: dublin
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+    root_causes:
+    - resource:
+        kind: node
+        node: frankfurt
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: glasgow
+    root_causes:
+    - resource:
+        kind: node
+        node: glasgow
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+    root_causes:
+    - resource:
+        kind: node
+        node: hamburg
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: london
+    root_causes:
+    - resource:
+        kind: node
+        node: london
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: lyon
+    root_causes:
+    - resource:
+        kind: node
+        node: lyon
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: madrid
+    root_causes:
+    - resource:
+        kind: node
+        node: madrid
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: milan
+    root_causes:
+    - resource:
+        kind: node
+        node: milan
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: munich
+    root_causes:
+    - resource:
+        kind: node
+        node: munich
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: oslo
+    root_causes:
+    - resource:
+        kind: node
+        node: oslo
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: paris
+    root_causes:
+    - resource:
+        kind: node
+        node: paris
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: prague
+    root_causes:
+    - resource:
+        kind: node
+        node: prague
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: rome
+    root_causes:
+    - resource:
+        kind: node
+        node: rome
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: stockholm
+    root_causes:
+    - resource:
+        kind: node
+        node: stockholm
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: strasbourg
+    root_causes:
+    - resource:
+        kind: node
+        node: strasbourg
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: vienna
+    root_causes:
+    - resource:
+        kind: node
+        node: vienna
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: warsaw
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: zagreb
+    root_causes:
+    - resource:
+        kind: node
+        node: zagreb
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: zurich
+    root_causes:
+    - resource:
+        kind: node
+        node: zurich
+      fault_type: ospf_area_misconfiguration
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: amsterdam
     root_causes:
@@ -22,6 +473,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: athens
     root_causes:
@@ -35,6 +489,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: barcelona
     root_causes:
@@ -48,6 +505,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: belgrade
     root_causes:
@@ -61,6 +521,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
     root_causes:
@@ -74,6 +537,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: bordeaux
     root_causes:
@@ -87,6 +553,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: brussels
     root_causes:
@@ -100,6 +569,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: budapest
     root_causes:
@@ -113,6 +585,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: copenhagen
     root_causes:
@@ -126,6 +601,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dublin
     root_causes:
@@ -139,6 +617,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
     root_causes:
@@ -152,6 +633,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: glasgow
     root_causes:
@@ -165,6 +649,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
     root_causes:
@@ -178,6 +665,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: london
     root_causes:
@@ -191,6 +681,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: lyon
     root_causes:
@@ -204,6 +697,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: madrid
     root_causes:
@@ -217,6 +713,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: milan
     root_causes:
@@ -230,6 +729,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: munich
     root_causes:
@@ -243,6 +745,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: oslo
     root_causes:
@@ -256,6 +761,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: paris
     root_causes:
@@ -269,6 +777,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: prague
     root_causes:
@@ -282,6 +793,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: rome
     root_causes:
@@ -295,6 +809,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: stockholm
     root_causes:
@@ -308,6 +825,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: strasbourg
     root_causes:
@@ -321,6 +841,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: vienna
     root_causes:
@@ -334,6 +857,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: warsaw
     root_causes:
@@ -347,6 +873,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: zagreb
     root_causes:
@@ -360,6 +889,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: zurich
     root_causes:

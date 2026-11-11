@@ -41,6 +41,7 @@ from nika.net_env.isp.traffic import (
     TrafficMatrixSeries,
     attach_traffic_stubs,
 )
+from nika.net_env.isp.rendered import IspRendered
 from nika.net_env.isp.contract import (
     IspValidationPolicy,
     build_isp_validation_contract,
@@ -69,7 +70,10 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
     )
 
 
-class Isp(NetworkEnvBase):
+class Isp(IspRendered, NetworkEnvBase):
+    # Synthetic WAN traffic follows a gravity model (Roughan, CCR 2005).
+    BASELINE_TRAFFIC = {"pattern": "gravity", "load_mbps": 1.0}
+
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
@@ -87,6 +91,7 @@ class Isp(NetworkEnvBase):
         topo_size: str | None = None,
         scenario_id: str | None = None,
         routing_parameters: dict | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         # Ignore legacy kwargs from old sessions.
@@ -226,7 +231,9 @@ class Isp(NetworkEnvBase):
             f"{host_n} edge stubs, IGP={self.plan.igp}, "
             f"metric={self.plan.metric_strategy}). {bgp_desc}"
         )
-        self.design_note = design_notes(self.plan, self.bgp_plan, router_services=True)
+        self.design_note = design_notes(
+            self.plan, self.bgp_plan, workload=self.business_workload()
+        )
         self.desc += self.design_note
 
         if self.bgp_plan is not None:
@@ -396,33 +403,15 @@ class Isp(NetworkEnvBase):
             )
 
         self.load_machines()
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import use_rendered_configs
+
+            use_rendered_configs(self, required=False)
 
     def _attach_customer_site(self, host_opts: dict) -> str | None:
-        """Attach the eBGP customer site; return its interface on the provider."""
-        site = self.bgp_plan.customer_site if self.bgp_plan is not None else None
-        if site is None:
-            return None
-        node = next(n for n in self.plan.nodes if n.device_name == site.provider)
-        provider_iface = f"eth{len(node.interfaces)}"
-        collision = f"cd_{site.host_name}"
-        self.lab.new_machine(site.host_name, **host_opts)
-        self.declare_machine(
-            site.host_name,
-            role=NodeRole.HOST,
-            capabilities=("linux",),
-            reachability_target=True,
-        )
-        self.lab.connect_machine_to_link(site.provider, collision)
-        self.lab.connect_machine_to_link(site.host_name, collision)
-        plen = site.prefix.rsplit("/", 1)[1]
-        self.lab.create_file_from_list(
-            [
-                f"ip addr add {site.address}/{plen} dev eth0",
-                f"ip route replace default via {site.gateway}",
-            ],
-            f"{site.host_name}.startup",
-        )
-        return provider_iface
+        from nika.net_env.isp.kathara.customer import attach_customer_site
+
+        return attach_customer_site(self, host_opts)
 
     def _attach_routinator(self) -> dict:
         """Attach an offline Routinator RTR next to the ROV observer."""
@@ -497,38 +486,36 @@ class Isp(NetworkEnvBase):
     def probe_intent(self) -> ProbeIntent | None:
         return stub_probe_intent(self.bgp_plan, self.traffic)
 
+    def traffic_demands(self):
+        from nika.net_env.isp.workload import stub_demands
+
+        return stub_demands(self.plan, self.traffic, self.topo)
+
     def business_workload(self):
         from nika.net_env.isp.workload import build_isp_workload
 
-        return build_isp_workload(
-            self.plan,
-            self.traffic,
-            self.bgp_plan,
-            self.topo,
-            router_services=True,
-            routine_changes=self.device_profile == "frr",
-        )
+        if not hasattr(self, "_business_workload"):
+            self._business_workload = build_isp_workload(
+                self.plan,
+                self.traffic,
+                self.bgp_plan,
+                self.topo,
+                router_services=True,
+                routine_changes=self.device_profile == "frr",
+            )
+        return self._business_workload
 
     def bgp_hijack_targets(self):
         """Business-prefix hijacks that divert a service client's sessions."""
-        from nika.net_env.isp.bgp.hijack import hijack_targets
+        from nika.net_env.isp.bgp.hijack import lab_hijack_targets
 
         if self.bgp_plan is None:
             return []
-        stub_of = {h.router_device: h.host_name for h in self.traffic.hosts}
-        router_of = {stub: router for router, stub in stub_of.items()}
-        prefix_at = {o.ping_address: o.prefix for o in self.bgp_plan.originated}
-        clients: dict[str, set[str]] = {}
-        for process in self.business_workload().processes:
-            if (
-                process.app == "web_client"
-                and process.node in router_of
-                and process.args[0] in prefix_at
-            ):
-                clients.setdefault(prefix_at[process.args[0]], set()).add(
-                    router_of[process.node]
-                )
-        return hijack_targets(self.plan, self.bgp_plan, stub_of, clients)
+        if not hasattr(self, "_bgp_hijack_targets"):
+            self._bgp_hijack_targets = lab_hijack_targets(
+                self.plan, self.bgp_plan, self.traffic, self.business_workload()
+            )
+        return list(self._bgp_hijack_targets)
 
     def get_info(self) -> str:
         return format_isp_network_info(

@@ -1,5 +1,7 @@
 """Link quality failure implementations."""
 
+import re
+
 from pydantic import BaseModel, Field
 
 from nika.problems.rca.inventory import (
@@ -17,7 +19,59 @@ from nika.problems.support.benchmark_targets import (
     isp_link_target,
     resolve_link_corruption_params,
 )
+from nika.problems.link_interface.link import _probe_ends
+from nika.problems.support.oracle import (
+    addr_step,
+    toward,
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    shell,
+)
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+from nika.service.containerlab.host_tc import HostTcController
+
+# Receive-side integrity counters: IP header checksum failures and transport
+# checksum failures.
+_SNMP_CMD = "grep -E '^(Ip|Icmp|Tcp|Udp):' /proc/net/snmp"
+_ERROR_FIELDS = {
+    "Ip": ("InHdrErrors",),
+    "Icmp": ("InCsumErrors",),
+    "Tcp": ("InCsumErrors",),
+    "Udp": ("InCsumErrors",),
+}
+
+
+def _integrity_errors(output: str) -> int | None:
+    """Sum of header/checksum error counters in ``/proc/net/snmp`` text."""
+    rows: dict[str, list[list[str]]] = {}
+    for line in output.splitlines():
+        proto, sep, rest = line.partition(":")
+        if sep and proto in _ERROR_FIELDS:
+            rows.setdefault(proto, []).append(rest.split())
+    total, seen = 0, False
+    for proto, fields in _ERROR_FIELDS.items():
+        pair = rows.get(proto) or []
+        if len(pair) < 2:
+            continue
+        values = dict(zip(pair[0], pair[1]))
+        for name in fields:
+            if values.get(name, "").isdigit():
+                total += int(values[name])
+                seen = True
+    return total if seen else None
+
+
+def _errors_grew(output: str) -> bool:
+    before = re.search(r"BEFORE=(\d+)", output)
+    after = _integrity_errors(output)
+    return before is not None and after is not None and after > int(before.group(1))
+
+
+def _partial_loss(output: str) -> bool:
+    match = re.search(r"(\d+(?:\.\d+)?)% packet loss", output)
+    return match is not None and 0 < float(match.group(1)) < 100
 
 
 class LinkPacketCorruptionParams(BaseModel):
@@ -47,12 +101,16 @@ class LinkPacketCorruption(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "degradation"
     root_cause_name: str = "link_packet_corruption"
+    # Goodput collapses only where the path forwards far faster than TCP
+    # sustains under the loss; a 1 Mbit/s path is already near that rate.
+    minimum_path_rate_kbps = 10_000
     description = "A faulty link corrupts a fraction of the frames it carries."
     TAGS: str = ["link"]
-    # Acts on the link through a controller-side proxy, outside the router OS.
+    # Acts on the link outside the router OS: a Kathara proxy or a Containerlab
+    # host-side wire end.
     native_router_operations = frozenset()
     BENCHMARK_LINK_PROXY = True
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
 
     Params = LinkPacketCorruptionParams
 
@@ -87,6 +145,11 @@ class LinkPacketCorruption(ProblemBase):
 
     def inject_fault(self, params: LinkPacketCorruptionParams):
         intf_name = self._target_intf(params.host_name, params.intf_name, last=True)
+        if self.lab_backend == "containerlab":
+            self._wire_dev = HostTcController(self.runtime).set_corrupt(
+                params.host_name, intf_name, params.corruption_percentage
+            )
+            return
         controller = KatharaVdeFaultProxy(self.runtime)
         self._proxy = controller.insert(params.host_name, intf_name)
         controller.set_netem_corrupt(self._proxy, params.corruption_percentage)
@@ -106,9 +169,88 @@ class LinkPacketCorruption(ProblemBase):
             },
         )
 
+    def oracle_playbook(self, params: LinkPacketCorruptionParams) -> OraclePlaybook:
+        host = params.host_name
+        intf = params.intf_name or select_host_interface(self.net_env, host, last=True)
+        steps = [
+            shell(
+                host,
+                f"ip -s link show dev {intf} | head -8",
+                f"Inspect {host}:{intf}, the attachment on the lossy paths.",
+                contains(r"<[^>]*LOWER_UP", f"{host}:{intf} has carrier"),
+            )
+        ]
+        ends = _probe_ends(self.net_env, host, intf)
+        if ends is None:
+            raise ValueError(
+                f"link_packet_corruption on {host}:{intf}: no addressed receiver "
+                "beyond the link counts the corrupted frames"
+            )
+        src, (far, far_intf) = ends
+
+        def recount(out):
+            before = _integrity_errors(out.get("corrupt_snmp", ""))
+            return {
+                "host_name": far,
+                "command": f"echo BEFORE={'unreadable' if before is None else before}; "
+                f"{_SNMP_CMD}",
+                "timeout": 15,
+            }
+
+        steps += [
+            addr_step(far, far_intf, "corrupt_peer"),
+            shell(
+                far,
+                _SNMP_CMD,
+                f"Record the IP and transport checksum error counters on {far}.",
+                Check(
+                    "the counters are readable",
+                    lambda out: _integrity_errors(out) is not None,
+                ),
+                save_as="corrupt_snmp",
+            ),
+            toward(
+                src,
+                "corrupt_peer",
+                "ping -c 200 -i 0.02 -s 1200 -W 1 {ip} | tail -2",
+                f"Send 200 large probes from {src} across the link to {far}.",
+                Check("some but not all probes are lost", _partial_loss),
+                evidence=True,
+            ),
+            OracleStep(
+                f"Read {far}'s checksum error counters again after the probes.",
+                "exec_shell",
+                recount,
+                Check(
+                    f"{far} counted new IP header or checksum errors on frames "
+                    "it received",
+                    _errors_grew,
+                ),
+                evidence=True,
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"The link on {host}:{intf} corrupts a fraction of the frames it "
+                "carries: probes across it are lost and the "
+                "receiver counts checksum errors."
+            ),
+            steps=steps,
+        )
+
     def recover_fault(self, params: LinkPacketCorruptionParams) -> dict:
         """Remove controller-only injection and restore the logical link."""
         intf = self._target_intf(params.host_name, params.intf_name, last=True)
+        if self.lab_backend == "containerlab":
+            controller = HostTcController(self.runtime)
+            dev = getattr(self, "_wire_dev", None) or controller.egress_dev(
+                params.host_name, intf
+            )
+            controller.clear(dev)
+            return {
+                "verified": not controller.corrupt_configured(dev),
+                "details": {"host": params.host_name, "intf": intf},
+            }
         controller = KatharaVdeFaultProxy(self.runtime)
         proxy = getattr(self, "_proxy", None) or controller.discover(
             params.host_name, intf
@@ -124,6 +266,16 @@ class LinkPacketCorruption(ProblemBase):
     def _verify_artifact(
         self, params: LinkPacketCorruptionParams, intf: str
     ) -> tuple[bool, dict]:
+        if self.lab_backend == "containerlab":
+            controller = HostTcController(self.runtime)
+            dev = getattr(self, "_wire_dev", None) or controller.egress_dev(
+                params.host_name, intf
+            )
+            return controller.corrupt_configured(dev), {
+                "host": params.host_name,
+                "intf": intf,
+                "wire_end": dev,
+            }
         controller = KatharaVdeFaultProxy(self.runtime)
         proxy = getattr(self, "_proxy", None) or controller.discover(
             params.host_name, intf
@@ -151,6 +303,10 @@ class LinkPacketCorruption(ProblemBase):
     def _link_peer_endpoint(
         self, host_name: str, intf_name: str
     ) -> tuple[str, str] | None:
+        if self.lab_backend == "containerlab":
+            from nika.problems.link_interface.link import _link_peer
+
+            return _link_peer(self.net_env, host_name, intf_name)
         controller = KatharaVdeFaultProxy(self.runtime)
         state = getattr(self, "_proxy", None) or controller.discover(
             host_name, intf_name

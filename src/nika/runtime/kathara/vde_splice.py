@@ -11,7 +11,9 @@ hub's two port sockets (``pidfd_getfd``), pauses the hub with ``SIGSTOP`` and
 relays each port into a local TAP (``eth0`` toward the endpoint, ``eth1``
 toward the peer) joined by ``br0``. ``tc`` on those TAPs then impairs the
 wire while the lab interfaces, their ifindexes and counters stay untouched.
-``SIGTERM`` resumes the hub and exits.
+A second instance of the installed VDE binary forwards the relayed frames,
+using the same port capacity as the original hub. This preserves the native
+forwarding cost in both directions. ``SIGTERM`` resumes the hub and exits.
 """
 
 from __future__ import annotations
@@ -26,6 +28,11 @@ import socket
 import struct
 import subprocess
 import sys
+import time
+import uuid
+
+# Injected with the shared standard-library source by vde_proxy.
+_PROCESS_HELPERS = globals().get("_PROCESS_HELPERS", {})
 
 _SYS_PIDFD_GETFD = 438
 _SYS_PPOLL = {"x86_64": 271, "aarch64": 73}
@@ -141,10 +148,117 @@ def _ip(*args: str) -> None:
     subprocess.run(["ip", *args], check=True)
 
 
+class _NativeForwarder:
+    """Keep the installed VDE forwarding implementation in the impaired path."""
+
+    def __init__(self, switch: int):
+        self.namespace = os.open(f"/proc/{switch}/ns/mnt", os.O_RDONLY)
+        self.directory = f"/tmp/nika-vde-{uuid.uuid4().hex}"
+        native_directory = self.directory
+        self.controls = []
+        self.data = {}
+        self.process = None
+        try:
+            self._run("mkdir", self.directory)
+            binary = os.readlink(f"/proc/{switch}/exe")
+            with open(f"/proc/{switch}/cmdline", "rb") as handle:
+                argv = handle.read().split(b"\0")
+            count = argv[argv.index(b"-n") + 1].decode() if b"-n" in argv else "32"
+            self.process = subprocess.Popen(
+                [
+                    *self._prefix(),
+                    binary,
+                    "-n",
+                    count,
+                    "-x",
+                    "--nostdin",
+                    "-s",
+                    native_directory + "/ctl",
+                ],
+                pass_fds=(self.namespace,),
+                stdout=subprocess.DEVNULL,
+            )
+            root = f"/proc/{self.process.pid}/root"
+            control_path = root + self.directory + "/ctl/ctl"
+            deadline = time.monotonic() + 5
+            while not os.path.exists(control_path):
+                if self.process.poll() is not None or time.monotonic() > deadline:
+                    raise RuntimeError("Native VDE forwarder did not start")
+                time.sleep(0.02)
+            for name in ("eth0", "eth1"):
+                data = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+                self.data[name] = data
+                data.bind(("\0nika-vde-" + uuid.uuid4().hex).encode().ljust(108, b"\0"))
+                control = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.controls.append(control)
+                control.settimeout(5)
+                control.connect(control_path)
+                control.sendall(
+                    struct.pack(
+                        "=IIIH108s",
+                        0xFEEDFACE,
+                        3,
+                        0,
+                        socket.AF_UNIX,
+                        data.getsockname(),
+                    )
+                    + b"nika\0"
+                )
+                response = b""
+                while len(response) < 110:
+                    part = control.recv(110 - len(response))
+                    if not part:
+                        raise RuntimeError("Native VDE port handshake ended early")
+                    response += part
+                peer = response[2:].split(b"\0", 1)[0].decode()
+                if not peer.startswith(native_directory + "/ctl/"):
+                    raise RuntimeError("Native VDE returned an unexpected port path")
+                data.connect(root + peer)
+                data.setblocking(False)
+        except BaseException:
+            self.close()
+            raise
+
+    def _prefix(self):
+        return ["nsenter", f"--mount=/proc/self/fd/{self.namespace}", "--"]
+
+    def _run(self, *args):
+        return subprocess.run(
+            [*self._prefix(), *args], pass_fds=(self.namespace,), check=True
+        )
+
+    def close(self):
+        for data in self.data.values():
+            data.close()
+        for control in self.controls:
+            control.close()
+        if self.process is not None:
+            if self.process.poll() is None:
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait()
+        try:
+            self._run("rmdir", self.directory)
+        except (OSError, subprocess.CalledProcessError):
+            pass
+        if self.namespace is not None:
+            os.close(self.namespace)
+            self.namespace = None
+
+
 def main() -> None:
     ctl, node_pid, ifname, mtu, ready = sys.argv[1:6]
     netns_ino = os.stat(f"/proc/{node_pid}/ns/net").st_ino
     switch = _switch_pid(ctl)
+    switch_identity = _PROCESS_HELPERS["process_identity"](switch)
+    switch_fd = _PROCESS_HELPERS["owned_pidfd"](switch_identity)
+    if switch_fd is None or _switch_pid(ctl) != switch:
+        raise SystemExit("VDE hub exited before its process identity was pinned")
+    if os.stat("/proc/self/ns/net").st_ino == os.stat("/proc/1/ns/net").st_ino:
+        raise SystemExit("Refusing a VDE splice in the host network namespace")
     sockets = _unix_dgram_sockets(switch)
     ports = [row for row in sockets if row[0] == switch]
     if len(ports) != 2:
@@ -170,41 +284,67 @@ def main() -> None:
         "eth0": socket.socket(fileno=_steal(switch, endpoint_port)),
         "eth1": socket.socket(fileno=_steal(switch, peer_port)),
     }
+    native = _NativeForwarder(switch)
     flags = socket.MSG_DONTWAIT
-    # fd -> (read one frame, forward it to the other side)
     route = {}
     for name, tap in taps.items():
         wire = wires[name]
+        data = native.data[name]
+        opposite = native.data["eth1" if name == "eth0" else "eth0"]
         route[tap] = (
             lambda tap=tap: os.read(tap, _BUF),
-            lambda frame, wire=wire: wire.send(frame, flags),
+            lambda frame, opposite=opposite: opposite.send(frame, flags),
         )
         route[wire.fileno()] = (
             lambda wire=wire: wire.recv(_BUF, flags),
             lambda frame, tap=tap: os.write(tap, frame),
         )
+        route[data.fileno()] = (
+            lambda data=data: data.recv(_BUF, flags),
+            lambda frame, wire=wire: wire.send(frame, flags),
+        )
 
-    def resume(*_args) -> None:
-        os.kill(switch, signal.SIGCONT)
-        os._exit(0)
+    def stop(*_args) -> None:
+        raise SystemExit(0)
 
-    signal.signal(signal.SIGTERM, resume)
-    signal.signal(signal.SIGINT, resume)
-    poller = select.epoll()
-    for fd in route:
-        poller.register(fd, select.EPOLLIN)
-    os.kill(switch, signal.SIGSTOP)
-    with open(ready, "w") as handle:
-        handle.write(f"{os.getpid()} {switch}\n")
-    while True:
-        for fd, _event in poller.poll():
-            receive, forward = route[fd]
-            try:
-                forward(receive())
-            except OSError:
-                # A full peer queue or a TAP held down drops the frame, as a
-                # congested or dark wire would.
-                pass
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    try:
+        with select.epoll() as poller:
+            for fd in route:
+                poller.register(fd, select.EPOLLIN)
+            _PROCESS_HELPERS["send_pidfd"](switch_fd, signal.SIGSTOP)
+            with open(ready + ".tmp", "w") as handle:
+                import json
+
+                json.dump(
+                    {
+                        "relay": _PROCESS_HELPERS["process_identity"](os.getpid()),
+                        "hub": switch_identity,
+                        "native": _PROCESS_HELPERS["process_identity"](
+                            native.process.pid
+                        ),
+                        "directory": native.directory,
+                    },
+                    handle,
+                )
+            os.replace(ready + ".tmp", ready)
+            while native.process.poll() is None:
+                for fd, _event in poller.poll(1):
+                    receive, forward = route[fd]
+                    try:
+                        forward(receive())
+                    except OSError:
+                        # A full peer queue or a TAP held down drops the frame,
+                        # as a congested or dark wire would.
+                        pass
+    finally:
+        try:
+            _PROCESS_HELPERS["send_pidfd"](switch_fd, signal.SIGCONT)
+        except ProcessLookupError:
+            pass
+        native.close()
+        os.close(switch_fd)
 
 
 if __name__ == "__main__":

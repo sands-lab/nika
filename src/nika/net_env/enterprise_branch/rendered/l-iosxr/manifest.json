@@ -1,0 +1,50 @@
+{
+  "digest": "bd78632aa9713f5d770979ea910d8e9837107b662cee6dbaaec80a7c49ec9462",
+  "netlab": "26.10",
+  "routers": [
+    "br1_edge",
+    "br2_edge",
+    "br3_edge",
+    "br4_edge",
+    "br5_edge",
+    "br6_edge",
+    "br7_edge",
+    "br8_edge",
+    "dc2_edge",
+    "hq_edge",
+    "isp1_core",
+    "isp2_core"
+  ],
+  "scripts": {
+    "br1_edge": [
+      "tunnel.wireguard"
+    ],
+    "br2_edge": [
+      "tunnel.wireguard"
+    ],
+    "br3_edge": [
+      "tunnel.wireguard"
+    ],
+    "br4_edge": [
+      "tunnel.wireguard"
+    ],
+    "br5_edge": [
+      "tunnel.wireguard"
+    ],
+    "br6_edge": [
+      "tunnel.wireguard"
+    ],
+    "br7_edge": [
+      "tunnel.wireguard"
+    ],
+    "br8_edge": [
+      "tunnel.wireguard"
+    ],
+    "dc2_edge": [
+      "tunnel.wireguard"
+    ],
+    "hq_edge": [
+      "tunnel.wireguard"
+    ]
+  }
+}

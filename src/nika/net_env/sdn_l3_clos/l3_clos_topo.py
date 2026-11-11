@@ -9,6 +9,7 @@ from typing import Literal
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
+from nika.net_env.clos.requirements import communication_contract
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.rack_workload import (
@@ -16,7 +17,7 @@ from nika.net_env.utils.rack_workload import (
     client_processes,
     web_content_commands,
 )
-from nika.traffic.workload import BusinessWorkload
+from nika.traffic.workload import BusinessWorkload, pace_browsers
 from nika.net_env.sdn_l3_clos.topology_model import (
     BASE_IMAGE,
     FABRIC_MGR_OOB_IP,
@@ -39,10 +40,10 @@ from nika.net_env.sdn_l3_clos.topology_model import (
 _OVS_HANDLER_THREADS = 2
 _OVS_REVALIDATOR_THREADS = 1
 LARGE_OBJECT_MB = 16
-# Fabric-wide pace of large downloads: unpaced, each one fills its path, and
-# every fabric link is a userspace switch that spends CPU per packet. Each
-# client's pause therefore grows with the number of clients.
+# Each client's pause grows with the client count to spread large downloads.
 LARGE_DOWNLOAD_EVERY_SEC = 60
+# Share a fabric-wide web traffic budget across clients to leave forwarding headroom.
+WORKLOAD_RATE_KBPS = 10_000
 
 
 def _ovs_start_commands() -> list[str]:
@@ -84,6 +85,8 @@ class HostMeta:
 
 
 class SDNL3Clos(NetworkEnvBase):
+    build_model = staticmethod(build_clos_fabric_model)
+    L2_CAPABILITIES = frozenset({"arp-broadcast"})
     LAB_NAME = "sdn_l3_clos"
     # Leaf IPv4 flows match the leaf's own MACs as eth_dst.
     ROUTERS_CHECK_DST_MAC = True
@@ -97,8 +100,15 @@ class SDNL3Clos(NetworkEnvBase):
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
         self.topo_size: TopoSize = topo_size
-        self.model: ClosFabricModel = build_clos_fabric_model(topo_size)
+        self.model: ClosFabricModel = self.build_model(topo_size)
+        self.l2_endpoint_groups = tuple(
+            tuple(e.name for e in self.model.endpoints_on_leaf(i))
+            for i in range(1, self.model.leaf_count + 1)
+        )
         self.web_urls = list(self.model.web_urls)
+        self.validation_contract = communication_contract(
+            self.model, scenario=self.LAB_NAME, topo_size=topo_size
+        )
         self._host_ips = {e.name: e.ip for e in self.model.endpoints}
 
         self.desc = textwrap.dedent(f"""\
@@ -350,11 +360,14 @@ class SDNL3Clos(NetworkEnvBase):
         mean = LARGE_DOWNLOAD_EVERY_SEC * len(clients)
         return BusinessWorkload(
             processes=tuple(
-                client_processes(
-                    clients,
-                    webs,
-                    page_pause="3-10",
-                    large_pause=f"{mean // 2}-{mean * 3 // 2}",
+                pace_browsers(
+                    client_processes(
+                        clients,
+                        webs,
+                        page_pause="3-10",
+                        large_pause=f"{mean // 2}-{mean * 3 // 2}",
+                    ),
+                    WORKLOAD_RATE_KBPS,
                 )
             ),
             exercises=tuple(bulk_downloads(clients)),
@@ -379,10 +392,7 @@ class SDNL3Clos(NetworkEnvBase):
         model = build_clos_fabric_model(
             topo_size if topo_size in {"s", "m", "l"} else "s"
         )
-        clients = model.client_endpoints()
-        src = clients[0]
-        dst = next(w for w in model.web_endpoints() if w.leaf_id != src.leaf_id)
-        peer = next((c for c in clients if c.name != src.name), None)
+        src, dst, peer = model.probe_endpoints(deploy_kwargs.get("probe_source"))
         return ProbePath(
             src_host=src.name,
             dst_ip=dst.ip,

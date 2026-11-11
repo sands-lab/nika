@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_7
       peer_host: pc_n_7
@@ -26,6 +29,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_8
       peer_host: pc_n_8
@@ -43,6 +49,69 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_9
+      peer_host: pc_n_9
+      prefix: 203.0.115.0/24
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_7
+      peer_host: pc_n_7
+      prefix: 203.0.113.0/24
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_1
+    root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_8
+      peer_host: pc_n_8
+      prefix: 203.0.114.0/24
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_9
       peer_host: pc_n_9
@@ -60,6 +129,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_7
       peer_host: pc_n_7
@@ -77,6 +149,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_8
       peer_host: pc_n_8
@@ -94,6 +169,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_9
       peer_host: pc_n_9
@@ -111,6 +189,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_7
       peer_host: pc_n_7
@@ -128,6 +209,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_8
       peer_host: pc_n_8
@@ -145,6 +229,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_9
       peer_host: pc_n_9
@@ -162,6 +249,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_7
       peer_host: pc_n_7
@@ -179,6 +269,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_8
       peer_host: pc_n_8
@@ -196,6 +289,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_9
       peer_host: pc_n_9

@@ -1,0 +1,6 @@
+------------------------ show bgp ipv4 unicast detail -------------------------
+show bgp ipv4 unicast detail
+
+                        ^
+% Invalid input detected at '^' marker.
+showtech_helper error: Parsing of command "show bgp ipv4 unicast detail" failed

@@ -2,41 +2,27 @@
 
 from __future__ import annotations
 
-import textwrap
-from ipaddress import IPv4Interface, IPv4Network
 from typing import Literal
 
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
+from nika.net_env.clos.requirements import communication_contract
+from nika.net_env.dc_clos.design import router_asns, routing_links
 from nika.net_env.utils.download_object import download_object_commands
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.native_routers import NativeRouterEnv
+from nika.net_env.synthesis.design import RoutingDesign
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
-# P2P links use 172.16.0.0/16 with /31 per link.
-# Leaf access networks use 10.<pod>.<leaf>.0/24 with leaf .1 and endpoint .2
-
-
-def assign_p2p_ips(subnet):
-    base = subnet.network_address
-    ip0 = IPv4Interface(f"{base}/31")
-    ip1 = IPv4Interface(f"{base + 1}/31")
-    return str(ip0), str(ip1)
-
-
-def fabric_dimensions(topo_size: Literal["s", "m", "l"]) -> tuple[int, int, int]:
-    """Return (super_spine_count, spine_per_pod, leaf_per_pod)."""
-    if topo_size == "s":
-        return 1, 2, 2
-    if topo_size == "m":
-        return 2, 4, 4
-    if topo_size == "l":
-        return 4, 8, 8
-    raise ValueError("topo_size should be s, m, or l.")
-
+from nika.net_env.clos.design import (
+    build_clos_fabric_model,
+    fabric_dimensions,
+    gateway_ip,
+    rack_prefix,
+)
 
 FRR_BASE_TEMPLATE = """
 !
@@ -57,15 +43,12 @@ router bgp {AS_number}
 line vty
 """
 
-# glibc reads at most three ``nameserver`` lines from /etc/resolv.conf.
-_RESOLV_MAXNS = 3
-
 FRR_NEIGHBOR_ADD_TEMPLATE = """neighbor {neighbor_ip} remote-as {neighbor_as}
 """
 
 
 class RouterMeta:
-    def __init__(self, name, machine: Machine, eth_index, cmd_list, AS_number):
+    def __init__(self, name, machine: Machine, eth_index, cmd_list, AS_number, design):
         self.name = name
         self.machine = machine
         self.eth_index = eth_index
@@ -76,27 +59,23 @@ class RouterMeta:
         self.frr_neighbor_configs = []
         self.neighbor_ips: list[str] = []
         self.host_network = None
-
-
-class HostMeta:
-    def __init__(self, name, machine: Machine, eth_index, cmd_list):
-        self.name = name
-        self.machine = machine
-        self.eth_index = eth_index
-        self.cmd_list = cmd_list
-        self.ip_address = None
+        self.design = design.router(name)
+        self.design.asn = AS_number
+        self.design.bgp_multipath = 32
+        self.design.ebgp_requires_policy = False
+        self.design.debug = ["bgp keepalives", "bgp updates in", "bgp updates out"]
 
 
 class DCClos(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
+    L2_CAPABILITIES = frozenset({"arp-broadcast", "mac-learning"})
+    STORES_RENDERED_CONFIGS = True
     LAB_NAME = "dc_clos"
     TOPO_LEVEL = "medium"
     NATIVE_PROFILE_ROLES = {
-        "iosxr": frozenset({"super_spine", "spine", "leaf"}),
-        "routeros": frozenset({"super_spine", "spine", "leaf"}),
+        "iosxr": frozenset({"spine"}),
+        "routeros": frozenset({"spine", "leaf"}),
     }
-    # Each XRd router needs about 2 GiB and each RouterOS router boots a VM;
-    # size m already has 18 routers.
     NATIVE_PROFILE_SIZES = {"iosxr": ("s",), "routeros": ("s",)}
 
     def __init__(
@@ -104,243 +83,218 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
         topo_size: Literal["s", "m", "l"] = "s",
         routing_parameters: dict | None = None,
         device_profile: str | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.topo_size = topo_size
+        self.model = build_clos_fabric_model(topo_size)
+        self.validation_contract = communication_contract(
+            self.model, scenario=self.LAB_NAME, topo_size=topo_size
+        )
+        self.spine_count, self.leaf_count, self.endpoints_per_leaf = fabric_dimensions(
+            topo_size
+        )
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
-
-        super_spine_count, spine_per_pod, leaf_per_pod = fabric_dimensions(topo_size)
-        self.super_spine_count = super_spine_count
-        self.spine_count = spine_per_pod
-        self.leaf_count = leaf_per_pod
-
-        pod_spines: dict[int, list[RouterMeta]] = {}
-        pod_leaves: dict[int, list[RouterMeta]] = {}
-
-        tot_super_spines: list[RouterMeta] = []
-        tot_spines: list[RouterMeta] = []
-        tot_leaves: list[RouterMeta] = []
-
-        infra_pool = IPv4Network("172.16.0.0/16")
-        subnets31 = list(infra_pool.subnets(new_prefix=31))
-
-        for ss in range(super_spine_count):
-            ss_name = f"super_spine_router_{ss}"
-            router_ss = self.lab.new_machine(
-                ss_name, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
+        self.routing_design = RoutingDesign()
+        routers = {}
+        for name, asn in router_asns(self.model).items():
+            machine = self.lab.new_machine(
+                name, image=nika_image("frr"), cpus=0.5, mem="256m"
             )
             self.declare_machine(
-                ss_name,
-                role=NodeRole.ROUTER,
-                capabilities=("linux", "frr", "bgp"),
+                name, role=NodeRole.ROUTER, capabilities=("linux", "frr", "bgp")
             )
-            tot_super_spines.append(
-                RouterMeta(
-                    name=ss_name,
-                    machine=router_ss,
-                    eth_index=0,
-                    cmd_list=[],
-                    AS_number=65000 + ss,
-                )
-            )
+            routers[name] = RouterMeta(name, machine, 0, [], asn, self.routing_design)
 
-        for pod in range(super_spine_count):
-            pod_spines[pod] = []
-            for spine_id in range(spine_per_pod):
-                spine_name = f"spine_router_{pod}_{spine_id}"
-                router_spine = self.lab.new_machine(
-                    spine_name,
-                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
-                )
-                self.declare_machine(
-                    spine_name,
-                    role=NodeRole.ROUTER,
-                    capabilities=("linux", "frr", "bgp"),
-                )
-                spine_meta = RouterMeta(
-                    name=spine_name,
-                    machine=router_spine,
-                    eth_index=0,
-                    cmd_list=[],
-                    AS_number=65100 + 10 * pod + spine_id,
-                )
-                pod_spines[pod].append(spine_meta)
-                tot_spines.append(spine_meta)
-
-            pod_leaves[pod] = []
-            for leaf_id in range(leaf_per_pod):
-                leaf_name = f"leaf_router_{pod}_{leaf_id}"
-                router_leaf = self.lab.new_machine(
-                    leaf_name,
-                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
-                )
-                self.declare_machine(
-                    leaf_name,
-                    role=NodeRole.ROUTER,
-                    capabilities=("linux", "frr", "bgp"),
-                )
-                leaf_meta = RouterMeta(
-                    name=leaf_name,
-                    machine=router_leaf,
-                    eth_index=0,
-                    cmd_list=[],
-                    AS_number=65200 + 10 * pod + leaf_id,
-                )
-                pod_leaves[pod].append(leaf_meta)
-                tot_leaves.append(leaf_meta)
-
-        # Super-spine ↔ all spines
-        for pod in range(super_spine_count):
-            super_spine_meta = tot_super_spines[pod]
-            for spine_meta in tot_spines:
-                self.lab.connect_machine_to_link(
-                    super_spine_meta.machine.name,
-                    f"{super_spine_meta.machine.name}_{spine_meta.machine.name}",
-                )
-                self.lab.connect_machine_to_link(
-                    spine_meta.machine.name,
-                    f"{super_spine_meta.machine.name}_{spine_meta.machine.name}",
-                )
-                subnet = subnets31.pop(0)
-                a_ip, b_ip = assign_p2p_ips(subnet)
-                super_spine_meta.cmd_list.append(
-                    f"ip addr add {a_ip} dev eth{super_spine_meta.eth_index}"
-                )
-                super_spine_meta.eth_index += 1
-                spine_meta.cmd_list.append(
-                    f"ip addr add {b_ip} dev eth{spine_meta.eth_index}"
-                )
-                spine_meta.eth_index += 1
-                super_spine_meta.frr_neighbor_configs.append(
-                    FRR_NEIGHBOR_ADD_TEMPLATE.format(
-                        neighbor_ip=b_ip.split("/")[0],
-                        neighbor_as=spine_meta.AS_number,
-                    )
-                )
-                super_spine_meta.neighbor_ips.append(b_ip.split("/")[0])
-                spine_meta.frr_neighbor_configs.append(
-                    FRR_NEIGHBOR_ADD_TEMPLATE.format(
-                        neighbor_ip=a_ip.split("/")[0],
-                        neighbor_as=super_spine_meta.AS_number,
-                    )
-                )
-                spine_meta.neighbor_ips.append(a_ip.split("/")[0])
-                if super_spine_meta.router_id == "":
-                    super_spine_meta.router_id = a_ip.split("/")[0]
-                if spine_meta.router_id == "":
-                    spine_meta.router_id = b_ip.split("/")[0]
-
-        # Spine ↔ leaf within each pod
-        for pod in range(super_spine_count):
-            for spine_meta in pod_spines[pod]:
-                for leaf_meta in pod_leaves[pod]:
-                    self.lab.connect_machine_to_link(
-                        spine_meta.machine.name,
-                        f"{spine_meta.machine.name}_{leaf_meta.machine.name}",
-                    )
-                    self.lab.connect_machine_to_link(
-                        leaf_meta.machine.name,
-                        f"{spine_meta.machine.name}_{leaf_meta.machine.name}",
-                    )
-                    subnet = subnets31.pop(0)
-                    a_ip, b_ip = assign_p2p_ips(subnet)
-                    spine_meta.cmd_list.append(
-                        f"ip addr add {a_ip} dev eth{spine_meta.eth_index}"
-                    )
-                    spine_meta.eth_index += 1
-                    leaf_meta.cmd_list.append(
-                        f"ip addr add {b_ip} dev eth{leaf_meta.eth_index}"
-                    )
-                    leaf_meta.eth_index += 1
-                    spine_meta.frr_neighbor_configs.append(
-                        FRR_NEIGHBOR_ADD_TEMPLATE.format(
-                            neighbor_ip=b_ip.split("/")[0],
-                            neighbor_as=leaf_meta.AS_number,
-                        )
-                    )
-                    spine_meta.neighbor_ips.append(b_ip.split("/")[0])
-                    leaf_meta.frr_neighbor_configs.append(
-                        FRR_NEIGHBOR_ADD_TEMPLATE.format(
-                            neighbor_ip=a_ip.split("/")[0],
-                            neighbor_as=spine_meta.AS_number,
-                        )
-                    )
-                    leaf_meta.neighbor_ips.append(a_ip.split("/")[0])
-                    if spine_meta.router_id == "":
-                        spine_meta.router_id = a_ip.split("/")[0]
-                    if leaf_meta.router_id == "":
-                        leaf_meta.router_id = b_ip.split("/")[0]
-
-        self._attach_service_workload(
-            super_spine_count=super_spine_count,
-            leaf_per_pod=leaf_per_pod,
-            pod_leaves=pod_leaves,
-            tot_super_spines=tot_super_spines,
+        self.l2_endpoint_groups = tuple(
+            tuple(e.name for e in self.model.endpoints_on_leaf(i))
+            for i in range(1, self.model.leaf_count + 1)
         )
-        # Every configured eBGP session, by router, for lab verification.
-        self.bgp_neighbors = {
-            meta.name: tuple(meta.neighbor_ips)
-            for meta in tot_super_spines + tot_spines + tot_leaves
+        self.client_addresses = {e.name: e.ip for e in self.model.client_endpoints()}
+        dns = self.model.web_endpoints()[0]
+        self.dns_servers = ((dns.ip, f"{dns.name.replace('_', '-')}.fabric"),)
+        self.web_urls = list(self.model.web_urls)
+        self.dns_zones = {dns.name: ("fabric",)}
+        self.dns_records = {
+            f"{e.name.replace('_', '-')}.fabric": e.name
+            for e in self.model.web_endpoints()
         }
-        advertise_routers = tot_leaves + tot_super_spines
-        plain_routers = tot_spines
-
-        for router_meta in plain_routers:
-            self._write_frr_router(router_meta, network="")
-
-        for router_meta in advertise_routers:
-            network = (
-                f"network {router_meta.host_network}\n"
-                if router_meta.host_network
-                else ""
+        dns_addresses = [dns.ip]
+        for leaf_id, leaf in enumerate(self.model.leaves, start=1):
+            meta = routers[leaf]
+            meta.host_network = rack_prefix(leaf_id)
+            meta.cmd_list.append("brctl addbr br0")
+            for endpoint in self.model.endpoints_on_leaf(leaf_id):
+                machine = self.lab.new_machine(
+                    endpoint.name, image=nika_image("base"), cpus=0.5, mem="256m"
+                )
+                self.declare_machine(
+                    endpoint.name,
+                    role=NodeRole.SERVICE if endpoint.role == "web" else NodeRole.HOST,
+                    capabilities=("linux", "http", "dns")
+                    if endpoint.name == dns.name
+                    else ("linux", "http")
+                    if endpoint.role == "web"
+                    else ("linux",),
+                    service_type="web" if endpoint.role == "web" else None,
+                    reachability_target=True,
+                )
+                link = f"{endpoint.name}_{leaf}"
+                self.lab.connect_machine_to_link(endpoint.name, link)
+                self.lab.connect_machine_to_link(leaf, link)
+                meta.cmd_list.append(f"brctl addif br0 eth{meta.eth_index}")
+                meta.eth_index += 1
+                commands = [
+                    f"ip link set eth0 address {endpoint.mac}",
+                    f"ip addr add {endpoint.ip}/24 dev eth0",
+                    f"ip route replace default via {gateway_ip(leaf_id)}",
+                ]
+                machine.create_file_from_string(
+                    "".join(f"nameserver {ip}\n" for ip in dns_addresses),
+                    "/etc/resolv.conf",
+                )
+                if endpoint.name == dns.name:
+                    self._configure_dns(machine, endpoint)
+                    commands.append("systemctl start named")
+                if endpoint.role == "web":
+                    commands += [
+                        "mkdir -p /var/www",
+                        "dd if=/dev/zero of=/var/www/small.bin bs=1024 count=16 status=none",
+                        "dd if=/dev/zero of=/var/www/large.bin bs=1M count=2 status=none",
+                        *download_object_commands("/var/www"),
+                        "cd /var/www && nohup python3 -m http.server 80 >/dev/null 2>&1 &",
+                    ]
+                self.lab.create_file_from_list(commands, f"{endpoint.name}.startup")
+            meta.design.add_interface(
+                "br0", f"{gateway_ip(leaf_id)}/24", f"rack_{leaf_id}"
             )
-            self._write_frr_router(router_meta, network=network)
+            meta.cmd_list += [
+                f"ip addr add {gateway_ip(leaf_id)}/24 dev br0",
+                "ip link set br0 up",
+            ]
 
+        for binding in routing_links(self.model):
+            leaf, spine = binding.leaf, binding.spine
+            addresses = (binding.leaf_address, binding.spine_address)
+            link = f"{spine}_{leaf}"
+            for name, address, peer, peer_address in (
+                (leaf, addresses[0], spine, addresses[1]),
+                (spine, addresses[1], leaf, addresses[0]),
+            ):
+                meta = routers[name]
+                self.lab.connect_machine_to_link(name, link)
+                meta.cmd_list.append(
+                    meta.design.add_interface(
+                        f"eth{meta.eth_index}", f"{address}/31", link
+                    )
+                )
+                meta.eth_index += 1
+                meta.router_id = meta.router_id or address
+                meta.neighbor_ips.append(peer_address)
+                meta.design.add_neighbor(peer_address, routers[peer].AS_number)
+                meta.frr_neighbor_configs.append(
+                    FRR_NEIGHBOR_ADD_TEMPLATE.format(
+                        neighbor_ip=peer_address, neighbor_as=routers[peer].AS_number
+                    )
+                )
+        self.bgp_neighbors = {
+            name: tuple(meta.neighbor_ips) for name, meta in routers.items()
+        }
+        for meta in routers.values():
+            network = f"network {meta.host_network}\n" if meta.host_network else ""
+            if meta.host_network:
+                meta.design.bgp_networks.append(meta.host_network)
+            self._write_frr_router(meta, network=network)
         from nika.net_env.synthesis.parameters import apply_routing_parameters
 
         apply_routing_parameters(self, routing_parameters)
-
         self.load_machines()
-        self.desc = (
-            "A multi-tier data center Clos using EBGP with DNS/HTTP services. "
-            "Each pod runs one BIND DNS server and HTTP servers on leaf subnets; "
-            "external clients in 192.168.<pod>.0/24 resolve names such as "
-            "web0.pod0 over the fabric. "
-            "Each pod's DNS server is authoritative only for its own pod zone, and "
-            "clients fall back across the pod servers when one does not serve a "
-            "name. Each super-spine has its own ASN, so every external client "
-            "reaches the DNS and web services and the other clients. Users behind each client browse every pod's web servers "
-            "by name all the time and download large.bin from one of them every "
-            "few minutes."
-        )
-        self.web_urls = [
-            f"http://web{web_idx}.pod{pod_idx}"
-            for pod_idx in range(super_spine_count)
-            for web_idx in range(leaf_per_pod - 1)
-        ]
+        self.desc = "Leaf-spine Clos with eBGP, one web service and client endpoints per rack. The first web endpoint also provides authoritative DNS for the fabric zone."
         self.apply_device_profile(device_profile)
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import use_rendered_configs
 
-    def router_roles(self) -> dict[str, list[str]]:
-        roles = {"super_spine": [], "spine": [], "leaf": []}
-        for name in self.routers:
-            roles[name.split("_router_")[0]].append(name)
-        return roles
+            use_rendered_configs(self)
+
+    def load_machines(self):
+        super().load_machines()
+        self.servers["dns"] = list(self.dns_zones)
+
+    def _configure_dns(self, machine, endpoint):
+        machine.create_file_from_string(
+            'options { directory "/var/cache/bind"; listen-on { any; }; allow-query { any; }; recursion no; };\n'
+            'zone "fabric" { type master; file "/etc/bind/db.fabric"; };\n',
+            "/etc/bind/named.conf",
+        )
+        records = (
+            "$TTL 1H\n@ IN SOA ns.fabric. admin.fabric. (2026110801 1H 15M 1W 1D)\n"
+            f"@ IN NS ns.fabric.\nns IN A {endpoint.ip}\n"
+        )
+        records += "".join(
+            f"{e.name.replace('_', '-')} IN A {e.ip}\n"
+            for e in self.model.web_endpoints()
+        )
+        machine.create_file_from_string(records, "/etc/bind/db.fabric")
+
+    def bgp_hijack_targets(self):
+        from nika.net_env.isp.bgp.hijack import HijackTarget
+
+        targets = []
+        for victim in self.model.web_endpoints()[1:]:
+            observer = next(
+                e
+                for e in self.model.client_endpoints()
+                if e.leaf_id not in {1, victim.leaf_id}
+            )
+            targets.append(
+                HijackTarget(
+                    hijacker=self.model.leaves[0],
+                    prefix=f"10.0.{victim.leaf_id}.0/25",
+                    observer=f"leaf_{observer.leaf_id}",
+                    observer_host=observer.name,
+                    probe_ip=victim.ip,
+                )
+            )
+        return targets
+
+    def router_roles(self):
+        return {"spine": list(self.model.spines), "leaf": list(self.model.leaves)}
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size="s", **deploy_kwargs):
+        model = build_clos_fabric_model(topo_size)
+        source, destination, control = model.probe_endpoints(
+            deploy_kwargs.get("probe_source")
+        )
+        name = destination.name.replace("_", "-")
+        return ProbePath(
+            src_host=source.name,
+            dst_ip=destination.ip,
+            http_url=f"http://{destination.ip}/",
+            http_name_url=f"http://{name}.fabric/",
+            control_plane_host=f"leaf_{source.leaf_id}",
+            peer_host=control.name,
+        )
 
     def _bgp_peers(self):
+        from nika.net_env.verify import FRR_BGP_PEERS
+
+        native_query = FRR_BGP_PEERS
         if self.device_profile == "iosxr":
             from nika.net_env.utils.iosxr.platform import IOSXR_BGP_PEERS
 
-            return IOSXR_BGP_PEERS
-        if self.device_profile == "routeros":
+            native_query = IOSXR_BGP_PEERS
+        elif self.device_profile == "routeros":
             from nika.net_env.utils.routeros.platform import routeros_bgp_peer_query
 
-            return routeros_bgp_peer_query()
-        from nika.net_env.verify import FRR_BGP_PEERS
-
-        return FRR_BGP_PEERS
+            native_query = routeros_bgp_peer_query()
+        return {
+            router: native_query if router in self.native_routers else FRR_BGP_PEERS
+            for router in self.bgp_neighbors
+        }
 
     def _write_frr_router(self, router_meta: RouterMeta, *, network: str) -> None:
         router_meta.machine.create_file_from_path(
@@ -350,6 +304,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
             str(pkg_path("net_env/utils/kathara/bgp/vtysh.conf")),
             "/etc/frr/vtysh.conf",
         )
+        router_meta.design.router_id = router_meta.router_id
         router_meta.frr_config = FRR_BASE_TEMPLATE.format(
             hostname=router_meta.name,
             AS_number=router_meta.AS_number,
@@ -370,253 +325,10 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
         from nika.net_env.dc_clos.workload import build_workload
 
         return build_workload(
-            sorted(self.client_addresses), list(self.web_urls), self.frr_routers()
-        )
-
-    def _attach_service_workload(
-        self,
-        *,
-        super_spine_count: int,
-        leaf_per_pod: int,
-        pod_leaves: dict[int, list[RouterMeta]],
-        tot_super_spines: list[RouterMeta],
-    ) -> None:
-        pod_dns: dict[int, list[HostMeta]] = {}
-        pod_webservers: dict[int, list[HostMeta]] = {}
-        tot_dns: list[HostMeta] = []
-        tot_webservers: list[HostMeta] = []
-        tot_clients: list[HostMeta] = []
-
-        for pod in range(super_spine_count):
-            dns_name = f"dns_pod{pod}"
-            dns_machine = self.lab.new_machine(
-                dns_name, **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
-            )
-            self.declare_machine(
-                dns_name,
-                role=NodeRole.SERVICE,
-                capabilities=("linux", "dns"),
-                service_type="dns",
-                reachability_target=True,
-            )
-            dns_meta = HostMeta(
-                name=dns_name,
-                machine=dns_machine,
-                eth_index=0,
-                cmd_list=[],
-            )
-            pod_dns[pod] = [dns_meta]
-            tot_dns.append(dns_meta)
-
-            pod_webservers[pod] = []
-            for host in range(leaf_per_pod - 1):
-                web_name = f"webserver{host}_pod{pod}"
-                web_machine = self.lab.new_machine(
-                    web_name,
-                    **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
-                )
-                self.declare_machine(
-                    web_name,
-                    role=NodeRole.SERVICE,
-                    capabilities=("linux", "http"),
-                    service_type="web",
-                    reachability_target=True,
-                )
-                web_meta = HostMeta(
-                    name=web_name,
-                    machine=web_machine,
-                    eth_index=0,
-                    cmd_list=[],
-                )
-                pod_webservers[pod].append(web_meta)
-                tot_webservers.append(web_meta)
-
-        for client_id in range(super_spine_count):
-            client_name = f"client_{client_id}"
-            client_machine = self.lab.new_machine(
-                client_name,
-                **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
-            )
-            self.declare_machine(
-                client_name,
-                role=NodeRole.HOST,
-                capabilities=("linux",),
-                reachability_target=True,
-            )
-            tot_clients.append(
-                HostMeta(
-                    name=client_name,
-                    machine=client_machine,
-                    eth_index=0,
-                    cmd_list=[],
-                )
-            )
-
-        for pod in range(super_spine_count):
-            pod_services = pod_dns[pod] + pod_webservers[pod]
-            for idx in range(leaf_per_pod):
-                leaf_meta = pod_leaves[pod][idx]
-                host = pod_services[idx]
-                self.lab.connect_machine_to_link(
-                    leaf_meta.machine.name,
-                    f"{leaf_meta.machine.name}_{host.machine.name}",
-                )
-                self.lab.connect_machine_to_link(
-                    host.machine.name,
-                    f"{leaf_meta.machine.name}_{host.machine.name}",
-                )
-                subnet = IPv4Network(f"10.{pod}.{idx}.0/24")
-                leaf_ip = IPv4Interface(
-                    f"{subnet.network_address + 1}/{subnet.prefixlen}"
-                )
-                host_ip = IPv4Interface(
-                    f"{subnet.network_address + 2}/{subnet.prefixlen}"
-                )
-                leaf_meta.cmd_list.append(
-                    f"ip addr add {leaf_ip} dev eth{leaf_meta.eth_index}"
-                )
-                leaf_meta.eth_index += 1
-                host.cmd_list.append(f"ip addr add {host_ip} dev eth{host.eth_index}")
-                host.cmd_list.append(
-                    f"ip route add default via {leaf_ip.ip} dev eth{host.eth_index}"
-                )
-                host.eth_index += 1
-                leaf_meta.host_network = str(subnet)
-                host.ip_address = str(host_ip.ip)
-
-        for pod in range(super_spine_count):
-            client_meta = tot_clients[pod]
-            super_spine_meta = tot_super_spines[pod]
-            self.lab.connect_machine_to_link(
-                super_spine_meta.machine.name,
-                f"{super_spine_meta.machine.name}_{client_meta.machine.name}",
-            )
-            self.lab.connect_machine_to_link(
-                client_meta.machine.name,
-                f"{super_spine_meta.machine.name}_{client_meta.machine.name}",
-            )
-            subnet = IPv4Network(f"192.168.{pod}.0/24")
-            ss_ip = IPv4Interface(f"{subnet.network_address + 1}/{subnet.prefixlen}")
-            client_ip = IPv4Interface(
-                f"{subnet.network_address + 2}/{subnet.prefixlen}"
-            )
-            super_spine_meta.cmd_list.append(
-                f"ip addr add {ss_ip} dev eth{super_spine_meta.eth_index}"
-            )
-            super_spine_meta.eth_index += 1
-            client_meta.cmd_list.append(
-                f"ip addr add {client_ip} dev eth{client_meta.eth_index}"
-            )
-            client_meta.cmd_list.append(
-                f"ip route add default via {ss_ip.ip} dev eth{client_meta.eth_index}"
-            )
-            client_meta.eth_index += 1
-            super_spine_meta.host_network = str(subnet)
-            client_meta.ip_address = str(client_ip.ip)
-
-        self.client_addresses = {
-            client.name: client.ip_address for client in tot_clients
-        }
-        self.dns_servers = tuple(
-            (dns.ip_address, f"ns{idx}.pod{idx}") for idx, dns in enumerate(tot_dns)
-        )
-        for host in tot_clients:
-            ns_add_cmd = ""
-            for dns in tot_dns:
-                ns_add_cmd += f"nameserver {dns.ip_address}\n"
-            host.machine.create_file_from_string(ns_add_cmd, "/etc/resolv.conf")
-            self.lab.create_file_from_list(
-                host.cmd_list,
-                f"{host.machine.name}.startup",
-            )
-
-        # The client resolver reads at most _RESOLV_MAXNS nameservers, so with
-        # more pods each server forwards the other pods' zones to their owner.
-        forward = len(tot_dns) > _RESOLV_MAXNS
-        recursion = (
-            "recursion yes; dnssec-validation no; max-cache-ttl 1; max-ncache-ttl 1;"
-            if forward
-            else "recursion no;"
-        )
-        for dns_idx, dns in enumerate(tot_dns):
-            zone_name = f"pod{dns_idx}"
-            ns_name = f"ns{dns_idx}"
-            name_config = textwrap.dedent(
-                f"""\
-                options {{
-                    directory "/var/cache/bind";
-                    listen-on port 53 {{ any; }};
-                    allow-query     {{ any; }};
-                    {recursion}
-                }};
-
-                zone "{zone_name}" IN {{
-                    type master;
-                    file "/etc/bind/db.{zone_name}";
-                }};"""
-            )
-            if forward:
-                name_config += "".join(
-                    f'\n\nzone "pod{idx}" IN {{\n'
-                    "    type forward;\n    forward only;\n"
-                    f"    forwarders {{ {other.ip_address}; }};\n}};"
-                    for idx, other in enumerate(tot_dns)
-                    if idx != dns_idx
-                )
-            dns.machine.create_file_from_string(name_config, "/etc/bind/named.conf")
-
-            basic_bind_conf = textwrap.dedent(f"""\
-                                $TTL 1H
-                                @   IN  SOA {ns_name}.{zone_name}. admin.{zone_name}. (
-                                        2025111101 ; Serial
-                                        1H         ; Refresh
-                                        15M        ; Retry
-                                        1W         ; Expire
-                                        1D )       ; Minimum
-
-                                    IN  NS  {ns_name}.{zone_name}.
-                                {ns_name} IN  A   {dns.ip_address}\
-
-            """)
-            for web_idx, web in enumerate(pod_webservers[dns_idx]):
-                basic_bind_conf += f"web{web_idx} IN  A  {web.ip_address}\n"
-
-            dns.machine.create_file_from_string(
-                basic_bind_conf,
-                f"/etc/bind/db.{zone_name}",
-            )
-            dns.cmd_list.append("systemctl start named")
-            self.lab.create_file_from_list(
-                dns.cmd_list,
-                f"{dns.machine.name}.startup",
-            )
-
-        for web in tot_webservers:
-            web.cmd_list.extend(
-                [
-                    "mkdir -p /var/www",
-                    "dd if=/dev/zero of=/var/www/small.bin bs=1024 count=16 "
-                    "status=none 2>/dev/null || true",
-                    "dd if=/dev/zero of=/var/www/large.bin bs=1M count=2 "
-                    "status=none 2>/dev/null || true",
-                    *download_object_commands("/var/www"),
-                    "cd /var/www && nohup python3 -m http.server 80 >/dev/null 2>&1 &",
-                ]
-            )
-            self.lab.create_file_from_list(
-                web.cmd_list,
-                f"{web.machine.name}.startup",
-            )
-
-    @classmethod
-    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
-        return ProbePath(
-            src_host="client_0",
-            dst_ip="10.0.1.2",
-            http_url="http://web0.pod0/",
-            http_name_url="http://web0.pod0/",
-            control_plane_host="leaf_router_0_0",
-            peer_host="webserver0_pod0",
+            sorted(self.client_addresses),
+            [f"http://{name}/" for name in self.dns_records],
+            self.frr_routers(),
+            self.router_rate_limit_kbps(),
         )
 
     def startup_verify_lab(self) -> dict:
@@ -644,6 +356,6 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
             bgp_neighbors=self.bgp_neighbors,
             client_addresses=self.client_addresses,
             dns_servers=self.dns_servers,
-            web_urls=tuple(self.web_urls),
+            web_urls=tuple(f"http://{name}" for name in self.dns_records),
             bgp_peers=self._bgp_peers(),
         )

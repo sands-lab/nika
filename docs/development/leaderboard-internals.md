@@ -52,10 +52,10 @@ Directory name `YYYYMMDD_<framework>_<model>`, lowercase ASCII words joined by u
 
 ## Release identity and drift
 
-Validation computes expected trials from the official task definitions: the `benchmark/releases/<version>/` files at Git tag `v<version>` in `sands-lab/nika` (for example `v0.2.0`). Each trial ID embeds a hash of its task definition, so a run made from a checkout whose release files differ from the tag cannot pass.
+Validation computes expected trials from the official task definitions: the `benchmark/releases/<version>/` files at the published reference in `sands-lab/nika`. Legacy `0.1.0` and `0.2.0` use the declared main-branch commit `ac4422d8a4a03be2b905e28edf72993d467e1b81`; later versions use `v<version>` tags. This preserves the reference previously used by leaderboard CI without creating or moving a tag. Each trial ID embeds a hash of its task definition, so a run made from different task definitions cannot pass.
 
-- `nika benchmark run --release` compares the checkout's release files with the tag and lists changed tasks, asking whether to continue before any trial runs.
-- `submit` and `nika leaderboard validate` read the tagged files by default, so local pass implies CI pass. `--release-source local` checks against the checkout instead (offline only); CI rejects that result and the report carries `WARNING_LOCAL_RELEASE`.
+- `nika benchmark run --release` compares the checkout's release files with the published reference and lists changed tasks, asking whether to continue before any trial runs.
+- `submit` and `nika leaderboard validate` read the published reference by default, so local pass implies CI pass. `--release-source local` checks against the checkout instead (offline only); CI rejects that result and the report carries `WARNING_LOCAL_RELEASE`.
 - `release_check.py` reports `ERROR_RELEASE_DRIFT` once per task when all of a task's expected trials are missing but trials with the same task stem and a different hash are present, or when the release files at the run's recorded `nika_git_commit` define a task differently (for example, different ground truth). The error lists changed tasks and the official commit. Fix: rerun those tasks from the official definitions into the same result dir with `--no-resume --task-id <task>`.
 - If the recorded commit is in neither the local repo nor GitHub, only trial IDs are compared and the report carries `WARNING_RUN_COMMIT_UNVERIFIED`.
 

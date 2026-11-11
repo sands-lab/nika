@@ -11,6 +11,7 @@ from nika.problems.rca.materialize import (
 )
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.registry import list_avail_problem_instances
+from nika.problems.base import ProblemBase
 from nika.workflows.benchmark.candidate_context import (
     MAJOR_SCENARIOS,
     collapse_candidates,
@@ -31,7 +32,8 @@ def _has_recover_fault(problem: str) -> bool:
     cls = list_avail_problem_instances().get(problem)
     if cls is None:
         return False
-    return callable(getattr(cls, "recover_fault", None))
+    method = getattr(cls, "recover_fault", None)
+    return callable(method) and method is not ProblemBase.recover_fault
 
 
 def _telemetry_flags(problem: str) -> list[str]:

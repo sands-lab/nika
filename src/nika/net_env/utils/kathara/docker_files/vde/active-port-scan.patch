@@ -1,0 +1,43 @@
+--- a/src/vde_switch/port.c
++++ b/src/vde_switch/port.c
+@@ -35,6 +35,7 @@
+ 
+ static int pflag=0;
+ static int numports;
++static int max_allocated_port;
+ #ifdef VDE_PQ2
+ static int stdqlen=128;
+ #endif
+@@ -153,6 +154,8 @@
+ 				EVENTOUT(DBGPORTNEW,i);
+ 
+ 				portv[i]=port;
++				if (i > max_allocated_port)
++					max_allocated_port = i;
+ 				port->ep=NULL;
+ 				port->user=port->group=port->curuser=-1;
+ #ifdef FSTP
+@@ -598,12 +601,12 @@
+ 		if (pflag & HUB_TAG) { /* this is a HUB */
+ 			int i;
+ #ifndef VDE_PQ2
+-			for(i = 1; i < numports; i++)
++			for(i = 1; i <= max_allocated_port; i++)
+ 				if((i != port) && (portv[i] != NULL))
+ 					SEND_PACKET_PORT(portv[i],i,packet,len);
+ #else
+ 			void *tmpbuf=NULL;
+-			for(i = 1; i < numports; i++)
++			for(i = 1; i <= max_allocated_port; i++)
+ 				if((i != port) && (portv[i] != NULL))
+ 					SEND_PACKET_PORT(portv[i],i,packet,len,&tmpbuf);
+ #endif
+@@ -792,6 +795,8 @@
+ 		fstsetnumports(val);
+ #endif
+ 		numports=val;
++		if (max_allocated_port >= val)
++			max_allocated_port = val - 1;
+ 		return 0;
+ 	} else 
+ 		return EINVAL;

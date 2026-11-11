@@ -13,13 +13,15 @@ uv run nika env list
 | Backend | Needs |
 | --- | --- |
 | Kathará | Docker, Kathará Python package (`uv sync`) |
-| Containerlab | Docker, `clab`, `gnmic` |
+| Containerlab | Docker, `clab`; `gnmic` for SR Linux routers; passwordless `sudo` for host `ip` and `tc` |
 
 Install with [`./scripts/install.sh`](../../scripts/install.sh). Installer options: [Installation](installation.md). Overview: root [README](../../README.md#-installation).
 
-Every Containerlab scenario runs Nokia SR Linux, which NIKA configures over gNMI, so `gnmic` is required for all of them. `min3clos` is Containerlab-only. `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
+Containerlab scenarios run Nokia SR Linux routers by default, which NIKA configures over gNMI with `gnmic`. Pass `--device-profile sonic` to run them on [SONiC](#sonic-routers-on-containerlab) instead. `min3clos` is Containerlab-only. `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
 
-Containerlab scenarios pull the Nokia SR Linux image and run their Linux hosts on the locally built `nika/base` image. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually (or via `./scripts/install.sh --with-vendor-images --xrd-tarball …`). See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario). `routeros_simple_bgp` needs a MikroTik RouterOS `vrnetlab` image (build with `./scripts/install.sh --with-vendor-images`; clone lands under `.nika_cache/vendor/vrnetlab`); see [RouterOS simple BGP](#routeros-simple-bgp-scenario).
+Link failures must act outside the nodes, where an agent cannot see them. Kathara links already pass through host-side bridges. On Containerlab, NIKA deploys each link between two nodes as two veths into the host namespace and joins their host ends with a `tc` redirect, so link failures act on the host ends. Node interfaces keep their names and addresses, and the host ends disappear with the lab. Joining those host ends needs passwordless `sudo` for `ip` and `tc` on the Docker host; see [Allow passwordless sudo for Containerlab](installation.md#allow-passwordless-sudo-for-containerlab).
+
+Containerlab scenarios pull the Nokia SR Linux image or load the SONiC virtual switch image, and run their Linux hosts on the locally built `nika/base` image. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually (or via `./scripts/install.sh --with-vendor-images --xrd-tarball …`). See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario). `routeros_simple_bgp` needs a MikroTik RouterOS `vrnetlab` image (build with `./scripts/install.sh --with-vendor-images`; clone lands under `.nika_cache/vendor/vrnetlab`); see [RouterOS simple BGP](#routeros-simple-bgp-scenario).
 
 ### Concurrency and `--batch-size`
 
@@ -48,11 +50,11 @@ Why heavy labs need a separate cap:
 | `p4_dc_gateway` | Kathara | `-s s\|m\|l` |  | Gateway-spine-leaf BMv2 fabric with ECMP, INT-MX, ECN, queues, and flow tracking |
 | `iosxr_simple_bgp` | Kathara | Fixed |  | Two Cisco XRd routers with eBGP and two PCs |
 | `routeros_simple_bgp` | Kathara | Fixed |  | Two MikroTik RouterOS routers with eBGP and two PCs |
-| `isp_<topology>` | Kathara or Containerlab | Fixed metadata `s`/`m`/`l` | Protocol options | One SNDlib graph per scenario ID, compiled to FRR, SR Linux, IOS XR or RouterOS |
+| `isp_<topology>` | Kathara or Containerlab | Fixed metadata `s`/`m`/`l` | Protocol options | One SNDlib graph per scenario ID, compiled to FRR, SR Linux, SONiC, IOS XR or RouterOS |
 | `isp_<zoo topology>` | Kathara | Fixed metadata `s`/`m`/`l` | Protocol options | One Topology Zoo graph per scenario ID, compiled to FRR, IOS XR or RouterOS; not a benchmark candidate |
 | `isp_abilene_ebgp_rpki` / `isp_geant_ebgp_rpki` | Kathara | Fixed | — | Named eBGP + offline RPKI overlays |
 | `isp_abilene_ebgp_rtbh` / `isp_dfn-bwin_ebgp_rtbh` | Kathara | Fixed | — | Named eBGP + RTBH blackhole overlays |
-| `min3clos` | Containerlab | Fixed |  | Five-node SR Linux eBGP Clos |
+| `min3clos` | Containerlab | Fixed | `--device-profile sonic` | Five-node SR Linux or SONiC eBGP Clos |
 | `k8s_lab` | Kathara | Fixed |  | FRR fat-tree with a six-node k3s cluster |
 | `llmd_lab` | Kathara | Fixed |  | L2 k3s cluster with simulated llm-d inference |
 
@@ -66,33 +68,29 @@ Fixed scenarios reject a size. Each SNDlib ISP topology is its own scenario ID (
 
 ## Data-center Clos scenario
 
-NIKA builds one Clos fabric from code. Each router runs FRR eBGP. Inter-router links use `/31` networks from `172.16.0.0/16`, and leaf access networks use `10.<pod>.<leaf>.0/24`.
+`dc_clos`, `sdn_l3_clos` and `p4_dc_fabric` use the [same Clos design](../../src/nika/net_env/clos/design.py): a complete leaf–spine graph, one web endpoint per leaf and the remaining endpoints as clients. Rack `i` uses `10.0.i.0/24`, gateway `.1` and endpoint addresses from `.11`.
 
-```text
-                    super-spine(s)
-                  /       |       \
-             spine(s) ... spine(s)
-               /  \           /  \
-            leaf  leaf  ...  leaf  leaf
-             |      |          |      |
-             +------ service endpoints
-```
-
-| Size | Super-spines and pods | Spines per pod | Leaves per pod |
+| Size | Spines | Leaves | Endpoints per leaf |
 | --- | ---: | ---: | ---: |
-| `s` | 1 | 2 | 2 |
-| `m` | 2 | 4 | 4 |
-| `l` | 4 | 8 | 8 |
+| `s` | 2 | 4 | 3 |
+| `m` | 4 | 8 | 4 |
+| `l` | 8 | 16 | 4 |
 
-Super-spine `n` uses AS 65000+`n`, spines use AS 651xx, and leaves use AS 652xx. Because the super-spines have distinct ASNs, external clients of different pods reach each other as well as the DNS and web services. Each pod's BIND server is authoritative only for its own pod zone, and clients fall back across the pod servers.
+Published benchmark releases retain their original topology bindings.
 
-Each pod has one authoritative BIND server, HTTP servers on the remaining leaves, and an external client on the super-spine (`192.168.<pod>.0/24`). Clients resolve names such as `web0.pod0`. Use this when the failure needs DNS or HTTP observability.
+| Environment | Forwarding implementation | Additional services |
+| --- | --- | --- |
+| `dc_clos` | FRR eBGP between routers; a bridge joins each leaf's access ports | BIND on `web_1` serves the `fabric` zone |
+| `sdn_l3_clos` | ONOS installs OpenFlow rules and SELECT groups on OVS | Out-of-band controller network |
+| `p4_dc_fabric` | P4Runtime installs LPM entries and ActionSelector groups on BMv2 | Out-of-band controller network and search fan-out traffic |
 
-Business traffic: the users behind each client browse every pod's web servers by name every few seconds and download `large.bin` (2 MB) from one of them every few minutes.
+In `dc_clos`, router ASNs start at 65001 in spine-then-leaf order, and inter-router links use `/31` networks from `172.16.0.0/16`. Clients browse names such as `web-2.fabric` and download `large.bin` (2 MB).
 
 ```shell
 uv run nika env run dc_clos -s s
 ```
+
+The [construction and verification guide](../development/scenario-verification.md#shared-clos-design) describes the common requirements and the checks specific to each implementation.
 
 ## Campus LAN scenario
 
@@ -132,7 +130,7 @@ uv run nika env run campus_lan -s s
 
 NIKA builds a multi-site enterprise WAN from one production template: HQ and a secondary DC hub, branch sites, and dual provider underlays. Every size keeps the same dual providers, dual hubs, WAN redundancy, and WireGuard+eBGP overlay. Size scales branch count and hosts per LAN. The `m` and `l` sizes add an IOT VRF, which increases the number of business domains alongside the replicated VLANs.
 
-Each site has business LANs bound into Linux VRFs on the Site Edge (`vrf_corp`, `vrf_server`, `vrf_guest`, and on `m`/`l` `vrf_iot`), so the Docker host needs the `vrf` kernel module (see [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch)). Sites do not mesh over physical links. Edges attach to both providers for IP underlay reachability between tunnel endpoints only. WAN PE links, WireGuard tunnels, and eBGP sessions stay in the default VRF.
+Each site has business LANs bound into Linux VRFs on the Site Edge (`vrf_corp`, `vrf_server`, `vrf_guest`, and on `m`/`l` `vrf_iot`), so the Docker host needs the `vrf` kernel module (see [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch)). Each VRF table ends in an `unreachable` default route with the highest metric, so a lookup that matches no VRF route fails instead of falling through to the main table. Sites do not mesh over physical links. Edges attach to both providers for IP underlay reachability between tunnel endpoints only. WAN PE links, WireGuard tunnels, and eBGP sessions stay in the default VRF.
 
 Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over those tunnels to exchange authorized business prefixes (CORP, SERVER). FRR imports those overlay prefixes into the matching business VRFs. SERVER is a shared-services domain: CORP and SERVER exchange prefixes through explicit route leaking only. GUEST and IOT stay local (default route via the provider with NAT) and are not advertised in overlay BGP. Cross-site traffic follows `LAN VRF → Site Edge → VPN tunnel → Provider underlay → Remote Edge → Remote LAN VRF`. Branch-to-branch traffic hairpins a hub. Guest and IOT isolation is a design property, not a fault, and the underlay delay below puts branch-to-hub RTT near 80 ms and branch-to-branch RTT near 160 ms. HQ and DC2 also peer directly over dual-provider WireGuard+eBGP. Inbound local preference (200 primary, 100 backup) makes each branch's isp1 tunnel to HQ the active path, so branch traffic to DC2 also transits HQ; the isp2 HQ tunnel and the direct DC2 tunnel stay established as backups.
 
@@ -154,7 +152,7 @@ Every Site Edge is dual-homed to both providers. SERVER stays one host per hub (
 
 Healthy Site Edges preserve DSCP on CORP overlay traffic and shape each WireGuard overlay egress with a dual-class HTB queue: EF (DSCP 46) gets a reserved high-priority class; CS0/BE is hard-capped at the rest of the link and served by `fq_codel`, as WAN-edge QoS pairs fair queueing and AQM with the default class (Cisco `fair-queue` in `class-default`, OpenWrt SQM `simple.qos`). Bulk transfers keep no standing queue and pings skip ahead of them, while a flow sending above its fair share of the class is dropped. Per-size overlay egress capacity is `s` 8 mbit (EF 4), `m` and `l` 16 mbit (EF 7). Size `l` keeps the `m` rate because its eight branches share the same hubs and underlay.
 
-GUEST and IOT LANs break out to the Internet locally. Each Site Edge source-NATs them to its own routed public address `198.18.<site_id>.10` on the primary WAN (br1 also holds `198.18.1.11`), and `isp1_core` hosts the public web service `198.51.100.10` on its loopback.
+GUEST and IOT LANs break out to the Internet locally. Each Site Edge source-NATs them to its own routed public address `198.18.<site_id>.10` on the primary WAN (br1 also holds `198.18.1.11`), and the Linux server `internet_web` on a LAN of `isp1_core` (`198.51.100.8/29`) hosts the public web service `198.51.100.10`. It runs on every device profile, including XRd providers.
 
 The scenario runs [business traffic](#business-traffic) in every task:
 
@@ -195,26 +193,9 @@ uv run nika env run enterprise_branch -s s
 
 ### `sdn_l3_clos`
 
-Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open vSwitch (`fail-mode=secure`, OpenFlow 1.3). The out-of-band control network is `172.31.0.0/16` with ONOS at `172.31.0.100:6653`. On deploy, `ensure_nika_docker_images` builds `nika/onos` when missing or outdated and pulls `kathara/sdn` when missing. `nika/onos` is a multi-arch image: `kathara/base` plus a host-arch Temurin 11 JRE, with the ONOS Java tree copied from pinned `onosproject/onos:2.7-latest` (amd64-only upstream). That keeps Kathara's architecture check happy on Linux arm64 and amd64 without qemu. Each leaf owns rack prefix `10.0.<leaf>.0/24` with gateway `.1` and a shared virtual router MAC. Endpoints start at `.11` (one `web_*` nginx endpoint plus `client_*` workers per leaf). Business traffic: clients load pages and `small.bin` from the web servers every few seconds and download `large.bin` (16 MB) every few minutes. A host-side fabric manager installs proactive IPv4 forwarding and OpenFlow `SELECT` ECMP groups (stable five-tuple hash). No STP and no `NORMAL` learning fallback.
+Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open vSwitch (`fail-mode=secure`, OpenFlow 1.3). The out-of-band control network is `172.31.0.0/16` with ONOS at `172.31.0.100:6653`. On deploy, `ensure_nika_docker_images` builds `nika/onos` when missing or outdated and pulls `kathara/sdn` when missing. `nika/onos` is a multi-arch image: `kathara/base` plus a host-arch Temurin 11 JRE, with the ONOS Java tree copied from pinned `onosproject/onos:2.7-latest` (amd64-only upstream). That keeps Kathara's architecture check happy on Linux arm64 and amd64 without qemu. Leaves use a shared virtual router MAC. Business traffic: clients load pages and `small.bin` from the web servers every few seconds and download `large.bin` (16 MB) every few minutes. A host-side fabric manager installs proactive IPv4 forwarding and OpenFlow `SELECT` ECMP groups (stable five-tuple hash). No STP and no `NORMAL` learning fallback.
 
-```text
-                    ONOS
-                     |
-            OOB control network
-                     |
-          spine_1 ... spine_N
-           |\           /|
-           | \         / |
-         leaf_1 ...... leaf_M
-          | |          | |
-       web/client   web/client
-```
-
-| Size | Spines | Leaves | Endpoints per leaf |
-| --- | ---: | ---: | ---: |
-| `s` | 2 | 4 | 2 |
-| `m` | 4 | 8 | 4 |
-| `l` | 8 | 16 | 4 |
+Use the [shared Clos dimensions and endpoint layout](#data-center-clos-scenario).
 
 Deploy starts containers, waits for ONOS device discovery over live OpenFlow sessions, then installs proactive L3 flows and SELECT ECMP groups through the ONOS REST API so the controller keeps owning forwarding state. Controllers stay attached. Verification checks live OpenFlow sessions, topology consistency, addressing, cross-rack ICMP/HTTP, ECMP group shape, and controller vs OVS dataplane evidence. Diagnosis tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#sdn-kathara_sdn_mcp_server).
 
@@ -230,24 +211,7 @@ The two Kathara P4 scenarios start BMv2 `simple_switch_grpc` with no local table
 
 Symmetric leaf-spine L3 Clos of BMv2 `simple_switch_grpc` switches under a NIKA P4Runtime fabric manager. The out-of-band control network is `172.31.0.0/16` with `fabric_mgr` at `172.31.0.101`. Switches start with `--no-p4` and listen on `:9559`. Deploy compiles the v1model IPv4 fabric program once on a leaf, then `SetForwardingPipelineConfig` plus table/group writes program every switch. Role is table state: same-rack `/32` to the host port, remote `/24` via ActionSelector ECMP over all spines. Endpoints use `/32` addresses on rack `10.0.<leaf>.0/24`, send all IPv4 via gateway `.1`, and keep a permanent neighbor for the shared virtual router MAC. Business traffic: clients load pages and `small.bin` from the web servers and download `large.bin` (2 MB) every few minutes; `web_2` runs a search front end that about once a second queries up to four index shards on other web servers (UDP 11311), which all answer at once with 24 datagrams of 1400 bytes. Build `nika/fabric-controller` on deploy when missing or outdated (the image name must not contain `p4`; NIKA classifies `"p4" in image` as BMv2).
 
-```text
-                 fabric_mgr
-                      |
-             OOB control network
-                      |
-           spine_1 ... spine_N
-            |\           /|
-            | \         / |
-          leaf_1 ...... leaf_M
-           | |          | |
-        web/client   web/client
-```
-
-| Size | Spines | Leaves | Endpoints per leaf |
-| --- | ---: | ---: | ---: |
-| `s` | 2 | 4 | 2 |
-| `m` | 4 | 8 | 4 |
-| `l` | 8 | 16 | 4 |
+Use the [shared Clos dimensions and endpoint layout](#data-center-clos-scenario).
 
 Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs intent, same-rack and sparse cross-rack ICMP, HTTP to a remote web, and multi-flow ECMP counters on at least two spines. Diagnosis tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server).
 
@@ -288,7 +252,7 @@ uv run nika traffic run burst --sources client_1,client_2 --destination service_
 
 ### `iosxr_simple_bgp`
 
-Two Cisco XRd Control Plane routers peer over eBGP, each with one Linux PC. Cisco licensing blocks redistributing or auto-building the image like `nika/*`, so you load and tag it before deploy.
+Two Cisco XRd Control Plane routers peer over eBGP, each with one Linux PC. The PCs run the same [business traffic](#business-traffic) as `min3clos` across both routers. Cisco licensing blocks redistributing or auto-building the image like `nika/*`, so you load and tag it before deploy.
 
 One-shot from a local Cisco tarball (no public download URL):
 
@@ -338,7 +302,7 @@ uv run nika env run enterprise_branch -s s --device-profile iosxr
 | Environment | Routers on IOS XR | Routing on IOS XR | Sizes |
 | --- | --- | --- | --- |
 | `isp_<topology>` (SNDlib and Topology Zoo) | All | OSPF or Level-2 IS-IS; BGP `none`, `ibgp_rr` or `ebgp` with the business-prefix allow-list | Graphs that pass memory admission |
-| `dc_clos` | All | eBGP with multipath across spines | `s` |
+| `dc_clos` | Spines; FRR keeps the bridged leaves | eBGP with multipath across spines | `s` |
 | `campus_lan` | Core routers | Multi-area OSPF with the FRR distribution and server gateways | `s`, `m`, `l` |
 | `enterprise_branch` | Provider routers | Static underlay routes with the provider WAN delay | `s`, `m`, `l` |
 
@@ -346,7 +310,7 @@ Campus distribution and server gateways stay FRR because they bridge access port
 
 Each XRd router uses about 2 GiB of memory and has a 3 GiB limit, so NIKA checks available memory before it creates any container and rejects larger `dc_clos` sizes. Install the image and raise inotify limits as described for [`iosxr_simple_bgp`](#ios-xr-simple-bgp-scenario). XR boots and applies its configuration in three to five minutes, which the readiness check waits for.
 
-The XRd image has no `tc`. XR traffic still passes the queueing disciplines of the container interfaces, so NIKA applies the enterprise provider WAN delay from a short-lived helper container in the router's network namespace. Link-quality failures that run `tc` inside an XR router container fail to inject; target the FRR/Linux side of the link instead.
+The XRd image has no `tc`. XR traffic still passes the queueing disciplines of the container interfaces, so NIKA applies the enterprise provider WAN delay from a short-lived helper container in the router's network namespace. For [Link & Interface failures](failures.md#link--interface), NIKA applies capacity limits and packet corruption in a controller-owned VDE proxy; these injections do not require `tc` inside XRd.
 
 XRd does not observe the carrier state of its Linux interfaces. After `link_down`, `show interfaces` in XR still reports the port as up; the IGP or BGP session fails when its hold time expires (40 seconds for OSPF, 30 seconds for IS-IS, 180 seconds for BGP). Use `ip link` in the router container to see the carrier state.
 
@@ -354,7 +318,7 @@ XRd does not observe the carrier state of its Linux interfaces. After `link_down
 
 ### `routeros_simple_bgp`
 
-Two MikroTik RouterOS Cloud Hosted Router (CHR) routers peer over eBGP, each with one Linux PC. RouterOS via `vrnetlab` boots a full QEMU VM inside the container (unlike XRd's native container process), and MikroTik's licensing blocks redistributing or auto-building the image like `nika/*`, so you build and tag it before deploy.
+Two MikroTik RouterOS Cloud Hosted Router (CHR) routers peer over eBGP, each with one Linux PC. The PCs run the [business traffic](#business-traffic) of `min3clos` across both routers, scaled to the [RouterOS send cap](#run-other-environments-on-routeros-routers) (600 and 300 kbit/s of replication). RouterOS via `vrnetlab` boots a full QEMU VM inside the container (unlike XRd's native container process), and MikroTik's licensing blocks redistributing or auto-building the image like `nika/*`, so you build and tag it before deploy.
 
 Preferred path (downloads CHR from MikroTik, clones `hellt/vrnetlab` into `.nika_cache/vendor/vrnetlab`, and builds the image). Needs `/dev/kvm`:
 
@@ -419,9 +383,11 @@ Each router is a VM that needs about 1 GiB, so NIKA checks available memory befo
 
 Agents run RouterOS commands with the `routeros_exec` tool of [`kathara_routeros_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools). RouterOS `ether1` is vrnetlab's management port. In an ISP environment, container interface `ethN` is RouterOS `ether(N+1)`; in the other environments, `ethN` is `ether(N+2)`.
 
-Link-down failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once.
+Link-down failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once. The watcher also treats an interface that `link_detach` moved out of the container as down.
 
 Link-quality failures, such as `link_capacity_bottleneck`, are not supported on a link between two RouterOS routers and raise `RuntimeCapabilityError`. Target a link with at least one FRR or Linux endpoint instead.
+
+The CHR image runs with the free license, which sends at most 1 Mbit/s on each interface. Traffic that crosses RouterOS routers is sized below that cap: paced business transfers use at most 60% of it and a [background traffic profile](#background-traffic-profiles) at most 15%, which leaves headroom for hub edges that carry several tunnels on one port. In `enterprise_branch`, the overlay QoS shrinks by the same factor as the sync and video it carries (600 kbit/s with a 300 kbit/s EF reservation at size `s`), so the QoS behaves as it does on FRR. Downloads, such as the `campus_lan` catalog, keep their size and are read at a limited rate, so they take longer. Paths that carry less than 1.5 Mbit/s of bulk traffic are not targets of failures that need `bulk_transit` traffic, and failures that need a faster path, such as `receiver_resource_contention` and `link_packet_corruption`, have no RouterOS tasks.
 
 Two routing behaviors differ from FRR:
 
@@ -430,7 +396,7 @@ Two routing behaviors differ from FRR:
 
 If RouterOS rejects a startup command, the environment fails immediately with the router name and RouterOS's import error instead of waiting for the verification deadline.
 
-On a RouterOS site edge, the WAN stays in `main`, and the WireGuard tunnels and their eBGP sessions run in an `overlay` VRF. BGP VPN route targets leak overlay routes into `vrf_corp` and `vrf_server` and export their LANs back. This matches the FRR edge, where business VRFs import the default VRF's BGP routes but not each other's LANs, and guest VRFs import nothing. Overlay QoS uses mangle packet marks and a queue tree with the same EF and BE rates as the FRR edge's HTB classes. The WAN delay stays on the container links.
+On a RouterOS site edge, the WAN stays in `main`, and the WireGuard tunnels and their eBGP sessions run in an `overlay` VRF. BGP VPN route targets leak overlay routes into `vrf_corp` and `vrf_server` and export their LANs back. This matches the FRR edge, where each business VRF imports the default VRF's BGP routes and the other business VRFs' local LANs, and guest VRFs import nothing. Overlay QoS uses mangle packet marks and a queue tree with the same EF and BE rates as the FRR edge's HTB classes. The WAN delay stays on the container links.
 
 Failures that change router state apply the same root cause with RouterOS commands: WireGuard keys and allowed addresses, DSCP remarking, source NAT, BGP filters, AS numbers, advertisements and hijacks, blackhole routes, interface MTU and ICMP filters. `frr_service_down` is rejected on RouterOS routers, which have no separate routing daemon to stop.
 
@@ -438,7 +404,7 @@ Failures that change router state apply the same root cause with RouterOS comman
 
 ### `isp_<topology>`
 
-NIKA imports SNDlib XML through a backend-neutral topology model. It converts each SNDlib node into a router, each physical link into a point-to-point `/31`, and each router into an attachment point for a `pc_<router>` traffic stub. Kathara renders the plan as FRR routers. Containerlab renders the same plan as Nokia SR Linux routers. SNDlib supplies topology, link attributes, and demand matrices; NIKA supplies the IGP and optional BGP policy presets.
+NIKA imports SNDlib XML through a backend-neutral topology model. It converts each SNDlib node into a router, each physical link into a point-to-point `/31`, and each router into an attachment point for a `pc_<router>` traffic stub. Kathara renders the plan as FRR routers. Containerlab renders the same plan as Nokia SR Linux or SONiC routers. The working benchmark puts a Containerlab platform on the graphs whose routers, with one stub each, fit the memory of 11 SR Linux routers: graphs of up to 11 routers on SR Linux and up to 55 on SONiC. `nika env run` does not apply that cap. SNDlib supplies topology, link attributes, and demand matrices; NIKA supplies the IGP and optional BGP policy presets.
 
 Each vendored SNDlib graph is a separate scenario ID (`isp_abilene`, `isp_france`, …). Topology identity is the scenario name. Relative size `s` / `m` / `l` is fixed metadata for benchmark sampling (by node-count tier), not a CLI flag.
 
@@ -458,13 +424,16 @@ uv run nika env run isp_abilene --igp ospf \
 uv run nika env run isp_france --backend containerlab \
   --device-profile nokia_srlinux --igp isis
 
+uv run nika env run isp_abilene --backend containerlab \
+  --device-profile sonic --bgp-mode ebgp
+
 uv run nika env run isp_abilene --device-profile routeros --igp isis
 ```
 
 | Control | Accepted values | Default | Effect |
 | --- | --- | --- | --- |
-| `--backend` | `kathara`, `containerlab` | `kathara` | Selects FRR or SR Linux rendering |
-| `--device-profile` | `frr`, `nokia_srlinux`, `iosxr`, `routeros` | Derived from backend | Router platform. `iosxr` and `routeros` run on Kathara and need their images: see [native IOS XR routers](#native-ios-xr-routers) and [RouterOS routers](#run-other-environments-on-routeros-routers) |
+| `--backend` | `kathara`, `containerlab` | `kathara` | Selects the Kathara or Containerlab deployment |
+| `--device-profile` | `frr`, `nokia_srlinux`, `sonic`, `iosxr`, `routeros` | Derived from backend | Router platform. `nokia_srlinux` and `sonic` run on Containerlab; see [SONiC routers](#sonic-routers-on-containerlab). `iosxr` and `routeros` run on Kathara and need their images: see [native IOS XR routers](#native-ios-xr-routers) and [RouterOS routers](#run-other-environments-on-routeros-routers) |
 | `--igp` | `isis`, `ospf` | `isis` | Selects the IGP compiler |
 | `--metric-strategy` | `constant`, `routing_cost`, `inv_capacity` | `constant` | Maps SNDlib link data to IGP metrics |
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
@@ -475,7 +444,7 @@ uv run nika env run isp_abilene --device-profile routeros --igp isis
 Every ISP environment runs [business traffic](#business-traffic) that follows the topology's SNDlib demand matrix:
 
 - **Data-set syncs.** Each `pc_<router>` stub publishes an 8 MB data set over HTTP on port 8080 and repeatedly syncs the data set of the PoP it has the largest demand from; a PoP that no stub pulls from is synced by its own largest-demand destination. Each transfer is paced at 0.3–2.5 Mbit/s, scaled from its demand. In `ebgp` mode the pairs stay inside one AS.
-- **Sessions.** On Kathara, each business prefix hosts a web/push service on its originator's service address (the prefix's `.1`), and the three stubs that send that PoP the most demand keep persistent sessions and page loads to it. Without BGP, and on Containerlab, the busiest PoP's stub hosts the service instead.
+- **Sessions.** Each business prefix hosts a web/push service, and the three stubs that send that PoP the most demand keep persistent sessions and page loads to it. On Kathara FRR the service listens on the originator's prefix `.1`; on Containerlab and other platforms that cannot run the service on the router, it listens on that originator's stub. Without BGP, the busiest PoP's stub hosts the service instead.
 
 In `abilene`, `atlam5` reaches `atlang` over a GRE tunnel whose IP MTU is 1476 on both ends, so full-size TCP across that link relies on Path MTU Discovery.
 
@@ -557,13 +526,38 @@ NIKA ports Containerlab's `min-clos` example into its runtime and verification c
 client1 -- leaf1 -- spine -- leaf2 -- client2
 ```
 
-The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux configuration also enables OSPFv2 and IS-IS on fabric interfaces and the `system0` loopbacks (`30.0.0.1`-`30.0.0.3`, `3000:30::1`-`3000:30::3`). Fabric and client links are dual-stack. NIKA waits for gNMI, applies YAML with `gnmic`, configures both clients, and checks BGP plus IPv4 and IPv6 cross-leaf and loopback reachability. Use this fixed scenario for SR Linux and Containerlab tests that do not need the larger SNDlib compiler.
+The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux configuration also enables OSPFv2 and IS-IS on fabric interfaces and the `system0` loopbacks (`30.0.0.1`-`30.0.0.3`, `3000:30::1`-`3000:30::3`). Fabric and client links are dual-stack. NIKA waits for gNMI, applies YAML with `gnmic`, configures both clients, and checks BGP plus IPv4 and IPv6 cross-leaf and loopback reachability. Use this fixed scenario for SR Linux and Containerlab tests that do not need the larger SNDlib compiler. With `--device-profile sonic`, the same addressing, OSPFv2, IS-IS and eBGP sessions run on [SONiC routers](#sonic-routers-on-containerlab).
 
 The clients run [business traffic](#business-traffic): they replicate data sets over HTTP (2 Mbit/s from `client1` to `client2`, 1 Mbit/s back), and `client1` keeps web sessions to a service on `client2`.
 
+Besides BGP and link failures, `min3clos` runs ARP cache poisoning on a client and silent packet corruption in a fabric router on both platforms. Each client sits alone on a point-to-point link to its leaf, so failures that need several hosts on one segment, such as MAC or IP address conflicts, do not apply.
+
+## SONiC routers on Containerlab
+
+SONiC is the network operating system of many data-center switches. To diagnose incidents on SONiC routers, deploy a Containerlab environment with `--device-profile sonic`:
+
+```shell
+uv run nika env run min3clos --device-profile sonic
+uv run nika env run isp_abilene --backend containerlab --device-profile sonic --bgp-mode ebgp
+```
+
+The routers run the official SONiC virtual switch (`docker-sonic-vs`) from SONiC 202505, pinned to one build of the SONiC build pipeline and checked by SHA-256. `uv run nika images prepare` downloads and loads it, and so does the first deployment that needs it. NIKA budgets 256 MiB of memory per SONiC router and 1.5 GiB per SR Linux router. [Firecracker execution](firecracker.md#vm-size) sizes VMs from those figures. [Scenario startup performance](../benchmarks/scenario_perf.md#sonic-containerlab) records measured deploy time and memory.
+
+SONiC routes with FRR. NIKA writes ports and addresses to CONFIG_DB and the routing protocols to FRR, and SONiC programs FRR's routes into APPL_DB through FPM, as on a hardware switch. Container interface `eth<k>` is SONiC port `Ethernet<4(k-1)>`, and topology links name the container interface. Inside a router, `show` commands, `vtysh`, `redis-cli` and the Linux tools work as on SONiC. Agents run SONiC CLI commands with the `sonic_exec_cli` tool of [`containerlab_sonic_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools).
+
+For ISP environments, startup verification checks SONiC's services, routing adjacencies, loopback reachability, and BGP sessions and prefix propagation. Full verification (`nika.runtime_validation.depth: full`, see [Runtime validation](configuration.md#runtime-validation)) also checks CONFIG_DB addresses in the kernel, FRR routes in APPL_DB, stub-host reachability, and shortest-path forwarding.
+
+For `min3clos`, startup verification checks deployed nodes, client addresses, BGP sessions, and router loopback reachability. Full verification adds client gateway and cross-leaf client reachability over IPv4 and IPv6.
+
+SONiC routers export all three [telemetry](#telemetry) kinds over the management network.
+
+To check the generated SONiC configuration against the environment's validation contract before deployment, add `--static-validation`. Batfish then reads each router's `config_db.json` and `frr.conf`; [Batfish static validation](../development/scenario-validation.md#batfish-static-validation) lists what it models.
+
+[Router platforms](failures.md#router-platforms) lists how failures act on SONiC routers.
+
 ## Kubernetes scenarios
 
-Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
+Both fixed Kathara scenarios run one k3s server and five workers on `nika/k3s`. This image adds `tcpdump`, `iperf3`, and `python3` to the pinned `rancher/k3s:v1.34.1-k3s1`, so packet capture, `iperf_test`, and `active_tcp_probe` work on k3s nodes. Each k3s device starts with a shell entrypoint that waits for `/var/run/net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
 
 If startup reports an exited k3s node, inspect the reported container state and log tail. For inotify exhaustion, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
@@ -615,11 +609,11 @@ Use this scenario for Kubernetes service, DNS, policy, and inference-routing fau
 
 ## Business traffic
 
-Many faults only hurt traffic that is actually flowing: a NAT that drops live sessions, a QoS policy that demotes voice, a receive window that slows downloads. An environment can therefore declare the traffic its users and services generate at all times. NIKA starts that background business traffic on every session start (`nika env run`, benchmark trials, audits) after lab verification and before any fault is injected, so healthy and faulty tasks carry the same traffic and long-lived flows already exist when a fault lands. The programs run inside the lab nodes and stop when the lab is undeployed.
+Many faults only hurt traffic that is actually flowing: a NAT that drops live sessions, a QoS policy that demotes voice, a receive window that slows downloads. An environment can therefore declare the traffic its users and services generate at all times. NIKA starts that background business traffic on every session start (`nika env run`, benchmark trials, audits) after lab verification and before any fault is injected, so healthy and faulty tasks carry the same traffic. The programs run inside the lab nodes and stop when the lab is undeployed.
 
 Background business traffic belongs to the environment. Some incidents also start traffic of their own after injection. `tcp_syn_flood_attack` launches SYN generators; `web_dos_attack` and `load_balancer_overload` start ApacheBench workers. Those generators are part of the injected incident, not the environment workload. See the [failure reference](failures.md#registered-failures).
 
-`enterprise_branch`, `campus_lan`, `dc_clos`, `sdn_l3_clos`, `p4_dc_fabric`, `p4_dc_gateway`, `k8s_lab`, `llmd_lab`, the ISP environments (SNDlib and Topology Zoo), and `min3clos` declare business traffic. Other environments run quiet.
+Every environment declares business traffic. The programs run on Linux hosts and servers, so the traffic crosses IOS XR, RouterOS, and SR Linux routers the same way it crosses FRR routers. To add a configurable traffic pattern on top of it, see [Background traffic profiles](#background-traffic-profiles).
 
 To declare traffic for an environment, return a `BusinessWorkload` from the environment's `business_workload()` method ([`nika.traffic.workload`](../../src/nika/traffic/workload.py)):
 
@@ -644,7 +638,6 @@ class MyEnv(NetworkEnvBase):
 
 - `WorkloadProcess(node, app, command, args)` runs the standalone program `app` from [`nika/traffic/apps/`](../../src/nika/traffic/apps/) on `node`, installed as `/usr/local/bin/<command>`. Choose neutral command names that describe the service, since agents see them in `ps`. Each `(node, command)` pair is unique. Starting is idempotent. If any process does not stay up, the session start fails.
 - `exercises` records what the traffic guarantees, as an `(kind, target)` pair. A failure whose symptom needs traffic sets `SYMPTOM_WORKLOAD` to a kind and implements `symptom_workload_target(inject)`. Benchmark target generation and inject validation then keep only targets the workload exercises.
-- `settle_sec` (default 20 s) is how long session start waits after launch so sessions and bulk flows are established.
 
 | Exercise kind | Target | Guarantee |
 | --- | --- | --- |
@@ -667,6 +660,62 @@ class MyEnv(NetworkEnvBase):
 
 Keep the traffic light enough for size `l` and keep healthy links below saturation, so that ping-based probes do not read the background traffic as a fault.
 
+### Background traffic profiles
+
+Business traffic differs between environments, because each one models its own users. To compare agents under the same kind of load in every environment, or to stress an environment with a known traffic pattern, add a background traffic profile. NIKA starts it right after the business traffic and keeps it running for the whole task. Its endpoints are the hosts and servers that PingMesh probes. On Kubernetes nodes, which have no Python, each program runs in a pod in the `backup` namespace, pinned to its node with host networking, so it uses the node's own addresses.
+
+Select a profile in a benchmark task with `traffic:`, either as a pattern name or as a mapping. A [benchmark configuration](../benchmarks/benchmark-configuration.md) file lists its tasks under `cases:`:
+
+```yaml
+cases:
+  - scenario: dc_clos
+    topo_size: s
+    problem: link_down
+    traffic:
+      pattern: gravity
+      flow_sizes: hadoop
+      load_mbps: 2
+    inject:
+      host_name: leaf_1
+      intf_name: eth1
+```
+
+For an interactive session, pass the same settings to `nika env run`:
+
+```shell
+uv run nika env run dc_clos -s s --traffic gravity,flow_sizes=hadoop,load_mbps=2
+```
+
+A profile combines a traffic matrix, a flow-size distribution, and Poisson flow arrivals, the way data-center transport and WAN traffic-engineering studies describe their workloads. The programs present themselves as ordinary user services, like the business traffic: each sender is a backup agent (`backup-agent`) whose flows are HTTP uploads to object stores (`object-store`, port 7480) on the other hosts, and the `incast` pattern adds a sharded search service (`search-frontend` and `search-shard`) that answers over UDP.
+
+| `pattern` | Traffic matrix | Typical use |
+| --- | --- | --- |
+| `uniform` | Every permitted host pair gets the same share ([pFabric](https://dl.acm.org/doi/10.1145/2486001.2486031), [HPCC](https://dl.acm.org/doi/10.1145/3341302.3342085), [Homa](https://dl.acm.org/doi/10.1145/3230543.3230564)) | Data-center fabrics |
+| `gravity` | Each host draws an exponential sending and receiving mass; a pair's share is the product ([Roughan, CCR 2005](https://dl.acm.org/doi/10.1145/1096536.1096551)) | WAN and ISP backbones without measured demands |
+| `demand` | The environment's measured demand matrix; ISP environments map the SNDlib matrix to their edge hosts | SNDlib ISP backbones |
+| `permutation` | Every host sends to exactly one other host ([VL2](https://dl.acm.org/doi/10.1145/1592568.1592576)) | Bisection and path-diversity load |
+| `hotspot` | `hot_fraction` of the load goes to `hotspots` receivers, the rest is uniform | Popular servers in campus and enterprise networks |
+| `incast` | `uniform` TCP flows, plus synchronized UDP replies: every `incast_period_sec`, `fan_in` hosts each answer one receiver's query with `incast_kb` ([DCTCP](https://dl.acm.org/doi/10.1145/1851182.1851192) partition/aggregate). The replies add to `load_mbps`; the defaults add about 1 Mbit/s. | Shallow-buffer and fan-in congestion |
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `flow_sizes` | `websearch` | Flow-size cumulative distribution function (CDF): `websearch` ([DCTCP](https://dl.acm.org/doi/10.1145/1851182.1851192)), `datamining` ([VL2](https://dl.acm.org/doi/10.1145/1592568.1592576)), or `hadoop` ([Roy et al., SIGCOMM 2015](https://dl.acm.org/doi/10.1145/2785956.2787472)) |
+| `load_mbps` | `4` | Offered TCP load summed over all senders, in Mbit/s; `incast` replies come on top. Lab links are software switches, so keep it well below the link rates of the environment. |
+| `max_flow_kb` | `2048` | Flows drawn larger than this are clipped to it, so a single flow does not occupy a few-Mbit/s link for minutes. |
+| `max_flow_kbps` | unset | Rate each flow is paced to. Unset sends each flow as fast as TCP allows. |
+| `seed` | `1` | Seed of the matrix, the senders' arrivals, and their flow sizes |
+| `hotspots`, `hot_fraction` | `1`, `0.5` | `hotspot` receivers and their share of the load |
+| `fan_in`, `incast_kb`, `incast_period_sec` | `8`, `32`, `2` | `incast` responders, the KB each returns, and seconds between queries |
+| `diurnal_period_sec`, `diurnal_amplitude` | unset, `0.5` | When set, the arrival rate follows a sine of this period and relative amplitude |
+
+Host pairs that the environment isolates by design, such as guest LANs or separate autonomous systems, carry no profile traffic. A `demand` profile fails at session start when the environment has no demand matrix. When a router platform or the environment limits path capacity, NIKA lowers the load and incast bursts to 15% of that capacity and paces each flow to that rate. In `enterprise_branch`, background transfers share the selected topology’s best-effort overlay class: the default uniform profile runs at 0.6 Mbit/s for size `s` and 1.35 Mbit/s for sizes `m` and `l` on FRR, with lower rates when a native router platform imposes a smaller cap. It logs the values it ran in the `env_traffic` event. A profile is part of the task identity, so the same fault with and without a profile counts as two tasks, and the benchmark audit runs each task with its profile.
+
+### Baseline traffic in generated tasks
+
+Every task that `nika benchmark generate` writes to the working pool runs a background traffic profile, so faulty and healthy tasks carry the same kind of load. Because the profile is the same for every failure, its programs say nothing about which fault, if any, the agent faces. Each environment declares its baseline: `uniform` at 1 Mbit/s, or `gravity` at 1 Mbit/s for ISP backbones. A failure can replace the baseline for its own tasks with `TRAFFIC_PROFILE`, but any difference from the baseline hints at the failure class, so no current failure does.
+
+Benchmark releases keep their tasks as published: a task without `traffic:`, such as every task of release 0.2.0, runs without a profile. A multi-fault task runs the profile its YAML names.
+
 ## Telemetry
 
 Agents can investigate an environment with the evidence operators read from monitoring systems: flow records (NetFlow, IPFIX, or sFlow), device metrics (Prometheus), and syslog. Attach any combination of those kinds when you start a session:
@@ -684,7 +733,7 @@ cases:
     problem: link_down
     telemetry: [netflow, prometheus, syslog]
     inject:
-      host_name: leaf_router_0_0
+      host_name: leaf_1
       intf_name: eth0
 ```
 
@@ -711,6 +760,7 @@ Records stay empty until devices export traffic, counters, or log lines. Flow re
 | SDN Open vSwitch | OVS NetFlow | OpenFlow port counters | `/dev/log` |
 | P4 BMv2 | not exported | pipeline counters | `/dev/log` from `fabric_mgr` |
 | Containerlab SR Linux | sFlow on extra ethernet | gNMI interfaces and BGP | UDP 514 |
+| Containerlab SONiC | IPFIX (`pmacctd` in the router's network namespace) | COUNTERS_DB ports and BGP gauges | rsyslog |
 | Containerlab Linux clients | not exported | not exported | not exported |
 | XRd | not exported | `xr_cli` interfaces and BGP | Linux `/dev/log` forwarder |
 | RouterOS | traffic-flow v9 | SSH interfaces and BGP | remote logging |
@@ -722,6 +772,8 @@ Records stay empty until devices export traffic, counters, or log lines. Flow re
 Kathara adds an out-of-band LAN, `telemetry_switch`, and `telemetry_collector`. Each exporting device joins on an extra interface after its scenario interfaces, in VRF `mgmt` (table 4242), so routing protocols never advertise it. node_exporter answers only on that network, and the management interface is left out of Prometheus metrics. vrnetlab maps the extra NIC into RouterOS, so NIKA addresses it there instead of in a Linux VRF and does not add it to OSPF.
 
 Containerlab joins the collector to the lab management network. sFlow cannot use that network, so SR Linux flow records use an extra ethernet port and `ip-vrf` `telemetry`. Prometheus collects SR Linux metrics through gNMI on the lab management network. SR Linux sends syslog to the collector over UDP port 514 on that network; NIKA configures the logging destination through gNMI.
+
+SONiC routers export over the same management network (`eth0`). Their rsyslogd forwards to the collector, and the server is listed in CONFIG_DB `SYSLOG_SERVER`. An exporter in each router serves COUNTERS_DB port counters and FRR BGP sessions, and it answers only on `eth0`. The SONiC virtual switch has no sFlow agent, so a `telemetry_flow_<router>` node that shares the router's network namespace runs one `pmacctd` IPFIX probe per `Ethernet<N>` port.
 
 The collector is off the topology: it has no scenario interfaces, no injected failures, and no packet captures. NIKA starts collectors and exporters after the environment is verified.
 

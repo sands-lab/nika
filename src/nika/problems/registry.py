@@ -167,6 +167,8 @@ def get_problem_instance(
         if cls is None:
             raise KeyError(name)
 
+    if release is not None:
+        kwargs.setdefault("environment_release", release)
     if len(resolved) > 1:
         sub_faults = [cls(scenario_name=scenario_name, **kwargs) for cls in classes]
         return MultiFaultProblem(
