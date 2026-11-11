@@ -20,10 +20,10 @@ traffic:
 - **Arrivals**: open-loop Poisson at ``load_mbps`` of offered load summed over
   the lab, optionally modulated by a sine of ``diurnal_period_sec``.
 
-When the routers' platform caps each interface
-(``NetworkEnvBase.router_rate_limit_kbps``), or the scenario shapes its paths
-below that (``NetworkEnvBase.path_rate_limit_kbps``), the profile's load,
-each flow's rate, and incast bursts shrink to ``PROFILE_RATE_SHARE`` of it.
+The deployed environment declares its background path capacity through
+``NetworkEnvBase.background_rate_limit_kbps``. The profile's load, each
+flow's rate, and incast bursts shrink to ``PROFILE_RATE_SHARE`` of that
+capacity when the platform or the environment shapes the path.
 
 Endpoints are the nodes PingMesh probes (hosts, reachability targets, and
 service nodes) that have a data-plane IPv4 address and a Python runtime. Routers carry the traffic whatever their platform (FRR, IOS
@@ -446,14 +446,7 @@ def prepare_background_traffic(
 
     Returns the rate-adjusted profile and its programs.
     """
-    limits = [
-        net_env.router_rate_limit_kbps(),
-        # Scenarios that shape their paths below the router cap say so.
-        type(net_env).path_rate_limit_kbps(getattr(net_env, "device_profile", None)),
-    ]
-    profile = fit_to_rate_limit(
-        profile, min((limit for limit in limits if limit), default=None)
-    )
+    profile = fit_to_rate_limit(profile, net_env.background_rate_limit_kbps())
     runtime = net_env._build_runtime()
     names = endpoint_names(net_env)
     endpoints = discover_endpoints(

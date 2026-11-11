@@ -169,8 +169,41 @@ def run_in_node_netns(pid: int, command: list[str], *, mount: bool = False) -> i
         os.close(pidfd)
 
 
+def run_owned(path: str, command: list[str]) -> int:
+    """Run one command with a birth identity and a cancellation tombstone."""
+    record = Path(path)
+    cancelled = Path(path + ".cancel")
+    child = None
+    try:
+        if cancelled.exists():
+            return 125
+        child = subprocess.Popen(command)
+        try:
+            identity = process_identity(child.pid)
+        except (FileNotFoundError, ProcessLookupError):
+            return child.wait()
+        temporary = Path(f"{path}.{os.getpid()}.tmp")
+        temporary.write_text(json.dumps(identity))
+        temporary.replace(record)
+        if cancelled.exists():
+            stop_owned(identity)
+        return child.wait()
+    finally:
+        if child is not None and child.poll() is None:
+            child.terminate()
+            child.wait()
+        record.unlink(missing_ok=True)
+        cancelled.unlink(missing_ok=True)
+
+
 def main() -> None:
     operation, path, *args = sys.argv[1:]
+    if operation == "run":
+        raise SystemExit(run_owned(path, args))
+    if operation == "cancel":
+        Path(path + ".cancel").touch()
+        stop_owned(read_identity(path))
+        return
     if operation in {"netns", "netns-mount"}:
         raise SystemExit(
             run_in_node_netns(int(path), args, mount=operation == "netns-mount")

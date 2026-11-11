@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -130,3 +131,50 @@ def test_exited_group_leader_does_not_block_child_cleanup():
         leader.wait(timeout=5)
         if child is not None:
             stop_owned(child)
+
+
+def test_owned_command_cancellation_reaps_only_its_child(tmp_path, worker):
+    record = tmp_path / "probe.json"
+    wrapper = subprocess.Popen(
+        process_command(
+            "run", str(record), sys.executable, "-c", "import time; time.sleep(60)"
+        )
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while not record.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        identity = json.loads(record.read_text())
+        subprocess.run(process_command("cancel", str(record)), check=True, timeout=10)
+        assert wrapper.wait(timeout=5) != 0
+        assert owned_pidfd(identity) is None
+        assert worker.poll() is None
+        assert not list(tmp_path.iterdir())
+    finally:
+        if wrapper.poll() is None:
+            subprocess.run(
+                process_command("cancel", str(record)), check=True, timeout=10
+            )
+        wrapper.wait(timeout=5)
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_owned_command_completes_or_skips_a_cancelled_launch(tmp_path, cancelled):
+    record = tmp_path / "probe.json"
+    marker = tmp_path / "executed"
+    if cancelled:
+        subprocess.run(process_command("cancel", str(record)), check=True)
+    result = subprocess.run(
+        process_command(
+            "run",
+            str(record),
+            sys.executable,
+            "-c",
+            f"open({str(marker)!r}, 'w').close()",
+        ),
+        timeout=5,
+    )
+    assert result.returncode == (125 if cancelled else 0)
+    assert marker.exists() is not cancelled
+    assert not record.exists()
+    assert not record.with_suffix(".json.cancel").exists()

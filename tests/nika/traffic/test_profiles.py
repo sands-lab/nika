@@ -143,6 +143,35 @@ def test_profile_fits_the_routers_send_cap() -> None:
     assert incast.load_mbps * 1000 + answers_kbps <= 150
 
 
+@pytest.mark.parametrize(
+    ("router_cap", "path_cap", "expected"),
+    [(None, None, None), (1000, None, 1000), (1000, 300, 300), (None, 300, 300)],
+)
+def test_background_capacity_preserves_platform_and_scenario_caps(
+    router_cap, path_cap, expected
+) -> None:
+    from nika.net_env.base import NetworkEnvBase
+
+    class CappedEnv(NetworkEnvBase):
+        @classmethod
+        def path_rate_limit_kbps(cls, device_profile):
+            return path_cap
+
+        def router_rate_limit_kbps(self):
+            return router_cap
+
+    assert CappedEnv().background_rate_limit_kbps() == expected
+
+
+def test_fitting_a_profile_preserves_lower_requested_rates() -> None:
+    from nika.traffic.profiles import fit_to_rate_limit
+
+    profile = TrafficProfile(pattern="uniform", load_mbps=0.1, max_flow_kbps=80)
+    effective = fit_to_rate_limit(profile, 9000)
+    assert effective.load_mbps == 0.1
+    assert effective.max_flow_kbps == 80
+
+
 def test_pair_replication_fits_the_routers_send_cap() -> None:
     from nika.net_env.utils.pair_workload import build_pair_workload
     from nika.traffic.workload import BULK_TRANSIT

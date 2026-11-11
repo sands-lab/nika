@@ -438,6 +438,14 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
     write_guest_lab_settings(uds)
     sync_code(uds)
     wait_http_ok(uds, DAEMON_PORT)
+    native_hub = json.loads(
+        guest_exec(
+            uds,
+            f"cd {GUEST_REPO} && PYTHONPATH=src .venv/bin/python -c "
+            "'import json; from nika.runtime.kathara.native_hub import "
+            "prepare_guest_native_hub; print(json.dumps(prepare_guest_native_hub()))'",
+        )
+    )
 
     from nika.remote.client import RemoteClient
     from nika.remote.config import RemoteConfig
@@ -487,6 +495,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
                 "created": time.time(),
                 "base": manifest["id"],
                 "guest_memory_mib": guest_memory,
+                "native_hub": native_hub,
             }
         )
     )

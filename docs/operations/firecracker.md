@@ -280,6 +280,8 @@ as `remote_clock_offset_sec`.
 
 ## Manage lab images
 
+Lab images and restored trials record the native VDE helper image ID so you can identify their forwarding implementation. Fresh guests install the helper before deployment; existing snapshots use their saved hub. The helper reduces forwarding overhead while preserving Kathará’s port capacity and flooding behavior.
+
 | Command | Effect |
 |---|---|
 | `nika firecracker list` | Lab and case images, whether trials would still use them, and trial copies (running or orphaned) |

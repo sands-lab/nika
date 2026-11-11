@@ -960,6 +960,12 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             return None
         return min(overlay_be_kbit(overlay_qos_for(size, cap)) for size in SCALE)
 
+    def background_rate_limit_kbps(self) -> int | None:
+        """Background transfers share the selected topology's best-effort class."""
+        return overlay_be_kbit(
+            overlay_qos_for(self.spec.size, self.router_rate_limit_kbps())
+        )
+
     def link_symptom_targets(self, node: str, intf: str) -> dict[str, str] | None:
         """A guest host reaches the public web server through its Site Edge NAT."""
         machine = self.lab.machines.get(node)

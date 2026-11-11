@@ -40,6 +40,8 @@ Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `tim
 | `kathara_syslog_mcp_server` | Sessions started with `telemetry: [syslog]` | `syslog_query` reads device syslog stored by `telemetry_collector`. |
 | `k8s_mcp_server` | Kubernetes scenarios when `nika.k8s.access` permits MCP | `k8s_list_events` queries session-scoped Kubernetes events. |
 
+PingMesh bounds concurrent probes to leave CPU capacity for business traffic and protocol processing. It increases concurrency within its snapshot budget while preserving selected pairs, packet counts, and anomaly thresholds.
+
 ### SDN (`kathara_sdn_mcp_server`)
 
 Call `sdn_onos_rest` with paths such as `/onos/v1/devices`, `/onos/v1/flows`, or `/onos/v1/statistics/ports`. Use `exec_shell` on a switch for `ovs-ofctl` or `ovs-vsctl`, and on `onos` to inspect controller logs. Enable [NetFlow and Prometheus telemetry](../operations/network-scenarios.md#telemetry) when the agent should query stored flow records and OpenFlow port time series.

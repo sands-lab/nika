@@ -456,6 +456,14 @@ class NetworkEnvBase:
 
         return platform_rate_limit_kbps(device_profile)
 
+    def background_rate_limit_kbps(self) -> int | None:
+        """Capacity available to background profiles on this deployed lab."""
+        limits = [
+            self.router_rate_limit_kbps(),
+            type(self).path_rate_limit_kbps(getattr(self, "device_profile", None)),
+        ]
+        return min((limit for limit in limits if limit), default=None)
+
     def nat_probe_server(self) -> tuple[str, str] | None:
         """An outside ``(node, ipv4)`` Linux server that NATed hosts reach.
 
