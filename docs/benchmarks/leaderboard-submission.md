@@ -225,13 +225,11 @@ The [reviewed knowledge base](../../src/nika/audit/kb_data/) defines blocking an
 
 ### Automatic trajectory review
 
-Leaderboard CI validates each changed entry with the shared NIKA audit workflow. The trusted workflow reads scores as data, downloads trajectories at an immutable HF revision, and runs the reviewed checks. Structurally invalid packages and packages containing secrets stop before model review.
+Leaderboard CI validates each changed entry against its paired trajectories and reviews the recorded agent behavior. New audits use the latest merged knowledge base. Structurally invalid packages and packages containing secrets stop before model review.
 
-The `nika-audit` runner then reviews the same trajectory revision with its local Codex subscription and `gpt-6-luna`. Shell tools are disabled for the model. The review keeps generated rules in a KB copy and replays them before publishing evidence artifacts. New candidates open deduplicated issues and a draft NIKA knowledge PR; maintainers verify their cited steps and scope before merging.
+Open the pull request's validation check to inspect the audit summary and download its evidence artifacts. The `audit.json` report lists known issues with trial and step references. Review the cited observations when addressing warnings or blocking findings; a successful CI job does not dismiss reported warnings.
 
-The runner needs an authenticated Codex CLI and a GitHub account authorized to propose NIKA changes. Configure `HF_TOKEN` for restricted trajectories. The caller uses `pull_request_target` so fork entries can be read with credentials while PR-supplied tests run separately without audit credentials. Only the trusted NIKA checkout is executed.
-
-Leaderboard CI calls the shared workflow from `dev` and defaults to its latest merged auditor and knowledge base. Both stages use the same checkout version within a run. New runs include subsequently merged knowledge without a manual commit update. Local `submit` and `validate` use the reviewed deterministic checks installed with NIKA.
+Newly proposed audit rules require maintainer review before adoption. For reviewer setup and workflow maintenance, see [Run leaderboard submission audits](../development/testing.md#run-leaderboard-submission-audits).
 
 ### Run-validity gates
 
