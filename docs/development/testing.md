@@ -137,6 +137,8 @@ Leaderboard CI calls the shared [submission audit workflow](../../.github/workfl
 
 The `nika-audit` runner validates paired scores and trajectories, then reviews the same trajectory revision with its Codex login and `gpt-6-luna`. Shell tools are disabled for the model. The review keeps proposed rules in a knowledge-base copy and replays them before publishing artifacts. New candidates open deduplicated issues and a draft NIKA knowledge PR; maintainers verify their cited steps and scope before merging.
 
+To diagnose a failed review, inspect `review/scan-calls.jsonl` in its evidence artifact. It preserves completed trial-sample attempts and failed replies; `review/scan.jsonl` contains the current result for each sample. Failed CLI samples receive one failed-only retry when retries are enabled. Remaining errors or unsupported source checks keep proposal publication blocked. CI runs up to eight model calls concurrently, limited by the runner's CPU count.
+
 Configure the caller repository's `HF_TOKEN` secret for restricted trajectories. The leaderboard caller uses `pull_request_target` so fork scores can be read as data while PR-supplied tests run separately without audit credentials. Only the trusted NIKA checkout is executed. Runner authentication and service setup are described in [Maintain self-hosted review runners](#maintain-self-hosted-review-runners).
 
 ### Use the documentation review fallback

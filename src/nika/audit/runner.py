@@ -31,7 +31,7 @@ from nika.audit.regrade import regrade_trial
 from nika.audit.source import SourceUnavailable, source_absent, verified_provider
 from nika.audit.trace import (
     Trial,
-    _fingerprint,
+    deployment_profile,
     load_trial,
     split_tool_name,
     trial_dirs,
@@ -419,28 +419,9 @@ def prompt_profiles(trials: list[Trial]) -> list[list[Trial]]:
     """Compare prompts within recorded deployment settings and code versions."""
     groups = defaultdict(list)
     for trial in trials:
-        fp = _fingerprint(trial.run)
-        if not fp or not trial.scenario:
+        profile = deployment_profile(trial)
+        if profile is None:
             continue
-        params = trial.run.get("scenario_params") or {}
-        if not isinstance(params, dict):
-            continue
-        profile = {
-            "environment": trial.scenario,
-            "deployment": {
-                k: v
-                for k, v in fp.items()
-                if k not in {"problem", "problems", "inject"}
-            },
-            "parameters": {
-                k: v
-                for k, v in params.items()
-                if k not in {"lab_name", "runtime_workdir"}
-            },
-            "topology_size": trial.run.get("scenario_topo_size"),
-            "backend": trial.run.get("backend"),
-            "commit": trial.run.get("nika_git_commit"),
-        }
         groups[json.dumps(profile, sort_keys=True)].append(trial)
     return list(groups.values())
 

@@ -115,29 +115,32 @@ def collect_boundaries(
                 continue
             if any(changed.index < step.index for changed, _ in context.mutating_calls):
                 continue
-            commit = str(trial.run.get("nika_git_commit") or "")
-            try:
-                addresses = _owners(str(repo.resolve()), commit, trial.scenario)
-            except SourceUnavailable as exc:
-                unsupported.append(
-                    {"ref": f"{trial.trial_id}:{step.index}", "reason": str(exc)}
-                )
-                continue
             first, gateway = hops[0][1], hops[1][1]
-            if (
-                len(addresses.get(destination, [])) != 1
-                or len(addresses.get(first, [])) != 1
-                or gateway in addresses
-            ):
+            try:
+                first_address = ipaddress.IPv4Address(first)
+                gateway_address = ipaddress.IPv4Address(gateway)
+            except ValueError:
                 continue
-            target, router = addresses[destination][0], addresses[first][0]
             observations = []
             for observed in trial.steps[: step.index]:
                 producer = context.call_of(observed)
                 if (
                     observed.kind != "tool_result"
                     or producer is None
-                    or _arguments(producer).get("host_name") != router["node"]
+                    or producer.tool != "exec_shell"
+                ):
+                    continue
+                arguments = _arguments(producer)
+                try:
+                    probe = shlex.split(arguments.get("command", ""))
+                except (TypeError, ValueError):
+                    continue
+                if (
+                    len(probe) not in (3, 4)
+                    or probe[0] != "ip"
+                    or probe[1] not in {"-br", "-brief"}
+                    or probe[2] not in {"a", "addr", "address"}
+                    or (len(probe) == 4 and probe[3] != "show")
                 ):
                     continue
                 rows = []
@@ -151,8 +154,8 @@ def collect_boundaries(
                         except ValueError:
                             continue
                         if (
-                            ipaddress.IPv4Address(gateway) in interface.network
-                            and interface.ip != ipaddress.IPv4Address(first)
+                            gateway_address in interface.network
+                            and interface.ip != first_address
                         ):
                             rows.append(
                                 {"interface": match[1].split("@")[0], "address": value}
@@ -161,11 +164,30 @@ def collect_boundaries(
                     observations.append(
                         {
                             "step": observed.index,
+                            "node": arguments.get("host_name"),
                             "call": producer.text,
                             "output": observed.text,
                             "gateway_interfaces": rows,
                         }
                     )
+            if not observations:
+                continue
+            commit = str(trial.run.get("nika_git_commit") or "")
+            try:
+                addresses = _owners(str(repo.resolve()), commit, trial.scenario)
+            except SourceUnavailable as exc:
+                unsupported.append(
+                    {"ref": f"{trial.trial_id}:{step.index}", "reason": str(exc)}
+                )
+                continue
+            if (
+                len(addresses.get(destination, [])) != 1
+                or len(addresses.get(first, [])) != 1
+                or gateway in addresses
+            ):
+                continue
+            target, router = addresses[destination][0], addresses[first][0]
+            observations = [o for o in observations if o["node"] == router["node"]]
             if not observations:
                 continue
             observation = observations[-1]

@@ -1,31 +1,107 @@
 id: HARNESS-LLMD-BRIEF-TOPOLOGY-INCOMPLETE
-title: The llmd_lab brief lists one pair (controller:eth0, worker1:eth0) for its shared segment and omits the controller and workers from the inventory
+title: Topology summaries omit endpoints on shared links
 class: harness_defect
 severity: warn
 status: fixed
 fixed_in: ea317115
-summary: BaseNetEnv.get_topology keeps only the first two endpoints of each collision domain
-  (src/nika/net_env/base.py). llmd_lab puts controller, worker1-5, client, and web on one link
-  (src/nika/net_env/llmd_lab/lab.py), so the brief's topology shows a single pair and 6 of 8 endpoints disappear.
-  The inventory lines print only host and service roles, so the controller and workers are missing there too. The
-  agent starts from a wrong picture of the lab.
-guideline: Counts on every llmd_lab trial whose prompt shows the pair (controller:eth0, worker1:eth0) as the only
-  topology line. The same code drops endpoints in any environment with a multi-access link; check its brief
-  before extending the scope. Does not count when the agent learns the real topology from tools and is not misled.
+summary: The historical topology formatter keeps only the first two endpoints of each collision domain.
+  In llmd_lab, its initial topology line omits six of eight connected endpoints; its role inventory also
+  omits the controller and workers. In enterprise_branch, the medium and large profiles connect secondary
+  LAN hosts that the topology line omits. The inventory still lists those Enterprise hosts. This establishes
+  an incomplete initial topology description; downstream diagnostic impact has not been measured. Commit
+  ea317115 reports every endpoint on shared links and repairs the LLMD inventory.
+guideline: Match the cited initial prompt and deployment. Enterprise extensions require an exact observed
+  topology line and unchanged reviewed source providers. A match establishes an initial description mismatch,
+  not an incorrect diagnosis or invalid score. A changed provider requires fresh source review.
 scope:
   scenarios:
   - llmd_lab
+  - enterprise_branch
 detect:
 - kind: text
   where:
   - prompt
   pattern: 'Topology: \(controller:eth0, worker1:eth0\)'
+- kind: source_text
+  where:
+  - prompt
+  pattern: (?m)^Topology:\ \(br1_edge:eth0,\ br1_corp_pc:eth0\),\ \(br1_edge:eth2,\ br1_guest_pc:eth0\),\
+    \(br1_edge:eth1,\ br1_iot_pc:eth0\),\ \(br1_edge:eth3,\ isp1_core:eth2\),\ \(br1_edge:eth4,\ isp2_core:eth2\),\
+    \(br2_edge:eth0,\ br2_corp_pc:eth0\),\ \(br2_edge:eth2,\ br2_guest_pc:eth0\),\ \(br2_edge:eth1,\ br2_iot_pc:eth0\),\
+    \(br2_edge:eth3,\ isp1_core:eth3\),\ \(br2_edge:eth4,\ isp2_core:eth3\),\ \(br3_edge:eth0,\ br3_corp_pc:eth0\),\
+    \(br3_edge:eth2,\ br3_guest_pc:eth0\),\ \(br3_edge:eth1,\ br3_iot_pc:eth0\),\ \(br3_edge:eth3,\ isp1_core:eth4\),\
+    \(br3_edge:eth4,\ isp2_core:eth4\),\ \(br4_edge:eth0,\ br4_corp_pc:eth0\),\ \(br4_edge:eth2,\ br4_guest_pc:eth0\),\
+    \(br4_edge:eth1,\ br4_iot_pc:eth0\),\ \(br4_edge:eth3,\ isp1_core:eth5\),\ \(br4_edge:eth4,\ isp2_core:eth5\),\
+    \(br5_edge:eth0,\ br5_corp_pc:eth0\),\ \(br5_edge:eth2,\ br5_guest_pc:eth0\),\ \(br5_edge:eth1,\ br5_iot_pc:eth0\),\
+    \(br5_edge:eth3,\ isp1_core:eth6\),\ \(br5_edge:eth4,\ isp2_core:eth6\),\ \(br6_edge:eth0,\ br6_corp_pc:eth0\),\
+    \(br6_edge:eth2,\ br6_guest_pc:eth0\),\ \(br6_edge:eth1,\ br6_iot_pc:eth0\),\ \(br6_edge:eth3,\ isp1_core:eth7\),\
+    \(br6_edge:eth4,\ isp2_core:eth7\),\ \(br7_edge:eth0,\ br7_corp_pc:eth0\),\ \(br7_edge:eth2,\ br7_guest_pc:eth0\),\
+    \(br7_edge:eth1,\ br7_iot_pc:eth0\),\ \(br7_edge:eth3,\ isp1_core:eth8\),\ \(br7_edge:eth4,\ isp2_core:eth8\),\
+    \(br8_edge:eth0,\ br8_corp_pc:eth0\),\ \(br8_edge:eth2,\ br8_guest_pc:eth0\),\ \(br8_edge:eth1,\ br8_iot_pc:eth0\),\
+    \(br8_edge:eth3,\ isp1_core:eth9\),\ \(br8_edge:eth4,\ isp2_core:eth9\),\ \(dc2_edge:eth0,\ dc2_corp_pc:eth0\),\
+    \(dc2_edge:eth3,\ dc2_guest_pc:eth0\),\ \(dc2_edge:eth2,\ dc2_iot_pc:eth0\),\ \(dc2_edge:eth1,\ dc2_srv:eth0\),\
+    \(dc2_edge:eth4,\ isp1_core:eth1\),\ \(dc2_edge:eth5,\ isp2_core:eth1\),\ \(hq_edge:eth0,\ hq_corp_pc:eth0\),\
+    \(hq_edge:eth3,\ hq_guest_pc:eth0\),\ \(hq_edge:eth2,\ hq_iot_pc:eth0\),\ \(hq_edge:eth1,\ hq_srv:eth0\),\
+    \(hq_edge:eth4,\ isp1_core:eth0\),\ \(hq_edge:eth5,\ isp2_core:eth0\)$
+  source_fingerprints:
+  - src/nika/net_env/base.py: 2f64418e8e1128781794c58861dceb39c6af07847768c23963de0dbfa7908b12
+    src/nika/net_env/enterprise_branch/addressing.py: 4c79bcefd1ac929bec859bfe1ac0c120818b9915da0afc12a32efec2ce6b0b84
+    src/nika/net_env/enterprise_branch/lab.py: d6cf297bae412425cd8d2232f6f3ddfac43750f9891c970fe5ad8d12b04d7ffa
+    src/nika/net_env/enterprise_branch/topology.py: 4057b789952e9e1203465168a0b499b105725e41b257bb5745b6a723b8753fe8
+  - src/nika/net_env/base.py: 146843f95c239df4d7bd7c013017b350993da76ac1f4be7c55987970ef9ef07c
+    src/nika/net_env/enterprise_branch/addressing.py: 4c79bcefd1ac929bec859bfe1ac0c120818b9915da0afc12a32efec2ce6b0b84
+    src/nika/net_env/enterprise_branch/lab.py: d6cf297bae412425cd8d2232f6f3ddfac43750f9891c970fe5ad8d12b04d7ffa
+    src/nika/net_env/enterprise_branch/topology.py: 4057b789952e9e1203465168a0b499b105725e41b257bb5745b6a723b8753fe8
+- kind: source_text
+  where:
+  - prompt
+  pattern: (?m)^Topology:\ \(br1_edge:eth0,\ br1_corp_pc:eth0\),\ \(br1_edge:eth2,\ br1_guest_pc:eth0\),\
+    \(br1_edge:eth1,\ br1_iot_pc:eth0\),\ \(br1_edge:eth3,\ isp1_core:eth2\),\ \(br1_edge:eth4,\ isp2_core:eth2\),\
+    \(br2_edge:eth0,\ br2_corp_pc:eth0\),\ \(br2_edge:eth2,\ br2_guest_pc:eth0\),\ \(br2_edge:eth1,\ br2_iot_pc:eth0\),\
+    \(br2_edge:eth3,\ isp1_core:eth3\),\ \(br2_edge:eth4,\ isp2_core:eth3\),\ \(br3_edge:eth0,\ br3_corp_pc:eth0\),\
+    \(br3_edge:eth2,\ br3_guest_pc:eth0\),\ \(br3_edge:eth1,\ br3_iot_pc:eth0\),\ \(br3_edge:eth3,\ isp1_core:eth4\),\
+    \(br3_edge:eth4,\ isp2_core:eth4\),\ \(br4_edge:eth0,\ br4_corp_pc:eth0\),\ \(br4_edge:eth2,\ br4_guest_pc:eth0\),\
+    \(br4_edge:eth1,\ br4_iot_pc:eth0\),\ \(br4_edge:eth3,\ isp1_core:eth5\),\ \(br4_edge:eth4,\ isp2_core:eth5\),\
+    \(dc2_edge:eth0,\ dc2_corp_pc:eth0\),\ \(dc2_edge:eth3,\ dc2_guest_pc:eth0\),\ \(dc2_edge:eth2,\ dc2_iot_pc:eth0\),\
+    \(dc2_edge:eth1,\ dc2_srv:eth0\),\ \(dc2_edge:eth4,\ isp1_core:eth1\),\ \(dc2_edge:eth5,\ isp2_core:eth1\),\
+    \(hq_edge:eth0,\ hq_corp_pc:eth0\),\ \(hq_edge:eth3,\ hq_guest_pc:eth0\),\ \(hq_edge:eth2,\ hq_iot_pc:eth0\),\
+    \(hq_edge:eth1,\ hq_srv:eth0\),\ \(hq_edge:eth4,\ isp1_core:eth0\),\ \(hq_edge:eth5,\ isp2_core:eth0\)$
+  source_fingerprints:
+  - src/nika/net_env/base.py: 146843f95c239df4d7bd7c013017b350993da76ac1f4be7c55987970ef9ef07c
+    src/nika/net_env/enterprise_branch/lab.py: d6cf297bae412425cd8d2232f6f3ddfac43750f9891c970fe5ad8d12b04d7ffa
+    src/nika/net_env/enterprise_branch/topology.py: 4057b789952e9e1203465168a0b499b105725e41b257bb5745b6a723b8753fe8
+    src/nika/net_env/enterprise_branch/addressing.py: 4c79bcefd1ac929bec859bfe1ac0c120818b9915da0afc12a32efec2ce6b0b84
+- kind: source_text
+  where:
+  - prompt
+  pattern: (?m)^Topology:\ \(controller:eth0,\ worker1:eth0\)$
+  source_fingerprints:
+  - src/nika/net_env/base.py: 146843f95c239df4d7bd7c013017b350993da76ac1f4be7c55987970ef9ef07c
+    src/nika/net_env/llmd_lab/lab.py: bf5b9029c9bdb9cd4d9cadc935a4b5ad8e0d43e0b89b73d993ef05c5d490018a
 provenance:
-  source: submission-audit runs 2026-10-28, verified (REF-BRIEF-MULTIACCESS-TOPOLOGY)
+  source: submission-audit runs 2026-10-28, verified (REF-BRIEF-MULTIACCESS-TOPOLOGY); verified source
+    and recorded pure profile outputs for historical entry 20261012_react_gemma_4_31b_it
   date: '2026-10-28'
   refs:
   - llmd_lab__healthy__t01:1
+  - enterprise_branch__bgp_hijac__h93dd2b8e7404__t01:0
+  - enterprise_branch__bgp_missi__h3315430073e8__t01:0
+  - enterprise_branch__host_stat__h693056222d8b__t01:0
+  - llmd_lab__healthy__t01:0
   found_by: agentic
 evidence:
-- 'llmd_lab__healthy__t01 (20261016_claude_code_claude_opus_5_5) step 1: PCs: client / Web Servers: web / Topology:
-  (controller:eth0, worker1:eth0)'
+- 'llmd_lab__healthy__t01 (20261016_claude_code_claude_opus_5_5) step 1: PCs: client / Web Servers: web
+  / Topology: (controller:eth0, worker1:eth0)'
+- enterprise_branch__bgp_hijac__h93dd2b8e7404__t01:0
+- src/nika/net_env/base.py at e9656af3aa15e3db1168328656065d11e19d4b85
+- src/nika/net_env/enterprise_branch/addressing.py at e9656af3aa15e3db1168328656065d11e19d4b85
+- src/nika/net_env/enterprise_branch/lab.py at e9656af3aa15e3db1168328656065d11e19d4b85
+- src/nika/net_env/enterprise_branch/topology.py at e9656af3aa15e3db1168328656065d11e19d4b85
+- enterprise_branch__bgp_missi__h3315430073e8__t01:0
+- src/nika/net_env/base.py at 8f04c8422623f9f785fa391d7e2ead62f4bfab9c
+- src/nika/net_env/enterprise_branch/lab.py at 8f04c8422623f9f785fa391d7e2ead62f4bfab9c
+- src/nika/net_env/enterprise_branch/topology.py at 8f04c8422623f9f785fa391d7e2ead62f4bfab9c
+- enterprise_branch__host_stat__h693056222d8b__t01:0
+- src/nika/net_env/enterprise_branch/addressing.py at 8f04c8422623f9f785fa391d7e2ead62f4bfab9c
+- llmd_lab__healthy__t01:0
+- src/nika/net_env/llmd_lab/lab.py at 8f04c8422623f9f785fa391d7e2ead62f4bfab9c

@@ -82,6 +82,9 @@ def request_source(repo: Path, commit: str, request: dict) -> dict:
     root = str(repo.resolve())
     path = str(request.get("path", "")).strip("/")
     roots = ("src/agent", "src/nika")
+    audit_root = "src/nika/audit"
+    if path == audit_root or path.startswith(audit_root + "/"):
+        raise SourceUnavailable("audit knowledge is excluded from source evidence")
     root_search = request.get("action") == "search" and path in {"", ".", "src"}
     if request.get("action") == "list" and path in {"", ".", "src"}:
         return {"paths": [p + "/" for p in roots]}
@@ -91,7 +94,10 @@ def request_source(repo: Path, commit: str, request: dict) -> dict:
     ):
         raise SourceUnavailable("use paths under src/agent/ or src/nika/")
     files = [
-        p for p in source_files(root, commit) if p == path or p.startswith(path + "/")
+        p
+        for p in source_files(root, commit)
+        if (p == path or p.startswith(path + "/"))
+        and not p.startswith(audit_root + "/")
     ]
     if request.get("action") == "list":
         return {"paths": files[:80], "total": len(files)}
@@ -122,10 +128,16 @@ def request_source(repo: Path, commit: str, request: dict) -> dict:
         *(roots if root_search else (path,)),
         allow_no_match=True,
     )
-    for hit in result.splitlines()[:60]:
+    for hit in result.splitlines():
         parts = hit.split(":", 3)
-        if len(parts) == 4 and parts[2].isdigit():
+        if (
+            len(parts) == 4
+            and parts[2].isdigit()
+            and not parts[1].startswith(audit_root + "/")
+        ):
             matches.append(
                 {"path": parts[1], "line": int(parts[2]), "text": parts[3][:400]}
             )
+            if len(matches) == 60:
+                break
     return {"matches": matches}

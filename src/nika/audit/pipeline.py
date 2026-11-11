@@ -22,8 +22,8 @@ A group's verdict does not depend on the memory, and neither does the scan
 when its packets carry only the built-in checks' hits. An experiment replaying
 many submissions can therefore compute both for all of them in parallel first
 and pass them in as *precomputed*; only the memory-dependent steps (recorded
-check and curation) then run in order. Scans and verdicts with failed LLM
-calls are not kept, so a rerun retries them.
+check and curation) then run in order. Failed model attempts remain in the
+call journals; a rerun reuses successful results and retries failed work.
 """
 
 from __future__ import annotations
@@ -31,9 +31,11 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+import sys
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from nika.audit.adjudicate import adjudicate_groups, group_prompt, system_prompt
@@ -54,7 +56,8 @@ from nika.audit.capture import audit_captures
 from nika.audit.normalization import audit_normalizations
 from nika.audit.kb import load_kb
 from nika.audit.runner import audit_trajectories, write_report
-from nika.audit.scan import ScanConfig, scan_trials
+from nika.audit.scan import ScanConfig, chunks, scan_trials
+from nika.audit.scan import system_prompt as scan_system_prompt
 from nika.audit.trace import load_trial, trial_dirs
 
 
@@ -97,6 +100,7 @@ def _verdicts(path, groups, todo, trials, kb, cfg) -> list[dict[str, Any]]:
         packet = [
             cfg.model,
             cfg.command,
+            cfg.base_url,
             cfg.thinking,
             cfg.temperature,
             cfg.max_tokens,
@@ -137,6 +141,111 @@ def _verdicts(path, groups, todo, trials, kb, cfg) -> list[dict[str, Any]]:
     return [cached.get(key(i)) or fresh[i] for i in todo]
 
 
+def _scans(
+    path: Path, paths: list[Path], kb, cfg: ScanConfig, hits: dict
+) -> list[dict]:
+    """Retain scan attempts and retry only failed or interrupted matching work."""
+    digest = hashlib.sha256(
+        json.dumps(
+            [
+                scan_system_prompt(kb),
+                cfg.command,
+                cfg.base_url,
+                cfg.model,
+                cfg.temperature,
+                cfg.max_tokens,
+                cfg.thinking,
+                cfg.chunk_chars,
+            ]
+        ).encode()
+    )
+    for trial_path in paths:
+        trial = load_trial(trial_path)
+        digest.update(
+            json.dumps(
+                [
+                    trial.trial_id,
+                    chunks(trial, hits.get(trial.trial_id, []), cfg.chunk_chars),
+                ]
+            ).encode()
+        )
+    identity = {"fingerprint": digest.hexdigest()}
+    source = path.with_name(path.stem + "-source.json")
+    calls = path.with_name(path.stem + "-calls.jsonl")
+    try:
+        matching = json.loads(source.read_text()) == identity
+    except (FileNotFoundError, json.JSONDecodeError):
+        matching = False
+    if not matching:
+        path.unlink(missing_ok=True)
+        calls.write_text("")
+        source.write_text(json.dumps(identity) + "\n")
+    expected = [(p.name, s) for p in paths for s in range(cfg.samples)]
+    expected_set = set(expected)
+    records = {}
+
+    def remember(record: dict) -> None:
+        key = (record["trial"], record["sample"])
+        previous = records.get(key)
+        if previous and previous["errors"]:
+            record = dict(record)
+            for field in (
+                "requests",
+                "http_attempts",
+                "prompt_tokens",
+                "completion_tokens",
+                "truncated",
+                "sec",
+            ):
+                record[field] = (previous.get(field) or 0) + (record.get(field) or 0)
+            record["sec"] = round(record["sec"], 1)
+            record["failed_responses"] = previous.get(
+                "failed_responses", []
+            ) + record.get("failed_responses", [])
+            record["recovered_errors"] = previous.get(
+                "recovered_errors", []
+            ) + record.get("recovered_errors", [])
+            if not record["errors"]:
+                record["recovered_errors"] += previous["errors"]
+        records[key] = record
+
+    if calls.is_file():
+        lines = calls.read_text().splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                if index == len(lines) - 1 and not line.endswith("\n"):
+                    calls.write_text("".join(lines[:index]))
+                    break
+                raise
+            key = (record["trial"], record["sample"])
+            if key in expected_set:
+                remember(record)
+    done = {key for key, record in records.items() if not record["errors"]}
+    for key in done:
+        records[key] = {**records[key], "cached": True}
+    lock = Lock()
+
+    def persist(record: dict) -> None:
+        with lock:
+            with calls.open("a") as handle:
+                handle.write(json.dumps(record) + "\n")
+            print(
+                f"Trial scan {record['trial']}, sample {record['sample'] + 1}: "
+                f"{len(record['errors'])} errors.",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    fresh = scan_trials(paths, kb, cfg, hits=hits, done=done, on_result=persist)
+    for record in fresh:
+        remember(record)
+    result = [records[key] for key in expected]
+    path.write_text("".join(json.dumps(r) + "\n" for r in result))
+    return result
+
+
 def review_submission(
     pkg: Path,
     kb_dir: Path,
@@ -167,14 +276,16 @@ def review_submission(
 
     t0 = time.time()
     scan_path = workdir / "scan.jsonl"
+    retried_scans = 0
     if precomputed is not None:
         records = precomputed["records"]
-    elif scan_path.is_file():
-        records = [json.loads(line) for line in scan_path.read_text().splitlines()]
     else:
-        records = scan_trials(trial_dirs(pkg), kb, scan, hits=report.get("trials", {}))
-        if not any(r["errors"] for r in records):
-            scan_path.write_text("".join(json.dumps(r) + "\n" for r in records))
+        records = _scans(scan_path, trial_dirs(pkg), kb, scan, report.get("trials", {}))
+        if scan.command and scan.retries and any(r["errors"] for r in records):
+            retried_scans = sum(bool(r["errors"]) for r in records)
+            records = _scans(
+                scan_path, trial_dirs(pkg), kb, scan, report.get("trials", {})
+            )
     timings["scan"] = round(time.time() - t0, 1)
 
     trials = {p.name: load_trial(p) for p in trial_dirs(pkg)}
@@ -440,6 +551,8 @@ def review_submission(
     return {
         "submission": pkg.name,
         "trials": len(trials),
+        "cached_scans": sum(bool(r.get("cached")) for r in records),
+        "retried_scans": retried_scans,
         "findings": len(findings),
         "supported": sum(f["citation_status"] == "supported" for f in findings),
         "groups": len(groups),

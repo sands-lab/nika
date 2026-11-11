@@ -100,6 +100,28 @@ def _fingerprint(run: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def deployment_profile(trial: Trial) -> dict[str, Any] | None:
+    """Return recorded deployment settings without fault or session identity."""
+    fingerprint = _fingerprint(trial.run)
+    params = trial.run.get("scenario_params") or {}
+    if not fingerprint or not trial.scenario or not isinstance(params, dict):
+        return None
+    return {
+        "environment": trial.scenario,
+        "deployment": {
+            k: v
+            for k, v in fingerprint.items()
+            if k not in {"problem", "problems", "inject"}
+        },
+        "parameters": {
+            k: v for k, v in params.items() if k not in {"lab_name", "runtime_workdir"}
+        },
+        "topology_size": trial.run.get("scenario_topo_size"),
+        "backend": trial.run.get("backend"),
+        "commit": trial.run.get("nika_git_commit"),
+    }
+
+
 def text_of(value: Any) -> str:
     """Flatten message content (strings, block lists, dicts) to text."""
     if isinstance(value, str):
