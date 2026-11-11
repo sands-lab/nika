@@ -1052,6 +1052,42 @@ provenance: {source: test, date: '2026-10-25'}
     assert not check_issue(issue, sources=[])["ok"], "a rule needs a source trial"
 
 
+@pytest.mark.parametrize(
+    "tool, path, body, scenario, expected",
+    [
+        ("sdn_onos_rest", "/onos/v1/devices", {}, "sdn_l3_clos", True),
+        ("sdn_onos_rest", "/onos/v1/devices", {"devices": []}, "sdn_l3_clos", False),
+        ("sdn_onos_rest", "/onos/v1/other", {}, "sdn_l3_clos", False),
+        ("sdn_onos_rest", "/onos/v1/devices/of:1", {}, "sdn_l3_clos", False),
+        ("exec_shell", "/onos/v1/devices", {}, "sdn_l3_clos", False),
+        ("sdn_onos_rest", "/onos/v1/devices", {}, "campus_lan", False),
+    ],
+)
+def test_onos_empty_reply_lead_requires_its_producing_request(
+    tmp_path, tool, path, body, scenario, expected
+):
+    events = _claude_call(
+        "c1", f"mcp__kathara_sdn_mcp_server__{tool}", "", json.dumps({"body": body})
+    )
+    events[0]["claude_event"]["message"]["content"][0]["input"] = {"path": path}
+    source = _trial(
+        tmp_path,
+        "sdn__healthy__t01",
+        events,
+        gt=HEALTHY_GT,
+        submission=HEALTHY_GT,
+        rca=1,
+        scenario=scenario,
+    )
+    kb = load_kb()
+    issue = kb.issue("TOOL-ONOS-EMPTY-REST-REPLY")
+    assert issue.role == "lead" and issue.severity == "info"
+    audit = audit_trajectories(source, kb=kb.model_copy(update={"issues": [issue]}))
+    assert bool(audit["leads"]) == expected
+    assert audit["known_issues"] == []
+    assert audit["verdict"] == "pass"
+
+
 def test_prompt_contrast_flags_lines_only_fault_tasks_get(tmp_path: Path) -> None:
     def prompt(text: str) -> list[dict[str, Any]]:
         return [{"phase": "diagnosis", "event": "prompt", "text": text}]

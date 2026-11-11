@@ -15,6 +15,7 @@ pytestmark = pytest.mark.e2e
 @pytest.mark.skipif(not docker_available(), reason="Docker required")
 def test_benchmark_timing_for_complete_task_files_and_execution_defaults(tmp_path):
     from nika.runtime.factory import runtime_for_session
+    from nika.evaluator.validity import detect_trial_validity
     from nika.workflows.session.close import close_session
 
     from nika.net_env.net_env_pool import get_net_env_instance
@@ -80,7 +81,7 @@ def test_benchmark_timing_for_complete_task_files_and_execution_defaults(tmp_pat
             "schedule": {
                 "agent_start": 10,
                 "events": [
-                    {"problem": "link_down", "inject": link, "at": 1, "duration": 5},
+                    {"problem": "link_down", "inject": link, "at": 1, "duration": 12},
                     {
                         "problem": "dns_record_error",
                         "inject": dns,
@@ -150,6 +151,17 @@ def test_benchmark_timing_for_complete_task_files_and_execution_defaults(tmp_pat
                 metrics = json.loads((directory / "eval_metrics.json").read_text())
                 assert metrics["detection_score"] == metrics["rca_f1"] == 1
                 assert metrics["tool_errors"] == 0
+                assert (
+                    "fault_absent_at_cleanup"
+                    not in detect_trial_validity(directory).flags
+                )
+                presence = [
+                    json.loads(line)["data"]
+                    for line in (directory / "nika.jsonl").read_text().splitlines()
+                    if json.loads(line).get("event") == "fault_presence_recheck"
+                ]
+                assert any(row["phase"] == "before_cleanup" for row in presence)
+                assert all(row["result"] not in {"absent", "error"} for row in presence)
                 truth = json.loads((directory / "ground_truth.json").read_text())
                 for root in truth["root_causes"]:
                     resource = root["resource"]

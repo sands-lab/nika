@@ -19,7 +19,7 @@ Flags (a trial may carry several):
   the agent likely mutated the network or the fault self-healed.
 - ``infra_error``: the trial failed to start or hit an infrastructure error.
 
-``nika leaderboard validate`` always rejects empty trajectories and applies
+``nika leaderboard validate`` rejects empty trajectories and absent faults and applies
 the configured rate limit to ``HARNESS_FLAGS``; other flags produce warnings.
 """
 
@@ -285,13 +285,13 @@ def validity_findings(
     *,
     max_harness_rate: float = DEFAULT_MAX_HARNESS_RATE,
 ) -> tuple[list[str], list[str]]:
-    """Return ``(errors, warnings)``: harness flags above the threshold fail."""
+    """Reject invalid trials and harness flags above the configured threshold."""
     errors: list[str] = []
     warnings: list[str] = []
     rates = validity_rates(counts, n_trials)
     for flag, count in counts.items():
         message = f"{count}/{n_trials} trials flagged {flag} ({rates[flag]:.1%})"
-        if flag == EMPTY_TRACE:
+        if count and flag in (EMPTY_TRACE, FAULT_ABSENT_AT_CLEANUP):
             errors.append(message)
         elif flag in HARNESS_FLAGS and rates[flag] > max_harness_rate:
             errors.append(f"{message}; exceeds harness limit {max_harness_rate:.1%}")

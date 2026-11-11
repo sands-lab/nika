@@ -13,6 +13,7 @@ from nika.workflows.benchmark.release import (
     JOB_FILENAME,
     ReleaseError,
     freeze_release,
+    freeze_split_release,
     load_release,
     load_release_from_dir,
     verify_engine,
@@ -271,6 +272,137 @@ class TestFreezeRelease:
         test = [{**base, "inject": {"host_name": "pc_0_1", "intf_name": "eth0"}}]
         with pytest.raises(ReleaseError, match="semantic isolation"):
             verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+
+    @pytest.mark.parametrize("explicit_defaults", [False, True])
+    def test_network_reuse_with_different_failures_is_rejected(
+        self, explicit_defaults
+    ) -> None:
+        dev = [
+            {"scenario": "dc_clos", "topo_size": size, "problem": problem}
+            for size, problem in (("s", "link_down"), ("m", "dns_record_error"))
+        ]
+        test = [
+            {
+                "scenario": "dc_clos",
+                "topo_size": size,
+                "problem": problem,
+                **(
+                    {"backend": "kathara", "device_profile": "frr"}
+                    if explicit_defaults
+                    else {}
+                ),
+            }
+            for size, problem in (("m", "link_down"), ("s", "dns_record_error"))
+        ]
+        with pytest.raises(ReleaseError, match="network isolation"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        # Published editions retain the rules under which they were frozen.
+        verify_dev_test_isolation(
+            dev_cases=dev, test_cases=test, require_unseen_networks=False
+        )
+
+    @pytest.mark.parametrize("scenario", ["isp_abilene", "isp_abilene_ebgp_rtbh"])
+    def test_isp_graph_cannot_cross_splits_via_another_protocol_or_vendor(
+        self, scenario
+    ):
+        dev = [{"scenario": "isp_abilene", "problem": "link_down", "igp": "ospf"}]
+        test = [
+            {
+                "scenario": scenario,
+                "problem": "link_down",
+                "backend": "containerlab" if scenario == "isp_abilene" else "kathara",
+                "device_profile": "nokia_srlinux"
+                if scenario == "isp_abilene"
+                else "frr",
+            }
+        ]
+        with pytest.raises(ReleaseError, match="network isolation"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        test[0]["scenario"] = "isp_geant"
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+
+    @pytest.mark.parametrize("scenario", ["k8s_lab", "llmd_lab"])
+    def test_fixed_cluster_requires_different_fault_components(self, scenario):
+        dev = [
+            {
+                "scenario": scenario,
+                "problem": "link_down",
+                "inject": {"host_name": "worker1", "intf_name": "eth0"},
+                "root_causes": [
+                    {
+                        "fault_type": "link_down",
+                        "resource": {
+                            "kind": "interface",
+                            "node": "worker1",
+                            "name": "eth0",
+                        },
+                    }
+                ],
+            }
+        ]
+        test = [
+            {
+                "scenario": scenario,
+                "problem": "link_down",
+                "inject": {"host_name": "worker2", "intf_name": "eth0"},
+                "root_causes": [
+                    {
+                        "fault_type": "link_down",
+                        "resource": {
+                            "kind": "interface",
+                            "node": "worker2",
+                            "name": "eth0",
+                        },
+                    }
+                ],
+            }
+        ]
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        test[0]["root_causes"] = dev[0]["root_causes"]
+        with pytest.raises(ReleaseError, match="network isolation"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        test[0].pop("root_causes")
+        with pytest.raises(ReleaseError, match="requires resolved root_causes"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+
+    def test_multi_fault_tasks_compare_individual_taxonomy(self):
+        dev = [
+            {
+                "scenario": "dc_clos",
+                "topo_size": "s",
+                "problem": "link_down+dns_record_error",
+            }
+        ]
+        test = [
+            {"scenario": "dc_clos", "topo_size": "m", "problem": problem}
+            for problem in ("link_down", "dns_record_error")
+        ]
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        test[1]["problem"] = "bgp_acl_block"
+        with pytest.raises(ReleaseError, match="problem sets differ"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+
+    def test_freeze_rejects_shared_network_before_writing_release(self, tmp_path):
+        for split, assignments in (
+            ("dev", (("s", "link_down"), ("m", "dns_record_error"))),
+            ("test", (("m", "link_down"), ("s", "dns_record_error"))),
+        ):
+            rows = [
+                {
+                    "scenario": "dc_clos",
+                    "topo_size": size,
+                    "problem": problem,
+                    "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
+                }
+                for size, problem in assignments
+            ]
+            (tmp_path / f"{split}.yaml").write_text(yaml.safe_dump({"cases": rows}))
+        destination = tmp_path / "candidate-release"
+        with pytest.raises(ReleaseError, match="network isolation"):
+            freeze_split_release(
+                version="candidate", source_dir=tmp_path, out_dir=destination
+            )
+        assert not destination.exists()
 
     def test_preflight_missing_scenario(self, tmp_path: Path) -> None:
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml")

@@ -2,10 +2,10 @@ id: HARNESS-SDN-ONOS-REST-LAB-NOT-FOUND
 title: In sdn_l3_clos link_flap trials every sdn_onos_rest call fails with 'Lab <lab> not found' while the other MCP tools work
 class: harness_defect
 severity: warn
-status: open
+status: fixed
 summary: All 207 'Lab ... not found' sdn_onos_rest errors in release 0.2.0 come from sdn_l3_clos link_flap trials
   (56 trials in 20 submissions), and no sdn_onos_rest call in that case succeeded, while exec_shell kept working
-  and the other nine sdn_l3_clos cases used the tool normally. Likely cause, not live-confirmed - link_flap inserts
+  and the other nine sdn_l3_clos cases used the tool normally. In the affected metadata fallback path, link_flap inserts
   a VDE fault proxy (src/nika/problems/link_interface/link.py), KatharaBaseAPI then falls back to session metadata
   (src/nika/service/kathara/base_api.py), and the SDN MCP server builds its API without session_meta
   (src/nika/mcp/servers/kathara/sdn_server.py, compare frr_server.py), so the lookup returns None. The agent loses
@@ -28,7 +28,12 @@ provenance:
   refs:
   - sdn_l3_clos__link_flap__s__h02db78d97263__t02:8
   - sdn_l3_clos__link_flap__s__h02db78d97263__t02:20
+  - tests/nika/service/kathara/test_kathara_sdn_mcp_live.py
+  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-cleanup/onos-before/
+  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-cleanup/onos-final/
   found_by: agentic
 evidence:
 - 'sdn_l3_clos__link_flap__s__h02db78d97263__t02 (20261016_claude_code_claude_opus_5_5) step 8: Error executing tool
   sdn_onos_rest: Lab sdn_l3_clos__1015034918-3d6b14 not found.'
+- '2026-11-11: real SDN MCP inventory, flow and log reads succeeded before, during and after an active VDE link-flap proxy. The pre-change baseline already passed with persisted-session fallback from 7edc92aa; explicit bound metadata now also avoids lab-name-only lookup. This verifies current code, not all historical observations or old pinned engines.'
+fixed_in: 7edc92aa

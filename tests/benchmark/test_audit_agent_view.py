@@ -240,7 +240,7 @@ def _audit(fault: str, stages: list[tuple[str, str]]) -> CaseAudit:
 
 def test_agent_view_stages_are_required_for_admission() -> None:
     healthy = [("baseline_lab", "pass"), ("final_lab", "pass")]
-    full = [*healthy, ("agent_view", "pass")]
+    full = [*healthy, ("agent_view", "pass"), ("oracle", "pass")]
     assert _audit("healthy", full).admission() == "pass"
     assert _audit("healthy", healthy).admission() == "no_evidence"
     for status in ("no_evidence", "fail"):
@@ -255,6 +255,7 @@ def test_agent_view_stages_are_required_for_admission() -> None:
         "inject_artifact",
         "leak_scan",
         "symptom",
+        "oracle",
         "control_path",
         "persistence_artifact",
         "persistence_symptom",
@@ -264,6 +265,19 @@ def test_agent_view_stages_are_required_for_admission() -> None:
     assert _audit("link_down", [(name, "pass") for name in fault]).admission() == "pass"
     without_scan = [(name, "pass") for name in fault if name != "leak_scan"]
     assert _audit("link_down", without_scan).admission() == "no_evidence"
+    for fault_name, complete in (
+        ("healthy", full),
+        ("link_down", [(name, "pass") for name in fault]),
+    ):
+        without_oracle = [
+            (name, status) for name, status in complete if name != "oracle"
+        ]
+        assert _audit(fault_name, without_oracle).admission() == "no_evidence"
+        for status in ("fail", "not_run", "no_evidence", "unsupported"):
+            assert (
+                _audit(fault_name, [*without_oracle, ("oracle", status)]).admission()
+                == status
+            )
 
 
 def test_global_addresses_lead_with_eth0_not_kernel_order() -> None:
@@ -356,7 +370,7 @@ def test_cached_audit_requires_current_clean_source(tmp_path, monkeypatch):
     monkeypatch.setattr(matrix, "result_path", lambda row, repeat: path)
     stages = [
         StageResult(stage=name, status="pass")
-        for name in ("baseline_agent_view", "inject_artifact", "leak_scan")
+        for name in ("baseline_agent_view", "inject_artifact", "leak_scan", "oracle")
     ]
     audit = CaseAudit(
         identity=identity_from_row(row),
@@ -377,6 +391,10 @@ def test_cached_audit_requires_current_clean_source(tmp_path, monkeypatch):
 
     save()
     assert matrix.result_current(row)
+    oracle = audit.stages.pop()
+    save()
+    assert not matrix.result_current(row)
+    audit.stages.append(oracle)
     audit.provenance.git_commit = "older"
     save()
     assert not matrix.result_current(row)

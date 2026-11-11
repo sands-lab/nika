@@ -217,11 +217,12 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
                     agent_type="mock",
                     session_id=sid,
                     diagnosis_ready=release,
-                    check_fault_presence=False,
+                    check_fault_presence=True,
                     stream_output=False,
                 )
                 scheduler.raise_if_failed()
                 assert scheduler.complete.is_set()
+                assert scheduler.recheck_artifact()["not_applicable"]
                 assert (
                     "UP"
                     in _exec(sid, client, "cat /sys/class/net/eth0/operstate").upper()

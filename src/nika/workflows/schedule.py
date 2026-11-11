@@ -517,6 +517,46 @@ class SessionScheduler:
             "revision": self.observation_revision(),
         }
 
+    def recheck_artifact(self) -> dict[str, Any]:
+        """Read the fault occurrences that the timeline currently requires."""
+        from nika.validation.presence import fault_label, recheck_artifact_with_retry
+
+        with ExitStack() as stack:
+            for scope in sorted(self._locks):
+                stack.enter_context(self._locks[scope])
+            self.raise_if_failed()
+            checks = []
+            for key, prepared in self._prepared.items():
+                if key not in self._active:
+                    continue
+                raw = recheck_artifact_with_retry(prepared.problem, prepared.params)
+                if not isinstance(raw, dict):
+                    raise TypeError("recheck_artifact did not return a dict")
+                checks.append(
+                    {
+                        **raw,
+                        "fault": fault_label(prepared.problem),
+                        "event_index": key[0],
+                        "occurrence_index": key[1],
+                    }
+                )
+            absent = any(
+                not check.get("present")
+                and check.get("error") in (None, "", "fault artifact absent")
+                for check in checks
+            )
+            errors = [str(check["error"]) for check in checks if check.get("error")]
+            return {
+                "present": bool(checks)
+                and all(check.get("present") for check in checks),
+                "not_applicable": not checks,
+                "fault": ",".join(dict.fromkeys(check["fault"] for check in checks)),
+                "evidence": {"scheduled": True, "active_occurrences": checks},
+                "error": "fault artifact absent"
+                if absent
+                else "; ".join(errors) or None,
+            }
+
     def _dispatch(self) -> None:
         bind_session_dir(self.directory)
         actions = self.plan.actions()

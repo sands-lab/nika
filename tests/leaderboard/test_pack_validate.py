@@ -297,6 +297,58 @@ def _identity_path(package: Path) -> Path:
     return package / RESULTS_DIRNAME / IDENTITY_FILENAME
 
 
+def test_absent_fault_rejects_pack_and_trajectory_validation(mini_release_env) -> None:
+    from nika.workflows.leaderboard.validate_trajectories import (
+        validate_trajectory_package,
+    )
+
+    _release, result_dir = mini_release_env
+    packed = pack_leaderboard_submission(
+        result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+    )
+    assert validate_leaderboard_submission(packed.scores_dir).ok
+    assert validate_trajectory_package(packed.trajectories_dir).ok
+    session = next((result_dir / "trials").iterdir())
+    event = (
+        json.dumps(
+            {
+                "event": "fault_presence_recheck",
+                "data": {
+                    "phase": "before_cleanup",
+                    "fault": "link_down",
+                    "result": "absent",
+                },
+            }
+        )
+        + "\n"
+    )
+    with (session / "nika.jsonl").open("a") as handle:
+        handle.write(event)
+    original_metrics = (session / "eval_metrics.json").read_bytes()
+    with pytest.raises(LeaderboardPackError, match="fault_absent_at_cleanup"):
+        _pack(result_dir)
+    assert (session / "eval_metrics.json").read_bytes() == original_metrics
+
+    # Independent trajectory validation must catch an absent fault even when
+    # the scores package still contains clean flags.
+    trajectory = packed.trajectories_dir / "trials" / session.name / "nika.jsonl"
+    with trajectory.open("a") as handle:
+        handle.write(event)
+    report = validate_trajectory_package(packed.trajectories_dir)
+    assert not report.ok
+    assert any("fault_absent_at_cleanup" in error for error in report.errors)
+
+    result_path = (
+        packed.scores_dir / RESULTS_DIRNAME / "trials" / session.name / "result.json"
+    )
+    result = json.loads(result_path.read_text())
+    result["validity_flags"] = ["fault_absent_at_cleanup"]
+    _write_json(result_path, result)
+    report = validate_leaderboard_submission(packed.scores_dir, max_harness_rate=1.0)
+    assert not report.ok
+    assert any("fault_absent_at_cleanup" in error for error in report.errors)
+
+
 def test_cli_submit_generates_metadata_and_validates_offline(
     mini_release_env, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -848,7 +900,10 @@ class TestLeaderboardPackValidate:
         shutil.rmtree(trial_dirs[0])
         report = validate_leaderboard_submission(package)
         assert not report.ok
-        assert any("missing trials" in e for e in report.errors)
+        codes = [issue.code for issue in report.issues]
+        # One trial of a task still present is missing work, not release drift.
+        assert "ERROR_TRIALS_MISSING" in codes
+        assert "ERROR_RELEASE_DRIFT" not in codes
 
     def test_duplicate_trial_fails(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
@@ -864,7 +919,7 @@ class TestLeaderboardPackValidate:
         assert any(
             "duplicate trial_id" in e
             or "trial directory name" in e
-            or "missing trials" in e
+            or "ERROR_TRIALS_MISSING" in e
             for e in report.errors
         )
 
@@ -995,6 +1050,7 @@ class TestLeaderboardPackValidate:
         report = validate_trajectory_package(trajectories)
         assert not report.ok
         assert any("no agent trajectory" in error for error in report.errors)
+        assert "ERROR_EMPTY_TRACE" in [issue.code for issue in report.issues]
         trial = next((result_dir / "trials").iterdir())
         (trial / "messages.jsonl").write_text(trace)
         with pytest.raises(LeaderboardPackError, match="no agent trajectory"):
@@ -1041,6 +1097,73 @@ def test_validation_audits_paired_trajectory_evidence(mini_release_env, defect):
     else:
         assert report.audit is not None and report.audit["verdict"] == "block"
         assert report.audit["trials"]
+        from nika.workflows.leaderboard.submit import _submit_packed_package
+        from nika.workflows.leaderboard.validate import LeaderboardValidateError
+
+        with pytest.raises(LeaderboardValidateError):
+            _submit_packed_package(scores, dry_run=True)
+        saved = json.loads((scores / "audit.json").read_text())
+        assert saved["verdict"] == "block" and saved["trials"]
+
+
+@pytest.mark.parametrize(
+    ("package_kind", "relative"),
+    [
+        ("scores", "metadata.yaml"),
+        ("scores", "results/identity.yaml"),
+        ("scores", "results/trials"),
+        ("trajectories", "metadata.yaml"),
+        ("trajectories", "trials"),
+    ],
+)
+def test_validation_rejects_symbolic_links_before_reading_package_data(
+    mini_release_env, tmp_path, package_kind, relative
+):
+    _, result_dir = mini_release_env
+    scores = _pack(result_dir)
+    paired = scores.parent / f"{scores.name}_trajectories"
+    root = scores if package_kind == "scores" else paired
+    path = root / relative
+    outside = tmp_path / "outside-package"
+    path.rename(outside)
+    if outside.is_file():
+        outside.write_text("info: [OUTSIDE_PACKAGE_SENTINEL\n")
+    path.symlink_to(outside, target_is_directory=outside.is_dir())
+
+    report = validate_leaderboard_submission(scores)
+
+    assert not report.ok
+    assert any("ERROR_PACKAGE_INCOMPLETE" in error for error in report.errors)
+    assert any("symbolic links are not allowed" in error for error in report.errors)
+    assert "OUTSIDE_PACKAGE_SENTINEL" not in "\n".join(report.errors)
+    assert report.audit is None
+
+
+def test_ci_rejects_symbolic_links_before_reading_identity_or_fetching(
+    mini_release_env, tmp_path, monkeypatch
+):
+    from nika.audit import ci
+
+    _, result_dir = mini_release_env
+    package = _pack(result_dir)
+    identity = package / "results/identity.yaml"
+    outside = tmp_path / "outside.yaml"
+    outside.write_text("info: [OUTSIDE_PACKAGE_SENTINEL\n")
+    identity.unlink()
+    identity.symlink_to(outside)
+    monkeypatch.setattr(
+        ci,
+        "fetch_trajectories",
+        lambda *args, **kwargs: pytest.fail("Must reject before fetching"),
+    )
+
+    with pytest.raises(ValueError, match="symbolic links are not allowed"):
+        ci.audit_package(
+            package,
+            tmp_path / "audit",
+            REPO_ROOT,
+            trajectories_repo="test/trajectories",
+        )
 
 
 def test_ci_keeps_blocking_evidence_reviewable_at_the_same_revision(

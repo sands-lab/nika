@@ -98,7 +98,7 @@ class CaseAudit(BaseModel):
 
     def admission(self) -> AuditStatus:
         required_stages = (
-            {"baseline_lab", "agent_view", "final_lab"}
+            {"baseline_lab", "agent_view", "oracle", "final_lab"}
             if self.identity.fault == "healthy"
             else {
                 "baseline_lab",
@@ -108,6 +108,7 @@ class CaseAudit(BaseModel):
                 "inject_artifact",
                 "leak_scan",
                 "symptom",
+                "oracle",
                 "persistence_artifact",
                 "persistence_symptom",
                 "final_artifact",

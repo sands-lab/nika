@@ -299,3 +299,104 @@ def test_engine_container_executes_and_recovers_scheduled_fault(tmp_path, monkey
                 runtime = runtime_for_session(run)
                 assert not runtime.exists() and not runtime.has_leftover_resources()
                 assert not (trial / "schedule-owner.json").exists()
+
+
+def test_engine_container_preserves_sdn_rest_results_and_errors(tmp_path, monkeypatch):
+    selected = os.environ.get("NIKA_CI_ENGINE_TASK_ID", "")
+    if selected and selected != "all" and not selected.startswith("sdn_l3_clos__"):
+        pytest.skip("ONOS REST is exercised by the SDN engine job")
+
+    import asyncio
+    from uuid import uuid4
+
+    from langchain_core.tools import ToolException
+    from langchain_mcp_adapters.client import MultiServerMCPClient
+
+    from nika.agents.mcp_config import MCPServerConfig, engine_gateway
+    from nika.benchmark_engine import use_engine
+    from nika.benchmark_engine.client import EngineClient
+    from nika.benchmark_engine.container import engine_container
+    from nika.benchmark_engine.protocol import GatewayRequest, TrialHandle, TrialRequest
+    from nika.utils.session_store import SessionStore
+    from tests.support.integration_pipeline import tool_text_list
+
+    results = tmp_path / "sdn-rest"
+    results.mkdir()
+    with pinned_engine_release(tmp_path, monkeypatch) as (_, image):
+        with engine_container(
+            image, run_id="sdn-rest", results_root=results
+        ) as service:
+            engine = EngineClient(service.base_url, token=service.token)
+            handle = TrialHandle(
+                session_id=f"sdn-rest-{uuid4().hex[:8]}",
+                trial_dir=str(results / "trial"),
+            )
+            runtime = None
+            try:
+                handle = engine.start_trial(
+                    TrialRequest(
+                        task={
+                            "scenario": "sdn_l3_clos",
+                            "topo_size": "s",
+                            "problem": "healthy",
+                        },
+                        failures=[],
+                        healthy=True,
+                        session_id=handle.session_id,
+                        trial_dir=handle.trial_dir,
+                        result_dir=str(results),
+                    )
+                )
+                engine.begin(handle)
+                runtime = runtime_for_session(
+                    SessionStore().get_session(handle.session_id)
+                )
+                with (
+                    use_engine(engine),
+                    engine_gateway(
+                        handle.session_id, handle.trial_dir, GatewayRequest()
+                    ),
+                ):
+                    engine.schedule_operation(handle, "start")
+                    engine.schedule_operation(handle, "agent-ready")
+                    config = MCPServerConfig(
+                        session_id=handle.session_id
+                    ).load_http_config(["kathara_sdn_mcp_server"])
+
+                    async def inspect():
+                        client = MultiServerMCPClient(connections=config)
+                        tools = {tool.name: tool for tool in await client.get_tools()}
+                        tool = tools["sdn_onos_rest"]
+                        raw = await tool.ainvoke({"path": "/onos/v1/devices"})
+                        inventory = json.loads("\n".join(tool_text_list(raw)))
+                        devices = inventory["body"]["devices"]
+                        assert devices
+                        device = devices[0]["id"]
+                        raw = await tool.ainvoke(
+                            {"path": "/onos/v1/devices", "device": device}
+                        )
+                        filtered = json.loads("\n".join(tool_text_list(raw)))
+                        assert [row["id"] for row in filtered["body"]["devices"]] == [
+                            device
+                        ]
+                        with pytest.raises(ToolException, match="HTTP 404") as error:
+                            await tool.ainvoke(
+                                {"path": "/onos/v1/nonexistent-nika-test-endpoint"}
+                            )
+                        return {
+                            "inventory": inventory,
+                            "filtered": filtered,
+                            "error": str(error.value),
+                        }
+
+                    (tmp_path / "sdn-rest-evidence.json").write_text(
+                        json.dumps(asyncio.run(inspect()), indent=2)
+                    )
+                assert engine.fault_check(handle).result == "not_applicable"
+            finally:
+                try:
+                    engine.stop_trial(handle)
+                except FileNotFoundError:
+                    pass
+                if runtime is not None:
+                    assert not runtime.exists() and not runtime.has_leftover_resources()

@@ -81,14 +81,21 @@ class SdnAPIMixin:
         url = f"http://{ONOS_OOB_IP}:{ONOS_REST_PORT}{normalized}"
         raw = self.exec_cmd(
             "fabric_mgr",
-            f"curl -s -u {_ONOS_AUTH} --connect-timeout 3 {shlex.quote(url)} "
-            "|| echo '{}'",
+            f"curl -sS -u {_ONOS_AUTH} --connect-timeout 3 --max-time 15 "
+            f"-w '\\n%{{http_code}}' {shlex.quote(url)} 2>&1",
             timeout=20,
         )
+        payload, _, status = raw.rstrip().rpartition("\n")
+        if not status.isdigit() or not 200 <= int(status) < 300:
+            code = status if status.isdigit() else "unavailable"
+            raise RuntimeError(
+                f"ONOS REST GET {normalized} failed (HTTP {code}): "
+                f"{(payload or raw)[-1000:]}"
+            )
         try:
-            body: Any = json.loads(raw)
+            body: Any = json.loads(payload)
         except json.JSONDecodeError:
-            body = {"raw": raw}
+            body = {"raw": payload}
         summary, body = onos_summary(body, device)
         return {
             "path": normalized,

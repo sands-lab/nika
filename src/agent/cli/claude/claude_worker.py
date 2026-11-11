@@ -33,7 +33,7 @@ from agent.cli.claude.config import (
 )
 from agent.protocols import PHASES
 from agent.utils.loggers import MessageLogger
-from agent.utils.mcp_client import session_mcp_config
+from agent.utils.mcp_client import mcp_startup_error, session_mcp_config
 from agent.utils.reasoning_effort import map_anthropic_effort
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
 
@@ -125,6 +125,9 @@ class ClaudeWorker:
         self._logger = MessageLogger(phase=phase, session_dir=trace_dir or session_dir)
         self._stream_output = stream_output
         self._mcp_config_path: Path | None = None
+        self._required_mcp_servers: set[str] = set()
+        self._mcp_initialized = False
+        self._mcp_error: str | None = None
         self._last_assistant_text = ""
         self._max_turns_reached = False
 
@@ -139,6 +142,9 @@ class ClaudeWorker:
 
     def _write_mcp_config(self) -> None:
         servers = session_mcp_config(self.phase)
+        self._required_mcp_servers = set(servers)
+        self._mcp_initialized = False
+        self._mcp_error = None
         self._logger.log(
             "mcp_config",
             {"phase": self.phase, "servers": list(servers.keys())},
@@ -214,6 +220,11 @@ class ClaudeWorker:
             self._logger.log("subprocess_error", {"error": "claude not found in PATH"})
             return "ERROR: 'claude' not found in PATH"
 
+        if returncode == 0 and self._required_mcp_servers and not self._mcp_initialized:
+            self._mcp_error = "Claude did not report MCP initialization status"
+        if self._mcp_error:
+            self._logger.log("mcp_connection_error", {"error": self._mcp_error})
+            return f"ERROR: {self._mcp_error}"
         if self._max_turns_reached:
             return max_steps_report(
                 self._logger,
@@ -279,6 +290,10 @@ class ClaudeWorker:
 
                 raw = line_bytes.decode("utf-8", errors="replace").rstrip("\n")
                 result = self._handle_stdout_line(raw)
+                if self._mcp_error:
+                    if proc.returncode is None:
+                        proc.kill()
+                    break
                 if result is not None:
                     final_result = result
         finally:
@@ -310,6 +325,12 @@ class ClaudeWorker:
             self._logger.log(
                 event.get("type", "claude_event"),
                 {"claude_event": event},
+            )
+
+        if event.get("type") == "system" and event.get("subtype") == "init":
+            self._mcp_initialized = True
+            self._mcp_error = mcp_startup_error(
+                event.get("mcp_servers") or [], self._required_mcp_servers
             )
 
         if event.get("type") == "assistant":

@@ -60,6 +60,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Construct and verify routing, SDN and P4 environments | [Environment construction and verification](development/scenario-verification.md) | Explanation |
 | Check which release 0.2.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
 | Integrate the frontend with a release's benchmark engine | [Benchmark release contracts](development/benchmark-contracts.md) | Reference |
+| Maintain leaderboard packaging and release validation | [Leaderboard submission internals](development/leaderboard-internals.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
 
 ## Maintain the documentation

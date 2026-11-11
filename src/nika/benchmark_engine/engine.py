@@ -293,7 +293,9 @@ class BenchmarkEngine:
         else:
             raw = recheck_bound_artifact(session_id)
         error = str(raw.get("error") or "")
-        if raw.get("present"):
+        if raw.get("not_applicable"):
+            result = "not_applicable"
+        elif raw.get("present"):
             result = "present"
         elif raw.get("unbound") or (error and error != "fault artifact absent"):
             result = "error"

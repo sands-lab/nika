@@ -135,7 +135,7 @@ def result_current(
         if is_healthy_case(str(row["problem"]))
         else declared_probe(str(row["problem"]))
     )
-    if agent_view_stages(row) - {s.stage for s in audit.stages}:
+    if (agent_view_stages(row) | {"oracle"}) - {s.stage for s in audit.stages}:
         return False
     return (
         audit.identity.key() == identity_from_row(row).key()

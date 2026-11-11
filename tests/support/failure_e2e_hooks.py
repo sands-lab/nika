@@ -139,18 +139,28 @@ def assert_link_capacity_bottleneck_pre(ctx: FailureE2EContext) -> None:
         topo_size=ctx.topo_size or "s",
         net_env=ctx.problem.net_env,
     )
-    assert path is not None and path.peer_host and path.dst_ip
+    assert path is not None and path.dst_ip
+    # The Clos peer_host is an independent control, not the service owner.
+    destination = next(
+        endpoint.name
+        for endpoint in ctx.problem.net_env.model.endpoints
+        if endpoint.ip == path.dst_ip
+    )
     _wait_for_ping(ctx.runtime, path.src_host, path.dst_ip)
     baseline_bps = iperf_throughput_bps(
         ctx.runtime,
         path.src_host,
-        path.peer_host,
+        destination,
         path.dst_ip,
         duration_sec=_IPERF_DURATION_SEC,
         port=15211,
     )
     assert baseline_bps is not None and baseline_bps > _LOW_BPS_MAX, baseline_bps
-    ctx.before = {"baseline_bps": baseline_bps, "path": path}
+    ctx.before = {
+        "baseline_bps": baseline_bps,
+        "path": path,
+        "destination": destination,
+    }
 
 
 def assert_link_capacity_bottleneck(ctx: FailureE2EContext) -> None:
@@ -159,7 +169,7 @@ def assert_link_capacity_bottleneck(ctx: FailureE2EContext) -> None:
     baseline = ctx.before
     path = baseline["path"]
     baseline_bps = baseline["baseline_bps"]
-    src, peer, peer_ip = path.src_host, path.peer_host, path.dst_ip
+    src, peer, peer_ip = path.src_host, baseline["destination"], path.dst_ip
     resolved_intf = _ctx_intf(ctx)
     host_qdisc = _qdisc(ctx.runtime, ctx.parsed.host_name, resolved_intf)
     assert "tbf" not in host_qdisc and "netem" not in host_qdisc, host_qdisc
@@ -211,19 +221,11 @@ def assert_link_capacity_bottleneck(ctx: FailureE2EContext) -> None:
 def assert_link_capacity_bottleneck_recover(ctx: FailureE2EContext) -> None:
     from nika.net_env.verify import iperf_throughput_bps
 
-    from nika.validation.symptom.probe import _resolve_path
-
-    path = _resolve_path(
-        ctx.scenario,
-        ctx.parsed,
-        topo_size=ctx.topo_size or "s",
-        net_env=ctx.problem.net_env,
-    )
-    assert path is not None and path.peer_host and path.dst_ip
+    path = ctx.before["path"]
     restored_bps = iperf_throughput_bps(
         ctx.runtime,
         path.src_host,
-        path.peer_host,
+        ctx.before["destination"],
         path.dst_ip,
         duration_sec=_IPERF_DURATION_SEC,
         port=15213,
@@ -434,15 +436,35 @@ def assert_tcp_rwnd_pre(ctx: FailureE2EContext) -> None:
         ping_stats,
     )
     from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
+        _bytes_from,
         primary_ipv4,
         read_sysctl_snapshot,
     )
+
+    from nika.problems.support.polling import wait_until
+    from nika.traffic.workload import BULK_DOWNLOAD
 
     receiver = ctx.parsed.host_name
     sender_host = ctx.parsed.sender_host
     sender_ip = ctx.parsed.sender_ip
     small_url = ctx.parsed.small_url
     large_url = ctx.parsed.large_url
+
+    # Enterprise sync clients spread their initial downloads over 60 seconds.
+    # Measure the baseline only after all declared downloads carry data, so
+    # later clients cannot change the competing traffic across the comparison.
+    workload = ctx.problem.net_env.business_workload()
+    assert workload is not None
+    receivers = [target[0] for target in workload.targets(BULK_DOWNLOAD)]
+    assert receivers
+    assert wait_until(
+        lambda: all(
+            sum(_bytes_from(ctx.runtime, host, sender_ip).values()) > 0
+            for host in receivers
+        ),
+        75,
+        interval_s=1,
+    ), receivers
     receiver_ip = primary_ipv4(ctx.runtime, receiver)
     assert receiver_ip
 
@@ -541,21 +563,42 @@ def assert_tcp_rwnd_recover(ctx: FailureE2EContext) -> None:
     from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
         read_sysctl_snapshot,
     )
+    from nika.validation.symptom.perf_probes import (
+        _HEALTHY_RWND_SHARE_MAX,
+        _STREAM_RUNS,
+        _median_rwnd_share,
+        _start_sink,
+        _stream,
+    )
 
     baseline = ctx.before
     receiver = ctx.parsed.host_name
-    sender_host = ctx.parsed.sender_host
-    receiver_ip = baseline["receiver_ip"]
-    original = baseline.get("_original_sysctl")
-    if original is not None:
-        restored = read_sysctl_snapshot(ctx.runtime, receiver)
-        assert restored.moderate_rcvbuf == original.moderate_rcvbuf
+    original = baseline["_original_sysctl"]
+    assert read_sysctl_snapshot(ctx.runtime, receiver) == original
 
     restored_bps = iperf_throughput_bps(
-        ctx.runtime, sender_host, receiver, receiver_ip, duration_sec=3
+        ctx.runtime,
+        ctx.parsed.sender_host,
+        receiver,
+        baseline["receiver_ip"],
+        duration_sec=3,
     )
+    baseline["restored_bps"] = restored_bps
     assert restored_bps is not None
-    assert restored_bps / baseline["healthy_bps"] >= 0.8
+    assert restored_bps / baseline["healthy_bps"] >= 0.8, (
+        baseline["healthy_bps"],
+        restored_bps,
+    )
+    # A fresh connection must also stop waiting on the receiver's window.
+    _start_sink(ctx.runtime, receiver)
+    streams = [
+        _stream(ctx.runtime, ctx.parsed.sender_host, baseline["receiver_ip"])
+        for _ in range(_STREAM_RUNS)
+    ]
+    baseline["recovered_streams"] = streams
+    assert all(stream["ok"] for stream in streams), streams
+    share = _median_rwnd_share(streams)
+    assert share is not None and share <= _HEALTHY_RWND_SHARE_MAX, streams
 
 
 def assert_ospf_acl_withdrawal(ctx: FailureE2EContext) -> None:

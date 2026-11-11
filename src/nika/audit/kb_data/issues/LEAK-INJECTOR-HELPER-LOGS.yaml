@@ -19,3 +19,14 @@ provenance:
   refs:
   - red-team/qwen38/report.md
   found_by: live_audit
+evidence:
+- >-
+  2026-11-11 throughput-probe subcase: the shared one-shot iperf3 helper overwrote
+  /tmp/iperf3_s_<port>.log and could measure an existing listener instead of its own.
+  Repair fd4c829c redirects output to /dev/null, checks listener ownership, and
+  returns unavailable on an occupied port. Real simple_bgp controls preserve an
+  existing file and listener, create no fresh log, and clean up a failed client.
+  See tests/nika/net_env/test_throughput_probe_live.py and
+  /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-residual/throughput-before/ and throughput-after/.
+  This does not close other helper-file subcases; web DoS still uses
+  /var/tmp/http-client.py and per-worker http-client logs.

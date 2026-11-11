@@ -1,0 +1,27 @@
+id: TOOL-ONOS-EMPTY-REST-REPLY
+title: ONOS device inventory returned an empty object
+class: harness_defect
+role: lead
+severity: info
+status: open
+summary: The device-inventory request returned body {} rather than a devices list. Older REST providers
+  replaced curl connection failures with an empty object, hiding the failure from tool-error counts.
+guideline: This is a review lead, not proof of a missing device or a harness defect. Check the producing
+  tool, exact REST path, pinned provider and controller reachability. A valid empty devices list, another
+  REST resource returning {}, or an agent-authored output does not establish this mechanism. Confirm with
+  healthy, blocked-connection and restored controls; HTTP status and transport errors must remain visible.
+scope:
+  scenarios: [sdn_l3_clos]
+detect:
+- kind: text
+  where: [tool_result]
+  tool: sdn_onos_rest
+  call_pattern: '"path"\s*:\s*"/?onos/v1/devices"'
+  pattern: '"body"\s*:\s*\{\s*\}'
+provenance:
+  source: Real SDN MCP healthy, link-flap, blocked-connection and restored controls
+  date: '2026-11-11'
+  refs:
+  - tests/nika/service/kathara/test_kathara_sdn_mcp_live.py
+  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-cleanup/onos-final/
+  found_by: live_audit

@@ -116,7 +116,7 @@ Exact eval and leaderboard scoring contract. Implementation: [`scoring.py`](../.
 
 ### Per-trial rule-based metrics
 
-NIKA writes `eval_metrics.json` when a trial closes (or when you run `nika eval metrics`). Detection is binary. RCA metrics compare predicted and expected sets. Duplicate pairs do not change a score. Use a published release's Git tag to reproduce its scoring. Changes to these rules require a new benchmark revision under the [versioning policy](../../VERSIONING.md).
+NIKA writes `eval_metrics.json` when a trial closes (or when you run `nika eval metrics`). Detection is binary. RCA metrics compare predicted and expected sets. Duplicate pairs do not change a score. Use the official release reference to reproduce its scoring. Changes to these rules require a new benchmark revision under the [versioning policy](../../VERSIONING.md).
 
 | Metric group | Compared set | Fields |
 | --- | --- | --- |
@@ -150,7 +150,7 @@ Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable `is_a
 
 Score columns are only values in `[0, 1]` or `null`. They never store `-1`.
 
-`eval_metrics.json` records `validity_flags`; see [run-validity gates](leaderboard-submission.md#run-validity-gates).
+`eval_metrics.json` records `validity_flags`; see [`WARNING_RUN_VALIDITY`](leaderboard-submission.md#warning_run_validity) and [`ERROR_RUN_VALIDITY`](leaderboard-submission.md#error_run_validity).
 
 ### Trial `score_status`
 

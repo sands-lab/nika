@@ -91,6 +91,9 @@ class RemoteSessionScheduler:
     def status(self) -> dict[str, Any]:
         return self._poll()
 
+    def recheck_artifact(self) -> dict[str, Any]:
+        return self.client.fault_artifact(self.session_id)
+
     def _poll(self) -> dict[str, Any]:
         with self._lock:
             if not self._closed and time.monotonic() - self._polled_at >= 0.1:

@@ -5,8 +5,11 @@ role: lead
 severity: warn
 status: open
 summary: The fault presence recheck before cleanup found the fault artifact absent.
-guideline: 'Look for a mutating command on the faulted node (AGENT-STATE-MUTATION). Without one, the fault
-  self-healed: that is a benchmark defect (fault_not_realized) to reproduce in a live lab.'
+guideline: 'First compare the check with scheduled recovery for that event and occurrence. Planned recovery
+  does not establish agent mutation or unintended self-healing. Confirm that the occurrence should still
+  be active and that the check reported absence rather than a read error. Look for a mutating command
+  on the faulted node (AGENT-STATE-MUTATION). If no command or scheduled recovery explains the absence,
+  reproduce unintended fault healing in a live lab; artifact absence alone does not identify its cause.'
 detect:
 - kind: validity
   flag: fault_absent_at_cleanup

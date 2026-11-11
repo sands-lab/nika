@@ -141,3 +141,5 @@ def test_claude_runs_with_only_its_mcp_tools(tmp_path, agent_task) -> None:
     assert "--disallowedTools=WebSearch,WebFetch" in cmd
     assert cmd[-1] == "prompt"
     assert captured["env"]["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
+    assert captured["env"]["MCP_TOOL_TIMEOUT"] == "300000"
+    assert captured["env"]["CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS"] == "0"
