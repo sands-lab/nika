@@ -107,6 +107,30 @@ NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,abilene,janos-us NIKA_CI_ISP
   uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 ```
 
+### Maintain self-hosted review runners
+
+Documentation review and submission review use separate GitHub Actions runner registrations. They can share a host with enough CPU, memory, and disk space. Each registration accepts one job at a time; simultaneous jobs use separate working directories.
+
+| Instance | Repository | Routing label |
+| --- | --- | --- |
+| `docs-review` | `sands-lab/nika` | `nika-docs-fallback` |
+| `nika-audit` | `sands-lab/nika` | `nika-audit` |
+| `leaderboard-audit` | `sands-lab/nika-leaderboard` | `nika-audit` |
+
+Configure each runner in `~/.local/share/nika/github-runners/<instance>` using GitHub's runner registration instructions. Audit registrations use `--no-default-labels --labels nika-audit` so ordinary self-hosted jobs cannot select them. Keep registration credentials outside the repository. Install Git, Python 3, `uv`, GitHub CLI, and Codex CLI for the runner user. Authenticate GitHub CLI for audit proposal publication and run `codex login status` to check model access. Both audit registrations need the auditor's dependencies; the workflow installs the pinned NIKA checkout. Model access and repository secrets remain separate from runner registration.
+
+Use the shared [systemd user service](../../config/systemd/nika-github-runner@.service) for all instances:
+
+```shell
+install -Dm644 config/systemd/nika-github-runner@.service \
+  ~/.config/systemd/user/nika-github-runner@.service
+systemctl --user daemon-reload
+systemctl --user enable --now nika-github-runner@docs-review.service \
+  nika-github-runner@nika-audit.service nika-github-runner@leaderboard-audit.service
+```
+
+Enable user lingering with `loginctl enable-linger <user>` if these services must survive logout. Inspect an instance with `systemctl --user status nika-github-runner@<instance>` and `journalctl --user -u nika-github-runner@<instance>`. Before moving a registration, wait for its current job to finish and stop its service. Verify the replacement with a real workflow before removing the old registration and service. A repository-scoped runner accepts jobs only from its registered repository, including jobs in a reusable workflow called by that repository.
+
 ### Use the documentation review fallback
 
 If the hosted documentation reviewer runs out of quota, select the self-hosted fallback for that review. Keep a GitHub Actions self-hosted runner with the `nika-docs-fallback` label online on a machine with Git, Python 3, and Codex CLI available. Run `codex login` as the runner user and confirm `codex login status` succeeds. On Linux, install `bubblewrap` and complete the [Codex sandbox prerequisites](https://developers.openai.com/codex/concepts/sandboxing#prerequisites). The fallback review uses that user's configured model and login, which must have available quota.
