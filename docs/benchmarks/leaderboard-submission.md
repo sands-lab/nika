@@ -225,7 +225,7 @@ The [reviewed knowledge base](../../src/nika/audit/kb_data/) defines blocking an
 
 ### Automatic trajectory review
 
-Leaderboard CI validates each changed entry against its paired trajectories and reviews the recorded agent behavior. New audits use the latest merged knowledge base. Structurally invalid packages and packages containing secrets stop before model review.
+Leaderboard CI validates each changed entry against its paired trajectories and reviews the recorded agent behavior. New audits use the latest merged knowledge base. Model review requires a completed trajectory audit and no detected secrets in the scores package. Validation errors still fail the entry check even when model review runs.
 
 Open the pull request's validation check to inspect the audit summary and download its evidence artifacts. The `audit.json` report lists known issues with trial and step references. Review the cited observations when addressing warnings or blocking findings; a successful CI job does not dismiss reported warnings.
 
