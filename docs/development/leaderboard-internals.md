@@ -1,6 +1,6 @@
 # Leaderboard submission internals
 
-Maintainer and coding-agent reference for `nika leaderboard` (template, pack, validate, submit). The user guide is [Leaderboard submission](../benchmarks/leaderboard-submission.md); it deliberately hides everything below. When you change the workflow, update this file and keep the user guide limited to user-visible behavior (see the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md)).
+This maintainer reference maps leaderboard commands to their implementations and validation contracts. For submitting results, use [Leaderboard submission](../benchmarks/leaderboard-submission.md). Apply the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md) when updating either page.
 
 ## Module map
 
@@ -56,7 +56,7 @@ Validation computes expected trials from the official task definitions: the `ben
 
 - `nika benchmark run --release` compares the checkout's release files with the published reference and lists changed tasks, asking whether to continue before any trial runs.
 - `submit` and `nika leaderboard validate` read the published reference by default, so local pass implies CI pass. `--release-source local` checks against the checkout instead (offline only); CI rejects that result and the report carries `WARNING_LOCAL_RELEASE`.
-- `release_check.py` reports `ERROR_RELEASE_DRIFT` once per task when all of a task's expected trials are missing but trials with the same task stem and a different hash are present, or when the release files at the run's recorded `nika_git_commit` define a task differently (for example, different ground truth). The error lists changed tasks and the official commit. Fix: rerun those tasks from the official definitions into the same result dir with `--no-resume --task-id <task>`.
+- `release_check.py` reports `ERROR_RELEASE_DRIFT` once per task when all of a task's expected trials are missing but trials with the same task stem and a different hash are present, or when the release files at the run's recorded `nika_git_commit` define a task differently (for example, different ground truth). The error lists changed tasks and the official commit. Fix: create a checkout of the reported official commit and rerun the release into a new result directory, preserving the original results.
 - If the recorded commit is in neither the local repo nor GitHub, only trial IDs are compared and the report carries `WARNING_RUN_COMMIT_UNVERIFIED`.
 
 The user guide intentionally does not tell users to check out the tag manually; how NIKA selects the official definitions for a run is not a committed user contract yet.

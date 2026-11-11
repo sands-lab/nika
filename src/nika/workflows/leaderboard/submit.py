@@ -355,11 +355,11 @@ def _submit_packed_package(
         report = validate_leaderboard_submission(
             root, trajectories_dir=traj_root, release_source=release_source
         )
-        report.raise_if_failed()
         if report.audit is not None:
             from nika.audit.runner import write_report
 
             write_report(report.audit, root / "audit.json")
+        report.raise_if_failed()
 
     traj_remote: str | None = None
     traj_pr_url: str | None = None

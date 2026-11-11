@@ -209,10 +209,14 @@ uv run nika leaderboard validate results/my-run/20261027_codex_gpt_6_astra
 
 ### `ERROR_RELEASE_DRIFT`
 
-The package was produced with task definitions that differ from the official release, usually because the NIKA checkout used for the run is older or newer than the release. NIKA reports this when all trials of a task are missing but trials with the same task name and a different hash are present, or when the release files at the run's recorded NIKA commit define a task differently, for example with other ground truth. The error lists the changed tasks and the official commit. Rerun those tasks with the official release definitions into the same result directory, and pack again:
+The package was produced with task definitions that differ from the official release, usually because the NIKA checkout used for the run is older or newer than the release. NIKA reports this when all trials of a task are missing but trials with the same task name and a different hash are present, or when the release files at the run's recorded NIKA commit define a task differently, for example with other ground truth. The error lists the changed tasks and the official commit. Fetch that commit and create a separate checkout before rerunning. Use the reported commit for legacy releases too; they have no release tag. Install the dependencies in that checkout, run the release into a new result directory, and pack that run. Keep the original results:
 
 ```shell
-nika benchmark run --release <version> --split <split> --result_dir <dir> --no-resume --task-id <task>
+git fetch origin <official-commit>
+git worktree add <release-checkout> <official-commit>
+cd <release-checkout>
+uv sync
+uv run nika benchmark run --release <version> --split <split> --result_dir <new-results>
 ```
 
 ### `ERROR_TRIALS_MISSING`
@@ -237,7 +241,7 @@ The package metrics differ from the aggregate NIKA recomputes from the per-trial
 
 ### `ERROR_GRADING_ERROR`
 
-Some trials have `score_status=grading_error`. Repair the grading inputs, rerun those trials, and pack again.
+Some trials have `score_status=grading_error`. Repair the grading inputs, regrade the existing submissions with `nika eval metrics --result_dir <dir>`, and pack again. Keep the original agent trajectories.
 
 ### `ERROR_INFRA_ERROR`
 
@@ -305,7 +309,13 @@ The release declares a primary metric other than `rca_f1`. No action is needed w
 
 ### `ERROR_TRAJECTORY_AUDIT`
 
-The trajectory audit found a blocking issue. Open `audit.json`, inspect its cited trial steps, and address the finding before submitting.
+The trajectory audit found a blocking issue. A failed local submission saves its evidence as `audit.json` in the scores package. To recompute the report for an existing scores package and its paired trajectories, run:
+
+```shell
+nika leaderboard validate <scores-package> --trajectories <trajectories-package> --audit-out audit.json
+```
+
+Inspect the report's cited trial steps and address the finding before submitting. The command still exits with an error when the audit blocks the entry.
 
 ### `WARNING_TRAJECTORY_AUDIT`
 

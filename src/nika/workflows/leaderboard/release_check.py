@@ -157,7 +157,7 @@ def release_drift_issue(
     changed_tasks: list[str],
 ) -> ValidationIssue:
     version = reference.version
-    target = reference.tag or reference.commit or release_tag(version)
+    target = reference.commit or reference.tag or release_tag(version)
     label = "official release" if reference.source == "official" else "release"
     return ValidationIssue(
         "ERROR_RELEASE_DRIFT",
@@ -168,9 +168,10 @@ def release_drift_issue(
         ),
         details=[f"Checked against: {reference.describe()}"],
         fix=(
-            f"Check out the release reference (`git fetch origin --tags && git checkout {target}`), "
-            "re-run the changed tasks into the same result directory with "
-            f"`nika benchmark run --release {version} --split {release.split} "
-            "--result_dir <dir> --no-resume --task-id <task> …`, and pack again."
+            f"Fetch the reported reference (`git fetch origin {target}`) and create "
+            f"a separate checkout (`git worktree add <release-checkout> {target}`). "
+            "Install that checkout's dependencies, rerun the release into a new result "
+            f"directory with `nika benchmark run --release {version} --split {release.split} "
+            "--result_dir <new-results>`, and pack that run. Keep the original results."
         ),
     )

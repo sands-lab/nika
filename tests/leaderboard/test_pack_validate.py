@@ -1045,6 +1045,13 @@ def test_validation_audits_paired_trajectory_evidence(mini_release_env, defect):
     else:
         assert report.audit is not None and report.audit["verdict"] == "block"
         assert report.audit["trials"]
+        from nika.workflows.leaderboard.submit import _submit_packed_package
+        from nika.workflows.leaderboard.validate import LeaderboardValidateError
+
+        with pytest.raises(LeaderboardValidateError):
+            _submit_packed_package(scores, dry_run=True)
+        saved = json.loads((scores / "audit.json").read_text())
+        assert saved["verdict"] == "block" and saved["trials"]
 
 
 def test_ci_keeps_blocking_evidence_reviewable_at_the_same_revision(

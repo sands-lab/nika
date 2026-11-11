@@ -92,7 +92,7 @@ def test_drifted_release_reports_one_drift_error(
     drift = report.issues[0]
     assert drift.items == [official_task]
     assert any(commit in detail for detail in drift.details)
-    assert f"git checkout v{release.version}" in (drift.fix or "")
+    assert f"git worktree add <release-checkout> {commit}" in (drift.fix or "")
 
     with pytest.raises(LeaderboardPackError, match="ERROR_RELEASE_DRIFT"):
         _pack(result_dir)

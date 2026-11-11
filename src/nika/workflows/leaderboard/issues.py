@@ -92,10 +92,8 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
         "The package was produced with task definitions that do not match the "
         "official release, usually because the NIKA checkout used for the run is "
         "older or newer than the release commit.",
-        "Check out the release tag (`git fetch --tags && git checkout "
-        "v<version>`), re-run the changed tasks into the same result "
-        "directory with `nika benchmark run --release <version> --split <split> "
-        "--result_dir <dir> --no-resume --task-id <task> …`, and pack again.",
+        "Create a separate checkout of the reported release commit, rerun the "
+        "release into a new result directory, and pack that run. Keep the original results.",
     ),
     "ERROR_TRIALS_MISSING": IssueSpec(
         "trials are missing",
