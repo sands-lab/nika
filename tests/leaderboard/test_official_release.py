@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from dataclasses import replace
 
 import pytest
 import yaml
@@ -25,6 +26,20 @@ from tests.leaderboard.test_pack_validate import _pack, mini_release_env  # noqa
 from tests.support.official_release import FakeOfficialRepo
 
 pytestmark = pytest.mark.contract
+
+
+@pytest.mark.parametrize("setting", ["engine", "evaluation"])
+def test_pinned_engine_and_policy_changes_are_release_drift(
+    mini_release_env,  # noqa: F811
+    setting,
+) -> None:
+    release, _result_dir = mini_release_env
+    changed = replace(
+        release, manifest={**release.manifest, setting: {"changed": True}}
+    )
+    drift = official_release.release_drift(release, changed)
+    assert drift.changed_settings == [setting]
+    assert drift.drifted
 
 
 def _error_codes(report) -> list[str]:

@@ -48,7 +48,14 @@ ReleaseSource = Literal["official", "local"]
 RELEASE_SOURCES: tuple[ReleaseSource, ...] = ("official", "local")
 
 # Release settings that change what an agent faces or how it is scored.
-_COMPARED_SETTINGS = ("defaults", "scoring", "tools", "resources")
+_COMPARED_SETTINGS = (
+    "defaults",
+    "scoring",
+    "tools",
+    "resources",
+    "engine",
+    "evaluation",
+)
 _COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 # Package identities are untrusted input; keep the version a single path part.
 _VERSION_RE = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")
@@ -279,7 +286,8 @@ def release_drift(reference: BenchmarkRelease, other: BenchmarkRelease) -> Relea
         changed_settings=[
             name
             for name in _COMPARED_SETTINGS
-            if _canonical(getattr(reference, name)) != _canonical(getattr(other, name))
+            if _canonical(getattr(reference, name, reference.manifest.get(name)))
+            != _canonical(getattr(other, name, other.manifest.get(name)))
         ],
     )
 

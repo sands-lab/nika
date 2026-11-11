@@ -59,7 +59,7 @@ Validation computes expected trials from the official task definitions: the `ben
 - `release_check.py` reports `ERROR_RELEASE_DRIFT` once per task when all of a task's expected trials are missing but trials with the same task stem and a different hash are present, or when the release files at the run's recorded `nika_git_commit` define a task differently (for example, different ground truth). The error lists changed tasks and the official commit. Fix: create a checkout of the reported official commit and rerun the release into a new result directory, preserving the original results.
 - If the recorded commit is in neither the local repo nor GitHub, only trial IDs are compared and the report carries `WARNING_RUN_COMMIT_UNVERIFIED`.
 
-The user guide intentionally does not tell users to check out the tag manually; how NIKA selects the official definitions for a run is not a committed user contract yet.
+The user guide provides the [checkout and rerun procedure](../benchmarks/leaderboard-submission.md#error_release_drift). Benchmark runs use the current checkout's definitions; selecting an official reference during validation does not change that checkout.
 
 ## Coverage and scoring
 
@@ -148,16 +148,15 @@ hf discussions merge nika-bench/nika-trajectories <N> --yes --type dataset
 `hf_model.py` writes `hf_repo`, `hf_revision`, `hf_revision_source` (`latest` | `specified`) to `agent.extra` for `llm_provider: custom`:
 
 - Model served under its Hugging Face ID (vLLM default): repo inferred from the run's `model`, latest revision pinned at submit time and printed.
-- `--hf-revision <commit|branch|tag>`: resolved and stored as a commit SHA.
+- `--hf-model org/name --hf-revision <commit|branch|tag>`: resolved and stored as a commit SHA. A custom metadata file can supply `agent.extra.hf_repo` instead of `--hf-model`.
 - Alias (`vllm --served-model-name`) or Ollama library name (`gpt-oss:120b`): unidentifiable; submit stops before packing unless `--hf-model org/name` or `--proprietary` is passed.
 - Vendor providers (`openai`, `anthropic`, `deepseek`): nothing recorded.
 
 ## Leaderboard-side processing (sands-lab/nika-leaderboard)
 
 - After the scores PR merges, the leaderboard repo looks up model release dates and reference prices from public catalogs and opens a catalog PR for its maintainers. Until that merges, cost shows `pending`; models with no public quote show `n/a`. The required `model-metadata` check reports new models as `pending`, which is expected. Catalog format and sources are documented in that repo's README.
-- Pricing: vendor API list prices for proprietary models; public hosted-inference quotes for open weights (a reference estimate, not self-hosted GPU cost). Each run uses the quote current on its package date; a **Current prices** toggle re-prices all runs at the latest quote.
-- Token-priced total: `(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`, from packed token counts. Cost per run (one attempt at every task): `total_cost / reported_trials × case_count`. No cache discounts; no network emulation or GPU allocation costs.
-- Chart names combine model, normalized harness, optimization methods, and skills; `agent.extra.<method>_variant` (for example `gepa_variant: d+s`) adds a variant. Repeated configurations add split and run identity. The detail page keeps the original `info.name`.
+
+See [website pricing and display names](../benchmarks/leaderboard-submission.md#how-the-website-prices-runs) for the published calculation and naming rules.
 
 ## Review checklists
 

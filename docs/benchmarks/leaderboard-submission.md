@@ -133,7 +133,7 @@ agent:
     hf_revision_source: latest   # or: specified
 ```
 
-When a custom endpoint served the model under its Hugging Face ID, as vLLM does by default, `submit` finds the repository from the run's `model` and needs no flags. It records the repository's latest revision at submit time and prints it. If the run served an older commit, branch, or tag, pass `--hf-revision`; `submit` stores its commit SHA.
+When a custom endpoint served the model under its Hugging Face ID, as vLLM does by default, `submit` finds the repository from the run's `model` and needs no flags. It records the repository's latest revision at submit time and prints it. If the run served an older commit, branch, or tag, pass `--hf-model org/name --hf-revision <commit|branch|tag>`; `submit` stores its commit SHA.
 
 `submit` stops before packing when it cannot identify the model, for example when vLLM used `--served-model-name` or Ollama served a library model such as `gpt-oss:120b`. Pass the repository explicitly, or mark a proprietary model behind a custom endpoint:
 
