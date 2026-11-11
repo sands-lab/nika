@@ -80,11 +80,11 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
         "CI still validates against the official release.",
     ),
     "ERROR_BENCHMARK_MISMATCH": IssueSpec(
-        "the package identity does not match the release",
-        "The run used different release settings (case count, trials per case, "
-        "or scoring) than the official release.",
-        "Run the official release with `nika benchmark run --release <version>` "
-        "and pack that run.",
+        "the package identity or run's release settings differ from the official release",
+        "The package identity or the release settings at its recorded NIKA "
+        "commit do not match the published reference.",
+        "Follow the linked release-drift recovery to rerun from the official "
+        "reference with the original agent and model settings, then pack that run.",
     ),
     "ERROR_RELEASE_DRIFT": IssueSpec(
         "task definitions differ from the official release",

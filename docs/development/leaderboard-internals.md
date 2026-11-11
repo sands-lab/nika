@@ -57,7 +57,7 @@ Validation computes expected trials from the official task definitions: the `ben
 - `nika benchmark run --release` compares the checkout's release files with the published reference and lists changed tasks, asking whether to continue before any trial runs.
 - `submit` and `nika leaderboard validate` read the published reference by default, so local pass implies CI pass. `--release-source local` checks against the checkout instead (offline only); CI rejects that result and the report carries `WARNING_LOCAL_RELEASE`.
 - `release_check.py` reports `ERROR_RELEASE_DRIFT` once per task when all of a task's expected trials are missing but trials with the same task stem and a different hash are present, or when the release files at the run's recorded `nika_git_commit` define a task differently (for example, different ground truth). The error lists changed tasks and the official commit. Fix: create a checkout of the reported official commit and rerun the release into a new result directory, preserving the original results.
-- If the recorded commit is in neither the local repo nor GitHub, only trial IDs are compared and the report carries `WARNING_RUN_COMMIT_UNVERIFIED`.
+- The same comparison rejects changed defaults, scoring, tools, resources, images, engine, or evaluation settings with `ERROR_BENCHMARK_MISMATCH`, even when task IDs match. If the recorded commit is in neither the local repo nor GitHub, only trial IDs are compared and the report carries `WARNING_RUN_COMMIT_UNVERIFIED`.
 
 The user guide provides the [checkout and rerun procedure](../benchmarks/leaderboard-submission.md#error_release_drift). Benchmark runs use the current checkout's definitions; selecting an official reference during validation does not change that checkout.
 

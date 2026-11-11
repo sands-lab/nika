@@ -53,6 +53,7 @@ _COMPARED_SETTINGS = (
     "scoring",
     "tools",
     "resources",
+    "images",
     "engine",
     "evaluation",
 )

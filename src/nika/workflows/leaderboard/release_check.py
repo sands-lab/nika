@@ -114,7 +114,7 @@ def run_commit_changes(
     commit: str | None,
     issues: IssueCollector,
 ) -> list[str]:
-    """Return official task ids defined differently at the run's NIKA commit.
+    """Check release settings and return task ids changed at the run's commit.
 
     This catches changes that keep a task id, such as edited ground truth.
     """
@@ -130,6 +130,16 @@ def run_commit_changes(
         )
         return []
     drift = release_drift(release, at_commit)
+    if drift.changed_settings:
+        issues.append(
+            ValidationIssue(
+                "ERROR_BENCHMARK_MISMATCH",
+                summary="release settings at the run's NIKA commit differ from the official release",
+                items=drift.changed_settings,
+                details=[f"Checked against: {reference.describe()}"],
+                fix=_rerun_fix(release, reference),
+            )
+        )
     return drift.changed_tasks
 
 
@@ -151,13 +161,28 @@ def coverage_issues(
     return coverage
 
 
+def _rerun_fix(release: BenchmarkRelease, reference: ReleaseReference) -> str:
+    version = reference.version
+    target = reference.commit or reference.tag or release_tag(version)
+    return (
+        f"Fetch the reported reference (`git fetch origin {target}`) and create "
+        f"a separate checkout (`git worktree add <release-checkout> {target}`). "
+        "Install that checkout's dependencies and restore the original agent "
+        "implementation and model, provider, serving, and harness settings. "
+        "Pass the original settings in a compatible run config at an absolute path. "
+        "Rerun the release into a new result "
+        f"directory with `nika benchmark run --release {version} --split {release.split} "
+        "--run-config <original-run-config> --result_dir <new-results>`, "
+        "and pack that run. Keep the original results."
+    )
+
+
 def release_drift_issue(
     release: BenchmarkRelease,
     reference: ReleaseReference,
     changed_tasks: list[str],
 ) -> ValidationIssue:
     version = reference.version
-    target = reference.commit or reference.tag or release_tag(version)
     label = "official release" if reference.source == "official" else "release"
     return ValidationIssue(
         "ERROR_RELEASE_DRIFT",
@@ -167,15 +192,5 @@ def release_drift_issue(
             f"({len(changed_tasks)} tasks)"
         ),
         details=[f"Checked against: {reference.describe()}"],
-        fix=(
-            f"Fetch the reported reference (`git fetch origin {target}`) and create "
-            f"a separate checkout (`git worktree add <release-checkout> {target}`). "
-            "Install that checkout's dependencies and restore the original agent "
-            "implementation and model, provider, serving, and harness settings. "
-            "Pass the original settings in a compatible run config at an absolute path. "
-            "Rerun the release into a new result "
-            f"directory with `nika benchmark run --release {version} --split {release.split} "
-            "--run-config <original-run-config> --result_dir <new-results>`, "
-            "and pack that run. Keep the original results."
-        ),
+        fix=_rerun_fix(release, reference),
     )

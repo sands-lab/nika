@@ -136,6 +136,44 @@ def test_ground_truth_change_at_run_commit_is_drift(
     assert report.issues[0].items == [official_task]
 
 
+@pytest.mark.parametrize(
+    ("setting", "value"),
+    [
+        ("engine", {"tag": "different-engine", "api": {"version": 1}}),
+        ("evaluation", {"max_trial_sec": 30}),
+        ("images", {"required": ["different/image:tag"]}),
+    ],
+)
+def test_run_commit_with_different_release_settings_is_rejected(
+    mini_release_env,  # noqa: F811
+    official_releases: FakeOfficialRepo,
+    setting,
+    value,
+) -> None:
+    release, result_dir = mini_release_env
+    package = _pack(result_dir)
+    files = {p.name: p.read_bytes() for p in release.root.glob("*.yaml")}
+    manifest = yaml.safe_load(files["RELEASE.yaml"])
+    manifest[setting] = value
+    files["RELEASE.yaml"] = yaml.safe_dump(manifest).encode()
+    commit = official_releases.publish(release.version, files)
+    identity_path = package / "results/identity.yaml"
+    identity = yaml.safe_load(identity_path.read_text())
+    identity["run"]["nika_git_commit"] = commit
+    identity_path.write_text(yaml.safe_dump(identity))
+
+    report = validate_leaderboard_submission(package)
+
+    assert _error_codes(report) == ["ERROR_BENCHMARK_MISMATCH"]
+    assert setting in " ".join(report.issues[0].items)
+    run_path = result_dir / "run.json"
+    run = json.loads(run_path.read_text())
+    run["nika_git_commit"] = commit
+    run_path.write_text(json.dumps(run))
+    with pytest.raises(LeaderboardPackError, match="ERROR_BENCHMARK_MISMATCH"):
+        _pack(result_dir)
+
+
 def test_unreachable_release_fails_unless_local(
     mini_release_env,  # noqa: F811
     official_releases: FakeOfficialRepo,

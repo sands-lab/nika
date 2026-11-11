@@ -188,7 +188,7 @@ Newly proposed audit rules require maintainer review before adoption. For review
 
 `submit` runs the same checks as leaderboard CI. You need the details below only when a check fails. It verifies that:
 
-- Identity and trial IDs match the official release. When the run's recorded NIKA commit is available, its task definitions must match too; an unavailable commit produces a warning.
+- Identity and trial IDs match the official release. When the run's recorded NIKA commit is available, its task definitions and release settings must match too; an unavailable commit produces a warning.
 - Every trial the release defines is present, and the package metrics match the per-trial results. Trials that are not `scored` count as 0 in primary means.
 - No trial ended with a scoring error. Each trial's `score_status` in its `run.json` is `grading_error` when grading failed, or `infra_error` when the environment, LLM API, or MCP failed. Resume the run to retry `infra_error` trials; for `grading_error`, repair the grading inputs and regrade (see [trial `score_status`](root-cause-evaluation.md#trial-score_status)).
 - Each trial's transcript records model or tool activity, and harness flags meet the [per-flag rate limits](#error_run_validity).
@@ -234,7 +234,7 @@ NIKA could not read the official release. If GitHub is unreachable, restore conn
 
 ### `ERROR_BENCHMARK_MISMATCH`
 
-The package identity (benchmark ID, version, split, case count, trials per case, or scoring) differs from the release. Run the release itself with `nika benchmark run --release <version>` and pack that run.
+The package identity or the release settings at the run's recorded NIKA commit differ from the official release. The error lists the differences. Follow [release-drift recovery](#error_release_drift) to rerun the original agent and model configuration against the official definitions, then pack that run.
 
 ### `ERROR_SCORE_MISMATCH`
 
