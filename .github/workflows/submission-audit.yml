@@ -53,7 +53,7 @@ permissions:
 
 jobs:
   audit:
-    runs-on: ubuntu-24.04
+    runs-on: nika-audit
     timeout-minutes: 30
     outputs:
       revision: ${{ steps.audit.outputs.revision }}
@@ -90,7 +90,7 @@ jobs:
           PACKAGE: ${{ inputs.package }}
           SCORES_ROOT: ${{ github.workspace }}/scores
           NIKA_ROOT: ${{ github.workspace }}/nika
-          AUDIT_OUT: ${{ runner.temp }}/submission-audit
+          AUDIT_OUT: ${{ runner.temp }}/submission-audit-${{ github.run_id }}-${{ github.run_attempt }}
           TRAJECTORIES_REPO: ${{ inputs.trajectories_repository }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_HUB_DISABLE_PROGRESS_BARS: "1"
@@ -100,14 +100,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}
-          path: ${{ runner.temp }}/submission-audit/
+          path: ${{ runner.temp }}/submission-audit-${{ github.run_id }}-${{ github.run_attempt }}/
           if-no-files-found: warn
       - name: Summarize the audit
         if: always()
+        env:
+          AUDIT_OUT: ${{ runner.temp }}/submission-audit-${{ github.run_id }}-${{ github.run_attempt }}
         shell: bash
         run: |
-          if [ -f "$RUNNER_TEMP/submission-audit/summary.md" ]; then
-            cat "$RUNNER_TEMP/submission-audit/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "$AUDIT_OUT/summary.md" ]; then
+            cat "$AUDIT_OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"
           fi
 
   review:
@@ -144,7 +146,7 @@ jobs:
           PACKAGE: ${{ inputs.package }}
           SCORES_ROOT: ${{ github.workspace }}/scores
           NIKA_ROOT: ${{ github.workspace }}/nika
-          AUDIT_OUT: ${{ runner.temp }}/submission-review
+          AUDIT_OUT: ${{ runner.temp }}/submission-review-${{ github.run_id }}-${{ github.run_attempt }}
           TRAJECTORIES_REPO: ${{ inputs.trajectories_repository }}
           TRAJECTORY_REVISION: ${{ needs.audit.outputs.revision }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -155,5 +157,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}-review
-          path: ${{ runner.temp }}/submission-review/
+          path: ${{ runner.temp }}/submission-review-${{ github.run_id }}-${{ github.run_attempt }}/
           if-no-files-found: warn
