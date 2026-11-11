@@ -1,0 +1,76 @@
+id: HARNESS-BRIEF-A7AEBE2CFC72
+title: Task topology summary omits connected nodes
+class: harness_defect
+severity: warn
+status: open
+summary: The observed brief lists only the first host from each multi-host LAN, while the declared large
+  deployment creates four hosts per LAN and connects them all. The summary omits these connected nodes,
+  so it gives the agent an incomplete topology inventory. This detector establishes a representation mismatch;
+  downstream diagnostic impact has not been measured.
+scope:
+  scenarios:
+  - enterprise_branch
+detect:
+- kind: source_text
+  where:
+  - prompt
+  pattern: (?m)^Topology:\ \(br1_edge:eth0,\ br1_corp_pc:eth0\),\ \(br1_edge:eth2,\ br1_guest_pc:eth0\),\
+    \(br1_edge:eth1,\ br1_iot_pc:eth0\),\ \(br1_edge:eth3,\ isp1_core:eth2\),\ \(br1_edge:eth4,\ isp2_core:eth2\),\
+    \(br2_edge:eth0,\ br2_corp_pc:eth0\),\ \(br2_edge:eth2,\ br2_guest_pc:eth0\),\ \(br2_edge:eth1,\ br2_iot_pc:eth0\),\
+    \(br2_edge:eth3,\ isp1_core:eth3\),\ \(br2_edge:eth4,\ isp2_core:eth3\),\ \(br3_edge:eth0,\ br3_corp_pc:eth0\),\
+    \(br3_edge:eth2,\ br3_guest_pc:eth0\),\ \(br3_edge:eth1,\ br3_iot_pc:eth0\),\ \(br3_edge:eth3,\ isp1_core:eth4\),\
+    \(br3_edge:eth4,\ isp2_core:eth4\),\ \(br4_edge:eth0,\ br4_corp_pc:eth0\),\ \(br4_edge:eth2,\ br4_guest_pc:eth0\),\
+    \(br4_edge:eth1,\ br4_iot_pc:eth0\),\ \(br4_edge:eth3,\ isp1_core:eth5\),\ \(br4_edge:eth4,\ isp2_core:eth5\),\
+    \(br5_edge:eth0,\ br5_corp_pc:eth0\),\ \(br5_edge:eth2,\ br5_guest_pc:eth0\),\ \(br5_edge:eth1,\ br5_iot_pc:eth0\),\
+    \(br5_edge:eth3,\ isp1_core:eth6\),\ \(br5_edge:eth4,\ isp2_core:eth6\),\ \(br6_edge:eth0,\ br6_corp_pc:eth0\),\
+    \(br6_edge:eth2,\ br6_guest_pc:eth0\),\ \(br6_edge:eth1,\ br6_iot_pc:eth0\),\ \(br6_edge:eth3,\ isp1_core:eth7\),\
+    \(br6_edge:eth4,\ isp2_core:eth7\),\ \(br7_edge:eth0,\ br7_corp_pc:eth0\),\ \(br7_edge:eth2,\ br7_guest_pc:eth0\),\
+    \(br7_edge:eth1,\ br7_iot_pc:eth0\),\ \(br7_edge:eth3,\ isp1_core:eth8\),\ \(br7_edge:eth4,\ isp2_core:eth8\),\
+    \(br8_edge:eth0,\ br8_corp_pc:eth0\),\ \(br8_edge:eth2,\ br8_guest_pc:eth0\),\ \(br8_edge:eth1,\ br8_iot_pc:eth0\),\
+    \(br8_edge:eth3,\ isp1_core:eth9\),\ \(br8_edge:eth4,\ isp2_core:eth9\),\ \(dc2_edge:eth0,\ dc2_corp_pc:eth0\),\
+    \(dc2_edge:eth3,\ dc2_guest_pc:eth0\),\ \(dc2_edge:eth2,\ dc2_iot_pc:eth0\),\ \(dc2_edge:eth1,\ dc2_srv:eth0\),\
+    \(dc2_edge:eth4,\ isp1_core:eth1\),\ \(dc2_edge:eth5,\ isp2_core:eth1\),\ \(hq_edge:eth0,\ hq_corp_pc:eth0\),\
+    \(hq_edge:eth3,\ hq_guest_pc:eth0\),\ \(hq_edge:eth2,\ hq_iot_pc:eth0\),\ \(hq_edge:eth1,\ hq_srv:eth0\),\
+    \(hq_edge:eth4,\ isp1_core:eth0\),\ \(hq_edge:eth5,\ isp2_core:eth0\)$
+  source_fingerprints:
+  - src/nika/net_env/base.py: 146843f95c239df4d7bd7c013017b350993da76ac1f4be7c55987970ef9ef07c
+    src/nika/net_env/enterprise_branch/addressing.py: 4c79bcefd1ac929bec859bfe1ac0c120818b9915da0afc12a32efec2ce6b0b84
+    src/nika/net_env/enterprise_branch/lab.py: d6cf297bae412425cd8d2232f6f3ddfac43750f9891c970fe5ad8d12b04d7ffa
+    src/nika/net_env/enterprise_branch/topology.py: 4057b789952e9e1203465168a0b499b105725e41b257bb5745b6a723b8753fe8
+evidence:
+- enterprise_branch__host_stat__h693056222d8b__t01:0
+- src/nika/net_env/base.py
+- src/nika/net_env/enterprise_branch/addressing.py
+- src/nika/net_env/enterprise_branch/lab.py
+- src/nika/net_env/enterprise_branch/topology.py
+provenance:
+  source: submission audit of 20261012_react_gemma_4_31b_it
+  date: '2026-11-11'
+  refs:
+  - enterprise_branch__host_stat__h693056222d8b__t01:0
+  found_by: agentic
+source_reads:
+- action: read
+  path: src/nika/net_env/base.py
+  start: 81
+  end: 260
+- action: read
+  path: src/nika/net_env/enterprise_branch/lab.py
+  start: 227
+  end: 406
+- action: read
+  path: src/nika/net_env/enterprise_branch/lab.py
+  start: 393
+  end: 572
+- action: read
+  path: src/nika/net_env/enterprise_branch/topology.py
+  start: 1
+  end: 180
+- action: read
+  path: src/nika/net_env/enterprise_branch/topology.py
+  start: 180
+  end: 359
+- action: read
+  path: src/nika/net_env/enterprise_branch/addressing.py
+  start: 1
+  end: 77

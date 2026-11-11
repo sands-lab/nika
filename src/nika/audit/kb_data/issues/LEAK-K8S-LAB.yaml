@@ -1,0 +1,81 @@
+id: LEAK-K8S-LAB
+title: 'In k8s_lab, the prompt fragment ''Kubernetes: this lab runs a k3s cluster on devices [controller,
+  worker1, worker2, worke'
+class: shortcut
+severity: warn
+status: open
+summary: 'In k8s_lab, the prompt fragment ''Kubernetes: this lab runs a k3s cluster on devices [controller,
+  worker1, worker2, worker3, worker4, worker5].'' appears in 9/12 fault trials and 0/3 healthy trials
+  of the same recorded deployment and code version. Evidence: [prompt:581516678dbe3e32] Prompt fragment:
+  Kubernetes: this lab runs a k3s cluster on devices [controller, worker1, worker2, worker3, worker4,
+  worker5].
+
+  Fault tasks: 9/12 contain this exact fragment. Healthy tasks: 0/3 contain this exact fragment.
+
+  {"environment": "k8s_lab", "fault_trials": 12, "healthy_trials": 3, "fault_occurrences": 9, "healthy_occurrences":
+  0, "fragment": "Kubernetes: this lab runs a k3s cluster on devices [controller, worker1, worker2, worker3,
+  worker4, worker5].", "fault_prompt_contains_fragment": true, "healthy_prompt_contains_fragment": false,
+  "fault_source": "k8s_lab__k8s_clusterip_routi__he53ec359efd5__t01:0", "healthy_source": "k8s_lab__healthy__t01:0",
+  "fault_prompt": "[system]\nYou are a network troubleshooting expert.\nFocus on (1) detecting if there
+  is an anomaly, (2) localizing the faulty devices, and (3) identifying the root cause.\n\nBasic requirements:\n-
+  Use the provided MCP tools to gather necessary information.\n- Do not provide mitigation unless explicitly
+  required.\n- Rely only on the MCP tools available to you; do not execute arbitrary shell commands.\n\n[human]\nYou
+  are provided with the following network description and its current state:\nNetwork Description: A two-pod
+  fat-tree topology using EBGP routing (FRR), with Kubernetes (k3s) services deployed across the cluster.
+  The network uses leaf-spine-core architecture with BGP for routing and k3s for container orchestration.\nPCs:
+  client\nRouters (FRRRouting): as1r1, as2r1, core_1_1, core_1_2, dc_exit, leaf_1_1, leaf_1_2, leaf_2_1,
+  leaf_2_2, spine_1_1, spine_1_2, spine_2_1, spine_2_2\nTopology: (leaf_1_1:eth0, spine_1_1:eth0), (leaf_1_1:eth4,
+  worker2:eth0), (leaf_1_2:eth4, worker5:eth0), (dc_exit:eth0, as1r1:eth0), (leaf_1_1:eth1, spine_1_2:eth0),
+  (leaf_1_1:eth2, controller:eth0), (leaf_1_2:eth0, spine_1_1:eth1), (leaf_1_2:eth1, spine_1_2:eth1),
+  (leaf_2_1:eth2, dc_exit:eth1), (spine_1_1:eth2, core_1_1:eth0), (spine_1_1:eth3, core_1_2:eth0), (spine_1_2:eth2,
+  core_1_1:eth1), (spine_1_2:eth3, core_1_2:eth1), (spine_2_1:eth0, leaf_2_1:eth0), (spine_2_2:eth0, leaf_2_1:eth1),
+  (as1r1:eth1, as2r1:eth1), (spine_2_1:eth1, leaf_2_2:eth0), (spine_2_2:eth1, leaf_2_2:eth1), (leaf_2_2:eth2,
+  dc_exit:eth2), (spine_2_1:eth2, core_1_1:eth2), (spine_2_1:eth3, core_1_2:eth2), (spine_2_2:eth2, core_1_1:eth3),
+  (spine_2_2:eth3, core_1_2:eth3), (leaf_1_1:eth3, worker1:eth0), (leaf_1_2:eth2, worker3:eth0), (as2r1:eth0,
+  client:eth0), (leaf_1_2:eth3, worker4:eth0)\n\nYour goal is to analyze the network condition and, if
+  needed, use the available tools.\nYou need to generate a troubeshooting diagnosis report.\nThe report
+  should reflect your assessment of the network''s health, indicate any abnormal behavior you identify,
+  and describe relevant findings based on your analysis.\n\nFocus on producing an informative and coherent
+  diagnostic report derived from the network state.\nDo not need to propose any solutions or remediation
+  steps at this stage.\n\nKubernetes: this lab runs a k3s cluster on devices [controller, worker1, worker2,
+  worker3, worker4, worker5]. `kubectl` works only on controller (the k3s server); worker devices ship
+  the binary but have no kubeconfig. Report faulty devices using lab device names, not Kubernetes object
+  names.", "healthy_prompt": "[system]\nYou are a network troubleshooting expert.\nFocus on (1) detecting
+  if there is an anomaly, (2) localizing the faulty devices, and (3) identifying the root cause.\n\nBasic
+  requirements:\n- Use the provided MCP tools to gather necessary information.\n- Do not provide mitigation
+  unless explicitly required.\n- Rely only on the MCP tools available to you; do not execute arbitrary
+  shell commands.\n\n[human]\nYou are provided with the following network description and its current
+  state:\nNetwork Description: A two-pod fat-tree topology using EBGP routing (FRR), with Kubernetes (k3s)
+  services deployed across the cluster. The network uses leaf-spine-core architecture with BGP for routing
+  and k3s for container orchestration.\nPCs: client\nRouters (FRRRouting): as1r1, as2r1, core_1_1, core_1_2,
+  dc_exit, leaf_1_1, leaf_1_2, leaf_2_1, leaf_2_2, spine_1_1, spine_1_2, spine_2_1, spine_2_2\nTopology:
+  (leaf_1_1:eth0, spine_1_1:eth0), (leaf_1_1:eth4, worker2:eth0), (leaf_1_2:eth4, worker5:eth0), (dc_exit:eth0,
+  as1r1:eth0), (leaf_1_1:eth1, spine_1_2:eth0), (leaf_1_1:eth2, controller:eth0), (leaf_1_2:eth0, spine_1_1:eth1),
+  (leaf_1_2:eth1, spine_1_2:eth1), (leaf_2_1:eth2, dc_exit:eth1), (spine_1_1:eth2, core_1_1:eth0), (spine_1_1:eth3,
+  core_1_2:eth0), (spine_1_2:eth2, core_1_1:eth1), (spine_1_2:eth3, core_1_2:eth1), (spine_2_1:eth0, leaf_2_1:eth0),
+  (spine_2_2:eth0, leaf_2_1:eth1), (as1r1:eth1, as2r1:eth1), (spine_2_1:eth1, leaf_2_2:eth0), (spine_2_2:eth1,
+  leaf_2_2:eth1), (leaf_2_2:eth2, dc_exit:eth2), (spine_2_1:eth2, core_1_1:eth2), (spine_2_1:eth3, core_1_2:eth2),
+  (spine_2_2:eth2, core_1_1:eth3), (spine_2_2:eth3, core_1_2:eth3), (leaf_1_1:eth3, worker1:eth0), (leaf_1_2:eth2,
+  worker3:eth0), (as2r1:eth0, client:eth0), (leaf_1_2:eth3, worker4:eth0)\n\nYour goal is to analyze the
+  network condition and, if needed, use the available tools.\nYou need to generate a troubeshooting diagnosis
+  report.\nThe report should reflect your assessment of the network''s health, indicate any abnormal behavior
+  you identify, and describe relevant findings based on your analysis.\n\nFocus on producing an informative
+  and coherent diagnostic report derived from the network state.\nDo not need to propose any solutions
+  or remediation steps at this stage.", "matched_deployment_and_commit": true, "commit": "8f04c8422623f9f785fa391d7e2ead62f4bfab9c"}'
+guideline: Recorded from cross-trial statistics; check the row again.
+detect:
+- kind: prompt_contrast
+  pattern: Kubernetes:\ this\ lab\ runs\ a\ k<n>s\ cluster\ on\ devices\ \[controller,\ worker<n>,\ worker<n>,\
+    worker<n>,\ worker<n>,\ worker<n>\]\.\ `kubectl`\ works\ only\ on\ controller\ \(the\ k<n>s\ server\);\
+    worker\ devices\ ship\ the\ binary\ but\ have\ no\ kubeconfig\.\ Report\ faulty\ devices\ using\ lab\
+    device\ names,\ not\ Kubernetes\ object\ names\.
+provenance:
+  source: submission audit of 20261012_react_gemma_4_31b_it
+  date: '2026-11-11'
+  refs:
+  - k8s_lab__k8s_clusterip_routi__he53ec359efd5__t01:0
+  - k8s_lab__healthy__t01:0
+  found_by: agentic
+scope:
+  scenarios:
+  - k8s_lab
