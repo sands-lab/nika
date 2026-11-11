@@ -98,7 +98,12 @@ def ternary_miss_row(prefix: str, target_ip: str, others: list[str]) -> tuple[st
     candidates = [b for b in range(host_bits) if target >> b & 1]
     if not candidates:
         raise ValueError(f"{target_ip} has no host bit set under {prefix}")
-    bit = min(candidates, key=lambda b: (sum(1 for p in peers if p >> b & 1), b))
+    isolated = [b for b in candidates if all(not (p >> b & 1) for p in peers)]
+    if not isolated:
+        raise ValueError(
+            f"No mask bit isolates {target_ip} from its peers under {prefix}"
+        )
+    bit = min(isolated)
     base = int(network.network_address)
     mask = int(network.netmask) | (1 << bit)
     return (

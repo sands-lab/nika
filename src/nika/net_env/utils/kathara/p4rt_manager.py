@@ -323,8 +323,8 @@ def lpm_entity(index: P4InfoIndex, entry: dict[str, Any], *, kind: str = "INSERT
         f for f in index.tables[TABLE_IPV4].match_fields if f.id == mf.field_id
     )
     if field.match_type == p4info_pb2.MatchField.TERNARY:
-        mf.ternary.value = encode_ipv4(str(network.network_address))
-        mf.ternary.mask = encode_ipv4(str(network.netmask))
+        mf.ternary.value = encode_ipv4(str(entry.get("value", network.network_address)))
+        mf.ternary.mask = encode_ipv4(str(entry.get("mask", network.netmask)))
         table.priority = network.prefixlen + 1
     else:
         mf.lpm.value = encode_ipv4(str(network.network_address))
@@ -944,6 +944,7 @@ def table_rows(
             {
                 "match": match,
                 "priority": int(entry.priority),
+                "group_id": int(entry.action.action_profile_group_id),
                 "action": _short(action.preamble.name) if action else None,
                 "params": {
                     names.get(int(p.param_id), str(p.param_id)): decode_u(p.value)
