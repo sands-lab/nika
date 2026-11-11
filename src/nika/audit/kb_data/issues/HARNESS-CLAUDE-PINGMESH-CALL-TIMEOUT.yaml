@@ -40,6 +40,8 @@ evidence:
   Both CLI processes exited zero, so the actual tool_result is the acceptance
   criterion. This is a client protocol control, not a real-model PingMesh run,
   and does not close MCP connection or post-error transport issues.
-  Receipts: /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-residual/claude-before/receipt.json and
-  /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-residual/claude-after/receipt.json.
+  The local receipts were removed after their conclusions were archived in
+  Obsidian 03-NIKA/00CoNext2027/Archive/20261111-Completed Engineering and Dashboard Records.md.
+  Repair integration: https://github.com/sands-lab/nika/pull/330.
+  Retained configuration regressions: tests/agent/test_claude_cli.py.
 fixed_in: bdd39743

@@ -29,8 +29,7 @@ provenance:
   - sdn_l3_clos__link_flap__s__h02db78d97263__t02:8
   - sdn_l3_clos__link_flap__s__h02db78d97263__t02:20
   - tests/nika/service/kathara/test_kathara_sdn_mcp_live.py
-  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-cleanup/onos-before/
-  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-cleanup/onos-final/
+  - https://github.com/sands-lab/nika/pull/330
   found_by: agentic
 evidence:
 - 'sdn_l3_clos__link_flap__s__h02db78d97263__t02 (20261016_claude_code_claude_opus_5_5) step 8: Error executing tool
