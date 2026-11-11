@@ -2,7 +2,8 @@ id: HARNESS-ACTIVE-PROBE-TRACEBACK
 title: active_tcp_probe returns raw Python tracebacks, including false timeouts on healthy paths when the destination port is in use
 class: harness_defect
 severity: warn
-status: open
+status: fixed
+fixed_in: 06a114a6
 summary: The client script in src/nika/traffic/active_probe.py catches only ConnectionRefusedError and returns raw
   stdout as "result", so timeouts, Errno 101/113, and bind errors reach the agent as Python tracebacks. When
   destination_port is already served (port 80 on a web server), the probe listener's bind fails silently, the
@@ -11,6 +12,9 @@ guideline: Counts on any active_tcp_probe result that holds a Python traceback. 
   destination already serves (80, 443, 5201) is a false failure even in a healthy lab; Errno 101/113 tracebacks
   may reflect a real fault but are still unstructured output. Does not count for the "Device ... is not running"
   error (HARNESS-ACTIVE-PROBE-REJECTS-IPS).
+  The repaired probe catches client OSError and reports listener setup failures as unavailable before
+  starting the client. Live occupied-port and normal controls preserved the existing service and passed
+  cleanup; the MCP regression also checks the occupied-port response.
 detect:
 - kind: text
   where:
@@ -22,6 +26,9 @@ provenance:
   date: '2026-10-28'
   refs:
   - dc_clos__healthy__m__t02:23
+  - src/nika/traffic/active_probe.py
+  - tests/nika/service/test_mcp_tools_live.py
+  - nika01:/home/wangz0s/.paseo/worktrees/329o0vrn/nika-prerelease-fixes/results/prerelease-validity/active-probe.json
   found_by: agentic
 evidence:
 - 'dc_clos__healthy__m__t02 (20261012_react_gemma_4_31b_it) step 23: "destination_port": 80, ... "result": "Traceback

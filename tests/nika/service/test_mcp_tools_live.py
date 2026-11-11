@@ -147,6 +147,22 @@ class TestHostPingmeshCaptureMcpLive(IntegrationTestCase):
                                 }
                             )
                         )
+                        occupied = json.loads(
+                            _text(
+                                await tools["active_tcp_probe"].ainvoke(
+                                    {
+                                        "source": "pc2",
+                                        "destination": "pc1",
+                                        "source_port": 55001,
+                                        "destination_port": 18080,
+                                        "payload_seed": 42,
+                                        "packets": 2,
+                                    }
+                                )
+                            )
+                        )
+                        assert occupied["status"] == "unavailable", occupied
+                        assert "Address already in use" in occupied["listener"]["error"]
                     finally:
                         await tools["exec_shell"].ainvoke(
                             {
@@ -267,29 +283,31 @@ class TestTelemetryMcpLive(IntegrationTestCase):
                     )
                     assert "tool_execution_error" not in _text(probe).lower()
                     for _ in range(5):
-                        result = await tools["int_query_telemetry"].ainvoke(
-                            {"start_time": "0", "limit": 100}
-                        )
-                        if isinstance(result, str):
-                            rows = json.loads(result)
-                            if rows:
+                        end_time = str(time.time())
+                        offset = 0
+                        rows = []
+                        for _page in range(10):
+                            result = await tools["int_query_telemetry"].ainvoke(
+                                {
+                                    "start_time": "0",
+                                    "end_time": end_time,
+                                    "limit": 100,
+                                    "offset": offset,
+                                }
+                            )
+                            page = json.loads(_text(result))
+                            assert page["offset"] == offset
+                            rows.extend(page["records"])
+                            if any(
+                                row.get("trace_complete") and row.get("hop_sequence")
+                                for row in rows
+                            ):
                                 return rows
-                        if (
-                            isinstance(result, list)
-                            and result
-                            and isinstance(result[0], dict)
-                            and "packet_timestamp" in result[0]
-                        ):
-                            return result
-                        # Over the output limit, list results carry warning and
-                        # elision markers between whole JSON items.
-                        rows = [
-                            json.loads(text)
-                            for text in tool_text_list(result)
-                            if text.startswith("{")
-                        ]
-                        if rows:
-                            return rows
+                            next_offset = page["next_offset"]
+                            if next_offset is None:
+                                break
+                            assert next_offset > offset
+                            offset = next_offset
                         await asyncio.sleep(1)
                     return []
 

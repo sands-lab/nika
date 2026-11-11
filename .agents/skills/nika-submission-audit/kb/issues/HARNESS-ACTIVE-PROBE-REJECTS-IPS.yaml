@@ -2,11 +2,14 @@ id: HARNESS-ACTIVE-PROBE-REJECTS-IPS
 title: active_tcp_probe rejects IP addresses as endpoints
 class: harness_defect
 severity: info
-status: open
+status: fixed
+fixed_in: 06a114a6
 summary: active_tcp_probe takes device names; agents that pass an IP address get 'Device `<ip>` is not
   running', which reads like a down host. About a quarter to four fifths of its calls failed in most 0.2.0
   submissions.
-guideline: An agent that concludes a host is down from this error was misled by the tool, not by the network.
+guideline: 'An agent that concludes a host is down from this error was misled by the tool, not by the network.
+  The repaired probe validates source and destination as node names and directs IP arguments to
+  destination_address. The live verification exercised a normal probe and an IP passed as destination.'
 detect:
 - kind: text
   tool: active_tcp_probe
@@ -15,5 +18,7 @@ detect:
 provenance:
   source: submission audit of 21 0.2.0 submissions, lead TOOL-HIGH-ERROR-RATE
   date: '2026-10-25'
-  refs: []
+  refs:
+  - src/nika/traffic/active_probe.py
+  - nika01:/home/wangz0s/.paseo/worktrees/329o0vrn/nika-prerelease-fixes/results/prerelease-validity/active-probe.json
   found_by: deterministic
