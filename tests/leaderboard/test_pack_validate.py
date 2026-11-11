@@ -1054,6 +1054,66 @@ def test_validation_audits_paired_trajectory_evidence(mini_release_env, defect):
         assert saved["verdict"] == "block" and saved["trials"]
 
 
+@pytest.mark.parametrize(
+    ("package_kind", "relative"),
+    [
+        ("scores", "metadata.yaml"),
+        ("scores", "results/identity.yaml"),
+        ("scores", "results/trials"),
+        ("trajectories", "metadata.yaml"),
+        ("trajectories", "trials"),
+    ],
+)
+def test_validation_rejects_symbolic_links_before_reading_package_data(
+    mini_release_env, tmp_path, package_kind, relative
+):
+    _, result_dir = mini_release_env
+    scores = _pack(result_dir)
+    paired = scores.parent / f"{scores.name}_trajectories"
+    root = scores if package_kind == "scores" else paired
+    path = root / relative
+    outside = tmp_path / "outside-package"
+    path.rename(outside)
+    if outside.is_file():
+        outside.write_text("info: [OUTSIDE_PACKAGE_SENTINEL\n")
+    path.symlink_to(outside, target_is_directory=outside.is_dir())
+
+    report = validate_leaderboard_submission(scores)
+
+    assert not report.ok
+    assert any("ERROR_PACKAGE_INCOMPLETE" in error for error in report.errors)
+    assert any("symbolic links are not allowed" in error for error in report.errors)
+    assert "OUTSIDE_PACKAGE_SENTINEL" not in "\n".join(report.errors)
+    assert report.audit is None
+
+
+def test_ci_rejects_symbolic_links_before_reading_identity_or_fetching(
+    mini_release_env, tmp_path, monkeypatch
+):
+    from nika.audit import ci
+
+    _, result_dir = mini_release_env
+    package = _pack(result_dir)
+    identity = package / "results/identity.yaml"
+    outside = tmp_path / "outside.yaml"
+    outside.write_text("info: [OUTSIDE_PACKAGE_SENTINEL\n")
+    identity.unlink()
+    identity.symlink_to(outside)
+    monkeypatch.setattr(
+        ci,
+        "fetch_trajectories",
+        lambda *args, **kwargs: pytest.fail("Must reject before fetching"),
+    )
+
+    with pytest.raises(ValueError, match="symbolic links are not allowed"):
+        ci.audit_package(
+            package,
+            tmp_path / "audit",
+            REPO_ROOT,
+            trajectories_repo="test/trajectories",
+        )
+
+
 def test_ci_keeps_blocking_evidence_reviewable_at_the_same_revision(
     mini_release_env, tmp_path, monkeypatch
 ):

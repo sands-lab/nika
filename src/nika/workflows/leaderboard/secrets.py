@@ -9,6 +9,16 @@ from typing import Any
 
 import yaml
 
+
+def reject_package_symlinks(root: Path) -> None:
+    """Reject symbolic links before opening untrusted package files."""
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise ValueError(
+                f"symbolic links are not allowed: {path.relative_to(root).as_posix()}"
+            )
+
+
 _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "openai_sk",

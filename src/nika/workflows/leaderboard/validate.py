@@ -53,7 +53,7 @@ from nika.workflows.leaderboard.schema import (
     RcaConfusion,
     TrialResult,
 )
-from nika.workflows.leaderboard.secrets import scan_package_dir
+from nika.workflows.leaderboard.secrets import reject_package_symlinks, scan_package_dir
 
 __all__ = [
     "LeaderboardValidateError",
@@ -129,6 +129,10 @@ def validate_leaderboard_submission(
 
     if not root.is_dir():
         return _failed("ERROR_PACKAGE_INCOMPLETE", f"submission dir not found: {root}")
+    try:
+        reject_package_symlinks(root)
+    except ValueError as exc:
+        return _failed("ERROR_PACKAGE_INCOMPLETE", str(exc))
 
     metadata_path = root / METADATA_FILENAME
     readme_path = root / README_FILENAME

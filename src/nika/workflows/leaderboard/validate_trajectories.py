@@ -37,7 +37,10 @@ from nika.workflows.leaderboard.schema import (
     TrialResult,
 )
 from nika.workflows.leaderboard.release_check import coverage_issues, load_reference
-from nika.workflows.leaderboard.secrets import scan_trajectory_package_dir
+from nika.workflows.leaderboard.secrets import (
+    reject_package_symlinks,
+    scan_trajectory_package_dir,
+)
 
 
 def _resolve_dir(path: str | Path) -> Path:
@@ -94,6 +97,13 @@ def validate_trajectory_package(
         return _failed(
             "ERROR_PACKAGE_INCOMPLETE", f"trajectories dir not found: {root}"
         )
+
+    try:
+        reject_package_symlinks(root)
+        if scores_dir is not None:
+            reject_package_symlinks(_resolve_dir(scores_dir))
+    except ValueError as exc:
+        return _failed("ERROR_PACKAGE_INCOMPLETE", str(exc))
 
     metadata_path = root / METADATA_FILENAME
     readme_path = root / README_FILENAME

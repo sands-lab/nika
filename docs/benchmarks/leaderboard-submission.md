@@ -261,7 +261,7 @@ Package text contains a possible credential or an absolute host path. Remove the
 
 ### `ERROR_PACKAGE_INCOMPLETE`
 
-A required package file or directory is missing. Pack again with `nika leaderboard submit --dry-run`.
+A required package file or directory is missing, or the package contains symbolic links. Pack again from the original result files with `nika leaderboard submit --dry-run`.
 
 ### `ERROR_METADATA_INVALID`
 
