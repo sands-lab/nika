@@ -767,8 +767,8 @@ def merge_run_config(
 ) -> dict[str, Any]:
     """Keep stable ``run_id`` / timestamps on resume; refresh updated_at.
 
-    ``nika_git_commit`` / ``nika_git_dirty`` track the latest launch, and
-    ``nika_git_history`` keeps every distinct commit the run was resumed from.
+    Git fields track the latest launch; ``nika_git_history`` keeps each
+    distinct commit and dirty state on resume.
     ``provenance`` and ``provenance_history`` do the same for run provenance.
     """
     now = _utc_now_iso()
@@ -785,6 +785,21 @@ def merge_run_config(
         return out
 
     assert_run_config_compatible(existing, proposed)
+    changed = [
+        key
+        for key in (*_GIT_FIELDS, "provenance")
+        if key in existing and key in proposed and existing[key] != proposed[key]
+    ]
+    if existing.get("nika_git_dirty") or proposed.get("nika_git_dirty"):
+        if "nika_git_dirty" not in changed:
+            changed.append("nika_git_dirty")
+    if changed:
+        print(
+            "WARNING: resuming this run with changed or incomplete source/runtime provenance "
+            f"({', '.join(changed)}). Completed trials are retained; new trials "
+            "use the current launch. Review nika_git_history and provenance_history "
+            "before comparing or publishing results."
+        )
     out = dict(existing)
     out["updated_at"] = now
     for key in _RUN_IDENTITY_FIELDS:
@@ -822,7 +837,6 @@ def merge_run_config(
 
 def _git_entry(job: dict[str, Any], recorded_at: Any) -> dict[str, Any]:
     return {
-        "nika_git_commit": job.get("nika_git_commit"),
-        "nika_git_dirty": job.get("nika_git_dirty"),
+        **{key: job.get(key) for key in _GIT_FIELDS},
         "recorded_at": recorded_at,
     }

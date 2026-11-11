@@ -1,7 +1,7 @@
-"""Check that an agent's LLM endpoint is reachable and serves the configured model.
+"""Check model availability and generation through an agent's credentials.
 
-The probe lists models (``GET <api root>/models``) with the same credentials the
-agent will use. It sends no completion request, so it costs no tokens.
+The preflight model-list probe consumes no tokens. Recovery probes request a
+short generation through the agent's API protocol and may incur provider costs.
 """
 
 from __future__ import annotations
@@ -170,3 +170,86 @@ def probe_endpoint(
         f" and serves {model!r}." if model and result.models else "."
     )
     return result
+
+
+def probe_agent_generation(
+    agent_type: str, provider: str, model: str, *, env_file, timeout: float
+) -> None:
+    """Require a model response through the agent's upstream and credential route."""
+    import json
+
+    from nika.agents.registry import get_agent_spec
+    from nika.agents.sandbox.model_proxy import resolve_model_upstream
+
+    upstream = resolve_model_upstream(
+        env_file=env_file, agent_type=agent_type, provider=provider
+    )
+    credential = upstream.credential
+    key = credential() if callable(credential) else credential
+    headers = dict(upstream.extra_headers)
+    body: dict = {"model": model}
+    text = "Reply OK."
+    if upstream.anthropic:
+        path = "/v1/messages"
+        headers["anthropic-version"] = ANTHROPIC_VERSION
+        headers["authorization" if upstream.subscription else "x-api-key"] = (
+            f"Bearer {key}" if upstream.subscription else key
+        )
+        body.update(messages=[{"role": "user", "content": text}], max_tokens=1)
+        protocol = "messages"
+    elif get_agent_spec(agent_type).model_api == "responses":
+        path = "/responses"
+        headers["authorization"] = f"Bearer {key}"
+        body.update(
+            input=[{"role": "user", "content": text}], instructions="", store=False
+        )
+        if upstream.subscription:
+            body["stream"] = True
+        else:
+            body["max_output_tokens"] = 16
+        protocol = "responses"
+    else:
+        path = "/chat/completions"
+        if key:
+            headers["authorization"] = f"Bearer {key}"
+        body.update(messages=[{"role": "user", "content": text}], stream=False)
+        body["max_completion_tokens" if provider == "openai" else "max_tokens"] = 1
+        protocol = "chat_completions"
+    with httpx.Client(timeout=timeout) as client:
+        with client.stream(
+            "POST", upstream.url.rstrip("/") + path, json=body, headers=headers
+        ) as response:
+            response.raise_for_status()
+            if body.get("stream"):
+                for line in response.iter_lines():
+                    if not line.startswith("data:") or line[5:].strip() == "[DONE]":
+                        continue
+                    event = json.loads(line[5:])
+                    if (
+                        event.get("type") == "response.output_text.delta"
+                        and event.get("delta")
+                    ) or (
+                        event.get("type") == "response.completed"
+                        and event.get("response", {}).get("status") == "completed"
+                        and not event["response"].get("error")
+                    ):
+                        return
+                raise RuntimeError(
+                    "The endpoint ended its stream without a model response."
+                )
+            data = json.loads(response.read())
+            if protocol == "chat_completions":
+                valid = bool(data.get("choices"))
+            elif protocol == "messages":
+                valid = data.get("type") == "message"
+            else:
+                valid = data.get("object") == "response" and (
+                    data.get("status") == "completed"
+                    or (
+                        data.get("status") == "incomplete"
+                        and (data.get("incomplete_details") or {}).get("reason")
+                        == "max_output_tokens"
+                    )
+                )
+            if not valid or data.get("error"):
+                raise RuntimeError("The endpoint returned no valid model response.")

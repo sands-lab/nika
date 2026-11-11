@@ -45,6 +45,10 @@ nika leaderboard submit --result_dir results/my-run --submission results/my-run/
 
 Official `--release` runs default to continuing past trial failures (`continue_on_error=True`) so one bad trial does not abort the job; use `--abort-on-error` to stop immediately. Ad-hoc `--config` batches still default from `benchmark.continue_on_error` in run config. The agent itself runs under `agent.timeout_sec` (default 1800s), which applies to every agent type. Per-case watchdogs use `--case-timeout` / `benchmark.case_timeout_sec` (default 2400s); a timed-out trial is finalized as counted `agent_failed` when the budget was spent on agent work, or as retryable `endpoint_failed` when the kill lands mid-LLM and LLM calls dominated the wall clock. NIKA stops a timed-out worker with SIGTERM and gives it up to 60 seconds to remove its sandbox, stop the MCP gateway, and undeploy the lab before SIGKILL.
 
+After `benchmark.endpoint_failure_threshold` consecutive `endpoint_failed` trials (default 3), NIKA pauses new trials and starts the recovery wait limit. Running trials can finish while NIKA probes the configured model, starting after `endpoint_backoff_initial_sec` (5 seconds) and doubling the interval up to `endpoint_backoff_max_sec` (60 seconds). A successful probe resumes admission. A counted `success` or `agent_failed` outcome resets the failure counter; `infra_failed` does not change it. After `endpoint_wait_timeout_sec` (900 seconds), NIKA aborts running trials and leaves incomplete trials available for `--resume`.
+
+Recovery probes use the agent's API protocol, upstream endpoint, and API key or subscription login. They request a short response and can incur provider charges. Each probe has a time limit within the remaining recovery wait.
+
 Per-trial `run.json` is stamped with the same release identity fields plus `trial_id` / `trial_index` / `outcome`.
 
 ## Working matrix

@@ -230,8 +230,10 @@ def test_allow_all_policy_stops_before_the_sandbox_is_locked_out() -> None:
         patch("nika.agents.sandbox.sbx.policy.run_sbx_checked", side_effect=policy_ls),
     ):
         # At run start, before anything is deployed.
-        with pytest.raises(SbxPolicyError, match="sbx policy reset"):
+        with pytest.raises(SbxPolicyError, match="sbx policy reset") as error:
             require_confinable_sbx_policy()
+        assert "--with-agentenv" in str(error.value)
+        assert "E2B_API_KEY" in str(error.value)
         # And before a sandbox gets a deny it could not recover from.
         with pytest.raises(SbxPolicyError, match="allow-all"):
             sandbox_network_lockdown(_SANDBOX, keep_resources=("localhost:41000",))

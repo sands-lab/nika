@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import patch
 
 from nika.config import pkg_path
 from nika.net_env.enterprise_branch.topology import (
@@ -21,6 +22,50 @@ from nika.net_env.enterprise_branch.workload import (
 from nika.traffic.workload import NAT_SESSIONS, REALTIME_BULK_CONTENTION
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize(
+    ("size", "device_profile"),
+    [(size, profile) for size in ("s", "m", "l") for profile in (None, "iosxr")]
+    + [("s", "routeros")],
+)
+def test_background_profiles_fit_the_deployed_best_effort_class(
+    size, device_profile, monkeypatch
+) -> None:
+    from nika.net_env.enterprise_branch.lab import EnterpriseBranch
+    from nika.traffic.profiles import (
+        Endpoint,
+        TrafficProfile,
+        prepare_background_traffic,
+    )
+
+    with patch("nika.net_env.enterprise_branch.lab.Kathara.get_instance"):
+        env = EnterpriseBranch(topo_size=size, device_profile=device_profile)
+    monkeypatch.setattr(env, "_build_runtime", lambda: None)
+    monkeypatch.setattr(
+        "nika.traffic.profiles.discover_endpoints",
+        lambda *args, **kwargs: [
+            Endpoint("br2_corp_pc", "10.2.10.10"),
+            Endpoint("br3_corp_pc", "10.3.10.10"),
+        ],
+    )
+    profile, workload = prepare_background_traffic(
+        env, TrafficProfile(pattern="uniform")
+    )
+    qos = overlay_qos_for(size, env.router_rate_limit_kbps())
+    be_kbps = qos.rate_kbit - qos.ef_kbit
+    assert profile.load_mbps * 1000 == pytest.approx(be_kbps * 0.15)
+    senders = [p for p in workload.processes if p.command == "backup-agent"]
+    assert len(senders) == 2
+    assert sum(
+        float(p.args[p.args.index("--rate-kbps") + 1]) for p in senders
+    ) == pytest.approx(be_kbps * 0.15)
+    assert all(
+        float(p.args[p.args.index("--upload-kbps") + 1]) <= be_kbps * 0.15
+        for p in senders
+    )
+    if device_profile is None:
+        assert profile.load_mbps == pytest.approx(0.6 if size == "s" else 1.35)
 
 
 @pytest.mark.parametrize("rate_limit_kbps", [None, 1000])

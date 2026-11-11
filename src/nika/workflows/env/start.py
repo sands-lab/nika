@@ -459,6 +459,13 @@ def start_net_env(
             prepare_runtime()
     if resolved_backend == "containerlab":
         net_env._ensure_runtime_files()
+    spec = net_env.get_lab_spec()
+    net_env.metadata["topology_counts"] = {
+        "node_count": len(spec.nodes)
+        if spec is not None
+        else len(net_env.lab.machines),
+        "link_count": len(net_env.get_topology()),
+    }
     if telemetry_kinds:
         # Wire the telemetry network before deploy; the lab check phase later
         # configures only the devices that support it.

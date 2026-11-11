@@ -604,6 +604,10 @@ class BenchmarkSettings(BaseModel):
     heavy_batch_size: int = 1
     case_timeout_sec: int = 2400
     continue_on_error: bool = False
+    endpoint_failure_threshold: int = Field(default=3, ge=1)
+    endpoint_backoff_initial_sec: float = Field(default=5, gt=0, allow_inf_nan=False)
+    endpoint_backoff_max_sec: float = Field(default=60, gt=0, allow_inf_nan=False)
+    endpoint_wait_timeout_sec: float = Field(default=900, gt=0, allow_inf_nan=False)
     retry_passes: int = 0
     resume: bool = True
     session_tag: str | None = None
