@@ -59,10 +59,6 @@ def test_release_submit_packs_validates_and_opens_prs(
             "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
             runs_dir,
         ),
-        patch(
-            "nika.workflows.leaderboard.validate.load_release",
-            return_value=release,
-        ),
     ):
         run_benchmark_from_release(
             release_ref=release.version,

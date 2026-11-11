@@ -47,7 +47,7 @@ def _mini_cases_yaml(path: Path) -> Path:
                 "scenario": "dc_clos",
                 "topo_size": "s",
                 "problem": "link_down",
-                "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
             }
         ],
     }
@@ -372,10 +372,6 @@ class TestReleaseRunToLeaderboardPackE2E:
         monkeypatch.setattr(
             "nika.workflows.benchmark.release.RELEASES_DIR",
             tmp_path / "releases",
-        )
-        monkeypatch.setattr(
-            "nika.workflows.leaderboard.validate.load_release",
-            lambda *a, **k: release,
         )
 
         def fake_trial(trial, **kwargs):

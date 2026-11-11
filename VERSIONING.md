@@ -16,7 +16,7 @@ Classify a change by its effect, not by where it is implemented. A change made e
 
 ## Releases and reproducibility
 
-Published releases do not change. Each one is identified by a Git tag, and a correction produces a new version. To run an earlier release, check out its tag; the latest branch does not have to run every historical benchmark.
+Published releases do not change. New releases use the Git tag `v<version>`, and a correction produces a new version. Legacy releases `0.1.0` and `0.2.0` predate release tags and use the published `main` reference `ac4422d8a4a03be2b905e28edf72993d467e1b81`, also used by leaderboard CI. Their reference is declared in `src/nika/workflows/benchmark/official_release.py`. Validation reads those frozen definitions independently of the latest auditor checkout. Existing historical submissions with different definitions remain identifiable as release drift; their scores are not rewritten.
 
 Patches can be frequent. Group benchmark corrections into infrequent revisions where practical, and publish new editions as deliberate releases.
 

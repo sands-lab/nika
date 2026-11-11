@@ -1,7 +1,8 @@
 """Leaderboard submission: template and pack+validate+submit."""
 
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import typer
 
@@ -11,6 +12,12 @@ from nika.workflows.leaderboard.remote import DEFAULT_LEADERBOARD_REPO
 
 leaderboard_app = typer.Typer(
     help="Pack, validate, and submit leaderboard entries from official release runs."
+)
+
+
+_RELEASE_SOURCE_HELP = (
+    "Release files to check against: 'official' reads the published release reference "
+    "on GitHub; 'local' reads this checkout, for offline checks only."
 )
 
 
@@ -46,11 +53,21 @@ def leaderboard_validate(
         "--traj-repo",
         help="Trajectories dataset repository.",
     ),
+    release_source: Literal["official", "local"] = typer.Option(
+        "official", "--release-source", help=_RELEASE_SOURCE_HELP
+    ),
+    output_format: Literal["text", "json", "markdown"] = typer.Option(
+        "text",
+        "--format",
+        help="Report format: 'json' and 'markdown' print the full report to stdout.",
+    ),
 ) -> None:
-    """Validate a scores package locally or in leaderboard GitHub CI."""
+    """Validate a scores package locally or in leaderboard GitHub CI.
+
+    Exits with status 1 when the package has errors, in every format.
+    """
     from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 
-    import json
     import tempfile
     from contextlib import ExitStack
 
@@ -83,6 +100,7 @@ def leaderboard_validate(
         report = validate_leaderboard_submission(
             package,
             max_harness_rate=max_harness_rate,
+            release_source=release_source,
             trajectories_dir=trajectories,
             audit_repo=audit_repo,
         )
@@ -92,17 +110,26 @@ def leaderboard_validate(
         from nika.audit.runner import write_report
 
         write_report(report.audit, audit_out)
-    if report.audit is not None:
-        from nika.audit.runner import render_markdown
+    if output_format == "json":
+        typer.echo(json.dumps(report.to_dict(package=str(package)), indent=2))
+    elif output_format == "markdown":
+        typer.echo(report.render_markdown(package=str(package)), nl=False)
+    else:
+        if report.audit is not None:
+            from nika.audit.runner import render_markdown
 
-        typer.echo(render_markdown(report.audit))
-    for warning in report.warnings:
-        typer.secho(warning, fg=typer.colors.YELLOW, err=True)
+            typer.echo(render_markdown(report.audit))
+        for issue in sorted(report.issues, key=lambda i: i.severity == "error"):
+            color = (
+                typer.colors.RED if issue.severity == "error" else typer.colors.YELLOW
+            )
+            typer.secho(issue.render_text(), fg=color, err=True)
+        if report.reference is not None:
+            typer.echo(f"Validated against {report.reference.describe()}", err=True)
+        if report.ok:
+            typer.echo(f"Validated scores package: {package}")
     if not report.ok:
-        for error in report.errors:
-            typer.secho(error, fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
-    typer.echo(f"Validated scores package: {package}")
 
 
 @leaderboard_app.command("template")
@@ -218,6 +245,9 @@ def leaderboard_submit(
         "--body",
         help="GitHub pull request body (default: short auto-generated summary).",
     ),
+    release_source: Literal["official", "local"] = typer.Option(
+        "official", "--release-source", help=_RELEASE_SOURCE_HELP
+    ),
 ) -> None:
     """Pack, validate, and open GitHub (scores) + HF (trajectories) PRs.
 
@@ -258,6 +288,7 @@ def leaderboard_submit(
             skip_github=skip_github,
             skip_trajectories=skip_trajectories,
             traj_repo=traj_repo,
+            release_source=release_source,
         )
     except (LeaderboardSubmitError, LeaderboardValidateError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)

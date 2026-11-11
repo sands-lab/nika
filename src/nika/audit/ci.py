@@ -18,7 +18,7 @@ from nika.audit.runner import render_markdown, write_report
 from nika.audit.trace import load_trial, trial_dirs
 from nika.workflows.leaderboard.review import review_trajectories
 from nika.workflows.leaderboard.schema import PackageIdentity
-from nika.workflows.leaderboard.secrets import scan_package_dir
+from nika.workflows.leaderboard.secrets import reject_package_symlinks, scan_package_dir
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 
 REVIEW_COMMAND = (
@@ -230,6 +230,7 @@ def audit_package(
     review: bool = False,
 ) -> bool:
     """Fetch one immutable package and run a CI stage against its trajectories."""
+    reject_package_symlinks(package)
     identity = PackageIdentity.model_validate(
         yaml.safe_load((package / "results/identity.yaml").read_text())
     )
@@ -252,6 +253,7 @@ def audit_package(
                     raise
                 print("Waiting for the paired trajectories upload.", flush=True)
                 time.sleep(30)
+        reject_package_symlinks(trajectories)
         source = json.loads((root / "fetch-source.json").read_text())
         (out / "source.json").write_text(json.dumps(source, indent=2) + "\n")
         if os.environ.get("GITHUB_OUTPUT"):

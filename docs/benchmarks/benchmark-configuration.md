@@ -4488,3 +4488,15 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 ```
 
 Candidate generation does not select cases or create release splits. Frozen releases ship under `benchmark/releases/`.
+
+### Prepare Dev and Test splits
+
+Before [freezing a release](../operations/cli-reference.md#nika-benchmark), use the same failure set in Dev and Test and keep task definitions disjoint. Multi-fault tasks contribute each individual failure to the failure-set comparison. Network isolation depends on the environment:
+
+| Environment | Required separation between Dev and Test |
+| --- | --- |
+| ISP environments | Different backbone graphs. Named protocol variants of the same graph still share its identity. |
+| Fixed-size `k8s_lab` and `llmd_lab` clusters | Different faulted components, using resolved `root_causes` and canonical resource identity independently of fault type. This replaces network-variant isolation for these clusters; healthy cluster tasks are excluded from component comparison. |
+| Other environments | Different deployment variants, even when faults differ. Variant identity includes environment, scale, routing options, backend, and router profile; omitted defaults are resolved before comparison. |
+
+Published releases retain their original split rules. Passing the new candidate gate does not resample or modify an existing release.

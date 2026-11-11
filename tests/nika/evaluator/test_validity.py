@@ -155,6 +155,11 @@ def test_max_steps_with_wrapup_report(tmp_path: Path) -> None:
 def test_fault_absent_at_cleanup(tmp_path: Path) -> None:
     result = detect_trial_validity(_trial(tmp_path / "t", recheck=["dhcp_down"]))
     assert result.flags == ["fault_absent_at_cleanup"]
+    errors, warnings = validity_findings(
+        {"fault_absent_at_cleanup": 1}, 1000, max_harness_rate=1.0
+    )
+    assert len(errors) == 1 and "fault_absent_at_cleanup" in errors[0]
+    assert not warnings
 
 
 def test_findings_fail_only_on_harness_flags_over_threshold() -> None:

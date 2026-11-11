@@ -18,6 +18,7 @@ from nika.workflows.benchmark.release import (
     RUN_CONFIG_FILENAME,
     freeze_release,
     load_run_config,
+    write_release_manifest,
 )
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 from nika.workflows.benchmark.run import (
@@ -1125,6 +1126,16 @@ class TestReleaseRunE2E:
         )
         # Two trials prove trial expansion / distinct dirs without running a full suite.
         release = replace(release, defaults={**release.defaults, "n_trials": 2})
+        write_release_manifest(
+            release.root,
+            version=release.version,
+            splits=release.splits,
+            defaults=release.defaults,
+            scoring=release.scoring,
+            tools=release.tools,
+            resources=release.resources,
+            images=release.images,
+        )
         assert release.case_count == 1
         assert release.n_trials == 2
 
@@ -1181,6 +1192,25 @@ class TestReleaseRunE2E:
             assert trial_meta.get("benchmark_id") == "nika-bench"
             trial_ids.add(trial_meta["trial_id"])
         assert trial_ids == {trial_dirname(key, 1), trial_dirname(key, 2)}
+
+        from nika.workflows.leaderboard.pack import pack_leaderboard_submission
+        from nika.workflows.leaderboard.validate import validate_leaderboard_submission
+        from nika.workflows.leaderboard.validate_trajectories import (
+            validate_trajectory_package,
+        )
+        from tests.leaderboard.test_pack_validate import _FULL_METADATA
+
+        packed = pack_leaderboard_submission(
+            result_dir,
+            metadata=_FULL_METADATA,
+            readme_text="# Mock agent\n\nReal Docker benchmark workflow.\n",
+        )
+        report = validate_leaderboard_submission(packed.scores_dir)
+        assert report.ok, report.errors
+        trajectories = validate_trajectory_package(
+            packed.trajectories_dir, scores_dir=packed.scores_dir
+        )
+        assert trajectories.ok, trajectories.errors
 
         progress_path = runs_dir / f"{job['run_id']}.json"
         assert progress_path.is_file()
