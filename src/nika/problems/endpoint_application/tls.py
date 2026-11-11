@@ -47,6 +47,35 @@ _X509_V_ERR_CERT_HAS_EXPIRED = 10
 _HTTP_OK = "200"
 _RELOAD_WAIT_SEC = 10.0
 _POLL_SEC = 0.5
+# Each load-state read may itself run this long, so a wait ends within
+# _RELOAD_WAIT_SEC + _PROBE_TIMEOUT_SEC.
+_PROBE_TIMEOUT_SEC = 10.0
+# /proc reports process start times in clock ticks (10 ms).
+_CLOCK_SLACK_SEC = 0.05
+
+# Age of the newest nginx process and of the two files, from /proc and stat.
+# nginx forks new workers on every reload, so a process younger than both files
+# shows that nginx read them. Nothing is sent to nginx.
+_LOAD_STATE_SCRIPT = """
+import os, sys, time
+hz = os.sysconf("SC_CLK_TCK")
+uptime = float(open("/proc/uptime").read().split()[0])
+ages = []
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    try:
+        if open(f"/proc/{pid}/comm").read().strip() == "nginx":
+            fields = open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()
+            ages.append(uptime - int(fields[19]) / hz)
+    except (OSError, IndexError, ValueError):
+        pass
+now = time.time()
+print("nginx_age=" + (f"{min(ages):.3f}" if ages else ""))
+for label, path in zip(("cert_age", "key_age"), sys.argv[1:]):
+    try:
+        print(f"{label}={now - os.stat(path).st_mtime:.3f}")
+    except OSError:
+        print(label + "=")
+"""
 
 _EXPIRE_LINE = re.compile(r"expire date:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
 _EXPIRE_FORMATS = ("%b %d %H:%M:%S %Y %Z", "%a, %d %b %Y %H:%M:%S %Z")
@@ -69,6 +98,44 @@ def parse_expire_date(output: str) -> int | None:
 def _int_after(label: str, output: str) -> int | None:
     match = re.search(rf"(?:^|\s){label}=(\d+)", output or "")
     return int(match.group(1)) if match else None
+
+
+def _float_after(label: str, output: str) -> float | None:
+    match = re.search(rf"(?:^|\s){label}=(-?\d+(?:\.\d+)?)", output or "")
+    return float(match.group(1)) if match else None
+
+
+def load_state_cmd(cert_path: str, key_path: str) -> str:
+    """Process and file ages plus nginx's certificate directives; no request to nginx."""
+    return (
+        f"python3 -c {shlex.quote(_LOAD_STATE_SCRIPT)} "
+        f"{shlex.quote(cert_path)} {shlex.quote(key_path)}; "
+        "nginx -T 2>/dev/null | grep -E '^[[:space:]]*ssl_certificate(_key)?[[:space:]]'"
+    )
+
+
+def parse_load_state(output: str, cert_path: str, key_path: str) -> dict[str, Any]:
+    """Whether nginx is configured with both files and started a process after them."""
+    nginx_age = _float_after("nginx_age", output)
+    file_ages = [_float_after("cert_age", output), _float_after("key_age", output)]
+
+    def configured(directive: str, path: str) -> bool:
+        values = re.findall(
+            rf"^\s*{directive}\s+([^;\s]+)\s*;", output or "", re.MULTILINE
+        )
+        return path in values
+
+    reloaded = (
+        nginx_age is not None
+        and None not in file_ages
+        and nginx_age <= min(file_ages) + _CLOCK_SLACK_SEC
+    )
+    return {
+        "config_uses_cert": configured("ssl_certificate", cert_path),
+        "config_uses_key": configured("ssl_certificate_key", key_path),
+        "nginx_running": nginx_age is not None,
+        "reloaded_after_write": reloaded,
+    }
 
 
 def parse_https_probe(output: str) -> dict[str, Any]:
@@ -99,17 +166,10 @@ def https_probe_cmd(url: str) -> str:
     )
 
 
-def local_resolve(url: str) -> str:
-    """``--resolve`` entry that sends ``url``'s name and port to 127.0.0.1."""
-    parts = urlsplit(url)
-    return f"{parts.hostname}:{parts.port or 443}:127.0.0.1"
-
-
-def served_expiry_cmd(url: str, *, resolve: str | None = None) -> str:
+def served_expiry_cmd(url: str) -> str:
     """Served certificate's validity end and the local clock, without validation."""
-    pin = f"--resolve {shlex.quote(resolve)} " if resolve else ""
     return (
-        f"curl -vsk -m 10 -o /dev/null {pin}{shlex.quote(url)} 2>&1 "
+        f"curl -vsk -m 10 -o /dev/null {shlex.quote(url)} 2>&1 "
         "| grep -iE 'subject:|issuer:|expire date:'; echo now=$(date -u +%s)"
     )
 
@@ -181,6 +241,12 @@ class TlsCertificateExpiredParams(BaseModel):
                 raise ValueError("control_host or control_https_url is required")
             control = web_server_dns_name(self.control_host)
             self.control_https_url = f"https://{control}{PROBE_PATH}"
+        for field in ("https_url", "control_https_url"):
+            # urlsplit rejects malformed IPv6 literals; .port rejects bad ports.
+            parts = urlsplit(getattr(self, field))
+            _ = parts.port
+            if parts.scheme != "https" or not parts.hostname:
+                raise ValueError(f"{field} must be an https URL with a host")
         return self
 
 
@@ -233,20 +299,16 @@ class TlsCertificateExpired(ProblemBase):
     def _http_code(self, host: str, url: str) -> str:
         return self.runtime.exec(host, http_code_cmd(url), timeout=20).strip()
 
-    def _served_locally(self, params: TlsCertificateExpiredParams) -> dict[str, Any]:
-        """Certificate nginx on host_name serves for https_url, read on host_name."""
+    def _load_state(self, params: TlsCertificateExpiredParams) -> dict[str, Any]:
+        """Whether nginx on host_name loaded the files now at cert_path and key_path."""
         out = self.runtime.exec(
             params.host_name,
-            served_expiry_cmd(
-                params.https_url, resolve=local_resolve(params.https_url)
-            ),
-            timeout=20,
+            load_state_cmd(params.cert_path, params.key_path),
+            timeout=_PROBE_TIMEOUT_SEC,
         )
-        return {
-            "not_after": parse_expire_date(out),
-            "now": _int_after("now", out),
-            "expired": served_expired(out),
-        }
+        state = parse_load_state(out, params.cert_path, params.key_path)
+        state["loaded"] = all(state.values())
+        return state
 
     def _https(self, client: str, url: str) -> dict[str, Any]:
         return parse_https_probe(
@@ -254,7 +316,10 @@ class TlsCertificateExpired(ProblemBase):
         )
 
     def symptom_sample(self, params: TlsCertificateExpiredParams) -> dict[str, Any]:
-        """HTTPS, plain HTTP, and the control server from the client; the backend on the server."""
+        """HTTPS, plain HTTP, and the control server from the client; the backend on the server.
+
+        Test path only: these requests appear in the web servers' access logs.
+        """
         http_code = self._http_code(params.client_host, params.http_url)
         backend_code = self._http_code(params.host_name, params.backend_url)
         return {
@@ -269,16 +334,8 @@ class TlsCertificateExpired(ProblemBase):
     def _reload(self, host: str) -> None:
         checked_exec(self.runtime, host, "nginx -t 2>&1 && nginx -s reload")
 
-    def _wait_served_expired(self, params: TlsCertificateExpiredParams) -> bool:
-        return _wait_until(
-            lambda: self._served_locally(params)["expired"], _RELOAD_WAIT_SEC
-        )
-
-    def _wait_https_validates(self, params: TlsCertificateExpiredParams) -> bool:
-        return _wait_until(
-            lambda: self._https(params.client_host, params.https_url)["validates"],
-            _RELOAD_WAIT_SEC,
-        )
+    def _wait_loaded(self, params: TlsCertificateExpiredParams) -> bool:
+        return _wait_until(lambda: self._load_state(params)["loaded"], _RELOAD_WAIT_SEC)
 
     def _restore_originals(self, host: str) -> list[str]:
         """Write back both snapshots, attempting each; return the failures."""
@@ -311,20 +368,25 @@ class TlsCertificateExpired(ProblemBase):
             raise RuntimeError(f"nginx is not running on {host}")
         # Restore state stays in this instance; no copies are left on the node.
         # A repeated injection keeps the originals instead of the expired pair.
+        cert, key = self._expired_pair()
         if self._cert_snapshot is None or self._key_snapshot is None:
             cert_snapshot = FileSnapshot.capture(self.runtime, host, params.cert_path)
+            # Another instance injected already; its originals are not on the node.
+            if cert_snapshot.content == cert:
+                raise RuntimeError(
+                    f"{params.cert_path} on {host} already holds the expired certificate"
+                )
             key_snapshot = FileSnapshot.capture(self.runtime, host, params.key_path)
             self._cert_snapshot, self._key_snapshot = cert_snapshot, key_snapshot
-        cert, key = self._expired_pair()
         try:
             # Checked, read-back writes; nginx reloads only once both files match.
             FileSnapshot(params.key_path, key).restore(self.runtime, host)
             FileSnapshot(params.cert_path, cert).restore(self.runtime, host)
             self._reload(host)
-            if not self._wait_served_expired(params):
+            if not self._wait_loaded(params):
                 raise RuntimeError(
-                    f"nginx on {host} did not serve the expired certificate "
-                    f"within {_RELOAD_WAIT_SEC:g}s"
+                    f"nginx on {host} did not load the expired certificate "
+                    f"within {_RELOAD_WAIT_SEC + _PROBE_TIMEOUT_SEC:g}s"
                 )
         except Exception:
             self._roll_back(host)
@@ -334,7 +396,11 @@ class TlsCertificateExpired(ProblemBase):
         )
 
     def verify_fault(self, params: TlsCertificateExpiredParams) -> dict:
-        """The expired pair is installed and nginx on the server serves it."""
+        """The expired pair is installed and nginx on the server loaded it.
+
+        Reads files and process state only, so rechecks during a trial leave
+        nothing in the server's logs.
+        """
         host = params.host_name
         expired_cert, expired_key = self._expired_pair()
         cert_installed = FileSnapshot(params.cert_path, expired_cert).matches(
@@ -343,11 +409,8 @@ class TlsCertificateExpired(ProblemBase):
         key_installed = FileSnapshot(params.key_path, expired_key).matches(
             self.runtime, host
         )
-        nginx_running = self._nginx_running(host)
-        served = self._served_locally(params)
-        verified = bool(
-            cert_installed and key_installed and nginx_running and served["expired"]
-        )
+        state = self._load_state(params)
+        verified = bool(cert_installed and key_installed and state["loaded"])
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -355,10 +418,7 @@ class TlsCertificateExpired(ProblemBase):
                 "host": host,
                 "cert_installed": cert_installed,
                 "key_installed": key_installed,
-                "nginx_running": nginx_running,
-                "served_not_after": served["not_after"],
-                "server_now": served["now"],
-                "served_expired": served["expired"],
+                **state,
             },
         )
 
@@ -377,20 +437,29 @@ class TlsCertificateExpired(ProblemBase):
                 verified=False,
                 details={"host": host, "restore_errors": errors},
             )
-        self._reload(host)
-        https_validated = self._wait_https_validates(params)
-        sample = self.symptom_sample(params)
-        verified = bool(
-            https_validated
-            and self._cert_snapshot.matches(self.runtime, host)
-            and self._key_snapshot.matches(self.runtime, host)
-            and sample["https"]["validates"]
-            and sample["http_ok"]
-        )
+        try:
+            self._reload(host)
+        except Exception as exc:  # noqa: BLE001 - report instead of raising
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=False,
+                details={"host": host, "reload_error": str(exc)},
+            )
+        # Read back files and process state only; a scheduled recovery can run
+        # while the agent works, so it sends no requests either.
+        self._wait_loaded(params)
+        cert_restored = self._cert_snapshot.matches(self.runtime, host)
+        key_restored = self._key_snapshot.matches(self.runtime, host)
+        state = self._load_state(params)
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": host, "https_validated": https_validated, **sample},
+            verified=bool(cert_restored and key_restored and state["loaded"]),
+            details={
+                "host": host,
+                "cert_restored": cert_restored,
+                "key_restored": key_restored,
+                **state,
+            },
         )
 
     def oracle_playbook(self, params: TlsCertificateExpiredParams) -> OraclePlaybook:
