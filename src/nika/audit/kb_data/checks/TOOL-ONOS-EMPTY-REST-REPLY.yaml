@@ -23,5 +23,5 @@ provenance:
   date: '2026-11-11'
   refs:
   - tests/nika/service/kathara/test_kathara_sdn_mcp_live.py
-  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-cleanup/onos-final/
+  - https://github.com/sands-lab/nika/pull/330
   found_by: live_audit

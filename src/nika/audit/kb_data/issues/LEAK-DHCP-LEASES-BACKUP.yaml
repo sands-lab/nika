@@ -21,6 +21,6 @@ provenance:
   refs:
   - red-team/postfix/report.md
   - tests/nika/problems/test_dhcp_address_renewal.py::test_missing_subnet_removes_stale_lease_backup_and_recovers
-  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-remaining/dhcp-live-final/
+  - https://github.com/sands-lab/nika/pull/330
   found_by: live_audit
 fixed_in: 06a114a6

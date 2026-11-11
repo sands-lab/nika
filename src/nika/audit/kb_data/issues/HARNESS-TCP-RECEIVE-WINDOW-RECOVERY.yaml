@@ -27,7 +27,7 @@ provenance:
   refs:
   - tests/nika/problems/test_tcp_window_recovery_live.py
   - tests/nika/net_env/test_tcp_socket_stats.py
-  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-related/validation.json
+  - https://github.com/sands-lab/nika/pull/330
   found_by: live_audit
 evidence:
 - >-

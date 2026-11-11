@@ -22,7 +22,7 @@ provenance:
   refs:
   - tests/nika/service/mcp_gateway/test_gateway_lifecycle.py
   - tests/nika/service/test_mcp_access_e2e.py
-  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-gateway/validation.json
+  - https://github.com/sands-lab/nika/pull/330
   found_by: live_audit
 evidence:
 - >-
