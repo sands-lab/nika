@@ -1,0 +1,41 @@
+id: HARNESS-MCP-GATEWAY-LIFECYCLE
+title: Gateway startup and teardown can report success without owning a ready or stopped service
+class: harness_defect
+severity: warn
+status: fixed
+summary: >-
+  The readiness probe accepted any listener at the requested port, even when
+  uvicorn failed to bind. Session lookup or registration failures after gateway
+  launch bypassed cleanup. An open MCP SSE stream also let stop return while
+  its server thread remained alive and its manager reference was discarded.
+guideline: >-
+  Require launch or cleanup evidence linking the intended service to its manager
+  and address. A reachable TCP port alone does not prove the gateway started;
+  join returning alone does not prove shutdown. These local reproductions do
+  not attribute historical EOF/reset errors or failed/pending init statuses.
+  There is no automatic trajectory text detector for this lifecycle contract.
+scope: {}
+detect: []
+provenance:
+  source: real HTTP MCP lifecycle controls and Docker access workflow
+  date: '2026-11-11'
+  refs:
+  - tests/nika/service/mcp_gateway/test_gateway_lifecycle.py
+  - tests/nika/service/test_mcp_access_e2e.py
+  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-gateway/validation.json
+  found_by: live_audit
+evidence:
+- >-
+  setup-before.log records a live manager/thread after the missing-session
+  error; setup-after.log records no surviving manager. An initialized sibling
+  MCP connection retains its tool inventory after another gateway fails setup.
+- >-
+  occupied-before.log records reported_ready=true while server_started=false;
+  occupied-after.log records startup rejection. The unrelated listener remains
+  usable, and no manager survives the failed launch.
+- >-
+  stream-stop-before.log records thread_alive_after_stop=true and
+  manager_still_tracked=false. stream-stop-after.log records both false with
+  the SSE client still open. The Docker access regression also confirms normal
+  commands, role restrictions, phase changes, and owned session cleanup.
+fixed_in: bdd39743

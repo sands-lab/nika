@@ -1,0 +1,42 @@
+id: HARNESS-TCP-RECEIVE-WINDOW-RECOVERY
+title: TCP receive-window recovery restores configuration while old transfers remain constrained
+class: harness_defect
+severity: warn
+status: fixed
+summary: >-
+  tcp_receive_window_limited recovery restored sysctls and reported success while
+  a socket created during the fault retained its small receive buffer. New
+  connections recovered but the existing transfer did not. An unavailable
+  optional rmem_max also entered the saved snapshot as stderr text, which was
+  compared as if it were a setting value.
+guideline: >-
+  Compare the same established socket identity, receive buffer, and delivered
+  bytes across recovery. Restored sysctl values or a healthy fresh connection
+  alone do not establish recovery of old transfers. Reconnect only fault-created
+  sockets still retaining the injected buffer cap; preserve pre-injection
+  connections and verify selected identities disappear. Treat unsupported
+  optional settings as unavailable, and validate required numeric readback.
+  This issue requires lifecycle evidence, not a generic slow-transfer match.
+scope:
+  fault_types:
+  - tcp_receive_window_limited
+detect: []
+provenance:
+  source: real enterprise_branch TCP transfer recovery controls
+  date: '2026-11-11'
+  refs:
+  - tests/nika/problems/test_tcp_window_recovery_live.py
+  - tests/nika/net_env/test_tcp_socket_stats.py
+  - /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-related/validation.json
+  found_by: live_audit
+evidence:
+- >-
+  tcp-before/test_existing_window_limited_t0/recovery.json records verified=true,
+  a surviving fault-constrained socket, and a sysctl error string saved as
+  rmem_max. tcp-before.log fails because that established connection survives.
+- >-
+  tcp-final/ retains the exact socket selected for reconnection and a resumed
+  transfer with a larger receive buffer. Pre-injection and peer control socket
+  identities survive. Repeated recovery preserves the new healthy connection.
+  The original full TCP fault E2E also passes (tcp-consumer.log).
+fixed_in: bdd39743

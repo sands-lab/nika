@@ -2,7 +2,7 @@ id: HARNESS-CLAUDE-PINGMESH-CALL-TIMEOUT
 title: Claude Code discards slow run_pingmesh_snapshot calls with 'The operation timed out.'
 class: harness_defect
 severity: warn
-status: open
+status: fixed
 summary: >-
   Under the Claude Code harness, run_pingmesh_snapshot calls fail as a whole with the bare client error
   'The operation timed out.', mostly about 60 s after the call (a second cluster near 120 s). Pingmesh
@@ -31,3 +31,15 @@ provenance:
 evidence:
 - '20261008_claude_code_otel_2_0_llm_31b_it campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02 step 30:
   {"count": 3, "high_latency_ms": 100, "max_pairs": 100} -> "The operation timed out."'
+- >-
+  2026-11-11 local repair 82c0686e sets MCP_TOOL_TIMEOUT=300000 and disables
+  automatic tool backgrounding while retaining connection/startup waits.
+  The installed Claude Code 2.1.314 CLI, using an isolated deterministic
+  Anthropic/MCP protocol fixture, returned a tool timeout after about 120 s
+  with the original environment; the same 125 s call completed with the repair.
+  Both CLI processes exited zero, so the actual tool_result is the acceptance
+  criterion. This is a client protocol control, not a real-model PingMesh run,
+  and does not close MCP connection or post-error transport issues.
+  Receipts: /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-residual/claude-before/receipt.json and
+  /workspace/nika-retained-records/20261111-prerelease-finalization/evidence/prerelease-residual/claude-after/receipt.json.
+fixed_in: bdd39743

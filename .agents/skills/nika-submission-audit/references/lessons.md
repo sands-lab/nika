@@ -128,6 +128,21 @@ Deploy the task twice, once healthy and once injected, and run the cited read-on
 
 For a scripted comparison, snapshot agent-readable state (files under /etc, /tmp, /var, /opt, /root, processes, rules, routes, qdiscs, controller state) before and after injection and diff them after masking per-deployment values (timestamps, PIDs, counters on timestamped lines); the release audit's `leak_scan` stage does this.
 
+### Empty tool replies and scheduled recovery
+
+An empty tool reply is not a successful observation until the request itself is known to have succeeded.
+The ONOS REST provider used `curl ... || echo '{}'`; a real connection rejection reproduced an empty
+body, while the repaired MCP call reported the transport failure. Verify a successful inventory request,
+an invalid REST path, a blocked connection, and restoration. Keep the API's empty object distinct from
+an inventory containing an empty list. `TOOL-ONOS-EMPTY-REST-REPLY` is a review lead scoped to the producing
+tool and device-inventory path, not an automatic defect verdict. Evidence: `results/prerelease-cleanup/onos-final/`
+and `tests/nika/service/kathara/test_kathara_sdn_mcp_live.py`.
+
+For fault-presence findings, reconcile each active occurrence with the actual schedule journal before
+attributing absence. Planned recovery, premature artifact removal, a failed read, and scheduler failure
+have different meanings. A recovered occurrence does not exempt a different persistent fault from its
+presence requirement. Evidence: `tests/benchmark/test_schedule_presence_e2e.py` and local repair `dfc50018`.
+
 ### Judging a symptom claim
 
 A claim that a failure has no symptom, or a label is not identifiable, must itself be sound (rules of the release audit, `scripts/benchmark_audit/`):
@@ -160,3 +175,21 @@ Record what you ran and saw in the finding's `evidence` with `found_by: live_aud
 ### Verify the injected component before accepting a symptom
 
 A probe can confirm the expected traffic failure while the injector changes a different component. For `p4_tcam_entry_corruption`, the old implementation computed a mask but dropped traffic in a VDE proxy. Read the named device's table before and after injection, compare it with controller intent, test a same-prefix control, and verify recovery. Keep physical-device claims separate from a software-switch model. See `FNR-TCAM-ROOT-CAUSE-NOT-INJECTED` and the retained evidence paths in its record. A source review is not a trajectory signature; check each run's pinned engine before applying the finding.
+
+### Client deadlines and probe ownership
+
+A successful CLI exit does not establish successful MCP execution. Inspect tool results for `is_error` and timeout text. Connection waits, tool deadlines, and automatic backgrounding are separate controls. Verify client settings with the installed CLI; an isolated local model protocol does not establish model diagnosis performance. See `src/agent/cli/claude/config.py`.
+
+A throughput probe must own its listener, preserve existing files and services, and clean up after a failed client. An occupied port is unavailable. Resolve the actual destination endpoint from the topology. Verify resource ownership with `nika exec` and `tests/nika/net_env/test_throughput_probe_live.py`.
+
+Process readiness does not establish traffic readiness. Wait for received data on every declared bulk receiver before measuring a healthy baseline. Retain the same recovery threshold and inspect sender window-limited time. See `tests/support/failure_e2e_hooks.py` and `src/nika/net_env/enterprise_branch/workload.py`.
+
+### Gateway lifecycle evidence
+
+A reachable port does not prove that the intended MCP service bound it. Require the owned server's startup state and cleanup coverage for setup failures. Bound SSE draining, verify thread exit, and retain the manager when shutdown fails. Check a live sibling connection, an unrelated occupied listener, and owned cleanup. See `tests/nika/service/mcp_gateway/test_gateway_lifecycle.py` and `tests/nika/service/test_mcp_access_e2e.py`.
+
+### TCP recovery and declared MCP capabilities
+
+Restored sysctls do not establish recovery of an existing TCP transfer. Compare socket identity, receive buffer, and delivered bytes. Reconnect only fault-created sockets that retain the cap, verify their disappearance, and preserve healthy connections on repeated recovery. Unavailable optional sysctls are null; required settings need valid numeric readback. See `tests/nika/problems/test_tcp_window_recovery_live.py`.
+
+A completed Claude process can return a report with unavailable MCP servers. Require every declared phase server to connect and reject failed, pending, or missing capabilities. The SDK checks before querying; the CLI stops its child on failed init, but a request may already have been dispatched. Retain connected positive controls and distinguish ordinary tool denials from startup failure. See `src/agent/utils/mcp_client.py`, the Claude workers, and `tests/agent/test_mcp_startup.py`.
