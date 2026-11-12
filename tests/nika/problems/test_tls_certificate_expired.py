@@ -32,7 +32,6 @@ _CLIENT = "pc_1_1_1_1"
 _CERT_PATH = "/etc/ssl/certs/campus-repository.crt"
 _KEY_PATH = "/etc/ssl/private/campus-repository.key"
 _EXPIRED_CERT = (_CAMPUS / "campus-repository-expired.crt").read_text()
-_EXPIRED_KEY = (_CAMPUS / "campus-repository-expired.key").read_text()
 _MARKER = "NIKA_RECOVERY_COMMAND_OK"
 _HTTPS = "https://web0.local/small"
 _HTTP = "http://web0.local/small"
@@ -262,13 +261,14 @@ def test_inject_verify_recover_round_trip() -> None:
 
     runtime.commands.clear()
     problem.inject_fault(params)
-    assert runtime.files == {_CERT_PATH: _EXPIRED_CERT, _KEY_PATH: _EXPIRED_KEY}
+    assert runtime.files == {**original, _CERT_PATH: _EXPIRED_CERT}
+    assert runtime._written[_KEY_PATH] == 0  # the key is never rewritten
     assert runtime.reloads == 1
 
     result = problem.verify_fault(params)
     details = result["details"]
     assert result["verified"] is True, details
-    assert details["cert_installed"] and details["key_installed"]
+    assert details["cert_installed"]
     assert details["reloaded_after_write"] and details["nginx_running"]
     assert details["config_uses_cert"] and details["config_uses_key"]
     _assert_no_requests(runtime)
@@ -339,7 +339,7 @@ def test_verify_rejects_each_missing_artifact(break_one, reason) -> None:
     # Exactly one condition differs from the verified state.
     changed = {
         key
-        for key in ("cert_installed", "key_installed", *_LOAD_FLAGS)
+        for key in ("cert_installed", *_LOAD_FLAGS)
         if broken["details"][key] != healthy["details"][key]
     }
     assert len(changed) == 1, (reason, changed)
@@ -413,15 +413,14 @@ def test_symptom_requires_a_baseline() -> None:
     assert tls_expired(problem, params) == (False, {"error": "no_healthy_baseline"})
 
 
-@pytest.mark.parametrize("failing", [_CERT_PATH, _KEY_PATH])
-def test_failed_write_rolls_back_both_files(failing) -> None:
+def test_failed_write_rolls_back() -> None:
     runtime = _Runtime()
     original = dict(runtime.files)
-    runtime.fail_write = failing
+    runtime.fail_write = _CERT_PATH
     problem = _problem(runtime)
     with pytest.raises(RuntimeError):
         problem.inject_fault(_params())
-    # The rollback rewrites both originals and reloads nginx with them.
+    # The rollback rewrites the original certificate and reloads nginx with it.
     assert runtime.files == original
     assert runtime.reloads == 1
 
@@ -444,13 +443,13 @@ def test_repeated_inject_keeps_the_original_snapshots() -> None:
     assert runtime.files[_KEY_PATH] == (_CAMPUS / "campus-repository.key").read_text()
 
 
-def test_inject_refuses_a_server_that_already_holds_the_expired_pair() -> None:
+def test_inject_refuses_a_server_that_already_holds_the_expired_certificate() -> None:
     runtime, _, params = _injected()
     before, reloads = dict(runtime.files), runtime.reloads
     second = _problem(runtime)
     with pytest.raises(RuntimeError, match="already holds the expired certificate"):
         second.inject_fault(params)
-    # The second instance kept no snapshot of the expired pair and changed nothing.
+    # The second instance kept no snapshot of the expired certificate and changed nothing.
     assert second.recover_fault(params)["verified"] is False
     assert runtime.files == before
     assert runtime.reloads == reloads
@@ -472,7 +471,7 @@ def test_recover_reports_nginx_that_never_reloads() -> None:
     assert result["verified"] is False
     details = result["details"]
     assert details["reloaded_after_write"] is False
-    assert details["cert_restored"] and details["key_restored"]
+    assert details["cert_restored"]
 
 
 def test_recover_reports_a_failed_reload() -> None:
@@ -481,7 +480,7 @@ def test_recover_reports_a_failed_reload() -> None:
     result = problem.recover_fault(params)
     assert result["verified"] is False
     assert "web_server_0" in result["details"]["reload_error"]
-    # Both originals are back on disk even though nginx did not reload.
+    # The original certificate is back on disk even though nginx did not reload.
     assert runtime.files[_CERT_PATH] == (_CAMPUS / "campus-repository.crt").read_text()
     assert runtime.files[_KEY_PATH] == (_CAMPUS / "campus-repository.key").read_text()
 
@@ -492,8 +491,6 @@ def test_recover_reports_restore_failures() -> None:
     result = problem.recover_fault(params)
     assert result["verified"] is False
     assert result["details"]["restore_errors"]
-    # The key was still restored even though the certificate write failed.
-    assert runtime.files[_KEY_PATH] == (_CAMPUS / "campus-repository.key").read_text()
 
 
 def test_recover_without_inject_reports_failure() -> None:
@@ -532,23 +529,52 @@ def test_parse_https_probe() -> None:
     assert parse_https_probe("")["rc"] is None
 
 
-def test_committed_expired_certificate_chains_to_the_campus_ca() -> None:
-    ca = x509.load_pem_x509_certificate((_CAMPUS / "campus-ca.crt").read_bytes())
-    leaf = x509.load_pem_x509_certificate(_EXPIRED_CERT.encode())
-    key = serialization.load_pem_private_key(_EXPIRED_KEY.encode(), None)
-
-    assert leaf.issuer == ca.subject
-    ca.public_key().verify(
-        leaf.signature,
-        leaf.tbs_certificate_bytes,
+def _signed_by(cert: x509.Certificate, issuer: x509.Certificate) -> bool:
+    if cert.issuer != issuer.subject:
+        return False
+    issuer.public_key().verify(
+        cert.signature,
+        cert.tbs_certificate_bytes,
         padding.PKCS1v15(),
-        leaf.signature_hash_algorithm,
+        cert.signature_hash_algorithm,
     )
-    assert key.public_key().public_numbers() == leaf.public_key().public_numbers()
-    san = leaf.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    return True
+
+
+def _basic_constraints(cert: x509.Certificate) -> x509.BasicConstraints:
+    return cert.extensions.get_extension_for_class(x509.BasicConstraints).value
+
+
+def test_campus_pki_and_the_expired_reissue() -> None:
+    """PCs trust a CA; web servers present a leaf it signed; the fault re-issues that leaf.
+
+    The expired certificate differs from the healthy one only in serial,
+    notAfter, and signature, so the fault changes nothing but validity.
+    """
+    ca = x509.load_pem_x509_certificate((_CAMPUS / "campus-ca.crt").read_bytes())
+    healthy = x509.load_pem_x509_certificate(
+        (_CAMPUS / "campus-repository.crt").read_bytes()
+    )
+    expired = x509.load_pem_x509_certificate(_EXPIRED_CERT.encode())
+    key = serialization.load_pem_private_key(
+        (_CAMPUS / "campus-repository.key").read_bytes(), None
+    )
+    now = dt.datetime.now(dt.timezone.utc)
+
+    assert _basic_constraints(ca).ca and _signed_by(ca, ca)
+    assert ca.not_valid_before_utc <= now < ca.not_valid_after_utc
+
+    assert not _basic_constraints(healthy).ca and _signed_by(healthy, ca)
+    assert healthy.not_valid_before_utc <= now < healthy.not_valid_after_utc
+    assert key.public_key().public_numbers() == healthy.public_key().public_numbers()
+    san = healthy.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     assert "web0.local" in san.get_values_for_type(x509.DNSName)
 
-    now = dt.datetime.now(dt.timezone.utc)
-    assert int(leaf.not_valid_after_utc.timestamp()) == EXPIRED_NOT_AFTER_EPOCH
-    assert leaf.not_valid_after_utc < now
-    assert ca.not_valid_before_utc <= now < ca.not_valid_after_utc
+    assert _signed_by(expired, ca)
+    assert expired.serial_number != healthy.serial_number
+    assert int(expired.not_valid_after_utc.timestamp()) == EXPIRED_NOT_AFTER_EPOCH
+    assert expired.not_valid_after_utc < now
+    assert expired.subject == healthy.subject
+    assert expired.public_key() == healthy.public_key()
+    assert expired.not_valid_before_utc == healthy.not_valid_before_utc
+    assert list(expired.extensions) == list(healthy.extensions)

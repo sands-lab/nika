@@ -27,12 +27,11 @@ from nika.problems.support.oracle import (
 from nika.problems.support.recovery import FileSnapshot, checked_exec
 from nika.utils.logger import system_logger
 
-# Leaf for the campus repository names (same SAN as the healthy certificate),
-# signed by the campus CA that every campus client trusts, valid
-# 2026-10-04T11:24:26Z .. 2026-11-01T00:00:00Z. Static so every run serves the
-# same certificate; no clock skew or certificate generation on the node.
+# The campus server certificate re-issued by the campus CA with only its serial
+# and notAfter (2026-11-01T00:00:00Z) changed: same key, subject, names, and
+# extensions. Static so every run serves the same certificate; no clock skew or
+# certificate generation on the node.
 _EXPIRED_CERT = "net_env/campus_lan/campus-repository-expired.crt"
-_EXPIRED_KEY = "net_env/campus_lan/campus-repository-expired.key"
 EXPIRED_NOT_AFTER_EPOCH = 1793491200  # 2026-11-01T00:00:00Z
 
 # 2 KiB object that every campus web server's application serves through nginx
@@ -227,7 +226,7 @@ class TlsCertificateExpiredParams(BaseModel):
     )
     key_path: str = Field(
         default="/etc/ssl/private/campus-repository.key",
-        description="Private key file for cert_path.",
+        description="Private key file for cert_path; the fault leaves it unchanged.",
     )
 
     @model_validator(mode="after")
@@ -278,17 +277,13 @@ class TlsCertificateExpired(ProblemBase):
     def __init__(self, scenario_name: str | None = None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self._cert_snapshot: FileSnapshot | None = None
-        self._key_snapshot: FileSnapshot | None = None
 
     def root_cause_resources(self, params: TlsCertificateExpiredParams):
         return [node_resource(params.host_name)]
 
     @staticmethod
-    def _expired_pair() -> tuple[str, str]:
-        return (
-            pkg_path(_EXPIRED_CERT).read_text(),
-            pkg_path(_EXPIRED_KEY).read_text(),
-        )
+    def _expired_cert() -> str:
+        return pkg_path(_EXPIRED_CERT).read_text()
 
     def _nginx_running(self, host: str) -> bool:
         out = self.runtime.exec(
@@ -337,19 +332,17 @@ class TlsCertificateExpired(ProblemBase):
     def _wait_loaded(self, params: TlsCertificateExpiredParams) -> bool:
         return _wait_until(lambda: self._load_state(params)["loaded"], _RELOAD_WAIT_SEC)
 
-    def _restore_originals(self, host: str) -> list[str]:
-        """Write back both snapshots, attempting each; return the failures."""
-        errors = []
-        for snapshot in (self._key_snapshot, self._cert_snapshot):
-            try:
-                snapshot.restore(self.runtime, host)
-            except Exception as exc:  # noqa: BLE001 - restore the other file too
-                errors.append(f"{snapshot.path}: {exc}")
-        return errors
+    def _restore_original(self, host: str) -> list[str]:
+        """Write back the certificate snapshot; return the failures."""
+        try:
+            self._cert_snapshot.restore(self.runtime, host)
+        except Exception as exc:  # noqa: BLE001 - reported to the caller
+            return [f"{self._cert_snapshot.path}: {exc}"]
+        return []
 
     def _roll_back(self, host: str) -> None:
-        """Put the original pair back after a failed injection; never raises."""
-        errors = self._restore_originals(host)
+        """Put the original certificate back after a failed injection; never raises."""
+        errors = self._restore_original(host)
         if not errors:
             try:
                 self._reload(host)
@@ -367,20 +360,18 @@ class TlsCertificateExpired(ProblemBase):
         if not self._nginx_running(host):
             raise RuntimeError(f"nginx is not running on {host}")
         # Restore state stays in this instance; no copies are left on the node.
-        # A repeated injection keeps the originals instead of the expired pair.
-        cert, key = self._expired_pair()
-        if self._cert_snapshot is None or self._key_snapshot is None:
+        # A repeated injection keeps the original instead of the expired certificate.
+        cert = self._expired_cert()
+        if self._cert_snapshot is None:
             cert_snapshot = FileSnapshot.capture(self.runtime, host, params.cert_path)
-            # Another instance injected already; its originals are not on the node.
+            # Another instance injected already; its original is not on the node.
             if cert_snapshot.content == cert:
                 raise RuntimeError(
                     f"{params.cert_path} on {host} already holds the expired certificate"
                 )
-            key_snapshot = FileSnapshot.capture(self.runtime, host, params.key_path)
-            self._cert_snapshot, self._key_snapshot = cert_snapshot, key_snapshot
+            self._cert_snapshot = cert_snapshot
         try:
-            # Checked, read-back writes; nginx reloads only once both files match.
-            FileSnapshot(params.key_path, key).restore(self.runtime, host)
+            # Checked, read-back write; the key stays as it is.
             FileSnapshot(params.cert_path, cert).restore(self.runtime, host)
             self._reload(host)
             if not self._wait_loaded(params):
@@ -396,41 +387,36 @@ class TlsCertificateExpired(ProblemBase):
         )
 
     def verify_fault(self, params: TlsCertificateExpiredParams) -> dict:
-        """The expired pair is installed and nginx on the server loaded it.
+        """The expired certificate is installed and nginx on the server loaded it.
 
         Reads files and process state only, so rechecks during a trial leave
         nothing in the server's logs.
         """
         host = params.host_name
-        expired_cert, expired_key = self._expired_pair()
-        cert_installed = FileSnapshot(params.cert_path, expired_cert).matches(
-            self.runtime, host
-        )
-        key_installed = FileSnapshot(params.key_path, expired_key).matches(
+        cert_installed = FileSnapshot(params.cert_path, self._expired_cert()).matches(
             self.runtime, host
         )
         state = self._load_state(params)
-        verified = bool(cert_installed and key_installed and state["loaded"])
+        verified = bool(cert_installed and state["loaded"])
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
                 "host": host,
                 "cert_installed": cert_installed,
-                "key_installed": key_installed,
                 **state,
             },
         )
 
     def recover_fault(self, params: TlsCertificateExpiredParams) -> dict:
         host = params.host_name
-        if self._cert_snapshot is None or self._key_snapshot is None:
+        if self._cert_snapshot is None:
             return build_verify_result(
                 fault_type=self.root_cause_name,
                 verified=False,
                 details={"error": "Pre-injection certificate is unavailable."},
             )
-        errors = self._restore_originals(host)
+        errors = self._restore_original(host)
         if errors:
             return build_verify_result(
                 fault_type=self.root_cause_name,
@@ -449,15 +435,13 @@ class TlsCertificateExpired(ProblemBase):
         # while the agent works, so it sends no requests either.
         self._wait_loaded(params)
         cert_restored = self._cert_snapshot.matches(self.runtime, host)
-        key_restored = self._key_snapshot.matches(self.runtime, host)
         state = self._load_state(params)
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=bool(cert_restored and key_restored and state["loaded"]),
+            verified=bool(cert_restored and state["loaded"]),
             details={
                 "host": host,
                 "cert_restored": cert_restored,
-                "key_restored": key_restored,
                 **state,
             },
         )
