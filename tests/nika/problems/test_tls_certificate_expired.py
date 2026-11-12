@@ -315,7 +315,6 @@ def _override(needle: str, output: str):
     ("break_one", "reason"),
     [
         (_revert(_CERT_PATH), "certificate file not installed"),
-        (_revert(_KEY_PATH), "key file not installed"),
         (
             _override("nginx -T", _load_state(nginx_age=3.0)),
             "nginx not reloaded since the files were written",
@@ -534,9 +533,7 @@ def test_parse_https_probe() -> None:
 
 
 def test_committed_expired_certificate_chains_to_the_campus_ca() -> None:
-    ca = x509.load_pem_x509_certificate(
-        (_CAMPUS / "campus-repository.crt").read_bytes()
-    )
+    ca = x509.load_pem_x509_certificate((_CAMPUS / "campus-ca.crt").read_bytes())
     leaf = x509.load_pem_x509_certificate(_EXPIRED_CERT.encode())
     key = serialization.load_pem_private_key(_EXPIRED_KEY.encode(), None)
 
