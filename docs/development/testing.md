@@ -143,7 +143,13 @@ Configure the caller repository's `HF_TOKEN` secret for restricted trajectories.
 
 ### Use the documentation review fallback
 
-The required `Letta Docs Review` check passes only when a reviewer approves the PR's documentation changes. Hosted Letta reviews by default. If Letta stops because its model quota or credits ran out, the same workflow run hands the review to a self-hosted fallback reviewer. A Letta FAIL verdict or any other Letta error does not trigger the fallback.
+The required `Letta Docs Review` check passes only when a reviewer approves the PR's documentation changes. Hosted Letta reviews by default. If Letta stops because its model quota or credits ran out, the same workflow run hands the review to a self-hosted fallback reviewer. A Letta FAIL verdict or any other Letta error does not trigger the fallback. Either reviewer's verdict and findings, grouped by file and marked blocking or optional, appear in one PR comment that later runs update, and in the reviewer job's summary.
+
+A fork PR's docs are reviewed only after a maintainer reads its changes and adds the `run-docs-review` label; until then the check fails and says so. The review then covers the commit that was labeled. A new push removes the label, so the maintainer reads the new commits and adds it again:
+
+```shell
+gh pr edit <number> --add-label run-docs-review
+```
 
 Keep a GitHub Actions self-hosted runner with the `nika-docs-fallback` label online on a machine with Git, Python 3, and Codex CLI available. Run `codex login` as the runner user and confirm `codex login status` succeeds. On Linux, install `bubblewrap` and complete the [Codex sandbox prerequisites](https://developers.openai.com/codex/concepts/sandboxing#prerequisites). The fallback review uses that user's configured model and login, which must have available quota.
 
@@ -155,9 +161,9 @@ gh pr edit <number> --add-label docs-review-fallback
 
 Remove the label to return to hosted Letta.
 
-The fallback runs Codex in read-only mode with the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md) on the PR's test merge and verifies commands and links against the checkout. It posts its verdict and findings, grouped by file and marked blocking or optional, as a PR comment and updates that comment on later runs. The job summary and a downloadable JSON artifact hold the same report. A blocking finding or a failed review keeps the check failing.
+The fallback runs Codex in read-only mode with the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md) on the PR's test merge and verifies commands and links against the checkout. A downloadable JSON artifact holds its report. A blocking finding or a failed review keeps the check failing.
 
-If the head, base, or test merge changes during review, the check fails; run the review again for the new commit. Use Actions **Re-run all jobs** to retry the current commit. Moving the review to another machine does not add quota to its configured model account.
+If the head, base, or test merge changes during review, the check fails. Use Actions **Re-run all jobs** to review the PR's current test merge. Moving the review to another machine does not add quota to its configured model account.
 
 ## Verify benchmark engines
 

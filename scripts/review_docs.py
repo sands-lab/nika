@@ -1,7 +1,9 @@
 """Run a documentation review with the runner user's Codex login.
 
-``review_docs.py letta-quota <execution_file>`` instead reports whether a hosted
-Letta review stopped because its model quota or credits ran out.
+``review_docs.py report <report.json>`` instead validates a hosted Letta review
+and publishes it like a fallback review. ``review_docs.py letta-quota
+<execution_file>`` reports whether a hosted Letta review stopped because its
+model quota or credits ran out.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ QUOTA_MARKERS = (
     "insufficient_quota",
 )
 COMMENT_MARKER = "<!-- nika-docs-review -->"
+VERDICT_FILE = ".docs-review-verdict"
 
 
 SCHEMA = {
@@ -99,7 +102,7 @@ def letta_quota_exhausted(events: list) -> bool:
     return any(marker in text for marker in QUOTA_MARKERS)
 
 
-def review_comment(report: dict, verdict: str, run_url: str) -> str:
+def review_comment(report: dict, verdict: str, run_url: str, reviewer: str) -> str:
     """Format the review as a PR comment grouped by file."""
     body = (
         f"{COMMENT_MARKER}\n## Documentation review: {verdict}\n\n{report['summary']}\n"
@@ -114,13 +117,35 @@ def review_comment(report: dict, verdict: str, run_url: str) -> str:
                 f"- [{finding['severity']}] line {finding['line']}: "
                 f"{finding['reason']}\n"
             )
-    return (
-        body
-        + f"\nReviewed by the self-hosted fallback reviewer in [this run]({run_url}).\n"
+    return body + f"\nReviewed by the {reviewer} in [this run]({run_url}).\n"
+
+
+def publish(report: dict, files: list[str], reviewer: str) -> str:
+    """Validate a review, then write its verdict, PR comment, and job summary."""
+    verdict = review_verdict(report, files)
+    Path(VERDICT_FILE).write_text(verdict + "\n")
+    comment = review_comment(
+        report, verdict, os.environ.get("REVIEW_RUN_URL", ""), reviewer
     )
+    if os.environ.get("REVIEW_COMMENT"):
+        Path(os.environ["REVIEW_COMMENT"]).write_text(comment)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as stream:
+            stream.write(comment)
+    print(comment)
+    return verdict
 
 
 def main() -> None:
+    if sys.argv[1:2] == ["report"]:
+        try:
+            report = json.loads(Path(sys.argv[2]).read_text())
+            publish(
+                report, json.loads(os.environ["REVIEW_FILES"]), "hosted Letta reviewer"
+            )
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            sys.exit(f"The hosted review report is missing or invalid: {error}")
+        return
     if sys.argv[1:2] == ["letta-quota"]:
         path = Path(sys.argv[2])
         events = json.loads(path.read_text()) if path.is_file() else []
@@ -175,7 +200,7 @@ inspect credentials, or run other agents. Return the requested JSON report.
             check=True,
         )
     report = json.loads(output.read_text())
-    verdict = review_verdict(report, files)
+    review_verdict(report, files)
     output.write_text(
         json.dumps(
             {"head": head, "base": base, "reviewed_commit": commit, "review": report},
@@ -183,13 +208,7 @@ inspect credentials, or run other agents. Return the requested JSON report.
         )
         + "\n"
     )
-    Path(".letta-docs-verdict").write_text(verdict + "\n")
-    summary = review_comment(report, verdict, os.environ.get("REVIEW_RUN_URL", ""))
-    Path(os.environ["REVIEW_COMMENT"]).write_text(summary)
-    if os.environ.get("GITHUB_STEP_SUMMARY"):
-        with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as stream:
-            stream.write(summary)
-    print(summary)
+    publish(report, files, "self-hosted fallback reviewer")
 
 
 if __name__ == "__main__":
