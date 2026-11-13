@@ -3,7 +3,30 @@ scenario:
 failure:
   fault_type: k8s_service_selector_mismatch
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+    root_causes:
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_service_selector_mismatch
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+    root_causes:
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_service_selector_mismatch
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:

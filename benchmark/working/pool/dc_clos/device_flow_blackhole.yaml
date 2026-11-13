@@ -44,6 +44,36 @@ failure:
         kind: node
         node: leaf_1
       fault_type: device_flow_blackhole
+  - topo_size: s
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      forwarding_device: leaf_1
+      intf_name: e1-1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: device_flow_blackhole
+  - topo_size: s
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      forwarding_device: leaf_1
+      intf_name: eth1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: device_flow_blackhole
   - topo_size: m
     traffic:
       pattern: uniform
@@ -57,6 +87,36 @@ failure:
         kind: node
         node: leaf_1
       fault_type: device_flow_blackhole
+  - topo_size: m
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      forwarding_device: leaf_1
+      intf_name: e1-1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: device_flow_blackhole
+  - topo_size: m
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      forwarding_device: leaf_1
+      intf_name: eth1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: device_flow_blackhole
   - topo_size: l
     traffic:
       pattern: uniform
@@ -64,6 +124,36 @@ failure:
     inject:
       forwarding_device: leaf_1
       intf_name: eth0
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: device_flow_blackhole
+  - topo_size: l
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      forwarding_device: leaf_1
+      intf_name: e1-1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: device_flow_blackhole
+  - topo_size: l
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      forwarding_device: leaf_1
+      intf_name: eth1
       seed: '42'
     root_causes:
     - resource:

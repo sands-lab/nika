@@ -59,6 +59,26 @@ failure:
         kind: node
         node: web_1
       fault_type: sender_resource_contention
+  - topo_size: s
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: client_2_1
+      cpu_quota: '0.05'
+      dst_ip: 10.0.1.11
+      duration: '3600'
+      host_name: web_1
+      large_url: http://10.0.1.11/large.bin
+      small_url: http://10.0.1.11/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: web_1
+      fault_type: sender_resource_contention
   - topo_size: m
     traffic:
       pattern: uniform
@@ -77,7 +97,47 @@ failure:
         kind: node
         node: web_1
       fault_type: sender_resource_contention
+  - topo_size: m
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: client_2_1
+      cpu_quota: '0.05'
+      dst_ip: 10.0.1.11
+      duration: '3600'
+      host_name: web_1
+      large_url: http://10.0.1.11/large.bin
+      small_url: http://10.0.1.11/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: web_1
+      fault_type: sender_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: client_2_1
+      cpu_quota: '0.05'
+      dst_ip: 10.0.1.11
+      duration: '3600'
+      host_name: web_1
+      large_url: http://10.0.1.11/large.bin
+      small_url: http://10.0.1.11/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: web_1
+      fault_type: sender_resource_contention
+  - topo_size: l
+    backend: containerlab
+    device_profile: sonic
     traffic:
       pattern: uniform
       load_mbps: 1.0

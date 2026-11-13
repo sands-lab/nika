@@ -47,6 +47,22 @@ failure:
         node: leaf_1
         name: eth0
       fault_type: mtu_mismatch
+  - topo_size: s
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      intf_name: eth1
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth1
+      fault_type: mtu_mismatch
   - topo_size: m
     traffic:
       pattern: uniform
@@ -61,6 +77,22 @@ failure:
         node: leaf_1
         name: eth0
       fault_type: mtu_mismatch
+  - topo_size: m
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      intf_name: eth1
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth1
+      fault_type: mtu_mismatch
   - topo_size: l
     traffic:
       pattern: uniform
@@ -74,4 +106,20 @@ failure:
         kind: interface
         node: leaf_1
         name: eth0
+      fault_type: mtu_mismatch
+  - topo_size: l
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1
+      intf_name: eth1
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1
+        name: eth1
       fault_type: mtu_mismatch

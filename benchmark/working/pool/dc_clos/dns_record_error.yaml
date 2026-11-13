@@ -44,6 +44,21 @@ failure:
         kind: node
         node: web_1
       fault_type: dns_record_error
+  - topo_size: s
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      target_domain: fabric
+      target_website: web-3
+    root_causes:
+    - resource:
+        kind: node
+        node: web_1
+      fault_type: dns_record_error
   - topo_size: m
     traffic:
       pattern: uniform
@@ -57,7 +72,37 @@ failure:
         kind: node
         node: web_1
       fault_type: dns_record_error
+  - topo_size: m
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      target_domain: fabric
+      target_website: web-8
+    root_causes:
+    - resource:
+        kind: node
+        node: web_1
+      fault_type: dns_record_error
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      target_domain: fabric
+      target_website: web-12
+    root_causes:
+    - resource:
+        kind: node
+        node: web_1
+      fault_type: dns_record_error
+  - topo_size: l
+    backend: containerlab
+    device_profile: sonic
     traffic:
       pattern: uniform
       load_mbps: 1.0

@@ -13,16 +13,6 @@ failure:
         kind: node
         node: client1
       fault_type: arp_cache_poisoning
-  - traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: client2
-    root_causes:
-    - resource:
-        kind: node
-        node: client2
-      fault_type: arp_cache_poisoning
   - device_profile: sonic
     traffic:
       pattern: uniform
@@ -33,15 +23,4 @@ failure:
     - resource:
         kind: node
         node: client1
-      fault_type: arp_cache_poisoning
-  - device_profile: sonic
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: client2
-    root_causes:
-    - resource:
-        kind: node
-        node: client2
       fault_type: arp_cache_poisoning

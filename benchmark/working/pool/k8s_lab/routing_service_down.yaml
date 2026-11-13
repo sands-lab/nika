@@ -3,7 +3,8 @@ scenario:
 failure:
   fault_type: routing_service_down
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -13,7 +14,8 @@ failure:
         kind: node
         node: as1r1
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -23,7 +25,8 @@ failure:
         kind: node
         node: as2r1
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -33,7 +36,8 @@ failure:
         kind: node
         node: core_1_1
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -43,7 +47,8 @@ failure:
         kind: node
         node: core_1_2
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -53,7 +58,8 @@ failure:
         kind: node
         node: leaf_1_1
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -63,7 +69,8 @@ failure:
         kind: node
         node: leaf_1_2
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -73,7 +80,8 @@ failure:
         kind: node
         node: leaf_2_1
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -83,7 +91,8 @@ failure:
         kind: node
         node: leaf_2_2
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -93,7 +102,8 @@ failure:
         kind: node
         node: spine_1_1
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -103,7 +113,8 @@ failure:
         kind: node
         node: spine_1_2
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -113,7 +124,272 @@ failure:
         kind: node
         node: spine_2_1
       fault_type: routing_service_down
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_2_2
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as1r1
+    root_causes:
+    - resource:
+        kind: node
+        node: as1r1
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as2r1
+    root_causes:
+    - resource:
+        kind: node
+        node: as2r1
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: core_1_1
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: core_1_2
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_1
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_2
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_1
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_2
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_1_1
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_1_2
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_2_1
+      fault_type: routing_service_down
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_2_2
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as1r1
+    root_causes:
+    - resource:
+        kind: node
+        node: as1r1
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as2r1
+    root_causes:
+    - resource:
+        kind: node
+        node: as2r1
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: core_1_1
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: core_1_2
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_1
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_2
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_1
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_2
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_1_1
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_1_2
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_2_1
+      fault_type: routing_service_down
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:

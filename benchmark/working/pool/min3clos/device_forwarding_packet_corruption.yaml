@@ -7,7 +7,7 @@ failure:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      forwarding_device: spine
+      forwarding_device: leaf2
       intf_name: e1-2
       observer_device: client1
       probe_dst_ip: 10.0.0.27
@@ -15,14 +15,14 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: spine
+        node: leaf2
       fault_type: device_forwarding_packet_corruption
   - device_profile: sonic
     traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      forwarding_device: spine
+      forwarding_device: leaf2
       intf_name: eth2
       observer_device: client1
       probe_dst_ip: 10.0.0.27
@@ -30,5 +30,5 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: spine
+        node: leaf2
       fault_type: device_forwarding_packet_corruption

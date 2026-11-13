@@ -3,7 +3,34 @@ scenario:
 failure:
   fault_type: host_missing_ip
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client
+        name: eth0
+      fault_type: host_missing_ip
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client
+        name: eth0
+      fault_type: host_missing_ip
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:

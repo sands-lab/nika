@@ -44,7 +44,37 @@ failure:
         node: client_1_1
         name: eth0
       fault_type: host_missing_ip
+  - topo_size: s
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_missing_ip
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_missing_ip
+  - topo_size: m
+    backend: containerlab
+    device_profile: sonic
     traffic:
       pattern: uniform
       load_mbps: 1.0
@@ -68,5 +98,20 @@ failure:
     - resource:
         kind: interface
         node: client_7_1
+        name: eth0
+      fault_type: host_missing_ip
+  - topo_size: l
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_1
         name: eth0
       fault_type: host_missing_ip

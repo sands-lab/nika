@@ -15,7 +15,7 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: web_2
+        node: client_4_2
       fault_type: web_dos_attack
   - topo_size: m
     traffic:
@@ -29,7 +29,7 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: web_2
+        node: client_8_3
       fault_type: web_dos_attack
   - topo_size: l
     traffic:
@@ -43,5 +43,5 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: web_2
+        node: client_16_3
       fault_type: web_dos_attack

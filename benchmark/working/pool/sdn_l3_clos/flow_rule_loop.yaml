@@ -17,6 +17,10 @@ failure:
         kind: node
         node: leaf_1
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_1
+      fault_type: flow_rule_loop
   - topo_size: s
     traffic:
       pattern: uniform
@@ -30,6 +34,10 @@ failure:
     - resource:
         kind: node
         node: leaf_2
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_1
       fault_type: flow_rule_loop
   - topo_size: s
     traffic:
@@ -45,6 +53,10 @@ failure:
         kind: node
         node: leaf_3
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_1
+      fault_type: flow_rule_loop
   - topo_size: s
     traffic:
       pattern: uniform
@@ -58,6 +70,10 @@ failure:
     - resource:
         kind: node
         node: leaf_4
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_1
       fault_type: flow_rule_loop
   - topo_size: m
     traffic:
@@ -73,6 +89,10 @@ failure:
         kind: node
         node: leaf_1
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_2
+      fault_type: flow_rule_loop
   - topo_size: m
     traffic:
       pattern: uniform
@@ -86,6 +106,10 @@ failure:
     - resource:
         kind: node
         node: leaf_2
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_2
       fault_type: flow_rule_loop
   - topo_size: m
     traffic:
@@ -101,6 +125,10 @@ failure:
         kind: node
         node: leaf_3
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_2
+      fault_type: flow_rule_loop
   - topo_size: m
     traffic:
       pattern: uniform
@@ -114,6 +142,10 @@ failure:
     - resource:
         kind: node
         node: leaf_4
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_2
       fault_type: flow_rule_loop
   - topo_size: m
     traffic:
@@ -129,6 +161,10 @@ failure:
         kind: node
         node: leaf_5
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_2
+      fault_type: flow_rule_loop
   - topo_size: m
     traffic:
       pattern: uniform
@@ -142,6 +178,10 @@ failure:
     - resource:
         kind: node
         node: leaf_6
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_2
       fault_type: flow_rule_loop
   - topo_size: m
     traffic:
@@ -157,6 +197,10 @@ failure:
         kind: node
         node: leaf_7
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_2
+      fault_type: flow_rule_loop
   - topo_size: m
     traffic:
       pattern: uniform
@@ -171,6 +215,10 @@ failure:
         kind: node
         node: leaf_8
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_2
+      fault_type: flow_rule_loop
   - topo_size: l
     traffic:
       pattern: uniform
@@ -184,6 +232,10 @@ failure:
     - resource:
         kind: node
         node: leaf_1
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
       fault_type: flow_rule_loop
   - topo_size: l
     traffic:
@@ -199,6 +251,10 @@ failure:
         kind: node
         node: leaf_10
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
+      fault_type: flow_rule_loop
   - topo_size: l
     traffic:
       pattern: uniform
@@ -212,6 +268,10 @@ failure:
     - resource:
         kind: node
         node: leaf_11
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
       fault_type: flow_rule_loop
   - topo_size: l
     traffic:
@@ -227,6 +287,10 @@ failure:
         kind: node
         node: leaf_12
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
+      fault_type: flow_rule_loop
   - topo_size: l
     traffic:
       pattern: uniform
@@ -240,6 +304,10 @@ failure:
     - resource:
         kind: node
         node: leaf_13
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
       fault_type: flow_rule_loop
   - topo_size: l
     traffic:
@@ -255,6 +323,10 @@ failure:
         kind: node
         node: leaf_14
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
+      fault_type: flow_rule_loop
   - topo_size: l
     traffic:
       pattern: uniform
@@ -268,6 +340,10 @@ failure:
     - resource:
         kind: node
         node: leaf_15
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
       fault_type: flow_rule_loop
   - topo_size: l
     traffic:
@@ -283,6 +359,10 @@ failure:
         kind: node
         node: leaf_16
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
+      fault_type: flow_rule_loop
   - topo_size: l
     traffic:
       pattern: uniform
@@ -296,6 +376,10 @@ failure:
     - resource:
         kind: node
         node: leaf_2
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
       fault_type: flow_rule_loop
   - topo_size: l
     traffic:
@@ -311,6 +395,10 @@ failure:
         kind: node
         node: leaf_3
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
+      fault_type: flow_rule_loop
   - topo_size: l
     traffic:
       pattern: uniform
@@ -324,6 +412,10 @@ failure:
     - resource:
         kind: node
         node: leaf_4
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
       fault_type: flow_rule_loop
   - topo_size: l
     traffic:
@@ -339,6 +431,10 @@ failure:
         kind: node
         node: leaf_5
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
+      fault_type: flow_rule_loop
   - topo_size: l
     traffic:
       pattern: uniform
@@ -352,6 +448,10 @@ failure:
     - resource:
         kind: node
         node: leaf_6
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
       fault_type: flow_rule_loop
   - topo_size: l
     traffic:
@@ -367,6 +467,10 @@ failure:
         kind: node
         node: leaf_7
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
+      fault_type: flow_rule_loop
   - topo_size: l
     traffic:
       pattern: uniform
@@ -381,6 +485,10 @@ failure:
         kind: node
         node: leaf_8
       fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
+      fault_type: flow_rule_loop
   - topo_size: l
     traffic:
       pattern: uniform
@@ -394,4 +502,8 @@ failure:
     - resource:
         kind: node
         node: leaf_9
+      fault_type: flow_rule_loop
+    - resource:
+        kind: node
+        node: spine_4
       fault_type: flow_rule_loop

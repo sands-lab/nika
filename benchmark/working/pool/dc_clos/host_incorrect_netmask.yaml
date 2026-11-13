@@ -44,6 +44,21 @@ failure:
         node: client_3_1
         name: eth0
       fault_type: host_incorrect_netmask
+  - topo_size: s
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
+      netmask_prefix: '8'
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_incorrect_netmask
   - topo_size: m
     traffic:
       pattern: uniform
@@ -57,6 +72,21 @@ failure:
         node: client_6_3
         name: eth0
       fault_type: host_incorrect_netmask
+  - topo_size: m
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
+      netmask_prefix: '8'
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_incorrect_netmask
   - topo_size: l
     traffic:
       pattern: uniform
@@ -68,5 +98,20 @@ failure:
     - resource:
         kind: interface
         node: client_3_2
+        name: eth0
+      fault_type: host_incorrect_netmask
+  - topo_size: l
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_2
+      netmask_prefix: '8'
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_2
         name: eth0
       fault_type: host_incorrect_netmask

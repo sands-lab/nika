@@ -15,7 +15,7 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: web_server_0
+        node: pc_1_1_1_1
       fault_type: web_dos_attack
   - topo_size: s
     device_profile: iosxr
@@ -30,7 +30,7 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: web_server_0
+        node: pc_1_1_1_1
       fault_type: web_dos_attack
   - topo_size: s
     device_profile: routeros
@@ -45,7 +45,7 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: web_server_0
+        node: pc_1_1_1_1
       fault_type: web_dos_attack
   - topo_size: m
     traffic:
@@ -59,7 +59,7 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: web_server_0
+        node: pc_1_1_1_1
       fault_type: web_dos_attack
   - topo_size: l
     traffic:
@@ -73,5 +73,5 @@ failure:
     root_causes:
     - resource:
         kind: node
-        node: web_server_0
+        node: pc_1_1_1_1
       fault_type: web_dos_attack
