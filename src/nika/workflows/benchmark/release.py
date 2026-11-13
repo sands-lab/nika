@@ -36,7 +36,6 @@ from nika.problems.registry import (
     compatible_columns,
     get_problem_class,
     list_avail_problem_instances,
-    resolve_problem_name,
 )
 from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
@@ -472,7 +471,7 @@ def load_release_from_dir(
     def read_cases(path: Path) -> list[dict[str, Any]]:
         if preserve_rows:
             return read_benchmark_document(path)["cases"]
-        return load_benchmark_yaml(path, release=version)
+        return load_benchmark_yaml(path)
 
     cases = read_cases(cases_path)
     defaults = dict(manifest.get("defaults") or RELEASE_DEFAULTS)
@@ -576,7 +575,6 @@ def verify_dev_test_isolation(
     *,
     dev_cases: list[dict[str, Any]],
     test_cases: list[dict[str, Any]],
-    allow_context_overlap: bool = False,
     require_unseen_networks: bool = True,
 ) -> None:
     """Ensure Dev/Test use the same taxonomy and disjoint deployment contexts."""
@@ -605,7 +603,7 @@ def verify_dev_test_isolation(
         for row in test_cases
         if row["scenario"] not in fixed_clusters
     }
-    if context_overlap and not allow_context_overlap:
+    if context_overlap:
         raise ReleaseError(
             "Dev/Test semantic isolation failed: "
             f"{len(context_overlap)} shared failure-context pair(s)"
@@ -721,7 +719,7 @@ def _validate_release_splits(
             name
             for name in failures
             if (cls := get_problem_class(name)) is None
-            or resolve_problem_name(cls.root_cause_name) not in expected_failures
+            or cls.root_cause_name not in expected_failures
         }
         if unregistered:
             raise ReleaseError(
@@ -799,7 +797,7 @@ def preflight_release(
         name
         for name in problems
         if (cls := get_problem_class(name)) is None
-        or resolve_problem_name(cls.root_cause_name) not in registered
+        or cls.root_cause_name not in registered
     )
     missing_scenarios = sorted(scenarios - known_scenarios)
     if missing_scenarios:
@@ -1093,7 +1091,7 @@ def freeze_release(
     cases = materialize_cases(list(raw.get("cases") or []))
     cases_path = dest / "dev.yaml"
     write_cases_yaml(cases_path, seed=raw.get("seed"), cases=cases)
-    loaded = load_benchmark_yaml(cases_path, release=version)
+    loaded = load_benchmark_yaml(cases_path)
 
     scenarios = {row["scenario"] for row in loaded}
     images = {"required": collect_images_for_scenarios(scenarios)}
@@ -1130,8 +1128,8 @@ def freeze_split_release(
     missing = [name for name in required if not (source_dir / name).is_file()]
     if missing:
         raise ReleaseError(f"Release candidate is missing files: {missing}")
-    dev = load_benchmark_yaml(source_dir / "dev.yaml", release=version)
-    test = load_benchmark_yaml(source_dir / "test.yaml", release=version)
+    dev = load_benchmark_yaml(source_dir / "dev.yaml")
+    test = load_benchmark_yaml(source_dir / "test.yaml")
     _validate_release_splits(
         dev,
         test,

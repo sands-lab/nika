@@ -55,7 +55,7 @@ def _worker(root, tag, plan, start, ready, remote=None):
         scheduler_type = (
             RemoteSessionScheduler if is_remote_enabled() else SessionScheduler
         )
-        scheduler = scheduler_type(sid, normalize_schedule(plan, "dc_clos"))
+        scheduler = scheduler_type(sid, normalize_schedule(plan))
         scheduler.prepare()
         ready.put((sid, str(scheduler.directory)))
         if not start.wait(120):
@@ -192,7 +192,6 @@ def test_remote_schedule_defers_business_traffic_and_restores_the_link(
                                 },
                             ],
                         },
-                        "dc_clos",
                     ),
                 )
                 scheduler.prepare()

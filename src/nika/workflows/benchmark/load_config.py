@@ -26,13 +26,11 @@ from nika.workflows.benchmark.resume import benchmark_option_id
 _SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
-def _row_problem_fields(
-    row: dict[str, Any], scenario: str, release: str | None = None
-) -> tuple[list[str], str]:
+def _row_problem_fields(row: dict[str, Any]) -> tuple[list[str], str]:
     if row.get("schedule") is not None:
         from nika.schedule import normalize_schedule
 
-        plan = normalize_schedule(row["schedule"], scenario, release)
+        plan = normalize_schedule(row["schedule"])
         problems = list(dict.fromkeys(e.problem for e in plan.events if e.problem))
         return problems or [HEALTHY_PROBLEM], join_problem_label(
             problems
@@ -48,18 +46,14 @@ def _row_problem_fields(
     return [problem], problem
 
 
-def normalize_benchmark_row(
-    row: dict[str, Any], *, release: str | None = None
-) -> dict[str, Any]:
+def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     """Validate a canonical benchmark row and normalize its failure options."""
     raw_scenario = str(row["scenario"])
     canonical = resolve_scenario_id(raw_scenario)
     from nika.schedule import normalize_schedule
 
     plan = (
-        normalize_schedule(row["schedule"], canonical, release)
-        if row.get("schedule") is not None
-        else None
+        normalize_schedule(row["schedule"]) if row.get("schedule") is not None else None
     )
     if plan and plan.activates("background") and not row.get("traffic"):
         raise ValueError("Scheduled background activation requires task-level traffic")
@@ -71,7 +65,7 @@ def normalize_benchmark_row(
         topo = ""
     topo_size = "" if topo in ("-", "", None) else str(topo)
 
-    problems, problem_label = _row_problem_fields(row, canonical, release)
+    problems, problem_label = _row_problem_fields(row)
     raw_problem = str(row.get("problem") or join_problem_label(problems))
     inject = row.get("inject") or {}
     if not isinstance(inject, dict):
@@ -270,9 +264,7 @@ def read_benchmark_document(path: str | Path) -> dict[str, Any]:
     return {**data, "cases": expanded}
 
 
-def load_benchmark_yaml(
-    path: str | Path, *, release: str | None = None
-) -> list[dict[str, Any]]:
+def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     """Load benchmark cases from a YAML file.
 
     Accept one complete task or a list of complete task file paths::
@@ -304,7 +296,7 @@ def load_benchmark_yaml(
                 f"Benchmark case {idx} missing required field 'problem' or 'problems'"
             )
         try:
-            normalized.append(normalize_benchmark_row(row, release=release))
+            normalized.append(normalize_benchmark_row(row))
         except ValueError as exc:
             raise ValueError(f"Benchmark case {idx} ({path}): {exc}") from exc
     return normalized

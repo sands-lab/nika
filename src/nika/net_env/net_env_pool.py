@@ -798,7 +798,13 @@ def get_net_env_instance(
         cls = getattr(import_module(native.module), native.class_name)
     from nika.net_env.compat import release_environment_class
 
-    cls = release_environment_class(canonical, environment_release, cls)
+    cls = release_environment_class(
+        canonical,
+        environment_release,
+        cls,
+        backend=resolved,
+        native_profile=native is not None,
+    )
     lab_name = merged.pop("lab_name", None)
     topology_file = merged.pop("topology_file", None)
     runtime_workdir = merged.pop("runtime_workdir", None)

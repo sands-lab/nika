@@ -30,7 +30,6 @@ from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
     ReleaseError,
     freeze_split_release,
-    is_deprecated_release,
     list_releases,
     load_release,
     normalize_split,
@@ -146,13 +145,6 @@ def benchmark_releases(
         return
     failures = 0
     for version in versions:
-        if is_deprecated_release(version):
-            typer.secho(
-                f"DEPRECATED {version}: retained for provenance; not runnable. "
-                f"Use --release {DEFAULT_RELEASE_VERSION}.",
-                fg=typer.colors.YELLOW,
-            )
-            continue
         if not all_releases and version != DEFAULT_RELEASE_VERSION:
             typer.echo(f"SKIP {version}: pass --all to preflight")
             continue
@@ -181,8 +173,6 @@ def _echo_release_summary(*, as_json: bool) -> None:
         status = []
         if version == DEFAULT_RELEASE_VERSION:
             status.append("default")
-        if is_deprecated_release(version):
-            status.append("deprecated")
         summaries.append(
             {
                 "ref": f"{data.get('id') or 'nika-bench'}@{version}",

@@ -126,9 +126,7 @@ def handle_schedule(
         session = Session().load_running_session(session_id=session_id)
         if body.benchmark_version is not None:
             session.update_session("benchmark_version", body.benchmark_version)
-        plan = normalize_schedule(
-            body.schedule, session.scenario_name, body.benchmark_version
-        )
+        plan = normalize_schedule(body.schedule)
         with _RUNNERS_LOCK:
             if session_id in _RUNNERS:
                 raise ValueError("This session already has a scheduler")

@@ -64,7 +64,7 @@ Scalable scenarios accept `s`, `m`, or `l`. Pass a size when you deploy one:
 uv run nika env run dc_clos -s s
 ```
 
-`k8s_lab` and `llmd_lab` default to `m`. These defaults preserve their original networks for task rows that omit `topo_size`. Fixed scenarios, including `min3clos`, reject a size. Each SNDlib ISP topology is its own scenario ID (for example `isp_abilene`); size is metadata for benchmark sampling only.
+`k8s_lab` and `llmd_lab` deploy size `m` when task rows omit `topo_size`. Fixed scenarios, including `min3clos`, reject a size. Each SNDlib ISP topology is its own scenario ID (for example `isp_abilene`); size is metadata for benchmark sampling only.
 
 ## Data-center Clos scenario
 
@@ -570,7 +570,7 @@ Both Kathara scenarios run one k3s server and a size-dependent worker set on `ni
 | `m` | 5 | 2 | 1 / 3 / 2 |
 | `l` | 8 | 3 | 2 / 5 / 3 |
 
-The app replica column covers `word-dply` and `weather-dply`; each database stays at one replica. The `m` size preserves the original networks. Every size uses the same app, namespace, Service, and label names. NIKA generates worker networking, host mappings, placement constraints, and verification targets from the selected inventory.
+The app replica column covers `word-dply` and `weather-dply`; each database stays at one replica. Every size uses the same app, namespace, Service, and label names. NIKA generates worker networking, host mappings, placement constraints, and verification targets from the selected inventory.
 
 The `nika/k3s` image adds `tcpdump`, `iperf3`, and `python3` to the pinned `rancher/k3s:v1.34.1-k3s1`, so packet capture, `iperf_test`, and `active_tcp_probe` work on k3s nodes. Each k3s device starts with a shell entrypoint that waits for `/var/run/net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
 

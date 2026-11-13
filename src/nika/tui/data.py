@@ -185,8 +185,8 @@ def session_hosts(session_id: str) -> list[str]:
     return sorted({str(c.get("name")) for c in containers if c.get("name")})
 
 
-def releases() -> list[tuple[str, bool]]:
-    """(version, deprecated) for each frozen release, newest first."""
-    from nika.workflows.benchmark.release import is_deprecated_release, list_releases
+def releases() -> list[str]:
+    """Return benchmark release versions, newest first."""
+    from nika.workflows.benchmark.release import list_releases
 
-    return [(v, is_deprecated_release(v)) for v in reversed(list_releases())]
+    return list(reversed(list_releases()))

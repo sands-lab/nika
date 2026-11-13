@@ -9,7 +9,7 @@ from nika.utils.logger import system_logger
 
 logger = system_logger
 
-# Legacy failure IDs resolve to implementations without separate registry entries.
+# Accept old failure IDs in user configurations without separate registry entries.
 _PROBLEM_ALIASES: dict[str, str] = {
     "frr_service_down": "routing_service_down",
     "host_vpn_membership_missing": "wireguard_peer_key_misconfiguration",

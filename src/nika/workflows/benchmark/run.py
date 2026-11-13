@@ -915,7 +915,7 @@ def run_single_case(
         )
     elif problems:
         row["problems"] = problems
-    plan = schedule_for_task(row, (release_meta or {}).get("version"))
+    plan = schedule_for_task(row)
     if schedule is not None:
         row["schedule"] = plan.case_value()
     deploy_bits = [

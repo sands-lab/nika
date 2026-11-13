@@ -161,9 +161,7 @@ class Schedule(BaseModel):
         return any(event.traffic == workload for event in self.events)
 
 
-def normalize_schedule(
-    value: Any, scenario: str, release: str | None = None
-) -> Schedule:
+def normalize_schedule(value: Any) -> Schedule:
     from nika.problems.base import ProblemBase
     from nika.problems.registry import get_problem_class, resolve_problem_name
 
@@ -191,7 +189,7 @@ def normalize_schedule(
     return plan.model_copy(update={"events": events})
 
 
-def schedule_for_task(row: dict[str, Any], release: str | None = None) -> Schedule:
+def schedule_for_task(row: dict[str, Any]) -> Schedule:
     """Supply execution defaults without changing the authored task or its identity."""
     from nika.workflows.benchmark.healthy import is_healthy_case
     from nika.workflows.benchmark.multi_fault import nested_inject_map
@@ -205,4 +203,4 @@ def schedule_for_task(row: dict[str, Any], release: str | None = None) -> Schedu
                 if not is_healthy_case(name)
             ]
         }
-    return normalize_schedule(value, row["scenario"], release)
+    return normalize_schedule(value)

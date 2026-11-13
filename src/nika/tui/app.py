@@ -806,7 +806,7 @@ class NikaTui:
 
     def pick_release(self, current: Any = None) -> Any:
         items = releases()
-        choices = [(v, f"{v}{'  (deprecated)' if dep else ''}") for v, dep in items]
+        choices = [(v, v) for v in items]
         return self.pick("Choose a benchmark release", choices, current)
 
     def _pick_profile_value(self, current: Any) -> Any:
