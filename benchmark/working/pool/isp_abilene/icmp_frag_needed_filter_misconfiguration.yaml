@@ -40,6 +40,22 @@ failure:
     bgp_mode: none
     rpki: false
     backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: atlam5
+    root_causes:
+    - resource:
+        kind: node
+        node: atlam5
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
     device_profile: routeros
     traffic:
       pattern: gravity

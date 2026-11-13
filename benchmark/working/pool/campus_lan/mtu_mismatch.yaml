@@ -18,6 +18,21 @@ failure:
         name: eth0
       fault_type: mtu_mismatch
   - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: router_core_3
+      intf_name: eth0
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: router_core_3
+        name: eth0
+      fault_type: mtu_mismatch
+  - topo_size: s
     device_profile: routeros
     traffic:
       pattern: uniform
