@@ -15,7 +15,10 @@ from pydantic import ValidationError
 
 from nika.config import BENCHMARK_DIR, resolve_results_root
 from nika.evaluator.result_log import MESSAGES_FILENAME
-from nika.net_env.net_env_pool import scenario_requires_topo_size
+from nika.net_env.net_env_pool import (
+    resolve_scenario_topo_size,
+    scenario_requires_topo_size,
+)
 from nika.problems.registry import get_problem_class, get_problem_instance
 from nika.firecracker import firecracker_enabled
 from nika.firecracker.case import wants_case_image
@@ -937,10 +940,8 @@ def run_single_case(
     if not verbose:
         quiet_third_party_logging()
 
-    if scenario_requires_topo_size(scenario) and not topo_size:
-        raise ValueError(
-            f"Scenario '{scenario}' requires a non-empty topology size (-s s|m|l)."
-        )
+    if scenario_requires_topo_size(scenario):
+        resolve_scenario_topo_size(scenario, topo_size)
 
     predetermined_dir: str | None = None
     if trial_id:

@@ -1081,7 +1081,7 @@ def p4_port_options(
 
 
 def attached_end_hosts(net_env, router: str) -> list[str]:
-    """Hosts and services on a link of ``router``."""
+    """Hosts, services and declared reachability targets on a link of ``router``."""
     from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
     from nika.runtime.spec import NodeRole
 
@@ -1093,8 +1093,11 @@ def attached_end_hosts(net_env, router: str) -> list[str]:
             hosts |= {
                 node
                 for node in nodes - {router}
-                if getattr(identities.get(node), "role", None)
-                in {NodeRole.HOST, NodeRole.SERVICE}
+                if (
+                    getattr(identities.get(node), "role", None)
+                    in {NodeRole.HOST, NodeRole.SERVICE}
+                    or getattr(identities.get(node), "reachability_target", False)
+                )
             }
     return sorted(hosts)
 

@@ -60,7 +60,7 @@ def echo(
         f"ping -n -c {count} -i {interval_sec} -W 2{size_arg}{df_arg} {dst}",
         timeout=count * interval_sec + 10.0,
     )
-    replies = dict(re.findall(r"icmp_seq=(\d+) ttl=(\d+)", output))
+    replies = dict(re.findall(r"(?:icmp_)?seq=(\d+) ttl=(\d+)", output))
     received = len(replies)
     return {
         "src": src,

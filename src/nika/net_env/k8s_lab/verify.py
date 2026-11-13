@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from nika.net_env.k8s_lab.topology import K8sTopology
+
 from nika.net_env.utils.k8s_client_hosts import (
     sync_k8s_client_hosts,
     weather_app_http_url,
@@ -31,16 +33,6 @@ from nika.net_env.verify_collection import (
 )
 from nika.utils.parallel import bounded_parallel_map
 
-_K8S_EXPECTED = (
-    "controller",
-    "worker1",
-    "worker2",
-    "worker3",
-    "worker4",
-    "worker5",
-    "client",
-)
-
 # Planned BGP neighbors from each router's bgpd.conf: unnumbered fabric
 # interfaces (FRR shows them as ``<hostname>(ethN)``) and the AS1-AS2 link.
 # MetalLB speakers peer dynamically with leaf_1_x and are covered by the
@@ -63,16 +55,6 @@ _FABRIC_BGP_PEERS = {
     },
     "as1r1": ("10.0.4.2",),
     "as2r1": ("10.0.4.1",),
-}
-
-# k3s node addresses on the leaf access networks.
-_K3S_NODE_ADDRESSES = {
-    "controller": "201.1.1.2",
-    "worker1": "201.1.2.2",
-    "worker2": "201.1.3.2",
-    "worker3": "201.2.1.2",
-    "worker4": "201.2.2.2",
-    "worker5": "201.2.3.2",
 }
 
 
@@ -102,7 +84,7 @@ def _fabric_bgp_failures(runtime: LabRuntime) -> dict[str, list[str]]:
 
 
 def _verify_k8s_lab(
-    runtime: LabRuntime, *, scenario_name: str, full: bool
+    runtime: LabRuntime, *, scenario_name: str, full: bool, topo_size: str
 ) -> dict[str, Any]:
     """Fast readiness for inject: nodes up plus sample app namespaces/HTTP.
 
@@ -111,6 +93,8 @@ def _verify_k8s_lab(
     controller.startup has applied sample namespaces and both sample ingress
     paths answer — not only until k3s nodes report Ready.
     """
+    topology = K8sTopology(topo_size)
+    addresses = topology.addresses
     live_runtime = runtime
     commands = [
         VerifyCommand("controller", command, 10 if command.startswith("ip ") else 60)
@@ -155,23 +139,27 @@ def _verify_k8s_lab(
     word_url = word_app_http_url(ingress_ip)
     weather_url = weather_app_http_url(ingress_ip)
     commands = [
-        VerifyCommand("client", ping_command("201.1.1.2", count=3), 15),
+        VerifyCommand("client", ping_command(addresses["controller"], count=3), 15),
         VerifyCommand("client", http_command(word_url)),
         VerifyCommand("client", http_command(weather_url)),
     ]
     if full:
         commands.extend(
             VerifyCommand("client", mesh_ping_command(address), 30)
-            for address in _K3S_NODE_ADDRESSES.values()
+            for address in addresses.values()
         )
     runtime = runtime.merged(
         collect_verify_commands(live_runtime, commands, nodes=runtime.nodes)
     )
     checks = {
-        "nodes_deployed": nodes_deployed(runtime, _K8S_EXPECTED),
-        "controller_ipv4": host_has_ipv4(runtime, "controller", "201.1.1.2"),
-        "client_reaches_controller": ping_ok(runtime, "client", "201.1.1.2", count=3),
-        "k3s_nodes_ready": ready_nodes >= 6,
+        "nodes_deployed": nodes_deployed(runtime, (*addresses, "client")),
+        "controller_ipv4": host_has_ipv4(
+            runtime, "controller", addresses["controller"]
+        ),
+        "client_reaches_controller": ping_ok(
+            runtime, "client", addresses["controller"], count=3
+        ),
+        "k3s_nodes_ready": ready_nodes == len(addresses),
         "sample_namespaces": k8s_namespace_phase_active(word_ns)
         and k8s_namespace_phase_active(weather_ns),
         "ingress_vip_allocated": ingress_ip.startswith("101."),
@@ -186,7 +174,7 @@ def _verify_k8s_lab(
     }
     if full:
         bgp_failures = _fabric_bgp_failures(runtime)
-        unreachable = ping_unreachable(runtime, "client", _K3S_NODE_ADDRESSES.values())
+        unreachable = ping_unreachable(runtime, "client", addresses.values())
         checks.update(
             fabric_bgp_established=not bgp_failures,
             client_reaches_k3s_nodes=not unreachable,
@@ -206,10 +194,16 @@ def _verify_k8s_lab(
 
 
 def verify_k8s_lab_startup(
-    runtime: LabRuntime, *, scenario_name: str
+    runtime: LabRuntime, *, scenario_name: str, topo_size: str = "m"
 ) -> dict[str, Any]:
-    return _verify_k8s_lab(runtime, scenario_name=scenario_name, full=False)
+    return _verify_k8s_lab(
+        runtime, scenario_name=scenario_name, full=False, topo_size=topo_size
+    )
 
 
-def verify_k8s_lab(runtime: LabRuntime, *, scenario_name: str) -> dict[str, Any]:
-    return _verify_k8s_lab(runtime, scenario_name=scenario_name, full=True)
+def verify_k8s_lab(
+    runtime: LabRuntime, *, scenario_name: str, topo_size: str = "m"
+) -> dict[str, Any]:
+    return _verify_k8s_lab(
+        runtime, scenario_name=scenario_name, full=True, topo_size=topo_size
+    )

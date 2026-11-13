@@ -672,7 +672,13 @@ def _split_coverage(rows: list[dict[str, Any]]) -> tuple[set[str], set[str], set
         scenario = str(row["scenario"])
         families.add(scenario_family(scenario))
         scales.add(normalize_topo_scale(row))
-        backends.add(str(row.get("backend") or resolve_scenario_backend(scenario)))
+        backends.add(
+            resolve_scenario_backend(
+                scenario,
+                backend=row.get("backend"),
+                default_when_ambiguous="kathara",
+            )
+        )
     return families, scales, backends
 
 

@@ -256,6 +256,7 @@ class SemanticOpsMixin:
             (parts := line.split(maxsplit=1))[0].isdigit()
             and len(parts) == 2
             and process_name in parts[1]
+            and not parts[1].endswith(" <defunct>")
             for line in output.splitlines()
             if line.split()
         )

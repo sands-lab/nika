@@ -323,12 +323,20 @@ class LabOpsTest:
         with pytest.raises(ValueError):
             runtime.frr_get_rpki_status("router1", prefix="10.0.0.0/8'; reboot; '")
 
-    def test_process_running(self):
+    @pytest.mark.parametrize(
+        "output,running",
+        [
+            ("123 named\n", True),
+            ("82 [named] <defunct>\n", False),
+            ("82 [named] <defunct>\n123 named\n", True),
+        ],
+    )
+    def test_process_running(self, output, running):
         runtime = _StubRuntime(
-            {("pc1", "pgrep -a named 2>/dev/null || echo NONE"): "123 named\n"}
+            {("pc1", "pgrep -a named 2>/dev/null || echo NONE"): output}
         )
 
-        assert runtime.process_running("pc1", "named")
+        assert runtime.process_running("pc1", "named") is running
 
     def test_process_running_rejects_timeout_diagnostic(self):
         runtime = _StubRuntime(

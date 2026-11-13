@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import time
 from collections.abc import Callable, Iterable, Mapping
@@ -384,8 +385,8 @@ def median_throughput_bps(
 def _start_iperf3_server(runtime: "LabRuntime", host: str, port: int) -> str | None:
     """Start a one-shot iperf3 server and wait until it listens; return its PID."""
     probe = (
-        f"ss -Hltnp 'sport = :{port}' 2>/dev/null || "
-        f"netstat -ltnp 2>/dev/null | grep ':{port} ' || true"
+        f'awk \'$4 == "0A" && $2 ~ /:{port:04X}$/ '
+        f'{{print ":{port} inode=" $10}}\' /proc/net/tcp /proc/net/tcp6 2>/dev/null'
     )
     # Never consume a listener belonging to scenario traffic or another probe.
     if f":{port}" in exec_or_empty(runtime, host, probe, timeout=5):
@@ -401,9 +402,12 @@ def _start_iperf3_server(runtime: "LabRuntime", host: str, port: int) -> str | N
         return None
     deadline = time.monotonic() + 2.0
     while time.monotonic() < deadline:
-        listeners = exec_or_empty(runtime, host, probe, timeout=5)
-        if f"pid={pid}," in listeners or any(
-            item.startswith(f"{pid}/") for item in listeners.split()
+        listeners = exec_or_empty(
+            runtime, host, f"{probe}; ls -l /proc/{pid}/fd 2>/dev/null", timeout=5
+        )
+        if any(
+            f"socket:[{inode}]" in listeners
+            for inode in re.findall(rf"^:{port} inode=(\d+)$", listeners, re.M)
         ):
             return pid
         time.sleep(0.1)

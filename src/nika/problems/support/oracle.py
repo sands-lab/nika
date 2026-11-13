@@ -389,8 +389,10 @@ def _pgrep(pattern: str) -> str:
     ``NO_PGREP`` when the node has no working pgrep.
     """
     return (
-        f"pgrep -a {shlex.quote(pattern)}; rc=$?; "
-        "[ $rc -eq 1 ] && echo NO_PROCESS; [ $rc -gt 1 ] && echo NO_PGREP; true"
+        f"out=$(pgrep -a {shlex.quote(pattern)}); rc=$?; "
+        "if [ $rc -eq 0 ]; then printf '%s\\n' \"$out\" | "
+        "awk '!/ <defunct>$/ {print; found=1} END {if (!found) print \"NO_PROCESS\"}'; "
+        "elif [ $rc -eq 1 ]; then echo NO_PROCESS; else echo NO_PGREP; fi"
     )
 
 

@@ -7,7 +7,7 @@ import random
 from collections import defaultdict
 
 from nika.net_env.net_env_pool import get_net_env_instance
-from nika.runtime.spec import MachineInventory
+from nika.runtime.spec import MachineInventory, NodeRole
 from nika.problems.base import ProblemBase
 from nika.problems.registry import get_problem_class, list_avail_problem_instances
 from nika.problems.support.router_ops import (
@@ -138,6 +138,18 @@ def _load_inventory(net_env) -> None:
     spec = net_env.get_lab_spec()
     if spec is None:
         raise ValueError(f"Cannot derive benchmark inventory for {net_env.name!r}.")
+
+    if net_env.machine_identities:
+        inventory = MachineInventory(net_env.machine_identities)
+        inventory.validate({node.name for node in spec.nodes})
+        net_env.bmv2_switches = inventory.names_for_capability("bmv2")
+        net_env.ovs_switches = inventory.names_for_capability("ovs")
+        net_env.sdn_controllers = inventory.names_for_role(NodeRole.CONTROLLER)
+        net_env.hosts = inventory.names_for_role(NodeRole.HOST)
+        net_env.routers = inventory.names_for_role(NodeRole.ROUTER)
+        net_env.switches = inventory.names_for_role(NodeRole.SWITCH)
+        net_env.servers = {**inventory.services(), **(net_env.servers or {})}
+        return
 
     net_env.bmv2_switches = []
     net_env.ovs_switches = []

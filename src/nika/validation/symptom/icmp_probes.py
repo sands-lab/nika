@@ -13,6 +13,7 @@ from typing import Any
 from nika.net_env.verify import ping_stats
 from nika.problems.base import build_verify_result
 from nika.problems.rca.inventory import kernel_data_interface
+from nika.problems.support.benchmark_targets import attached_end_hosts
 from nika.runtime.base import LabRuntime
 from nika.validation.symptom.addressing_probes import _HOST_PREFIXES, iface_ipv4
 
@@ -52,7 +53,7 @@ def _endpoints(problem: Any, node: str) -> dict[str, str]:
     """Pick a host attached to ``node`` and a remote host that reaches it."""
     runtime = problem.runtime
     neighbors = runtime.get_connected_devices(node)
-    receiver = next((n for n in neighbors if n.startswith(_HOST_PREFIXES)), None)
+    receiver = next(iter(attached_end_hosts(problem.net_env, node)), None)
     if receiver is None:
         raise RuntimeError(f"no end host is attached to {node}")
     receiver_ip = _data_ipv4(problem, receiver)

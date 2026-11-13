@@ -11,7 +11,11 @@ import typer
 
 from nika.traffic.od_flows import ODFLowGenerator
 from nika.traffic.web_access import WebBrowsingTrafficGenerator
-from nika.net_env.net_env_pool import get_net_env_instance, scenario_requires_topo_size
+from nika.net_env.net_env_pool import (
+    get_net_env_instance,
+    scenario_requires_topo_size,
+    resolve_scenario_topo_size,
+)
 from nika.runtime.factory import runtime_for_net_env
 from nika.utils.session_resolve import resolve_running_session_id
 from nika.utils.session_store import SessionStore
@@ -28,17 +32,11 @@ _TRAFFIC_TYPE_HELP: dict[str, str] = {
 
 
 def _net_env_kwargs_for_scenario(scenario: str, size: str | None) -> dict[str, Any]:
-    if scenario_requires_topo_size(scenario):
-        if not size:
-            raise typer.BadParameter(
-                f"Scenario '{scenario}' requires -s/--size (s, m, or l)."
-            )
-        return {"topo_size": size}
-    if size is not None:
-        raise typer.BadParameter(
-            f"Scenario '{scenario}' does not use topology sizes; omit -s/--size."
-        )
-    return {}
+    try:
+        size = resolve_scenario_topo_size(scenario, size)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    return {"topo_size": size} if size else {}
 
 
 def _resolve_lab_and_size(

@@ -78,6 +78,26 @@ class K8sLabUnitTest:
 
         assert "client" in inst.hosts
 
+    def test_link_recovery_restores_only_missing_routes_on_the_attachment(self):
+        from unittest.mock import Mock
+
+        inst = self._inst()
+        runtime = Mock()
+        runtime.exec.return_value = "101.0.0.0/8 via 10.0.1.2 dev eth1\n"
+        inst.restore_link_routes(runtime, "dc_exit", "eth1")
+        assert runtime.exec.call_args_list[-1].args == (
+            "dc_exit",
+            "ip route append 201.0.0.0/8 via 10.0.1.2 dev eth1",
+        )
+        assert runtime.exec.call_count == 2
+        runtime.reset_mock()
+        runtime.exec.return_value = ""
+        inst.restore_link_routes(runtime, "dc_exit", "eth0")
+        assert runtime.exec.call_args_list[-1].args == (
+            "dc_exit",
+            "ip route append default via 10.0.3.2 dev eth0",
+        )
+
     def test_as2r1_has_no_internet_bridge(self) -> None:
         """The external AS must not forward lab traffic to the internet."""
         inst = self._inst()

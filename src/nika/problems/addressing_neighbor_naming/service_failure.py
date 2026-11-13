@@ -86,6 +86,14 @@ class DNSServiceDown(ProblemBase):
     def benchmark_inject_params(cls, ctx):
         return {"host_name": ctx.dns0}
 
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "dns"
+        )
+
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.service_name = "named"

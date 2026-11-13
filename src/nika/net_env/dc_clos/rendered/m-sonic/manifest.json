@@ -1,0 +1,18 @@
+{
+  "digest": "d770bdb9941863d5c767ef07b136348f9395e8fdf4dc5754d153b8c7221c1db7",
+  "netlab": "26.10",
+  "routers": [
+    "leaf_1",
+    "leaf_2",
+    "leaf_3",
+    "leaf_4",
+    "leaf_5",
+    "leaf_6",
+    "leaf_7",
+    "leaf_8",
+    "spine_1",
+    "spine_2",
+    "spine_3",
+    "spine_4"
+  ]
+}

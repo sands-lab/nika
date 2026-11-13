@@ -50,3 +50,21 @@ def test_one_unreachable_host_is_not_a_conflict(monkeypatch):
     assert not _verify(
         monkeypatch, (0.0, 100.0), ("4e:40:f9:9b:45:53", "3a:a1:07:08:53:98")
     )
+
+
+@pytest.mark.parametrize("summary", ["received", "packets received"])
+def test_mac_conflict_counts_iputils_and_busybox_replies(monkeypatch, summary):
+    monkeypatch.setattr(
+        addressing_probes,
+        "exec_or_empty",
+        lambda *_args, **_kwargs: (
+            f"10.0.0.3 50 {summary}\n10.0.0.4 25 {summary}\n10.0.0.2 50 {summary}\n"
+        ),
+    )
+    assert addressing_probes._mac_conflict_reading(
+        SimpleNamespace(runtime=None), ENDS
+    ) == {
+        "owner_loss_percent": 0.0,
+        "claimant_loss_percent": 50.0,
+        "control_loss_percent": 0.0,
+    }

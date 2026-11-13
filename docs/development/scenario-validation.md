@@ -11,7 +11,7 @@ Every current scenario uses a **two-layer** healthy baseline, aligned with failu
 
 `verify_lab_with_retry()` follows `nika.runtime_validation.depth`: `light` (default) polls `startup_verify_lab()` when implemented and otherwise falls back to `verify_lab()`; `full` always polls `verify_lab()`. Production workflows do not import `evaluate_scenario`. Pre-deploy Batfish remains separate and off by default (`nika.static_validation.enabled`).
 
-Base `isp_<topology>` scenarios and `min3clos` also create a design-time validation contract. Batfish static validation can check that contract for ISP scenarios on Kathara with FRR and for ISP scenarios and `min3clos` on Containerlab with SONiC. Static and runtime evidence remain separate because they answer different questions.
+Base `isp_<topology>` scenarios, `dc_clos`, and `min3clos` create a design-time validation contract. Batfish static validation can check that contract for ISP scenarios on Kathara with FRR and for ISP scenarios, `dc_clos`, and `min3clos` on Containerlab with SONiC. Static and runtime evidence remain separate because they answer different questions.
 
 ## Specification-driven experiments
 
@@ -71,7 +71,7 @@ The scenario registry in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool
 
 | Scenario | Backend | Healthy intent | Batfish static validation | Runtime verifier |
 | --- | --- | --- | --- | --- |
-| `dc_clos` | Kathara | eBGP Clos fabric with DNS and HTTP services |  | [`dc_clos/verify.py`](../../src/nika/net_env/dc_clos/verify.py) |
+| `dc_clos` | Kathara or Containerlab | eBGP Clos fabric with DNS and HTTP services | SONiC | [`dc_clos/verify.py`](../../src/nika/net_env/dc_clos/verify.py) |
 | `campus_lan` | Kathara | Multi-area OSPF campus with DHCP services |  | [`campus_lan/verify.py`](../../src/nika/net_env/campus_lan/verify.py) |
 | `enterprise_branch` | Kathara | WireGuard and BGP overlay with VRF isolation |  | [`enterprise_branch/verify.py`](../../src/nika/net_env/enterprise_branch/verify.py) |
 | `sdn_l3_clos` | Kathara | ONOS-controlled OVS L3 Clos and ECMP |  | [`sdn_l3_clos/verify.py`](../../src/nika/net_env/sdn_l3_clos/verify.py) |
@@ -88,7 +88,11 @@ Each row below corresponds to one runtime check or one generated family of check
 
 ### `dc_clos`
 
-`dc_clos` checks the declared fabric and services at the selected size. Readiness requires every node, planned eBGP peer and client address; the full check also tests DNS and named HTTP delivery from every client.
+`dc_clos` checks the declared fabric and services at the selected size. Readiness requires every node, planned eBGP peer and client address; the full check also tests DNS and named HTTP delivery from every client. Containerlab profiles run the full service check at readiness. Both profiles carry the shared communication contract, including client-service reachability and isolation from the unowned test prefix. Native packet checks can evaluate those intents from Linux endpoints.
+
+Batfish checks SONiC's generated CONFIG_DB and FRR configuration, including the access VLANs. It models IPv4 routing and forwarding; it does not read back the running configuration. Startup and runtime probes check BGP sessions, endpoint addressing, DNS/HTTP, and live forwarding. Batfish does not establish FPM/Zebra health, native ECMP distribution, or forwarding during protocol transitions. SR Linux has no native Batfish parser in this startup path, so its acceptance uses deployed BGP state and endpoint probes.
+
+Receiver CPU contention is not admitted on Containerlab because the current probe has not established its receive-window-pressure contract there. Throughput loss alone does not prove that failure.
 
 | Target | Measurement | Expected result |
 | --- | --- | --- |
@@ -204,7 +208,7 @@ ISP stub checks select the first and last host in each IGP component, plus contr
 
 ### `min3clos`
 
-`min3clos` provides a five-node SR Linux eBGP Clos that connects two clients through redundant fabric links.
+`min3clos` provides a fixed fabric with two leaves, one spine, and two clients, running SR Linux or SONiC. Each leaf has one uplink to the spine.
 
 | Target | Measurement | Purpose | Expected result |
 | --- | --- | --- | --- |
@@ -244,7 +248,7 @@ ISP stub checks select the first and last host in each IGP component, plus contr
 
 ## Batfish static validation
 
-Batfish static validation applies to an `isp_<topology>` scenario on the Kathara backend with the FRR device profile, and to `isp_<topology>` and `min3clos` on Containerlab with the SONiC device profile. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run. The first run builds the pinned Batfish image from `scripts/batfish`.
+Batfish static validation applies to an `isp_<topology>` scenario on the Kathara backend with the FRR device profile, and to `isp_<topology>`, `min3clos`, and `dc_clos` on Containerlab with the SONiC device profile. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run. The first run builds the pinned Batfish image from `scripts/batfish`.
 
 ```shell
 uv sync --extra batfish

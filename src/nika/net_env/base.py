@@ -396,7 +396,7 @@ class NetworkEnvBase:
         """Leave no pristine on-disk baseline that a fault could be diffed against.
 
         Drops the backend's deploy-time file copies, saves running configurations
-        on FRR and SR Linux, and refreshes saved-file metadata on their peers.
+        on FRR, SR Linux, and SONiC, and refreshes saved-file metadata on their peers.
         Prepares neutral DHCP resolver hooks before fault injection.
         """
         if not self.SEAL_BASELINE:
@@ -437,6 +437,15 @@ class NetworkEnvBase:
         ]
         if srl_routers:
             runtime.lab_api.srl_align_saved_configs(srl_routers, timestamp)
+        sonic_routers = [
+            node
+            for node, identity in self.machine_identities.items()
+            if "sonic" in identity.capabilities
+        ]
+        if sonic_routers:
+            from nika.net_env.utils.sonic.common import align_saved_configs
+
+            align_saved_configs(runtime, sonic_routers, timestamp)
 
     def business_workload(self) -> "BusinessWorkload | None":
         """Always-on traffic of the scenario's users and services.

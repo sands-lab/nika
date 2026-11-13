@@ -58,7 +58,7 @@ class NetEnvSpec:
     # binding names the class that deploys the same scenario on that platform;
     # the scenario default remains the class bound above.
     device_profiles: Mapping[str, BackendEnvBinding] | None = None
-    # Router platforms a Containerlab-only scenario runs with ``device_profile``;
+    # Router platforms a Containerlab scenario runs with ``device_profile``;
     # the first is the default.
     containerlab_device_profiles: tuple[str, ...] = ()
     # Designed unloaded RTT of the benchmark WAN flow, when specified.
@@ -152,7 +152,14 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
             "dc_clos",
             "forwarding_device",
         ),
-        supported_backends=("kathara",),
+        supported_backends=("kathara", "containerlab"),
+        backend_bindings={
+            "containerlab": BackendEnvBinding(
+                module="nika.net_env.dc_clos.containerlab",
+                class_name="ContainerlabDCClos",
+            ),
+        },
+        containerlab_device_profiles=("nokia_srlinux", "sonic"),
         topo_size=["s", "m", "l"],
     ),
     "campus_lan": NetEnvSpec(
@@ -415,6 +422,8 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
             "mac",
         ),
         supported_backends=("kathara",),
+        topo_size=["s", "m", "l"],
+        deploy_defaults={"topo_size": "m"},
     ),
     "llmd_lab": NetEnvSpec(
         lab_name="llmd_lab",
@@ -442,6 +451,8 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
             "mac",
         ),
         supported_backends=("kathara",),
+        topo_size=["s", "m", "l"],
+        deploy_defaults={"topo_size": "m"},
     ),
 }
 
@@ -662,7 +673,7 @@ def scenario_device_profiles(scenario_name: str) -> tuple[str, ...]:
 
 
 def scenario_containerlab_device_profiles(scenario_name: str) -> tuple[str, ...]:
-    """Return router platforms selectable for a Containerlab-only scenario."""
+    """Return router platforms selectable on the Containerlab backend."""
     return _require_scenario(scenario_name).containerlab_device_profiles
 
 
@@ -778,6 +789,9 @@ def get_net_env_instance(
     )
     cls = _load_net_env_class(canonical, backend=resolved)
     spec = _require_scenario(canonical)
+    # An explicit ``topo_size=None`` means "unspecified" and keeps the default.
+    if kwargs.get("topo_size", ...) is None:
+        kwargs.pop("topo_size")
     merged: dict[str, Any] = {**(spec.deploy_defaults or {}), **kwargs}
     native = (spec.device_profiles or {}).get(merged.get("device_profile"))
     if resolved == "kathara" and native is not None:
@@ -825,9 +839,31 @@ def list_all_net_envs(*, backend: str | None = None) -> dict[str, NetEnvSpec]:
 
 
 def scenario_requires_topo_size(scenario_name: str) -> bool:
-    """Return True if this scenario's lab expects an explicit topo size (s/m/l)."""
+    """Return True if this scenario offers topology sizes (s/m/l)."""
     topo_size = _require_scenario(scenario_name).topo_size
     return isinstance(topo_size, list)
+
+
+def scenario_default_topo_size(scenario_name: str) -> str | None:
+    """Default deployment size when the caller omits it."""
+    return (_require_scenario(scenario_name).deploy_defaults or {}).get("topo_size")
+
+
+def resolve_scenario_topo_size(scenario_name: str, size: str | None) -> str | None:
+    """Resolve an omitted deployment size and validate the scenario's size contract."""
+    size = size or scenario_default_topo_size(scenario_name)
+    if size is not None and size not in {"s", "m", "l"}:
+        raise ValueError("Topology size must be one of: s, m, l.")
+    if scenario_requires_topo_size(scenario_name):
+        if size is None:
+            raise ValueError(
+                f"Scenario '{scenario_name}' requires -s/--size (s, m, or l)."
+            )
+    elif size is not None:
+        raise ValueError(
+            f"Scenario '{scenario_name}' does not use topology sizes; omit -s/--size."
+        )
+    return size
 
 
 def scenario_fixed_topo_size(scenario_name: str) -> str | None:
@@ -841,7 +877,7 @@ def scenario_fixed_topo_size(scenario_name: str) -> str | None:
 def get_probe_path(
     scenario_name: str,
     *,
-    topo_size: str = "s",
+    topo_size: str | None = None,
     deploy_overrides: Mapping[str, Any] | None = None,
     net_env: NetworkEnvBase | None = None,
 ) -> ProbePath | None:
@@ -871,7 +907,8 @@ def get_probe_path(
                 if value is not None:
                     deployment[key] = value
         deployment.update(deploy_overrides or {})
-        return cls.default_probe_path(topo_size=topo_size, **deployment)
+        deployment["topo_size"] = topo_size or deployment.get("topo_size") or "s"
+        return cls.default_probe_path(**deployment)
     except Exception as exc:  # noqa: BLE001
         system_logger.warning(f"No default probe path for {scenario_name!r}: {exc}")
         return None

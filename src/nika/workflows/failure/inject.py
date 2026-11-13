@@ -104,6 +104,7 @@ class PreparedFailure:
             result = self.problem.recover_fault(params=self.params)
         if not isinstance(result, dict) or result.get("verified") is not True:
             raise RuntimeError(f"Failure recovery verification failed: {result}")
+        self.problem.net_env.align_saved_configs()
         return result
 
 

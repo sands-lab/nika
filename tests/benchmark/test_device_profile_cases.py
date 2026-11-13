@@ -139,6 +139,11 @@ def test_generation_expands_native_profiles_only_at_size_s() -> None:
         ("dc_clos", "s", "routeros"),
         ("dc_clos", "m", None),
         ("dc_clos", "l", None),
+        *(
+            ("dc_clos", size, profile)
+            for size in ("s", "m", "l")
+            for profile in ("nokia_srlinux", "sonic")
+        ),
     }
 
 
@@ -241,6 +246,30 @@ def test_native_rows_parse_and_need_licensed_images() -> None:
     assert deployment_needs_licensed_images("routeros_simple_bgp")
 
 
+def test_containerlab_profile_rows_keep_their_backend() -> None:
+    # dc_clos defaults to Kathara; min3clos runs only on Containerlab.
+    row = normalize_benchmark_row(
+        {
+            "scenario": "dc_clos",
+            "problem": "link_down",
+            "topo_size": "s",
+            "backend": "containerlab",
+            "device_profile": "sonic",
+            "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
+        }
+    )
+    assert (row["backend"], row["device_profile"]) == ("containerlab", "sonic")
+    fixed = normalize_benchmark_row(
+        {
+            "scenario": "min3clos",
+            "problem": "link_down",
+            "device_profile": "sonic",
+            "inject": {"host_name": "leaf1", "intf_name": "e1-1"},
+        }
+    )
+    assert "backend" not in fixed
+
+
 def test_bgp_md5_targets_originate_paths_in_route_reflector_plans() -> None:
     from nika.net_env.isp.bgp import compile_bgp_plan
     from nika.net_env.isp.igp import IspConfig, compile_isp_plan
@@ -281,7 +310,7 @@ def test_predicate_has_a_device_profile_dimension() -> None:
     assert not max_prefix.is_compatible("isp_abilene/ebgp", "nokia_srlinux")
     assert not max_prefix.is_compatible("isp_abilene/ebgp", backend="containerlab")
     assert max_prefix.is_compatible("isp_abilene/ebgp", backend="kathara")
-    assert not link_down.is_compatible("dc_clos", "sonic")
+    assert link_down.is_compatible("dc_clos", "sonic")
     # SONiC routers run FRR even where the scenario's default routers do not.
     assert routing_down.is_compatible("min3clos", "sonic")
     assert not routing_down.is_compatible("min3clos")
@@ -537,6 +566,32 @@ def test_hijack_compatibility_covers_supported_backends() -> None:
         problem == "bgp_hijacking" and scenario == "min3clos"
         for problem, scenario, *_ in specs
     )
+    # A link failure applied outside the nodes runs on both backends.
+    corruption = get_problem_class("link_packet_corruption")
+    assert corruption.is_compatible("min3clos", "sonic", backend="containerlab")
+    assert corruption.is_compatible("isp_abilene", backend="containerlab")
+
+
+def test_failure_compatibility_requires_a_shared_backend() -> None:
+    receiver = get_problem_class("receiver_resource_contention")
+    assert receiver.is_compatible("dc_clos", "frr", backend="kathara")
+    assert not receiver.is_compatible("dc_clos", "sonic", backend="containerlab")
+    # TTL security runs on Kathara and on SONiC's provider, not on SR Linux.
+    ttl = get_problem_class("bgp_ttl_security_mismatch")
+    assert ttl.is_compatible("enterprise_branch")
+    assert not ttl.is_compatible("min3clos")
+    assert ttl.is_compatible("isp_abilene", "sonic", backend="containerlab")
+    # Multi-backend scenarios retain a usable Kathara deployment.
+    assert ttl.is_compatible("isp_abilene")
+    assert ttl.is_compatible("isp_abilene", backend="kathara")
+    assert not ttl.is_compatible("isp_abilene", backend="containerlab")
+    specs = list(iter_failure_case_specs())
+    min3clos_profiles = {
+        variant.get("device_profile")
+        for problem, scenario, _size, variant in specs
+        if problem == "bgp_ttl_security_mismatch" and scenario == "min3clos"
+    }
+    assert min3clos_profiles == {"sonic"}
     # A link failure applied outside the nodes runs on both backends.
     corruption = get_problem_class("link_packet_corruption")
     assert corruption.is_compatible("min3clos", "sonic", backend="containerlab")

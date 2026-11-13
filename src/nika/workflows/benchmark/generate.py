@@ -198,13 +198,20 @@ def _profile_variants(scenario: str, topo_size: str) -> list[dict[str, str] | No
     Kathara labs add their native profiles; Containerlab-only labs add the
     platforms after their default one.
     """
-    return [None] + [
+    variants = [None] + [
         {"device_profile": profile}
-        for profile in (
-            *native_benchmark_profiles(scenario, topo_size),
-            *scenario_containerlab_device_profiles(scenario)[1:],
-        )
+        for profile in native_benchmark_profiles(scenario, topo_size)
     ]
+    platforms = scenario_containerlab_device_profiles(scenario)
+    # A second backend needs explicit rows for its default platform too.
+    if "kathara" in scenario_supported_backends(scenario):
+        variants.extend(
+            {"backend": "containerlab", "device_profile": profile}
+            for profile in platforms
+        )
+    else:
+        variants.extend({"device_profile": profile} for profile in platforms[1:])
+    return variants
 
 
 def _offline_kwargs(isp_options: dict[str, Any] | None) -> dict[str, Any]:
@@ -322,7 +329,9 @@ def iter_failure_case_specs(
             for topo_size in _topo_sizes_for_scenario(scenario):
                 for options in _profile_variants(scenario, topo_size):
                     profile = (options or {}).get("device_profile")
-                    if problem_cls.is_compatible(scenario, profile):
+                    if problem_cls.is_compatible(
+                        scenario, profile, backend=(options or {}).get("backend")
+                    ):
                         yield problem, scenario, topo_size, options
 
 

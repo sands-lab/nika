@@ -8,7 +8,7 @@ import yaml
 
 from nika.cli.utils import fmt_table
 from nika.cli.warning_capture import install_warning_capture
-from nika.net_env.net_env_pool import scenario_requires_topo_size
+from nika.net_env.net_env_pool import resolve_scenario_topo_size
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     export_run_config_env,
@@ -698,14 +698,10 @@ def benchmark_run(
             )
         if not problem:
             raise typer.BadParameter("--problem is required when SCENARIO is given.")
-        if scenario_requires_topo_size(scenario) and not size:
-            raise typer.BadParameter(
-                f"Scenario '{scenario}' requires -s/--size (s, m, or l)."
-            )
-        if not scenario_requires_topo_size(scenario) and size is not None:
-            raise typer.BadParameter(
-                f"Scenario '{scenario}' does not use sizes; omit -s/--size."
-            )
+        try:
+            resolve_scenario_topo_size(scenario, size)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
         topo = size or ""
         inject_params = _parse_set_options(sets)
         if not inject_params:

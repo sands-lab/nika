@@ -77,6 +77,10 @@ class MacAddressConflict(ProblemBase):
     root_cause_owner = "interface"
     description = "Two hosts share the same MAC address."
     TAGS: str = ["mac"]
+    INCOMPATIBLE_SCENARIOS = {
+        "llmd_lab": "The flat LAN endpoints forward misdelivered frames, so "
+        "duplicate MACs do not reliably cause the required reachability loss.",
+    }
 
     Params = MacAddressConflictParams
 

@@ -21,6 +21,11 @@ ACCEPTED_PARSE_WARNINGS = (
     (r"bgp default show-(nexthop-)?hostname", "display only"),
     (r"domain ipv4 host .*", "name resolution only"),
     (r"debug .*", "logging only"),
+    (
+        r"no zebra nexthop kernel enable|no fpm use-next-hop-groups|"
+        r"fpm address 127\.0\.0\.1|zebra nexthop-group keep 1",
+        "SONiC FRR-to-FIB service plumbing; native checks verify route installation",
+    ),
     (r"no management enable", "management plane only"),
     (
         r"(no )?neighbor \S+ send-community.*",

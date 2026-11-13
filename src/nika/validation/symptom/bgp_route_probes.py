@@ -16,11 +16,16 @@ from typing import Any
 from nika.net_env.net_env_pool import get_probe_path
 from nika.net_env.verify import exec_or_empty, ping_stats
 from nika.problems.base import build_verify_result
-from nika.problems.support.router_ops import router_fault_ops
+from nika.problems.support.router_ops import router_fault_ops, profile_routes_with_frr
 from nika.problems.support.oracle import srl_cli
-from nika.service.containerlab.srl_api import srl_bgp_prefix_paths
+from nika.service.containerlab.srl_api import srl_bgp_prefix_paths, srl_json
 from nika.runtime.base import LabRuntime
-from nika.validation.symptom.routing_probes import bgp_speakers_of, host_addresses
+from nika.validation.symptom.routing_probes import (
+    _vtysh,
+    bgp_neighbors,
+    bgp_speakers_of,
+    host_addresses,
+)
 
 # BGP UPDATEs propagate in seconds; the bound covers MRAI and RR reflection.
 _ROUTE_WAIT_SEC = 60.0
@@ -28,7 +33,7 @@ _POLL_SEC = 3.0
 
 
 def _json(runtime: LabRuntime, node: str, command: str) -> Any:
-    raw = exec_or_empty(runtime, node, command, timeout=30).strip()
+    raw = _vtysh(runtime, node, command).strip()
     if not raw.startswith("{"):
         return None
     try:
@@ -40,14 +45,14 @@ def _json(runtime: LabRuntime, node: str, command: str) -> Any:
 def prefix_paths(problem: Any, router: str, prefix: str) -> list[dict] | None:
     """Paths ``router`` holds for exactly ``prefix``; ``None`` when unreadable."""
     try:
-        ops = router_fault_ops(problem, router)
-        if ops is not None:
+        ops = (
+            router_fault_ops(problem, router) if not router.startswith("pod:") else None
+        )
+        if ops is not None and not profile_routes_with_frr(ops.profile):
             return ops.bgp_prefix_paths(prefix)
     except Exception:  # noqa: BLE001 - unreadable is distinct from an empty table
         return None
-    data = _json(
-        problem.runtime, router, f"vtysh -c 'show bgp ipv4 unicast {prefix} json'"
-    )
+    data = _json(problem.runtime, router, f"show bgp ipv4 unicast {prefix} json")
     if not isinstance(data, dict) or (data and "paths" not in data):
         return None
     return [
@@ -63,13 +68,35 @@ def prefix_paths(problem: Any, router: str, prefix: str) -> list[dict] | None:
 
 
 def _table(problem: Any, router: str) -> dict[str, list[dict]] | None:
+    if srl_cli(problem.net_env, router):
+        try:
+            output = problem.runtime.lab_api.srl_exec_cli(
+                router, "info from state network-instance default bgp-rib | as json"
+            )
+            data = srl_json(output)
+            prefixes = {
+                row["prefix"]
+                for instance in data["network-instance"]
+                for family in instance["bgp-rib"].get("afi-safi", [])
+                if family["afi-safi-name"].split(":")[-1] == "ipv4-unicast"
+                for row in family.get("ipv4-unicast", {})
+                .get("local-rib", {})
+                .get("route", [])
+            }
+            return {prefix: srl_bgp_prefix_paths(output, prefix) for prefix in prefixes}
+        except (KeyError, ValueError):
+            return None
     try:
-        ops = router_fault_ops(problem, router)
-        if ops is not None:
+        ops = (
+            router_fault_ops(problem, router) if not router.startswith("pod:") else None
+        )
+        if ops is not None and not profile_routes_with_frr(ops.profile):
             return ops.bgp_table()
     except Exception:  # noqa: BLE001 - unreadable is distinct from an empty table
         return None
-    data = _json(problem.runtime, router, "vtysh -c 'show bgp ipv4 unicast json'")
+    data = _json(problem.runtime, router, "show bgp ipv4 unicast json")
+    if data == {}:
+        return {}
     if data is None or not isinstance(data.get("routes"), dict):
         return None
     return {
@@ -89,12 +116,16 @@ def _table(problem: Any, router: str) -> dict[str, list[dict]] | None:
 
 def _local_asn(problem: Any, router: str) -> int | None:
     try:
-        ops = router_fault_ops(problem, router)
+        if srl_cli(problem.net_env, router):
+            return problem.runtime.lab_api.srl_get_bgp_as(router)
+        ops = (
+            router_fault_ops(problem, router) if not router.startswith("pod:") else None
+        )
         if ops is not None:
             return ops.bgp_asn()
     except Exception:  # noqa: BLE001 - an unreadable identity cannot identify an origin
         return None
-    data = _json(problem.runtime, router, "vtysh -c 'show bgp summary json'")
+    data = _json(problem.runtime, router, "show bgp summary json")
     unicast = (data or {}).get("ipv4Unicast") or {}
     asn = unicast.get("as")
     return int(asn) if isinstance(asn, int) else None
@@ -320,6 +351,8 @@ def _advertised_by(
     table = _table(problem, observer)
     if table is None or asn is None:
         return None
+    if not table:
+        return []
     observer_asn = _local_asn(problem, observer)
     if observer_asn is None:
         return None
@@ -339,6 +372,10 @@ def advertisement_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, A
     if addrs is None or asn is None:
         return False, {"host": host, "error": f"bgp_identity_query_failed_on_{host}"}
     wanted = getattr(params, "prefix", None)
+    prefixes = {str(ipaddress.ip_network(wanted))} if wanted else None
+    withdrawal = getattr(problem, "withdrawal_prefixes", None)
+    if callable(withdrawal):
+        prefixes = withdrawal(params)
     observers = (
         [params.symptom_host]
         if getattr(params, "symptom_host", None)
@@ -354,12 +391,17 @@ def advertisement_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, A
     seen: dict[str, list[str]] = {}
     errors: list[str] = []
     for observer in observers:
+        if (
+            observer.startswith("pod:")
+            and bgp_neighbors(problem.runtime, observer) == {}
+        ):
+            continue
         learned = _advertised_by(problem, observer, addrs, asn)
         if learned is None:
             errors.append(f"bgp_query_failed_on_{observer}")
             continue
-        if wanted:
-            learned = [p for p in learned if p == str(ipaddress.ip_network(wanted))]
+        if prefixes:
+            learned = [p for p in learned if p in prefixes]
         if learned:
             seen[observer] = learned
     problem._audit_advertised = (

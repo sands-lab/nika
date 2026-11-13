@@ -179,6 +179,7 @@ def _native_profile_option(
     from nika.net_env.net_env_pool import (
         scenario_containerlab_device_profiles,
         scenario_device_profiles,
+        scenario_supported_backends,
     )
 
     profile = provided["device_profile"]
@@ -192,6 +193,9 @@ def _native_profile_option(
             raise ValueError(
                 f"device_profile={profile!r} requires backend containerlab."
             )
+        # Keep the backend where Containerlab is not the scenario's only one.
+        if scenario_supported_backends(scenario) != ["containerlab"]:
+            return {"backend": "containerlab", "device_profile": profile}
         return {"device_profile": profile}
     if profile not in scenario_device_profiles(scenario):
         return None

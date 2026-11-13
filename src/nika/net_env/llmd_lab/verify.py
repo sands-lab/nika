@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from nika.net_env.llmd_lab.topology import LLMDTopology
+
 from nika.net_env.utils.k8s_client_hosts import models_http_url, sync_llmd_client_hosts
 from nika.net_env.verify import (
     build_lab_verify_result,
@@ -25,19 +27,6 @@ from nika.net_env.verify_collection import (
     mesh_ping_command,
     http_command,
 )
-
-_LLMD_EXPECTED = (
-    "controller",
-    "worker1",
-    "worker2",
-    "worker3",
-    "worker4",
-    "worker5",
-    "client",
-)
-
-# k3s node addresses on the lab LAN.
-_K3S_NODE_ADDRESSES = tuple(f"200.0.0.{index}" for index in range(1, 7))
 
 # Namespaces whose pods carry the serving path: MetalLB (gateway VIP), the
 # agentgateway data plane, and the llm-d router and model servers.
@@ -62,7 +51,7 @@ def _unready_serving_pods(runtime: LabRuntime) -> dict[str, list[str] | None]:
 
 
 def _verify_llmd_lab(
-    runtime: LabRuntime, *, scenario_name: str, full: bool
+    runtime: LabRuntime, *, scenario_name: str, full: bool, topo_size: str
 ) -> dict[str, Any]:
     """Fast readiness for inject: nodes/MetalLB plus llm-d gateway HTTP.
 
@@ -70,6 +59,8 @@ def _verify_llmd_lab(
     after ``start_net_env`` returns, so startup must wait for the llm-d
     namespace and models path — not only for Ready k3s nodes.
     """
+    topology = LLMDTopology(topo_size)
+    addresses = topology.addresses
     live_runtime = runtime
     commands = [
         VerifyCommand("controller", command, 10 if command.startswith("ip ") else 60)
@@ -109,23 +100,27 @@ def _verify_llmd_lab(
     sync_llmd_client_hosts(live_runtime, gateway_addr=gateway_addr)
     models_url = models_http_url(gateway_addr)
     commands = [
-        VerifyCommand("client", ping_command("200.0.0.1", count=3), 15),
+        VerifyCommand("client", ping_command(addresses["controller"], count=3), 15),
         VerifyCommand("client", http_command(models_url)),
     ]
     if full:
         commands.append(VerifyCommand("client", "ip -4 -o addr show dev eth0", 10))
         commands.extend(
             VerifyCommand("client", mesh_ping_command(address), 30)
-            for address in _K3S_NODE_ADDRESSES
+            for address in addresses.values()
         )
     runtime = runtime.merged(
         collect_verify_commands(live_runtime, commands, nodes=runtime.nodes)
     )
     checks = {
-        "nodes_deployed": nodes_deployed(runtime, _LLMD_EXPECTED),
-        "controller_ipv4": host_has_ipv4(runtime, "controller", "200.0.0.1"),
-        "client_reaches_controller": ping_ok(runtime, "client", "200.0.0.1", count=3),
-        "k3s_nodes_ready": ready_nodes >= 6,
+        "nodes_deployed": nodes_deployed(runtime, (*addresses, "client")),
+        "controller_ipv4": host_has_ipv4(
+            runtime, "controller", addresses["controller"]
+        ),
+        "client_reaches_controller": ping_ok(
+            runtime, "client", addresses["controller"], count=3
+        ),
+        "k3s_nodes_ready": ready_nodes == len(addresses),
         "metallb_ready": "Running"
         in exec_or_empty(
             runtime,
@@ -143,7 +138,7 @@ def _verify_llmd_lab(
         "models_url": models_url,
     }
     if full:
-        unreachable = ping_unreachable(runtime, "client", _K3S_NODE_ADDRESSES)
+        unreachable = ping_unreachable(runtime, "client", addresses.values())
         unready = _unready_serving_pods(runtime)
         checks.update(
             client_ipv4=host_has_ipv4(runtime, "client", "200.0.0.7"),
@@ -165,10 +160,16 @@ def _verify_llmd_lab(
 
 
 def verify_llmd_lab_startup(
-    runtime: LabRuntime, *, scenario_name: str
+    runtime: LabRuntime, *, scenario_name: str, topo_size: str = "m"
 ) -> dict[str, Any]:
-    return _verify_llmd_lab(runtime, scenario_name=scenario_name, full=False)
+    return _verify_llmd_lab(
+        runtime, scenario_name=scenario_name, full=False, topo_size=topo_size
+    )
 
 
-def verify_llmd_lab(runtime: LabRuntime, *, scenario_name: str) -> dict[str, Any]:
-    return _verify_llmd_lab(runtime, scenario_name=scenario_name, full=True)
+def verify_llmd_lab(
+    runtime: LabRuntime, *, scenario_name: str, topo_size: str = "m"
+) -> dict[str, Any]:
+    return _verify_llmd_lab(
+        runtime, scenario_name=scenario_name, full=True, topo_size=topo_size
+    )

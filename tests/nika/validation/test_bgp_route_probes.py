@@ -54,6 +54,57 @@ def test_partial_advertisement_baseline_cannot_hide_an_unreadable_observer(monke
     assert not probes.advertisement_withdrawn(problem, params)[0]
 
 
+def test_metallb_routes_are_read_in_the_frr_pod_container():
+    import json
+
+    problem = _problem("frr", "")
+    problem.runtime.lab_api = SimpleNamespace(
+        kubectl=Mock(
+            return_value=SimpleNamespace(
+                stdout=json.dumps(
+                    {
+                        "routes": {
+                            "203.0.113.0/24": [{"path": "65001", "bestpath": True}]
+                        }
+                    }
+                )
+            )
+        )
+    )
+    router = "pod:controller/metallb-system/speaker-abc"
+    table = probes._table(problem, router)
+    assert table["203.0.113.0/24"][0]["aspath"] == "65001"
+    problem.runtime.lab_api.kubectl.assert_called_once_with(
+        "controller",
+        "exec -n metallb-system speaker-abc -c frr -- vtysh -c 'show bgp ipv4 unicast json'",
+        check=False,
+    )
+    problem.runtime.exec.assert_not_called()
+    problem.runtime.lab_api.kubectl.return_value.stdout = "{}"
+    assert probes._advertised_by(problem, router, {"192.0.2.1"}, 65001) == []
+    problem.runtime.lab_api.kubectl.return_value.stdout = "[TIMEOUT]"
+    assert probes._table(problem, router) is None
+
+
+@pytest.mark.parametrize("neighbors,healthy", [({}, True), (None, False)])
+def test_advertisement_observer_needs_configured_bgp_sessions(
+    monkeypatch, neighbors, healthy
+):
+    problem = _problem("frr", "")
+    params = SimpleNamespace(host_name="origin", symptom_host=None, prefix=None)
+    pod = "pod:controller/metallb-system/speaker-abc"
+    monkeypatch.setattr(probes, "bgp_speakers_of", lambda *_: ["observer", pod])
+    monkeypatch.setattr(probes, "bgp_neighbors", lambda *_: neighbors)
+    monkeypatch.setattr(probes, "_router_addresses", lambda *_: {"192.0.2.1"})
+    monkeypatch.setattr(probes, "_local_asn", lambda *_: 65001)
+    monkeypatch.setattr(
+        probes,
+        "_advertised_by",
+        lambda _, node, *args: ["203.0.113.0/24"] if node == "observer" else None,
+    )
+    assert probes.advertisement_baseline(problem, params)[0] is healthy
+
+
 def test_unreadable_withdrawal_is_not_a_lost_route():
     problem = _problem("routeros", "failure: command failed")
     problem._audit_advertised = {
@@ -67,6 +118,22 @@ def test_unreadable_withdrawal_is_not_a_lost_route():
     )
     assert not ok
     assert result["details"]["errors"] == ["bgp_query_failed_on_observer"]
+
+
+def test_network_withdrawal_does_not_require_redistributed_loopbacks_to_disappear(
+    monkeypatch,
+):
+    problem = _problem("frr", "")
+    params = SimpleNamespace(host_name="origin", symptom_host="observer", prefix=None)
+    problem.withdrawal_prefixes = lambda _: {"203.0.113.0/24"}
+    monkeypatch.setattr(probes, "_router_addresses", lambda *_: {"192.0.2.1"})
+    monkeypatch.setattr(probes, "_local_asn", lambda *_: 65001)
+    learned = ["192.0.2.1/32", "203.0.113.0/24"]
+    monkeypatch.setattr(probes, "_advertised_by", lambda *_: learned)
+    assert probes.advertisement_baseline(problem, params)[0]
+    assert problem._audit_advertised["seen"] == {"observer": ["203.0.113.0/24"]}
+    learned[:] = ["192.0.2.1/32"]
+    assert probes.advertisement_withdrawn(problem, params)[0]
 
 
 def test_unreadable_hijacker_identity_is_not_a_healthy_baseline(monkeypatch):
@@ -157,3 +224,63 @@ def test_srl_hijack_uses_best_path_origin_beyond_a_transit_next_hop(monkeypatch)
     ok, reading = probes.hijack_baseline(problem, params)
     assert not ok
     assert reading["error"] == "bgp_query_failed_on_observer"
+
+
+@pytest.mark.parametrize("profile", ["frr", "sonic"])
+def test_frr_platform_route_reads_preserve_origin_and_best_path(profile):
+    import json
+
+    prefix = "203.0.113.0/24"
+    hop = {"ip": "192.0.2.1"}
+    problem = _problem(
+        profile,
+        json.dumps(
+            {
+                "paths": [
+                    {
+                        "aspath": {"string": "65003"},
+                        "bestpath": {"overall": True},
+                        "nexthops": [hop],
+                    }
+                ]
+            }
+        ),
+    )
+    assert probes.prefix_paths(problem, "observer", prefix) == [
+        {
+            "aspath": "65003",
+            "best": True,
+            "nexthops": ["192.0.2.1"],
+            "originator": None,
+            "peer_router_id": None,
+        }
+    ]
+    problem.runtime.exec.return_value = json.dumps(
+        {"routes": {prefix: [{"path": "65003", "bestpath": True, "nexthops": [hop]}]}}
+    )
+    assert probes._table(problem, "observer")[prefix][0]["aspath"] == "65003"
+    assert probes._table(problem, "observer")[prefix][0]["best"]
+
+
+@pytest.mark.parametrize("profile", ["frr", "sonic"])
+def test_bgp_observers_are_read_when_igps_are_not_running(profile):
+    import json
+
+    from nika.validation.symptom.routing_probes import _read_view
+
+    problem = _problem(profile, "")
+    problem.runtime.backend = "containerlab" if profile == "sonic" else "kathara"
+    problem.runtime.exec.side_effect = lambda _, cmd, **kwargs: (
+        json.dumps({"default": {"192.0.2.1": {"bgpState": "Established"}}})
+        if "show bgp" in cmd
+        else ""
+    )
+    plan = {
+        "host_addresses": ["192.0.2.1"],
+        "facing": {},
+        "ospf": ["observer"],
+        "isis": ["observer"],
+        "bgp": ["observer"],
+    }
+    states, _, _ = _read_view(problem, "origin", plan)
+    assert states == {"bgp|observer|192.0.2.1": "Established"}

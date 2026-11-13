@@ -131,7 +131,7 @@ class StaticBlackHole(ProblemBase):
         return [node_resource(params.host_name)]
 
     def _endpoint_hosts(self) -> list[str]:
-        """Return client/PC/web endpoints, including Containerlab lab-spec fallback."""
+        """Return declared endpoints, including Containerlab lab-spec fallback."""
         names: list[str] = []
         seen: set[str] = set()
 
@@ -144,6 +144,9 @@ class StaticBlackHole(ProblemBase):
             _add(host)
         for host in list((self.net_env.servers or {}).get("web") or []):
             _add(host)
+        for host, identity in self.net_env.machine_identities.items():
+            if identity.reachability_target:
+                _add(host)
 
         spec = None
         if hasattr(self.net_env, "get_lab_spec"):
@@ -175,25 +178,39 @@ class StaticBlackHole(ProblemBase):
         toward that prefix is dropped. Local attached subnets often stay
         on-link and never hit a blackhole installed for them.
         """
+        connected = set(self.runtime.get_connected_devices(params.host_name) or [])
+        destinations = [
+            cidr
+            for host in self._endpoint_hosts()
+            if host not in connected and host != params.host_name
+            if (cidr := self._dataplane_cidr(host))
+        ]
+        learned = []
         ops = native_fault_ops(self, params.host_name, "remote_bgp_prefixes")
         if ops is not None:
             learned = ops.remote_bgp_prefixes()
-            if learned:
-                return learned[0]
         elif self.lab_backend == "kathara":
             bgp_routes = self.runtime.exec(
                 params.host_name, "ip -4 route show proto bgp 2>/dev/null || true"
             )
-            remote_cidr = _first_bgp_prefix(bgp_routes)
-            if remote_cidr is not None:
-                return remote_cidr
-        connected = set(self.runtime.get_connected_devices(params.host_name) or [])
-        for host in self._endpoint_hosts():
-            if host in connected or host == params.host_name:
-                continue
-            cidr = self._dataplane_cidr(host)
-            if cidr:
-                return cidr
+            learned = [
+                prefix
+                for line in bgp_routes.splitlines()
+                if (prefix := _first_bgp_prefix(line))
+            ]
+        for prefix in sorted(
+            learned,
+            key=lambda value: (-ipaddress.ip_network(value).prefixlen, value),
+        ):
+            if any(
+                ipaddress.ip_network(prefix).overlaps(ipaddress.ip_network(cidr))
+                for cidr in destinations
+            ):
+                return prefix
+        if destinations:
+            return destinations[0]
+        if learned:
+            return learned[0]
         return str(
             ipaddress.ip_network(
                 resolve_victim_host_ip(self.runtime, params.host_name), strict=False

@@ -15,6 +15,7 @@ pytestmark = pytest.mark.unit
 def test_native_inject_fails_when_prefix_is_never_advertised(monkeypatch) -> None:
     ops = MagicMock()
     ops.profile = "sonic"
+    ops.save_config.return_value = "baseline"
     ops.bgp_advertised_to.return_value = []
     monkeypatch.setattr(
         "nika.problems.security.bgp.native_fault_ops", lambda *a, **k: ops
@@ -30,3 +31,9 @@ def test_native_inject_fails_when_prefix_is_never_advertised(monkeypatch) -> Non
     with pytest.raises(RuntimeError, match="did not advertise hijacked prefix"):
         problem.inject_fault(params)
     ops.originate_bgp_prefix.assert_called_once_with("203.0.113.0/24")
+    monkeypatch.setattr(
+        "nika.problems.security.bgp.native_fault_ops",
+        lambda *a, **k: pytest.fail("Recovery lost the injecting provider's state"),
+    )
+    assert problem.recover_fault(params)["verified"]
+    ops.restore_config.assert_called_once_with("baseline")

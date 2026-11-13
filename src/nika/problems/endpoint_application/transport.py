@@ -653,6 +653,9 @@ class ReceiverResourceContentionParams(BaseModel):
 
 
 class ReceiverResourceContention(ProblemBase):
+    # SONiC VS slowed the stream without establishing receive-window pressure.
+    # Keep the current admission contract scoped to its validated backend.
+    supported_backends = ("kathara",)
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
     symptom_probe = "custom"
     symptom_class = "degradation"

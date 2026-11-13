@@ -11,10 +11,23 @@ from nika.net_env.llmd_lab.lab import (
     INFERENCE_CHAT_URL,
     LLMDInferenceCluster,
 )
+from nika.net_env.k8s_lab.lab import K8sFatTreeBGP
 from nika.validation.symptom.k8s_probes import _backend_request
 from tests.support.net_env import instantiate_with_mocked_kathara
 
 pytestmark = pytest.mark.unit
+
+
+def test_weather_backend_request_reaches_the_database():
+    env = instantiate_with_mocked_kathara(
+        "nika.net_env.k8s_lab.lab.Kathara.get_instance",
+        K8sFatTreeBGP,
+    )
+    problem = SimpleNamespace(net_env=env)
+    req = _backend_request(problem, "http://datacenter.com/weather")
+    assert req.url == "http://datacenter.com/weather?location=London"
+    assert _backend_request(problem, "http://datacenter.com/word").url.endswith("/word")
+    assert _backend_request(problem, req.url).url == req.url
 
 
 def test_llmd_backend_request_is_chat_completions() -> None:

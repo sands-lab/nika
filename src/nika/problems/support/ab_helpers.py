@@ -203,7 +203,8 @@ def count_ab_workers(runtime: "LabRuntime", host: str) -> tuple[int, int, str]:
     ).strip()
     ab_output = runtime.exec(
         host,
-        f"ps -eo comm 2>/dev/null | grep -c '^{AB_BINARY}$' || true",
+        "ps -eo stat=,comm= 2>/dev/null | "
+        f"awk '$1 !~ /^Z/ && $2 == \"{AB_BINARY}\" {{n++}} END {{print n+0}}'",
         timeout=10,
     ).strip()
     state = f"workers={worker_output!r} ab={ab_output!r}"

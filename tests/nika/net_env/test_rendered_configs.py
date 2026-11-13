@@ -59,6 +59,18 @@ def test_isp_benchmark_variants_deploy_current_rendered_configs(scenario, option
     ("scenario", "options"),
     [
         ("dc_clos", {"topo_size": "s"}),
+        (
+            "dc_clos",
+            {
+                "topo_size": "s",
+                "backend": "containerlab",
+                "device_profile": "nokia_srlinux",
+            },
+        ),
+        (
+            "dc_clos",
+            {"topo_size": "s", "backend": "containerlab", "device_profile": "sonic"},
+        ),
         ("campus_lan", {"topo_size": "s", "device_profile": "iosxr"}),
         ("enterprise_branch", {"topo_size": "s"}),
         ("isp_abilene_ebgp_rpki", {}),
