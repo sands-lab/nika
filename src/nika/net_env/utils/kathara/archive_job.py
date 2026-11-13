@@ -102,6 +102,8 @@ if __name__ == "__main__":
     parser.add_argument("--pid", type=int)
     args = parser.parse_args()
     if args.action == "prepare":
+        Path("/var/log/archive-job.log").touch()
+        PIDFILE.touch()
         ROOT.mkdir(parents=True, exist_ok=True)
         (ROOT / "input.dat").write_bytes(random.Random(42).randbytes(2 * 1024 * 1024))
     elif args.action == "run":

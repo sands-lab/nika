@@ -41,12 +41,10 @@ def _row_problem_fields(
     if raw_problems is not None:
         if not isinstance(raw_problems, list) or not raw_problems:
             raise ValueError("'problems' must be a non-empty list")
-        problems = [
-            resolve_problem_name(str(item), scenario, release) for item in raw_problems
-        ]
+        problems = [resolve_problem_name(str(item)) for item in raw_problems]
         return problems, join_problem_label(problems)
     raw_problem = str(row["problem"])
-    problem = resolve_problem_name(raw_problem, scenario, release)
+    problem = resolve_problem_name(raw_problem)
     return [problem], problem
 
 
@@ -146,7 +144,7 @@ def normalize_benchmark_row(
     problem = problem_label
     problem_tags: set[str] = set()
     for item in problems:
-        problem_cls = get_problem_class(item, canonical, release)
+        problem_cls = get_problem_class(item)
         if problem_cls is not None:
             problem_tags.update(problem_cls.TAGS)
     isp_options = validate_and_resolve_isp_options(
@@ -193,9 +191,7 @@ def normalize_benchmark_row(
         root_causes = [
             {
                 **entry,
-                "fault_type": resolve_problem_name(
-                    entry["fault_type"], canonical, release
-                ),
+                "fault_type": resolve_problem_name(entry["fault_type"]),
             }
             if isinstance(entry, dict) and "fault_type" in entry
             else entry

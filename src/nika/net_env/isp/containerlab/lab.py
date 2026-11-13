@@ -562,7 +562,10 @@ configure_SRL() {{
 
 configure_CLIENT() {{
   docker cp "$CFG_DIR/$1.sh" "clab-{lab_name}-$1:/tmp/" || return 1
-  docker exec "clab-{lab_name}-$1" bash "/tmp/$1.sh" || return 1
+  local status=0
+  docker exec "clab-{lab_name}-$1" bash "/tmp/$1.sh" || status=$?
+  docker exec "clab-{lab_name}-$1" rm -f "/tmp/$1.sh" || return 1
+  return "$status"
 }}
 
 echo

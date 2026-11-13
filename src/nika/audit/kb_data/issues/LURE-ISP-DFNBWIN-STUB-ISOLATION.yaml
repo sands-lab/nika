@@ -3,18 +3,18 @@ title: isp_dfn-bwin_ebgp_rtbh isolates pc_frankfurt and pc_hamburg by design, an
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: In isp_dfn-bwin_ebgp_rtbh, Frankfurt and Hamburg are single-router ASes whose stub subnets are not exported
   over eBGP, and OSPF runs passive on all their interfaces. So 28 of 64 (or 34 of 90) PC pairs are unreachable
   in the baseline. The injected fault only tags 198.51.100.0/24 (src/nika/problems/routing_control_plane/bgp.py).
-  The release brief did not state the eBGP stub scope (src/nika/net_env/isp/brief.py, added in c00630bc), so the
+  The release brief did not state the eBGP stub scope (src/nika/net_env/isp/brief.py, added in 7edc92aa), so the
   design isolation pulled answers to ospf_neighbor_missing, bgp_missing_route_advertisement, or frr_service_down
   on frankfurt/hamburg in all 21 submissions. The ground-truth label itself is identifiable from the RIB and
   communities.
 guideline: Counts when the agent reads the baseline isolation (PingMesh 64/36 or 90/56 pairs, passive OSPF on
   frankfurt/hamburg, missing stub prefixes) as the fault and answers with an OSPF, BGP-advertisement, or FRR label
   on frankfurt or hamburg. Does not count as a label problem; agents that read the RTBH community on
-  198.51.100.0/24 solve the case. After c00630bc the brief states the stub scope, so a recurrence there is a
+  198.51.100.0/24 solve the case. After 7edc92aa the brief states the stub scope, so a recurrence there is a
   regression only if the brief lacks it.
 scope:
   fault_types:

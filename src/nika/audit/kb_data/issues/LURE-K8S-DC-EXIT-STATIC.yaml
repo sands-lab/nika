@@ -3,7 +3,7 @@ title: 'k8s_lab: healthy baseline lure'
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: dc_exit is a static router but the prompt listed it as FRRRouting; agents reported frr_service_down.
 scope:
   scenarios:

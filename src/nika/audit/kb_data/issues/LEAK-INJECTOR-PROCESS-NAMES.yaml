@@ -25,4 +25,4 @@ guideline: 'The tool, not the agent, must have produced the name (the agent may 
   shipped in every image (cache-warmer for ab, latency-probe for hping3, archive-job for CPU load); these
   names on their own are by design. A leak is a helper started at inject time on one node only, or any
   name that states the fault.'
-fixed_in: c00630bc
+fixed_in: 7edc92aa

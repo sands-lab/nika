@@ -3,12 +3,12 @@ title: Load and attack helpers leave named logs
 class: shortcut
 role: known
 severity: warn
-status: open
+status: fixed
 summary: 'Traffic and attack helpers leave files whose names point at the fault: /var/tmp/http-load-N.log,
   http-hold.py, iperf3_s_5201.log, burst-server-*.log, /tmp/iperf_c_*.sh.'
 guideline: The running process is the fault mechanism; a leftover file on one device, absent from its
   peers, is the leak. Files the agent created itself (its own iperf runs) are excluded; scenario workload
-  servers (iperf3_s_* for business traffic since c00630bc) are design, not leaks.
+  servers (iperf3_s_* for business traffic since 7edc92aa) are design, not leaks.
 detect:
 - kind: text
   exclude_authored: true
@@ -30,3 +30,9 @@ evidence:
   the repair integration https://github.com/sands-lab/nika/pull/330.
   This does not close other helper-file subcases; web DoS still uses
   /var/tmp/http-client.py and per-worker http-client logs.
+- >-
+  2026-11-11: 0f3a80fb discards ApacheBench worker output, runs the slow HTTP client from memory
+  under a neutral name, and stages the archive batch and the static file service on every
+  endpoint or web host at deployment. Live web DoS, load-balancer, contention, and OD-traffic
+  checks found no files added to the faulted node relative to its peers.
+fixed_in: 0f3a80fb

@@ -11,6 +11,7 @@ from nika.net_env.clos.requirements import communication_contract
 from nika.net_env.dc_clos.design import router_asns, routing_links
 from nika.net_env.utils.download_object import download_object_commands
 from nika.config import pkg_path
+from nika.net_env.utils.static_http import static_http_commands
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.native_routers import NativeRouterEnv
 from nika.net_env.synthesis.design import RoutingDesign
@@ -67,6 +68,7 @@ class RouterMeta:
 
 
 class DCClos(NativeRouterEnv, NetworkEnvBase):
+    ARCHIVE_JOBS = True
     ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
     L2_CAPABILITIES = frozenset({"arp-broadcast", "mac-learning"})
     STORES_RENDERED_CONFIGS = True
@@ -165,7 +167,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                         "dd if=/dev/zero of=/var/www/small.bin bs=1024 count=16 status=none",
                         "dd if=/dev/zero of=/var/www/large.bin bs=1M count=2 status=none",
                         *download_object_commands("/var/www"),
-                        "cd /var/www && nohup python3 -m http.server 80 >/dev/null 2>&1 &",
+                        *static_http_commands(machine, docroot="/var/www"),
                     ]
                 self.lab.create_file_from_list(commands, f"{endpoint.name}.startup")
             meta.design.add_interface(

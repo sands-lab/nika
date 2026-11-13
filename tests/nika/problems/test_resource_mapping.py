@@ -224,14 +224,14 @@ class ResourceMappingTest:
         )
         assert resource.id == "node/n1"
 
-    def test_web_dos_is_victim_node(self) -> None:
+    def test_web_dos_is_attacker_node(self) -> None:
         env = _Env(("web:eth0", "atk:eth0"))
         resource = _resources(
             "web_dos_attack",
             {"host_name": "web1", "attacker_device": "pc1"},
             env,
         )
-        assert resource.id == "node/web1"
+        assert resource.id == "node/pc1"
 
     def test_build_ground_truth_one_object(self) -> None:
         env = _Env(("pc1:eth0", "r1:eth0"))
@@ -452,7 +452,7 @@ def test_release_ground_truth_is_in_submission_catalog(split) -> None:
         deploy = {k: case[k] for k in deploy_keys if case.get(k) is not None}
         key = (case["scenario"], case.get("topo_size") or "", *sorted(deploy.items()))
         if key not in catalogs:
-            env = load_offline_net_env(key[0], key[1], **deploy, release="0.2.0")
+            env = load_offline_net_env(key[0], key[1], **deploy, release="0.3.0")
             catalogs[key] = {item.id for item in catalog_resources(env)}
         for cause in case.get("root_causes") or []:
             resource_id = RootCause.model_validate(cause).resource_id

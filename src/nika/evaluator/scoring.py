@@ -1,7 +1,8 @@
 """Rule-based scoring for detection and pair-based RCA submissions.
 
 RCA scores the pair ``(resource.id, fault_type)`` as a set (precision, recall,
-F1). Localization and fault-type identification are independent set metrics.
+F1). Fault-type metrics count types over the same distinct pairs regardless of
+resource; localization scores resources alone.
 A predicted interface inside a ground-truth node or link localizes it.
 ``*_accuracy`` keys are aliases of recall for backward compatibility.
 
@@ -117,7 +118,7 @@ def parse_root_causes(payload: dict) -> list[RootCause] | None:
     return list(parsed.root_causes)
 
 
-def score_rca_v2(submission: dict, gt: dict) -> dict[str, float]:
+def score_rca(submission: dict, gt: dict) -> dict[str, float]:
     """Joint (resource, fault_type) metrics plus localization and type submetrics.
 
     A predicted resource matches a ground-truth resource when it is the same
@@ -189,8 +190,6 @@ def score_rca_v2(submission: dict, gt: dict) -> dict[str, float]:
 
     pred_res = locations(pred_list)
     gt_res = locations(gt_list)
-    pred_types = {item.fault_type for item in pred_list}
-    gt_types = {item.fault_type for item in gt_list}
 
     pair_tp = _matched(
         pred_pairs,
@@ -200,6 +199,9 @@ def score_rca_v2(submission: dict, gt: dict) -> dict[str, float]:
         ),
     )
     res_tp = _matched(pred_res, gt_res, resource_within)
+    # Types are counted per distinct pair, so one type named on many
+    # resources earns one match and the rest stay false positives.
+    type_tp = _matched(pred_pairs, gt_pairs, lambda p, t: p.fault_type == t.fault_type)
     acc, prec, rec, f1 = _prf(
         len(pred_pairs), len(gt_pairs), pair_tp, empty_credit=healthy_verdict
     )
@@ -207,10 +209,7 @@ def score_rca_v2(submission: dict, gt: dict) -> dict[str, float]:
         len(pred_res), len(gt_res), res_tp, empty_credit=healthy_verdict
     )
     _t_acc, t_prec, t_rec, t_f1 = _prf(
-        len(pred_types),
-        len(gt_types),
-        len(pred_types & gt_types),
-        empty_credit=healthy_verdict,
+        len(pred_pairs), len(gt_pairs), type_tp, empty_credit=healthy_verdict
     )
     return {
         "rca_accuracy": acc,

@@ -11,6 +11,7 @@ from typing import Literal
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
+from nika.net_env.utils.static_http import static_http_commands
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.probe_intent import ProbeIntent
 from nika.net_env.p4_dc_fabric.fabric_manager.apply import MANAGER, MANAGER_DIR
@@ -68,6 +69,7 @@ STATUS_DATAGRAM_BYTES = 1400
 
 
 class P4DcGateway(NetworkEnvBase):
+    ARCHIVE_JOBS = True
     LAB_NAME = "p4_dc_gateway"
     TOPO_LEVEL = "medium"
     VERIFY_MAX_WAIT_SEC = 600
@@ -223,7 +225,9 @@ class P4DcGateway(NetworkEnvBase):
                     (
                         *web_content_commands(LARGE_OBJECT_MB),
                         f"echo '{item.name}' > /var/www/html/index.html",
-                        "nginx || service nginx start || true",
+                        *static_http_commands(
+                            self.lab.get_machine(item.name), docroot="/var/www/html"
+                        ),
                     )
                 )
             self.lab.create_file_from_list(commands, f"{item.name}.startup")

@@ -1023,7 +1023,7 @@ print_next_steps() {
   case "${TRACK}" in
     stable)
       track_note="Track: stable (main). Prefer frozen benchmarks:
-     uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+     uv run nika benchmark run --release 0.3.0 --split test --result_dir results/my-run
 "
       ;;
     latest)
@@ -1045,7 +1045,7 @@ Done.
      OPENAI_API_KEY=...
 
 2) Run:
-${track_note}     uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+${track_note}     uv run nika benchmark run --release 0.3.0 --split test --result_dir results/my-run
      # or: uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini --problem dc_clos_s_link_down
 
 Vendor labs (after --with-vendor-images):

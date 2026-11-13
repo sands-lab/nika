@@ -11,7 +11,7 @@ engine_app = typer.Typer(help="Benchmark engines of published releases.")
 
 @engine_app.command("build")
 def engine_build(
-    ref: str = typer.Argument(..., help="Git tag or commit to build, e.g. v0.2.0."),
+    ref: str = typer.Argument(..., help="Git tag or commit to build, e.g. v0.3.0."),
 ) -> None:
     """Build the benchmark engine image of a release tag or commit."""
     from nika.benchmark_engine.container import EngineContainerError, build_engine_image

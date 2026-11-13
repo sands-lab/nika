@@ -20,4 +20,4 @@ provenance:
 guideline: 'Injections are applied as one mgmtd commit, and every FRR router also makes routine commits
   in scheduled change windows (traffic/workload.py); that routine noise is intentional. Compare the number
   and timing of commit files with same-role peers: a leak is an extra commit on one router at inject time.'
-fixed_in: c00630bc
+fixed_in: 7edc92aa

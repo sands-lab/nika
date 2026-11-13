@@ -4,7 +4,7 @@ class: shortcut
 role: known
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: 'Inserting the VDE link-fault proxy re-created the node''s interface: its ifindex jumped, its
   counters reset, and BMv2 cold-restarted, which marks the faulted link. The proxy now splices the existing
   hub ports (runtime/kathara/vde_splice.py).'

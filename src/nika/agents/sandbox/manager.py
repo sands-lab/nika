@@ -247,6 +247,11 @@ class SandboxManager:
             from nika.agents.provider_env import custom_model_claude_env
 
             env.update(custom_model_claude_env(model))
+        if llm_provider == "custom" and spec.id == "cli.codex":
+            from nika.agents.provider_env import custom_model_context_window
+
+            if window := custom_model_context_window(model):
+                env["MODEL_CONTEXT_WINDOW"] = str(window)
         env.update(credential_env)
         return env
 

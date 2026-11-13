@@ -154,7 +154,7 @@ class DHCPSpoofedGateway(ProblemBase):
         client_host = params.host_name_2
         subnet = client_subnet(self.runtime, client_host, dhcp_server)
         wrong_gw = ".".join(subnet.split(".")[:3] + ["254"])
-        self.runtime.dhcp_set_option_routers(dhcp_server, subnet, wrong_gw)
+        set_subnet_option(self.runtime, dhcp_server, subnet, "routers", wrong_gw)
         self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
 
     def recover_fault(self, params: DHCPSpoofedGatewayParams) -> dict:
@@ -306,7 +306,9 @@ class DHCPSpoofedDNS(ProblemBase):
         client_host = params.host_name_2
         subnet = client_subnet(self.runtime, client_host, dhcp_server)
         self._wrong_dns = self._spoofed_dns(params, subnet)
-        self.runtime.dhcp_set_option_dns(dhcp_server, subnet, self._wrong_dns)
+        set_subnet_option(
+            self.runtime, dhcp_server, subnet, "domain-name-servers", self._wrong_dns
+        )
         self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
 
     def _spoofed_dns(self, params: DHCPSpoofedDNSParams, subnet: str) -> str:

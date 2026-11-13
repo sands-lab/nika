@@ -4,7 +4,7 @@ class: harness_defect
 role: known
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: A request with an unknown or expired MCP session got an empty tool list, which reads as 'this
   lab has no tools'. The gateway now answers with a JSON-RPC error and HTTP 403.
 guideline: An init with NIKA MCP servers connected but no NIKA tools listed, or tool calls failing with

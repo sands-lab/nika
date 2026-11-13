@@ -74,19 +74,11 @@ def test_failed_recovery_preserves_snapshot_order_for_retry():
     assert events == ["second", "second", "first"]
 
 
-def test_registered_and_legacy_failures_define_recovery():
+def test_registered_failures_define_recovery():
     from nika.problems.registry import list_avail_problem_instances
     from nika.problems.base import ProblemBase
-    from nika.problems.compat.v010 import (
-        FAILURES,
-        SCENARIO_FAILURE_OVERRIDES,
-        RELEASE_FAILURE_OVERRIDES,
-    )
 
     classes = set(list_avail_problem_instances().values())
-    classes.update(FAILURES.values())
-    classes.update(SCENARIO_FAILURE_OVERRIDES.values())
-    classes.update(RELEASE_FAILURE_OVERRIDES.values())
     missing = sorted(
         cls.__name__
         for cls in classes

@@ -3,7 +3,7 @@ title: 'p4_dc_gateway: healthy baseline lure'
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: Intent is north-south only; agents reported p4_table_entry_missing on every switch.
 scope:
   scenarios:

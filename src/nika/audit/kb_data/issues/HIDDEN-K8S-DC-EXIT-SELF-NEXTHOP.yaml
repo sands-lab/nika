@@ -4,7 +4,7 @@ class: healthy_lure
 role: known
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: k8s_lab dc_exit routed 201/8 and 101/8 via its own 10.0.2.1, a self-referencing static route
   in the fault-free lab (H9).
 guideline: Agents that report it on a healthy task are right. Confirm with references/live-confirm.md.

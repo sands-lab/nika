@@ -41,7 +41,7 @@ def load_example_cases(
             continue
         if is_healthy_case(row["problem"]) or len(row.get("problems", [])) > 1:
             continue
-        cls = get_problem_class(row["problem"], row["scenario"])
+        cls = get_problem_class(row["problem"])
         if cls is None:
             continue
         backend = resolve_scenario_backend(
@@ -134,7 +134,7 @@ def start_example_case(row: dict[str, Any], *, result_dir: str | None = None) ->
         row.get("topo_size", ""),
         isp_options=options,
     )
-    cls = get_problem_class(row["problem"], row["scenario"])
+    cls = get_problem_class(row["problem"])
     params_class = getattr(cls, "Params", None)
     if params_class is not None:
         params_class.model_validate(row["inject"])

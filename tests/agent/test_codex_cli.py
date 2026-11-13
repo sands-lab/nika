@@ -235,6 +235,52 @@ class CodexWorkerConfigTest:
         else:
             assert "model_provider" not in config
 
+    @pytest.mark.parametrize("window", [65536, None])
+    def test_served_context_limit_reaches_codex_config(
+        self, monkeypatch, tmp_path, agent_task, window
+    ) -> None:
+        from nika.agents import provider_env
+        from nika.agents.registry import get_agent_spec
+        from nika.agents.sandbox.manager import SandboxManager
+
+        agent_task()
+        monkeypatch.setenv("NIKA_CUSTOM_BASE_URL", "http://served.example/v1")
+        probe = []
+
+        def served_window(base_url, model):
+            probe.append((base_url, model))
+            return window
+
+        monkeypatch.setattr(provider_env, "_served_max_model_len", served_window)
+        manager = SandboxManager.__new__(SandboxManager)
+        env = manager._runtime_env(
+            spec=get_agent_spec("cli.codex"),
+            model="served-model",
+            llm_provider="custom",
+            credential_env={},
+            sandbox_workspace="/workspace",
+        )
+        assert probe == [("http://served.example/v1", "served-model")]
+        monkeypatch.delenv("MODEL_CONTEXT_WINDOW", raising=False)
+        if "MODEL_CONTEXT_WINDOW" in env:
+            monkeypatch.setenv("MODEL_CONTEXT_WINDOW", env["MODEL_CONTEXT_WINDOW"])
+        worker = CodexWorker(
+            session_id="sess-123",
+            session_dir=tmp_path,
+            phase=DIAGNOSIS,
+            model="served-model",
+            llm_provider="custom",
+        )
+        worker._codex_home.mkdir(parents=True)
+        worker._write_mcp_config()
+        config = tomllib.loads((worker._codex_home / "config.toml").read_text())
+        if window is None:
+            assert "model_context_window" not in config
+            assert "model_auto_compact_token_limit" not in config
+        else:
+            assert config["model_context_window"] == window
+            assert config["model_auto_compact_token_limit"] == window * 9 // 10
+
     def test_api_key_placeholder_becomes_codex_auth(
         self, monkeypatch, tmp_path
     ) -> None:

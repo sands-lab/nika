@@ -115,7 +115,7 @@ def _browse(
         elif step == 1:
             choices = []
             for problem in sorted({row["problem"] for row in candidates}):
-                cls = get_problem_class(problem, selections[0])
+                cls = get_problem_class(problem)
                 description = " ".join(
                     str(getattr(cls, "description", "") or "").split()
                 )

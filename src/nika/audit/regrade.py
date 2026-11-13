@@ -19,7 +19,7 @@ from nika.evaluator.scoring import (
     parse_root_causes,
     resource_within,
     score_detection,
-    score_rca_v2,
+    score_rca,
 )
 
 COMPARED = ("rca_f1", "localization_f1", "fault_type_f1", "detection_score")
@@ -77,7 +77,7 @@ def regrade_trial(trial: Trial) -> list[dict[str, Any]]:
         return []
     try:
         regraded: dict[str, float] = dict(
-            score_rca_v2(trial.submission, trial.ground_truth)
+            score_rca(trial.submission, trial.ground_truth)
         )
         regraded["detection_score"] = score_detection(
             trial.submission, trial.ground_truth

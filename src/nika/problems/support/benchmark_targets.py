@@ -955,18 +955,23 @@ _NODE_FIELDS = (
 
 
 def node_target_options(
-    problem_cls: type[ProblemBase], ctx: InjectTargetContext, base: dict[str, str]
+    problem_cls: type[ProblemBase],
+    ctx: InjectTargetContext,
+    base: dict[str, str],
+    *,
+    node: str | None = None,
 ) -> list[dict[str, str]]:
-    """Swap the root-cause node for every node sharing its role.
+    """Swap the root-cause node, or ``node``, for every node sharing its role.
 
     ``problem_cls.benchmark_node_targets`` narrows the candidates and
     ``benchmark_align_option`` adjusts each row.
     """
-    found = resource(ctx, base)
-    if found is None or str(found.kind) != "node":
-        return [base]
+    if node is None:
+        found = resource(ctx, base)
+        if found is None or str(found.kind) != "node":
+            return [base]
+        node = str(found.node or "")
     net_env = ctx.net_env
-    node = str(found.node or "")
     field = next((key for key in _NODE_FIELDS if base.get(key) == node), None)
     if field is None:
         return [base]

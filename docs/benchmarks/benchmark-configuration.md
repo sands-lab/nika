@@ -8,18 +8,16 @@ Use a task-level `schedule` to control failure injection, recovery, traffic acti
 
 For ad-hoc runs, use a benchmark YAML whose `cases:` list contains relative paths to complete task files, or run one task file directly with `--config`. Each task file defines its scenario, failures, traffic, and schedule. Existing matrices containing only inline tasks remain supported. [Organize task files](scheduling.md#organize-task-files) shows the standard layout.
 
-## Frozen release (`nika-bench@0.2.0`)
+## Frozen release (`nika-bench@0.3.0`)
 
-`0.2.0` publishes public Dev and Test splits. Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
+`0.3.0` publishes public Dev and Test splits. Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
 
 ```shell
 nika benchmark releases
-nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+nika benchmark run --release 0.3.0 --split test --result_dir results/my-run
 ```
 
-Release `0.2.0` runs on its [benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol), a container built from the Git reference in `engine.tag` of its `RELEASE.yaml`, so its environments, failures, MCP tools, and scoring stay those of the release as NIKA changes. The first run builds the engine image; `nika engine build <tag>` builds it ahead of time. Firecracker execution and NIKA Remote cannot run it yet.
-
-Release `0.1.0` still runs with `--release 0.1.0`. [Run release 0.1.0](../compat/release-0.1.0.md) covers its restored labs and known limitations.
+Release `0.3.0` runs on its [benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol), a container built from the Git reference in `engine.tag` of its `RELEASE.yaml`, so its environments, failures, MCP tools, and scoring stay those of the release as NIKA changes. The first run builds the engine image; `nika engine build <tag>` builds it ahead of time. Firecracker execution and NIKA Remote cannot run it yet.
 
 The [versioning policy](../../VERSIONING.md) explains what each component of a release version means and which changes produce a new one.
 
@@ -41,7 +39,7 @@ nika leaderboard template -o results/my-run/submission
 nika leaderboard submit --result_dir results/my-run --submission results/my-run/submission
 ```
 
-`defaults.n_trials` in `RELEASE.yaml` is 3 for `0.2.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed` (capability / no submission / tool-heavy or post-LLM case timeout). LLM/API endpoint failures (connection refused, provider 5xx, case-timeout killed mid-LLM after LLM-dominated wall clock, etc.) stamp `outcome=endpoint_failed` instead: they are **not** scored and `--resume` cleans and retries them. This is about the model HTTP endpoint, not the network lab under test. Failures after ground truth is written but before the agent demonstrably started (sandbox CLI missing, MCP gateway URL or bind failure, a worker killed during agent setup) stamp `outcome=infra_failed`. NIKA treats them like `endpoint_failed`: not scored, cleaned, and retried. NIKA counts a failure as `agent_failed` only when `nika.jsonl` has `agent_start` and `messages.jsonl` has at least one model or tool event. A valid `submission.json` makes the trial `success`, even when a later step (agent timeout, sandbox teardown) fails, provided its scheduler completed without errors when present. NIKA also cleans incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
+`defaults.n_trials` in `RELEASE.yaml` is 3 for `0.3.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed` (capability / no submission / tool-heavy or post-LLM case timeout). LLM/API endpoint failures (connection refused, provider 5xx, case-timeout killed mid-LLM after LLM-dominated wall clock, etc.) stamp `outcome=endpoint_failed` instead: they are **not** scored and `--resume` cleans and retries them. This is about the model HTTP endpoint, not the network lab under test. Failures after ground truth is written but before the agent demonstrably started (sandbox CLI missing, MCP gateway URL or bind failure, a worker killed during agent setup) stamp `outcome=infra_failed`. NIKA treats them like `endpoint_failed`: not scored, cleaned, and retried. NIKA counts a failure as `agent_failed` only when `nika.jsonl` has `agent_start` and `messages.jsonl` has at least one model or tool event. A valid `submission.json` makes the trial `success`, even when a later step (agent timeout, sandbox teardown) fails, provided its scheduler completed without errors when present. NIKA also cleans incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
 
 Official `--release` runs default to continuing past trial failures (`continue_on_error=True`) so one bad trial does not abort the job; use `--abort-on-error` to stop immediately. Ad-hoc `--config` batches still default from `benchmark.continue_on_error` in run config. The agent itself runs under `agent.timeout_sec` (default 1800s), which applies to every agent type. Per-case watchdogs use `--case-timeout` / `benchmark.case_timeout_sec` (default 2400s); a timed-out trial is finalized as counted `agent_failed` when the budget was spent on agent work, or as retryable `endpoint_failed` when the kill lands mid-LLM and LLM calls dominated the wall clock. NIKA stops a timed-out worker with SIGTERM and gives it up to 60 seconds to remove its sandbox, stop the MCP gateway, and undeploy the lab before SIGKILL.
 
@@ -239,15 +237,15 @@ The generator prints group, concrete option, failure, scenario, healthy, and rej
 
 ## Published releases
 
-Frozen releases keep their published flat `cases:` files and remain independent from candidate generation. Release `0.1.0` includes its original environments, listed in [Where each case runs](../compat/release-0.1.0.md#where-each-case-runs).
+Frozen releases keep their published flat `cases:` files and remain independent from candidate generation. See the [versioning policy](../../VERSIONING.md) to reproduce an older release.
 
-Configurations and task labels accept `frr_service_down` as an alias for `routing_service_down`. Published releases `0.1.0` and `0.2.0` retain `frr_service_down` in their tasks, ground truth, and RCA candidates, with its original description.
+Configurations and task labels accept `frr_service_down` as an alias for `routing_service_down`. Release `0.3.0` uses `routing_service_down` in its tasks, ground truth, and RCA candidates.
 
 ## Coverage matrix (scenario × failure)
 
-Cells mark **capability**. A failure is compatible when its tags and deploy constraints match the scenario and ISP `topo`/`igp`/`bgp_mode` profile. Candidate generation then validates semantic inject targets. Release membership comes from `benchmark/releases/0.2.0/` (dev + test).
+Cells mark **capability**. A failure is compatible when its tags and deploy constraints match the scenario and ISP `topo`/`igp`/`bgp_mode` profile. Candidate generation then validates semantic inject targets. Release membership comes from `benchmark/releases/0.3.0/` (dev + test).
 
-Each table has two header rows: scenario, then config (when the scenario has more than one). Cells: blank = incompatible, `○` = compatible, `●` = compatible and in release `0.2.0`. Tables are split by failure subsystem.
+Each table has two header rows: scenario, then config (when the scenario has more than one). Cells: blank = incompatible, `○` = compatible, `●` = compatible and in release `0.3.0`. Tables are split by failure subsystem.
 
 Regenerate after registry or TAGS changes:
 

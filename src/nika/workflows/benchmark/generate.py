@@ -374,7 +374,7 @@ def build_failure_cases(
     rejected: list[dict[str, Any]] = []
     net_env = load_offline_net_env(scenario, topo_size, **_offline_kwargs(isp_options))
     traffic = traffic_field(
-        get_problem_class(problem, scenario).TRAFFIC_PROFILE or net_env.BASELINE_TRAFFIC
+        get_problem_class(problem).TRAFFIC_PROFILE or net_env.BASELINE_TRAFFIC
     )
     try:
         enumerated = enumerate_inject_params(
@@ -484,7 +484,7 @@ def build_failure_cases(
             )
             continue
         unsupported = unsupported_native_targets(
-            get_problem_class(problem, scenario),
+            get_problem_class(problem),
             net_env,
             _root_cause_nodes(catalog_root_causes),
         )

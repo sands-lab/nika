@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 def release_environment_class(scenario: str, release: str | None, default):
-    if release not in {"0.1.0", "0.2.0"}:
+    if release != "0.3.0":
         return default
     if scenario == "dc_clos":
         from .published_clos import DCClos

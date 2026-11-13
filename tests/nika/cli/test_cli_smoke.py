@@ -236,7 +236,7 @@ class CliSmokeTest:
                     "benchmark",
                     "run",
                     "--release",
-                    "0.2.0",
+                    "0.3.0",
                     "--split",
                     "dev",
                     "--result_dir",

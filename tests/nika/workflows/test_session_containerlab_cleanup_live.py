@@ -40,7 +40,7 @@ def test_close_cleans_stopped_nodes_without_topology_and_preserves_sibling(tmp_p
         assert all(path.is_symlink() for path in namespaces)
         sibling_lab = f"{meta['lab_name']}-sibling"
         sibling = client.containers.create(
-            "nika/base:0.2.0",
+            "nika/base:0.3.0",
             command=["sleep", "300"],
             name=f"clab-{sibling_lab}-{uuid4().hex[:8]}",
             network_mode="none",

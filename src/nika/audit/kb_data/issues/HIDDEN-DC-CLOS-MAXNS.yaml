@@ -3,7 +3,7 @@ title: dc_clos size l lists four nameservers
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: 'glibc reads at most three nameservers (MAXNS), so pod3 names never resolve on dc_clos size l
   before #178 (H1).'
 scope:

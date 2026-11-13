@@ -3,13 +3,13 @@ title: p4_dc_gateway baseline breaks direct client TCP to the VIP backends 10.0.
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: >-
   In release 0.2.0 gateway.p4 rewrote the source of every TCP packet from service_1_1/service_1_2 (10.0.1.11/10.0.1.12)
   to the VIP 20.0.0.1, so the SYN-ACK of a direct client connection to a backend comes back from the wrong
   address. Every client curl to these IPs times out at 5 s (connect 0.000000, total about 5.0) in healthy
   and faulted trials, while ICMP and the other services work. Agents answered healthy trials with http_acl_block
-  or p4_table_entry_missing. c00630bc replaced the rewrite with the stateful lb_flow_dip rewrite.
+  or p4_table_entry_missing. 7edc92aa replaced the rewrite with the stateful lb_flow_dip rewrite.
 guideline: >-
   A trial that curls 10.0.1.11 or 10.0.1.12 directly in p4_dc_gateway on a 0.2.0 commit sees a baseline
   defect, not the injected fault: a report built on that timeout (ACL block, missing table entry, dropped

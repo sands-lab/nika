@@ -26,7 +26,7 @@ provenance:
 scope:
   scenarios:
   - k8s_lab
-fixed_in: 7edc92aa194e548007a9840fccb3c38da4438737
+fixed_in: 7edc92aa
 evidence:
 - 'src/nika/problems/support/kubernetes/base.py at 8f04c8422623f9f785fa391d7e2ead62f4bfab9c: get_task_description'
 - 'src/nika/net_env/k8s_lab/lab.py at 7edc92aa194e548007a9840fccb3c38da4438737: shared Kubernetes guidance'

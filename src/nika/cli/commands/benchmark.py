@@ -618,6 +618,13 @@ def benchmark_run(
         release=release,
         split=split,
     )
+    selected_release = release if release is not None else cfg.benchmark.release
+    if scenario is None and config is None and selected_release is not None:
+        try:
+            _, version = parse_release_ref(selected_release)
+            resolve_release_dir(version)
+        except ReleaseError as exc:
+            _exit_release_error(exc)
     set_run_config(cfg)
     # Snapshot effective config so spawn workers see CLI overlays (--base-url, -e).
     persist_effective_run_config(cfg)

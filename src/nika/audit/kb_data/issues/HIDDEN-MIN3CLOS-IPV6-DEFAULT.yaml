@@ -3,7 +3,7 @@ title: min3clos IPv6 default route via management
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: Clients' IPv6 default route pointed at the management network (H4).
 scope:
   scenarios:

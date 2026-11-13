@@ -23,4 +23,4 @@ provenance:
   found_by: manual
 guideline: 'Benchmark identity, not a specific fault: it may appear in every trial, healthy ones included.
   A hit on a commit after the fix is a regression.'
-fixed_in: c00630bc
+fixed_in: 7edc92aa

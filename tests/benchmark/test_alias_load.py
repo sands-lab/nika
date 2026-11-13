@@ -40,10 +40,10 @@ def test_workload_column_is_rejected() -> None:
     [
         ("link_fragmentation_disabled", None, "mtu_mismatch"),
         ("frr_service_down", None, "routing_service_down"),
-        ("frr_service_down", "0.2.0", "frr_service_down"),
+        ("frr_service_down", "0.3.0", "routing_service_down"),
     ],
 )
-def test_failure_aliases_follow_the_release(tmp_path, problem, release, expected):
+def test_failure_aliases_use_current_ids(tmp_path, problem, release, expected):
     import yaml
 
     from nika.workflows.benchmark.load_config import load_benchmark_yaml

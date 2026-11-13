@@ -2,7 +2,7 @@
 
 Compatibility is scenario-scoped (and ISP deploy-variant scoped). Catalog
 generation applies target validation after this capability check. Release membership overlays
-``benchmark/releases/0.2.0`` (Dev + Test).
+``benchmark/releases/0.3.0`` (Dev + Test).
 
 Tables use two real header rows (scenario, then config). Cells: blank =
 incompatible, ``○`` = compatible, ``●`` = compatible and in release.
@@ -48,7 +48,7 @@ from nika.workflows.benchmark.profile_validation import (
 DOCS_PATH = REPO_ROOT / "docs" / "benchmarks" / "benchmark-configuration.md"
 SECTION_START = "## Coverage matrix (scenario × failure)"
 SECTION_END = "## Regeneration"
-DEFAULT_RELEASE = BENCHMARK_DIR / "releases" / "0.2.0"
+DEFAULT_RELEASE = BENCHMARK_DIR / "releases" / "0.3.0"
 
 # Same order as docs/operations/failures.md.
 DOMAIN_ORDER: tuple[FailureDomain, ...] = (

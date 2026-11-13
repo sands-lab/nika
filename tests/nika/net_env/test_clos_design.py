@@ -99,7 +99,7 @@ def test_endpoint_faults_probe_a_remote_rack(scenario):
 
 
 @pytest.mark.contract
-@pytest.mark.parametrize("release", ["0.1.0", "0.2.0"])
+@pytest.mark.parametrize("release", ["0.3.0"])
 def test_published_clos_keeps_original_resource_names(release):
     from nika.net_env.net_env_pool import get_net_env_instance
 
@@ -123,7 +123,7 @@ def test_published_clos_keeps_original_resource_names(release):
 @pytest.mark.contract
 @pytest.mark.parametrize("scenario", ["sdn_l3_clos", "p4_dc_fabric"])
 def test_published_packet_fabric_keeps_original_port_order(scenario):
-    env = load_offline_net_env(scenario, "s", release="0.2.0")
+    env = load_offline_net_env(scenario, "s", release="0.3.0")
     assert env.model.endpoints_per_leaf == 2
     assert env.model.port_to_peer("leaf_1", "spine_1").name == "eth2"
     current = load_offline_net_env(scenario, "s")

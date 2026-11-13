@@ -200,7 +200,7 @@ uv run nika inspect
 To evaluate the same agent on a benchmark release:
 
 ```shell
-uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+uv run nika benchmark run --release 0.3.0 --split test --result_dir results/my-run
 uv run nika eval summary --result_dir results/my-run
 ```
 

@@ -289,7 +289,7 @@ Omit the `SCENARIO` positional argument to run a case matrix. Pass **`--release`
 ```shell
 # Frozen release
 nika benchmark releases
-nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+nika benchmark run --release 0.3.0 --split test --result_dir results/my-run
 
 # Ad-hoc YAML or full candidate pool
 nika benchmark run --config benchmark/working/cases.yaml --result_dir results/my-run
@@ -297,7 +297,7 @@ nika benchmark run                              # defaults to benchmark/working/
 nika benchmark run --config benchmark/working/pool --batch-size 4
 ```
 
-**Release preflight**: `nika benchmark run --release …` checks the selected release. `nika benchmark releases` lists every release but checks only the default release (`0.2.0`); pass `--all` to check every release. Preflight checks case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped.
+**Release preflight**: `nika benchmark run --release …` checks the selected release. `nika benchmark releases` lists every release but checks only the default release (`0.3.0`); pass `--all` to check every release. Preflight checks case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped.
 
 ### Task ids
 
@@ -307,10 +307,10 @@ Use these commands when you need to look up a case or re-run one failed trial wi
 
 ```shell
 nika benchmark list
-nika benchmark list --release 0.2.0 --split test
+nika benchmark list --release 0.3.0 --split test
 nika benchmark describe dc_clos__link_detach__m__h240c6b1dc30f \
-  --release 0.2.0 --split test
-nika benchmark run --release 0.2.0 --split test \
+  --release 0.3.0 --split test
+nika benchmark run --release 0.3.0 --split test \
   --task-id dc_clos__link_detach__m__h240c6b1dc30f__t01 \
   --result_dir results/one-case
 ```

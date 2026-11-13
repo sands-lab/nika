@@ -16,3 +16,7 @@ provenance:
   refs:
   - '#206'
   found_by: live_audit
+evidence:
+- >-
+  2026-11-11: 0f3a80fb saves the max-prefix flood policy on every router it changes, so running
+  and saved FRR configurations agree on all touched routers. The generic lead remains open.

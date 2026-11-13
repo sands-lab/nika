@@ -116,7 +116,7 @@ Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dis
 
 The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service.
 
-Every PC browses `web0`-`web3.local` and `web99.local` every few tens of seconds. The teaching-lab PCs, every PC in the `10.2.<dist>.0/24` access blocks behind `router_core_2`, refresh their software catalog every few minutes by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`.
+Every PC browses `web0`-`web3.local` and `web99.local` every few tens of seconds. The teaching-lab PCs, every PC in the `10.2.<dist>.0/24` access blocks behind `router_core_2`, refresh their software catalog every few minutes by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each endpoint has an idle local archive job configured with one worker in `/etc/archive-job.json`. The web hosts also serve static objects on port 8080.
 
 Verification checks OSPF adjacency, cross-branch reachability, DNS, and HTTP.
 
@@ -181,8 +181,6 @@ SERVER-role hosts serve static HTTP objects at `http://<server>/small.bin` (16 K
 
 Use this scenario for underlay vs overlay diagnosis, VRF business isolation, hub-and-spoke VPN reachability, eBGP path preference with backup sessions at every scale, overlay-egress DSCP/QoS faults, and receiver-side TCP receive-window bottlenecks on branch–HQ paths. Verification covers VRF devices on every edge, every designed tunnel (underlay reachability, WireGuard, BGP both sides), per-VRF RIB contents (CORP sees CORP+SERVER leak; GUEST/IOT do not), hub interconnect, every branch CORP↔HQ CORP and CORP↔DC2 CORP plus HTTP to both hub SERVERs, every branch pair via the corp VRF overlay path, every provider without enterprise prefixes, GUEST/IOT isolation from CORP, every backup BGP session with primary-path preference, and HTB EF/BE classes on every WireGuard overlay egress.
 
-The ID `rip_small_internet_vpn` names the original 0.1.0 RIP mini-Internet lab, a separate lab that only release 0.1.0 uses. See [Run release 0.1.0](../compat/release-0.1.0.md).
-
 Boundary: `campus_lan` is a single-campus L3 network; `dc_clos` is a data-center fabric; `isp_*` scenarios are carrier IGP/BGP itself. This scenario is enterprise multi-site WAN with encrypted overlay and per-role VRFs.
 
 ```shell
@@ -218,8 +216,6 @@ Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs in
 ```shell
 uv run nika env run p4_dc_fabric -s s
 ```
-
-The ID `p4_counter` names the original 0.1.0 L2 counter lab, a separate lab that only release 0.1.0 uses. See [Run release 0.1.0](../compat/release-0.1.0.md).
 
 ### `p4_dc_gateway`
 
@@ -714,7 +710,7 @@ Host pairs that the environment isolates by design, such as guest LANs or separa
 
 Every task that `nika benchmark generate` writes to the working pool runs a background traffic profile, so faulty and healthy tasks carry the same kind of load. Because the profile is the same for every failure, its programs say nothing about which fault, if any, the agent faces. Each environment declares its baseline: `uniform` at 1 Mbit/s, or `gravity` at 1 Mbit/s for ISP backbones. A failure can replace the baseline for its own tasks with `TRAFFIC_PROFILE`, but any difference from the baseline hints at the failure class, so no current failure does.
 
-Benchmark releases keep their tasks as published: a task without `traffic:`, such as every task of release 0.2.0, runs without a profile. A multi-fault task runs the profile its YAML names.
+Benchmark releases keep their tasks as published: a task without `traffic:`, such as every task of release 0.3.0, runs without a profile. A multi-fault task runs the profile its YAML names.
 
 ## Telemetry
 

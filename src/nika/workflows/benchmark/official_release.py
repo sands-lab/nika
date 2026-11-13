@@ -23,6 +23,7 @@ import httpx
 import yaml
 
 from nika.config import REPO_ROOT
+from nika.workflows.benchmark.legacy_releases import LEGACY_RELEASE_COMMITS
 from nika.workflows.benchmark.release import (
     BenchmarkRelease,
     ReleaseError,
@@ -35,12 +36,6 @@ from nika.workflows.benchmark.trials import task_id_for_row
 
 OFFICIAL_REPO = "sands-lab/nika"
 RELEASE_TAG_PREFIX = "v"
-# These releases predate Git tags. This main-branch revision is also the
-# published reference previously selected by leaderboard CI.
-LEGACY_RELEASE_COMMITS = {
-    "0.1.0": "ac4422d8a4a03be2b905e28edf72993d467e1b81",
-    "0.2.0": "ac4422d8a4a03be2b905e28edf72993d467e1b81",
-}
 RELEASES_RELPATH = "benchmark/releases"
 MANIFEST_FILENAME = "RELEASE.yaml"
 
@@ -231,7 +226,12 @@ def load_release_at(
         for name, data in files:
             (root / name).write_bytes(data)
         _MATERIALIZED[key] = holder
-    return load_release_from_dir(Path(holder.name) / version, split=split)  # type: ignore[arg-type]
+    # Historical task IDs use the published fault spelling, without current aliases.
+    return load_release_from_dir(
+        Path(holder.name) / version,
+        split=split,  # type: ignore[arg-type]
+        preserve_rows=version in LEGACY_RELEASE_COMMITS,
+    )
 
 
 def load_reference_release(

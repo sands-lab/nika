@@ -424,7 +424,7 @@ class SandboxEngineReleaseTest(_SandboxBenchmark):
         try:
             with pinned_engine_release(tmp_path, monkeypatch) as (_tag, image):
                 run_benchmark_from_release(
-                    release_ref="0.2.0",
+                    release_ref="0.3.0",
                     split="test",
                     agent_type="byo.langgraph",
                     llm_provider=OPENAI_PROVIDER,

@@ -7,6 +7,7 @@ import re
 import shlex
 import time
 
+from nika.service.lab.checked_exec import checked_exec
 from nika.service.lab.protocols import SupportsExec
 
 _BGP_ASN_ATTEMPTS = 5
@@ -141,11 +142,12 @@ class FRRAPIMixin:
         else:
             chunks.append(f"=== BGP RIB ({device}) ===")
             chunks.append(self.frr_get_bgp_routes(device))
-        running = self.exec_cmd(
-            device,
-            "vtysh -c 'show running-config' 2>/dev/null | "
-            "grep -E 'maximum-prefix|neighbor .* remote-as' || true",
-        )
+        config = checked_exec(self.exec_cmd, device, "vtysh -c 'show running-config'")
+        running = "\n".join(
+            line
+            for line in config.splitlines()
+            if re.search(r"maximum-prefix|neighbor .* remote-as", line)
+        ).strip()
         chunks.extend(
             [
                 "",
@@ -161,14 +163,10 @@ class FRRAPIMixin:
         """Return RTR connection / validation summary, optionally for one prefix."""
         chunks: list[str] = []
         chunks.append(
-            self.exec_cmd(
-                device, "vtysh -c 'show rpki cache-connection' 2>/dev/null || true"
-            )
+            checked_exec(self.exec_cmd, device, "vtysh -c 'show rpki cache-connection'")
         )
         chunks.append(
-            self.exec_cmd(
-                device, "vtysh -c 'show rpki cache-server' 2>/dev/null || true"
-            )
+            checked_exec(self.exec_cmd, device, "vtysh -c 'show rpki cache-server'")
         )
         if prefix:
             network = ipaddress.ip_network(prefix, strict=False)
@@ -180,14 +178,12 @@ class FRRAPIMixin:
                 f"show bgp {afi} unicast {target}",
             ):
                 chunks.append(
-                    self.exec_cmd(
-                        device, f"vtysh -c {shlex.quote(command)} 2>/dev/null || true"
+                    checked_exec(
+                        self.exec_cmd, device, f"vtysh -c {shlex.quote(command)}"
                     )
                 )
         else:
             chunks.append(
-                self.exec_cmd(
-                    device, "vtysh -c 'show rpki prefix-table' 2>/dev/null || true"
-                )
+                checked_exec(self.exec_cmd, device, "vtysh -c 'show rpki prefix-table'")
             )
         return "\n".join(chunk for chunk in chunks if chunk is not None)

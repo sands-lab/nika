@@ -3,7 +3,7 @@ title: Host neighbour table overflow in large labs
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: Large labs overflowed the host's shared ARP/NDP table (gc_thresh3), so some pairs failed with
   no fault injected (healthy-hunter H2).
 detect:

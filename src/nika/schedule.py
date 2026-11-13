@@ -171,8 +171,8 @@ def normalize_schedule(
     events = []
     for event in plan.events:
         if event.problem:
-            problem = resolve_problem_name(event.problem, scenario, release)
-            cls = get_problem_class(problem, scenario, release)
+            problem = resolve_problem_name(event.problem)
+            cls = get_problem_class(problem)
             if cls is None:
                 raise ValueError(f"Unknown scheduled failure {event.problem!r}")
             if cls.Params is not None:

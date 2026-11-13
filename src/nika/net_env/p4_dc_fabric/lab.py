@@ -10,6 +10,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.net_env.clos.requirements import communication_contract
+from nika.net_env.utils.static_http import static_http_commands
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.p4_dc_fabric.fabric_manager.apply import MANAGER, MANAGER_DIR
 from nika.net_env.p4_dc_fabric.topology_model import (
@@ -97,6 +98,7 @@ def _switch_startup(
 
 
 class P4DcFabric(NetworkEnvBase):
+    ARCHIVE_JOBS = True
     build_model = staticmethod(build_clos_fabric_model)
     L2_CAPABILITIES = frozenset()
     LAB_NAME = "p4_dc_fabric"
@@ -123,7 +125,7 @@ class P4DcFabric(NetworkEnvBase):
             Per-leaf rack prefix 10.0.<leaf>.0/24 with virtual gateway MAC {VIRTUAL_ROUTER_MAC}.
             BMv2 simple_switch_grpc; OOB control network 172.31.0.0/16;
             IPv4 LPM + ActionSelector ECMP programmed from one topology model.
-            Each leaf hosts one nginx web server (web_<leaf>, 10.0.<leaf>.11) and
+            Each leaf hosts one static HTTP server (web_<leaf>, 10.0.<leaf>.11) and
             client hosts. Clients load pages and small objects from the web
             servers all the time and download large.bin ({LARGE_OBJECT_MB} MB)
             from one of them every few minutes. web_{QUERY_LEAF} also runs a
@@ -219,7 +221,9 @@ class P4DcFabric(NetworkEnvBase):
                         [
                             *web_content_commands(LARGE_OBJECT_MB),
                             f"echo 'p4_dc_fabric web_{leaf_id}' > /var/www/html/index.html",
-                            "nginx || service nginx start || true",
+                            *static_http_commands(
+                                host_meta.machine, docroot="/var/www/html"
+                            ),
                         ]
                     )
                 host_meta.eth_index += 1

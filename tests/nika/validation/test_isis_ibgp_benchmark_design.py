@@ -21,8 +21,8 @@ def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
     profiles = benchmark_isp_profiles(
         [
             root / "benchmark/working/cases.yaml",
-            root / "benchmark/releases/0.2.0/dev.yaml",
-            root / "benchmark/releases/0.2.0/test.yaml",
+            root / "benchmark/releases/0.3.0/dev.yaml",
+            root / "benchmark/releases/0.3.0/test.yaml",
         ]
     )
     selected_problems = {

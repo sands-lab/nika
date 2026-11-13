@@ -3,11 +3,11 @@ title: sdn_onos_rest returns whole ONOS collections that exceed the tool output 
 class: signal_invisible
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: >-
   In 0.2.0 sdn_onos_rest had no device filter and no summary, so /onos/v1/flows, /links and /devices returned
   whole collections. The head/tail cut at 10000 characters elided most of the state (about 600000 characters
-  for flows). 16-63% of each submission's sdn_onos_rest results were cut. c00630bc added device filtering
+  for flows). 16-63% of each submission's sdn_onos_rest results were cut. 7edc92aa added device filtering
   and a summary.
 guideline: >-
   A wrong sdn_l3_clos answer after a cut sdn_onos_rest result may come from state the agent never saw;

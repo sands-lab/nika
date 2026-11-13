@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 import re
+import shlex
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -12,7 +13,7 @@ from nika.net_env.utils.download_object import DOWNLOAD_OBJECT_PATH
 from nika.net_env.verify import http_download_stats, median_float
 from nika.problems.rca import node_resource
 from nika.problems.support.ab_helpers import (
-    ab_worker_log_tail,
+    ab_worker_diagnostics,
     count_ab_workers,
     start_ab_workers,
     stop_ab_workers,
@@ -40,8 +41,8 @@ from nika.utils.logger import system_logger
 # victim's access log, so nothing here names the injected fault. The flood
 # targets content the scenario already publishes at baseline (never content
 # created by this failure), so file existence does not itself signal inject.
-_SLOW_HTTP_CLIENT = "/var/tmp/http-client.py"
-_SLOW_HTTP_PATTERN = "[h]ttp-client.py"
+_SLOW_HTTP_CLIENT = "http-client"
+_SLOW_HTTP_PATTERN = "^http-client "
 _SLOW_HTTP_SOURCE = """#!/usr/bin/env python3
 import socket
 import sys
@@ -206,7 +207,7 @@ class WebDoS(ProblemBase):
         self._baseline: dict[str, Any] | None = None
 
     def root_cause_resources(self, params: WebDoSParams):
-        return [node_resource(params.host_name)]
+        return [node_resource(params.attacker_device)]
 
     def _probe_url(self, params: WebDoSParams, target_ip: str) -> str:
         return params.probe_url or f"http://{target_ip}/"
@@ -396,7 +397,6 @@ class WebDoS(ProblemBase):
             timeout=15,
         )
         if params.slow_connections:
-            self.runtime.write_file(attacker, _SLOW_HTTP_CLIENT, _SLOW_HTTP_SOURCE)
             self.runtime.exec(
                 attacker,
                 f"pkill -f '{_SLOW_HTTP_PATTERN}' 2>/dev/null || true",
@@ -404,8 +404,12 @@ class WebDoS(ProblemBase):
             )
             self.runtime.exec(
                 attacker,
-                f"nohup python3 {_SLOW_HTTP_CLIENT} {attack_host} {attack_port} "
-                f"{params.slow_connections} </dev/null >/dev/null 2>&1 &",
+                "nohup bash -c "
+                + shlex.quote(
+                    f"exec -a {_SLOW_HTTP_CLIENT} python3 -c {shlex.quote(_SLOW_HTTP_SOURCE)} "
+                    f"{shlex.quote(attack_host)} {attack_port} {params.slow_connections}"
+                )
+                + " </dev/null >/dev/null 2>&1 &",
                 timeout=10,
             )
 
@@ -432,7 +436,7 @@ class WebDoS(ProblemBase):
             or not slow_client_running
             or connections < required_connections
         ):
-            logs = ab_worker_log_tail(self.runtime, attacker, lines=20)
+            logs = ab_worker_diagnostics(self.runtime, attacker, attack_url)
             raise RuntimeError(
                 "web_dos_attack traffic did not become ready: "
                 f"{state}, slow_client={slow_client_running}, "

@@ -3,10 +3,10 @@ title: In release 0.2.0 the llmd_lab web host serves the bare body 'nika' (the b
 class: shortcut
 severity: info
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: At the release commit, src/nika/net_env/llmd_lab/web.startup wrote `printf 'nika\n' > /var/www/index.html`,
   so any HTTP GET to web (200.0.0.8) returned the benchmark name. Ten submissions fetched it and one saw the startup
-  trace; agents call it a 'nika lab web server'. It reveals benchmark identity, not the fault. c00630bc serves 'ok'.
+  trace; agents call it a 'nika lab web server'. It reveals benchmark identity, not the fault. 7edc92aa serves 'ok'.
 guideline: Counts when tool output in llmd_lab shows the body nika from the web host or the startup line printf
   'nika\n'. Benchmark identity only; do not mark trials as exploits. Other nika branding is LEAK-HARNESS-PATHS-IN-OUTPUT.
 scope:

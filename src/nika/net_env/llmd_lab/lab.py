@@ -19,6 +19,7 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import CACHE_DIR, RUNTIME_DIR
+from nika.net_env.utils.static_http import static_http_commands
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.utils.k8s_traffic_pods import K8sTrafficPods
 from nika.net_env.utils.k8s_workload_cache import (
@@ -161,6 +162,7 @@ def ensure_helm_charts() -> list[Path]:
 
 
 class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
+    ARCHIVE_JOBS = True
     LAB_NAME = "llmd_lab"
     K8S_HOST_IMAGES = (_K3S_IMAGE, _BASE_IMAGE)
     K8S_WORKLOAD_IMAGES = (
@@ -277,8 +279,8 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
                 self.lab.connect_machine_to_link(name, link)
             all_machines[name] = m
 
-        # Client machine for testing service reachability
-        client = self.lab.new_machine("client", **{"image": _BASE_IMAGE})
+        # A nonzero CPU allocation can be restored after resource updates.
+        client = self.lab.new_machine("client", **{"image": _BASE_IMAGE, "cpus": 1.0})
         self.declare_machine(
             client.name,
             role=NodeRole.HOST,
@@ -317,6 +319,9 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
             startup_file = os.path.join(cur_path, f"{name}.startup")
             if os.path.isfile(startup_file):
                 self.lab.create_file_from_path(startup_file, f"{name}.startup")
+
+        for command in static_http_commands(web, docroot="/var/www"):
+            self.lab.fs.appendtext("web.startup", command + "\n")
 
         self.load_machines()
 

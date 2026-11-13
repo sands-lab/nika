@@ -18,7 +18,7 @@ from nika.workflows.eval.session import build_eval_metrics_payload
 
 pytestmark = pytest.mark.contract
 
-_RELEASE = "0.2.0"
+_RELEASE = "0.3.0"
 _ENV_KEYS = ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile")
 _ENV_CACHE: dict[tuple[str, ...], Any] = {}
 
@@ -81,7 +81,7 @@ def test_oracle_submission_scores_one(row: dict) -> None:
         _, errors = validate_root_cause_choices(
             causes,
             catalog_ids=set(catalog),
-            fault_types=set(fault_candidates(_RELEASE)),
+            fault_types=set(fault_candidates()),
         )
         assert not errors, errors
 

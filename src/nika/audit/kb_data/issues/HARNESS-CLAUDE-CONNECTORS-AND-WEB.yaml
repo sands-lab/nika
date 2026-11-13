@@ -3,7 +3,7 @@ title: Claude Code ran with web tools and claude.ai connectors
 class: harness_privilege
 severity: block
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: cli.claude runs without --strict-mcp-config offered WebSearch, WebFetch, the operator's claude.ai
   connectors (Gmail, Docs, Drive), user skills, subagents and schedulers.
 guideline: Present in the published opus, sonnet, and haiku 5.5 runs. Check whether any were called (POLICY-CALL-UNLISTED-TOOL);

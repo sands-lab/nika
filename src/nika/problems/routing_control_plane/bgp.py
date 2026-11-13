@@ -2646,6 +2646,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 f"match ip address prefix-list {_FLOOD_PREFIX_LIST}",
             ]
         self._frr(device, frr_config_command(*lines))
+        self._frr_save(device)
 
     def _remove_flood_policy(self, device: str) -> None:
         lines = [
@@ -2654,6 +2655,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
         ]
         lines.append(f"no ip prefix-list {_FLOOD_PREFIX_LIST}")
         self._frr(device, frr_config_command(*lines))
+        self._frr_save(device)
 
     def _flood_prefixes(self, count: int, *, peer: str, neighbor_ip: str) -> list[str]:
         """Pick ``count`` /24s scattered within the flood /16, not a tidy block.

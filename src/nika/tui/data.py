@@ -153,7 +153,7 @@ def _group_tasks(rows: list[dict[str, Any]]) -> list[Task]:
             continue
         task = tasks.get(label)
         if task is None:
-            cls = get_problem_class(row["problem"], row["scenario"])
+            cls = get_problem_class(row["problem"])
             domain = getattr(cls, "failure_domain", None) or ""
             task = tasks[label] = Task(
                 label=label,

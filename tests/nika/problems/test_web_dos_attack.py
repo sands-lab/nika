@@ -5,6 +5,7 @@ import pytest
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from nika.problems.registry import compatible, get_problem_class
 from nika.problems.security.web import WebDoS, WebDoSParams
+from nika.net_env.verify import http_ok
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from nika.validation.symptom import evaluate_symptom
@@ -91,6 +92,9 @@ def test_web_dos_artifact_verify_only() -> None:
     assert result["verified"] is True
     assert result["details"]["attack_ready"] is True
     assert "degradation_ok" not in result["details"]
+    problem.parse_params(params.model_dump())
+    truth = problem.get_ground_truth()
+    assert [cause.resource.id for cause in truth.root_causes] == ["node/client_4_1"]
     attacker_commands = [
         cmd for host, cmd in problem.runtime.commands if host == "client_4_1"
     ]
@@ -164,14 +168,26 @@ class TestWebDoSAttackVerify(IntegrationTestCase):
             problem = self._problem(cls, session_id=session_id)
             parsed = problem.parse_params(raw_params)
 
+            listing = (
+                "find /tmp /var/tmp /var/log /usr/local/bin -type f "
+                "-printf '%p\\n' 2>/dev/null | sort"
+            )
+            before_files = problem.runtime.exec(parsed.attacker_device, listing)
             try:
                 problem.inject_fault(parsed)
+                assert (
+                    problem.runtime.exec(parsed.attacker_device, listing)
+                    == before_files
+                )
                 verify = problem.verify_fault(parsed)
                 assert verify["verified"] is True, verify
                 assert (verify.get("details") or {}).get("attack_ready") is True
 
                 recovered = problem.recover_fault(parsed)
                 assert recovered["verified"] is True, recovered
+                assert http_ok(
+                    problem.runtime, parsed.observer_device, parsed.probe_url
+                )
             finally:
                 if problem is not None and parsed is not None:
                     try:
@@ -230,6 +246,9 @@ class TestWebDoSAttackSymptom(IntegrationTestCase):
 
                 recovered = problem.recover_fault(parsed)
                 assert recovered["verified"] is True, recovered
+                assert http_ok(
+                    problem.runtime, parsed.observer_device, parsed.probe_url
+                )
             finally:
                 if problem is not None and parsed is not None:
                     try:

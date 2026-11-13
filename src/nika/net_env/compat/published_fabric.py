@@ -1,4 +1,4 @@
-"""Two-endpoint small fabrics used by benchmark release 0.2.0."""
+"""Two-endpoint small fabrics used by benchmark release 0.3.0."""
 
 from nika.net_env.clos.design import build_clos_fabric_model, fabric_dimensions
 from nika.net_env.sdn_l3_clos.l3_clos_topo import SDNL3Clos as CurrentSDN

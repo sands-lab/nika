@@ -10,6 +10,7 @@ import re
 import shlex
 from typing import Literal
 
+from nika.problems.support.dhcp import restart_dhcp_server
 from nika.service.lab.protocols import SupportsExec
 from nika.utils.parallel import bounded_parallel_map
 
@@ -211,32 +212,6 @@ class SemanticOpsMixin:
         # Clients are independent; renewing serially scales with client count.
         bounded_parallel_map(renew, nodes)
 
-    @staticmethod
-    def _subnet_escaped(subnet: str) -> str:
-        return subnet.replace(".", "\\.")
-
-    def dhcp_set_option_routers(
-        self: SupportsExec, dhcp_server: str, subnet: str, gateway: str
-    ) -> None:
-        sub = self._subnet_escaped(subnet)
-        cmd = (
-            f"sed -i '/subnet {sub} netmask 255\\.255\\.255\\.0/,/}}/ "
-            f"s/option routers .*/option routers {gateway};/' /etc/dhcp/dhcpd.conf"
-        )
-        self.exec_cmd(dhcp_server, cmd)
-        self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
-
-    def dhcp_set_option_dns(
-        self: SupportsExec, dhcp_server: str, subnet: str, dns: str
-    ) -> None:
-        sub = self._subnet_escaped(subnet)
-        cmd = (
-            f"sed -i '/subnet {sub} netmask 255\\.255\\.255\\.0/,/}}/ "
-            f"s/option domain-name-servers .*/option domain-name-servers {dns};/' /etc/dhcp/dhcpd.conf"
-        )
-        self.exec_cmd(dhcp_server, cmd)
-        self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
-
     def dhcp_delete_subnet(self: SupportsExec, dhcp_server: str, subnet: str) -> None:
         # Edit host-side and write the result back: no helper script or
         # backup file is left on the node for agents to find.
@@ -262,8 +237,7 @@ class SemanticOpsMixin:
                 continue
             out.append(line)
         self.write_file(dhcp_server, path, "".join(out))
-        self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
-        self.exec_cmd(dhcp_server, "rm -f /var/lib/dhcp/dhcpd.leases~")
+        restart_dhcp_server(self.exec_cmd, dhcp_server)
         self.exec_cmd(
             dhcp_server,
             "for i in 1 2 3 4 5; do "

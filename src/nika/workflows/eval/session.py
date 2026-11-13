@@ -12,7 +12,7 @@ from nika.evaluator.trace_parser import AgentTraceParser
 from nika.evaluator.scoring import (
     GradingError,
     score_detection,
-    score_rca_v2,
+    score_rca,
 )
 from nika.evaluator.score_status import (
     infer_score_status_from_artifacts,
@@ -90,7 +90,7 @@ def generic_eval(gt, submission):
     detection_score = score_detection(submission, gt)
     return {
         "detection_score": detection_score,
-        **score_rca_v2(submission, gt),
+        **score_rca(submission, gt),
     }
 
 

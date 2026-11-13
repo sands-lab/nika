@@ -22,28 +22,15 @@ affects only `nika benchmark run`.
 
 ## When to use it
 
-Firecracker execution runs working YAML matrices and releases that do not pin a
-[benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol).
-It cannot run a release that pins one yet, such as `--release 0.2.0`. To run
-release 0.2.0's tasks, pass its task file as a matrix, for example
-`--config benchmark/releases/0.2.0/test.yaml`; such a run uses the current
-NIKA's code instead of the release's engine and is not an official release run.
+Firecracker execution runs working YAML matrices and releases that do not pin a [benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol). It cannot run a release that pins one yet, such as `--release 0.3.0`. To run release 0.3.0's tasks, pass its task file as a matrix, for example `--config benchmark/releases/0.3.0/test.yaml`; such a run uses the current NIKA's code instead of the release's engine and is not an official release run.
 
-Use Firecracker execution when you run the same tasks more than once on a host,
-such as several agents or models, or when their environments take minutes to
-deploy. On release 0.2.0's test split, measured before the release pinned its
-engine, the time trials spend outside the agent drops from 10.8 h to 0.9 h per
-run, and 85 tasks ran in 2 h 30 min including the one-time builds instead of
-5 h 55 min. Restored
-labs give the same scores as native ones with the mock agent; with a real agent,
-scores differed on some tasks in both directions (see
-[Compatibility and scores](#compatibility-and-scores)).
+Use Firecracker execution when you run the same tasks more than once on a host, such as several agents or models, or when their environments take minutes to deploy. On the profiled test split, measured before engine pinning, the time trials spend outside the agent drops from 10.8 h to 0.9 h per run, and 85 tasks ran in 2 h 30 min including the one-time builds instead of 5 h 55 min. Restored labs give the same scores as native ones with the mock agent; with a real agent, scores differed on some tasks in both directions (see [Compatibility and scores](#compatibility-and-scores)).
 
 Firecracker execution needs:
 
 * Linux on x86-64 with KVM, on bare metal or in a VM. Labs that run VMs
   themselves (RouterOS) do not work in a VM inside another VM.
-* A btrfs filesystem for the images: about 35 GiB for release 0.2.0's test
+* A btrfs filesystem for the images: about 35 GiB for the profiled test
   split, plus up to 20 GiB free while images are built. XFS also works, without
   compression, at about 3.5 times the size.
 * Memory to reserve as huge pages: the installer reserves half of the host's
@@ -93,15 +80,7 @@ virtualization; the installer checks it and tells you when it is off.
 
 ### Huge pages and disk
 
-Every running copy holds its VM memory in huge pages, and the reserved memory is
-unavailable to everything else. A copy uses huge pages only for the memory its
-lab uses (`nika firecracker list` shows it per lab image: about 1 GiB for small
-Kathara labs, 2–5 GiB for ISP, k8s and SR Linux labs), but it can grow to its
-full `vm_memory`. A VM that finds the pool empty crashes, so the runner admits a
-trial only while the pool holds its full `vm_memory`. Half of the host's memory
-runs several copies at once; the largest labs of release 0.2.0 need 20 GiB for
-one. To change the reservation, edit `vm.nr_hugepages` (in 2 MiB pages) in
-`/etc/sysctl.d/99-nika-hugepages.conf` and reboot.
+Every running copy holds its VM memory in huge pages, and the reserved memory is unavailable to everything else. A copy uses huge pages only for the memory its lab uses (`nika firecracker list` shows it per lab image: about 1 GiB for small Kathara labs, 2–5 GiB for ISP, k8s and SR Linux labs), but it can grow to its full `vm_memory`. A VM that finds the pool empty crashes, so the runner admits a trial only while the pool holds its full `vm_memory`. Half of the host's memory runs several copies at once; the largest labs of the profiled baseline need 20 GiB for one. To change the reservation, edit `vm.nr_hugepages` (in 2 MiB pages) in `/etc/sysctl.d/99-nika-hugepages.conf` and reboot.
 
 The installer frees the page cache and compacts memory before it reserves the
 pages. When the host's memory is too fragmented to find enough contiguous 2 MiB
@@ -117,12 +96,7 @@ file that outgrows the real free space stops with I/O errors. On a Kubernetes
 node, keep the disk well below 85%: kubelet then deletes every unused Docker
 image.
 
-The root needs room for the base image (12 GiB) plus the lab images you keep:
-each holds the memory its lab uses, compressed to 0.3–4 GiB, and release 0.2.0's
-test split needs 23 GiB ([per environment](#per-environment)). NIKA starts a
-build only while the root has room for the VM's whole `vm_memory` per running
-build: 4–20 GiB for release 0.2.0, more for RouterOS and IOS XR labs (see
-[VM size](#vm-size)). Rebuilding the base briefly needs room for two bases.
+The root needs room for the base image (12 GiB) plus the lab images you keep: each holds the memory its lab uses, compressed to 0.3–4 GiB, and the profiled test split needs 23 GiB ([per environment](#per-environment)). NIKA starts a build only while the root has room for the VM's whole `vm_memory` per running build: 4–20 GiB for the profiled baseline, more for RouterOS and IOS XR labs (see [VM size](#vm-size)). Rebuilding the base briefly needs room for two bases.
 
 To keep the images elsewhere, such as on a separate disk, set
 `nika.execution.firecracker.root` to a directory on btrfs or XFS before you run
@@ -211,11 +185,7 @@ Use `vm_cpus_overrides` the same way for vCPUs (`isp_pdh: 16` or `isp_pdh@sonic:
 
 ### Case images (optional)
 
-A trial restored from a lab image still verifies the environment and injects
-its failure before the agent starts. For most tasks that takes a few seconds,
-but in release 0.2.0 injection takes 50–110 s for several `dc_clos`,
-`enterprise_branch`, `campus_lan`, `k8s_lab` and `llmd_lab` tasks, and
-verifying `isp_pdh` (SR Linux) takes tens of seconds, again in every trial.
+A trial restored from a lab image still verifies the environment and injects its failure before the agent starts. For most tasks that takes a few seconds, but in the profiled baseline injection takes 50–110 s for several `dc_clos`, `enterprise_branch`, `campus_lan`, `k8s_lab` and `llmd_lab` tasks, and verifying `isp_pdh` (SR Linux) takes tens of seconds, again in every trial.
 
 To skip that when you run the same tasks repeatedly, such as several agents or
 models on one release, keep each task's VM right after injection as a *case
@@ -228,13 +198,7 @@ nika:
       case_images: true
 ```
 
-Every trial of the task then restores its case image, and the agent starts 1–8 s
-after the trial begins. A case image stores only the memory pages that changed
-since the lab image, compressed, plus the disk blocks that changed: median
-32 MiB, up to 180 MiB, and 3.5 GiB for release 0.2.0's test split. Building one
-takes a restore, the injection and a snapshot, about a minute for most tasks.
-[Per environment](#per-environment) lists the build time, disk and break-even
-point.
+Every trial of the task then restores its case image, and the agent starts 1–8 s after the trial begins. A case image stores only the memory pages that changed since the lab image, compressed, plus the disk blocks that changed: median 32 MiB, up to 180 MiB, and 3.5 GiB for the profiled test split. Building one takes a restore, the injection and a snapshot, about a minute for most tasks. [Per environment](#per-environment) lists the build time, disk and break-even point.
 
 Case images change how trials start:
 
@@ -328,8 +292,7 @@ build per environment variant and the disk to keep the result. A lab image
 build costs about one native deploy and holds 0.3–4 GiB; after that, a trial
 restores its lab in seconds instead of deploying and undeploying it.
 
-For release 0.2.0 (test split, 85 tasks × 3 trials), measured before the release
-pinned its engine, on a 16 vCPU host that is itself a VM, with huge pages:
+For the profiled test split (85 tasks × 3 trials), measured before engine pinning, on a 16 vCPU host that is itself a VM, with huge pages:
 
 | | Native | Lab images | Lab and case images |
 |---|---:|---:|---:|
@@ -359,7 +322,7 @@ images zstd-compressed (about 3.5× smaller); on XFS they are uncompressed. See
 
 Restored labs behave like freshly deployed ones:
 
-* All 29 environment variants of release 0.2.0 ran from lab images with the
+* All 29 environment variants of the profiled baseline ran from lab images with the
   mock agent, with the same scores as native runs.
 * Full test-split runs (85 tasks × 3 trials) with Claude Code and with Codex,
   both on Qwen3-Coder-Next-FP8 and each agent in its sandbox, finished all 255

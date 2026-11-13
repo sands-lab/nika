@@ -189,15 +189,6 @@ class LabOpsTest:
 
         assert runtime.list_dhcp_client_nodes() == ["pc1", "client1"]
 
-    def test_dhcp_set_option_routers(self):
-        runtime = _StubRuntime()
-        runtime.dhcp_set_option_routers("dhcp1", "192.168.1.0", "192.168.1.254")
-        cmds = [cmd for _, cmd in runtime.calls]
-
-        assert any(("option routers 192.168.1.254" in cmd for cmd in cmds))
-
-        assert any(("systemctl restart isc-dhcp-server" in cmd for cmd in cmds))
-
     def test_tc_set_netem_command(self):
         runtime = _StubRuntime()
         runtime.tc_set_netem("pc1", "eth0", corrupt=60)
@@ -317,13 +308,11 @@ class LabOpsTest:
         class _FRR(FRRAPIMixin):
             def exec_cmd(self, node: str, cmd: str, **_kwargs) -> str:
                 commands.append(cmd)
-                return ""
+                return "\n__rc=0\n"
 
         runtime = _FRR()
         runtime.frr_get_rpki_status("router1", prefix="2001:db8::1/32")
-        assert "vtysh -c 'show rpki prefix 2001:db8::/32' 2>/dev/null || true" in (
-            commands
-        )
+        assert any("show rpki prefix 2001:db8::/32" in cmd for cmd in commands)
         assert any("show bgp ipv6 unicast 2001:db8::/32" in cmd for cmd in commands)
 
         commands.clear()

@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[3]
 PROFILES = benchmark_isp_profiles(
     [
         ROOT / "benchmark/working/cases.yaml",
-        ROOT / "benchmark/releases/0.2.0/dev.yaml",
-        ROOT / "benchmark/releases/0.2.0/test.yaml",
+        ROOT / "benchmark/releases/0.3.0/dev.yaml",
+        ROOT / "benchmark/releases/0.3.0/test.yaml",
     ]
 )
 NATIVE = {

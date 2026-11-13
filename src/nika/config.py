@@ -105,7 +105,7 @@ def clab_workdir(lab_name: str) -> Path:
 RESULTS_DIR = REPO_ROOT / "results"
 BENCHMARK_DIR = REPO_ROOT / "benchmark"
 # Current nika-bench release. Locally built nika/* images are tagged with it.
-BENCHMARK_VERSION = "0.2.0"
+BENCHMARK_VERSION = "0.3.0"
 
 # Migration recognizes this legacy name. Runtime result paths come from YAML or CLI.
 ENV_RESULT_DIR = "NIKA_RESULT_DIR"

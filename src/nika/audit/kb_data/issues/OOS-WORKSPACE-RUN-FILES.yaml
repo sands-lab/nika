@@ -3,7 +3,7 @@ title: Agent read its run files in the sandbox workspace
 class: out_of_scope
 severity: block
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: The sandbox workspace held run.json, sandbox_manifest.json, .sandbox_runtime_env.json, and the
   sandbox template's CLAUDE.md; agents ran cat run.json.
 guideline: 'run.json holds the case fingerprint (scenario, problem, inject parameters). A successful read

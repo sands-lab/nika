@@ -258,10 +258,6 @@ def assert_sender_resource_contention_pre(ctx: FailureE2EContext) -> None:
     from nika.problems.support.cpu_quota_helpers import read_nano_cpus
 
     ctx.original_nano = read_nano_cpus(ctx.runtime, ctx.parsed.host_name)
-    # Clos/SDN nginx only serves index.html; stage /small.bin before the probe.
-    ensure = getattr(ctx.problem, "_ensure_http_objects", None)
-    if callable(ensure):
-        ensure(ctx.parsed)
     small_ok = http_download_stats(
         ctx.runtime, ctx.parsed.client_host, ctx.parsed.small_url, max_time_sec=30
     )
@@ -285,7 +281,7 @@ def assert_sender_resource_contention(ctx: FailureE2EContext) -> None:
     artifact = ctx.verify["details"]
     assert artifact["workload_running"] is True
     assert artifact["quota_ok"] is True
-    assert artifact.get("cpu_http_running", True) is True
+    assert artifact["http_running"] is True
     details = ctx.symptom["details"]
     assert details["control_ok"] is True
     assert details["small_http_ok"] is True

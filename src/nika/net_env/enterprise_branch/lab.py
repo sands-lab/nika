@@ -11,6 +11,7 @@ from Kathara.model.Lab import Lab
 
 from nika.net_env.utils.download_object import download_object_commands
 from nika.config import pkg_path
+from nika.net_env.utils.static_http import static_http_commands
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.native_routers import NativeRouterEnv
 from nika.net_env.probe_intent import ProbeIntent
@@ -323,6 +324,7 @@ def _record_edge_design(
 
 
 class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
+    ARCHIVE_JOBS = True
     ROUTING_PARAMETER_KINDS = frozenset({"import_preferences"})
     LAB_NAME = "enterprise_branch"
     # Deploys the netlab configurations stored under rendered/.
@@ -634,8 +636,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                                 f"for i in $(seq 1 {ARCHIVE_ITEMS}); do "
                                 ": > /var/www/archive/item-$i; done",
                                 *download_object_commands("/var/www"),
-                                "cd /var/www && nohup python3 -m http.server 80 "
-                                ">/dev/null 2>&1 &",
+                                *static_http_commands(host.machine, docroot="/var/www"),
                             ]
                         )
 

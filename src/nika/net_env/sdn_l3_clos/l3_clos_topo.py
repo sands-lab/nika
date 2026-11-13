@@ -10,6 +10,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.net_env.clos.requirements import communication_contract
+from nika.net_env.utils.static_http import static_http_commands
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.rack_workload import (
@@ -85,6 +86,7 @@ class HostMeta:
 
 
 class SDNL3Clos(NetworkEnvBase):
+    ARCHIVE_JOBS = True
     build_model = staticmethod(build_clos_fabric_model)
     L2_CAPABILITIES = frozenset({"arp-broadcast"})
     LAB_NAME = "sdn_l3_clos"
@@ -118,7 +120,7 @@ class SDNL3Clos(NetworkEnvBase):
             Per-leaf rack prefix 10.0.<leaf>.0/24 with virtual gateway MAC {VIRTUAL_ROUTER_MAC}.
             OpenFlow 1.3 SELECT ECMP across spines; OOB control network 172.31.0.0/16;
             OVS fail-mode=secure; no STP and no NORMAL fallback.
-            Each leaf hosts one nginx web server (web_<leaf>, 10.0.<leaf>.11) and
+            Each leaf hosts one static HTTP server (web_<leaf>, 10.0.<leaf>.11) and
             client hosts. Clients load pages and small objects from the web
             servers all the time and download large.bin ({LARGE_OBJECT_MB} MB)
             from one of them now and then.""")
@@ -246,7 +248,9 @@ class SDNL3Clos(NetworkEnvBase):
                         [
                             *web_content_commands(LARGE_OBJECT_MB),
                             f"echo 'sdn_l3_clos web_{leaf_id}' > /var/www/html/index.html",
-                            "nginx || service nginx start || true",
+                            *static_http_commands(
+                                host_meta.machine, docroot="/var/www/html"
+                            ),
                         ]
                     )
                 host_meta.eth_index += 1

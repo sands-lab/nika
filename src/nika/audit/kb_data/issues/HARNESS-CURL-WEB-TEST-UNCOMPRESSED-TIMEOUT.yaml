@@ -3,14 +3,14 @@ title: In release 0.2.0 curl_web_test fetched the campus_lan catalog without Acc
 class: harness_defect
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: At the release commit, curl_web_test ran 'curl --connect-timeout 5 --max-time 10' without --compressed
   (src/nika/service/kathara/base_api.py). The campus_lan brief says clients fetch the catalog with gzip, but the
   uncompressed catalog is 67108864 bytes and takes about 13 s. The fetch therefore timed out in all 16 campus_lan
   cases whatever the fault, including off-path DHCP and OSPF faults, across 20 submissions, and agents read the
-  timeout as a web or path fault. c00630bc adds --compressed (src/nika/service/shell.py).
+  timeout as a web or path fault. 7edc92aa adds --compressed (src/nika/service/shell.py).
 guideline: Counts on a curl_web_test [TIMEOUT] with --max-time 10 in campus_lan on a release-0.2.0 commit. On a
-  commit with c00630bc a timeout can be a real symptom (for example a web or path fault); check whether the
+  commit with 7edc92aa a timeout can be a real symptom (for example a web or path fault); check whether the
   command carries --compressed before calling it a regression. Timeouts in other environments are not this issue.
 scope:
   scenarios:
