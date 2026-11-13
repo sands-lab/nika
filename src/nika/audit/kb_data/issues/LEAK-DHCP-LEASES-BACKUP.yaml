@@ -23,9 +23,9 @@ provenance:
   - tests/nika/problems/test_dhcp_address_renewal.py::test_missing_subnet_removes_stale_lease_backup_and_recovers
   - https://github.com/sands-lab/nika/pull/330
   found_by: live_audit
-fixed_in: 0f3a80fb
+fixed_in: 1c00ce98
 evidence:
 - >-
   2026-11-11 recheck: the dhcp_spoofed_* faults restarted isc-dhcp-server through a path that
-  left dhcpd.leases~ after sealing had removed it. 0f3a80fb restarts dhcpd through one helper that
+  left dhcpd.leases~ after sealing had removed it. 1c00ce98 restarts dhcpd through one helper that
   removes the backup; live campus_lan checks found no backup after all three faults and recovery.

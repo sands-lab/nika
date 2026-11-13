@@ -20,9 +20,9 @@ provenance:
 guideline: The fabric manager keeps intent.json, observed.json, and last.json under /tmp/p4_fabric; diffing
   intent against runtime is legitimate diagnosis. A leak only if last.json records the injected request
   itself; unconfirmed, needs a live check.
-fixed_in: 0f3a80fb
+fixed_in: 1c00ce98
 evidence:
 - >-
   2026-11-11 recheck: 7edc92aa still wrote every ONOS request body to /tmp/onos_body.json on
-  fabric_mgr, so southbound_port_mismatch left the injected openflowPorts there. 0f3a80fb streams
+  fabric_mgr, so southbound_port_mismatch left the injected openflowPorts there. 1c00ce98 streams
   the body to curl on stdin; a live sdn_l3_clos injection left no file.

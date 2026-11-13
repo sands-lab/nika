@@ -31,8 +31,8 @@ evidence:
   This does not close other helper-file subcases; web DoS still uses
   /var/tmp/http-client.py and per-worker http-client logs.
 - >-
-  2026-11-11: 0f3a80fb discards ApacheBench worker output, runs the slow HTTP client from memory
+  2026-11-11: 1c00ce98 discards ApacheBench worker output, runs the slow HTTP client from memory
   under a neutral name, and stages the archive batch and the static file service on every
   endpoint or web host at deployment. Live web DoS, load-balancer, contention, and OD-traffic
   checks found no files added to the faulted node relative to its peers.
-fixed_in: 0f3a80fb
+fixed_in: 1c00ce98
