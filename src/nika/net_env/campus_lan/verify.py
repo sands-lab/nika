@@ -35,6 +35,15 @@ WEB99_URL = "http://web99.local/"
 
 MIN_OSPF_NEIGHBORS = 2
 DHCP_HOST_RANGE = re.compile(r"10\.1\.1\.(?:[1-9]\d|100)")
+_WEB_SERVER_NODE = re.compile(r"web_server_(\d+)")
+
+
+def web_server_dns_name(host: str) -> str:
+    """Name the campus DNS zone gives a web server: ``web_server_2`` is ``web2.local``."""
+    match = _WEB_SERVER_NODE.fullmatch(host)
+    if match is None:
+        raise ValueError(f"{host!r} is not a campus_lan web server")
+    return f"web{match.group(1)}.local"
 
 
 @dataclass(frozen=True)

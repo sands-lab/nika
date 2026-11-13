@@ -114,9 +114,9 @@ user PCs -- access switches -- distribution routers
 
 Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`.
 
-The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service.
+The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service. Over HTTPS, `web0`-`web3.local` present one server certificate for their names and addresses, signed by the campus CA. Every PC trusts that CA.
 
-Every PC browses `web0`-`web3.local` and `web99.local` every few tens of seconds. The teaching-lab PCs, every PC in the `10.2.<dist>.0/24` access blocks behind `router_core_2`, refresh their software catalog every few minutes by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`.
+Every PC browses `web0`-`web3.local` and `web99.local` every few tens of seconds. The teaching-lab PCs, every PC in the `10.2.<dist>.0/24` access blocks behind `router_core_2`, refresh their software catalog every few minutes by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded). Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`.
 
 Verification checks OSPF adjacency, cross-branch reachability, DNS, and HTTP.
 

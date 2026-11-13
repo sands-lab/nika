@@ -386,6 +386,12 @@ CORE_E2E_CASES = (
         inject_seed=1,
     ),
     FailureE2ECase(
+        problem="tls_certificate_expired",
+        scenario="campus_lan",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
         problem="sender_resource_contention",
         scenario="dc_clos",
         env_run_args=("-s", "s"),

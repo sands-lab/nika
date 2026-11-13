@@ -655,8 +655,8 @@ class CampusLanDhcp(NetworkEnvBase):
                     '{"workers": 1}\n', "/etc/archive-job.json"
                 )
                 host_meta.machine.create_file_from_path(
-                    os.path.join(cur_path, "campus-repository.crt"),
-                    "/usr/local/share/ca-certificates/campus-repository.crt",
+                    os.path.join(cur_path, "campus-ca.crt"),
+                    "/usr/local/share/ca-certificates/campus-ca.crt",
                 )
                 host_meta.cmd_list.extend(
                     [

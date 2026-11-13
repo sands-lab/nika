@@ -91,10 +91,10 @@ Explore the registered [network incidents](docs/operations/failures.md). The [wo
 | Service Networking | 11 |
 | Management & Orchestration Plane | 9 |
 | Addressing, Neighbor & Naming | 13 |
-| Endpoint & Application | 2 |
+| Endpoint & Application | 3 |
 | Traffic, Queueing & Resource | 4 |
 | Security | 7 |
-| **Total** | **103** |
+| **Total** | **104** |
 
 See the [failure reference](docs/operations/failures.md#registered-failures) for individual faults and injection options.
 
@@ -259,7 +259,7 @@ NIKA is part of a growing ecosystem. The table below compares NIKA with other be
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 103 registered fault types <br> 40 network environments | ⭐️⭐️ <br> [Working-pool task counts](docs/operations/failures.md#domain-boundaries) | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 104 registered fault types <br> 40 network environments | ⭐️⭐️ <br> [Working-pool task counts](docs/operations/failures.md#domain-boundaries) | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |
