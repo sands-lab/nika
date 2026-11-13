@@ -91,10 +91,10 @@ Explore the registered [network incidents](docs/operations/failures.md). The [wo
 | Service Networking | 11 |
 | Management & Orchestration Plane | 9 |
 | Addressing, Neighbor & Naming | 13 |
-| Endpoint & Application | 2 |
+| Endpoint & Application | 3 |
 | Traffic, Queueing & Resource | 4 |
 | Security | 7 |
-| **Total** | **103** |
+| **Total** | **104** |
 
 See the [failure reference](docs/operations/failures.md#registered-failures) for individual faults and injection options.
 
