@@ -13,6 +13,8 @@ concurrency:
 env:
   UV_VERSION: "0.8.22"
   GNMIC_VERSION: "0.48.0"
+  # Every run records its slowest tests, so CI time can be traced to them.
+  PYTEST_ADDOPTS: --durations=10
 
 # Shared setup notes:
 # - ubuntu-24.04-arm needs amd64 binfmt for nika/onos (COPY --from amd64 upstream).
@@ -574,7 +576,34 @@ jobs:
       - published-engine
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      actions: read
     steps:
+      # Failed jobs never stop the others; this lists each one with the step that
+      # failed and a log link. A summary error leaves the verdict below unchanged.
+      - name: Summarize failed jobs
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = (await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+              ...context.repo, run_id: context.runId, attempt_number: Number(process.env.GITHUB_RUN_ATTEMPT),
+            })).filter(j => j.status === 'completed');
+            const failed = jobs.filter(j => ['failure', 'cancelled', 'timed_out'].includes(j.conclusion));
+            if (failed.length === 0) {
+              await core.summary.addRaw('All gated jobs passed or were skipped.').write();
+              return;
+            }
+            const rows = failed.map(j => {
+              const step = (j.steps || []).find(s => ['failure', 'cancelled', 'timed_out'].includes(s.conclusion));
+              core.error(`${j.name}: ${j.conclusion}${step ? ` at "${step.name}"` : ''}`);
+              return [j.name, j.conclusion, step ? step.name : '', `<a href="${j.html_url}">log</a>`];
+            });
+            await core.summary
+              .addHeading(`${failed.length} of ${jobs.length} jobs failed`, 3)
+              .addTable([[{data: 'Job', header: true}, {data: 'Result', header: true},
+                          {data: 'Failed step', header: true}, {data: 'Log', header: true}], ...rows])
+              .write();
       - name: Require every gated job to pass or be skipped
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
