@@ -47,11 +47,11 @@ def _kernel_errors(problem: Any, host: str) -> dict[str, int]:
 
 
 def _received_prefixes(problem: Any, router: str, peer: str) -> set[str]:
-    if problem.runtime.backend == "containerlab":
-        return problem.runtime.lab_api.srl_bgp_received_prefixes(router, peer)
     ops = router_fault_ops(problem, router)
     if ops is not None:
         return ops.bgp_received_prefixes(peer)
+    if problem.runtime.backend == "containerlab":
+        return problem.runtime.lab_api.srl_bgp_received_prefixes(router, peer)
     data = json.loads(
         problem.runtime.exec(
             router, f"vtysh -c 'show bgp ipv4 unicast neighbors {peer} routes json'"

@@ -91,6 +91,56 @@ def _evidence(playbook, outputs):
     return bool(evidence) and all(evidence)
 
 
+def test_iosxr_mtu_oracle_requires_a_reduced_ip_mtu_and_peer_disagreement():
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.problems.forwarding_encapsulation_policy.mtu import MtuMismatch
+
+    problem = MtuMismatch.__new__(MtuMismatch)
+    problem.net_env = get_net_env_instance(
+        "isp_arpanet196912", device_profile="iosxr", igp="ospf"
+    )
+    plan = problem.oracle_playbook(
+        MtuMismatch.Params(host_name="sri", intf_name="eth1", mtu=500)
+    )
+    reduced = "MTU is 1514 (500 is available to IP)"
+    healthy = "MTU is 1514 (1500 is available to IP)"
+    assert _evidence(plan, [reduced, healthy])
+    assert not _evidence(plan, [healthy, healthy])
+    assert not _evidence(plan, [reduced, reduced])
+    assert not _evidence(plan, [reduced, "syntax error"])
+    assert {step.tool for step in plan.steps} == {"iosxr_exec"}
+
+
+def test_iosxr_frag_filter_oracle_requires_deny_and_interface_binding():
+    from nika.problems.forwarding_encapsulation_policy.p4_gateway import (
+        IcmpFragNeededFilterMisconfiguration,
+    )
+
+    plan = _playbook(IcmpFragNeededFilterMisconfiguration, "iosxr")
+    deny = "10 deny icmp any any packet-too-big"
+    binding = "ipv4 access-group EDGE-FILTER egress"
+    assert _evidence(plan, [deny, binding])
+    assert not _evidence(plan, ["20 permit ipv4 any any", binding])
+    assert not _evidence(plan, [deny, "Outgoing access list is not set"])
+
+
+def test_all_xr_topology_has_no_colocated_pmtu_filter_target():
+    from nika.problems.forwarding_encapsulation_policy.p4_gateway import (
+        IcmpFragNeededFilterMisconfiguration,
+    )
+
+    from nika.problems.support.benchmark_targets import NoValidTargetError
+
+    with pytest.raises(NoValidTargetError, match="locally generated ICMP"):
+        IcmpFragNeededFilterMisconfiguration.coordinate_benchmark_inject(
+            SimpleNamespace(net_env=_env("iosxr")),
+            {
+                "mtu_mismatch": {"host_name": "r1", "intf_name": "eth1"},
+                "icmp_frag_needed_filter_misconfiguration": {"host_name": "r2"},
+            },
+        )
+
+
 @pytest.mark.parametrize("profile", ["frr", "iosxr", "routeros"])
 def test_ospf_timers_require_observed_disagreement(profile):
     plan = _playbook(OSPFHelloIntervalMismatch, profile, intf_name="eth1")
@@ -349,3 +399,24 @@ def test_xr_ospf_adjacency_evidence_requires_zero_on_every_interface():
     assert not _xr_ospf_no_adjacencies(empty + "\nAdjacent neighbor count is 2")
     assert not _xr_ospf_no_adjacencies("")
     assert not _xr_ospf_no_adjacencies("% Invalid input")
+
+
+def test_srl_area_oracle_requires_area_disagreement_without_full_adjacency():
+    from nika.problems.routing_control_plane.ospf import OSPFAreaMisconfig
+
+    def output(area, full=False):
+        interface = {"interface-name": "ethernet-1/1.0"}
+        if full:
+            interface["neighbor"] = [{"adjacency-state": "full"}]
+        instance = {
+            "name": "default",
+            "area": [{"area-id": area, "interface": [interface]}],
+        }
+        ni = {"name": "default", "protocols": {"ospf": {"instance": [instance]}}}
+        return json.dumps({"network-instance": [ni]})
+
+    plan = _playbook(OSPFAreaMisconfig, "nokia_srlinux")
+    assert _evidence(plan, [output("0.0.0.66"), output("0.0.0.0")])
+    assert not _evidence(plan, [output("0.0.0.0"), output("0.0.0.0")])
+    assert not _evidence(plan, [output("0.0.0.66"), output("0.0.0.0", True)])
+    assert not _evidence(plan, [output("0.0.0.0", True), output("0.0.0.0", True)])

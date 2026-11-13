@@ -497,9 +497,9 @@
       }
     ]
   },
-  "frr_service_down": {
+  "routing_service_down": {
     "implementation": "src/nika/problems/routing_control_plane/node_services.py",
-    "symbol": "FrrDown",
+    "symbol": "RoutingServiceDown",
     "sources": [
       {
         "source_type": "vendor_documentation",
@@ -508,8 +508,8 @@
         "locator": "WATCHFRR; Starting WATCHFRR",
         "excerpt": "handles failed daemon processes and intelligently restarts them",
         "supports": "reference_implementation",
-        "correspondence": "NIKA kills watchfrr before the routing daemons to keep the stopped routing stack from respawning. The manual documents precisely that automatic daemon-restart responsibility.",
-        "limitation": "This source supports daemon failure handling and the need to stop the watchdog. Existing kernel forwarding entries may persist, so process failure alone does not prove all traffic stops.",
+        "correspondence": "On FRR, NIKA kills watchfrr before the routing daemons to prevent automatic restarts. On SONiC, NIKA stops the running routing programs with supervisorctl stop. The FRR manual documents the watchdog restart behavior.",
+        "limitation": "This source supports FRR daemon failure handling and the need to stop watchfrr; it does not document SONiC supervisor control. Existing kernel forwarding entries may persist, so process failure alone does not prove all traffic stops.",
         "accessed": "2026-11-10"
       }
     ]

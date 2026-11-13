@@ -90,6 +90,47 @@ def srl_instance(output: str, protocol: str) -> dict:
     return instances[0]
 
 
+def srl_bgp_prefix_paths(output: str, prefix: str) -> list[dict]:
+    """Normalize IPv4 local-RIB paths and their referenced attribute sets."""
+    data = srl_json(output)
+    ni = next(n for n in data["network-instance"] if n["name"] == "default")
+    rib = ni["bgp-rib"]
+    attrs = {str(a["index"]): a for a in rib.get("attr-sets", {}).get("attr-set", [])}
+    routes = [
+        route
+        for family in rib.get("afi-safi", [])
+        if family["afi-safi-name"].split(":")[-1] == "ipv4-unicast"
+        for route in family.get("ipv4-unicast", {})
+        .get("local-rib", {})
+        .get("route", [])
+    ]
+    paths = []
+    for route in routes:
+        if route["prefix"] != prefix:
+            continue
+        attr = attrs[str(route["attr-id"])]
+        segments = sorted(
+            attr.get("as-path", {}).get("segment", []),
+            key=lambda row: row["as-path-index"],
+        )
+        tokens = []
+        for segment in segments:
+            members = " ".join(str(n) for n in segment.get("member", []))
+            tokens.append(
+                members if segment["type"] == "as-sequence" else "{" + members + "}"
+            )
+        paths.append(
+            {
+                "aspath": " ".join(tokens),
+                "best": bool(route.get("best-route")),
+                "nexthops": [attr["next-hop"]] if attr.get("next-hop") else [],
+                "originator": attr.get("originator-id"),
+                "peer_router_id": None,
+            }
+        )
+    return paths
+
+
 class SRLAPIMixin:
     """Interfaces to interact with Nokia SR Linux routers in Containerlab labs."""
 

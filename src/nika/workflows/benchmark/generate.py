@@ -30,6 +30,7 @@ from nika.traffic.profiles import traffic_field
 from nika.problems.support.router_ops import unsupported_native_targets
 from nika.workflows.benchmark.e2e_validation import containerlab_isp_supported
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
+from nika.problems.support.benchmark_targets import NoValidTargetError
 from nika.workflows.benchmark.inject_enumerate import enumerate_inject_params
 from nika.workflows.benchmark.inject_resolve import (
     UnsupportedNativeTargetError,
@@ -263,7 +264,7 @@ def _catalog_root_causes(
 
 
 def _compatible_with_any_deployment(problem_cls: type, scenario: str) -> bool:
-    """Whether the failure runs on the default deployment or a Containerlab platform.
+    """Whether the failure runs on any declared deployment platform.
 
     Each deployment is checked again when its rows are expanded.
     """
@@ -276,7 +277,10 @@ def _compatible_with_any_deployment(problem_cls: type, scenario: str) -> bool:
             for profile in CONTAINERLAB_ALTERNATE_PROFILES
             if containerlab_isp_supported(scenario, profile)
         )
-    return any(problem_cls.is_compatible(scenario, profile) for profile in platforms)
+    return any(
+        problem_cls.is_compatible(scenario, profile)
+        for profile in (*scenario_device_profiles(scenario), *platforms)
+    )
 
 
 def iter_failure_case_specs(
@@ -380,6 +384,18 @@ def build_failure_cases(
             isp_options=isp_options,
             net_env=net_env,
         )
+    except NoValidTargetError as exc:
+        return [], [
+            _rejection(
+                reason="case_validation_failed",
+                problem=problem,
+                scenario=scenario,
+                topo_size=topo_size,
+                inject=None,
+                error=exc,
+                isp_options=isp_options,
+            )
+        ]
     except Exception as exc:
         raise RuntimeError(
             f"Cannot enumerate targets for {problem}/{scenario}/{topo_size or '-'}"

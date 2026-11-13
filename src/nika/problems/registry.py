@@ -9,8 +9,9 @@ from nika.utils.logger import system_logger
 
 logger = system_logger
 
-# Legacy failure ids rewritten at load/inject time (no separate registry entry).
+# Legacy failure IDs resolve to implementations without separate registry entries.
 _PROBLEM_ALIASES: dict[str, str] = {
+    "frr_service_down": "routing_service_down",
     "host_vpn_membership_missing": "wireguard_peer_key_misconfiguration",
     "link_fragmentation_disabled": "mtu_mismatch",
     "link_high_packet_corruption": "link_packet_corruption",
@@ -22,8 +23,13 @@ _PROBLEM_ALIASES: dict[str, str] = {
 def _scenario_override(
     problem_name: str, scenario_name: str | None, release: str | None = None
 ) -> type[ProblemBase] | None:
-    """0.1.0 implementation of a failure ID on an original 0.1.0 lab, or for
-    a 0.1.0 release case (``release``) on a scenario that is still current."""
+    """Return a published implementation before applying current ID aliases."""
+    from nika.problems.compat import PUBLISHED_RELEASES
+
+    if problem_name == "frr_service_down" and release in PUBLISHED_RELEASES:
+        from nika.problems.compat.routing import FrrDown
+
+        return FrrDown
     if not scenario_name:
         return None
     from nika.problems.compat.v010 import (

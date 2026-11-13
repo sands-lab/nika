@@ -33,3 +33,38 @@ def test_workload_column_is_rejected() -> None:
                 "inject": {"host_name": "x"},
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("problem", "release", "expected"),
+    [
+        ("link_fragmentation_disabled", None, "mtu_mismatch"),
+        ("frr_service_down", None, "routing_service_down"),
+        ("frr_service_down", "0.2.0", "frr_service_down"),
+    ],
+)
+def test_failure_aliases_follow_the_release(tmp_path, problem, release, expected):
+    import yaml
+
+    from nika.workflows.benchmark.load_config import load_benchmark_yaml
+
+    path = tmp_path / "task.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "scenario": "dc_clos",
+                "topo_size": "s",
+                "problem": problem,
+                "inject": {"host_name": "spine_1"},
+                "root_causes": [
+                    {
+                        "resource": {"kind": "node", "node": "spine_1"},
+                        "fault_type": problem,
+                    }
+                ],
+            }
+        )
+    )
+    row = load_benchmark_yaml(path, release=release)[0]
+    assert row["problem"] == expected
+    assert row["root_causes"][0]["fault_type"] == expected

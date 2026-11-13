@@ -297,16 +297,18 @@ class DeviceForwardingPacketCorruption(ProblemBase):
 
     @classmethod
     def runs_on_device_profile(cls, device_profile: str) -> bool:
-        """Containerlab router platforms only.
+        """Containerlab router platforms and RouterOS.
 
         On Containerlab the classifier sits on the host-side wire end, outside
-        the router OS, so any platform works. On Kathara it is loaded in the
-        node's Linux namespace, which a native IOS XR or RouterOS dataplane
-        does not use.
+        the router OS, so any platform works. RouterOS also forwards through
+        the Kathara container interface.
         """
         from nika.net_env.isp.profiles import SUPPORTED_BACKEND_PROFILE_PAIRS
 
-        return ("containerlab", device_profile) in SUPPORTED_BACKEND_PROFILE_PAIRS
+        return (
+            device_profile == "routeros"
+            or ("containerlab", device_profile) in SUPPORTED_BACKEND_PROFILE_PAIRS
+        )
 
     @classmethod
     def benchmark_inject_params(cls, ctx):

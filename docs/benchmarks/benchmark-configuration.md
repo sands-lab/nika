@@ -114,7 +114,7 @@ healthy:
 
 The pool also carries cases whose routers run IOS XR (`device_profile: iosxr`) or RouterOS (`device_profile: routeros`). The generator expands each environment that declares these profiles: `dc_clos`, `campus_lan`, `enterprise_branch` and the base ISP scenarios. It adds them only at size `s` (for ISP scenarios, topology tier `s`), within the sizes the environment supports, so no case needs a large native lab. Each profile gets its own healthy variant.
 
-Containerlab environments run SR Linux by default and also carry SONiC rows (`device_profile: sonic`): `min3clos` and the base ISP scenarios within the [Containerlab ISP size cap](../operations/network-scenarios.md#sndlib-isp-scenarios) (11 SR Linux routers or 55 SONiC routers). A failure gets SONiC rows when it declares Containerlab support or when the SONiC provider implements its `native_router_operations`.
+Containerlab environments run SR Linux by default and also carry SONiC rows (`device_profile: sonic`): `min3clos` and the base ISP scenarios within the [Containerlab ISP size cap](../operations/network-scenarios.md#sndlib-isp-scenarios) (11 SR Linux routers or 55 SONiC routers). SONiC rows include only failures supported by the deployed environment and protocol, with an eligible target and the required router operations.
 
 ```yaml
 scenario:
@@ -237,9 +237,11 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 
 The generator prints group, concrete option, failure, scenario, healthy, and rejection counts to stdout.
 
-Release `0.2.0` uses the current IDs. Release `0.1.0` also names six original 0.1.0 labs, listed in [Where each case runs](../compat/release-0.1.0.md#where-each-case-runs).
+## Published releases
 
-Frozen releases keep their published flat `cases:` files and remain independent from candidate generation.
+Frozen releases keep their published flat `cases:` files and remain independent from candidate generation. Release `0.1.0` includes its original environments, listed in [Where each case runs](../compat/release-0.1.0.md#where-each-case-runs).
+
+Configurations and task labels accept `frr_service_down` as an alias for `routing_service_down`. Published releases `0.1.0` and `0.2.0` retain `frr_service_down` in their tasks, ground truth, and RCA candidates, with its original description.
 
 ## Coverage matrix (scenario × failure)
 
@@ -521,25 +523,25 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>bgp_address_family_not_activated</code></td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -761,8 +763,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>bgp_session_policy_missing</code></td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -816,36 +818,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><code>frr_service_down</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1141,6 +1113,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>routing_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3823,11 +3825,11 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td><code>bgp_address_family_not_activated</code></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center">◆</td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center">◆</td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center">◆</td>
 </tr>
 <tr>
@@ -3893,8 +3895,8 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆</td>
 <td align="center">◆</td>
 <td align="center">◆</td>
-<td align="center"></td>
-<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
 </tr>
 <tr>
 <td><code>bgp_ttl_security_mismatch</code></td>
@@ -3905,17 +3907,6 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆</td>
 <td align="center">○</td>
 <td align="center">◆</td>
-<td align="center">○</td>
-</tr>
-<tr>
-<td><code>frr_service_down</code></td>
-<td align="center">○✓</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○✓</td>
-<td align="center">○✓</td>
-<td align="center">○</td>
 <td align="center">○</td>
 </tr>
 <tr>
@@ -4029,6 +4020,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 </tr>
 <tr>
+<td><code>routing_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
 <td><code>vrf_route_target_mismatch</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -4075,11 +4077,11 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <tr>
 <td><code>device_forwarding_packet_corruption</code></td>
 <td align="center">○</td>
+<td align="center">◆</td>
 <td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">◆</td>
 <td align="center">○✓</td>
-<td align="center">○</td>
+<td align="center">◆</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
@@ -4129,24 +4131,24 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>icmp_frag_needed_filter_misconfiguration</code></td>
-<td align="center">○</td>
+<td align="center">◆</td>
 <td align="center">◆✓</td>
-<td align="center">○</td>
+<td align="center">◆</td>
 <td align="center">◆✓</td>
-<td align="center">○✓</td>
 <td align="center">◆✓</td>
-<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
 <td align="center">◆✓</td>
 </tr>
 <tr>
 <td><code>mtu_mismatch</code></td>
-<td align="center">○</td>
+<td align="center">◆</td>
 <td align="center">◆✓</td>
-<td align="center">○</td>
+<td align="center">◆</td>
 <td align="center">◆✓</td>
-<td align="center">○✗</td>
+<td align="center">◆✗</td>
 <td align="center">◆✓</td>
-<td align="center">○</td>
+<td align="center">◆</td>
 <td align="center">◆✓</td>
 </tr>
 <tr>

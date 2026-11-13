@@ -12,6 +12,7 @@ from nika.problems.support.p4runtime_writes import p4runtime_write, require_ok
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import interface_resource, node_resource
 from nika.problems.support.benchmark_targets import (
+    NoValidTargetError,
     p4_gateway_port_target,
     p4_port_options,
     resolve_path_mtu_target,
@@ -33,6 +34,7 @@ from nika.problems.support.oracle import (
     OracleStep,
     contains,
     shell,
+    iosxr,
 )
 from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.problems.support.p4_gateway import (
@@ -150,6 +152,23 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
         # PMTUD black hole: filter Frag Needed on the router that lowered the MTU.
         mtu = dict(params_by_problem["mtu_mismatch"])
         frag = dict(params_by_problem["icmp_frag_needed_filter_misconfiguration"])
+        if native_router_profile(ctx.net_env, mtu["host_name"]) == "iosxr":
+            eligible = [
+                node
+                for node in ctx.net_env.routers or []
+                if native_router_profile(ctx.net_env, node) != "iosxr"
+            ]
+            if not eligible:
+                raise NoValidTargetError(
+                    "The PMTU combination needs a router whose filter covers "
+                    "locally generated ICMP."
+                )
+            mtu.update(
+                resolve_path_mtu_target(
+                    ctx.scenario, ctx.net_env, ctx.rng, eligible, ctx.backend
+                )
+            )
+            params_by_problem["mtu_mismatch"] = mtu
         frag["host_name"] = mtu["host_name"]
         params_by_problem["icmp_frag_needed_filter_misconfiguration"] = frag
         return params_by_problem
@@ -181,6 +200,8 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
             self._native_saved = (ops, ops.save_config())
             self._native_blocked = ops.icmp_frag_needed_blocked()
             ops.block_icmp_frag_needed()
+            if ops.profile == "iosxr":
+                _age_out_path_mtus(self.runtime, self.net_env)
             self._result = f"{ops.profile}-filter-frag-needed"
             return
         self._nft_recovery = NftDropRecovery()
@@ -305,6 +326,34 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
                             for row in rows
                         ),
                         f"List the ICMP ACL entries on {host}.",
+                    ),
+                ],
+            )
+        if native_router_profile(self.net_env, host) == "iosxr":
+            from nika.net_env.utils.iosxr.fault_ops import _FRAG_FILTER_ACL
+
+            return OraclePlaybook(
+                finding=finding,
+                steps=[
+                    iosxr(
+                        host,
+                        f"show running-config ipv4 access-list {_FRAG_FILTER_ACL}",
+                        f"Read the IPv4 ACLs on {host}.",
+                        contains(
+                            r"deny icmp any any packet-too-big",
+                            "an ACL denies ICMP type 3 code 4",
+                        ),
+                        evidence=True,
+                    ),
+                    iosxr(
+                        host,
+                        "show running-config interface",
+                        f"Read the interface ACL bindings on {host}.",
+                        contains(
+                            rf"ipv4 access-group {re.escape(_FRAG_FILTER_ACL)} egress",
+                            "the ICMP ACL is bound to egress",
+                        ),
+                        evidence=True,
                     ),
                 ],
             )

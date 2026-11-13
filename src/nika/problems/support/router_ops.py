@@ -114,6 +114,14 @@ class RouterFaultOps:
         """Stop the routing process the way a crash would."""
         self._unsupported("Stopping the routing process")
 
+    def routing_process_status(self) -> dict[str, bool]:
+        """Map platform process identifiers to whether they are active."""
+        self._unsupported("Reading routing processes")
+
+    def start_routing_process(self, saved: dict[str, bool]) -> None:
+        """Restore the processes running in a pre-injection status snapshot."""
+        self._unsupported("Starting routing processes")
+
     def bgp_established_peers(self) -> set[str]:
         """Return the addresses of Established BGP peers."""
         self._unsupported("Reading BGP sessions")

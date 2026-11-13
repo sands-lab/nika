@@ -17,6 +17,8 @@ from nika.net_env.net_env_pool import get_probe_path
 from nika.net_env.verify import exec_or_empty, ping_stats
 from nika.problems.base import build_verify_result
 from nika.problems.support.router_ops import router_fault_ops
+from nika.problems.support.oracle import srl_cli
+from nika.service.containerlab.srl_api import srl_bgp_prefix_paths
 from nika.runtime.base import LabRuntime
 from nika.validation.symptom.routing_probes import bgp_speakers_of, host_addresses
 
@@ -165,15 +167,35 @@ def _hijack_reading(problem: Any, params: Any) -> dict[str, Any]:
     # The hijacker also holds the target address; it does not identify the hijacker.
     net = ipaddress.ip_network(target, strict=False)
     hijacker_addrs = {a for a in hijacker_addrs if ipaddress.ip_address(a) not in net}
-    paths = prefix_paths(problem, observer, target)
+    if srl_cli(problem.net_env, observer):
+        try:
+            paths = srl_bgp_prefix_paths(
+                runtime.lab_api.srl_exec_cli(
+                    observer,
+                    "info from state network-instance default bgp-rib | as json",
+                ),
+                target,
+            )
+        except Exception:  # noqa: BLE001 - unreadable is distinct from an empty RIB
+            paths = None
+    else:
+        paths = prefix_paths(problem, observer, target)
     reading["paths"] = paths
     if paths is None:
         reading["error"] = f"bgp_query_failed_on_{observer}"
         return reading
     # Behind an eBGP hub that rewrites the next hop, the hijacker's AS as the
     # path origin identifies it (``_from_router``).
-    hijacker_asn = _local_asn(problem, params.host_name)
-    observer_asn = _local_asn(problem, observer)
+    if srl_cli(problem.net_env, params.host_name):
+        try:
+            hijacker_asn = runtime.lab_api.srl_get_bgp_as(params.host_name)
+            observer_asn = runtime.lab_api.srl_get_bgp_as(observer)
+        except Exception:  # noqa: BLE001 - unreadable identity cannot identify an origin
+            reading["error"] = "srl_bgp_identity_query_failed"
+            return reading
+    else:
+        hijacker_asn = _local_asn(problem, params.host_name)
+        observer_asn = _local_asn(problem, observer)
     for router, asn in ((params.host_name, hijacker_asn), (observer, observer_asn)):
         if asn is None:
             reading["error"] = f"bgp_query_failed_on_{router}"

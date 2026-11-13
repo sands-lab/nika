@@ -156,3 +156,39 @@ def test_route_presence_reads_captured_available_paths(profile):
         SimpleNamespace(exec=lambda *a, **k: output), "r1"
     )
     assert ops.has_bgp_route("198.18.0.0/24")
+
+
+@pytest.mark.parametrize(
+    "rib",
+    [
+        {},
+        {"afi-safi": []},
+        {"afi-safi": [{"afi-safi-name": "ipv6-unicast"}]},
+        {"afi-safi": [{"afi-safi-name": "ipv4-unicast"}]},
+        {"afi-safi": [{"afi-safi-name": "ipv4-unicast", "ipv4-unicast": {}}]},
+        {
+            "afi-safi": [
+                {"afi-safi-name": "ipv4-unicast", "ipv4-unicast": {"local-rib": {}}}
+            ]
+        },
+    ],
+)
+def test_srl_empty_ribs_are_readable_in_both_consumers(rib):
+    import json
+
+    from nika.net_env.srl_validation import selected_as_paths
+    from nika.service.containerlab.srl_api import srl_bgp_prefix_paths
+
+    data = {"network-instance": [{"name": "default", "bgp-rib": rib}]}
+    assert srl_bgp_prefix_paths(json.dumps(data), "192.0.2.0/24") == []
+    assert selected_as_paths(data, "192.0.2.0/24") == []
+
+
+@pytest.mark.parametrize(
+    "output", ["", "[TIMEOUT]", "{}", '{"network-instance": [{"name": "default"}]}']
+)
+def test_srl_unreadable_rib_is_not_an_empty_rib(output):
+    from nika.service.containerlab.srl_api import srl_bgp_prefix_paths
+
+    with pytest.raises((ValueError, KeyError)):
+        srl_bgp_prefix_paths(output, "192.0.2.0/24")

@@ -58,6 +58,30 @@ def test_link_capacity_release_target_is_loaded() -> None:
     assert env.business_workload().covers(BULK_TRANSIT, ("n_3", "eth4"))
 
 
+@pytest.mark.parametrize("profile", ["frr", "iosxr"])
+def test_isp_loaded_links_use_linux_interface_names(profile) -> None:
+    from nika.workflows.benchmark.inject_resolve import resolve_inject_params
+
+    options = {"device_profile": profile, "backend": "kathara", "igp": "ospf"}
+    env = _env("isp_arpanet196912", **options)
+    workload = env.business_workload()
+    interfaces = {
+        (node.device_name, iface.name)
+        for node in env.plan.nodes
+        for iface in node.interfaces
+    }
+    routers = {node.device_name for node in env.plan.nodes}
+    loaded = {
+        target for target in workload.targets(BULK_TRANSIT) if target[0] in routers
+    }
+    assert loaded
+    assert loaded <= interfaces
+    inject = resolve_inject_params(
+        "link_capacity_bottleneck", "isp_arpanet196912", "", seed=1, isp_options=options
+    )
+    assert workload.covers(BULK_TRANSIT, (inject["host_name"], inject["intf_name"]))
+
+
 def test_abilene_backhaul_tunnel_has_reduced_mtu_on_both_ends() -> None:
     env = _env("isp_abilene", "s", igp="isis", bgp_mode="none")
     mtus = {

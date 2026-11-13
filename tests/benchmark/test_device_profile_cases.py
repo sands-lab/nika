@@ -60,6 +60,38 @@ def test_ipv4_family_cases_require_a_platform_that_keeps_bgp_established(
     assert bool(cases) is supported
 
 
+@pytest.mark.parametrize(
+    "failure", ["bgp_session_policy_missing", "bgp_address_family_not_activated"]
+)
+def test_native_only_bgp_compatibility_matches_generated_profiles(failure):
+    problem = get_problem_class(failure)
+    for profile in (None, "frr", "nokia_srlinux", "sonic"):
+        assert not problem.is_compatible("isp_dfn-bwin/ebgp", profile)
+    assert problem.is_compatible("isp_dfn-bwin/ebgp", "routeros")
+    assert problem.is_compatible("isp_dfn-bwin/ebgp", "iosxr") is (
+        failure == "bgp_session_policy_missing"
+    )
+    if failure == "bgp_session_policy_missing":
+        assert not problem.is_compatible("isp_dfn-bwin/ibgp_rr", "routeros")
+    specs = [spec for spec in iter_failure_case_specs() if spec[0] == failure]
+    assert any(
+        scenario == "dc_clos" and options.get("device_profile") == "routeros"
+        for _, scenario, _, options in specs
+    )
+    isp_specs = [
+        options
+        for _, scenario, _, options in specs
+        if scenario == "isp_dfn-bwin" and options.get("device_profile") == "routeros"
+    ]
+    assert isp_specs
+    assert not any(
+        (options or {}).get("device_profile", "frr") == "frr"
+        for _, _, _, options in specs
+    )
+    if failure == "bgp_session_policy_missing":
+        assert all(options["bgp_mode"] == "ebgp" for options in isp_specs)
+
+
 def test_compatibility_follows_the_vendor_fault_operations() -> None:
     # A failure needs every operation its native path uses; profiles offer
     # the operations their provider implements.
@@ -79,9 +111,10 @@ def test_compatibility_follows_the_vendor_fault_operations() -> None:
     mismatch = get_problem_class("ospf_network_type_mismatch")
     assert mismatch.runs_on_device_profile("routeros")
     assert not mismatch.runs_on_device_profile("iosxr")
-    # Without a native implementation a failure stays on FRR/Linux nodes.
-    frr_down = get_problem_class("frr_service_down")
-    assert not failure_supports_profile(frr_down, "iosxr")
+    # Routing service control requires a complete provider lifecycle.
+    routing_down = get_problem_class("routing_service_down")
+    assert not failure_supports_profile(routing_down, "iosxr")
+    assert not failure_supports_profile(routing_down, "routeros")
     # OSPF filters, OSPF interfaces and detached links run on every platform.
     for failure in ("ospf_acl_block", "ospf_neighbor_missing", "link_detach"):
         for profile in ("iosxr", "routeros", "sonic"):
@@ -110,15 +143,40 @@ def test_generation_expands_native_profiles_only_at_size_s() -> None:
 
 
 def test_targets_avoid_native_routers_that_cannot_run_the_failure() -> None:
-    # dc_clos converts every router: frr_service_down has no XR target.
+    # XRd cannot restore a shut-down process; only FRR leaves qualify.
     cases, rejected = build_failure_cases(
-        problem="frr_service_down",
+        problem="routing_service_down",
         scenario="dc_clos",
         topo_size="s",
         isp_options={"device_profile": "iosxr"},
     )
+    assert cases
+    assert {row["inject"]["host_name"] for row in cases} == {
+        "leaf_1",
+        "leaf_2",
+        "leaf_3",
+        "leaf_4",
+    }
+    assert {row["inject"]["host_name"] for row in rejected} == {"spine_1", "spine_2"}
+    cases, rejected = build_failure_cases(
+        problem="routing_service_down",
+        scenario="dc_clos",
+        topo_size="s",
+        isp_options={"device_profile": "routeros"},
+    )
     assert not cases
     assert {row["reason"] for row in rejected} == {"unsupported_device_profile"}
+    cases, rejected = build_failure_cases(
+        problem="routing_service_down",
+        scenario="enterprise_branch",
+        topo_size="s",
+        isp_options={"device_profile": "iosxr"},
+    )
+    assert "hq_edge" in {row["inject"]["host_name"] for row in cases}
+    assert {row["inject"]["host_name"] for row in rejected} == {
+        "isp1_core",
+        "isp2_core",
+    }
     # campus_lan converts its core: the OSPF binding fault also targets XR.
     cases, _ = build_failure_cases(
         problem="ospf_area_misconfiguration",
@@ -212,10 +270,10 @@ def test_predicate_has_a_device_profile_dimension() -> None:
     assert link_down.is_compatible("dc_clos", "iosxr")
     assert not link_down.is_compatible("sdn_l3_clos", "iosxr")
     assert link_down.runs_on_device_profile("iosxr")
-    frr_down = get_problem_class("frr_service_down")
-    # The deployment is compatible; its XR routers are not targets.
-    assert frr_down.is_compatible("campus_lan", "iosxr")
-    assert not frr_down.runs_on_device_profile("iosxr")
+    routing_down = get_problem_class("routing_service_down")
+    # The mixed deployment retains FRR targets, but excludes native XR.
+    assert routing_down.is_compatible("campus_lan", "iosxr")
+    assert not routing_down.runs_on_device_profile("iosxr")
     # A Containerlab platform runs a failure through its provider (SONiC);
     # SR Linux needs the failure's declared Containerlab implementation.
     max_prefix = get_problem_class("bgp_max_prefix_exceeded")
@@ -225,8 +283,10 @@ def test_predicate_has_a_device_profile_dimension() -> None:
     assert max_prefix.is_compatible("isp_abilene/ebgp", backend="kathara")
     assert not link_down.is_compatible("dc_clos", "sonic")
     # SONiC routers run FRR even where the scenario's default routers do not.
-    assert frr_down.is_compatible("min3clos", "sonic")
-    assert not frr_down.is_compatible("min3clos")
+    assert routing_down.is_compatible("min3clos", "sonic")
+    assert not routing_down.is_compatible("min3clos")
+    assert not routing_down.is_compatible("iosxr_simple_bgp")
+    assert not routing_down.is_compatible("routeros_simple_bgp")
 
 
 @pytest.mark.parametrize(
@@ -461,8 +521,8 @@ def test_profile_validation_resumes_and_preserves_other_writers(tmp_path, monkey
     assert len(calls) == 2
 
 
-def test_failure_compatibility_requires_a_shared_backend() -> None:
-    # bgp_hijacking runs on Kathara and on SONiC's provider, not on SR Linux.
+def test_hijack_compatibility_covers_supported_backends() -> None:
+    # ISP hijacking supports FRR, SONiC, and SR Linux router operations.
     hijack = get_problem_class("bgp_hijacking")
     assert hijack.is_compatible("enterprise_branch")
     assert not hijack.is_compatible("min3clos")
@@ -470,7 +530,8 @@ def test_failure_compatibility_requires_a_shared_backend() -> None:
     # Multi-backend scenarios retain a usable Kathara deployment.
     assert hijack.is_compatible("isp_abilene")
     assert hijack.is_compatible("isp_abilene", backend="kathara")
-    assert not hijack.is_compatible("isp_abilene", backend="containerlab")
+    assert hijack.is_compatible("isp_abilene", backend="containerlab")
+    assert hijack.is_compatible("isp_abilene", "nokia_srlinux", backend="containerlab")
     specs = list(iter_failure_case_specs())
     assert not any(
         problem == "bgp_hijacking" and scenario == "min3clos"
@@ -489,10 +550,9 @@ def test_forwarding_corruption_runs_on_containerlab_wire_ends() -> None:
     assert corruption.is_compatible("min3clos", "nokia_srlinux")
     assert corruption.is_compatible("min3clos", "sonic")
     assert corruption.runs_on_device_profile("sonic")
-    # On Kathara it loads in the node's Linux namespace, which IOS XR and
-    # RouterOS do not forward through.
+    # RouterOS transit packets cross the classifier; XRd marks them as local.
     assert not corruption.runs_on_device_profile("iosxr")
-    assert not corruption.runs_on_device_profile("routeros")
+    assert corruption.runs_on_device_profile("routeros")
 
 
 def test_containerlab_isp_size_follows_platform_memory() -> None:
@@ -685,6 +745,15 @@ def test_ospf_timer_mismatch_requires_a_host_serving_cut_edge(profile):
 
 
 def test_ospf_timer_mismatch_reports_an_environment_without_a_cut_edge():
+    from nika.workflows.benchmark.inject_resolve import resolve_inject_params
+
+    with pytest.raises(ValueError, match="cut edge serving hosts"):
+        resolve_inject_params(
+            "ospf_hello_interval_mismatch",
+            "isp_france",
+            "s",
+            isp_options={"igp": "ospf", "bgp_mode": "none", "rpki": False},
+        )
     cases, rejected = build_failure_cases(
         problem="ospf_hello_interval_mismatch",
         scenario="isp_france",
@@ -694,6 +763,7 @@ def test_ospf_timer_mismatch_reports_an_environment_without_a_cut_edge():
     assert not cases
     assert {row["reason"] for row in rejected} == {"case_validation_failed"}
     assert all("cut edge serving hosts" in row["error"] for row in rejected)
+    assert all(row["inject"] == {} for row in rejected)
 
 
 @pytest.mark.parametrize("receipt", [None, "not_defined"])

@@ -97,6 +97,16 @@ class BGPAddressFamilyNotActivated(ProblemBase):
     RECORDED_ATTRS = ("neighbor_ip",)
 
     @classmethod
+    def is_compatible(cls, target, device_profile=None, *, backend=None):
+        from nika.problems.support.router_ops import router_platform_has_provider
+
+        return (
+            router_platform_has_provider(device_profile)
+            and cls.runs_on_device_profile(device_profile)
+            and super().is_compatible(target, device_profile, backend=backend)
+        )
+
+    @classmethod
     def runs_on_device_profile(cls, device_profile: str) -> bool:
         # Removing the final family puts FRR and IOS XR sessions in Idle; IOS XR
         # is excluded because its provider does not implement the operations.

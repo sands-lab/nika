@@ -21,6 +21,10 @@ if TYPE_CHECKING:
     from nika.problems.base import ProblemBase
 
 
+class NoValidTargetError(ValueError):
+    """The declared topology has no eligible target for a failure."""
+
+
 @dataclass(frozen=True)
 class InjectTargetContext:
     """Inputs for resolving one benchmark row's inject params.

@@ -398,7 +398,7 @@ If RouterOS rejects a startup command, the environment fails immediately with th
 
 On a RouterOS site edge, the WAN stays in `main`, and the WireGuard tunnels and their eBGP sessions run in an `overlay` VRF. BGP VPN route targets leak overlay routes into `vrf_corp` and `vrf_server` and export their LANs back. This matches the FRR edge, where each business VRF imports the default VRF's BGP routes and the other business VRFs' local LANs, and guest VRFs import nothing. Overlay QoS uses mangle packet marks and a queue tree with the same EF and BE rates as the FRR edge's HTB classes. The WAN delay stays on the container links.
 
-Failures that change router state apply the same root cause with RouterOS commands: WireGuard keys and allowed addresses, DSCP remarking, source NAT, BGP filters, AS numbers, advertisements and hijacks, blackhole routes, interface MTU and ICMP filters. `frr_service_down` is rejected on RouterOS routers, which have no separate routing daemon to stop.
+Failures that change router state apply the same root cause with RouterOS commands: WireGuard keys and allowed addresses, DSCP remarking, source NAT, BGP filters, AS numbers, advertisements and hijacks, blackhole routes, interface MTU and ICMP filters. `routing_service_down` is rejected on RouterOS routers, which expose no persistent routing-service stop operation.
 
 ## SNDlib ISP scenarios
 

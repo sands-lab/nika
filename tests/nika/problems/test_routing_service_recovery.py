@@ -103,10 +103,13 @@ def test_service_recovery_requires_own_injection_snapshot():
         SDNControllerCrash,
         SDNControllerCrashParams,
     )
-    from nika.problems.routing_control_plane.node_services import FrrDown, FrrDownParams
+    from nika.problems.routing_control_plane.node_services import (
+        RoutingServiceDown,
+        RoutingServiceDownParams,
+    )
 
     for cls, params in (
-        (FrrDown, FrrDownParams(host_name="router")),
+        (RoutingServiceDown, RoutingServiceDownParams(host_name="router")),
         (SDNControllerCrash, SDNControllerCrashParams(host_name="onos")),
     ):
         problem = object.__new__(cls)

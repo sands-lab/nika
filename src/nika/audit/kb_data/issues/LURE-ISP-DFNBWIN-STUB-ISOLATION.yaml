@@ -31,7 +31,7 @@ detect:
   metric: label_confusion
   threshold: 0.3
   min_trials: 3
-  pattern: ospf_neighbor_missing|bgp_missing_route_advertisement|frr_service_down
+  pattern: ospf_neighbor_missing|bgp_missing_route_advertisement|routing_service_down|frr_service_down
 provenance:
   source: submission-audit runs 2026-10-28, verified (REF-DFNBWIN-STUB-ISOLATION-LURE)
   date: '2026-10-28'

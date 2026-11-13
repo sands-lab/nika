@@ -6,7 +6,10 @@ from dataclasses import replace
 from pydantic import BaseModel, Field
 
 from nika.problems.rca import node_resource
-from nika.problems.support.benchmark_targets import hosts_behind_router
+from nika.problems.support.benchmark_targets import (
+    NoValidTargetError,
+    hosts_behind_router,
+)
 from nika.problems.rca.inventory import (
     interface_on,
     iter_link_termination_points,
@@ -20,6 +23,7 @@ from nika.problems.support.oracle import (
     OracleStep,
     router_cli,
     srl,
+    srl_cli,
     shell,
     vtysh,
 )
@@ -28,16 +32,36 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.support.router_ops import native_fault_ops, native_router_profile
+from nika.problems.support.router_ops import (
+    native_fault_ops,
+    native_router_profile,
+    profile_routes_with_frr,
+)
 from nika.problems.support.recovery import FileSnapshot
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
 from nika.service.containerlab.srl_api import srl_subif, srl_instance, srl_json
-from nika.problems.support.ospf import ospf_health, full_frr_neighbors
+from nika.problems.support.ospf import (
+    ospf_health,
+    full_frr_neighbors,
+    router_lsa_origins,
+)
 from nika.problems.support.polling import wait_until
 from nika.utils.logger import system_logger
 
 _NETWORK_RE = re.compile(r"^\s*network\s+(\S+)\s+area\s+(\S+)\s*$", re.MULTILINE)
+
+
+def _ospf_config_key(value):
+    """Compare OSPF configuration with unordered YANG lists."""
+    if isinstance(value, dict):
+        return {key: _ospf_config_key(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return sorted(
+            (_ospf_config_key(item) for item in value),
+            key=lambda item: json.dumps(item, sort_keys=True),
+        )
+    return value
 
 
 def _ospf_pair(first, second, read, differs, description, *, read_peer=None):
@@ -76,7 +100,10 @@ def _ospf_pair(first, second, read, differs, description, *, read_peer=None):
 
 def _ospf_interface_step(net_env, host, intf):
     purpose = f"Read OSPF network type, timers, area, and adjacency on {host}:{intf}."
-    if getattr(net_env, "backend", None) == "containerlab":
+    if (
+        getattr(net_env, "backend", None) == "containerlab"
+        and native_router_profile(net_env, host) is None
+    ):
         return srl(
             host,
             f"info from state network-instance default protocols ospf instance * area * interface {srl_subif(intf)} | as json",
@@ -85,11 +112,16 @@ def _ospf_interface_step(net_env, host, intf):
     from nika.net_env.utils.iosxr.common import iosxr_interface
     from nika.net_env.utils.routeros.common import routeros_port
 
+    frr_interface = intf
+    if native_router_profile(net_env, host) == "sonic":
+        from nika.net_env.utils.sonic.common import sonic_port
+
+        frr_interface = sonic_port(intf)
     return router_cli(
         net_env,
         host,
         purpose,
-        frr=vtysh(f"show ip ospf interface {intf}"),
+        frr=vtysh(f"show ip ospf interface {frr_interface}"),
         iosxr_command=f"show ospf interface {iosxr_interface(intf)}",
         routeros_command=(
             "/routing/ospf/interface/print detail where "
@@ -306,6 +338,7 @@ class OSPFAreaMisconfig(ProblemBase):
     root_cause_name: str = "ospf_area_misconfiguration"
     description = "OSPF area is misconfigured between neighbors."
     effect_protocol = "ospf"
+    supported_backends = ("kathara", "containerlab")
 
     TAGS: str = ["ospf"]
     native_router_operations = frozenset(
@@ -347,6 +380,85 @@ class OSPFAreaMisconfig(ProblemBase):
         links = linked_routers(self.net_env, host)
         if not links:
             raise RuntimeCapabilityError(f"No router linked to {host}.")
+
+        if srl_cli(self.net_env, host):
+            observed = {}
+
+            def lone_binding(output):
+                instance = srl_instance(output, "ospf")
+                bindings = {
+                    interface["interface-name"]: (area["area-id"], interface)
+                    for area in instance.get("area", [])
+                    for interface in area.get("interface", [])
+                }
+                return next(
+                    (
+                        (link, area)
+                        for link in links
+                        if (binding := bindings.get(srl_subif(link[0])))
+                        and (area := binding[0])
+                        and not binding[1].get("passive", False)
+                        and binding[1].get("admin-state", "enable") == "enable"
+                        and not any(
+                            n.get("adjacency-state", "").endswith("full")
+                            for n in binding[1].get("neighbor", [])
+                        )
+                    ),
+                    None,
+                )
+
+            def peer_args(outputs):
+                binding = lone_binding(outputs["host_ospf"])
+                if binding is None:
+                    raise ValueError(f"No isolated OSPF router link on {host}")
+                (_intf, peer, peer_intf), area = binding
+                observed["area"] = area
+                return {
+                    "device_name": peer,
+                    "command": "info from state network-instance default protocols ospf "
+                    f"instance * area * interface {srl_subif(peer_intf)} | as json",
+                }
+
+            def different_area(output):
+                instance = srl_instance(output, "ospf")
+                return any(
+                    area["area-id"] != observed.get("area")
+                    and not any(
+                        n.get("adjacency-state", "").endswith("full")
+                        for n in interface.get("neighbor", [])
+                    )
+                    for area in instance.get("area", [])
+                    for interface in area.get("interface", [])
+                )
+
+            return OraclePlaybook(
+                finding=f"{host} uses a different OSPF area than its neighbor on the same link.",
+                steps=[
+                    srl(
+                        host,
+                        "info from state network-instance default protocols ospf "
+                        "instance * area * interface * | as json",
+                        f"Find an OSPF router link without a Full adjacency on {host}.",
+                        Check(
+                            "an enabled router binding has no Full adjacency",
+                            lambda o: lone_binding(o) is not None,
+                        ),
+                        save_as="host_ospf",
+                    ),
+                    OracleStep(
+                        "Compare the OSPF area on the neighbor's side of that link.",
+                        "srl_exec_cli",
+                        peer_args,
+                        Check(
+                            "the link uses different areas and has no Full adjacency",
+                            different_area,
+                        ),
+                        evidence=True,
+                        attempts=6,
+                        interval_sec=10,
+                    ),
+                ],
+            )
 
         def lone_ifaces(output: str) -> list[str]:
             ifaces = _ospf_ifaces(output)
@@ -408,6 +520,37 @@ class OSPFAreaMisconfig(ProblemBase):
         )
 
     def inject_fault(self, params: OSPFAreaMisconfigParams):
+        if srl_cli(self.net_env, params.host_name):
+            host = params.host_name
+            api = self.runtime.lab_api
+            instance = api.srl_protocol_instance(host, "ospf", state=False)
+            self._srl_area_before = instance
+            self._srl_area_health = ospf_health(self, host)
+            area = instance["area"][0]["area-id"]
+            used = {item["area-id"] for item in instance["area"]}
+            candidate = 66
+            while str(ipaddress.IPv4Address(candidate)) in used:
+                candidate += 1
+            wrong = str(ipaddress.IPv4Address(candidate))
+            self._area_move = area, wrong
+            base = f"/network-instance default protocols ospf instance {instance['name']} area"
+            flat = api.srl_exec_cli(host, f"info flat from running {base} {area}")
+            self._srl_area_restore = [
+                line.removeprefix("set ")
+                for line in flat.splitlines()
+                if line.startswith("set /")
+            ]
+            if not self._srl_area_restore:
+                raise RuntimeCapabilityError(f"No OSPF area configuration on {host}")
+            api.srl_configure(
+                host,
+                f"delete {base} {area}",
+                *(
+                    line.replace(f" area {area}", f" area {wrong}", 1)
+                    for line in self._srl_area_restore
+                ),
+            )
+            return
         ops = native_fault_ops(self, params.host_name, "renumber_ospf_area")
         if ops is not None:
             self._inject_native(params, ops)
@@ -472,6 +615,30 @@ class OSPFAreaMisconfig(ProblemBase):
             return build_verify_result(
                 self.root_cause_name, False, {"error": "no_recovery_snapshot"}
             )
+        if srl_cli(self.net_env, params.host_name):
+            host = params.host_name
+            api = self.runtime.lab_api
+            instance = self._srl_area_before
+            base = f"/network-instance default protocols ospf instance {instance['name']} area"
+            api.srl_configure(host, f"delete {base} {move[1]}", *self._srl_area_restore)
+
+            def healthy():
+                current = ospf_health(self, host)
+                return all(
+                    values <= current[key]
+                    for key, values in self._srl_area_health.items()
+                )
+
+            restored = wait_until(healthy, 120, interval_s=3)
+            return build_verify_result(
+                self.root_cause_name,
+                restored
+                and _ospf_config_key(
+                    api.srl_protocol_instance(host, "ospf", state=False)
+                )
+                == _ospf_config_key(instance),
+                {"host": host, "routing_restored": restored},
+            )
         original, wrong = move
         ops = native_fault_ops(self, params.host_name, "renumber_ospf_area")
         if ops is not None:
@@ -514,7 +681,29 @@ class OSPFAreaMisconfig(ProblemBase):
         )
 
     def verify_fault(self, params: OSPFAreaMisconfigParams) -> dict:
-        """Verify the OSPF area in frr.conf and in the running daemon was changed."""
+        """Verify that the original OSPF area bindings moved to a different area."""
+        if srl_cli(self.net_env, params.host_name):
+            from copy import deepcopy
+
+            before = getattr(self, "_srl_area_before", None)
+            move = getattr(self, "_area_move", None)
+            if before is None or move is None:
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            expected = deepcopy(before)
+            original, wrong = move
+            for area in expected["area"]:
+                if area["area-id"] == original:
+                    area["area-id"] = wrong
+            current = self.runtime.lab_api.srl_protocol_instance(
+                params.host_name, "ospf", state=False
+            )
+            return build_verify_result(
+                self.root_cause_name,
+                _ospf_config_key(current) == _ospf_config_key(expected),
+                {"host": params.host_name, "area_move": self._area_move},
+            )
         ops = native_fault_ops(self, params.host_name, "ospf_interface_areas")
         if ops is not None:
             orig_areas = set(getattr(self, "_orig_areas", None) or ())
@@ -1248,24 +1437,7 @@ class OSPFNeighborMissing(ProblemBase):
 
 # ==================================================================
 
-_ROUTER_LSA_SECTION_RE = re.compile(r"Router Link States \(Area ([\d.]+)")
-_LSA_ROW_RE = re.compile(r"^(\d+\.\d+\.\d+\.\d+)\s+(\d+\.\d+\.\d+\.\d+)\s+\d+\s+0x")
 _ROUTER_ID_LINE_RE = r"^[[:space:]]*(ospf )?router-id "
-
-
-def router_lsa_origins(database: str) -> dict[str, set[str]]:
-    """Area -> advertising routers of its router-LSAs, from ``show ip ospf database``."""
-    origins: dict[str, set[str]] = {}
-    area = None
-    for line in database.splitlines():
-        if match := _ROUTER_LSA_SECTION_RE.search(line):
-            area = match[1]
-            origins.setdefault(area, set())
-        elif "Link States" in line:
-            area = None
-        elif area and (match := _LSA_ROW_RE.match(line.strip())):
-            origins[area].add(match[2])
-    return origins
 
 
 def _ospf_router_id(raw_json: str) -> str | None:
@@ -1406,8 +1578,10 @@ class OSPFDuplicateRouterId(ProblemBase):
         routers = sorted(self.net_env.routers or router_sketches(self.net_env))
         observations = {}
 
-        def read_id(output):
-            if getattr(self.net_env, "backend", None) == "containerlab":
+        def read_id(output, node):
+            if (
+                getattr(self.net_env, "backend", None) == "containerlab"
+            ) and native_router_profile(self.net_env, node) is None:
                 return srl_instance(output, "ospf").get("router-id")
             match = re.search(
                 r"Router ID[: ]+(\d+\.\d+\.\d+\.\d+)|with ID (\d+\.\d+\.\d+\.\d+)|router-id=(\d+\.\d+\.\d+\.\d+)",
@@ -1420,7 +1594,7 @@ class OSPFDuplicateRouterId(ProblemBase):
         for router in [host, *(r for r in routers if r != host)]:
 
             def remember(output, node=router):
-                observations[node] = read_id(output)
+                observations[node] = read_id(output, node)
                 return observations[node] is not None
 
             steps.append(
@@ -1460,16 +1634,27 @@ class OSPFDuplicateRouterId(ProblemBase):
         )
 
     def _router_id(self, host: str) -> str | None:
-        if getattr(self.net_env, "backend", None) == "containerlab":
-            return self.runtime.lab_api.srl_protocol_instance(host, "ospf")["router-id"]
         ops = native_fault_ops(self, host, "ospf_router_id")
         if ops is not None:
             return ops.ospf_router_id()
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            return self.runtime.lab_api.srl_protocol_instance(host, "ospf")["router-id"]
         return _ospf_router_id(
             self.runtime.exec(host, "vtysh -c 'show ip ospf json' 2>/dev/null")
         )
 
     def _duplicate_candidate(self, host: str, own: str) -> str:
+        ops = native_fault_ops(self, host, "ospf_router_lsa_ids")
+        if ops is not None:
+            neighbors = ops.ospf_neighbor_ids()
+            candidates = (ops.ospf_router_lsa_ids() - neighbors - {own}) or (
+                neighbors - {own}
+            )
+            if not candidates:
+                raise RuntimeCapabilityError(
+                    f"No other OSPF router shares an area with {host!r}."
+                )
+            return min(candidates, key=ipaddress.ip_address)
         if getattr(self.net_env, "backend", None) == "containerlab":
             instance = self.runtime.lab_api.srl_protocol_instance(host, "ospf")
             neighbors = {
@@ -1488,17 +1673,6 @@ class OSPFDuplicateRouterId(ProblemBase):
                 for lsa in kind.get("lsas", {}).get("lsa", [])
             } - {own}
             candidates = (in_area - neighbors) or (neighbors - {own})
-            if not candidates:
-                raise RuntimeCapabilityError(
-                    f"No other OSPF router shares an area with {host!r}."
-                )
-            return min(candidates, key=ipaddress.ip_address)
-        ops = native_fault_ops(self, host, "ospf_router_lsa_ids")
-        if ops is not None:
-            neighbors = ops.ospf_neighbor_ids()
-            candidates = (ops.ospf_router_lsa_ids() - neighbors - {own}) or (
-                neighbors - {own}
-            )
             if not candidates:
                 raise RuntimeCapabilityError(
                     f"No other OSPF router shares an area with {host!r}."
@@ -1525,7 +1699,9 @@ class OSPFDuplicateRouterId(ProblemBase):
 
     def _set_router_id(self, host: str, router_id: str | None) -> None:
         """Apply ``router_id`` (``None``: derive it) to ospfd and frr.conf."""
-        if getattr(self.net_env, "backend", None) == "containerlab":
+        if (
+            getattr(self.net_env, "backend", None) == "containerlab"
+        ) and native_router_profile(self.net_env, host) is None:
             instance = self.runtime.lab_api.srl_protocol_instance(
                 host, "ospf", state=False
             )
@@ -1568,15 +1744,15 @@ class OSPFDuplicateRouterId(ProblemBase):
             for host in (params.host_name, self._twin_host)
             if host is not None
         }
-        if getattr(self.net_env, "backend", None) == "containerlab":
-            self._orig_router_id = own
-            self._set_router_id(params.host_name, self.duplicate_router_id)
-            return
         ops = native_fault_ops(self, params.host_name, "set_ospf_router_id")
         if ops is not None:
             self._saved_config = ops.save_config()
             self._orig_router_id = own
             ops.set_ospf_router_id(self.duplicate_router_id)
+            return
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            self._orig_router_id = own
+            self._set_router_id(params.host_name, self.duplicate_router_id)
             return
         config = self.runtime.exec(params.host_name, f"cat {FRR_CONF}")
         self._file_has_router_id = bool(
@@ -1619,12 +1795,20 @@ class OSPFDuplicateRouterId(ProblemBase):
         # The twin that originally owned this ID can keep a stale LSA until
         # its OSPF process restarts, so stub prefixes never return.
         twin = getattr(self, "_twin_host", None)
-        if (
-            twin
-            and getattr(self.net_env, "backend", None) != "containerlab"
-            and native_router_profile(self.net_env, twin) is None
-        ):
-            self.runtime.exec(twin, "vtysh -c 'clear ip ospf process' >/dev/null 2>&1")
+        if twin:
+            twin_ops = (
+                native_fault_ops(self, twin, "frr_shell")
+                if profile_routes_with_frr(native_router_profile(self.net_env, twin))
+                else None
+            )
+            command = "vtysh -c 'clear ip ospf process' >/dev/null 2>&1"
+            if twin_ops is not None:
+                twin_ops.frr_shell(command)
+            elif (
+                getattr(self.net_env, "backend", None) != "containerlab"
+                and native_router_profile(self.net_env, twin) is None
+            ):
+                self.runtime.exec(twin, command)
 
         def healthy():
             if self._router_id(params.host_name) != self._healthy_router_id:
@@ -1686,18 +1870,19 @@ def ospf_router_links(net_env) -> list[tuple[tuple[str, str], tuple[str, str]]]:
 
         if plan.igp != "ospf":
             return []
+        router_iface = getattr(net_env, "router_iface", srl_e1_name)
         active = {
             frozenset(
                 (
                     (
                         link.endpoint_a,
-                        srl_e1_name(link.iface_a)
+                        router_iface(link.iface_a)
                         if net_env.backend == "containerlab"
                         else link.iface_a,
                     ),
                     (
                         link.endpoint_b,
-                        srl_e1_name(link.iface_b)
+                        router_iface(link.iface_b)
                         if net_env.backend == "containerlab"
                         else link.iface_b,
                     ),
@@ -1801,7 +1986,7 @@ class OSPFNetworkTypeMismatch(ProblemBase):
     description = "OSPF interface network type does not match the neighbor."
     effect_protocol = "ospf"
     TAGS = ["ospf"]
-    supported_backends = ("kathara",)
+    supported_backends = None
     native_router_operations = frozenset(
         {
             "ospf_network_type",
@@ -1971,14 +2156,14 @@ class OSPFNetworkTypeMismatch(ProblemBase):
 
 
 def _ospf_link_full(problem, host: str, intf: str) -> bool:
+    ops = native_fault_ops(problem, host, "ospf_interface_neighbor_full")
+    if ops is not None:
+        return ops.ospf_interface_neighbor_full(intf)
     if getattr(problem.net_env, "backend", None) == "containerlab":
         return any(
             n["iface"] == intf and n["state"].lower().startswith("full")
             for n in problem.runtime.lab_api.srl_ospf_neighbors(host)
         )
-    ops = native_fault_ops(problem, host, "ospf_interface_neighbor_full")
-    if ops is not None:
-        return ops.ospf_interface_neighbor_full(intf)
     raw = problem.runtime.exec(host, "vtysh -c 'show ip ospf neighbor json'")
     neighbors = json.loads(raw).get("neighbors", {})
     return any(
@@ -1991,11 +2176,11 @@ def _ospf_link_full(problem, host: str, intf: str) -> bool:
 
 
 def _ospf_learned_routes(problem, host: str) -> set[str]:
-    if getattr(problem.net_env, "backend", None) == "containerlab":
-        return problem.runtime.lab_api.srl_routes(host, "ospf")
     ops = native_fault_ops(problem, host, "ospf_routes")
     if ops is not None:
         return ops.ospf_routes()
+    if getattr(problem.net_env, "backend", None) == "containerlab":
+        return problem.runtime.lab_api.srl_routes(host, "ospf")
     raw = problem.runtime.exec(host, "vtysh -c 'show ip route ospf json'")
     return {
         prefix
@@ -2067,7 +2252,11 @@ class OSPFHelloIntervalMismatch(ProblemBase):
     @classmethod
     def benchmark_inject_params(cls, ctx):
         targets = cls._targets(ctx.net_env)
-        host, intf = ctx.rng.choice(targets or [(ctx.router0, "eth0")])
+        if not targets:
+            raise NoValidTargetError(
+                f"{cls.root_cause_name} needs an OSPF cut edge serving hosts"
+            )
+        host, intf = ctx.rng.choice(targets)
         return {"host_name": host, "intf_name": intf}
 
     @classmethod
@@ -2103,12 +2292,12 @@ class OSPFHelloIntervalMismatch(ProblemBase):
         )
 
     def _timers(self, host: str, intf: str) -> tuple[int, int]:
-        if getattr(self.net_env, "backend", None) == "containerlab":
-            timers = _srl_ospf_interface(self, host, intf)[1]
-            return timers["hello-interval"], timers["dead-interval"]
         ops = native_fault_ops(self, host, "ospf_interface_timers")
         if ops is not None:
             return ops.ospf_interface_timers(intf)
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            timers = _srl_ospf_interface(self, host, intf)[1]
+            return timers["hello-interval"], timers["dead-interval"]
         output = self.runtime.exec(host, f"vtysh -c 'show ip ospf interface {intf}'")
         match = re.search(
             r"Timer intervals configured, Hello (\d+)s?, Dead (\d+)s?", output
@@ -2119,7 +2308,12 @@ class OSPFHelloIntervalMismatch(ProblemBase):
 
     def _set_timers(self, host: str, intf: str, timers: tuple[int, int]) -> None:
         hello, dead = timers
-        if getattr(self.net_env, "backend", None) == "containerlab":
+        ops = native_fault_ops(self, host, "set_ospf_interface_timers")
+        if ops is not None:
+            ops.set_ospf_interface_timers(intf, hello, dead)
+        elif (
+            getattr(self.net_env, "backend", None) == "containerlab"
+        ) and native_router_profile(self.net_env, host) is None:
             path, _ = _srl_ospf_interface(self, host, intf)
             self.runtime.lab_api.srl_configure(
                 host,
@@ -2127,9 +2321,6 @@ class OSPFHelloIntervalMismatch(ProblemBase):
                 f"{path} dead-interval {dead}",
             )
             return
-        ops = native_fault_ops(self, host, "set_ospf_interface_timers")
-        if ops is not None:
-            ops.set_ospf_interface_timers(intf, hello, dead)
         else:
             self.runtime.exec(
                 host,
@@ -2409,7 +2600,7 @@ class OspfStubAreaMismatch(ProblemBase):
     def benchmark_inject_params(cls, ctx):
         targets = cls._targets(ctx.net_env)
         if not targets:
-            raise ValueError("No area-1 OSPF cut edge serving hosts")
+            raise NoValidTargetError("No area-1 OSPF cut edge serving hosts")
         native = [
             target
             for target in targets
@@ -2617,7 +2808,7 @@ class OspfAreaRangeSuppression(ProblemBase):
     def benchmark_inject_params(cls, ctx):
         targets = sorted(ospf_area_branches(ctx.net_env))
         if not targets:
-            raise ValueError(
+            raise NoValidTargetError(
                 "OSPF range suppression needs a non-backbone branch with a single ABR"
             )
         host, area = ctx.rng.choice(targets)

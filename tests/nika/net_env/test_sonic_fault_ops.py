@@ -162,7 +162,16 @@ def test_reattach_raises_when_the_veth_is_missing() -> None:
 
 
 def test_ospf_interfaces_are_named_by_container_interface() -> None:
-    interfaces = {"interfaces": {"Ethernet4": {"ipAddress": "10.0.0.0"}}}
+    interfaces = {
+        "interfaces": {
+            "Ethernet4": {
+                "ipAddress": "10.0.0.0",
+                "networkType": "NBMA",
+                "timerMsecs": 10000,
+                "timerDeadSecs": 40,
+            }
+        }
+    }
     neighbors = {
         "neighbors": {
             "30.0.0.3": [{"nbrState": "Full/-", "ifaceName": "Ethernet4:10.0.0.0"}]
@@ -177,6 +186,8 @@ def test_ospf_interfaces_are_named_by_container_interface() -> None:
     ops = SonicFaultOps(runtime, "leaf1")
     assert ops.ospf_interfaces() == ["eth2"]
     assert ops.ospf_neighbor_interfaces() == ["eth2"]
+    assert ops.ospf_interface_timers("eth2") == (10, 40)
+    assert ops.ospf_network_type("eth2") == "non-broadcast"
 
 
 def test_port_mtu_goes_to_config_db_and_must_reach_the_kernel() -> None:
@@ -237,3 +248,108 @@ def test_sonic_cli_rejects_other_programs_and_shell_operators(
 ) -> None:
     with pytest.raises(ValueError, match=error):
         sonic_cli_command(command)
+
+
+def test_routing_probe_addresses_follow_provider_contract() -> None:
+    addresses = [
+        {
+            "ifname": "eth0",
+            "addr_info": [{"family": "inet", "local": "172.20.0.2", "prefixlen": 24}],
+        },
+        {
+            "ifname": "Ethernet0",
+            "addr_info": [
+                {"family": "inet", "local": "192.0.2.1", "prefixlen": 31},
+                {"family": "inet6", "local": "fe80::1", "prefixlen": 64},
+            ],
+        },
+        {
+            "ifname": "Loopback0",
+            "addr_info": [
+                {"family": "inet", "local": "198.51.100.1", "prefixlen": 32},
+            ],
+        },
+        {
+            "ifname": "lo",
+            "addr_info": [
+                {"family": "inet", "local": "127.0.0.1", "prefixlen": 8},
+            ],
+        },
+    ]
+    ops = SonicFaultOps(
+        FakeRuntime({"ip -j -4 address show": json.dumps(addresses)}), "r1"
+    )
+    assert ops.ipv4_addresses() == {"192.0.2.1", "198.51.100.1"}
+
+
+@pytest.mark.parametrize(
+    "reload_output",
+    ["configuration error", "failed to connect to bgpd\nNIKA_RECOVERY_COMMAND_OK\n"],
+)
+def test_routing_restart_rejects_failed_configuration_reload(reload_output):
+    ops = SonicFaultOps(
+        FakeRuntime(
+            {"supervisorctl status": "zebra STOPPED", "vtysh -b": reload_output}
+        ),
+        "r1",
+    )
+    with pytest.raises(
+        RuntimeError, match="Recovery command failed|configuration reload failed"
+    ):
+        ops.start_routing_process({"zebra": True})
+
+
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [("POINTOMULTIPOINT", "point-to-multipoint"), ("POINTOPOINT", "point-to-point")],
+)
+def test_ospf_network_types(token, expected):
+    runtime = FakeRuntime(
+        {
+            "show ip ospf interface json": json.dumps(
+                {"interfaces": {"Ethernet0": {"networkType": token}}}
+            )
+        }
+    )
+    assert SonicFaultOps(runtime, "r1").ospf_network_type("eth1") == expected
+
+
+@pytest.mark.parametrize("token", ["LOOPBACK", "UNKNOWN"])
+def test_ospf_network_types_that_cannot_be_configured_raise_clear_errors(token):
+    runtime = FakeRuntime(
+        {
+            "show ip ospf interface json": json.dumps(
+                {"interfaces": {"Ethernet0": {"networkType": token}}}
+            )
+        }
+    )
+    with pytest.raises(
+        ValueError, match=f"Unsupported OSPF network type '{token}'.*r1:eth1"
+    ):
+        SonicFaultOps(runtime, "r1").ospf_network_type("eth1")
+
+
+@pytest.mark.parametrize("output", ["{}", '{"interfaces": {}}'])
+def test_port_without_ospf_has_a_clear_error(output):
+    ops = SonicFaultOps(FakeRuntime({"show ip ospf interface json": output}), "r1")
+    with pytest.raises(ValueError, match="OSPF does not run on r1:eth1"):
+        ops.ospf_interface_timers("eth1")
+
+
+@pytest.mark.parametrize("hello_ms", [0, 250, 1500])
+def test_ospf_fractional_or_zero_hello_is_not_truncated(hello_ms):
+    runtime = FakeRuntime(
+        {
+            "show ip ospf interface json": json.dumps(
+                {
+                    "interfaces": {
+                        "Ethernet0": {"timerMsecs": hello_ms, "timerDeadSecs": 1}
+                    }
+                }
+            )
+        }
+    )
+    with pytest.raises(
+        ValueError, match=f"Unsupported OSPF hello interval {hello_ms} ms"
+    ):
+        SonicFaultOps(runtime, "r1").ospf_interface_timers("eth1")

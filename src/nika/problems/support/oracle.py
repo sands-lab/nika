@@ -245,7 +245,7 @@ def router_cli(
         interval_sec=interval_sec,
         save_as=save_as,
     )
-    if getattr(net_env, "backend", None) == "containerlab":
+    if getattr(net_env, "backend", None) == "containerlab" and profile is None:
         if srl_command is None:
             raise ValueError(f"No SR Linux command for {purpose!r}")
         return srl(router, srl_command, purpose, expect, **options)

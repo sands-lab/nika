@@ -7,6 +7,7 @@ import shlex
 from pydantic import BaseModel, Field
 
 from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
+from nika.net_env.isp.identity import list_isp_base_scenarios
 from nika.problems.routing_control_plane.ospf import linked_routers
 from nika.problems.support.frr import (
     FRR_SAVE_COMMAND,
@@ -33,6 +34,7 @@ from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import (
     RouterFaultOps,
     native_fault_ops,
+    native_router_profile,
     router_fault_ops,
 )
 from nika.problems.support.recovery import FileSnapshot
@@ -3195,7 +3197,7 @@ class BGPTtlSecurityMismatch(ProblemBase):
     # Route-reflector ISP labs peer over iBGP, where directly connected peers
     # keep their sessions, so the router may lose none of its routes.
     isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
-    supported_backends = ("kathara",)
+    supported_backends = None
     native_router_operations = frozenset(
         {
             "enable_bgp_ttl_security",
@@ -3433,6 +3435,8 @@ def declared_ebgp(net_env, router: str) -> bool | None:
             s.get("local_device") == router and s.get("session_type") == "ebgp"
             for s in sessions
         )
+    if getattr(net_env, "lab", None) is None:
+        return None
     sketch = router_sketches(net_env).get(router)
     if sketch is None:
         return None
@@ -3475,10 +3479,10 @@ class BGPSessionPolicyMissing(ProblemBase):
     )
     effect_protocol = "bgp"
     TAGS = ["bgp"]
-    # Validated on the IOS XR and RouterOS dc_clos fabrics, where every router
-    # peers over eBGP and the web server sits behind a leaf, and on the RouterOS
-    # enterprise_branch Site Edges, whose overlay sessions carry every LAN.
-    COMPATIBLE_COLUMNS = frozenset({"dc_clos", "enterprise_branch"})
+    COMPATIBLE_COLUMNS = frozenset(
+        {"dc_clos", "enterprise_branch"}
+        | {f"{scenario}/ebgp" for scenario in list_isp_base_scenarios()}
+    )
     supported_backends = ("kathara",)
     native_router_operations = frozenset(
         {
@@ -3491,6 +3495,18 @@ class BGPSessionPolicyMissing(ProblemBase):
         }
     )
     Params = BGPSessionPolicyMissingParams
+    isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
+
+    @classmethod
+    def is_compatible(cls, target, device_profile=None, *, backend=None):
+        # FRR runs without ebgp-requires-policy in the current environments.
+        from nika.problems.support.router_ops import router_platform_has_provider
+
+        return (
+            router_platform_has_provider(device_profile)
+            and cls.runs_on_device_profile(device_profile)
+            and super().is_compatible(target, device_profile, backend=backend)
+        )
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -3692,6 +3708,8 @@ class BGPMd5PasswordMismatch(ProblemBase):
             "routeros_simple_bgp",
             "isp_abilene/ebgp",
             "isp_abilene/ibgp_rr",
+            "isp_dfn-bwin/ebgp",
+            "isp_dfn-bwin/ibgp_rr",
         }
     )
     supported_backends = ("kathara", "containerlab")
@@ -3734,15 +3752,15 @@ class BGPMd5PasswordMismatch(ProblemBase):
         return [node_resource(params.host_name)]
 
     def _established(self, host: str) -> set[str]:
+        ops = native_fault_ops(self, host, "bgp_established_peers")
+        if ops is not None:
+            return ops.bgp_established_peers()
         if self.lab_backend == "containerlab":
             return {
                 peer
                 for peer, row in self.runtime.lab_api.srl_bgp_neighbors(host).items()
                 if row["state"] == "established"
             }
-        ops = native_fault_ops(self, host, "bgp_established_peers")
-        if ops is not None:
-            return ops.bgp_established_peers()
         data = json.loads(self.runtime.exec(host, "vtysh -c 'show bgp neighbors json'"))
         return {
             peer
@@ -3751,7 +3769,9 @@ class BGPMd5PasswordMismatch(ProblemBase):
         }
 
     def _check_tcp_md5(self, host: str) -> None:
-        if self.lab_backend == "containerlab":
+        if (self.lab_backend == "containerlab") and native_router_profile(
+            self.net_env, host
+        ) is None:
             return
         if native_fault_ops(self, host, "set_bgp_password") is not None:
             return
@@ -3771,21 +3791,26 @@ class BGPMd5PasswordMismatch(ProblemBase):
             )
 
     def _password_configured(self, host: str, peer: str) -> bool:
+        ops = native_fault_ops(self, host, "bgp_password_configured")
+        if ops is not None:
+            return ops.bgp_password_configured(peer)
         if self.lab_backend == "containerlab":
             config = self.runtime.lab_api.srl_exec_cli(
                 host, "info flat from running network-instance default protocols bgp"
             )
             return peer in _oracle_password_peers(config)
-        ops = native_fault_ops(self, host, "bgp_password_configured")
-        if ops is not None:
-            return ops.bgp_password_configured(peer)
         config = self.runtime.exec(host, "vtysh -c 'show running-config'")
         return bool(
             re.search(rf"^ neighbor {re.escape(peer)} password .+$", config, re.M)
         )
 
     def _set_password(self, host: str, peer: str, password: str | None) -> None:
-        if self.lab_backend == "containerlab":
+        ops = native_fault_ops(self, host, "set_bgp_password")
+        if ops is not None:
+            ops.set_bgp_password(peer, password)
+        elif (self.lab_backend == "containerlab") and native_router_profile(
+            self.net_env, host
+        ) is None:
             path = f"/network-instance default protocols bgp neighbor {peer} authentication"
             self.runtime.lab_api.srl_configure(
                 host,
@@ -3795,9 +3820,6 @@ class BGPMd5PasswordMismatch(ProblemBase):
             )
             self._reset(host, peer)
             return
-        ops = native_fault_ops(self, host, "set_bgp_password")
-        if ops is not None:
-            ops.set_bgp_password(peer, password)
         else:
             config = self.runtime.exec(host, "vtysh -c 'show running-config'")
             block = next(
@@ -3826,15 +3848,17 @@ class BGPMd5PasswordMismatch(ProblemBase):
         self._reset(host, peer)
 
     def _reset(self, host: str, peer: str) -> None:
-        if self.lab_backend == "containerlab":
+        ops = native_fault_ops(self, host, "reset_bgp_session")
+        if ops is not None:
+            ops.reset_bgp_session(peer)
+        elif (self.lab_backend == "containerlab") and native_router_profile(
+            self.net_env, host
+        ) is None:
             self.runtime.lab_api.srl_exec_cli(
                 host,
                 f"tools network-instance default protocols bgp neighbor {peer} reset-peer",
             )
             return
-        ops = native_fault_ops(self, host, "reset_bgp_session")
-        if ops is not None:
-            ops.reset_bgp_session(peer)
         else:
             self.runtime.exec(host, f"vtysh -c 'clear bgp {peer}'")
 
@@ -3954,7 +3978,9 @@ class BGPMd5PasswordMismatch(ProblemBase):
             )
 
         for peer in peers:
-            if getattr(self.net_env, "backend", None) == "containerlab":
+            if (
+                getattr(self.net_env, "backend", None) == "containerlab"
+            ) and native_router_profile(self.net_env, peer) is None:
                 steps.extend(
                     [
                         srl(

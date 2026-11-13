@@ -255,7 +255,7 @@ def _isis_identity_ids(problem: Any, host: str) -> set[str]:
 def _isis_neighbors(
     runtime: LabRuntime, router: str, *, profile: str | None = None
 ) -> list[dict] | None:
-    if runtime.backend == "containerlab":
+    if runtime.backend == "containerlab" and profile is None:
         return runtime.lab_api.srl_isis_neighbors(router)
     if profile == "iosxr":
         from nika.net_env.isp.iosxr import parse_iosxr_isis_adjacencies
@@ -679,11 +679,11 @@ def max_prefix_cease(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 def _ospf_routes(problem: Any, router: str) -> set[str]:
     """Active IPv4 prefixes the router learned through OSPF."""
-    if problem.runtime.backend == "containerlab":
-        return problem.runtime.lab_api.srl_routes(router, "ospf")
     ops = router_fault_ops(problem, router)
     if ops is not None:
         return ops.ospf_routes()
+    if problem.runtime.backend == "containerlab":
+        return problem.runtime.lab_api.srl_routes(router, "ospf")
     out = _route_query(
         problem.runtime, router, "ip -4 route show proto ospf", timeout=15
     )
@@ -693,13 +693,13 @@ def _ospf_routes(problem: Any, router: str) -> set[str]:
 
 
 def _ospf_router_id(problem: Any, router: str) -> str | None:
+    ops = router_fault_ops(problem, router)
+    if ops is not None:
+        return ops.ospf_router_id()
     if problem.runtime.backend == "containerlab":
         return problem.runtime.lab_api.srl_protocol_instance(router, "ospf")[
             "router-id"
         ]
-    ops = router_fault_ops(problem, router)
-    if ops is not None:
-        return ops.ospf_router_id()
     raw = exec_or_empty(problem.runtime, router, "vtysh -c 'show ip ospf json'")
     return (_load_json(raw) or {}).get("routerId")
 
@@ -709,11 +709,11 @@ _DUPLICATE_ID_WAIT_SEC = 240.0
 
 
 def _connected_routes(problem: Any, router: str) -> set[str]:
-    if problem.runtime.backend == "containerlab":
-        return problem.runtime.lab_api.srl_routes(router, "local")
     ops = router_fault_ops(problem, router)
     if ops is not None:
         return ops.connected_routes()
+    if problem.runtime.backend == "containerlab":
+        return problem.runtime.lab_api.srl_routes(router, "local")
     out = _route_query(
         problem.runtime, router, "ip -4 route show proto kernel scope link", timeout=15
     )
@@ -1068,9 +1068,9 @@ def _route_query(runtime: LabRuntime, router: str, command: str, timeout: float)
 def _isis_routes(problem: Any, router: str) -> set[str] | None:
     """Prefixes ``router`` installs from IS-IS; ``None`` when unreadable."""
     runtime = problem.runtime
-    if getattr(runtime, "backend", None) == "containerlab":
-        return runtime.lab_api.srl_routes(router, "isis")
     profile = _native_profile(problem, router)
+    if getattr(runtime, "backend", None) == "containerlab" and profile is None:
+        return runtime.lab_api.srl_routes(router, "isis")
     if profile == "iosxr":
         from nika.service.lab.iosxr_api import CLI_COMMAND
 
@@ -1338,7 +1338,10 @@ def isis_adj_and_stubs_lost(problem: Any, params: Any) -> tuple[bool, dict[str, 
 
 def _isis_live_interfaces(problem: Any, host: str) -> dict[str, str]:
     """IS-IS circuit states from the running protocol, independent of adjacencies."""
-    if problem.runtime.backend == "containerlab":
+    if (
+        problem.runtime.backend == "containerlab"
+        and _native_profile(problem, host) is None
+    ):
         from nika.service.containerlab.srl_api import srl_linux_intf
 
         instance = problem.runtime.lab_api.srl_protocol_instance(host, "isis")
@@ -1363,7 +1366,12 @@ def _isis_live_interfaces(problem: Any, host: str) -> dict[str, str]:
     raw = problem.runtime.exec(
         host, "vtysh -c 'show isis interface detail'", timeout=30
     )
-    return dict(re.findall(r"Interface: (\S+), State: (\S+), Active", raw))
+    states = dict(re.findall(r"Interface: (\S+), State: (\S+), Active", raw))
+    if _native_profile(problem, host) == "sonic":
+        from nika.net_env.utils.sonic.common import container_iface
+
+        return {container_iface(port): state for port, state in states.items()}
+    return states
 
 
 def isis_authentication_baseline(

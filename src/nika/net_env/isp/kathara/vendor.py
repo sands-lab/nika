@@ -151,7 +151,6 @@ class IspVendor(IspRendered, NetworkEnvBase):
 
             # Native routers read their configuration at boot, before startup.
             self.deployment_configs = current_configs(self) or self.deployment_configs
-        self._native_interface = native_interface
         self.BGP_CONFIG_PATH = CONFIG_FILE_PATH
         self.BGP_ROUTERS = {node.device_name: node for node in self.plan.nodes}
         self.BGP_INTERFACE_MAP = {
@@ -283,7 +282,6 @@ class IspVendor(IspRendered, NetworkEnvBase):
             self.bgp_plan,
             self.topo,
             router_services=False,
-            router_iface=self._native_interface,
             rate_limit_kbps=self.router_rate_limit_kbps(),
         )
 

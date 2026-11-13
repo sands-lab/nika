@@ -11,7 +11,7 @@ from nika.problems.base import ProblemBase
 from nika.problems.registry import list_avail_problem_instances
 from nika.problems.support.oracle import healthy_playbook
 
-CAUSE = {"resource_id": "node/r1", "fault_type": "frr_service_down"}
+CAUSE = {"resource_id": "node/r1", "fault_type": "routing_service_down"}
 CONTEXT = {"resources": [{"id": "node/r1", "kind": "node"}]}
 
 
@@ -160,3 +160,19 @@ def test_oracle_uses_latest_successful_injection_target(monkeypatch):
     )
     assert len(agent._faults()) == 1
     assert selected == ["spine_1"]
+
+
+@pytest.mark.unit
+def test_sonic_peer_oracle_uses_frr_shell():
+    from types import SimpleNamespace
+    from nika.problems.support.oracle import router_cli
+
+    env = SimpleNamespace(
+        backend="containerlab",
+        machine_identities={"peer": SimpleNamespace(capabilities=("sonic",))},
+    )
+    step = router_cli(
+        env, "peer", "Read peer adjacencies.", frr="vtysh -c 'show bgp summary'"
+    )
+    assert step.tool == "exec_shell"
+    assert step.args["command"] == "vtysh -c 'show bgp summary'"

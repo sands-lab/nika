@@ -22,6 +22,10 @@ def test_native_inject_fails_when_prefix_is_never_advertised(monkeypatch) -> Non
     monkeypatch.setattr("nika.problems.security.bgp.wait_until", lambda *a, **k: False)
     problem = BGPHijacking(None)
     problem.runtime = SimpleNamespace(backend="containerlab")
+    problem.net_env = SimpleNamespace(
+        backend="containerlab",
+        machine_identities={"stuttgart": SimpleNamespace(capabilities=["sonic"])},
+    )
     params = BGPHijackingParams(host_name="stuttgart", target_network="203.0.113.0/24")
     with pytest.raises(RuntimeError, match="did not advertise hijacked prefix"):
         problem.inject_fault(params)

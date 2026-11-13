@@ -13,7 +13,7 @@ detect:
   metric: healthy_label_share
   threshold: 0.3
   min_trials: 3
-  pattern: frr_service_down|frr_
+  pattern: routing_service_down|frr_service_down|frr_
 provenance:
   source: trajectory audit 2026-10-14 (REPORT_en.md) B1
   date: '2026-10-14'
