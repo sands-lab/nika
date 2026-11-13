@@ -3,7 +3,8 @@ scenario:
 failure:
   fault_type: host_static_blackhole
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -13,7 +14,8 @@ failure:
         kind: node
         node: leaf_1_1
       fault_type: host_static_blackhole
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -23,7 +25,8 @@ failure:
         kind: node
         node: leaf_1_2
       fault_type: host_static_blackhole
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -33,7 +36,96 @@ failure:
         kind: node
         node: leaf_2_1
       fault_type: host_static_blackhole
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_2
+      fault_type: host_static_blackhole
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_1
+      fault_type: host_static_blackhole
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_2
+      fault_type: host_static_blackhole
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_1
+      fault_type: host_static_blackhole
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_2
+      fault_type: host_static_blackhole
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_1
+      fault_type: host_static_blackhole
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_2
+      fault_type: host_static_blackhole
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_2_1
+      fault_type: host_static_blackhole
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:

@@ -28,6 +28,7 @@ def row_device_profile(row: dict[str, Any]) -> str:
     from nika.net_env.net_env_pool import (
         scenario_containerlab_device_profiles,
         scenario_tags,
+        scenario_supported_backends,
     )
 
     if row.get("device_profile"):
@@ -35,7 +36,9 @@ def row_device_profile(row: dict[str, Any]) -> str:
     if row.get("backend") == "containerlab":
         return default_device_profile("containerlab")
     containerlab_profiles = scenario_containerlab_device_profiles(row["scenario"])
-    if containerlab_profiles:
+    if containerlab_profiles and "kathara" not in scenario_supported_backends(
+        row["scenario"]
+    ):
         return containerlab_profiles[0]
     profiles = set(scenario_tags(row["scenario"])) & native_profiles()
     return next(iter(profiles)) if len(profiles) == 1 else "frr"

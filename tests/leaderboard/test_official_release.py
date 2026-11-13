@@ -23,7 +23,11 @@ from nika.workflows.leaderboard.issues import ISSUE_SPECS
 from nika.workflows.leaderboard.pack import LeaderboardPackError
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 from nika.workflows.leaderboard.validate_trajectories import validate_trajectory_package
-from tests.leaderboard.test_pack_validate import _pack, mini_release_env  # noqa: F401
+from tests.leaderboard.test_pack_validate import (
+    _build_release_run,
+    _pack,
+    mini_release_env,  # noqa: F401
+)
 from tests.support.official_release import FakeOfficialRepo
 
 pytestmark = pytest.mark.contract
@@ -260,6 +264,66 @@ def test_legacy_release_reference_does_not_depend_on_a_missing_tag(
 
     monkeypatch.setattr(official_release.subprocess, "run", unexpected_network)
     assert resolve_release_commit(version) == "ac4422d8a4a03be2b905e28edf72993d467e1b81"
+
+
+@pytest.mark.parametrize(
+    "version,scenario,problem",
+    [("0.1.0", "sdn_star", "flow_rule_loop"), ("0.2.0", "dc_clos", "frr_service_down")],
+)
+def test_historical_packages_keep_published_task_ids(
+    tmp_path,
+    mini_release_env,  # noqa: F811
+    official_releases,
+    version,
+    scenario,
+    problem,
+):
+    release, _ = mini_release_env
+    row = {
+        "scenario": scenario,
+        "problem": problem,
+        "topo_size": "s",
+        "inject": {"host_name": "spine_1"},
+        "root_causes": [
+            {"resource": {"kind": "node", "node": "spine_1"}, "fault_type": problem}
+        ],
+    }
+    manifest = {**release.manifest, "version": version}
+    manifest["splits"] = {"dev": {"cases_file": "dev.yaml", "case_count": 1}}
+    files = {
+        "RELEASE.yaml": yaml.safe_dump(manifest).encode(),
+        "dev.yaml": yaml.safe_dump({"cases": [row]}).encode(),
+    }
+    commit = official_releases.publish(version, files)
+    official_releases.tag(version, commit)
+    historical, reference = official_release.load_reference_release(
+        version, split="dev"
+    )
+    assert reference.tag is None
+    assert historical.cases == [row]
+    task_id = task_id_for_row(row)
+    assert problem in task_id
+
+    result_dir = _build_release_run(tmp_path / "historical", historical)
+    run_path = result_dir / "run.json"
+    run = json.loads(run_path.read_text())
+    run["nika_git_commit"] = commit
+    run_path.write_text(json.dumps(run))
+    package = _pack(result_dir)
+    report = validate_leaderboard_submission(package)
+    assert report.ok, report.errors
+    trajectories = package.parent / f"{package.name}_trajectories"
+    report = validate_trajectory_package(trajectories, scores_dir=package)
+    assert report.ok, report.errors
+
+    # A root-cause correction changes the release even when the task ID stays the same.
+    row["root_causes"][0]["resource"]["node"] = "spine_2"
+    files["dev.yaml"] = yaml.safe_dump({"cases": [row]}).encode()
+    changed_commit = official_releases.publish(version, files)
+    official_releases.tag(version, changed_commit)
+    report = validate_leaderboard_submission(package)
+    assert _error_codes(report) == ["ERROR_RELEASE_DRIFT"]
+    assert report.issues[0].items == [task_id]
 
 
 def test_every_issue_code_has_a_guide_section() -> None:

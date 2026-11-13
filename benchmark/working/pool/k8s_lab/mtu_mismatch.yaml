@@ -3,7 +3,36 @@ scenario:
 failure:
   fault_type: mtu_mismatch
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth2
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth2
+      fault_type: mtu_mismatch
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth2
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth2
+      fault_type: mtu_mismatch
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:

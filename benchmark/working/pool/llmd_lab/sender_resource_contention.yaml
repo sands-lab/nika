@@ -3,7 +3,44 @@ scenario:
 failure:
   fault_type: sender_resource_contention
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: client
+      cpu_quota: '0.05'
+      dst_ip: 200.0.0.8
+      duration: '3600'
+      host_name: web
+      large_url: http://200.0.0.8/large.bin
+      small_url: http://200.0.0.8/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: web
+      fault_type: sender_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: client
+      cpu_quota: '0.05'
+      dst_ip: 200.0.0.8
+      duration: '3600'
+      host_name: web
+      large_url: http://200.0.0.8/large.bin
+      small_url: http://200.0.0.8/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: web
+      fault_type: sender_resource_contention
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:

@@ -103,7 +103,7 @@ uv run nika leaderboard submit --result_dir <result_dir> \
 Fix every error and rerun. Then check the packed scores package:
 
 * `results/metrics.json`: `n_trials_present == n_trials_expected` (255 for
-  0.2.0 test, 252 for dev); `status_counts` has zero `grading_error` and
+  0.3.0 test, 252 for dev); `status_counts` has zero `grading_error` and
   `infra_error`. Copy the metrics into the README.
 * `metadata.yaml`: `agent.extra.hf_repo` / `hf_revision` name the served model,
   or are absent for proprietary models.

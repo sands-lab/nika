@@ -54,6 +54,8 @@ class NetworkEnvBase:
     BASELINE_TRAFFIC: ClassVar[dict] = {"pattern": "uniform", "load_mbps": 1.0}
     # Remove deploy-time file copies and align saved configs (see seal_baseline).
     SEAL_BASELINE: ClassVar[bool] = True
+    # Stage an idle local archive batch on every endpoint at deployment.
+    ARCHIVE_JOBS: ClassVar[bool] = False
     """
     Base class for network environments."""
 
@@ -346,6 +348,13 @@ class NetworkEnvBase:
         """
         self._ensure_runtime_files()
         deployed = self._build_runtime().deploy()
+        if deployed is not False and self.ARCHIVE_JOBS:
+            from nika.net_env.utils.archive_jobs import prepare_archive_jobs
+
+            endpoints = set(self.hosts or [])
+            for hosts in (self.servers or {}).values():
+                endpoints.update(hosts)
+            prepare_archive_jobs(self._build_runtime(), sorted(endpoints))
         if deployed is False or self._has_readiness_verifier():
             return
         import time
@@ -387,10 +396,14 @@ class NetworkEnvBase:
         """Leave no pristine on-disk baseline that a fault could be diffed against.
 
         Drops the backend's deploy-time file copies, saves running configurations
-        on FRR and SR Linux, and refreshes saved-file metadata on their peers.
+        on FRR, SR Linux, and SONiC, and refreshes saved-file metadata on their peers.
+        Prepares neutral DHCP resolver hooks before fault injection.
         """
         if not self.SEAL_BASELINE:
             return
+        import time
+
+        from nika.problems.support.dhcp import prepare_dns_renewal_hook
         from nika.problems.support.frr import frr_save_config
         from nika.utils.parallel import bounded_parallel_map
 
@@ -398,6 +411,11 @@ class NetworkEnvBase:
         runtime.drop_boot_sources()
         bounded_parallel_map(
             lambda router: frr_save_config(runtime, router), self.frr_routers()
+        )
+        timestamp = time.time()
+        bounded_parallel_map(
+            lambda host: prepare_dns_renewal_hook(runtime, host, timestamp),
+            self.hosts or [],
         )
         self.align_saved_configs()
 
@@ -419,6 +437,15 @@ class NetworkEnvBase:
         ]
         if srl_routers:
             runtime.lab_api.srl_align_saved_configs(srl_routers, timestamp)
+        sonic_routers = [
+            node
+            for node, identity in self.machine_identities.items()
+            if "sonic" in identity.capabilities
+        ]
+        if sonic_routers:
+            from nika.net_env.utils.sonic.common import align_saved_configs
+
+            align_saved_configs(runtime, sonic_routers, timestamp)
 
     def business_workload(self) -> "BusinessWorkload | None":
         """Always-on traffic of the scenario's users and services.

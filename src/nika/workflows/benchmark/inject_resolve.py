@@ -7,7 +7,7 @@ import random
 from collections import defaultdict
 
 from nika.net_env.net_env_pool import get_net_env_instance
-from nika.runtime.spec import MachineInventory
+from nika.runtime.spec import MachineInventory, NodeRole
 from nika.problems.base import ProblemBase
 from nika.problems.registry import get_problem_class, list_avail_problem_instances
 from nika.problems.support.router_ops import (
@@ -138,6 +138,18 @@ def _load_inventory(net_env) -> None:
     spec = net_env.get_lab_spec()
     if spec is None:
         raise ValueError(f"Cannot derive benchmark inventory for {net_env.name!r}.")
+
+    if net_env.machine_identities:
+        inventory = MachineInventory(net_env.machine_identities)
+        inventory.validate({node.name for node in spec.nodes})
+        net_env.bmv2_switches = inventory.names_for_capability("bmv2")
+        net_env.ovs_switches = inventory.names_for_capability("ovs")
+        net_env.sdn_controllers = inventory.names_for_role(NodeRole.CONTROLLER)
+        net_env.hosts = inventory.names_for_role(NodeRole.HOST)
+        net_env.routers = inventory.names_for_role(NodeRole.ROUTER)
+        net_env.switches = inventory.names_for_role(NodeRole.SWITCH)
+        net_env.servers = {**inventory.services(), **(net_env.servers or {})}
+        return
 
     net_env.bmv2_switches = []
     net_env.ovs_switches = []
@@ -298,7 +310,7 @@ def validate_benchmark_case(
         registered_tags = scenario_tags(canonical)
     except ValueError:
         raise ValueError(f"Unknown scenario {scenario!r}") from None
-    problem_cls = get_problem_class(problem, canonical, release)
+    problem_cls = get_problem_class(problem)
     if problem_cls is None:
         raise ValueError(f"Unknown problem {problem!r}")
 
@@ -404,12 +416,7 @@ def validate_benchmark_case(
                 f"(topo_size={topo_size!r})"
             )
 
-    # Release 0.1.0 predates scenario workloads and its rows are immutable.
-    from nika.problems.compat.v010 import RELEASE_VERSION
-
-    if release != RELEASE_VERSION and not workload_exercises(
-        problem_cls, net_env, inject
-    ):
+    if not workload_exercises(problem_cls, net_env, inject):
         raise ValueError(
             f"{problem} needs {problem_cls.SYMPTOM_WORKLOAD} traffic, but the "
             f"{scenario} business workload does not exercise "

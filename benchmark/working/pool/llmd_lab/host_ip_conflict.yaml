@@ -3,7 +3,8 @@ scenario:
 failure:
   fault_type: host_ip_conflict
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -13,5 +14,31 @@ failure:
     - resource:
         kind: interface
         node: web
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web
+      host_name_2: client
+    root_causes:
+    - resource:
+        kind: interface
+        node: client
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web
+      host_name_2: client
+    root_causes:
+    - resource:
+        kind: interface
+        node: client
         name: eth0
       fault_type: host_ip_conflict

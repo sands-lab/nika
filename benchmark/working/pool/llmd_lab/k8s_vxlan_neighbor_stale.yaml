@@ -3,7 +3,60 @@ scenario:
 failure:
   fault_type: k8s_vxlan_neighbor_stale
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: controller
+      peer_name: worker3
+    root_causes:
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker1
+      peer_name: worker3
+    root_causes:
+    - resource:
+        kind: node
+        node: worker1
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker2
+      peer_name: worker3
+    root_causes:
+    - resource:
+        kind: node
+        node: worker2
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker3
+      peer_name: controller
+    root_causes:
+    - resource:
+        kind: node
+        node: worker3
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -15,7 +68,8 @@ failure:
         kind: node
         node: controller
       fault_type: k8s_vxlan_neighbor_stale
-  - traffic:
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -27,7 +81,8 @@ failure:
         kind: node
         node: worker1
       fault_type: k8s_vxlan_neighbor_stale
-  - traffic:
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -39,7 +94,8 @@ failure:
         kind: node
         node: worker2
       fault_type: k8s_vxlan_neighbor_stale
-  - traffic:
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -51,7 +107,8 @@ failure:
         kind: node
         node: worker3
       fault_type: k8s_vxlan_neighbor_stale
-  - traffic:
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -63,7 +120,8 @@ failure:
         kind: node
         node: worker4
       fault_type: k8s_vxlan_neighbor_stale
-  - traffic:
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -74,4 +132,121 @@ failure:
     - resource:
         kind: node
         node: worker5
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: controller
+      peer_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker1
+      peer_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: worker1
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker2
+      peer_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: worker2
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker3
+      peer_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: worker3
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker4
+      peer_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: worker4
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker5
+      peer_name: controller
+    root_causes:
+    - resource:
+        kind: node
+        node: worker5
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker6
+      peer_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: worker6
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker7
+      peer_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: worker7
+      fault_type: k8s_vxlan_neighbor_stale
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker8
+      peer_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: worker8
       fault_type: k8s_vxlan_neighbor_stale

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from nika.evaluator.scoring import GradingError, score_rca_v2
+from nika.evaluator.scoring import GradingError, score_rca
 from nika.evaluator.score_status import (
     is_infra_error_evidence,
     resolve_score_status,
@@ -12,9 +12,10 @@ from nika.evaluator.score_status import (
 )
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
+    metrics_nearly_equal,
     score_for_primary,
 )
-from nika.workflows.leaderboard.schema import TrialResult
+from nika.workflows.leaderboard.schema import AggregatedMetrics, TrialResult
 
 pytestmark = pytest.mark.unit
 
@@ -134,13 +135,57 @@ class TestPrimaryAggregation:
             "is_anomaly": True,
             "root_causes": [{"resource_id": "node/pc1", "fault_type": "link_down"}],
         }
-        scores = score_rca_v2({"root_causes": "not-a-list"}, gt)
+        scores = score_rca({"root_causes": "not-a-list"}, gt)
         assert scores["rca_f1"] == 0.0
         assert all(v >= 0.0 for v in scores.values())
 
     def test_invalid_gt_raises_grading_error(self) -> None:
         with pytest.raises(GradingError):
-            score_rca_v2({"root_causes": []}, {"root_causes": "bad"})
+            score_rca({"root_causes": []}, {"root_causes": "bad"})
+
+
+class TestCaseConsistency:
+    def test_case_groups_have_equal_weight_and_require_every_trial(self) -> None:
+        trials = [
+            _trial(trial_id="a__t01", score_status="scored", rca_f1=1.0),
+            _trial(trial_id="a__t02", score_status="scored", rca_f1=1.0),
+            _trial(trial_id="b__t01", score_status="scored", rca_f1=1.0),
+            _trial(trial_id="b__t02", score_status="scored", rca_f1=0.9999),
+            _trial(trial_id="c__t01", score_status="scored", rca_f1=1.0),
+        ]
+        metrics = aggregate_trial_results(trials, n_trials_expected=5)
+        assert metrics.case_consistency == pytest.approx(2 / 3)
+
+    @pytest.mark.parametrize(
+        "status", ["no_submission", "infra_error", "grading_error"]
+    )
+    @pytest.mark.parametrize("score", [None, 1.0])
+    def test_unscored_trial_is_not_solved(self, status, score) -> None:
+        trials = [
+            _trial(trial_id="a__t01", score_status="scored", rca_f1=1.0),
+            _trial(trial_id="a__t02", score_status=status, rca_f1=score),
+        ]
+        assert (
+            aggregate_trial_results(trials, n_trials_expected=2).case_consistency == 0
+        )
+
+    def test_empty_run(self) -> None:
+        assert aggregate_trial_results([], n_trials_expected=0).case_consistency == 0
+
+    def test_validate_new_metric_and_accept_legacy_omission(self) -> None:
+        metrics = aggregate_trial_results(
+            [_trial(trial_id="a__t01", score_status="scored", rca_f1=1.0)],
+            n_trials_expected=1,
+        )
+        legacy = AggregatedMetrics.model_validate(
+            metrics.model_dump(exclude={"case_consistency"})
+        )
+        assert legacy.case_consistency is None
+        assert metrics_nearly_equal(metrics, legacy) == []
+        changed = metrics.model_copy(update={"case_consistency": 0.0})
+        assert any(
+            "case_consistency" in e for e in metrics_nearly_equal(metrics, changed)
+        )
 
 
 class TestValidateRejectsBadStatuses:

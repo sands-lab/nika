@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -129,6 +130,10 @@ def _bounces_back(port: str) -> Check:
         f"an IPv4 rule matching in_port {port} outputs to IN_PORT and is hit",
         predicate,
     )
+
+
+if TYPE_CHECKING:
+    from nika.problems.support.benchmark_targets import InjectTargetContext
 
 
 class FlowRuleShadowingParams(BaseModel):
@@ -319,6 +324,7 @@ class FlowRuleLoop(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "loss"
     root_cause_name: str = "flow_rule_loop"
+    root_cause_resource_match = "any"
     description = (
         "SDN flow rules on adjacent switches send packets back and forth, so "
         "they circulate until their TTL expires."
@@ -344,9 +350,20 @@ class FlowRuleLoop(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
+    @classmethod
+    def benchmark_inject_options(
+        cls, ctx: InjectTargetContext, base: dict[str, str]
+    ) -> list[dict[str, str]]:
+        """Vary the first switch; both switches are labeled."""
+        from nika.problems.support.benchmark_targets import node_target_options
+
+        return node_target_options(cls, ctx, base, node=base["host_name"])
+
     def root_cause_resources(self, params: FlowRuleLoopParams):
-        left, _right = sorted((params.host_name, params.host_name_2))
-        return [node_resource(left)]
+        return [
+            node_resource(name)
+            for name in sorted({params.host_name, params.host_name_2})
+        ]
 
     def _resolve_ports(self, params: FlowRuleLoopParams) -> tuple[str, str]:
         """Return the two ports that terminate the link between the switches.

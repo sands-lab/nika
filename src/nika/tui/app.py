@@ -727,6 +727,7 @@ class NikaTui:
         from nika.net_env.net_env_pool import (
             list_all_net_envs,
             scenario_requires_topo_size,
+            resolve_scenario_topo_size,
         )
 
         envs = list_all_net_envs()
@@ -745,8 +746,11 @@ class NikaTui:
         if value is None or value is _UNSET:
             return value
         sized = any(p.name == "size" for p in form.command.params)
-        if sized and scenario_requires_topo_size(value) and not form.values.get("size"):
-            size = self.pick(f"{value} topology size", _SIZES, custom=False)
+        if sized and not form.values.get("size"):
+            try:
+                size = resolve_scenario_topo_size(value, None)
+            except ValueError:
+                size = self.pick(f"{value} topology size", _SIZES, custom=False)
             if isinstance(size, str):
                 form.values["size"] = size
         return [value] if getattr(param, "multiple", False) else value
@@ -802,7 +806,7 @@ class NikaTui:
 
     def pick_release(self, current: Any = None) -> Any:
         items = releases()
-        choices = [(v, f"{v}{'  (deprecated)' if dep else ''}") for v, dep in items]
+        choices = [(v, v) for v in items]
         return self.pick("Choose a benchmark release", choices, current)
 
     def _pick_profile_value(self, current: Any) -> Any:

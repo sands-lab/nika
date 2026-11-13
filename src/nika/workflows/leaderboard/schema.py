@@ -244,6 +244,7 @@ class AggregatedMetrics(BaseModel):
     conditional_mean_rca_f1: float | None = None
     conditional_mean_localization_f1: float | None = None
     conditional_mean_detection_score: float | None = None
+    case_consistency: float | None = Field(default=None, ge=0.0, le=1.0)
     fault_mean_rca_f1: float = 0.0
     fault_mean_localization_f1: float = 0.0
     healthy_mean_detection_score: float = 0.0

@@ -175,6 +175,17 @@ def rendered_variants(env_cls, scenario: str) -> list[dict]:
             profile, ("s", "m", "l")
         )
         variants += [{"topo_size": size, "device_profile": profile} for size in sizes]
+    from nika.net_env.net_env_pool import (
+        list_all_net_envs,
+        scenario_containerlab_device_profiles,
+    )
+
+    sizes = list_all_net_envs()[scenario].topo_size
+    for profile in scenario_containerlab_device_profiles(scenario):
+        variants += [
+            {"backend": "containerlab", "topo_size": size, "device_profile": profile}
+            for size in (sizes if isinstance(sizes, list) else (None,))
+        ]
     return variants
 
 

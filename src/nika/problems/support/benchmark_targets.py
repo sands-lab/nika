@@ -955,18 +955,23 @@ _NODE_FIELDS = (
 
 
 def node_target_options(
-    problem_cls: type[ProblemBase], ctx: InjectTargetContext, base: dict[str, str]
+    problem_cls: type[ProblemBase],
+    ctx: InjectTargetContext,
+    base: dict[str, str],
+    *,
+    node: str | None = None,
 ) -> list[dict[str, str]]:
-    """Swap the root-cause node for every node sharing its role.
+    """Swap the root-cause node, or ``node``, for every node sharing its role.
 
     ``problem_cls.benchmark_node_targets`` narrows the candidates and
     ``benchmark_align_option`` adjusts each row.
     """
-    found = resource(ctx, base)
-    if found is None or str(found.kind) != "node":
-        return [base]
+    if node is None:
+        found = resource(ctx, base)
+        if found is None or str(found.kind) != "node":
+            return [base]
+        node = str(found.node or "")
     net_env = ctx.net_env
-    node = str(found.node or "")
     field = next((key for key in _NODE_FIELDS if base.get(key) == node), None)
     if field is None:
         return [base]
@@ -1076,7 +1081,7 @@ def p4_port_options(
 
 
 def attached_end_hosts(net_env, router: str) -> list[str]:
-    """Hosts and services on a link of ``router``."""
+    """Hosts, services and declared reachability targets on a link of ``router``."""
     from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
     from nika.runtime.spec import NodeRole
 
@@ -1088,8 +1093,11 @@ def attached_end_hosts(net_env, router: str) -> list[str]:
             hosts |= {
                 node
                 for node in nodes - {router}
-                if getattr(identities.get(node), "role", None)
-                in {NodeRole.HOST, NodeRole.SERVICE}
+                if (
+                    getattr(identities.get(node), "role", None)
+                    in {NodeRole.HOST, NodeRole.SERVICE}
+                    or getattr(identities.get(node), "reachability_target", False)
+                )
             }
     return sorted(hosts)
 

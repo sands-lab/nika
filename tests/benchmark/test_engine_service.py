@@ -64,7 +64,7 @@ REQUEST = TrialRequest(
     failures=["link_down"],
     session_id=HANDLE.session_id,
     trial_dir=HANDLE.trial_dir,
-    release="0.2.0",
+    release="0.3.0",
 )
 TASK = AgentTask(task_description="Hosts in pod 1 cannot reach the web server.")
 
@@ -107,7 +107,7 @@ class _StubEngine:
         return EngineDescription(
             api_versions=[1],
             release_id="nika-bench",
-            release_version=release or "0.2.0",
+            release_version=release or "0.3.0",
         )
 
     def start_trial(self, request):

@@ -4,7 +4,7 @@ import time
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 from uuid import uuid4
 
 from nika.net_env.contract import (
@@ -44,7 +44,7 @@ from nika.net_env.net_env_pool import (
     scenario_containerlab_device_profiles,
     scenario_device_profiles,
     scenario_fixed_topo_size,
-    scenario_requires_topo_size,
+    resolve_scenario_topo_size,
 )
 from nika.net_env.verify import LabVerifyTimeoutError, verify_lab_with_retry
 from nika.problems.support.polling import wait_until
@@ -81,15 +81,6 @@ from nika.workflows.validation.static import (
     STATIC_VALIDATION_FILENAME,
     run_static_validation,
 )
-
-
-def _normalize_topo_size(raw: str | None) -> Literal["s", "m", "l"] | None:
-    """Return ``None`` for missing/blank input; otherwise validate ``s``/``m``/``l``."""
-    if raw is None or raw == "":
-        return None
-    if raw not in ("s", "m", "l"):
-        raise ValueError("Topology size must be one of: s, m, l.")
-    return raw  # type: ignore[return-value]
 
 
 def _resolve_isp_kwargs(
@@ -161,7 +152,13 @@ def _resolve_isp_kwargs(
                 "--metric-strategy/--constant-metric/--bgp-mode/--rpki; those "
                 "flags are only valid for ISP topology scenarios (e.g. isp_abilene)."
             )
-        if containerlab:
+        if (
+            containerlab
+            and resolve_scenario_backend(
+                scenario, backend=backend, default_when_ambiguous="kathara"
+            )
+            == "containerlab"
+        ):
             if profile not in (None, *containerlab):
                 raise ValueError(
                     f"Scenario '{scenario}' does not support device_profile="
@@ -376,15 +373,7 @@ def start_net_env(
             defer_business_traffic=defer_business_traffic,
         )
 
-    size = _normalize_topo_size(topo_size)
-    if scenario_requires_topo_size(canonical) and size is None:
-        raise ValueError(
-            f"Scenario '{scenario}' requires an explicit topology size (-s s|m|l)."
-        )
-    if not scenario_requires_topo_size(canonical) and size is not None:
-        raise ValueError(
-            f"Scenario '{scenario}' does not use topology sizes; omit -s/--size."
-        )
+    size = resolve_scenario_topo_size(canonical, topo_size)
     # Fixed ISP scenarios still record s/m/l metadata for session/sampling.
     recorded_size = size if size is not None else scenario_fixed_topo_size(canonical)
 
@@ -400,11 +389,10 @@ def start_net_env(
         backend=backend,
     )
 
-    default_backend = DEFAULT_BACKEND_FOR_ISP if is_isp_scenario(canonical) else None
     resolved_backend = resolve_scenario_backend(
         canonical,
         backend=backend,
-        default_when_ambiguous=default_backend,
+        default_when_ambiguous="kathara",
     )
     if routing_parameters is not None:
         from nika.net_env.synthesis.parameters import RoutingParameters

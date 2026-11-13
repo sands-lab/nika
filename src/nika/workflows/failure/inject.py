@@ -104,6 +104,7 @@ class PreparedFailure:
             result = self.problem.recover_fault(params=self.params)
         if not isinstance(result, dict) or result.get("verified") is not True:
             raise RuntimeError(f"Failure recovery verification failed: {result}")
+        self.problem.net_env.align_saved_configs()
         return result
 
 
@@ -149,13 +150,9 @@ def inject_failure(
     session = Session()
     session.load_running_session(session_id=session_id)
 
-    release = getattr(session, "benchmark_version", None)
-    resolved_names = [
-        resolve_problem_name(name, session.scenario_name, release)
-        for name in problem_names
-    ]
+    resolved_names = [resolve_problem_name(name) for name in problem_names]
     for original, resolved in zip(problem_names, resolved_names, strict=True):
-        if get_problem_class(resolved, session.scenario_name, release) is None:
+        if get_problem_class(resolved) is None:
             raise ValueError(f"Unknown problem name: {original}")
 
     bind_session_dir(session.session_dir)

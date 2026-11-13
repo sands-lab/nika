@@ -2,6 +2,15 @@ scenario:
   name: llmd_lab
 healthy:
   variants:
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0

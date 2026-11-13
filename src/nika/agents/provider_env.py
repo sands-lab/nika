@@ -319,6 +319,16 @@ def _served_max_model_len(base_url: str, model: str) -> int | None:
     return None
 
 
+def custom_model_context_window(model: str) -> int | None:
+    """Read a custom model's context window from the host endpoint."""
+    base_url = resolve_custom_base_url()
+    if not base_url:
+        from nika.run_config.loader import get_run_config
+
+        base_url = (get_run_config().agent.base_url or "").strip()
+    return _served_max_model_len(base_url, model) if base_url else None
+
+
 def custom_model_claude_env(model: str) -> dict[str, str]:
     """Context limits for a self-hosted model that Claude Code does not know.
 
@@ -327,12 +337,7 @@ def custom_model_claude_env(model: str) -> dict[str, str]:
     server limit (vLLM ``max_model_len``) rejects the request. The host probes
     the endpoint, which the sandbox reaches only through the model proxy.
     """
-    base_url = resolve_custom_base_url()
-    if not base_url:
-        from nika.run_config.loader import get_run_config
-
-        base_url = (get_run_config().agent.base_url or "").strip()
-    window = _served_max_model_len(base_url, model) if base_url else None
+    window = custom_model_context_window(model)
     if not window:
         return {}
     return {

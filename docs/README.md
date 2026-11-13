@@ -44,7 +44,6 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Run a frozen release or an ad-hoc case matrix, or inspect generated coverage | [Benchmark configuration](benchmarks/benchmark-configuration.md) | Reference |
 | Schedule failures, recovery, traffic, and agent startup | [Incident scheduling](benchmarks/scheduling.md) | Reference |
 | Understand what release version numbers mean and when they change | [Versioning policy](../VERSIONING.md) | Reference |
-| Run the 0.1.0 case collection | [Run release 0.1.0](compat/release-0.1.0.md) | How-to |
 | Understand ground truth, agent submissions, and scores | [Root-cause ground truth and scoring](benchmarks/root-cause-evaluation.md) | Reference |
 | Check that tasks are solvable and see each task's reference diagnosis | [Oracle solver](benchmarks/oracle-solver.md) | How-to |
 | Package a completed official release run | [Leaderboard submission](benchmarks/leaderboard-submission.md) | How-to |
@@ -58,7 +57,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Add a scenario, failure, traffic source, or candidate case | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
 | Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
 | Construct and verify routing, SDN and P4 environments | [Environment construction and verification](development/scenario-verification.md) | Explanation |
-| Check which release 0.2.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
+| Check which release 0.3.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
 | Integrate the frontend with a release's benchmark engine | [Benchmark release contracts](development/benchmark-contracts.md) | Reference |
 | Maintain leaderboard packaging and release validation | [Leaderboard submission internals](development/leaderboard-internals.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |

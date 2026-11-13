@@ -19,7 +19,9 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import CACHE_DIR, RUNTIME_DIR
+from nika.net_env.utils.static_http import static_http_commands
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.llmd_lab.topology import LLMDTopology
 from nika.net_env.utils.k8s_traffic_pods import K8sTrafficPods
 from nika.net_env.utils.k8s_workload_cache import (
     K3S_NODE_IMAGE,
@@ -161,6 +163,7 @@ def ensure_helm_charts() -> list[Path]:
 
 
 class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
+    ARCHIVE_JOBS = True
     LAB_NAME = "llmd_lab"
     K8S_HOST_IMAGES = (_K3S_IMAGE, _BASE_IMAGE)
     K8S_WORKLOAD_IMAGES = (
@@ -188,8 +191,10 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
     def prepare_k8s_image_cache(cls) -> None:
         ensure_helm_charts()
 
-    def __init__(self, **kwargs):
+    def __init__(self, topo_size: str = "m", **kwargs):
         super().__init__(**kwargs)
+        self.topo_size = topo_size
+        self.topology = LLMDTopology(topo_size)
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
@@ -217,12 +222,7 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
 
         # K3s machines: name -> (links, is_controller)
         _k3s_machines = {
-            "controller": (["A"], True),
-            "worker1": (["A"], False),
-            "worker2": (["A"], False),
-            "worker3": (["A"], False),
-            "worker4": (["A"], False),
-            "worker5": (["A"], False),
+            node: (["A"], node == "controller") for node in self.topology.addresses
         }
 
         all_machines = {}
@@ -231,10 +231,11 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
         # k3s as PID1 (avoids bridge/default-route race and cgroupv2 issues; #38).
         _k3s_wait = "while [ ! -f /var/run/net-ready ]; do sleep 1; done; "
         # Join and advertise the same lab address during agent bootstrap.
+        controller_ip = self.topology.addresses["controller"]
         _k3s_server = (
             "server --disable servicelb --disable traefik --write-kubeconfig-mode 644 "
             "--disable-default-registry-endpoint "
-            "--advertise-address 200.0.0.1 --tls-san 200.0.0.1"
+            f"--advertise-address {controller_ip} --tls-san {controller_ip}"
         )
         for name, (links, is_controller) in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
@@ -271,14 +272,14 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
                     "args",
                     f'-c "{_k3s_wait}exec /bin/k3s agent --disable-default-registry-endpoint"',
                 )
-                m.add_meta("env", "K3S_URL=https://200.0.0.1:6443")
+                m.add_meta("env", f"K3S_URL=https://{controller_ip}:6443")
                 m.add_meta("env", "K3S_TOKEN=secret")
             for link in links:
                 self.lab.connect_machine_to_link(name, link)
             all_machines[name] = m
 
-        # Client machine for testing service reachability
-        client = self.lab.new_machine("client", **{"image": _BASE_IMAGE})
+        # A nonzero CPU allocation can be restored after resource updates.
+        client = self.lab.new_machine("client", **{"image": _BASE_IMAGE, "cpus": 1.0})
         self.declare_machine(
             client.name,
             role=NodeRole.HOST,
@@ -318,7 +319,58 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
             if os.path.isfile(startup_file):
                 self.lab.create_file_from_path(startup_file, f"{name}.startup")
 
+        for command in static_http_commands(web, docroot="/var/www"):
+            self.lab.fs.appendtext("web.startup", command + "\n")
+
+        self._render_topology_files(all_machines)
         self.load_machines()
+
+    def _render_topology_files(self, machines) -> None:
+        if self.topo_size == "m":
+            return
+        root = Path(cur_path)
+        hosts = "127.0.0.1 localhost\n::1 localhost\n" + "".join(
+            f"{address} {name}\n"
+            for name, address in {
+                **self.topology.addresses,
+                "client": "200.0.0.7",
+                "web": "200.0.0.8",
+                "llmd": "200.0.0.240",
+            }.items()
+        )
+        for name, machine in machines.items():
+            machine.create_file_from_string(hosts, "/etc/hosts")
+            if name.startswith("worker"):
+                startup = (
+                    (root / "worker1.startup")
+                    .read_text()
+                    .replace("200.0.0.2", self.topology.addresses[name])
+                )
+                self.lab.create_file_from_string(startup, f"{name}.startup")
+                machine.create_file_from_path(
+                    str(root / "controller/etc/resolv.conf"), "/etc/resolv.conf"
+                )
+        controller = machines["controller"]
+        self.lab.create_file_from_string(
+            (root / "controller.startup")
+            .read_text()
+            .replace("200.0.0.1", self.topology.addresses["controller"]),
+            "controller.startup",
+        )
+        for filename, replicas in zip(
+            ("pd-03-epp.yaml", "pd-04-prefill.yaml", "pd-05-decode.yaml"),
+            self.topology.replicas,
+            strict=True,
+        ):
+            documents = list(
+                yaml.safe_load_all((root / "controller/k8s" / filename).read_text())
+            )
+            for document in documents:
+                if document["kind"] == "Deployment":
+                    document["spec"]["replicas"] = replicas
+            controller.create_file_from_string(
+                yaml.safe_dump_all(documents, sort_keys=False), f"/k8s/{filename}"
+            )
 
     def deploy(self):
         # Stage Helm and its charts only at deploy time: offline loads (task
@@ -375,6 +427,14 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
             "web": roles["web"] or clients,
             "controllers": roles["k8s_controllers"],
             "l2_endpoints": sorted(clients, key=lambda h: h != "client"),
+        }
+
+    def link_symptom_targets(self, node: str, intf: str) -> dict[str, str] | None:
+        if intf != "eth0" or node not in self.topology.addresses:
+            return None
+        return {
+            "observer_device": "client",
+            "probe_dst_ip": self.topology.addresses[node],
         }
 
     def http_backend_request(self, url: str) -> dict[str, str]:
@@ -442,13 +502,15 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
         from nika.net_env.llmd_lab.verify import verify_llmd_lab_startup
 
         return verify_llmd_lab_startup(
-            self._build_runtime(), scenario_name=self.LAB_NAME
+            self._build_runtime(), scenario_name=self.LAB_NAME, topo_size=self.topo_size
         )
 
     def verify_lab(self) -> dict:
         from nika.net_env.llmd_lab.verify import verify_llmd_lab
 
-        return verify_llmd_lab(self._build_runtime(), scenario_name=self.LAB_NAME)
+        return verify_llmd_lab(
+            self._build_runtime(), scenario_name=self.LAB_NAME, topo_size=self.topo_size
+        )
 
     def sync_client_hosts(self) -> None:
         from nika.net_env.utils.k8s_client_hosts import sync_llmd_client_hosts

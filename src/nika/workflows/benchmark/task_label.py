@@ -6,6 +6,7 @@ from nika.net_env.net_env_pool import (
     list_all_net_envs,
     resolve_scenario_id,
     scenario_requires_topo_size,
+    scenario_default_topo_size,
 )
 from nika.problems.registry import get_problem_class, resolve_problem_name
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
@@ -18,6 +19,8 @@ def format_task_label(scenario: str, problem: str, topo_size: str | None = None)
     """Build a task label from a canonical scenario, size, and problem."""
     canonical = resolve_scenario_id(scenario)
     size = (topo_size or "").strip()
+    if not size and scenario_default_topo_size(canonical):
+        return f"{canonical}_{problem}"
     if scenario_requires_topo_size(canonical):
         if size not in _SIZE_TOKENS:
             raise ValueError(
@@ -36,20 +39,17 @@ def parse_task_label(label: str) -> tuple[str, str, str]:
     text = (label or "").strip()
     if not text:
         raise ValueError("Task label must be a non-empty string.")
-    from nika.net_env.compat.v010 import scenario_specs
-
     matches = []
-    for scenario in {*list_all_net_envs(), *scenario_specs()}:
+    for scenario in list_all_net_envs():
         sizes = _SIZE_TOKENS if scenario_requires_topo_size(scenario) else ("",)
+        if scenario_default_topo_size(scenario):
+            sizes = (*sizes, "")
         for size in sizes:
             prefix = format_task_label(scenario, "", size or None)
             if not text.startswith(prefix):
                 continue
-            problem = resolve_problem_name(text[len(prefix) :], scenario)
-            if (
-                is_healthy_case(problem)
-                or get_problem_class(problem, scenario) is not None
-            ):
+            problem = resolve_problem_name(text[len(prefix) :])
+            if is_healthy_case(problem) or get_problem_class(problem) is not None:
                 matches.append((scenario, size, problem))
     if len(matches) == 1:
         return matches[0]

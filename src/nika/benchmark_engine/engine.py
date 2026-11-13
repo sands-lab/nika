@@ -96,7 +96,7 @@ class BenchmarkEngine:
         )
         from nika.schedule import schedule_for_task
 
-        plan = schedule_for_task(task, request.release)
+        plan = schedule_for_task(task)
         image_lab = active_trial_lab()
         if image_lab is not None:
             # Firecracker execution: the lab was restored from a lab image.
@@ -172,7 +172,7 @@ class BenchmarkEngine:
         )
         scheduler = scheduler_type(
             session_id,
-            schedule_for_task(request.task, request.release),
+            schedule_for_task(request.task),
             traffic=request.task.get("traffic"),
             expected_root_causes=request.expected_root_causes,
             restored=preinjected,

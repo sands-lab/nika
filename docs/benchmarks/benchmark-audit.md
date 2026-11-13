@@ -10,7 +10,7 @@ Run from a clean, committed checkout with Docker and the environment images avai
 uv run python -m scripts.benchmark_audit.matrix --scenario campus_lan --fault dhcp_missing_subnet
 ```
 
-The matrix reads the dev and test catalogs of benchmark release 0.2.0 and checks them against the current implementation. It does not change published tasks or scores. Omit the scenario and fault filters to audit the full catalog.
+The matrix reads the dev and test catalogs of benchmark release 0.3.0 and checks them against the current implementation. It does not change published tasks or scores. Omit the scenario and fault filters to audit the full catalog.
 
 The default is two workers. Host admission checks available memory and load, and Containerlab environments share a serial slot. Other classes retain their declared concurrency limits. Protocol convergence and persistence checks can make a task take several minutes. Each audit closes the session it created when it finishes or raises an exception.
 

@@ -1,4 +1,4 @@
-"""Helpers for the test-only curated 0.2.0 test-split subset."""
+"""Helpers for the test-only curated 0.3.0 test-split subset."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from typing import Any
 import yaml
 
 from nika.workflows.benchmark.release import (
-    RESOURCES_V1,
+    RELEASE_RESOURCES,
     SCORING,
-    TOOLS_V1,
+    RELEASE_TOOLS,
     BenchmarkRelease,
     freeze_release,
     load_release_from_dir,
@@ -18,14 +18,14 @@ from nika.workflows.benchmark.release import (
 )
 
 CURATED_FIXTURE = (
-    Path(__file__).resolve().parent / "fixtures" / "curated_0_2_0_test.yaml"
+    Path(__file__).resolve().parent / "fixtures" / "curated_0_3_0_test.yaml"
 )
-CURATED_VERSION = "curated-0.2.0-test"
+CURATED_VERSION = "curated-0.3.0-test"
 RELEASE_TEST_YAML = (
     Path(__file__).resolve().parents[2]
     / "benchmark"
     / "releases"
-    / "0.2.0"
+    / "0.3.0"
     / "test.yaml"
 )
 
@@ -67,8 +67,8 @@ def freeze_curated_release(
         splits=release.splits,
         defaults=defaults,
         scoring=dict(SCORING),
-        tools=dict(TOOLS_V1),
-        resources=dict(RESOURCES_V1),
+        tools=dict(RELEASE_TOOLS),
+        resources=dict(RELEASE_RESOURCES),
         images=release.images,
     )
     return load_release_from_dir(out_dir, split="dev")

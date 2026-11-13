@@ -67,7 +67,7 @@ uv run nika images list
 Re-run `./scripts/install.sh` after `git pull` or on a host with an older or partial install. Each run brings the host to what the current checkout needs and prints one line per change:
 
 - Rebuilds a `nika/*` image when its Dockerfile, the files the Dockerfile copies, or a parent image changed. Builds carry an `io.nika.build-hash` label that records these inputs. Images built by older installers have no label, so they rebuild once.
-- Tags `nika/*` images with the benchmark version (for example `nika/base:0.2.0` for nika-bench 0.2.0). When the current tag is missing but a build from another version (such as `nika/base:latest`) has the same build hash, the installer renames that tag instead of rebuilding. Otherwise it removes the old tag and rebuilds.
+- Tags `nika/*` images with the benchmark version (for example `nika/base:0.3.0` for nika-bench 0.3.0). When the current tag is missing but a build from another version (such as `nika/base:latest`) has the same build hash, the installer renames that tag instead of rebuilding. Otherwise it removes the old tag and rebuilds.
 - Removes image tags that the current release no longer references, from repositories only NIKA uses (`nika/*`, legacy `kathara/nika-*`, `rancher/k3s`, MetalLB, llm-d, agentgateway, Routinator, Batfish, SR Linux, SONiC, and the vendor router images). It also removes the Docker copies of Kubernetes workload images that older releases pulled; those images now live only in `.nika_cache/k8s-images/`. Images used by any container are kept. Generic images such as `postgres` or `debian` are never pruned.
 - Removes stale `.nika_cache/` entries: workload archives the labs no longer use, other Helm versions and charts, and RouterOS CHR downloads for other versions. User-supplied XRd tarballs and SNDlib traffic are kept.
 - Reinstalls gnmic into `.venv/bin` when the `gnmic` on `PATH` differs from the pinned version, and installs Containerlab there when the `clab` on `PATH` is older than the minimum version. A newer Containerlab is kept, including one installed from a package by an older installer.
@@ -91,7 +91,7 @@ Most users can skip this section. If you already cloned a branch, leave it alone
 After `--track stable`, run cases with a frozen release, for example:
 
 ```shell
-uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+uv run nika benchmark run --release 0.3.0 --split test --result_dir results/my-run
 ```
 
 ## Install a sandbox runtime

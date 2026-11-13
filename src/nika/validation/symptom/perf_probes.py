@@ -178,8 +178,7 @@ def web_dos(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 
 def sender_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Healthy bulk download from the sender's CPU-bound file server."""
-    problem._ensure_http_objects(params)
+    """Measure a healthy bulk download from the existing HTTP service."""
     ping = ping_stats(
         problem.runtime, params.client_host, params.dst_ip, count=10, interval_sec=0.2
     )

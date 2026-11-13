@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import re
 import shlex
 
+from nika.problems.support.dhcp import restart_dhcp_server
+
 
 def checked_exec(runtime, node: str, command: str) -> str:
     """Run a command and reject nonzero exits reported as ordinary output."""
@@ -180,7 +182,10 @@ class DHCPRecovery:
         self, runtime, server: str, *, service: str = "isc-dhcp-server"
     ) -> bool:
         self.config.restore(runtime, server)
-        runtime.systemctl(server, service, "restart" if self.was_running else "stop")
+        if self.was_running:
+            restart_dhcp_server(runtime.exec, server, service=service)
+        else:
+            runtime.systemctl(server, service, "stop")
         running = not runtime.process_not_running(server, "dhcpd")
         if running != self.was_running:
             return False

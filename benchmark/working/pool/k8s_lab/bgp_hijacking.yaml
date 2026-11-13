@@ -3,43 +3,48 @@ scenario:
 failure:
   fault_type: bgp_hijacking
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
       host_name: leaf_1_1
+      observer_host: worker3
+      probe_dst_ip: 201.2.1.2
+      symptom_host: leaf_1_2
+      target_network: 201.2.1.2/32
     root_causes:
     - resource:
         kind: node
         node: leaf_1_1
       fault_type: bgp_hijacking
-  - traffic:
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_1_2
+      host_name: leaf_1_1
+      observer_host: worker4
+      probe_dst_ip: 201.2.1.2
+      symptom_host: leaf_1_2
+      target_network: 201.2.1.2/32
     root_causes:
     - resource:
         kind: node
-        node: leaf_1_2
+        node: leaf_1_1
       fault_type: bgp_hijacking
-  - traffic:
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
-      host_name: leaf_2_1
+      host_name: leaf_1_1
+      observer_host: worker6
+      probe_dst_ip: 201.2.1.2
+      symptom_host: leaf_1_2
+      target_network: 201.2.1.2/32
     root_causes:
     - resource:
         kind: node
-        node: leaf_2_1
-      fault_type: bgp_hijacking
-  - traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_2_2
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_2_2
+        node: leaf_1_1
       fault_type: bgp_hijacking

@@ -134,14 +134,14 @@ def env_run(
         "--backend",
         help=(
             "Lab backend: kathara or containerlab "
-            "(required when a scenario supports both; ISP defaults to kathara)."
+            "(defaults to kathara when both are supported)."
         ),
     ),
     device_profile: str | None = typer.Option(
         None,
         "--device-profile",
         help=(
-            "Router platform. ISP: frr, iosxr or routeros (kathara), "
+            "Router platform. ISP and dc_clos: frr, iosxr or routeros (kathara), "
             "nokia_srlinux or sonic (containerlab); defaults from --backend. "
             "dc_clos, campus_lan, enterprise_branch: frr (default), iosxr or "
             "routeros (size s for routeros)."
@@ -156,7 +156,7 @@ def env_run(
         None,
         "--static-validation/--no-static-validation",
         help=(
-            "Run the optional Batfish verifier before deployment (ISP Kathara FRR only). "
+            "Run the optional Batfish verifier before deployment for supported device profiles. "
             "Defaults to nika.static_validation.enabled."
         ),
     ),

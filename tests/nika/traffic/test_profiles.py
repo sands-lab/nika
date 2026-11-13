@@ -182,3 +182,30 @@ def test_pair_replication_fits_the_routers_send_cap() -> None:
     rates = [a for p in capped.processes for a in p.args if "rate=" in a]
     assert all(int(r.split("rate=")[1].rstrip("k")) <= 600 for r in rates)
     assert free.targets(BULK_TRANSIT) and not capped.targets(BULK_TRANSIT)
+
+
+def test_containerlab_discovers_data_eth0_and_excludes_management_eth0(tmp_path):
+    from nika.traffic.profiles import discover_endpoints
+
+    topology = tmp_path / "fabric.clab.yml"
+    topology.write_text(
+        "name: fabric\ntopology:\n  nodes:\n    host: {}\n    router: {}\n"
+        "  links:\n    - endpoints: ['host:eth0', 'router:eth1']\n"
+    )
+
+    class Runtime:
+        backend = "containerlab"
+        topology_file = topology
+
+        def exec(self, node, command):
+            return (
+                "1: eth0 inet 10.0.1.12/24 scope global eth0\n"
+                if node == "host"
+                else "1: eth0 inet 172.100.1.2/24 scope global eth0\n"
+                "2: eth1 inet 10.0.1.1/24 scope global eth1\n"
+            )
+
+    assert discover_endpoints(Runtime(), ["host", "router"]) == [
+        Endpoint("host", "10.0.1.12"),
+        Endpoint("router", "10.0.1.1"),
+    ]

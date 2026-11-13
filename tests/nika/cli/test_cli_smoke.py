@@ -236,7 +236,7 @@ class CliSmokeTest:
                     "benchmark",
                     "run",
                     "--release",
-                    "0.2.0",
+                    "0.3.0",
                     "--split",
                     "dev",
                     "--result_dir",
@@ -248,3 +248,58 @@ class CliSmokeTest:
         assert result.exit_code == 0, result.output
         assert run_from_release.call_args.kwargs["split"] == "dev"
         assert run_from_release.call_args.kwargs["continue_on_error"] is True
+
+
+@pytest.mark.parametrize("scenario", ["k8s_lab", "llmd_lab", "min3clos"])
+def test_benchmark_accepts_original_network_without_size(scenario, monkeypatch):
+    from nika.run_config.loader import ENV_RUN_CONFIG, reset_run_config
+
+    monkeypatch.delenv(ENV_RUN_CONFIG, raising=False)
+    reset_run_config()
+    try:
+        with patch("nika.workflows.benchmark.run.run_single_case") as run:
+            result = _RUNNER.invoke(
+                app,
+                [
+                    "benchmark",
+                    "run",
+                    scenario,
+                    "--problem",
+                    "link_down",
+                    "-a",
+                    "mock",
+                    "-m",
+                    "mock-v1",
+                    "--set",
+                    "host_name=client1"
+                    if scenario == "min3clos"
+                    else "host_name=client",
+                    "--set",
+                    "intf_name=eth1" if scenario == "min3clos" else "intf_name=eth0",
+                ],
+            )
+        assert result.exit_code == 0, result.output
+        assert run.call_args.kwargs["topo_size"] == ""
+    finally:
+        reset_run_config()
+
+
+@pytest.mark.parametrize(
+    "scenario,default", [("k8s_lab", "m"), ("llmd_lab", "m"), ("min3clos", "s")]
+)
+def test_traffic_and_tui_select_original_network_without_size(scenario, default):
+    from types import SimpleNamespace
+    from nika.cli.commands.traffic import _net_env_kwargs_for_scenario
+    from nika.tui.app import NikaTui
+
+    expected = {} if scenario == "min3clos" else {"topo_size": default}
+    assert _net_env_kwargs_for_scenario(scenario, None) == expected
+    form = SimpleNamespace(
+        command=SimpleNamespace(params=[SimpleNamespace(name="size")]), values={}
+    )
+    tui = SimpleNamespace(pick=lambda *args, **kwargs: scenario)
+    assert (
+        NikaTui._pick_scenario(tui, form, SimpleNamespace(multiple=False), None)
+        == scenario
+    )
+    assert form.values.get("size") == (None if scenario == "min3clos" else default)

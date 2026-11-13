@@ -127,7 +127,7 @@ def test_telemetry_query_aligns_unix_second_event_times(monkeypatch) -> None:
     monkeypatch.setattr(
         api,
         "exec_cmd",
-        lambda *_args, **_kwargs: f"{collector_now_ns}\n{json.dumps(row)}",
+        lambda *_args, **_kwargs: f"{collector_now_ns}\n{json.dumps(row)}\n__rc=0\n",
     )
     assert api.int_query_telemetry(
         "1750000000", end_time="1750000001", flow_id="flow-a"

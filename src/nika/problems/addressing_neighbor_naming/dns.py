@@ -1,5 +1,6 @@
 import random
 import re
+import shlex
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -14,6 +15,7 @@ from nika.problems.support.benchmark_targets import (
     choice,
 )
 from nika.problems.support.dns import dns_host_for_domain
+from nika.problems.support.file_metadata import preserve_mtime
 from nika.problems.support.oracle import (
     Check,
     OraclePlaybook,
@@ -216,11 +218,14 @@ class DNSRecordError(ProblemBase):
         cmd = cmd.format(
             name=params.target_website, new_ip=wrong_ip, domain=params.target_domain
         )
-        self.runtime.exec(params.host_name, cmd)
-        self.runtime.exec(
-            params.host_name,
-            "rndc reload 2>/dev/null || service named restart 2>/dev/null || true",
-        )
+        with preserve_mtime(self.runtime, params.host_name, self._zone_snapshot.path):
+            self.runtime.exec(params.host_name, cmd)
+            # Load this zone before restoring its mtime so BIND sees the edit.
+            self.runtime.exec(
+                params.host_name,
+                f"rndc reload {shlex.quote(params.target_domain)} 2>/dev/null "
+                "|| service named restart 2>/dev/null || true",
+            )
         logger.info(
             f"Injecting DNS record error on {params.host_name}: mapping {params.target_website}:{params.target_domain} "
             f"to wrong IP {wrong_ip} instead of {right_ip}"
@@ -238,7 +243,8 @@ class DNSRecordError(ProblemBase):
         checked_exec(
             self.runtime,
             params.host_name,
-            "rndc reload 2>/dev/null || service named restart",
+            f"rndc reload {shlex.quote(params.target_domain)} 2>/dev/null "
+            "|| service named restart",
         )
         answer = checked_exec(
             self.runtime,

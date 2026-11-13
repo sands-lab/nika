@@ -4,7 +4,7 @@ class: harness_privilege
 role: known
 severity: block
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: 'The agent sandbox held a copy of the agent harness source, including the evaluation judge template
   (''Ground Truth: {ground_truth}'') and mock_agent.py.'
 detect:

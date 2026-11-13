@@ -96,9 +96,10 @@ def set_nano_cpus(runtime: "LabRuntime", host: str, nano_cpus: int) -> None:
                 pass
         return
 
-    if has_nano or nano_cpus > 0:
-        # Prefer NanoCPUs whenever the container already uses it, or when
-        # applying a positive limit (matches Kathara create-time caps).
+    if has_nano:
+        # Preserve Kathara's create-time NanoCPUs domain. Use CFS for an
+        # unlimited container so CpuQuota=-1 can restore its original state;
+        # Docker treats a NanoCPUs=0 update as an unchanged limit.
         _update_container_resources(container, {"NanoCPUs": int(nano_cpus)})
         return
 

@@ -1,4 +1,4 @@
-"""Live Docker + LangGraph/DeepSeek E2E for the curated 0.2.0 test subset.
+"""Live Docker + LangGraph/DeepSeek E2E for the curated 0.3.0 test subset.
 
 Requires Docker and ``DEEPSEEK_API_KEY``. Run:
 
@@ -50,7 +50,7 @@ pytestmark = [
 
 
 class TestCuratedReleaseLiveE2E:
-    """Real labs + LangGraph/DeepSeek on three curated 0.2.0 test rows."""
+    """Real labs + LangGraph/DeepSeek on three curated 0.3.0 test rows."""
 
     def test_batch_resume_summary_pack_validate(self, tmp_path: Path) -> None:
         releases_root = tmp_path / "releases"

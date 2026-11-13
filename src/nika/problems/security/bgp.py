@@ -421,7 +421,11 @@ class BGPHijacking(ProblemBase):
         api = self.runtime.lab_api
         network = ipaddress.ip_network(prefix, strict=False)
         self._target_network = str(network)
-        if not self._prefix_owners(str(network), host):
+        owned_elsewhere = self._prefix_owners(str(network), host) or any(
+            owner != host and network.subnet_of(ipaddress.ip_network(prefix))
+            for prefix, owner in self.net_env.bgp_origin_prefixes().items()
+        )
+        if not owned_elsewhere:
             raise RuntimeCapabilityError(
                 "SR Linux hijacking needs an existing business prefix owned by another router"
             )
@@ -619,6 +623,7 @@ class BGPHijacking(ProblemBase):
             return
         ops = native_fault_ops(self, params.host_name, "originate_bgp_prefix")
         if ops is not None:
+            self._native_bgp_ops = ops
             self._native_bgp_config = ops.save_config()
             self._native_bgp_networks = sorted(ops.bgp_networks())
             # The provider also admits the prefix through the router's export
@@ -722,19 +727,25 @@ class BGPHijacking(ProblemBase):
             )
         if srl_cli(self.net_env, host):
             api = self.runtime.lab_api
-            api.srl_configure(
-                host,
-                *(
-                    f"delete /routing-policy prefix-set {name} prefix {target} mask-length-range exact"
-                    for name in self._srl_export_additions
-                ),
-                f"delete /network-instance default interface {self._srl_origin}",
-                (
-                    f"delete /interface lo0 subinterface {self._srl_origin_index}"
-                    if self._srl_had_lo0
-                    else "delete /interface lo0"
-                ),
+            configuration_restored = (
+                api.srl_read(host, "interface lo0", state=False) == self._srl_lo0_before
+                and api.srl_read(host, "routing-policy", state=False)
+                == self._srl_policy_before
             )
+            if not configuration_restored:
+                api.srl_configure(
+                    host,
+                    *(
+                        f"delete /routing-policy prefix-set {name} prefix {target} mask-length-range exact"
+                        for name in self._srl_export_additions
+                    ),
+                    f"delete /network-instance default interface {self._srl_origin}",
+                    (
+                        f"delete /interface lo0 subinterface {self._srl_origin_index}"
+                        if self._srl_had_lo0
+                        else "delete /interface lo0"
+                    ),
+                )
             restored = wait_until(
                 lambda: (
                     self._srl_advertised_to(host, target) == self._srl_exports_before
@@ -753,7 +764,9 @@ class BGPHijacking(ProblemBase):
                 == self._srl_policy_before,
                 {"host": host, "target_network": target},
             )
-        ops = native_fault_ops(self, host, "originate_bgp_prefix")
+        ops = getattr(self, "_native_bgp_ops", None) or native_fault_ops(
+            self, host, "originate_bgp_prefix"
+        )
         if ops is not None:
             saved = getattr(self, "_native_bgp_config", None)
             if saved is None:

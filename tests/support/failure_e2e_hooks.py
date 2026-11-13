@@ -258,10 +258,6 @@ def assert_sender_resource_contention_pre(ctx: FailureE2EContext) -> None:
     from nika.problems.support.cpu_quota_helpers import read_nano_cpus
 
     ctx.original_nano = read_nano_cpus(ctx.runtime, ctx.parsed.host_name)
-    # Clos/SDN nginx only serves index.html; stage /small.bin before the probe.
-    ensure = getattr(ctx.problem, "_ensure_http_objects", None)
-    if callable(ensure):
-        ensure(ctx.parsed)
     small_ok = http_download_stats(
         ctx.runtime, ctx.parsed.client_host, ctx.parsed.small_url, max_time_sec=30
     )
@@ -285,7 +281,7 @@ def assert_sender_resource_contention(ctx: FailureE2EContext) -> None:
     artifact = ctx.verify["details"]
     assert artifact["workload_running"] is True
     assert artifact["quota_ok"] is True
-    assert artifact.get("cpu_http_running", True) is True
+    assert artifact["http_running"] is True
     details = ctx.symptom["details"]
     assert details["control_ok"] is True
     assert details["small_http_ok"] is True
@@ -411,16 +407,17 @@ def assert_isolation_http_pre(ctx: FailureE2EContext) -> None:
     from nika.validation.symptom import get_symptom_contract
     from nika.validation.symptom.probe import _resolve_path, run_probe_snapshot
 
-    if ctx.problem_name == "k8s_coredns_isolated":
-        k8s = ctx.problem.runtime.lab_api
-        devices = ctx.problem._target_devices(ctx.parsed, k8s)
-        if devices:
-            ctx.parsed.symptom_host = devices[0]
+    contract = get_symptom_contract(ctx.problem_name)
+    if contract.probe == "custom":
+        from nika.validation.symptom.custom import evaluate_custom_baseline
+
+        before = evaluate_custom_baseline(ctx.problem_name, ctx.problem, ctx.parsed)
+        assert before is not None and before[0] is True, before
+        return
     path = _resolve_path(
         ctx.scenario, ctx.parsed, topo_size=ctx.topo_size, net_env=ctx.problem.net_env
     )
     assert path is not None
-    contract = get_symptom_contract(ctx.problem_name)
     before = run_probe_snapshot(ctx.runtime, contract.probe, path, params=ctx.parsed)
     assert before.symptom_ok is True, before.as_dict()
     if before.control_ok is not None:

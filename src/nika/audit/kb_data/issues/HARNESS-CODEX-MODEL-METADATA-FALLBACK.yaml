@@ -16,3 +16,8 @@ provenance:
   date: '2026-10-25'
   refs: []
   found_by: deterministic
+evidence:
+- >-
+  2026-11-11: 1c00ce98 passes the served max_model_len as model_context_window and an auto-compact
+  limit at 90%. Codex 0.149.1 still prints the warning, because only a complete model catalog
+  entry suppresses it; the issue remains open.

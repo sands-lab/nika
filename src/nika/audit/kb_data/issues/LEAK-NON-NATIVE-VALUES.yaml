@@ -4,7 +4,7 @@ class: shortcut
 role: known
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: 'Injections used values a real network would not produce: a placeholder MAC 00:11:22:33:44:55,
   flood prefixes allocated as sequential /24s, nft and ONOS rule priorities far from the baseline''s.'
 guideline: Ask whether the value is derived from this network and looks like the baseline's values. A

@@ -9,7 +9,7 @@ The oracle knows the injected failure and its parameters, so its scores are not 
 Run these commands from the repository root on a lab host prepared by [Installation](../operations/installation.md). The oracle runs in the NIKA process, so it needs neither LLM credentials nor an agent sandbox:
 
 ```shell
-uv run nika benchmark run --release 0.2.0 --split test --agent oracle
+uv run nika benchmark run --release 0.3.0 --split test --agent oracle
 ```
 
 Every solvable fault task scores 1.0 for detection and RCA, and every healthy task scores 1.0 for detection. To run one trial, add `--task-id {task_id}__t01`. To run the oracle on a session where you injected a failure yourself, run `uv run nika agent run --agent oracle`.
@@ -22,7 +22,7 @@ Each trial directory also contains `oracle.json`. `solved` is true when the orac
 
 ```shell
 uv run nika benchmark describe enterprise_branch__link_down__hcecf68b8564f \
-  --release 0.2.0 --split test --oracle
+  --release 0.3.0 --split test --oracle
 ```
 
 ```yaml
@@ -98,8 +98,4 @@ Follow these rules so the playbook proves solvability rather than restating the 
 - Collect evidence only through the agent's MCP tools. Injection parameters and the topology may choose where to look, but not what is observed.
 - Mark as evidence only the observations that tell this failure apart from similar ones in the [fault ontology](root-cause-evaluation.md#submit-a-diagnosis). For example, `dns_service_down` needs no `named` process and no port 53 listener, while `dns_port_blocked` needs `named` running behind a port 53 drop rule.
 - Keep steps read-only. Probe traffic is fine; configuration changes and restarts are not.
-- Cover every backend and device profile the failure runs on. Test the playbook on a real task with `uv run nika benchmark run --release 0.2.0 --split test --agent oracle --task-id {task_id}`, or with `uv run nika agent run --agent oracle` on a session where you injected the failure.
-
-## Release 0.2.0 results
-
-On 2026-10-31, with one trial per task, the oracle solved 166 of the 169 tasks in release 0.2.0 with detection and RCA scores of 1.0. Rerunning the other three solved them too: `k8s_lab__bgp_asn_misconfig__he4a55dc53b83` after a playbook fix, and the two `receiver_resource_contention` tasks (`llmd_lab__receiver_resource__h494b49e3caef` and `dc_clos__receiver_resource_c__ha2be5b357067`) after a correction to the injected fault. In release 0.2.0 that fault limits the receiver to 0.02 CPU, so any command run on the receiver can take more than a minute. The correction raises the limit to 0.05 CPU, which still roughly halves the download rate. Because it changes the injected fault, the correction belongs to the next benchmark revision under the [versioning policy](../../VERSIONING.md).
+- Cover every backend and device profile the failure runs on. Test the playbook on a real task with `uv run nika benchmark run --release 0.3.0 --split test --agent oracle --task-id {task_id}`, or with `uv run nika agent run --agent oracle` on a session where you injected the failure.

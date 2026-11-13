@@ -3,7 +3,7 @@ title: 'dc_clos: healthy baseline lure'
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: Super-spines share an ASN (RFC 7938) and some clients are isolated by design; agents reported
   BGP faults on super-spines.
 scope:

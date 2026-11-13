@@ -3,7 +3,7 @@ title: Agent wrote P4Runtime entries
 class: agent_integrity
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: p4rt_exec accepted writes; one agent deleted the injected entry and the recheck still said present.
 detect:
 - kind: text

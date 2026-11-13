@@ -11,9 +11,9 @@ import pytest
 import yaml
 
 from nika.workflows.benchmark.release import (
-    RESOURCES_V1,
+    RELEASE_RESOURCES,
     SCORING,
-    TOOLS_V1,
+    RELEASE_TOOLS,
     freeze_release,
     load_release_from_dir,
     write_release_manifest,
@@ -77,8 +77,8 @@ def _freeze_mini(
         splits=release.splits,
         defaults=defaults,
         scoring=dict(SCORING),
-        tools=dict(TOOLS_V1),
-        resources=dict(RESOURCES_V1),
+        tools=dict(RELEASE_TOOLS),
+        resources=dict(RELEASE_RESOURCES),
         images=release.images,
     )
     return load_release_from_dir(dest, split="dev")

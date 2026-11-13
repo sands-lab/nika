@@ -3,7 +3,7 @@ title: Interface inside the ground-truth node or link scored 0
 class: grading_error
 severity: info
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: Scoring before the fix required the exact resource; naming an interface of the faulty node or
   link scored 0.
 detect:

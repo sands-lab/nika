@@ -296,7 +296,7 @@ def _mac_conflict_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
     flush = "; ".join(f"ip neigh flush to {ip}" for ip in targets.values())
     pings = " ".join(
         f"(echo {ip} $(ping -c {_FLAP_ECHOES} -i 0.2 -W 1 -q {ip}"
-        " | grep -o '[0-9]* received')) &"
+        " | grep -oE '[0-9]+ (packets )?received')) &"
         for ip in targets.values()
     )
     output = exec_or_empty(
@@ -305,7 +305,7 @@ def _mac_conflict_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
         f"{flush}; {pings} wait",
         timeout=_FLAP_ECHOES * 0.2 + 20,
     )
-    received = dict(re.findall(r"^(\S+) (\d+) received", output, re.M))
+    received = dict(re.findall(r"^(\S+) (\d+) (?:packets )?received", output, re.M))
     return {
         f"{role}_loss_percent": (
             100.0 * (1 - int(received[ip]) / _FLAP_ECHOES) if ip in received else None

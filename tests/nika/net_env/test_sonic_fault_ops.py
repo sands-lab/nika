@@ -71,11 +71,25 @@ def test_originate_bgp_prefix_requires_loopback() -> None:
         {
             "show running-config": RUNNING,
             "ip -4 addr show dev Loopback1": "present",
+            "ip -j link show": "[]",
+            "exists 'LOOPBACK_INTERFACE|Loopback1'": "1",
         }
     )
-    SonicFaultOps(runtime, "leaf1").originate_bgp_prefix("203.0.113.0/24")
+    ops = SonicFaultOps(runtime, "leaf1")
+    saved = ops.save_config()
+    ops.originate_bgp_prefix("203.0.113.0/24")
     assert any("network 203.0.113.0/24" in cmd for cmd in runtime.commands)
     assert any("write memory" in cmd for cmd in runtime.commands)
+    assert (
+        "ip route replace local 203.0.113.0/24 dev Loopback1 table local"
+        in runtime.commands
+    )
+    ops.restore_config(saved)
+    assert "ip route del local 203.0.113.0/24 table local" in runtime.commands
+    removed = [cmd for cmd in runtime.commands if cmd.startswith("redis-cli -n 4 del")]
+    assert removed == [
+        "redis-cli -n 4 del 'LOOPBACK_INTERFACE|Loopback1|203.0.113.1/24'"
+    ]
 
 
 @pytest.mark.parametrize(

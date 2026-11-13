@@ -12,6 +12,7 @@ from typing import Any
 
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.runtime.base import LabRuntime
+from nika.service.lab.checked_exec import checked_exec
 from nika.service.packet_capture.limits import clamp_inspect_limit, default_limits
 from nika.service.packet_capture.models import InspectView
 from nika.service.packet_capture.protocol_fields import extract_protocol_fields
@@ -56,12 +57,17 @@ def _host_tshark(
             cmd,
             input=stdin or b"",
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             timeout=timeout,
             check=False,
         )
-    except subprocess.TimeoutExpired:
-        return "[TIMEOUT]"
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("tshark timed out during capture inspection") from exc
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"tshark failed (rc={proc.returncode}): "
+            f"{proc.stderr.decode('utf-8', errors='replace').strip()}"
+        )
     return proc.stdout.decode("utf-8", errors="replace")
 
 
@@ -84,7 +90,7 @@ def _run_tshark(
     """Run tshark on the node, or host-side on a streamed copy if it lacks tshark."""
     if has_tshark(runtime, device):
         quoted = " ".join(shlex.quote(part) for part in args)
-        output = runtime.exec(device, f"tshark {quoted} 2>/dev/null", timeout=timeout)
+        output = checked_exec(runtime.exec, device, f"tshark {quoted}", timeout=timeout)
     else:
         stdin_args = ["-" if part == remote_path else part for part in args]
         output = _host_tshark(

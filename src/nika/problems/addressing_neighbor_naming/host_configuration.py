@@ -31,6 +31,7 @@ from nika.problems.support.benchmark_targets import (
 )
 from nika.problems.support.dhcp import (
     DHCP_LEASE_CMD,
+    DNS_RENEWAL_HOOK,
     default_gateway,
     dhcp_client_step,
     first_nameserver,
@@ -42,6 +43,7 @@ from nika.problems.addressing_neighbor_naming.dns import (
 )
 from nika.problems.rca.inventory import iter_link_termination_points
 from nika.problems.support.dns import dns_host_for_domain
+from nika.problems.support.file_metadata import preserve_mtime
 from nika.problems.support.oracle import (
     Check,
     OraclePlaybook,
@@ -1067,8 +1069,7 @@ class HostIncorrectDNS(ProblemBase):
             FileSnapshot.capture(self.runtime, params.host_name, path)
             for path in (
                 "/etc/resolv.conf",
-                "/etc/hosts",
-                "/etc/dhcp/dhclient-enter-hooks.d/nameservers",
+                DNS_RENEWAL_HOOK,
             )
         ]
         resolv = self.runtime.exec(params.host_name, "cat /etc/resolv.conf 2>/dev/null")
@@ -1078,25 +1079,23 @@ class HostIncorrectDNS(ProblemBase):
         lines = [
             line for line in resolv.splitlines() if not line.startswith("nameserver")
         ]
-        self.runtime.exec(
-            params.host_name,
-            # dhclient rewrites resolv.conf at lease renewal. Keep the same
-            # incorrect resolver in its renewal path on DHCP-backed hosts.
-            "if test -d /etc/dhcp/dhclient-enter-hooks.d; then "
-            "printf '%s\\n' 'new_domain_name_servers=\""
-            f"{fake}"
-            "\"' > /etc/dhcp/dhclient-enter-hooks.d/nameservers; fi; "
-            # Drop static hosts overrides so name lookups must use DNS.
-            "sed -i -E '/\\sweb0\\.(local|pod0)\\s*$/d' /etc/hosts 2>/dev/null || true; "
-            "sed -i -E '/\\swebserver/d' /etc/hosts 2>/dev/null || true",
-        )
+        if self._dns_snapshots[1].content is not None:
+            # dhclient rewrites resolv.conf at lease renewal.
+            with preserve_mtime(self.runtime, params.host_name, DNS_RENEWAL_HOOK):
+                self.runtime.write_file(
+                    params.host_name,
+                    DNS_RENEWAL_HOOK,
+                    self._dns_snapshots[1].content
+                    + f'\nnew_domain_name_servers="{fake}"\n',
+                )
         # Install the renewal override before changing the live resolver, so
         # a lease renewal between the two writes cannot restore the real DNS.
-        self.runtime.write_file(
-            params.host_name,
-            "/etc/resolv.conf",
-            "\n".join([*lines, f"nameserver {fake}"]) + "\n",
-        )
+        with preserve_mtime(self.runtime, params.host_name, "/etc/resolv.conf"):
+            self.runtime.write_file(
+                params.host_name,
+                "/etc/resolv.conf",
+                "\n".join([*lines, f"nameserver {fake}"]) + "\n",
+            )
 
     def recover_fault(self, params: HostIncorrectDNSParams) -> dict:
         snapshots = getattr(self, "_dns_snapshots", None)

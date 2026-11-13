@@ -49,10 +49,23 @@ class TestReleaseRefs:
                 split="dev",
             )
 
+    @pytest.mark.parametrize("command", ["list", "run"])
+    @pytest.mark.parametrize("selector", ["0.1.0", "0.2.0", "nika-bench@0.2.0"])
+    def test_removed_release_points_to_published_code(self, command, selector):
+        from typer.testing import CliRunner
 
-def test_published_0_2_0_release_preflight() -> None:
+        from nika.cli.main import app
+
+        result = CliRunner().invoke(app, ["benchmark", command, "--release", selector])
+        assert result.exit_code == 1, result.output
+        assert "runs only from its published code" in result.output
+        assert "git checkout ac4422d8a4a03be2b905e28edf72993d467e1b81" in result.output
+        assert "then install and run NIKA there" in result.output
+
+
+def test_published_release_preflight() -> None:
     """The documented release must load and pass its complete contract gate."""
-    release = load_release("0.2.0", split="test")
+    release = load_release("0.3.0", split="test")
 
     assert release.case_count == 85
     assert release.n_trials == 3
@@ -71,7 +84,7 @@ def test_timed_release_faults_cover_the_default_trial_budget() -> None:
     }
     timeout = BenchmarkSettings.model_fields["case_timeout_sec"].default
     for split in ("dev", "test"):
-        for row in load_release("0.2.0", split=split).cases:
+        for row in load_release("0.3.0", split=split).cases:
             if row["problem"] in timed_faults:
                 cls = get_problem_class(row["problem"])
                 params = cls.Params.model_validate(row["inject"])

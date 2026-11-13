@@ -31,3 +31,7 @@ evidence:
 - 'tests/nika/runtime/test_saved_config_files.py verifies content and permissions while refreshing peer file metadata.'
 - 'tests/benchmark/test_audit_lifecycle_e2e.py checks metadata-only changes, peer refresh, and the standard injection workflow on real FRR and SR Linux environments.'
 - 'scripts/benchmark_audit/agent_view.py records decimal mtime/ctime and collection coverage as nonblocking review leads.'
+- >-
+  2026-11-11: 1c00ce98 restores the modification time of DHCP, DNS zone, resolv.conf, and resolver
+  hook files after injection edits (problems/support/file_metadata.py). ctime still changes,
+  so the lead remains open.

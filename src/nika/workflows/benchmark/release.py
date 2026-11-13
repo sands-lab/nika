@@ -20,12 +20,10 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
     image_repository,
 )
-from nika.problems.compat.v010 import RELEASE_VERSION as RELEASE_010
 from nika.problems.rca.models import RootCause
 from nika.net_env.net_env_pool import (
     deployment_needs_licensed_images,
     get_net_env_instance,
-    legacy_010_specs,
     list_all_net_envs,
     resolve_scenario_backend,
     scenario_family,
@@ -38,7 +36,6 @@ from nika.problems.registry import (
     compatible_columns,
     get_problem_class,
     list_avail_problem_instances,
-    resolve_problem_name,
 )
 from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
@@ -54,7 +51,11 @@ from nika.benchmark_engine.protocol import (
     UnsupportedContractVersion,
     require_supported,
 )
-from nika.workflows.benchmark.load_config import load_benchmark_yaml
+from nika.workflows.benchmark.load_config import (
+    load_benchmark_yaml,
+    read_benchmark_document,
+)
+from nika.workflows.benchmark.legacy_releases import LEGACY_RELEASE_COMMITS
 from nika.workflows.benchmark.candidate_context import (
     deployment_environment_key,
     normalize_topo_scale,
@@ -70,9 +71,8 @@ RELEASES_DIR = BENCHMARK_DIR / "releases"
 JOB_FILENAME = "benchmark_job.json"
 RUN_CONFIG_FILENAME = "run.json"
 
-# Published suites that predate the current scenario/failure identity model.
-# They remain on disk for provenance but are not loadable or runnable.
-DEPRECATED_RELEASES: frozenset[str] = frozenset()
+# Historical releases run only from their published code.
+DEPRECATED_RELEASES = frozenset(LEGACY_RELEASE_COMMITS)
 
 SplitName = Literal["dev", "test"]
 VALID_SPLITS: tuple[SplitName, ...] = ("dev", "test")
@@ -83,7 +83,7 @@ SCORING = {
     "judge_allowed": False,
 }
 
-TOOLS_V1 = {
+RELEASE_TOOLS = {
     "allowed_mcp_servers": [
         "containerlab_srl_mcp_server",
         "containerlab_sonic_mcp_server",
@@ -99,9 +99,9 @@ TOOLS_V1 = {
     ],
 }
 
-RESOURCES_V1: dict[str, Any] = {}
+RELEASE_RESOURCES: dict[str, Any] = {}
 
-DEFAULTS_V1 = {
+RELEASE_DEFAULTS = {
     "n_trials": 3,
 }
 
@@ -200,7 +200,7 @@ def list_releases() -> list[str]:
 
 
 def is_deprecated_release(version: str) -> bool:
-    """Return True when ``version`` is retained only for provenance."""
+    """Return True when ``version`` runs only from its published code."""
     return str(version).strip() in DEPRECATED_RELEASES
 
 
@@ -208,10 +208,9 @@ def _reject_deprecated_release(version: str) -> None:
     if not is_deprecated_release(version):
         return
     raise ReleaseError(
-        f"Release {version} is deprecated and no longer runnable "
-        f"(legacy scenario/failure ids are not migrated). "
-        f"Use --release {DEFAULT_RELEASE_VERSION} "
-        f"(or --config with a modern case matrix)."
+        f"Release {version} runs only from its published code. "
+        f"Use `git checkout {LEGACY_RELEASE_COMMITS[version]}`, "
+        "then install and run NIKA there."
     )
 
 
@@ -225,26 +224,26 @@ def normalize_split(split: str | None, *, default: SplitName) -> SplitName:
 
 
 def normalize_version_selector(selector: str) -> str:
-    """Map short aliases like ``0.1`` → ``0.1.0`` when that release exists."""
+    """Map short aliases like ``0.3`` → ``0.3.0`` when that release exists."""
     raw = selector.strip()
     if raw in list_releases():
         return raw
     if raw.count(".") == 1:
         candidate = f"{raw}.0"
-        if candidate in list_releases():
+        if candidate in list_releases() or candidate in DEPRECATED_RELEASES:
             return candidate
     return raw
 
 
 def parse_release_ref(ref: str) -> tuple[str, str]:
-    """Parse ``0.1.0``, ``nika@0.1``, or ``nika-bench@0.1.0``."""
+    """Parse ``0.3.0``, ``nika@0.3``, or ``nika-bench@0.3.0``."""
     raw = (ref or "").strip()
     if not raw:
         raise ReleaseError("Empty release reference")
     if raw.startswith("sha256:") or "@sha256:" in raw:
         raise ReleaseError(
             f"Digest-based release references are not supported: {ref!r}. "
-            "Use a named version such as 0.2.0 or nika-bench@0.2.0."
+            "Use a named version such as 0.3.0 or nika-bench@0.3.0."
         )
     if "@" not in raw:
         return BENCHMARK_ID, normalize_version_selector(raw)
@@ -427,8 +426,9 @@ def resolve_release_dir(selector: str) -> Path:
     if selector.startswith("sha256:"):
         raise ReleaseError(
             f"Digest-based release selectors are not supported: {selector!r}. "
-            "Use a named version such as 0.2.0."
+            "Use a named version such as 0.3.0."
         )
+    _reject_deprecated_release(selector)
     root = releases_dir() / selector
     if not root.is_dir():
         raise ReleaseError(
@@ -442,8 +442,9 @@ def load_release_from_dir(
     root: Path,
     *,
     split: SplitName = "dev",
+    preserve_rows: bool = False,
 ) -> BenchmarkRelease:
-    """Load a release from an explicit directory containing ``RELEASE.yaml``."""
+    """Load release metadata and tasks; preserve published rows for historical validation."""
     root = Path(root)
     split = normalize_split(split, default="dev")
     manifest_path = root / "RELEASE.yaml"
@@ -451,7 +452,8 @@ def load_release_from_dir(
         raise ReleaseError(f"Missing RELEASE.yaml in {root}")
     manifest = _load_manifest(manifest_path)
     version = str(manifest.get("version") or root.name)
-    _reject_deprecated_release(version)
+    if not preserve_rows:
+        _reject_deprecated_release(version)
     _check_engine_api(manifest, name=version)
     _check_evaluation(manifest, name=version)
     splits_raw = _resolve_splits(manifest)
@@ -466,11 +468,16 @@ def load_release_from_dir(
     if not cases_path.is_file():
         raise ReleaseError(f"Missing {split} cases file: {cases_path}")
 
-    cases = load_benchmark_yaml(cases_path, release=version)
-    defaults = dict(manifest.get("defaults") or DEFAULTS_V1)
+    def read_cases(path: Path) -> list[dict[str, Any]]:
+        if preserve_rows:
+            return read_benchmark_document(path)["cases"]
+        return load_benchmark_yaml(path)
+
+    cases = read_cases(cases_path)
+    defaults = dict(manifest.get("defaults") or RELEASE_DEFAULTS)
     defaults.pop("case_timeout_sec", None)
     scoring = dict(manifest.get("scoring") or SCORING)
-    tools = dict(manifest.get("tools") or TOOLS_V1)
+    tools = dict(manifest.get("tools") or RELEASE_TOOLS)
     tools.pop("policy_id", None)
     resources = dict(manifest.get("resources") or {})
     resources.pop("policy_id", None)
@@ -482,7 +489,7 @@ def load_release_from_dir(
         path = root / str(entry["cases_file"])
         _check_split_hash(dict(meta or {}), path, name=version)
         if path.is_file() and not entry["case_count"]:
-            entry["case_count"] = len(load_benchmark_yaml(path, release=version))
+            entry["case_count"] = len(read_cases(path))
         resolved_splits[name] = entry
 
     declared_count = int(split_meta.get("case_count") or 0)
@@ -541,7 +548,7 @@ def _verify_mcp_policy(cases: list[dict[str, Any]], tools: dict[str, Any]) -> No
             f"Release allowlist references unknown MCP servers: {sorted(unknown)}"
         )
     # Platform-default servers added after a freeze may be mounted at runtime
-    # without rewriting frozen RELEASE.yaml allowlists (e.g. nika-bench@0.1.0).
+    # without rewriting frozen RELEASE.yaml allowlists.
     platform_optional = {DIAGNOSIS_PACKET_CAPTURE_SERVER}
     for row in cases:
         servers = set(
@@ -568,7 +575,6 @@ def verify_dev_test_isolation(
     *,
     dev_cases: list[dict[str, Any]],
     test_cases: list[dict[str, Any]],
-    allow_context_overlap: bool = False,
     require_unseen_networks: bool = True,
 ) -> None:
     """Ensure Dev/Test use the same taxonomy and disjoint deployment contexts."""
@@ -597,7 +603,7 @@ def verify_dev_test_isolation(
         for row in test_cases
         if row["scenario"] not in fixed_clusters
     }
-    if context_overlap and not allow_context_overlap:
+    if context_overlap:
         raise ReleaseError(
             "Dev/Test semantic isolation failed: "
             f"{len(context_overlap)} shared failure-context pair(s)"
@@ -664,7 +670,13 @@ def _split_coverage(rows: list[dict[str, Any]]) -> tuple[set[str], set[str], set
         scenario = str(row["scenario"])
         families.add(scenario_family(scenario))
         scales.add(normalize_topo_scale(row))
-        backends.add(str(row.get("backend") or resolve_scenario_backend(scenario)))
+        backends.add(
+            resolve_scenario_backend(
+                scenario,
+                backend=row.get("backend"),
+                default_when_ambiguous="kathara",
+            )
+        )
     return families, scales, backends
 
 
@@ -706,8 +718,8 @@ def _validate_release_splits(
         unregistered = {
             name
             for name in failures
-            if (cls := get_problem_class(name, release=release)) is None
-            or resolve_problem_name(cls.root_cause_name) not in expected_failures
+            if (cls := get_problem_class(name)) is None
+            or cls.root_cause_name not in expected_failures
         }
         if unregistered:
             raise ReleaseError(
@@ -758,6 +770,7 @@ def preflight_release(
 
     Raises ``ReleaseError`` on the first failure.
     """
+    _reject_deprecated_release(release.version)
     if release.case_count != len(release.cases):
         raise ReleaseError("Internal case_count mismatch")
 
@@ -769,39 +782,23 @@ def preflight_release(
             f"{release.cases_path.name} ({len(release.cases)})"
         )
 
-    is_010 = release.version == RELEASE_010
     scenarios = {row["scenario"] for row in release.cases}
     known_scenarios = set(list_all_net_envs())
-    if is_010:
-        known_scenarios.update(legacy_010_specs())
-        missing_problems = sorted(
-            {
-                row["problem"]
-                for row in release.cases
-                if get_problem_class(row["problem"], row["scenario"], release.version)
-                is None
-            }
+    problems = {
+        problem
+        for row in release.cases
+        for problem in (
+            row_problems(row) if row.get("schedule") is not None else [row["problem"]]
         )
-    else:
-        from nika.workflows.benchmark.multi_fault import row_problems
-
-        problems = {
-            problem
-            for row in release.cases
-            for problem in (
-                row_problems(row)
-                if row.get("schedule") is not None
-                else [row["problem"]]
-            )
-            if not is_healthy_case(row["problem"])
-        }
-        registered = set(list_avail_problem_instances())
-        missing_problems = sorted(
-            name
-            for name in problems
-            if (cls := get_problem_class(name, release=release.version)) is None
-            or resolve_problem_name(cls.root_cause_name) not in registered
-        )
+        if not is_healthy_case(row["problem"])
+    }
+    registered = set(list_avail_problem_instances())
+    missing_problems = sorted(
+        name
+        for name in problems
+        if (cls := get_problem_class(name)) is None
+        or cls.root_cause_name not in registered
+    )
     missing_scenarios = sorted(scenarios - known_scenarios)
     if missing_scenarios:
         raise ReleaseError(f"Missing scenarios: {missing_scenarios}")
@@ -827,27 +824,18 @@ def preflight_release(
 
     # The manifest lists images for every split, not only the selected one.
     release_scenarios = set(scenarios)
-    # Isolation requires both splits on disk (always true for 0.1.0).
+    # Isolation requires both splits on disk.
     if "dev" in release.splits and "test" in release.splits:
         dev = load_release_from_dir(release.root, split="dev").cases
         test = load_release_from_dir(release.root, split="test").cases
         release_scenarios.update(row["scenario"] for row in dev + test)
-        if is_010:
-            # 0.1.0 predates the distinct deployment-context split rule.
-            verify_dev_test_isolation(
-                dev_cases=dev,
-                test_cases=test,
-                allow_context_overlap=True,
-                require_unseen_networks=False,
-            )
-        else:
-            _validate_release_splits(
-                dev,
-                test,
-                expected_failures=_benchmark_failures(),
-                frozen=True,
-                release=release.version,
-            )
+        _validate_release_splits(
+            dev,
+            test,
+            expected_failures=_benchmark_failures(),
+            frozen=True,
+            release=release.version,
+        )
 
     _verify_mcp_policy(release.cases, release.tools)
 
@@ -1103,7 +1091,7 @@ def freeze_release(
     cases = materialize_cases(list(raw.get("cases") or []))
     cases_path = dest / "dev.yaml"
     write_cases_yaml(cases_path, seed=raw.get("seed"), cases=cases)
-    loaded = load_benchmark_yaml(cases_path, release=version)
+    loaded = load_benchmark_yaml(cases_path)
 
     scenarios = {row["scenario"] for row in loaded}
     images = {"required": collect_images_for_scenarios(scenarios)}
@@ -1117,10 +1105,10 @@ def freeze_release(
         dest,
         version=version,
         splits=splits,
-        defaults=dict(DEFAULTS_V1),
+        defaults=dict(RELEASE_DEFAULTS),
         scoring=dict(SCORING),
-        tools=dict(TOOLS_V1),
-        resources=dict(RESOURCES_V1),
+        tools=dict(RELEASE_TOOLS),
+        resources=dict(RELEASE_RESOURCES),
         images=images,
     )
     return load_release_from_dir(dest, split="dev")
@@ -1140,8 +1128,8 @@ def freeze_split_release(
     missing = [name for name in required if not (source_dir / name).is_file()]
     if missing:
         raise ReleaseError(f"Release candidate is missing files: {missing}")
-    dev = load_benchmark_yaml(source_dir / "dev.yaml", release=version)
-    test = load_benchmark_yaml(source_dir / "test.yaml", release=version)
+    dev = load_benchmark_yaml(source_dir / "dev.yaml")
+    test = load_benchmark_yaml(source_dir / "test.yaml")
     _validate_release_splits(
         dev,
         test,
@@ -1169,10 +1157,10 @@ def freeze_split_release(
             staging,
             version=version,
             splits=splits,
-            defaults=dict(DEFAULTS_V1),
+            defaults=dict(RELEASE_DEFAULTS),
             scoring=dict(SCORING),
-            tools=dict(TOOLS_V1),
-            resources=dict(RESOURCES_V1),
+            tools=dict(RELEASE_TOOLS),
+            resources=dict(RELEASE_RESOURCES),
             images={"required": collect_images_for_scenarios(scenarios)},
         )
         staged = load_release_from_dir(staging, split="dev")

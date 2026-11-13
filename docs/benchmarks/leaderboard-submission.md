@@ -18,7 +18,7 @@ Publish the result of an official benchmark release run on the NIKA leaderboard.
 
 **Terms** (see the [glossary](../../GLOSSARY.md)):
 
-- **Benchmark release**: a published, unchanging set of **tasks**, such as `0.2.0`, split into Dev and Test sets.
+- **Benchmark release**: a published, unchanging set of **tasks**, such as `0.3.0`, split into Dev and Test sets.
 - **Trial**: one scored run of a task. The release defines how many trials each task needs.
 - **Scores package** and **trajectories package**: the two submissions above.
 - **`metadata.yaml`**: the entry's name, authors, model, and agent harness. See [its fields](#metadatayaml).

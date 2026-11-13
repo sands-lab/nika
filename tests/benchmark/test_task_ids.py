@@ -117,7 +117,7 @@ class TestSelectTrials:
 
 class TestReleaseTaskIdGate:
     def test_unknown_task_id_fails_before_preflight(self, tmp_path: Path) -> None:
-        release = load_release("0.2.0", split="test")
+        release = load_release("0.3.0", split="test")
         result_dir = tmp_path / "run"
         with (
             patch("nika.workflows.benchmark.run.release_engine") as engine,
@@ -126,7 +126,7 @@ class TestReleaseTaskIdGate:
         ):
             with pytest.raises(ValueError, match="Unknown task id"):
                 run_benchmark_from_release(
-                    "0.2.0",
+                    "0.3.0",
                     agent_type="mock",
                     llm_provider=None,
                     model="mock-v1",
@@ -137,7 +137,7 @@ class TestReleaseTaskIdGate:
                     release=release,
                     task_ids=["missing-task"],
                 )
-        # 0.2.0 pins a benchmark engine; a bad selector must not start it.
+        # 0.3.0 pins a benchmark engine; a bad selector must not start it.
         engine.assert_not_called()
         preflight.assert_not_called()
         runner.assert_not_called()
@@ -146,11 +146,11 @@ class TestReleaseTaskIdGate:
     def test_scoped_run_keeps_full_job_scope(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        release = load_release("0.2.0", split="test")
+        release = load_release("0.3.0", split="test")
         task_id = task_id_for_row(release.cases[0])
         result_dir = tmp_path / "run"
         with (
-            # Run on the in-process engine instead of 0.2.0's engine container.
+            # Run on the in-process engine instead of 0.3.0's engine container.
             patch(
                 "nika.workflows.benchmark.run.release_engine",
                 lambda *args, **kwargs: nullcontext(),
@@ -165,7 +165,7 @@ class TestReleaseTaskIdGate:
             ),
         ):
             run_benchmark_from_release(
-                "0.2.0",
+                "0.3.0",
                 agent_type="mock",
                 llm_provider=None,
                 model="mock-v1",
@@ -193,8 +193,8 @@ class TestReleaseTaskIdGate:
 
 
 class TestPublishedReleaseCatalog:
-    def test_0_2_0_test_split_has_unique_task_ids(self) -> None:
-        release = load_release("0.2.0", split="test")
+    def test_release_test_split_has_unique_task_ids(self) -> None:
+        release = load_release("0.3.0", split="test")
         entries = catalog_entries(release.cases)
         ids = [entry["task_id"] for entry in entries]
         assert len(ids) == 85
@@ -317,7 +317,7 @@ class TestBenchmarkCatalogCli:
                     "benchmark",
                     "run",
                     "--release",
-                    "0.2.0",
+                    "0.3.0",
                     "--split",
                     "test",
                     "--task-id",

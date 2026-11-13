@@ -1,6 +1,6 @@
 # Network scenario reference
 
-This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists scenario IDs through `nika env list` (including one ID per SNDlib or Topology Zoo ISP topology plus named ISP specials). Most scenarios use one backend; SNDlib ISP topology scenarios support both Kathara and Containerlab.
+This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists scenario IDs through `nika env list` (including one ID per SNDlib or Topology Zoo ISP topology plus named ISP specials). Most scenarios use one backend; `dc_clos` and SNDlib ISP topology scenarios support both Kathara and Containerlab. Deployments default to Kathara when both are supported.
 
 The [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py) registry defines the authoritative scenario IDs, backends, tags, and size controls. Backend implementations live under [`net_env/`](../../src/nika/net_env/). Confirm the installed checkout with:
 
@@ -17,7 +17,7 @@ uv run nika env list
 
 Install with [`./scripts/install.sh`](../../scripts/install.sh). Installer options: [Installation](installation.md). Overview: root [README](../../README.md#-installation).
 
-Containerlab scenarios run Nokia SR Linux routers by default, which NIKA configures over gNMI with `gnmic`. Pass `--device-profile sonic` to run them on [SONiC](#sonic-routers-on-containerlab) instead. `min3clos` is Containerlab-only. `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
+Containerlab scenarios run Nokia SR Linux routers by default, which NIKA configures over gNMI with `gnmic`. Pass `--device-profile sonic` to run them on [SONiC](#sonic-routers-on-containerlab) instead. `min3clos` is Containerlab-only. `dc_clos` and `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
 
 Link failures must act outside the nodes, where an agent cannot see them. Kathara links already pass through host-side bridges. On Containerlab, NIKA deploys each link between two nodes as two veths into the host namespace and joins their host ends with a `tc` redirect, so link failures act on the host ends. Node interfaces keep their names and addresses, and the host ends disappear with the lab. Joining those host ends needs passwordless `sudo` for `ip` and `tc` on the Docker host; see [Allow passwordless sudo for Containerlab](installation.md#allow-passwordless-sudo-for-containerlab).
 
@@ -34,7 +34,7 @@ Heavy and light trials never run at the same time. With the default `--heavy-bat
 
 Why heavy labs need a separate cap:
 
-- `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
+- `k8s_lab` and `llmd_lab` run privileged k3s clusters whose worker count depends on the selected size. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 - Every lab adds entries to the host's shared neighbor table. Large or concurrent labs overflow the kernel default and drop packets at random. See [Host neighbor table overflows](troubleshooting.md#host-neighbor-table-overflows-large-or-concurrent-labs).
 - Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once. Within one lab, NIKA also passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`). Lower it if deploy OOMs; see [Containerlab deploy OOM](troubleshooting.md#containerlab-deploy-oom-on-memory-tight-hosts).
 
@@ -42,7 +42,7 @@ Why heavy labs need a separate cap:
 
 | Scenario ID | Backend | Scale control | Options | Network |
 | --- | --- | --- | --- | --- |
-| `dc_clos` | Kathara | `-s s\|m\|l` | `--device-profile iosxr` (`s`) | FRR eBGP Clos with DNS/HTTP leaf services |
+| `dc_clos` | Kathara or Containerlab | `-s s\|m\|l` | Kathara: `iosxr` or `routeros` (`s`); Containerlab: `nokia_srlinux` or `sonic` | eBGP Clos with DNS/HTTP leaf services |
 | `campus_lan` | Kathara | `-s s\|m\|l` | `--device-profile iosxr` | Hierarchical campus LAN with DHCP/DNS/LB farm |
 | `enterprise_branch` | Kathara | `-s s\|m\|l` | `--device-profile iosxr` | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay with per-role VRFs |
 | `sdn_l3_clos` | Kathara | `-s s\|m\|l` |  | ONOS + OVS L3 Clos with SELECT ECMP |
@@ -54,17 +54,17 @@ Why heavy labs need a separate cap:
 | `isp_<zoo topology>` | Kathara | Fixed metadata `s`/`m`/`l` | Protocol options | One Topology Zoo graph per scenario ID, compiled to FRR, IOS XR or RouterOS; not a benchmark candidate |
 | `isp_abilene_ebgp_rpki` / `isp_geant_ebgp_rpki` | Kathara | Fixed | — | Named eBGP + offline RPKI overlays |
 | `isp_abilene_ebgp_rtbh` / `isp_dfn-bwin_ebgp_rtbh` | Kathara | Fixed | — | Named eBGP + RTBH blackhole overlays |
-| `min3clos` | Containerlab | Fixed | `--device-profile sonic` | Five-node SR Linux or SONiC eBGP Clos |
-| `k8s_lab` | Kathara | Fixed |  | FRR fat-tree with a six-node k3s cluster |
-| `llmd_lab` | Kathara | Fixed |  | L2 k3s cluster with simulated llm-d inference |
+| `min3clos` | Containerlab | Fixed | `--device-profile sonic` | Two leaves, one spine and two clients |
+| `k8s_lab` | Kathara | `-s s\|m\|l` |  | FRR fat-tree with k3s applications |
+| `llmd_lab` | Kathara | `-s s\|m\|l` |  | L2 k3s cluster with simulated llm-d inference |
 
-Six scenario IDs accept `s`, `m`, or `l`. Pass a size when you deploy one:
+Scalable scenarios accept `s`, `m`, or `l`. Pass a size when you deploy one:
 
 ```shell
 uv run nika env run dc_clos -s s
 ```
 
-Fixed scenarios reject a size. Each SNDlib ISP topology is its own scenario ID (for example `isp_abilene`); size is metadata for benchmark sampling only.
+`k8s_lab` and `llmd_lab` deploy size `m` when task rows omit `topo_size`. Fixed scenarios, including `min3clos`, reject a size. Each SNDlib ISP topology is its own scenario ID (for example `isp_abilene`); size is metadata for benchmark sampling only.
 
 ## Data-center Clos scenario
 
@@ -89,6 +89,15 @@ In `dc_clos`, router ASNs start at 65001 in spine-then-leaf order, and inter-rou
 ```shell
 uv run nika env run dc_clos -s s
 ```
+
+To run the same fabric on SR Linux or SONiC, select Containerlab and its device profile:
+
+```shell
+uv run nika env run dc_clos -s s --backend containerlab --device-profile nokia_srlinux
+uv run nika env run dc_clos -s m --backend containerlab --device-profile sonic
+```
+
+Both profiles support `s`, `m`, and `l`. They reuse the shared Clos design, eBGP neighbors, ASNs, addresses, DNS records, HTTP services, and client workload. Endpoints use the same CPU and memory limits on both backends. SR Linux joins each rack through a MAC-VRF and [IRB gateway](https://documentation.nokia.com/srlinux/24-10/books/interfaces/irb-interfaces-1.html); SONiC uses [untagged VLAN access ports and a VLAN gateway](https://github.com/sonic-net/SONiC/wiki/Configuration). Containerlab reserves the routers' first Linux interface for management, so data port indices differ from Kathara. Endpoint nodes use `eth0` for data and have no management network.
 
 The [construction and verification guide](../development/scenario-verification.md#shared-clos-design) describes the common requirements and the checks specific to each implementation.
 
@@ -116,7 +125,7 @@ Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dis
 
 The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service.
 
-Every PC browses `web0`-`web3.local` and `web99.local` every few tens of seconds. The teaching-lab PCs, every PC in the `10.2.<dist>.0/24` access blocks behind `router_core_2`, refresh their software catalog every few minutes by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`.
+Every PC browses `web0`-`web3.local` and `web99.local` every few tens of seconds. The teaching-lab PCs, every PC in the `10.2.<dist>.0/24` access blocks behind `router_core_2`, refresh their software catalog every few minutes by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each endpoint has an idle local archive job configured with one worker in `/etc/archive-job.json`. The web hosts also serve static objects on port 8080.
 
 Verification checks OSPF adjacency, cross-branch reachability, DNS, and HTTP.
 
@@ -181,8 +190,6 @@ SERVER-role hosts serve static HTTP objects at `http://<server>/small.bin` (16 K
 
 Use this scenario for underlay vs overlay diagnosis, VRF business isolation, hub-and-spoke VPN reachability, eBGP path preference with backup sessions at every scale, overlay-egress DSCP/QoS faults, and receiver-side TCP receive-window bottlenecks on branch–HQ paths. Verification covers VRF devices on every edge, every designed tunnel (underlay reachability, WireGuard, BGP both sides), per-VRF RIB contents (CORP sees CORP+SERVER leak; GUEST/IOT do not), hub interconnect, every branch CORP↔HQ CORP and CORP↔DC2 CORP plus HTTP to both hub SERVERs, every branch pair via the corp VRF overlay path, every provider without enterprise prefixes, GUEST/IOT isolation from CORP, every backup BGP session with primary-path preference, and HTB EF/BE classes on every WireGuard overlay egress.
 
-The ID `rip_small_internet_vpn` names the original 0.1.0 RIP mini-Internet lab, a separate lab that only release 0.1.0 uses. See [Run release 0.1.0](../compat/release-0.1.0.md).
-
 Boundary: `campus_lan` is a single-campus L3 network; `dc_clos` is a data-center fabric; `isp_*` scenarios are carrier IGP/BGP itself. This scenario is enterprise multi-site WAN with encrypted overlay and per-role VRFs.
 
 ```shell
@@ -218,8 +225,6 @@ Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs in
 ```shell
 uv run nika env run p4_dc_fabric -s s
 ```
-
-The ID `p4_counter` names the original 0.1.0 L2 counter lab, a separate lab that only release 0.1.0 uses. See [Run release 0.1.0](../compat/release-0.1.0.md).
 
 ### `p4_dc_gateway`
 
@@ -557,11 +562,21 @@ To check the generated SONiC configuration against the environment's validation 
 
 ## Kubernetes scenarios
 
-Both fixed Kathara scenarios run one k3s server and five workers on `nika/k3s`. This image adds `tcpdump`, `iperf3`, and `python3` to the pinned `rancher/k3s:v1.34.1-k3s1`, so packet capture, `iperf_test`, and `active_tcp_probe` work on k3s nodes. Each k3s device starts with a shell entrypoint that waits for `/var/run/net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
+Both Kathara scenarios run one k3s server and a size-dependent worker set on `nika/k3s`. Choose a size with `-s s|m|l`:
+
+| Size | Workers | `k8s_lab` app replicas per Deployment | `llmd_lab` EPP / prefill / decode replicas |
+| --- | ---: | ---: | --- |
+| `s` | 3 | 1 | 1 / 2 / 1 |
+| `m` | 5 | 2 | 1 / 3 / 2 |
+| `l` | 8 | 3 | 2 / 5 / 3 |
+
+The app replica column covers `word-dply` and `weather-dply`; each database stays at one replica. Every size uses the same app, namespace, Service, and label names. NIKA generates worker networking, host mappings, placement constraints, and verification targets from the selected inventory.
+
+The `nika/k3s` image adds `tcpdump`, `iperf3`, and `python3` to the pinned `rancher/k3s:v1.34.1-k3s1`, so packet capture, `iperf_test`, and `active_tcp_probe` work on k3s nodes. Each k3s device starts with a shell entrypoint that waits for `/var/run/net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
 
 If startup reports an exited k3s node, inspect the reported container state and log tail. For inotify exhaustion, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
-NIKA prepares every required in-cluster image with `skopeo`, run from the `nika/skopeo` image, before creating the lab, then imports the archives into all six k3s nodes. Image references are fixed by SHA256 digest, including the sample apps and inference simulator. Preparation fetches the original manifest/index and the Linux host platform's complete layers directly from the registry, validates their hashes, and caches them by digest and architecture under `.nika_cache/`. It does not depend on Docker's local image store or `docker save`.
+NIKA prepares every required in-cluster image with `skopeo`, run from the `nika/skopeo` image, before creating the lab, then imports the archives into every k3s node. Image references are fixed by SHA256 digest, including the sample apps and inference simulator. Preparation fetches the original manifest/index and the Linux host platform's complete layers directly from the registry, validates their hashes, and caches them by digest and architecture under `.nika_cache/`. It does not depend on Docker's local image store or `docker save`.
 
 When upgrading from tag-only caches such as `postgres__16.tar`, NIKA removes the old archives for a scenario after validating that scenario's replacement archives. If preparation fails, NIKA keeps the old archives. Other cache files remain available.
 
@@ -581,13 +596,13 @@ During iterative work, `nika env run <scenario> --no-redeploy` skips tearing dow
 
 NIKA defines a two-pod FRR fat-tree around the cluster. Pod 1 hosts the k3s nodes; pod 2 provides an exit path to external ASes and a client. BGP unnumbered connects the fabric. MetalLB advertises LoadBalancer addresses through BGP, NGINX provides ingress, and sample `word` and `weather` applications use PostgreSQL and persistent volumes.
 
-The k3s workers connect to `https://201.1.1.2:6443`, matching the controller's advertised API address. This avoids closing bootstrap connections when agents discover the server endpoint. The ingress service uses `externalTrafficPolicy: Local`; its controller pod must run on `worker1` through `worker5`, which have configured MetalLB BGP peers. Required node affinity enforces that placement so MetalLB can advertise the ingress VIP.
+The k3s workers connect to `https://201.1.1.2:6443`, matching the controller's advertised API address. This avoids closing bootstrap connections when agents discover the server endpoint. The ingress service uses `externalTrafficPolicy: Local`; its controller pod must run on a worker with a configured MetalLB BGP peer. Required node affinity enforces that placement so MetalLB can advertise the ingress VIP.
 
 `dc_exit` is a plain Linux router with static routes (no routing daemon): it enters the data center through both `leaf_2_*` routers and defaults toward `as1r1`. MetalLB addresses (`101.0.0.0/8`) are served on their service ports only. The k3s workers and the `leaf_2_*` routers discard unused addresses in the `101.0.0.0/8` and `201.0.0.0/8` aggregates, so ICMP to the ingress VIP times out instead of looping while HTTP and HTTPS work.
 
 The client browses both applications through the ingress (`http://datacenter.com/word` and `/weather`) every few seconds, and a per-node `uptime-agent` DaemonSet in the `monitoring` namespace calls them through their Service names.
 
-Use this scenario for faults that combine Kubernetes state with routed underlay behavior. Verification checks the BGP fabric, six Ready nodes, cross-leaf reachability, ingress addressing, and both applications.
+Use this scenario for faults that combine Kubernetes state with routed underlay behavior. Verification checks the BGP fabric, all declared nodes Ready, cross-leaf reachability, ingress addressing, and both applications.
 
 ### `llmd_lab`
 
@@ -714,7 +729,7 @@ Host pairs that the environment isolates by design, such as guest LANs or separa
 
 Every task that `nika benchmark generate` writes to the working pool runs a background traffic profile, so faulty and healthy tasks carry the same kind of load. Because the profile is the same for every failure, its programs say nothing about which fault, if any, the agent faces. Each environment declares its baseline: `uniform` at 1 Mbit/s, or `gravity` at 1 Mbit/s for ISP backbones. A failure can replace the baseline for its own tasks with `TRAFFIC_PROFILE`, but any difference from the baseline hints at the failure class, so no current failure does.
 
-Benchmark releases keep their tasks as published: a task without `traffic:`, such as every task of release 0.2.0, runs without a profile. A multi-fault task runs the profile its YAML names.
+Benchmark releases keep their tasks as published: a task without `traffic:`, such as every task of release 0.3.0, runs without a profile. A multi-fault task runs the profile its YAML names.
 
 ## Telemetry
 

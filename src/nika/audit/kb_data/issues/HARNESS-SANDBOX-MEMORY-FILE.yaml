@@ -3,7 +3,7 @@ title: Sandbox template memory file loaded into the agent
 class: harness_privilege
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: The sbx template's 421-line CLAUDE.md was loaded as agent memory.
 detect:
 - kind: text

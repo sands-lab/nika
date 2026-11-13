@@ -3,7 +3,7 @@ title: 'isp_geant: healthy baseline lure'
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: Inter-AS OSPF is passive by design and PingMesh showed about 50% of pairs unreachable at baseline;
   agents reported OSPF/BGP faults.
 scope:

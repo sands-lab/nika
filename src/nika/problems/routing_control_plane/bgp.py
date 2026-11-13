@@ -673,7 +673,7 @@ class BGPAsnMisconfig(ProblemBase):
                 self.root_cause_name, False, {"error": "no_recovery_snapshot"}
             )
         host = params.host_name
-        if self.lab_backend == "containerlab":
+        if self.lab_backend == "containerlab" and router_fault_ops(self, host) is None:
             self.runtime.srl_set_bgp_as(host, original)
             restored = self.runtime.srl_get_bgp_as(host) == original
         elif (ops := router_fault_ops(self, host)) is not None:
@@ -860,6 +860,33 @@ class BGPMissingAdvertise(ProblemBase):
     Params = BGPMissingAdvertiseParams
 
     BENCHMARK_TARGET_ROLE = "bgp_originators"
+
+    def withdrawal_prefixes(self, params: BGPMissingAdvertiseParams) -> set[str] | None:
+        """Network statements this failure withdraws, or all origins for redistribution."""
+        if params.prefix:
+            return {str(ipaddress.ip_network(params.prefix, strict=False))}
+        ops = router_fault_ops(self, params.host_name)
+        if ops is not None:
+            return set(ops.bgp_networks()) or None
+        if self.lab_backend != "kathara" or self._is_enterprise_branch():
+            return None
+        cfg = self.runtime.exec(
+            params.host_name, "vtysh -c 'show running-config' 2>/dev/null"
+        )
+        prefixes = set()
+        in_bgp = False
+        for line in cfg.splitlines():
+            text = line.lstrip()
+            if text.startswith("router bgp"):
+                in_bgp = True
+                continue
+            if text.startswith("router "):
+                in_bgp = False
+            if in_bgp and text.startswith("network ") and " area " not in text:
+                tokens = text[len("network ") :].split()
+                if tokens:
+                    prefixes.add(tokens[0])
+        return prefixes or None
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -1106,7 +1133,7 @@ class BGPMissingAdvertise(ProblemBase):
 
     def inject_fault(self, params: BGPMissingAdvertiseParams):
         host = params.host_name
-        if self.lab_backend == "kathara":
+        if self.lab_backend == "kathara" or router_fault_ops(self, host) is not None:
             ops = router_fault_ops(self, host)
             if ops is not None:
                 self._advertise_native_config = ops.save_config()
@@ -1185,7 +1212,7 @@ class BGPMissingAdvertise(ProblemBase):
                 f"({ops.profile} withdrew network {prefix})."
             )
             return
-        prefixes = ops.bgp_networks()
+        prefixes = sorted(self.withdrawal_prefixes(params) or [])
         if not prefixes:
             raise RuntimeCapabilityError(
                 f"{type(self).__name__}: no BGP network statements on "
@@ -1230,28 +1257,7 @@ class BGPMissingAdvertise(ProblemBase):
     ) -> None:
         """Withdraw every BGP ``network`` statement via vtysh (leave OSPF alone)."""
         asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
-        cfg = self.runtime.exec(
-            params.host_name, "vtysh -c 'show running-config' 2>/dev/null"
-        )
-        prefixes: list[str] = []
-        in_bgp = False
-        for line in cfg.splitlines():
-            s = line.lstrip()
-            if s.startswith("router bgp"):
-                in_bgp = True
-                continue
-            if s.startswith("router ") and not s.startswith("router bgp"):
-                in_bgp = False
-                continue
-            if not in_bgp or not s.startswith("network "):
-                continue
-            rest = s[len("network ") :].strip()
-            # OSPF uses ``network … area …``; BGP uses ``network <prefix>``.
-            if " area " in rest:
-                continue
-            token = rest.split()[0] if rest else ""
-            if token:
-                prefixes.append(token)
+        prefixes = sorted(self.withdrawal_prefixes(params) or [])
         if not prefixes:
             raise RuntimeCapabilityError(
                 f"{type(self).__name__}: no BGP network statements on "
@@ -1327,7 +1333,7 @@ class BGPMissingAdvertise(ProblemBase):
 
     def recover_fault(self, params: BGPMissingAdvertiseParams) -> dict:
         host = params.host_name
-        if self.lab_backend == "containerlab":
+        if self.lab_backend == "containerlab" and router_fault_ops(self, host) is None:
             snapshot = getattr(self, "_advertise_srl", None)
             if snapshot is None:
                 return build_verify_result(
@@ -2646,6 +2652,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 f"match ip address prefix-list {_FLOOD_PREFIX_LIST}",
             ]
         self._frr(device, frr_config_command(*lines))
+        self._frr_save(device)
 
     def _remove_flood_policy(self, device: str) -> None:
         lines = [
@@ -2654,6 +2661,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
         ]
         lines.append(f"no ip prefix-list {_FLOOD_PREFIX_LIST}")
         self._frr(device, frr_config_command(*lines))
+        self._frr_save(device)
 
     def _flood_prefixes(self, count: int, *, peer: str, neighbor_ip: str) -> list[str]:
         """Pick ``count`` /24s scattered within the flood /16, not a tidy block.

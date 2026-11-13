@@ -4,7 +4,7 @@ class: out_of_scope
 role: known
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: p4_dc_gateway gateways exposed /var/lib/nika/lb_agent.status.json and the lb_agent process arguments;
   the path names the benchmark and the file holds harness learner counters.
 guideline: Renamed on the fix commit; a hit on a newer commit is a regression.

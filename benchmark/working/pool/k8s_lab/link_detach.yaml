@@ -3,7 +3,8 @@ scenario:
 failure:
   fault_type: link_detach
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -15,7 +16,8 @@ failure:
         node: as1r1
         name: eth0
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -27,7 +29,8 @@ failure:
         node: as1r1
         name: eth1
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -39,7 +42,8 @@ failure:
         node: as2r1
         name: eth0
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -51,7 +55,8 @@ failure:
         node: controller
         name: eth0
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -63,7 +68,8 @@ failure:
         node: core_1_1
         name: eth0
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -75,7 +81,8 @@ failure:
         node: core_1_1
         name: eth1
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -87,7 +94,8 @@ failure:
         node: core_1_1
         name: eth2
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -99,7 +107,8 @@ failure:
         node: core_1_1
         name: eth3
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -111,7 +120,8 @@ failure:
         node: core_1_2
         name: eth0
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -123,7 +133,8 @@ failure:
         node: core_1_2
         name: eth1
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -135,7 +146,8 @@ failure:
         node: core_1_2
         name: eth2
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -147,7 +159,8 @@ failure:
         node: core_1_2
         name: eth3
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -159,7 +172,8 @@ failure:
         node: dc_exit
         name: eth1
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -171,7 +185,8 @@ failure:
         node: dc_exit
         name: eth2
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -183,7 +198,8 @@ failure:
         node: leaf_1_1
         name: eth0
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -195,7 +211,8 @@ failure:
         node: leaf_1_1
         name: eth1
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -207,19 +224,8 @@ failure:
         node: leaf_1_1
         name: eth3
       fault_type: link_detach
-  - traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_1_1
-      intf_name: eth4
-    root_causes:
-    - resource:
-        kind: interface
-        node: leaf_1_1
-        name: eth4
-      fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -231,7 +237,8 @@ failure:
         node: leaf_1_2
         name: eth0
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -243,7 +250,8 @@ failure:
         node: leaf_1_2
         name: eth1
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -255,7 +263,8 @@ failure:
         node: leaf_1_2
         name: eth2
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -267,19 +276,8 @@ failure:
         node: leaf_1_2
         name: eth3
       fault_type: link_detach
-  - traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_1_2
-      intf_name: eth4
-    root_causes:
-    - resource:
-        kind: interface
-        node: leaf_1_2
-        name: eth4
-      fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -291,7 +289,8 @@ failure:
         node: leaf_2_1
         name: eth0
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -303,7 +302,8 @@ failure:
         node: leaf_2_1
         name: eth1
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -315,7 +315,749 @@ failure:
         node: leaf_2_2
         name: eth0
       fault_type: link_detach
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as1r1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: as1r1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as1r1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: as1r1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as2r1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: as2r1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: controller
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: controller
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: dc_exit
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc_exit
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: dc_exit
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc_exit
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as1r1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: as1r1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as1r1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: as1r1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: as2r1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: as2r1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: controller
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: controller
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: core_1_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: core_1_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: dc_exit
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc_exit
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: dc_exit
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc_exit
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+      intf_name: eth6
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_1
+        name: eth6
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth2
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth3
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth4
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_2
+      intf_name: eth5
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_1_2
+        name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_2_2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_2_2
+        name: eth0
+      fault_type: link_detach
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:

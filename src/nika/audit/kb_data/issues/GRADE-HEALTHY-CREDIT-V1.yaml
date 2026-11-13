@@ -3,7 +3,7 @@ title: Healthy credit without is_anomaly=false
 class: grading_error
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: Scoring before the fix gave rca_f1=1 on healthy cases for any empty root-cause list, whatever
   is_anomaly said; 'lazy-healthy' agents gained.
 guideline: Submissions graded before the fix differ from a re-grade only on these trials. Compare entries

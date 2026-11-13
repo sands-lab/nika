@@ -58,6 +58,9 @@ class SonicRouter:
     # SONiC interface -> the interface name the FRR design uses
     design_names: Mapping[str, str] = field(default_factory=dict)
 
+    # VLAN interface -> untagged access ports.
+    vlans: Mapping[str, tuple[str, ...]] = field(default_factory=dict, repr=False)
+
     @property
     def daemons(self) -> tuple[str, ...]:
         found = {
@@ -169,10 +172,26 @@ def config_db(router: SonicRouter) -> dict:
         },
     }
     for iface, addresses in router.addresses.items():
-        table = "LOOPBACK_INTERFACE" if iface.startswith("Loopback") else "INTERFACE"
+        table = (
+            "LOOPBACK_INTERFACE"
+            if iface.startswith("Loopback")
+            else "VLAN_INTERFACE"
+            if iface in router.vlans
+            else "INTERFACE"
+        )
         rows = tables.setdefault(table, {})
         rows[iface] = {}
         rows.update({f"{iface}|{address}": {} for address in addresses})
+    if router.vlans:
+        tables["VLAN"] = {
+            name: {"vlanid": name.removeprefix("Vlan"), "members": list(ports)}
+            for name, ports in router.vlans.items()
+        }
+        tables["VLAN_MEMBER"] = {
+            f"{name}|{port}": {"tagging_mode": "untagged"}
+            for name, ports in router.vlans.items()
+            for port in ports
+        }
     return tables
 
 

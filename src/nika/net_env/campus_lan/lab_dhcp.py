@@ -6,6 +6,7 @@ from typing import Literal
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
+from nika.net_env.utils.static_http import static_http_commands
 from nika.net_env.utils.download_object import download_object_commands
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
@@ -755,6 +756,9 @@ class CampusLanDhcp(NetworkEnvBase):
                     "python3 /usr/local/bin/package-catalog.py",
                     *download_object_commands("/var/www"),
                     "service nginx start",
+                    *static_http_commands(
+                        web_meta.machine, docroot="/var/www", port=8080
+                    ),
                 ]
             )
             web_meta.cmd_list.append("systemctl daemon-reload")

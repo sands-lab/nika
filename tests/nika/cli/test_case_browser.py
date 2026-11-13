@@ -87,8 +87,11 @@ def test_case_export_preserves_task_identity_and_ground_truth(tmp_path: Path) ->
         ("s", None),
         ("s", "iosxr"),
         ("s", "routeros"),
+        ("s", "sonic"),
         ("m", None),
+        ("m", "sonic"),
         ("l", None),
+        ("l", "sonic"),
     }
     assert all(row["e2e_verification"] == "not_recorded" for row in entries)
     row = entries[0]

@@ -3,15 +3,15 @@ title: packet_capture on SR Linux nodes silently captures 0 packets when given t
 class: harness_defect
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: In release 0.2.0 packet_capture_start passed the interface name straight to dumpcap without mapping it or
   checking that it exists. On SR Linux nodes (isp_pdh, min3clos) the native name ethernet-1/N or ethernet-1/N.0 is
   not a Linux interface, so all 41 completed captures that used it returned 0 packets and 0 bytes instead of an
   error, while captures on the Linux name e1-N saw traffic (36 packets on e1-5 against 0 on ethernet-1/5 in the
-  same case). Agents read the empty capture as missing traffic. c00630bc maps SR Linux names
+  same case). Agents read the empty capture as missing traffic. 7edc92aa maps SR Linux names
   (src/nika/service/packet_capture/capture_backend.py).
 guideline: Counts when packet_capture_start names an SR Linux interface (ethernet-1/N) on a release-0.2.0 commit
-  and the matching packet_capture_stop reports packet_count 0 with captured_bytes 0. On a commit with c00630bc the
+  and the matching packet_capture_stop reports packet_count 0 with captured_bytes 0. On a commit with 7edc92aa the
   name is mapped, so a hit is a regression only if that capture also comes back empty while traffic flows. Captures
   on e1-N names with 0 packets are a real observation, not this issue.
 scope:

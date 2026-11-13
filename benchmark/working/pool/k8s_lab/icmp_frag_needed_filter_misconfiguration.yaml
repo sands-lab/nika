@@ -3,7 +3,30 @@ scenario:
 failure:
   fault_type: icmp_frag_needed_filter_misconfiguration
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_1
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1_1
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:

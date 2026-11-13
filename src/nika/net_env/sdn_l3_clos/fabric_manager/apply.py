@@ -90,9 +90,9 @@ def _onos_request(
         )
     payload = base64.b64encode(json.dumps(data).encode()).decode()
     cmd = (
-        f"echo {payload} | base64 -d > /tmp/onos_body.json && "
+        f"rm -f /tmp/onos_body.json; echo {payload} | base64 -d | "
         f"curl -s -u {_ONOS_AUTH} -H 'Content-Type: application/json' "
-        f"-X {method} '{_onos_url(path)}' --data-binary @/tmp/onos_body.json || true"
+        f"-X {method} '{_onos_url(path)}' --data-binary @- || true"
     )
     return _exec(runtime, "fabric_mgr", cmd, timeout=timeout)
 

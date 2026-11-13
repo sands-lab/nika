@@ -20,3 +20,7 @@ provenance:
   refs:
   - '#206'
   found_by: live_audit
+evidence:
+- >-
+  2026-11-11: 1c00ce98 removes two instances: the ONOS request body on fabric_mgr and the pristine
+  Containerlab client setup scripts. The generic lead remains open.

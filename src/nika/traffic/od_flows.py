@@ -10,8 +10,8 @@ from nika.utils.parallel import bounded_parallel_map
 # iperf3 servers on one destination listen on consecutive ports, one per source.
 OD_START_PORT = 5201
 # Per-host scratch directory for iperf3 reports and server PID files.
-OD_WORKDIR = "/tmp/nika-od"
-_MARKER = "@@NIKA_OD"
+OD_WORKDIR = "/run/od-flows"
+_MARKER = "@@OD_FLOW"
 # Signal a recorded server only while its PID still belongs to our ``timeout``
 # wrapper, so a recycled PID never hits an unrelated process on the host.
 _KILL_OWN = (

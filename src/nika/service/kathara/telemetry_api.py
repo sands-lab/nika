@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 
 from nika.net_env.p4_dc_gateway.topology_model import INT_REPORTS
+from nika.service.lab.checked_exec import checked_exec
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
 
 
@@ -73,16 +74,19 @@ class TelemetryAPIMixin:
         """Query observed INT-MX traces from the scenario collector."""
         start_ns = self._time_bound_ns(start_time)
         end_ns = self._time_bound_ns(end_time) if end_time is not None else None
-        raw = self.exec_cmd(
+        raw = checked_exec(
+            self.exec_cmd,
             "collector",
-            f"date +%s%N; tail -n 10000 {INT_REPORTS} 2>/dev/null || true",
+            f"date +%s%N && tail -n 10000 {INT_REPORTS}",
             timeout=20,
         )
         lines = raw.splitlines()
         try:
             now_ns = int(lines[0])
-        except (IndexError, ValueError):
-            return []
+        except (IndexError, ValueError) as exc:
+            raise RuntimeError(
+                f"INT collector returned an invalid timestamp: {raw}"
+            ) from exc
         records: list[dict] = []
         for line in lines[1:]:
             try:

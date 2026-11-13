@@ -402,12 +402,24 @@ def discover_endpoints(
     """
     hosts = sorted(set(hosts))
     elsewhere = set(python_elsewhere)
-    # Containerlab gives every node a management eth0; data links start at eth1.
     skip_eth0 = runtime.backend == "containerlab"
+    data_eth0 = set()
+    if skip_eth0 and (topology := getattr(runtime, "topology_file", None)):
+        from nika.runtime.containerlab.parse import parse_clab_topology
+
+        data_eth0 = {
+            node
+            for link in parse_clab_topology(topology).links
+            for endpoint in link.endpoints
+            for node, interface in [endpoint.split(":", 1)]
+            if interface == "eth0"
+        }
 
     def probe(host: str) -> Endpoint | None:
         script = _ADDRESSES if host in elsewhere else _DISCOVER
-        ip = _parse_addresses(runtime.exec(host, script), skip_eth0=skip_eth0)
+        ip = _parse_addresses(
+            runtime.exec(host, script), skip_eth0=skip_eth0 and host not in data_eth0
+        )
         return Endpoint(host, ip) if ip else None
 
     return [e for e in bounded_parallel_map(probe, hosts) if e is not None]

@@ -36,14 +36,13 @@ def test_workload_column_is_rejected() -> None:
 
 
 @pytest.mark.parametrize(
-    ("problem", "release", "expected"),
+    ("problem", "expected"),
     [
-        ("link_fragmentation_disabled", None, "mtu_mismatch"),
-        ("frr_service_down", None, "routing_service_down"),
-        ("frr_service_down", "0.2.0", "frr_service_down"),
+        ("link_fragmentation_disabled", "mtu_mismatch"),
+        ("frr_service_down", "routing_service_down"),
     ],
 )
-def test_failure_aliases_follow_the_release(tmp_path, problem, release, expected):
+def test_failure_aliases_use_current_ids(tmp_path, problem, expected):
     import yaml
 
     from nika.workflows.benchmark.load_config import load_benchmark_yaml
@@ -65,6 +64,6 @@ def test_failure_aliases_follow_the_release(tmp_path, problem, release, expected
             }
         )
     )
-    row = load_benchmark_yaml(path, release=release)[0]
+    row = load_benchmark_yaml(path)[0]
     assert row["problem"] == expected
     assert row["root_causes"][0]["fault_type"] == expected

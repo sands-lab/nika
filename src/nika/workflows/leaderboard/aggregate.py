@@ -78,6 +78,14 @@ def aggregate_trial_results(
     n_scored = status_counts.get("scored", 0)
     submission_rate = n_scored / denom
 
+    case_solved: dict[str, bool] = {}
+    for trial in trials:
+        solved = trial.score_status == "scored" and trial.metrics.get("rca_f1") == 1
+        case_solved[trial.case_key] = case_solved.get(trial.case_key, True) and solved
+    case_consistency = (
+        sum(case_solved.values()) / len(case_solved) if case_solved else 0.0
+    )
+
     def primary_mean(key: str) -> float:
         total = 0.0
         for trial in trials:
@@ -134,6 +142,7 @@ def aggregate_trial_results(
         n_agent_failed=n_failed,
         status_counts=status_counts,
         submission_rate=submission_rate,
+        case_consistency=case_consistency,
         conditional_mean_rca_f1=conditional_mean("rca_f1"),
         conditional_mean_localization_f1=conditional_mean("localization_f1"),
         conditional_mean_detection_score=conditional_mean("detection_score"),
@@ -203,6 +212,13 @@ def metrics_nearly_equal(a: AggregatedMetrics, b: AggregatedMetrics) -> list[str
         issues.append(
             f"metrics.steps_totals: expected {a.steps_totals}, got {b.steps_totals}"
         )
+    # Older packages omit this additive metric.
+    if a.case_consistency is not None and b.case_consistency is not None:
+        if abs(a.case_consistency - b.case_consistency) > _FLOAT_TOL:
+            issues.append(
+                f"metrics.case_consistency: expected {a.case_consistency}, "
+                f"got {b.case_consistency}"
+            )
     return issues
 
 

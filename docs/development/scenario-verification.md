@@ -206,7 +206,7 @@ Before relying on netlab for a design, compare its candidate with NIKA's native 
 
 ### Deploy stored configurations
 
-Running netlab at every startup would slow deployment and make it depend on netlab, so NIKA stores netlab's output in the package and deploys it. `dc_clos`, `campus_lan` and `enterprise_branch` store each size for FRR, and for IOS XR where that profile is supported. ISP environments store each variant (IGP, BGP mode, device profile and options) that the benchmark pool and current release use. Ordinary startup and `--check` read the stored files and do not need netlab.
+Running netlab at every startup would slow deployment and make it depend on netlab, so NIKA stores netlab's output in the package and deploys it. `dc_clos`, `campus_lan` and `enterprise_branch` store each size for FRR, and for IOS XR where that profile is supported. `dc_clos` also stores every size for its SR Linux and SONiC Containerlab profiles. ISP environments store each variant (IGP, BGP mode, device profile and options) that the benchmark pool and current release use. Ordinary startup and `--check` read the stored files and do not need netlab.
 
 Environment developers regenerate the stored configurations from the repository root after changing a design. Regeneration runs the pinned netlab, so add `--extra netlab` to the `uv sync` command you use, for example `uv sync --extra batfish --extra netlab`.
 

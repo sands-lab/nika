@@ -614,6 +614,8 @@ def test_mac_address_conflict_prefers_endpoint_hosts() -> None:
 
 @pytest.mark.parametrize("yaml_name", ["working/cases.yaml"])
 def test_bundled_benchmark_yaml_cases_validate(yaml_name: str) -> None:
+    from contextlib import nullcontext
+
     from nika.workflows.benchmark.healthy import is_healthy_case
     from nika.workflows.benchmark.load_config import load_benchmark_yaml
     from nika.workflows.benchmark.isp_options import isp_options_from_row
@@ -622,13 +624,21 @@ def test_bundled_benchmark_yaml_cases_validate(yaml_name: str) -> None:
     for row in load_benchmark_yaml(path):
         if is_healthy_case(row["problem"]):
             continue
-        validate_benchmark_case(
-            row["scenario"],
-            row["problem"],
-            dict(row.get("inject") or {}),
-            str(row.get("topo_size") or ""),
-            isp_options=isp_options_from_row(row),
+        admission = (
+            pytest.raises(
+                ValueError, match="Incompatible mac_address_conflict on llmd_lab"
+            )
+            if (row["scenario"], row["problem"]) == ("llmd_lab", "mac_address_conflict")
+            else nullcontext()
         )
+        with admission:
+            validate_benchmark_case(
+                row["scenario"],
+                row["problem"],
+                dict(row.get("inject") or {}),
+                str(row.get("topo_size") or ""),
+                isp_options=isp_options_from_row(row),
+            )
 
 
 # --- link_flap / link_detach / incast / bmv2 / tcp_rwnd inject param contracts ---
@@ -814,10 +824,26 @@ def test_load_balancer_overload_inject_params_target_campus_lan_vip() -> None:
     assert params["client_host"] not in load_hosts
 
 
-def test_dns_lookup_latency_pins_probe_resolver() -> None:
-    dc = resolve_inject_params("dns_lookup_latency", "dc_clos", "l", seed=42)
+@pytest.mark.parametrize(
+    "options", [None, {"backend": "containerlab", "device_profile": "sonic"}]
+)
+def test_dns_lookup_latency_pins_probe_resolver(options) -> None:
+    dc = resolve_inject_params(
+        "dns_lookup_latency", "dc_clos", "l", seed=42, isp_options=options
+    )
     assert dc["host_name"] == "web_1"
-    assert enumerate_inject_params("dns_lookup_latency", "dc_clos", "l") == [dc]
+    assert enumerate_inject_params(
+        "dns_lookup_latency", "dc_clos", "l", isp_options=options
+    ) == [dc]
+    from nika.workflows.benchmark.generate import build_failure_cases
+
+    cases, _ = build_failure_cases(
+        problem="dns_service_down",
+        scenario="dc_clos",
+        topo_size="l",
+        isp_options=options,
+    )
+    assert [case["inject"] for case in cases] == [{"host_name": "web_1"}]
     campus = resolve_inject_params("dns_lookup_latency", "campus_lan", "m", seed=42)
     assert campus["host_name"] == "dns_server"
 

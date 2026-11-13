@@ -389,7 +389,7 @@ def _client(problem: Any) -> str:
 
 def _http_code(problem: Any, host: str, url: str) -> str:
     """HTTP status ``url`` returns to ``host``; ``000`` when the request fails."""
-    return _http_exchange(problem, host, HttpProbeRequest(url=url))[0]
+    return _http_exchange(problem, host, _backend_request(problem, url))[0]
 
 
 @dataclass(frozen=True)

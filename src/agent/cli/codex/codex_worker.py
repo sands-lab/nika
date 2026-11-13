@@ -299,6 +299,7 @@ def _build_mcp_toml(
     provider: str | None = None,
     base_url: str | None = None,
     tool_timeout_sec: float | None = None,
+    model_context_window: int | None = None,
 ) -> str:
     """Serialise Codex ``config.toml``: approvals, optional provider, MCP servers.
 
@@ -311,6 +312,13 @@ def _build_mcp_toml(
         # The agent reaches the network only through its MCP tools.
         'web_search = "disabled"',
     ]
+    if model_context_window is not None:
+        lines.extend(
+            [
+                f"model_context_window = {model_context_window}",
+                f"model_auto_compact_token_limit = {model_context_window * 9 // 10}",
+            ]
+        )
     provider_id = _codex_model_provider_id(provider)
     resolved_base = (base_url or "").strip() or _codex_provider_base_url(provider)
     if provider_id and resolved_base:
@@ -492,11 +500,17 @@ class CodexWorker:
             {"phase": self.phase, "servers": list(servers.keys())},
         )
         config_path = self._codex_home / "config.toml"
+        window = (
+            os.environ.get("MODEL_CONTEXT_WINDOW")
+            if self.llm_provider == "custom"
+            else None
+        )
         config_path.write_text(
             _build_mcp_toml(
                 servers,
                 provider=self.llm_provider,
                 tool_timeout_sec=mcp_read_timeout_seconds(),
+                model_context_window=int(window) if window else None,
             ),
             encoding="utf-8",
         )

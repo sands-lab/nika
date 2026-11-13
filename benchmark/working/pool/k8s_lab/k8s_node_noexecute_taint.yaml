@@ -3,7 +3,8 @@ scenario:
 failure:
   fault_type: k8s_node_noexecute_taint
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -14,7 +15,32 @@ failure:
         kind: node
         node: worker1
       fault_type: k8s_node_noexecute_taint
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker3
+    root_causes:
+    - resource:
+        kind: node
+        node: worker3
+      fault_type: k8s_node_noexecute_taint
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker1
+    root_causes:
+    - resource:
+        kind: node
+        node: worker1
+      fault_type: k8s_node_noexecute_taint
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -24,4 +50,28 @@ failure:
     - resource:
         kind: node
         node: worker4
+      fault_type: k8s_node_noexecute_taint
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker1
+    root_causes:
+    - resource:
+        kind: node
+        node: worker1
+      fault_type: k8s_node_noexecute_taint
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker6
+    root_causes:
+    - resource:
+        kind: node
+        node: worker6
       fault_type: k8s_node_noexecute_taint

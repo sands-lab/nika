@@ -103,6 +103,12 @@ def _resolve_path(
     net_env: Any = None,
 ) -> ProbePath | None:
     inject_host = _params_get(params, "host_name")
+    intf = _params_get(params, "intf_name")
+    link_targets = {}
+    if net_env is not None and inject_host and intf:
+        selector = getattr(net_env, "link_symptom_targets", None)
+        if callable(selector):
+            link_targets = selector(inject_host, intf) or {}
     observer = (
         _params_get(params, "observer_device")
         or _params_get(params, "symptom_host")
@@ -117,10 +123,19 @@ def _resolve_path(
     if path is None:
         return None
     explicit_observer = _params_get(params, "observer_device")
-    src_host = explicit_observer or _params_get(params, "symptom_host") or path.src_host
+    src_host = (
+        explicit_observer
+        or _params_get(params, "symptom_host")
+        or link_targets.get("observer_device")
+        or path.src_host
+    )
     if not explicit_observer and inject_host and _is_endpoint_host(inject_host):
         src_host = inject_host
-    dst_ip = _params_get(params, "probe_dst_ip") or path.dst_ip
+    dst_ip = (
+        _params_get(params, "probe_dst_ip")
+        or link_targets.get("probe_dst_ip")
+        or path.dst_ip
+    )
     peer_host = _params_get(params, "peer_host") or path.peer_host
     peer_map = _CROSS_SUBNET_PEER.get(scenario or "", {})
     if inject_host and inject_host in peer_map:

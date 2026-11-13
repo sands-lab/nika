@@ -11,6 +11,7 @@ from nika.net_env.sdn_l3_clos.topology_model import (
     ONOS_OOB_IP,
     ONOS_REST_PORT,
 )
+from nika.service.lab.checked_exec import checked_exec
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
 
 _ONOS_AUTH = "onos:rocks"
@@ -115,12 +116,12 @@ class SdnAPIMixin:
 
     def sdn_controller_logs(self: _SupportsBase, rows: int = 80) -> dict[str, Any]:
         rows = max(1, min(int(rows), 500))
-        log = self.exec_cmd(
+        log = checked_exec(
+            self.exec_cmd,
             "onos",
             f"tail -n {rows} /root/onos/apache-karaf-*/data/log/karaf.log 2>/dev/null || "
             f"tail -n {rows} /root/onos/log/karaf.log 2>/dev/null || "
-            f"tail -n {rows} /var/log/onos/*.log 2>/dev/null || "
-            "echo ''",
+            f"tail -n {rows} /var/log/onos/*.log",
             timeout=20,
         )
         return {"host": "onos", "rows": rows, "log": log}

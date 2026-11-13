@@ -18,16 +18,16 @@ A manifest with an `engine` block selects a separate engine container. A manifes
 
 ## A. Release manifest
 
-[`RELEASE.yaml`](../../benchmark/releases/0.2.0/RELEASE.yaml) declares the release identity, split files and their hashes, trial defaults, required images, and scoring policy. Its `engine` block selects the implementation and lifecycle API:
+[`RELEASE.yaml`](../../benchmark/releases/0.3.0/RELEASE.yaml) declares the release identity, split files and their hashes, trial defaults, required images, and scoring policy. Its `engine` block selects the implementation and lifecycle API:
 
 ```yaml
 engine:
-  tag: da91a98ada54
+  tag: v0.3.0
   api:
     version: 1
 ```
 
-This is the engine reference in release 0.2.0's manifest. Despite its field name, `engine.tag` accepts a Git tag or commit. The frontend builds that reference from a clean `git archive`, so uncommitted changes do not enter the image. `nika engine build <ref>` builds it ahead of a run. Without a local image whose commit label matches the reference, the first release run builds the image itself.
+This is the engine reference in release 0.3.0's manifest. It names the release tag, which points at the commit that contains this manifest. `engine.tag` also accepts a commit. The frontend builds that reference from a clean `git archive`, so uncommitted changes do not enter the image. `nika engine build <ref>` builds it ahead of a run. Without a local image whose commit label matches the reference, the first release run builds the image itself.
 
 A manifest may also provide `engine.image`. The frontend uses that image when it exists locally or can be pulled; otherwise it builds from `engine.tag`. An image override does not check the image's commit against the Git reference. Run provenance records the image ID actually used.
 

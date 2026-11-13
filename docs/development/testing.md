@@ -17,7 +17,6 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 |-----------|---------|---------|
 | `tests/agent/` | `src/agent/` | Per-agent unit tests and sandbox E2E |
 | `tests/benchmark/` | `benchmark/` + workflow run/resume | Batch, release, trials, sandbox benchmark runs; runner YAML load contracts |
-| `tests/compat/` | `src/nika/net_env/compat/` + `src/nika/problems/compat/` + `benchmark/releases/0.1.0/` | 0.1.0 release contracts and isolation of the restored labs and failures |
 | `tests/leaderboard/` | `src/nika/workflows/leaderboard/` + CLI | Pack/validate/submit unit tests; mocked release→submit E2E; opt-in live GitHub PR (`NIKA_LEADERBOARD_E2E=1`) |
 | `tests/ci/` | GitHub Actions smoke | Dual-arch image build, light startup, failure/pipeline/clab curated jobs |
 | `tests/nika/cli/` | `src/nika/cli/` | CLI smoke and import wiring |
@@ -174,12 +173,12 @@ NIKA_CI_ENGINE_PINNED=1 \
   uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
 ```
 
-The test defaults to one `dc_clos` task from release 0.2.0's test split. Set `NIKA_CI_ENGINE_RELEASE`, `NIKA_CI_ENGINE_SPLIT`, and `NIKA_CI_ENGINE_TASK_ID` to select another task. Without `NIKA_CI_ENGINE_PINNED=1`, the test prepares a release using the current commit's engine. Set `NIKA_CI_ENGINE_COMPARE=1` to run the same task in process and compare scores.
+The test defaults to one `dc_clos` task from release 0.3.0's test split. Set `NIKA_CI_ENGINE_RELEASE`, `NIKA_CI_ENGINE_SPLIT`, and `NIKA_CI_ENGINE_TASK_ID` to select another task. Without `NIKA_CI_ENGINE_PINNED=1`, the test prepares a release using the current commit's engine. Set `NIKA_CI_ENGINE_COMPARE=1` to run the same task in process and compare scores.
 
 For all tasks in both release splits, dispatch [Release engine verification](../../.github/workflows/release-engine-verify.yml) from the branch whose frontend you want to test:
 
 ```shell
-gh workflow run release-engine-verify.yml --ref <branch> -f release=0.2.0
+gh workflow run release-engine-verify.yml --ref <branch> -f release=0.3.0
 ```
 
 The manual workflow defaults to the latest benchmark release; set `release` to select a version. It resolves the manifest's pinned engine once and distributes it to eight shards, with at most eight runners in parallel. Each runner executes one trial at a time, compares the engine and in-process results, and uploads per-trial artifacts even on failure. It requires the WireGuard and VRF kernel modules and at least 30 GiB free on the Docker filesystem before deployment. A coverage gate requires exactly one passing result for each assigned task; missing, duplicate, skipped, failed, or unexpected results fail the workflow. Nightly uses the same gate. The scheduled workflow takes effect only on the default branch; dispatch Nightly on a PR branch to validate changes before then.
@@ -334,12 +333,12 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
 | `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), and a `byo.langgraph` trial of a release that pins a benchmark engine, on sbx and E2B |
 | `test_engine_container_e2e.py` | Oracle trials on a commit-built or manifest-pinned engine, with optional in-process comparison; see [Verify benchmark engines](#verify-benchmark-engines) |
-| `test_curated_release_contract.py` | Test-only curated rows from `0.2.0` `test` split: subset contract, mock pack/validate, timeout+continue |
+| `test_curated_release_contract.py` | Test-only curated rows from `0.3.0` `test` split: subset contract, mock pack/validate, timeout+continue |
 | `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |
 | `test_migrate.py` | Benchmark YAML migrate → `root_causes` |
 | `helpers.py` | Load inject params from bundled benchmark YAML |
-| `curated.py` / `fixtures/curated_0_2_0_test.yaml` | Curated 0.2.0 test-split rows (tests only; not a published release) |
+| `curated.py` / `fixtures/curated_0_3_0_test.yaml` | Curated 0.3.0 test-split rows (tests only; not a published release) |
 
 Related (moved out of this directory):
 

@@ -65,7 +65,7 @@ def _release_rows() -> list[dict[str, Any]]:
     return [
         row
         for split in ("dev", "test")
-        for row in load_release("0.2.0", split=split).cases
+        for row in load_release("0.3.0", split=split).cases
     ]
 
 

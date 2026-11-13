@@ -3,7 +3,8 @@ scenario:
 failure:
   fault_type: k8s_worker_apiserver_partition
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -14,7 +15,8 @@ failure:
         kind: node
         node: worker1
       fault_type: k8s_worker_apiserver_partition
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -25,7 +27,8 @@ failure:
         kind: node
         node: worker2
       fault_type: k8s_worker_apiserver_partition
-  - traffic:
+  - topo_size: s
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -36,7 +39,44 @@ failure:
         kind: node
         node: worker3
       fault_type: k8s_worker_apiserver_partition
-  - traffic:
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker1
+    root_causes:
+    - resource:
+        kind: node
+        node: worker1
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker2
+    root_causes:
+    - resource:
+        kind: node
+        node: worker2
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker3
+    root_causes:
+    - resource:
+        kind: node
+        node: worker3
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -47,7 +87,8 @@ failure:
         kind: node
         node: worker4
       fault_type: k8s_worker_apiserver_partition
-  - traffic:
+  - topo_size: m
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:
@@ -57,4 +98,100 @@ failure:
     - resource:
         kind: node
         node: worker5
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker1
+    root_causes:
+    - resource:
+        kind: node
+        node: worker1
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker2
+    root_causes:
+    - resource:
+        kind: node
+        node: worker2
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker3
+    root_causes:
+    - resource:
+        kind: node
+        node: worker3
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker4
+    root_causes:
+    - resource:
+        kind: node
+        node: worker4
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker5
+    root_causes:
+    - resource:
+        kind: node
+        node: worker5
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker6
+    root_causes:
+    - resource:
+        kind: node
+        node: worker6
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker7
+    root_causes:
+    - resource:
+        kind: node
+        node: worker7
+      fault_type: k8s_worker_apiserver_partition
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker8
+    root_causes:
+    - resource:
+        kind: node
+        node: worker8
       fault_type: k8s_worker_apiserver_partition

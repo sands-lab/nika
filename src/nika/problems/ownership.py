@@ -39,7 +39,7 @@ def owner_kind_for_fault(fault_type: str, scenario_name: str | None = None) -> s
     Remaining failures use their concrete mutated node/k8s resource, unless
     the class declares ``root_cause_owner`` (e.g. interface-owned host faults).
     """
-    cls = get_problem_class(fault_type, scenario_name)
+    cls = get_problem_class(fault_type)
     if cls is None:
         raise KeyError(f"Unknown fault type: {fault_type!r}")
     if cls.root_cause_owner:
@@ -57,7 +57,7 @@ def ownership_entries(
 ) -> list[dict[str, str]]:
     entries: list[dict[str, str]] = []
     for fault_type in sorted(set(fault_types)):
-        cls = get_problem_class(fault_type, scenario_name)
+        cls = get_problem_class(fault_type)
         if cls is None:
             raise KeyError(f"Unknown fault type: {fault_type!r}")
         # Prefer the explicit class description only. Do not fall back to

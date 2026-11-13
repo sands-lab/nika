@@ -253,14 +253,6 @@ class ExecSemanticOpsMixin:
         self.require_capabilities("dns")
         self._api().renew_dhcp_leases(nodes, intf)
 
-    def dhcp_set_option_routers(
-        self, dhcp_server: str, subnet: str, gateway: str
-    ) -> None:
-        self._delegate("dns", "dhcp_set_option_routers", dhcp_server, subnet, gateway)
-
-    def dhcp_set_option_dns(self, dhcp_server: str, subnet: str, dns: str) -> None:
-        self._delegate("dns", "dhcp_set_option_dns", dhcp_server, subnet, dns)
-
     def dhcp_delete_subnet(self, dhcp_server: str, subnet: str) -> None:
         self._delegate("dns", "dhcp_delete_subnet", dhcp_server, subnet)
 

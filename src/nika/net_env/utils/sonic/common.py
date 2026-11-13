@@ -208,3 +208,24 @@ def activate_sonic_routers(
     ]
     if errors:
         raise RuntimeError("SONiC activation failed:\n" + "\n".join(errors))
+
+
+def align_saved_configs(runtime, routers: Iterable[str], timestamp: float) -> None:
+    """Save current CONFIG_DB on each router and align saved-file metadata."""
+    from nika.runtime.shared.config_files import rewrite_saved_config_files
+    from nika.utils.parallel import bounded_parallel_map
+
+    def save(node):
+        output = runtime.exec(
+            node,
+            "sonic-cfggen -d --print-data > /etc/sonic/config_db.json && echo config_db_saved",
+            timeout=60,
+        )
+        if "config_db_saved" not in output.splitlines():
+            raise RuntimeError(f"Cannot save SONiC CONFIG_DB on {node}: {output}")
+
+    routers = list(routers)
+    bounded_parallel_map(save, routers)
+    rewrite_saved_config_files(
+        runtime.exec, routers, "/etc/sonic", "config_db.json", timestamp
+    )

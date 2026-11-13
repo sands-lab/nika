@@ -1,7 +1,7 @@
-import shlex
 import time
 from datetime import datetime
 
+from nika.service.lab.checked_exec import checked_exec
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
 from nika.service.kathara.telemetry_api import time_bound_seconds
 from nika.telemetry.management import TELEMETRY_COLLECTOR
@@ -21,7 +21,7 @@ class SyslogAPIMixin:
     """Query syslog records stored by the lab telemetry collector."""
 
     def _syslog_hosts(self: _SupportsBase) -> dict[str, str]:
-        raw = self.exec_cmd(TELEMETRY_COLLECTOR, f"cat {SYSLOG_HOSTS}")
+        raw = checked_exec(self.exec_cmd, TELEMETRY_COLLECTOR, f"cat {SYSLOG_HOSTS}")
         hosts: dict[str, str] = {}
         for line in raw.splitlines():
             parts = line.split()
@@ -54,9 +54,16 @@ class SyslogAPIMixin:
         path = (
             f"{SYSLOG_DIR}/{hosts[host]}.log" if host is not None else f"{SYSLOG_DIR}/*"
         )
-        raw = self.exec_cmd(
+        command = (
+            f"if [ -e {path} ]; then tail -n 5000 {path}; "
+            f"else ls -d {SYSLOG_DIR} >/dev/null; fi"
+            if host is not None
+            else f"find {SYSLOG_DIR} -maxdepth 1 -type f -exec tail -n 5000 {{}} +"
+        )
+        raw = checked_exec(
+            self.exec_cmd,
             TELEMETRY_COLLECTOR,
-            f"sh -c {shlex.quote('tail -n 5000 ' + path + ' 2>/dev/null || true')}",
+            command,
             timeout=30,
         )
         program_filter = (program or "").strip().lower()

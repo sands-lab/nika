@@ -7,13 +7,31 @@ import re
 import shlex
 from typing import TYPE_CHECKING
 
-from nika.problems.rca.inventory import iter_link_termination_points
+from nika.problems.support.file_metadata import preserve_mtime
 from nika.problems.support.oracle import Check, OracleStep, shell
 
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
 DHCPD_CONF = "/etc/dhcp/dhcpd.conf"
+DNS_RENEWAL_HOOK = "/etc/dhcp/dhclient-enter-hooks.d/nameservers"
+
+
+def restart_dhcp_server(exec_cmd, server: str, *, service="isc-dhcp-server") -> None:
+    """Restart DHCP and remove the previous lease database left by dhcpd."""
+    exec_cmd(server, f"systemctl restart {shlex.quote(service)}")
+    exec_cmd(server, "rm -f /var/lib/dhcp/dhcpd.leases~")
+
+
+def prepare_dns_renewal_hook(runtime, node: str, timestamp: float) -> None:
+    """Install a neutral resolver hook on hosts with DHCP client support."""
+    runtime.exec(
+        node,
+        "if test -d /etc/dhcp/dhclient-enter-hooks.d && "
+        f"! test -e {DNS_RENEWAL_HOOK}; then "
+        f"printf '# Local resolver options\\n' > {DNS_RENEWAL_HOOK}; "
+        f"touch -d @{int(timestamp)} {DNS_RENEWAL_HOOK}; fi",
+    )
 
 
 def client_subnet(
@@ -58,12 +76,13 @@ def set_subnet_option(
     """Set ``option <option> <value>;`` inside one subnet declaration and restart."""
     header = _subnet_header(subnet)
     line = f"    option {option} {value};"
-    runtime.exec(
-        dhcp_server,
-        f"sed -i -e '/{header}/,/}}/{{/option {option} /d}}' "
-        f"-e '/{header}/a\\{line}' {DHCPD_CONF}",
-    )
-    runtime.systemctl(dhcp_server, "isc-dhcp-server", "restart")
+    with preserve_mtime(runtime, dhcp_server, DHCPD_CONF):
+        runtime.exec(
+            dhcp_server,
+            f"sed -i -e '/{header}/,/}}/{{/option {option} /d}}' "
+            f"-e '/{header}/a\\{line}' {DHCPD_CONF}",
+        )
+    restart_dhcp_server(runtime.exec, dhcp_server)
 
 
 def subnet_option_value(
@@ -130,6 +149,8 @@ def host_ipv4(output: str) -> ipaddress.IPv4Interface | None:
 
 def segment_router(net_env, host: str, intf: str = "eth0") -> str | None:
     """First router reached from *host*:*intf* through layer-2 switches."""
+    from nika.problems.rca.inventory import iter_link_termination_points
+
     routers = set(getattr(net_env, "routers", None) or [])
     switches = set(getattr(net_env, "switches", None) or [])
     links = [

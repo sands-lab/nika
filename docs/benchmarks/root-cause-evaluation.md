@@ -123,7 +123,7 @@ NIKA writes `eval_metrics.json` when a trial closes (or when you run `nika eval 
 | Detection | `is_anomaly` bool | `detection_score` (`1.0` or `0.0`) |
 | Joint RCA | `(resource_id, fault_type)` | `rca_precision`, `rca_recall`, `rca_f1` |
 | Localization | `resource_id` | `localization_precision`, `localization_recall`, `localization_f1` |
-| Fault type | `fault_type` | `fault_type_precision`, `fault_type_recall`, `fault_type_f1` |
+| Fault type | `(resource_id, fault_type)` | `fault_type_precision`, `fault_type_recall`, `fault_type_f1` |
 
 `rca_accuracy` and `localization_accuracy` equal the corresponding recall (backward-compatible aliases).
 
@@ -140,9 +140,9 @@ Fault types match only when they are identical. A predicted resource matches a g
 | `node/{node}` | any `interface/{node}/{ifname}` on that node |
 | `link/{tps}` | `interface/{node}/{ifname}` for an endpoint `{node}:{ifname}` of that link |
 
-Joint RCA uses the same rule for the resource half of each pair. Each ground-truth item is matched at most once, so naming both ends of a faulty link scores one true positive and one false positive. A coarser prediction, such as `node/{node}` for an interface fault, does not match.
+Joint RCA uses the same rule for the resource half of each pair. Fault-type metrics count the types of the same deduplicated pairs, one to one, without regard to resource: a correct type on a wrong resource still matches, and repeating that type on more resources adds false positives. Each ground-truth item is matched at most once, so naming both ends of a faulty link scores one true positive and one false positive. A coarser prediction, such as `node/{node}` for an interface fault, does not match.
 
-A failure can declare `root_cause_resource_match = "any"` when its listed resources are alternative locations for one distributed fault. For `bgp_max_prefix_exceeded`, either the receiver or its advertising peer earns full RCA credit with the correct fault type. Localization treats those endpoints as one location; naming both counts once. Other failures retain their resource requirements for RCA.
+A failure can declare `root_cause_resource_match = "any"` when its listed resources are alternative locations for one distributed fault. For `bgp_max_prefix_exceeded`, either the receiver or its advertising peer earns full RCA credit with the correct fault type. For `flow_rule_loop`, either participating switch earns full credit. These alternatives count as one location and one resource/type pair, including when both are named. Other failures retain their resource requirements for RCA.
 
 Special case: when both `P` and `T` are empty, precision, recall, and F1 are all `1.0` only if the submission also says `is_anomaly: false`. That is the correct score for a healthy case. A healthy case submitted as `is_anomaly: true` with an empty `root_causes` list scores `0.0`. An agent that never submits must not reach this path (see `score_status` below).
 
@@ -195,6 +195,7 @@ Also report:
 - `status_counts` for each `score_status`
 - fault-case means for `rca_f1` and `localization_f1`
 - healthy-case mean for `detection_score` (RCA/localization are not meaningful for healthy controls)
+- `case_consistency`: the share of groups by `case_key` in which every trial is `scored` with `rca_f1 == 1.0`. Each case group has equal weight, including healthy cases, where `rca_f1` is 1.0 only for an `is_anomaly: false` submission; partial scores and non-scored trials fail the group. An empty run yields `0.0`. Leaderboard packages may omit this additive field for compatibility with older packages. Coverage validation separately requires every expected trial.
 
 Leaderboard pack/validate rejects a package when any trial has `grading_error` or residual `infra_error`.
 

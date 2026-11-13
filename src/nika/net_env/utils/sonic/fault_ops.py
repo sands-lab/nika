@@ -107,7 +107,10 @@ class SonicFaultOps(RouterFaultOps):
         # loopback and applies the address from CONFIG_DB.
         interface = f"{_ORIGIN_LOOPBACK}|{address}/{net.prefixlen}"
         for key in (_ORIGIN_LOOPBACK, interface):
-            self._exec(f"redis-cli -n 4 hset 'LOOPBACK_INTERFACE|{key}' NULL NULL")
+            db_key = f"LOOPBACK_INTERFACE|{key}"
+            if self._exec(f"redis-cli -n 4 exists '{db_key}'").strip() != "1":
+                self.__dict__.setdefault("_origin_keys", []).append(db_key)
+                self._exec(f"redis-cli -n 4 hset '{db_key}' NULL NULL")
         self._exec(
             "for _ in $(seq 1 30); do "
             f"ip -4 addr show dev {_ORIGIN_LOOPBACK} 2>/dev/null "
@@ -123,6 +126,11 @@ class SonicFaultOps(RouterFaultOps):
                 f"SONiC {_ORIGIN_LOOPBACK} on {self.node} did not get "
                 f"{address}/{net.prefixlen}"
             )
+        # A hijacked prefix must terminate traffic for its interior addresses,
+        # as the FRR implementation's local-prefix route does.
+        previous = self._exec(f"ip -4 route show table local exact {net}").strip()
+        self.__dict__.setdefault("_origin_routes", {}).setdefault(str(net), previous)
+        self._exec(f"ip route replace local {net} dev {_ORIGIN_LOOPBACK} table local")
         self._configure(
             f"router bgp {self.bgp_asn()}",
             "address-family ipv4 unicast",
@@ -493,6 +501,13 @@ class SonicFaultOps(RouterFaultOps):
                     raise RuntimeError(
                         f"SONiC MTU recovery failed on {self.node}:{interface}"
                     )
+        for prefix, previous in self.__dict__.pop("_origin_routes", {}).items():
+            if previous:
+                self._exec(f"ip route replace table local {previous}")
+            else:
+                self._exec(f"ip route del local {prefix} table local")
+        for key in reversed(self.__dict__.pop("_origin_keys", [])):
+            self._exec(f"redis-cli -n 4 del {shlex.quote(key)}")
 
     # IS-IS
 

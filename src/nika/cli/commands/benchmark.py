@@ -8,7 +8,7 @@ import yaml
 
 from nika.cli.utils import fmt_table
 from nika.cli.warning_capture import install_warning_capture
-from nika.net_env.net_env_pool import scenario_requires_topo_size
+from nika.net_env.net_env_pool import resolve_scenario_topo_size
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     export_run_config_env,
@@ -30,7 +30,6 @@ from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
     ReleaseError,
     freeze_split_release,
-    is_deprecated_release,
     list_releases,
     load_release,
     normalize_split,
@@ -146,13 +145,6 @@ def benchmark_releases(
         return
     failures = 0
     for version in versions:
-        if is_deprecated_release(version):
-            typer.secho(
-                f"DEPRECATED {version}: retained for provenance; not runnable. "
-                f"Use --release {DEFAULT_RELEASE_VERSION}.",
-                fg=typer.colors.YELLOW,
-            )
-            continue
         if not all_releases and version != DEFAULT_RELEASE_VERSION:
             typer.echo(f"SKIP {version}: pass --all to preflight")
             continue
@@ -181,8 +173,6 @@ def _echo_release_summary(*, as_json: bool) -> None:
         status = []
         if version == DEFAULT_RELEASE_VERSION:
             status.append("default")
-        if is_deprecated_release(version):
-            status.append("deprecated")
         summaries.append(
             {
                 "ref": f"{data.get('id') or 'nika-bench'}@{version}",
@@ -618,6 +608,13 @@ def benchmark_run(
         release=release,
         split=split,
     )
+    selected_release = release if release is not None else cfg.benchmark.release
+    if scenario is None and config is None and selected_release is not None:
+        try:
+            _, version = parse_release_ref(selected_release)
+            resolve_release_dir(version)
+        except ReleaseError as exc:
+            _exit_release_error(exc)
     set_run_config(cfg)
     # Snapshot effective config so spawn workers see CLI overlays (--base-url, -e).
     persist_effective_run_config(cfg)
@@ -691,14 +688,10 @@ def benchmark_run(
             )
         if not problem:
             raise typer.BadParameter("--problem is required when SCENARIO is given.")
-        if scenario_requires_topo_size(scenario) and not size:
-            raise typer.BadParameter(
-                f"Scenario '{scenario}' requires -s/--size (s, m, or l)."
-            )
-        if not scenario_requires_topo_size(scenario) and size is not None:
-            raise typer.BadParameter(
-                f"Scenario '{scenario}' does not use sizes; omit -s/--size."
-            )
+        try:
+            resolve_scenario_topo_size(scenario, size)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
         topo = size or ""
         inject_params = _parse_set_options(sets)
         if not inject_params:

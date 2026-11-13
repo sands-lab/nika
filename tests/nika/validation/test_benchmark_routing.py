@@ -20,8 +20,8 @@ def test_max_prefix_impact_includes_exits_only_when_last_as_session_is_lost():
     profile = benchmark_isp_profiles(
         [
             ROOT / "benchmark/working/cases.yaml",
-            ROOT / "benchmark/releases/0.2.0/dev.yaml",
-            ROOT / "benchmark/releases/0.2.0/test.yaml",
+            ROOT / "benchmark/releases/0.3.0/dev.yaml",
+            ROOT / "benchmark/releases/0.3.0/test.yaml",
         ]
     )["isp_abilene--ospf--ebgp--kathara"]
     # Keep the redundant-session control independent of the compact task selection.
@@ -70,8 +70,8 @@ def test_srl_isis_and_as_import_completion(
         benchmark_isp_profiles(
             [
                 ROOT / "benchmark/working/cases.yaml",
-                ROOT / "benchmark/releases/0.2.0/dev.yaml",
-                ROOT / "benchmark/releases/0.2.0/test.yaml",
+                ROOT / "benchmark/releases/0.3.0/dev.yaml",
+                ROOT / "benchmark/releases/0.3.0/test.yaml",
             ]
         )[f"{scenario}--ospf--ebgp--containerlab"]
     )
@@ -145,8 +145,8 @@ def test_as_import_and_igp_completion_preserve_benchmark_failures(
     profile = benchmark_isp_profiles(
         [
             ROOT / "benchmark/working/cases.yaml",
-            ROOT / "benchmark/releases/0.2.0/dev.yaml",
-            ROOT / "benchmark/releases/0.2.0/test.yaml",
+            ROOT / "benchmark/releases/0.3.0/dev.yaml",
+            ROOT / "benchmark/releases/0.3.0/test.yaml",
         ]
     )[f"{scenario}--ospf--ebgp--{backend}"]
     # Abilene and DFN-BWIN prefer a transit AS over the direct origin AS.
@@ -240,8 +240,8 @@ def test_default_completion_covers_routing_capabilities(inventory):
     profiles = benchmark_isp_profiles(
         [
             ROOT / "benchmark/working/cases.yaml",
-            ROOT / "benchmark/releases/0.2.0/dev.yaml",
-            ROOT / "benchmark/releases/0.2.0/test.yaml",
+            ROOT / "benchmark/releases/0.3.0/dev.yaml",
+            ROOT / "benchmark/releases/0.3.0/test.yaml",
         ]
     )
     if inventory == "catalogue":
@@ -283,8 +283,8 @@ def test_as_selection_predicates_follow_original_order_before_synthesis():
     profile = benchmark_isp_profiles(
         [
             ROOT / "benchmark/working/cases.yaml",
-            ROOT / "benchmark/releases/0.2.0/dev.yaml",
-            ROOT / "benchmark/releases/0.2.0/test.yaml",
+            ROOT / "benchmark/releases/0.3.0/dev.yaml",
+            ROOT / "benchmark/releases/0.3.0/test.yaml",
         ]
     )["isp_abilene--ospf--ebgp--kathara"]
     env = load_offline_net_env(profile["scenario"], **profile["deployment"])
@@ -316,8 +316,8 @@ def test_benchmark_profiles_preserve_protocol_and_backend_choices():
             ROOT / "benchmark/working/cases.yaml",
             ROOT
             / "benchmark/working/pool/isp_janos-us/ospf_area_misconfiguration.yaml",
-            ROOT / "benchmark/releases/0.2.0/dev.yaml",
-            ROOT / "benchmark/releases/0.2.0/test.yaml",
+            ROOT / "benchmark/releases/0.3.0/dev.yaml",
+            ROOT / "benchmark/releases/0.3.0/test.yaml",
         ]
     )
     native = next(
@@ -498,8 +498,8 @@ def test_rtbh_echo_requirement_names_the_original_active_endpoint(scenario):
         for key, profile in benchmark_isp_profiles(
             [
                 ROOT / "benchmark/working/cases.yaml",
-                ROOT / "benchmark/releases/0.2.0/dev.yaml",
-                ROOT / "benchmark/releases/0.2.0/test.yaml",
+                ROOT / "benchmark/releases/0.3.0/dev.yaml",
+                ROOT / "benchmark/releases/0.3.0/test.yaml",
             ]
         ).items()
         if profile["supported"]
@@ -512,8 +512,8 @@ def test_benchmark_isp_configuration_execution_and_recovery(
 
     manifests = [
         ROOT / "benchmark/working/cases.yaml",
-        ROOT / "benchmark/releases/0.2.0/dev.yaml",
-        ROOT / "benchmark/releases/0.2.0/test.yaml",
+        ROOT / "benchmark/releases/0.3.0/dev.yaml",
+        ROOT / "benchmark/releases/0.3.0/test.yaml",
     ]
     profile = benchmark_isp_profiles(manifests)[profile_key]
     spec = build_benchmark_isp_experiment(profile)
@@ -633,8 +633,8 @@ def test_benchmark_bgp_preserves_as_boundaries_and_fault_targets(scenario):
     profile = benchmark_isp_profiles(
         [
             ROOT / "benchmark/working/cases.yaml",
-            ROOT / "benchmark/releases/0.2.0/dev.yaml",
-            ROOT / "benchmark/releases/0.2.0/test.yaml",
+            ROOT / "benchmark/releases/0.3.0/dev.yaml",
+            ROOT / "benchmark/releases/0.3.0/test.yaml",
         ]
     )[f"{scenario}--ospf--ebgp--kathara"]
     spec = build_benchmark_isp_experiment(profile)
@@ -700,8 +700,8 @@ def test_single_level_isis_completion_preserves_original_sketch(scenario):
 
     manifests = [
         ROOT / "benchmark/working/cases.yaml",
-        ROOT / "benchmark/releases/0.2.0/dev.yaml",
-        ROOT / "benchmark/releases/0.2.0/test.yaml",
+        ROOT / "benchmark/releases/0.3.0/dev.yaml",
+        ROOT / "benchmark/releases/0.3.0/test.yaml",
     ]
     profile = benchmark_isp_profiles(manifests)[f"{scenario}--isis--none--kathara"]
     spec = build_benchmark_isp_experiment(profile)

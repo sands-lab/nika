@@ -12,6 +12,31 @@ from nika.problems.service_networking import gateway
 pytestmark = pytest.mark.unit
 
 
+@pytest.mark.parametrize("original", [0, 1_000_000_000])
+def test_cpu_quota_round_trip_preserves_unlimited_and_limited_containers(
+    monkeypatch, original
+):
+    from nika.problems.support import cpu_quota_helpers as cpu
+
+    config = {"NanoCpus": original, "CpuPeriod": 0, "CpuQuota": 0}
+    container = SimpleNamespace(attrs={"HostConfig": config}, reload=lambda: None)
+    container.update = lambda cpu_period, cpu_quota: config.update(
+        CpuPeriod=cpu_period, CpuQuota=cpu_quota
+    )
+    runtime = SimpleNamespace(get_container=lambda _: container)
+
+    def update_nano(_, data):
+        # Docker ignores zero in a NanoCPUs update.
+        if data["NanoCPUs"]:
+            config["NanoCpus"] = data["NanoCPUs"]
+
+    monkeypatch.setattr(cpu, "_update_container_resources", update_nano)
+    cpu.set_nano_cpus(runtime, "host", 50_000_000)
+    assert cpu.read_nano_cpus(runtime, "host") == 50_000_000
+    cpu.set_nano_cpus(runtime, "host", original)
+    assert cpu.read_nano_cpus(runtime, "host") == original
+
+
 def test_bgp_recovery_retains_all_vrf_network_options(monkeypatch):
     config = (
         "router bgp 65000\n"
@@ -241,6 +266,9 @@ def test_srl_recovery_removes_an_injected_neighbor_policy_override(existing_af):
     )
     problem = object.__new__(bgp.BGPMissingAdvertise)
     problem.runtime = runtime
+    problem.net_env = SimpleNamespace(
+        machine_identities={"leaf1": SimpleNamespace(capabilities=("nokia_srlinux",))}
+    )
     problem._advertise_srl = {
         "routing-policy": (policy,),
         "network-instance default protocols bgp": tuple(

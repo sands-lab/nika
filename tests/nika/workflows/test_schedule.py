@@ -161,7 +161,7 @@ def test_repeated_failure_types_preserve_targets_and_identity(tmp_path):
 
 
 def test_time_sorting_keeps_authored_instance_indices():
-    plan = normalize_schedule(task()["schedule"], "dc_clos")
+    plan = normalize_schedule(task()["schedule"])
     actions = plan.actions()
     assert [(a.at, a.event_index, a.occurrence_index, a.stopping) for a in actions] == [
         (0, 1, 0, False),
@@ -196,7 +196,7 @@ def test_reject_ambiguous_or_unbounded_schedule(patch):
     raw = task()["schedule"]
     raw["events"][0].update(patch)
     with pytest.raises(ValueError):
-        normalize_schedule(raw, "dc_clos")
+        normalize_schedule(raw)
 
 
 def test_reject_mixed_failure_sources(tmp_path):
@@ -225,7 +225,7 @@ def test_dns_recovery_allows_timed_repetition():
             }
         ],
     }
-    plan = normalize_schedule(raw, "dc_clos")
+    plan = normalize_schedule(raw)
     assert [action.at for action in plan.actions()] == [0, 1, 5, 6]
 
 
@@ -237,7 +237,7 @@ def test_reject_inherited_recovery_placeholder(monkeypatch):
         get_problem_class("link_down"), "recover_fault", ProblemBase.recover_fault
     )
     with pytest.raises(ValueError, match="scheduled recovery"):
-        normalize_schedule(task()["schedule"], "dc_clos")
+        normalize_schedule(task()["schedule"])
 
 
 @pytest.mark.parametrize("fail_recovery", [False, True])

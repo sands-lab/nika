@@ -14,6 +14,7 @@ _ADDRESS = re.compile(r"ip addr add (\S+) dev (\S+)")
 
 
 class CampusLan(NativeRouterEnv, NetworkEnvBase):
+    ARCHIVE_JOBS = True
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs"})
     LAB_NAME = "campus_lan"
     # Deploys the netlab configurations stored under rendered/.

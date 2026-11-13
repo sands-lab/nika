@@ -23,7 +23,7 @@ from nika.problems.support.ab_helpers import (
     AB_BINARY,
     AbSummary,
     ab_summary_to_dict,
-    ab_worker_log_tail,
+    ab_worker_diagnostics,
     count_ab_workers,
     ensure_ab,
     parse_ab_output,
@@ -441,7 +441,10 @@ class LoadBalancerOverload(ProblemBase):
             if workers >= expected_workers and ab_procs >= 1:
                 break
         if workers < expected_workers or ab_procs < 1:
-            logs = [ab_worker_log_tail(self.runtime, host) for host in load_hosts]
+            logs = [
+                ab_worker_diagnostics(self.runtime, host, params.vip_url)
+                for host in load_hosts
+            ]
             raise RuntimeError(
                 "load_balancer_overload background traffic did not become ready: "
                 f"workers={workers}/{expected_workers} ab={ab_procs} logs={logs!r}"

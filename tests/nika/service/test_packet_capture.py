@@ -296,9 +296,11 @@ class TestInspectCapture:
 
     def test_node_with_tshark_runs_in_node(self) -> None:
         runtime = MagicMock()
-        runtime.exec.return_value = "/usr/bin/tshark"
+        runtime.exec.side_effect = ["/usr/bin/tshark", "1\n__rc=0"]
         with patch.object(inspect, "_host_tshark") as host:
-            inspect._run_tshark(runtime, "pc1", "/tmp/x", ["-r", "/tmp/x"])
+            assert "1" == inspect._run_tshark(
+                runtime, "pc1", "/tmp/x", ["-r", "/tmp/x"]
+            )
         host.assert_not_called()
         assert "tshark -r /tmp/x" in runtime.exec.call_args.args[1]
 

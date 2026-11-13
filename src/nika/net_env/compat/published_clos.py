@@ -10,6 +10,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.net_env.utils.download_object import download_object_commands
+from nika.net_env.utils.static_http import static_http_commands
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.native_routers import NativeRouterEnv
@@ -110,6 +111,7 @@ class HostMeta:
 
 
 class DCClos(NativeRouterEnv, NetworkEnvBase):
+    ARCHIVE_JOBS = True
     ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
     LAB_NAME = "dc_clos"
     # Deploys the netlab configurations stored under rendered/.
@@ -600,7 +602,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                     "dd if=/dev/zero of=/var/www/large.bin bs=1M count=2 "
                     "status=none 2>/dev/null || true",
                     *download_object_commands("/var/www"),
-                    "cd /var/www && nohup python3 -m http.server 80 >/dev/null 2>&1 &",
+                    *static_http_commands(web.machine, docroot="/var/www"),
                 ]
             )
             self.lab.create_file_from_list(

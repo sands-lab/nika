@@ -47,6 +47,9 @@ CORRUPTION_CASES = (
     CorruptionScenarioCase("p4_dc_gateway", "p4_dc_gateway", ("-s", "s")),
     CorruptionScenarioCase("k8s_lab", "k8s_lab", (), "", require_privileged=True),
     CorruptionScenarioCase(
+        "k8s_lab-s", "k8s_lab", ("-s", "s"), "s", require_privileged=True
+    ),
+    CorruptionScenarioCase(
         "isp-abilene-ebgp",
         "isp_abilene",
         ("--igp", "ospf", "--bgp-mode", "ebgp"),

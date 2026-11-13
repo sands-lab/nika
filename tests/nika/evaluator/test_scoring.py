@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from nika.evaluator.scoring import score_rca_v2
+from nika.evaluator.scoring import score_rca
 from nika.problems.rca import (
     healthy_ground_truth,
     interface_resource,
@@ -33,7 +33,7 @@ def _sub(*causes: RootCause) -> dict:
 class ScoringTest:
     def test_v2_resource_id_submit(self) -> None:
         truth = RootCause(resource=link_resource(_LINK), fault_type="link_down")
-        scores = score_rca_v2(
+        scores = score_rca(
             {
                 "root_causes": [
                     {"resource_id": f"link/{_LINK}", "fault_type": "link_down"}
@@ -43,13 +43,13 @@ class ScoringTest:
         )
         assert scores["rca_f1"] == 1.0
         cause = RootCause(resource=link_resource(_LINK), fault_type="link_down")
-        scores = score_rca_v2(_sub(cause), _gt(cause))
+        scores = score_rca(_sub(cause), _gt(cause))
         assert scores["rca_f1"] == 1.0
 
     def test_v2_extra_prediction(self) -> None:
         truth = RootCause(resource=link_resource(_LINK), fault_type="link_down")
         extra = RootCause(resource=node_resource("r1"), fault_type="host_missing_ip")
-        scores = score_rca_v2(_sub(truth, extra), _gt(truth))
+        scores = score_rca(_sub(truth, extra), _gt(truth))
         assert scores["rca_recall"] == 1.0
         assert scores["rca_precision"] == 0.5
         assert scores["rca_f1"] == 0.6667
@@ -57,14 +57,14 @@ class ScoringTest:
     def test_v2_missing_prediction(self) -> None:
         a = RootCause(resource=link_resource(_LINK), fault_type="link_down")
         b = RootCause(resource=node_resource("r1"), fault_type="host_missing_ip")
-        scores = score_rca_v2(_sub(a), _gt(a, b))
+        scores = score_rca(_sub(a), _gt(a, b))
         assert scores["rca_precision"] == 1.0
         assert scores["rca_recall"] == 0.5
 
     def test_resource_right_type_wrong(self) -> None:
         truth = RootCause(resource=link_resource(_LINK), fault_type="link_down")
         pred = RootCause(resource=link_resource(_LINK), fault_type="link_flap")
-        scores = score_rca_v2(_sub(pred), _gt(truth))
+        scores = score_rca(_sub(pred), _gt(truth))
         assert scores["rca_f1"] == 0.0
         assert scores["localization_f1"] == 1.0
         assert scores["fault_type_f1"] == 0.0
@@ -72,17 +72,34 @@ class ScoringTest:
     def test_type_right_resource_wrong(self) -> None:
         truth = RootCause(resource=link_resource(_LINK), fault_type="link_down")
         pred = RootCause(resource=link_resource(_LINK_OTHER), fault_type="link_down")
-        scores = score_rca_v2(_sub(pred), _gt(truth))
+        scores = score_rca(_sub(pred), _gt(truth))
         assert scores["rca_f1"] == 0.0
         assert scores["localization_f1"] == 0.0
         assert scores["fault_type_f1"] == 1.0
+
+    def test_type_spraying_counts_distinct_resource_type_pairs(self) -> None:
+        truth = RootCause(resource=node_resource("r1"), fault_type="frr_service_down")
+        extra = RootCause(resource=node_resource("r2"), fault_type="frr_service_down")
+        third = RootCause(resource=node_resource("r3"), fault_type="frr_service_down")
+        scores = score_rca(_sub(truth, truth, extra, third), _gt(truth, truth))
+        assert scores["fault_type_precision"] == 0.3333
+        assert scores["fault_type_recall"] == 1.0
+        assert scores["fault_type_f1"] == scores["rca_f1"] == 0.5
+
+    def test_same_type_on_multiple_faulty_resources_needs_each_resource(self) -> None:
+        a = RootCause(resource=node_resource("r1"), fault_type="frr_service_down")
+        b = RootCause(resource=node_resource("r2"), fault_type="frr_service_down")
+        scores = score_rca(_sub(a), _gt(a, b))
+        assert scores["fault_type_precision"] == 1.0
+        assert scores["fault_type_recall"] == 0.5
+        assert scores["fault_type_f1"] == 0.6667
 
     @pytest.mark.parametrize(("is_anomaly", "expected"), [(False, 1.0), (True, 0.0)])
     def test_healthy_empty_sets_need_healthy_verdict(
         self, is_anomaly: bool, expected: float
     ) -> None:
         gt = healthy_ground_truth().model_dump(mode="json")
-        scores = score_rca_v2({"is_anomaly": is_anomaly, "root_causes": []}, gt)
+        scores = score_rca({"is_anomaly": is_anomaly, "root_causes": []}, gt)
         assert scores["rca_f1"] == expected
         assert scores["localization_f1"] == expected
         assert scores["fault_type_f1"] == expected
@@ -97,7 +114,7 @@ class ScoringTest:
     )
     def test_interface_inside_gt_resource_matches(self, truth, pred) -> None:
         gt_cause = RootCause(resource=truth, fault_type="link_down")
-        scores = score_rca_v2(
+        scores = score_rca(
             _sub(RootCause(resource=pred, fault_type="link_down")), _gt(gt_cause)
         )
         assert scores["rca_f1"] == 1.0
@@ -113,7 +130,7 @@ class ScoringTest:
                 resource=interface_resource("router1", "eth0"), fault_type="link_down"
             ),
         )
-        scores = score_rca_v2(both_ends, _gt(truth))
+        scores = score_rca(both_ends, _gt(truth))
         assert scores["rca_precision"] == 0.5 and scores["rca_recall"] == 1.0
         # Not an endpoint of the link.
         off_link = _sub(
@@ -121,7 +138,7 @@ class ScoringTest:
                 resource=interface_resource("pc1", "eth1"), fault_type="link_down"
             )
         )
-        assert score_rca_v2(off_link, _gt(truth))["localization_f1"] == 0.0
+        assert score_rca(off_link, _gt(truth))["localization_f1"] == 0.0
         # A coarser prediction does not match a finer ground truth.
         iface_truth = RootCause(
             resource=interface_resource("router1", "eth0"), fault_type="link_down"
@@ -129,7 +146,7 @@ class ScoringTest:
         coarse = _sub(
             RootCause(resource=node_resource("router1"), fault_type="link_down")
         )
-        assert score_rca_v2(coarse, _gt(iface_truth))["localization_f1"] == 0.0
+        assert score_rca(coarse, _gt(iface_truth))["localization_f1"] == 0.0
 
     def test_generic_eval_uses_resource_pairs(self) -> None:
         cause = RootCause(resource=link_resource(_LINK), fault_type="link_down")
@@ -146,12 +163,15 @@ class ScoringTest:
         assert payload["rca_f1"] == 1.0
         assert payload["localization_f1"] == 1.0
 
-    def test_distributed_fault_accepts_either_participating_node(self) -> None:
+    @pytest.mark.parametrize(
+        "fault_type", ["bgp_max_prefix_exceeded", "flow_rule_loop"]
+    )
+    def test_distributed_fault_accepts_either_participating_node(
+        self, fault_type: str
+    ) -> None:
         truth = _gt(
             *(
-                RootCause(
-                    resource=node_resource(name), fault_type="bgp_max_prefix_exceeded"
-                )
+                RootCause(resource=node_resource(name), fault_type=fault_type)
                 for name in ("receiver", "peer")
             )
         )
@@ -160,21 +180,22 @@ class ScoringTest:
                 *(
                     RootCause(
                         resource=node_resource(name),
-                        fault_type="bgp_max_prefix_exceeded",
+                        fault_type=fault_type,
                     )
                     for name in names
                 )
             )
-            scores = score_rca_v2(submitted, truth)
+            scores = score_rca(submitted, truth)
             assert scores["rca_f1"] == 1.0
             assert scores["localization_f1"] == 1.0
+            assert scores["fault_type_f1"] == 1.0
         wrong = _sub(
             RootCause(
                 resource=node_resource("unrelated"),
-                fault_type="bgp_max_prefix_exceeded",
+                fault_type=fault_type,
             )
         )
-        assert score_rca_v2(wrong, truth)["rca_f1"] == 0.0
+        assert score_rca(wrong, truth)["rca_f1"] == 0.0
 
     def test_distributed_location_overlaps_another_fault(self) -> None:
         max_prefix = "bgp_max_prefix_exceeded"
@@ -187,7 +208,7 @@ class ScoringTest:
             RootCause(resource=node_resource("a"), fault_type=max_prefix),
             RootCause(resource=node_resource("b"), fault_type="routing_service_down"),
         )
-        scores = score_rca_v2(submitted, truth)
+        scores = score_rca(submitted, truth)
         assert scores["rca_f1"] == scores["localization_f1"] == 1.0
         submitted["root_causes"][1]["resource"] = node_resource("a").model_dump()
-        assert score_rca_v2(submitted, truth)["rca_f1"] < 1.0
+        assert score_rca(submitted, truth)["rca_f1"] < 1.0

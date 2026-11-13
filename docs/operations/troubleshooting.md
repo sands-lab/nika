@@ -99,7 +99,7 @@ Both values should be `64000`. After `nika env run`, lab verification completes:
 
 - You do not need to rebuild Docker images or reload the XRd tarball.
 - Keep the default `heavy_batch_size: 1` for runs that include `k8s_lab` or `llmd_lab`.
-- A single quiet `nika env run k8s_lab` can pass with `max_user_instances=128` if `max_user_watches` is already large. Repeated k3s starts (for example full 0.2.0-style matrices) hit the limit sooner.
+- A single quiet `nika env run k8s_lab` can pass with `max_user_instances=128` if `max_user_watches` is already large. Repeated k3s starts (for example full benchmark matrices) hit the limit sooner.
 - After an OOM or hard reset, run the `sysctl` check again before the next XR or k3s lab.
 
 ## Host neighbor table overflows (large or concurrent labs)

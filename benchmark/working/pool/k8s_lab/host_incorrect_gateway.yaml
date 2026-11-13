@@ -3,7 +3,30 @@ scenario:
 failure:
   fault_type: host_incorrect_gateway
   cases:
-  - traffic:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client
+    root_causes:
+    - resource:
+        kind: node
+        node: client
+      fault_type: host_incorrect_gateway
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client
+    root_causes:
+    - resource:
+        kind: node
+        node: client
+      fault_type: host_incorrect_gateway
+  - topo_size: l
+    traffic:
       pattern: uniform
       load_mbps: 1.0
     inject:

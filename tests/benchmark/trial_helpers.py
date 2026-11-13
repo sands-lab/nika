@@ -72,7 +72,7 @@ def pinned_engine_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     *,
-    release_ref: str = "0.2.0",
+    release_ref: str = "0.3.0",
     pinned: bool = False,
 ) -> Iterator[tuple[str, str]]:
     """Copy a release with its pinned engine or one built from committed ``HEAD``.

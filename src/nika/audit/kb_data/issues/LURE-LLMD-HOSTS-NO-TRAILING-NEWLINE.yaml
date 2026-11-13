@@ -3,11 +3,11 @@ title: llmd_lab /etc/hosts lacks a final newline, so worker5 does not resolve by
 class: healthy_lure
 severity: warn
 status: fixed
-fixed_in: c00630bc
+fixed_in: 7edc92aa
 summary: >-
   The shipped llmd_lab */etc/hosts files ended with '200.0.0.6 worker5' and no trailing newline. The busybox
   resolver drops that last entry, so 'ping worker5' fails with "bad address 'worker5'" while the IP works.
-  The symptom overlaps the k8s_coredns_isolated name-resolution symptom. c00630bc fixed the files.
+  The symptom overlaps the k8s_coredns_isolated name-resolution symptom. 7edc92aa fixed the files.
 guideline: >-
   A failed name lookup of worker5 alone, with worker1-4 resolving and 200.0.0.6 reachable, is this baseline
   defect, not a DNS or CoreDNS fault. Name-resolution failures of other hosts, or in k8s_lab, are not

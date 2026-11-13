@@ -172,8 +172,8 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
   | `--constant-metric N` | Metric for the `constant` strategy and fallbacks (default `10`) |
   | `--bgp-mode none\|ibgp_rr\|ebgp` | BGP preset for ISP topology scenarios (default `none`) |
   | `--rpki` / `--no-rpki` | Deprecated for base ISP scenarios. Use the named scenarios `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` |
-  | `--backend kathara\|containerlab` | Lab backend. Required when a scenario supports both; ISP defaults to `kathara` |
-  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux\|sonic` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` and `sonic` on Containerlab; the default follows `--backend`. `min3clos` accepts `nokia_srlinux` (default) and `sonic`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros`. RouterOS supports only size `s` in these three environments. IOS XR supports only size `s` for `dc_clos`, and all sizes for `campus_lan` and `enterprise_branch`. See [SONiC routers](network-scenarios.md#sonic-routers-on-containerlab), [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
+  | `--backend kathara\|containerlab` | Lab backend. Defaults to `kathara` when both are supported |
+  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux\|sonic` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` and `sonic` on Containerlab; the default follows `--backend`. `min3clos` accepts `nokia_srlinux` (default) and `sonic`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros` on Kathara. `dc_clos` also accepts `nokia_srlinux` and `sonic` on Containerlab at every supported size. RouterOS supports only size `s` in these three environments. IOS XR supports only size `s` for `dc_clos`, and all sizes for `campus_lan` and `enterprise_branch`. See [SONiC routers](network-scenarios.md#sonic-routers-on-containerlab), [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---
@@ -289,7 +289,7 @@ Omit the `SCENARIO` positional argument to run a case matrix. Pass **`--release`
 ```shell
 # Frozen release
 nika benchmark releases
-nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+nika benchmark run --release 0.3.0 --split test --result_dir results/my-run
 
 # Ad-hoc YAML or full candidate pool
 nika benchmark run --config benchmark/working/cases.yaml --result_dir results/my-run
@@ -297,7 +297,7 @@ nika benchmark run                              # defaults to benchmark/working/
 nika benchmark run --config benchmark/working/pool --batch-size 4
 ```
 
-**Release preflight**: `nika benchmark run --release …` checks the selected release. `nika benchmark releases` lists every release but checks only the default release (`0.2.0`); pass `--all` to check every release. Preflight checks case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped.
+**Release preflight**: `nika benchmark run --release …` checks the selected release. `nika benchmark releases` lists every release but checks only the default release (`0.3.0`); pass `--all` to check every release. Preflight checks case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Releases `0.1.0` and `0.2.0` are unavailable in this checkout; selecting one reports the commit to check out to run it.
 
 ### Task ids
 
@@ -307,10 +307,10 @@ Use these commands when you need to look up a case or re-run one failed trial wi
 
 ```shell
 nika benchmark list
-nika benchmark list --release 0.2.0 --split test
+nika benchmark list --release 0.3.0 --split test
 nika benchmark describe dc_clos__link_detach__m__h240c6b1dc30f \
-  --release 0.2.0 --split test
-nika benchmark run --release 0.2.0 --split test \
+  --release 0.3.0 --split test
+nika benchmark run --release 0.3.0 --split test \
   --task-id dc_clos__link_detach__m__h240c6b1dc30f__t01 \
   --result_dir results/one-case
 ```

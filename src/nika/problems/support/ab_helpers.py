@@ -28,8 +28,6 @@ AB_BINARY = "cache-warmer"
 # -n requests, so set it high enough for the run to reach its time limit.
 _AB_RUN_SECONDS = 300
 _AB_RUN_REQUESTS = 1_000_000
-_AB_WORKER_LOG = "/var/tmp/http-client-{worker}.log"
-_AB_INSTALL_LOG = "/var/tmp/apt-apache2-utils.log"
 
 
 _RPS_RE = re.compile(
@@ -140,16 +138,12 @@ def ensure_ab(runtime: "LabRuntime", host: str) -> None:
         install = runtime.exec(
             host,
             "export DEBIAN_FRONTEND=noninteractive; "
-            "apt-get update -qq && "
-            f"apt-get install -y -qq apache2-utils >{_AB_INSTALL_LOG} 2>&1; "
+            "apt-get update -qq && apt-get install -y -qq apache2-utils; "
             "command -v ab >/dev/null 2>&1 && echo OK || echo FAIL",
             timeout=180,
         ).strip()
-        if "OK" not in install:
-            log = runtime.exec(
-                host, f"tail -n 40 {_AB_INSTALL_LOG} 2>/dev/null || true", timeout=10
-            )
-            raise RuntimeError(f"apachebench (ab) unavailable on {host}: {log!r}")
+        if not install.endswith("OK"):
+            raise RuntimeError(f"apachebench (ab) unavailable on {host}: {install!r}")
     runtime.exec(
         host,
         f"command -v {AB_BINARY} >/dev/null 2>&1 || "
@@ -183,7 +177,7 @@ def start_ab_workers(
         "nohup bash -c "
         + shlex.quote(inner)
         + f" {AB_WORKER_TAG}{worker} </dev/null "
-        + f">{_AB_WORKER_LOG.format(worker=worker)} 2>&1 &"
+        + ">/dev/null 2>&1 &"
         for worker in range(int(workers))
     ]
     runtime.exec(
@@ -209,7 +203,8 @@ def count_ab_workers(runtime: "LabRuntime", host: str) -> tuple[int, int, str]:
     ).strip()
     ab_output = runtime.exec(
         host,
-        f"ps -eo comm 2>/dev/null | grep -c '^{AB_BINARY}$' || true",
+        "ps -eo stat=,comm= 2>/dev/null | "
+        f"awk '$1 !~ /^Z/ && $2 == \"{AB_BINARY}\" {{n++}} END {{print n+0}}'",
         timeout=10,
     ).strip()
     state = f"workers={worker_output!r} ab={ab_output!r}"
@@ -226,10 +221,10 @@ def stop_ab_workers(runtime: "LabRuntime", host: str) -> None:
     )
 
 
-def ab_worker_log_tail(runtime: "LabRuntime", host: str, lines: int = 30) -> str:
-    """Return the tail of the first worker's log for readiness diagnostics."""
+def ab_worker_diagnostics(runtime: "LabRuntime", host: str, url: str) -> str:
+    """Run a bounded foreground request for worker readiness diagnostics."""
     return runtime.exec(
         host,
-        f"tail -n {int(lines)} {_AB_WORKER_LOG.format(worker=0)} 2>/dev/null || true",
+        f"timeout 5 ab -t 2 -n 1 -c 1 {shlex.quote(url)} 2>&1 || true",
         timeout=10,
     )

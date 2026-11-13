@@ -13,9 +13,9 @@ from typer.testing import CliRunner
 
 from nika.cli.main import app
 from nika.workflows.benchmark.release import (
-    RESOURCES_V1,
+    RELEASE_RESOURCES,
     SCORING,
-    TOOLS_V1,
+    RELEASE_TOOLS,
     freeze_release,
     load_release_from_dir,
     load_run_config,
@@ -72,8 +72,8 @@ def _freeze_mini_release(
         splits=release.splits,
         defaults=defaults,
         scoring=dict(SCORING),
-        tools=dict(TOOLS_V1),
-        resources=dict(RESOURCES_V1),
+        tools=dict(RELEASE_TOOLS),
+        resources=dict(RELEASE_RESOURCES),
         images=release.images,
     )
     return load_release_from_dir(dest, split="dev")

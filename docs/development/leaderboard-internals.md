@@ -63,7 +63,7 @@ Release settings that differ at the recorded producer commit produce `ERROR_BENC
 
 ## Coverage and scoring
 
-- Coverage is exact: `case_count × n_trials` finished slots, with both values from the release. Example for 0.2.0: test 85 × 3 = 255, dev 84 × 3 = 252. Runs limited by `--task-id` or a single trial fail unless the directory already holds every required trial.
+- Coverage is exact: `case_count × n_trials` finished slots, with both values from the release. Example for 0.3.0: test 85 × 3 = 255, dev 84 × 3 = 252. Runs limited by `--task-id` or a single trial fail unless the directory already holds every required trial.
 - Agents submit `(resource_id, fault_type)` pairs; scoring uses set metrics on those pairs. Primary means use the fixed denominator `N = case_count × n_trials`; non-`scored` trials contribute 0. Full rules: [root-cause evaluation](../benchmarks/root-cause-evaluation.md#score-a-submission).
 - `score_status` (in each trial's `run.json`): `scored`, `no_submission` (agent fault, counts as 0, do not rerun), `infra_error` (no submission and missing ground truth or env/LLM API/MCP failure evidence; auto-retried by resume and `--retry-passes`), `grading_error` (submission exists but ground truth or scorer failed; regrade, do not rerun the agent). Any `grading_error` or residual `infra_error` rejects the package with no threshold (`ERROR_GRADING_ERROR`, `ERROR_INFRA_ERROR`).
 

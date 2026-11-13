@@ -1,14 +1,14 @@
 # Scenario startup performance
 
-Resource and time cost of the environments and tasks in benchmark release 0.2.0 (test and dev splits), measured without an agent, and of SONiC Containerlab variants measured the same way. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](https://github.com/sands-lab/nika/blob/experiment/experiment/profile/README.md). NIKA budgets 256 MiB per SONiC router and 1.5 GiB per SR Linux router when it sizes Firecracker VMs and the Containerlab ISP set; the tables below are measured lab-container memory, not that budget.
+Resource and time cost of the environments and tasks in the profiled benchmark baseline (test and dev splits), measured without an agent, and of SONiC Containerlab variants measured the same way. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](https://github.com/sands-lab/nika/blob/experiment/experiment/profile/README.md). NIKA budgets 256 MiB per SONiC router and 1.5 GiB per SR Linux router when it sizes Firecracker VMs and the Containerlab ISP set; the tables below are measured lab-container memory, not that budget.
 
-To run the research commands below, use a separate checkout of the shared `experiment` branch.
+The benchmark baseline measurements used release `0.2.0` tasks at commit [`ac4422d8`](https://github.com/sands-lab/nika/commit/ac4422d8a4a03be2b905e28edf72993d467e1b81). Run the research commands below from a separate checkout of the shared `experiment` branch. Current tasks can produce different measurements.
 
 The page has four measurements:
 
-- **Single-lab baseline:** every environment variant the release deploys, one environment at a time, 3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime verification), a 10 s hold, and cleanup.
-- **Concurrency sweep:** every release task, with its failure injected and verified as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
-- **SONiC Containerlab:** `min3clos` and the ISP topologies the 0.2.0 baseline runs on SR Linux (`isp_dfn-bwin`, `isp_dfn-gwin`, `isp_di-yuan`, `isp_pdh`), one environment at a time, 3 runs each, with `--device-profile sonic`. Same startup path, 10 s hold, and cleanup as the single-lab baseline.
+- **Single-lab baseline:** every environment variant in that baseline, one environment at a time, 3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime verification), a 10 s hold, and cleanup.
+- **Concurrency sweep:** every task in that baseline, with its failure injected and verified as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
+- **SONiC Containerlab:** `min3clos` and the ISP topologies the baseline runs on SR Linux (`isp_dfn-bwin`, `isp_dfn-gwin`, `isp_di-yuan`, `isp_pdh`), one environment at a time, 3 runs each, with `--device-profile sonic`. Same startup path, 10 s hold, and cleanup as the single-lab baseline.
 - **SONiC scale:** the largest SNDlib ISPs on Containerlab SONiC, one environment at a time, with host-side wires and a full `verify_lab()` after startup.
 
 ## Run
@@ -17,7 +17,7 @@ The page has four measurements:
 | --- | --- |
 | Dates | 2026-10-01 20:41 UTC to 2026-10-03 11:39 UTC |
 | Host | 32 vCPU (AMD EPYC 9754, 1 thread per core), 125 GiB RAM, no swap, Linux 5.15.0-191, cgroup v2, Docker 28.0.1, Containerlab 0.79.0 |
-| Cases | Release 0.2.0, test and dev splits: 169 cases, 49 distinct lab variants (scenario, backend, size, `topo`, `igp`, `bgp_mode`, `rpki`, `device_profile`) |
+| Cases | Profiled test and dev splits: 169 cases, 49 distinct lab variants (scenario, backend, size, `topo`, `igp`, `bgp_mode`, `rpki`, `device_profile`) |
 | Run config | `config/nika.yaml`: `runtime_validation.depth: light`, `static_validation.enabled: false`, `heavy_batch_size: 1` |
 | Sampling | 1 s interval, lab container cgroups and the NIKA worker process tree |
 | Other load | No other NIKA lab ran. An unrelated libvirt VM ran from 2026-10-02 10:21 to 11:43 UTC and overlapped 37 of the 84 runs in the ISP part of the baseline (see [Sampling quality](#sampling-quality)) |
@@ -32,7 +32,7 @@ import yaml
 rows = []
 for split in ("test", "dev"):
     rows += yaml.safe_load(open(f"benchmark/releases/0.2.0/{split}.yaml"))["cases"]
-yaml.safe_dump({"seed": 42, "cases": rows}, open("cases-release-0.2.0-all.yaml", "w"), sort_keys=False)
+yaml.safe_dump({"seed": 42, "cases": rows}, open("cases-all.yaml", "w"), sort_keys=False)
 EOF
 ```
 
@@ -40,7 +40,7 @@ Single-lab baseline, `batch_size` 1, 3 runs per lab variant:
 
 ```bash
 uv run python experiment/profile/profile_scenarios.py --run-config config/nika.yaml \
-  --config cases-release-0.2.0-all.yaml --batch-size 1 --repeats 3 --hold-seconds 10 \
+  --config cases-all.yaml --batch-size 1 --repeats 3 --hold-seconds 10 \
   --output results/profile-20261001/scenarios-c1
 ```
 
@@ -56,7 +56,7 @@ Concurrency sweep, run once per `batch_size`, one after another:
 ```bash
 for c in 8 16 24; do
   uv run python experiment/profile/profile_scenarios.py --run-config config/nika.yaml \
-    --config cases-release-0.2.0-all.yaml --inject --batch-size $c --repeats 1 \
+    --config cases-all.yaml --inject --batch-size $c --repeats 1 \
     --hold-seconds 5 --output results/profile-20261001/cases-c$c
 done
 ```
@@ -199,7 +199,7 @@ the light phase.
 
 - Use `batch_size` 8. Values above 8 add per-case latency and Docker daemon load
   without improving throughput. Values below 8 were not measured.
-- Keep `heavy_batch_size` 1. Expect a full 0.2.0 release (169 cases, both splits) to
+- Keep `heavy_batch_size` 1. Expect the profiled task set (169 cases, both splits) to
   take about 4.5 h of lab time before agent time, about 4.1 h of it in the heavy
   cases. Adding CPU cores or raising `batch_size` does not shorten that part; this
   run did not measure running heavy cases in parallel.
@@ -211,7 +211,7 @@ the light phase.
 
 ## SONiC Containerlab
 
-SONiC-VS on Containerlab is not in release 0.2.0. This measurement uses the same profiler, hold, and validation settings as the [single-lab baseline](#single-lab-baseline), for `min3clos --device-profile sonic` and the ISP topologies that baseline runs on SR Linux, with `--backend containerlab --device-profile sonic` and the same IGP/BGP variants.
+SONiC-VS on Containerlab is outside the profiled benchmark baseline. This measurement uses the same profiler, hold, and validation settings as the [single-lab baseline](#single-lab-baseline), for `min3clos --device-profile sonic` and the ISP topologies that baseline runs on SR Linux, with `--backend containerlab --device-profile sonic` and the same IGP/BGP variants.
 
 ### Run
 
@@ -269,7 +269,7 @@ Every one of the 9 variants passed 3 of 3 runs. Columns match the [single-lab ba
 | isp_pdh | containerlab | s | isis/none, SONiC | 3/3 | 22 | 62 (57-64) | 36 (36-36) | 4 (4-5) | 112 (108-115) | 1.45 (1.41-1.45) | 1.35 | 639 | 193 |
 | isp_pdh | containerlab | s | ospf/ebgp, SONiC | 3/3 | 22 | 73 (62-77) | 55 (53-56) | 5 (3-6) | 143 (134-144) | 1.52 (1.51-1.55) | 1.43 | 577 | 160 |
 
-The SONiC rows were measured on this host and the SR Linux rows of the 0.2.0 baseline on a host with twice the vCPUs and RAM, so the comparison is between observations, not a controlled measurement. SONiC environments used about a tenth of the memory of the matching SR Linux environments (0.44 GiB vs 4.23 GiB for `min3clos`, 1.42-1.59 GiB vs 14.2-15.7 GiB for the ISP variants). The SONiC ISP variants deployed in about a third of the time (62-73 s vs 181-202 s). SONiC `min3clos` deployed in 56 s against 65 s but spent longer in convergence (38 s vs 4 s), so its total time was 105 s against 81 s.
+The SONiC rows were measured on this host and the SR Linux rows of the baseline on a host with twice the vCPUs and RAM, so the comparison is between observations, not a controlled measurement. SONiC environments used about a tenth of the memory of the matching SR Linux environments (0.44 GiB vs 4.23 GiB for `min3clos`, 1.42-1.59 GiB vs 14.2-15.7 GiB for the ISP variants). The SONiC ISP variants deployed in about a third of the time (62-73 s vs 181-202 s). SONiC `min3clos` deployed in 56 s against 65 s but spent longer in convergence (38 s vs 4 s), so its total time was 105 s against 81 s.
 
 ## SONiC scale
 

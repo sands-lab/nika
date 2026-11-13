@@ -25,3 +25,8 @@ guideline: 'Boot and routine change windows log ''says hello'' on every router, 
   logs the disconnect as its mechanism. Count a hit only when the fault is not a daemon failure and same-role
   peers do not log the same line. Adjudication 2026-10-25: most hits were boot lines or the fault mechanism;
   the ''says hello'' pattern was dropped.'
+evidence:
+- >-
+  2026-11-11 recheck: the remaining restart lines come from service-down faults and the
+  southbound port change, where the restart is the fault mechanism. bgp_asn_misconfig reloads
+  through vtysh without a daemon restart.

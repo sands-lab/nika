@@ -19,7 +19,8 @@ from typing import Any
 
 from nika.net_env.verify import exec_or_empty, ping_stats
 from nika.problems.base import build_verify_result
-from nika.problems.support.router_ops import router_fault_ops
+from nika.problems.support.oracle import srl_cli
+from nika.problems.support.router_ops import router_fault_ops, profile_routes_with_frr
 from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.runtime.base import LabRuntime
 from nika.validation.symptom.addressing_probes import _HOST_PREFIXES
@@ -201,8 +202,10 @@ def bgp_neighbors(runtime: LabRuntime, router: str) -> dict[str, dict] | None:
     return peers
 
 
-def _ospf_neighbors(runtime: LabRuntime, router: str) -> list[dict] | None:
-    if runtime.backend == "containerlab":
+def _ospf_neighbors(
+    runtime: LabRuntime, router: str, *, profile: str | None = None
+) -> list[dict] | None:
+    if profile == "nokia_srlinux":
         return runtime.lab_api.srl_ospf_neighbors(router)
     data = _load_json(
         exec_or_empty(
@@ -255,7 +258,7 @@ def _isis_identity_ids(problem: Any, host: str) -> set[str]:
 def _isis_neighbors(
     runtime: LabRuntime, router: str, *, profile: str | None = None
 ) -> list[dict] | None:
-    if runtime.backend == "containerlab" and profile is None:
+    if profile == "nokia_srlinux":
         return runtime.lab_api.srl_isis_neighbors(router)
     if profile == "iosxr":
         from nika.net_env.isp.iosxr import parse_iosxr_isis_adjacencies
@@ -333,8 +336,14 @@ def _read_view(
                 }
                 for n in ops.ospf_neighbors()
             ]
-            if ops is not None
-            else _ospf_neighbors(runtime, router)
+            if ops is not None and not profile_routes_with_frr(ops.profile)
+            else _ospf_neighbors(
+                runtime,
+                router,
+                profile="nokia_srlinux"
+                if srl_cli(problem.net_env, router)
+                else _native_profile(problem, router),
+            )
         )
         if rows is None:
             errors.append(f"ospf query failed on {router}")
@@ -345,7 +354,11 @@ def _read_view(
     host_ids = set(plan.get("host_ids") or (host,))
     for router in plan.get("isis", []):
         rows = _isis_neighbors(
-            runtime, router, profile=_native_profile(problem, router)
+            runtime,
+            router,
+            profile="nokia_srlinux"
+            if srl_cli(problem.net_env, router)
+            else _native_profile(problem, router),
         )
         if rows is None:
             errors.append(f"isis query failed on {router}")
@@ -357,7 +370,7 @@ def _read_view(
         ops = (
             router_fault_ops(problem, router) if not router.startswith("pod:") else None
         )
-        if ops is not None:
+        if ops is not None and not profile_routes_with_frr(ops.profile):
             established = ops.bgp_established_peers() & addrs
             for peer in established:
                 states[f"bgp|{router}|{peer}"] = "Established"
@@ -828,7 +841,13 @@ def _ospf_intf_neighbor_full(problem: Any, host: str, intf: str) -> bool | None:
         if not ops.supports("ospf_interface_neighbor_full"):
             return None
         return ops.ospf_interface_neighbor_full(intf)
-    rows = _ospf_neighbors(problem.runtime, host)
+    rows = _ospf_neighbors(
+        problem.runtime,
+        host,
+        profile="nokia_srlinux"
+        if srl_cli(problem.net_env, host)
+        else _native_profile(problem, host),
+    )
     if rows is None:
         return None
     return any(

@@ -9,7 +9,6 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field
 
-from nika.config import pkg_path
 from nika.net_env.verify import (
     http_download_stats,
     median_float,
@@ -23,6 +22,8 @@ from nika.problems.base import (
 )
 from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import endpoint_target, first
+from nika.problems.support.recovery import FileSnapshot
+from nika.service.lab.checked_exec import checked_exec
 from nika.problems.support.oracle import (
     Check,
     OraclePlaybook,
@@ -39,46 +40,27 @@ from nika.problems.support.cpu_quota_helpers import (
 from nika.traffic.workload import BULK_DOWNLOAD
 from nika.utils.logger import system_logger
 
-# The competing workload is the local archive batch campus_lan hosts already
-# carry (gzip workers over a snapshot corpus), so the agent has to find and
-# attribute a busy maintenance job rather than read a stress tool from ``ps``.
+# The environment stages an idle archive batch on every endpoint. Injection
+# starts its gzip workers over the local snapshot corpus.
 _ARCHIVE_JOB = "/usr/local/bin/archive-job.py"
 _ARCHIVE_CONFIG = "/etc/archive-job.json"
-_ARCHIVE_DATA = "/dev/shm/archive-job"
 _ARCHIVE_LOG = "/var/log/archive-job.log"
 _ARCHIVE_MAX_WORKERS = 16
 
 
 def _stage_archive_job(runtime: Any, host: str, workers: int) -> dict[str, Any]:
-    """Install the archive batch on ``host`` (if absent) sized to ``workers``.
-
-    Returns what recovery needs to put the node back: the files this call
-    created and the previous worker configuration.
-    """
-    present = runtime.exec(
-        host, f"ls {_ARCHIVE_JOB} {_ARCHIVE_CONFIG} 2>/dev/null; true", timeout=15
-    )
-    created: list[str] = []
-    if _ARCHIVE_JOB not in present:
-        source = pkg_path("net_env/utils/kathara/archive_job.py").read_text()
-        runtime.write_file(host, _ARCHIVE_JOB, source)
-        created.append(_ARCHIVE_JOB)
-    config = None
-    if _ARCHIVE_CONFIG in present:
-        config = runtime.exec(host, f"cat {_ARCHIVE_CONFIG}", timeout=15)
-    else:
-        created.append(_ARCHIVE_CONFIG)
+    """Set the worker count of the environment's idle archive batch."""
+    config = FileSnapshot.capture(runtime, host, _ARCHIVE_CONFIG).content
+    if config is None:
+        raise RuntimeError(
+            f"Archive configuration {_ARCHIVE_CONFIG} is absent on {host}"
+        )
     runtime.write_file(
         host,
         _ARCHIVE_CONFIG,
         json.dumps({"workers": max(1, min(_ARCHIVE_MAX_WORKERS, workers))}) + "\n",
     )
-    runtime.exec(
-        host,
-        f"test -s {_ARCHIVE_DATA}/input.dat || python3 {_ARCHIVE_JOB} prepare",
-        timeout=60,
-    )
-    return {"created": created, "config": config}
+    return {"config": config}
 
 
 def _launch_archive_job(runtime: Any, host: str) -> None:
@@ -108,11 +90,6 @@ def _remove_archive_job(runtime: Any, host: str, staged: dict[str, Any]) -> None
     )
     if staged.get("config") is not None:
         runtime.write_file(host, _ARCHIVE_CONFIG, staged["config"])
-    if staged.get("created"):
-        paths = " ".join(staged["created"])
-        runtime.exec(
-            host, f"rm -rf {paths} {_ARCHIVE_DATA} {_ARCHIVE_LOG} /run/archive-job.pid"
-        )
 
 
 def _gzip_workers(output: str) -> int:
@@ -181,88 +158,12 @@ def _download_probe(client: str, url: str, purpose: str) -> OracleStep:
     )
 
 
-_DOCROOT = "/var/www"
-_SMALL_OBJECT = f"{_DOCROOT}/small.bin"
-_LARGE_OBJECT = f"{_DOCROOT}/large.bin"
-# Neutral operator-style names: agents can list processes and files on the node.
-_CPU_HTTP_SERVER = "/usr/local/bin/static-httpd.py"
-_CPU_HTTP_LOG = "/var/log/static-httpd.log"
-
 # Injected large-object performance vs baseline (either gate may pass).
 # Target: unmistakable multi-x slowdown (order-of-magnitude class symptom).
 _THROUGHPUT_MAX_RATIO = 0.20
 _TIME_MIN_RATIO = 5.0
 _MAX_LOSS_PERCENT = 5.0
 _RECOVER_THROUGHPUT_MIN_RATIO = 0.70
-
-# CPU-sensitive static file server: heavy per-chunk hashing so competing
-# stress-ng under a tight CFS quota produces multi-x HTTP slowdown. The source
-# is written into the node, so it carries no comments naming the fault.
-_CPU_HTTP_SERVER_SRC = f'''#!/usr/bin/env python3
-"""Static file server with per-block integrity hashing."""
-from __future__ import annotations
-
-import hashlib
-import os
-import sys
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-DOCROOT = "{_DOCROOT}"
-ROUNDS_PER_64K_SMALL = 2
-ROUNDS_PER_64K_LARGE = 160
-LARGE_THRESHOLD = 1024 * 1024
-
-
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802
-        rel = self.path.split("?", 1)[0]
-        if rel in ("", "/"):
-            if not os.path.isfile(DOCROOT + "/index.html"):
-                names = sorted(os.listdir(DOCROOT))
-                body = "".join(f'<a href="{{n}}">{{n}}</a>\\n' for n in names).encode()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-                return
-            rel = "/index.html"
-        path = os.path.normpath(DOCROOT + rel)
-        if not path.startswith(DOCROOT) or not os.path.isfile(path):
-            self.send_error(404)
-            return
-        with open(path, "rb") as fh:
-            data = fh.read()
-        rounds = (
-            ROUNDS_PER_64K_LARGE
-            if len(data) >= LARGE_THRESHOLD
-            else ROUNDS_PER_64K_SMALL
-        )
-        self.send_response(200)
-        self.send_header("Content-Type", "application/octet-stream")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        view = memoryview(data)
-        step = 64 * 1024
-        for i in range(0, len(data), step):
-            block = bytes(view[i : i + step])
-            digest = b""
-            for _ in range(rounds):
-                digest = hashlib.sha256(block + digest).digest()
-            try:
-                self.wfile.write(block)
-            except (BrokenPipeError, ConnectionResetError):
-                return
-
-    def log_message(self, fmt: str, *args) -> None:
-        return
-
-
-if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 80
-    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
-'''
-
 
 # ==================================================================
 # Problem: sender resource contention. Ref. Dapper: Data Plane Performance Diagnosis of TCP
@@ -366,7 +267,7 @@ class SenderResourceContention(ProblemBase):
             )
             params["client_host"] = "pc_1_1_1_1" if "pc_1_1_1_1" in host_pool else host0
             params["dst_ip"] = "10.200.0.3"
-            # web_server_0 already runs the scenario web service on :80.
+            # Campus web endpoints serve static files on :8080.
             params["small_url"] = "http://10.200.0.3:8080/small.bin"
             params["large_url"] = "http://10.200.0.3:8080/large.bin"
             params["cpu_quota"] = "0.05"
@@ -470,74 +371,6 @@ class SenderResourceContention(ProblemBase):
             return params
         return params.model_copy(update=updates)
 
-    def _ensure_http_objects(self, params: SenderResourceContentionParams) -> None:
-        """Create objects and run a CPU-sensitive HTTP server on the URL port."""
-        host = params.host_name
-        port = urlsplit(params.large_url).port or 80
-        # Always (re)write probe objects so a pre-existing tiny large.bin cannot
-        # skip hashing (ROUNDS_PER_64K_LARGE only applies above 1 MiB).
-        self.runtime.exec(
-            host,
-            (
-                f"mkdir -p {_DOCROOT} && "
-                f"dd if=/dev/zero of={_SMALL_OBJECT} bs=1024 count=16 "
-                f"status=none 2>/dev/null || true; "
-                f"dd if=/dev/zero of={_LARGE_OBJECT} bs=1M count=16 "
-                f"status=none 2>/dev/null || true"
-            ),
-            timeout=120,
-        )
-        self.runtime.write_file(host, _CPU_HTTP_SERVER, _CPU_HTTP_SERVER_SRC)
-        # Free :80. nika/nginx has no fuser/psmisc; stop nginx by name. Bracket
-        # pkill patterns avoid matching the Kathara/docker exec shell argv.
-        # web_server.service has Restart=always, so it must be stopped via systemd.
-        # Only call systemctl while it runs: under the injected quota it outlives
-        # this exec and its trailing pkill would kill the new server.
-        self.runtime.exec(
-            host,
-            "pgrep -f '[w]eb_server.py' >/dev/null && "
-            "systemctl stop web_server 2>/dev/null; "
-            "nginx -s stop 2>/dev/null || true; "
-            "killall -9 nginx 2>/dev/null || true; "
-            "pkill -x nginx 2>/dev/null || true; "
-            f"pkill -f '[p]ython3 {_CPU_HTTP_SERVER}' 2>/dev/null || true; "
-            "pkill -f '[p]ython3 -m http.server' 2>/dev/null || true; "
-            "sleep 0.3",
-            timeout=15,
-        )
-        start_out = self.runtime.exec(
-            host,
-            (
-                f"nohup python3 {_CPU_HTTP_SERVER} {port} </dev/null "
-                f">{_CPU_HTTP_LOG} 2>&1 & echo START:$!"
-            ),
-            timeout=15,
-        )
-        deadline = time.time() + 90.0
-        probe = ""
-        while time.time() < deadline:
-            time.sleep(0.5)
-            probe = self.runtime.exec(
-                host,
-                "curl -s -o /dev/null -w '%{http_code}' --max-time 8 "
-                f"http://127.0.0.1:{port}/small.bin || true",
-                timeout=45,
-            ).strip()
-            if probe in {"200", "206"}:
-                break
-        if probe not in {"200", "206"}:
-            log = self.runtime.exec(
-                host,
-                f"echo LOG; cat {_CPU_HTTP_LOG} 2>/dev/null || true; "
-                "echo PS; ps aux 2>/dev/null | head -n 30 || true; "
-                f"python3 -m py_compile {_CPU_HTTP_SERVER}; echo COMPILE:$?",
-                timeout=30,
-            )
-            raise RuntimeError(
-                f"CPU-sensitive HTTP server failed to serve on {host}: "
-                f"http_code={probe!r} start_out={start_out!r} diag={log!r}"
-            )
-
     def _median_large_stats(
         self,
         params: SenderResourceContentionParams,
@@ -597,8 +430,6 @@ class SenderResourceContention(ProblemBase):
         return median_float(throughputs), median_float(times), max_time_sec
 
     def inject_fault(self, params: SenderResourceContentionParams):
-        self._ensure_http_objects(params)
-
         ping = ping_stats(
             self.runtime,
             params.client_host,
@@ -630,9 +461,6 @@ class SenderResourceContention(ProblemBase):
         set_nano_cpus(self.runtime, params.host_name, injected)
         self._injected_nano_cpus = injected
 
-        # Restart the CPU-bound server under the new quota.
-        self._ensure_http_objects(params)
-
         _launch_archive_job(self.runtime, params.host_name)
         # Let CFS + the archive workers saturate before verify/symptom samples.
         deadline = time.time() + 30.0
@@ -659,15 +487,22 @@ class SenderResourceContention(ProblemBase):
         """Verify the archive batch and CPU quota are injected (artifact gate)."""
         commands = container_commands(self.runtime, params.host_name)
         stress_running = _archive_job_running(commands)
-        cpu_http_running = any(
-            cmd.startswith("python3") and _CPU_HTTP_SERVER in cmd for cmd in commands
+        port = urlsplit(params.large_url).port or 80
+        listeners = checked_exec(
+            self.runtime.exec,
+            params.host_name,
+            f"ss -Hltn 'sport = :{port}'",
+            timeout=120,
+        )
+        http_running = any(
+            line.split()[:1] == ["LISTEN"] for line in listeners.splitlines()
         )
         current_nano = read_nano_cpus(self.runtime, params.host_name)
         expected_nano = self._injected_nano_cpus or cpu_quota_to_nano_cpus(
             float(params.cpu_quota)
         )
         quota_ok = current_nano == expected_nano
-        verified = bool(stress_running and quota_ok and cpu_http_running)
+        verified = bool(stress_running and quota_ok and http_running)
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -675,7 +510,7 @@ class SenderResourceContention(ProblemBase):
                 "host": params.host_name,
                 "client_host": params.client_host,
                 "workload_running": stress_running,
-                "cpu_http_running": cpu_http_running,
+                "http_running": http_running,
                 "nano_cpus": current_nano,
                 "expected_nano_cpus": expected_nano,
                 "quota_ok": quota_ok,
@@ -786,7 +621,6 @@ class SenderResourceContention(ProblemBase):
 # ==================================================================
 
 _CAMPUS_CATALOG_URL = "https://web0.local/packages/catalog.txt"
-_CAMPUS_CATALOG_PATH = "/tmp/catalog.txt"
 _CAMPUS_CATALOG_BYTES = 64 * 1024 * 1024
 
 
@@ -819,6 +653,9 @@ class ReceiverResourceContentionParams(BaseModel):
 
 
 class ReceiverResourceContention(ProblemBase):
+    # SONiC VS slowed the stream without establishing receive-window pressure.
+    # Keep the current admission contract scoped to its validated backend.
+    supported_backends = ("kathara",)
     failure_domain = FailureDomain.ENDPOINT_APPLICATION
     symptom_probe = "custom"
     symptom_class = "degradation"
@@ -853,7 +690,7 @@ class ReceiverResourceContention(ProblemBase):
         elif ctx.scenario == "campus_lan":
             params["peer_host"] = "web_server_0"
             params["large_url"] = _CAMPUS_CATALOG_URL
-        elif ctx.scenario == "p4_dc_fabric":
+        elif ctx.scenario in {"p4_dc_fabric", "llmd_lab"}:
             params["stress_cpus"] = "16"
         return params
 
@@ -937,28 +774,6 @@ class ReceiverResourceContention(ProblemBase):
         self, params: ReceiverResourceContentionParams
     ) -> str:
         url = self._resolve_large_url(params)
-        if self.scenario_name == "campus_lan":
-            # The scenario owns its repository, certificate trust, and payload.
-            self._large_url = url
-            return url
-        for peer in self._resolve_peer_hosts(params):
-            self.runtime.exec(
-                peer,
-                (
-                    "mkdir -p /var/www/html /usr/share/nginx/html /tmp "
-                    "2>/dev/null || true; "
-                    "for d in /var/www /var/www/html /usr/share/nginx/html /tmp; do "
-                    "  dd if=/dev/zero of=$d/large.bin bs=1M count=16 status=none "
-                    "  2>/dev/null || true; "
-                    "done; "
-                    "curl -s -o /dev/null -w '%{http_code}' --max-time 3 "
-                    "http://127.0.0.1/large.bin 2>/dev/null | grep -qE '200|206' "
-                    "|| (pkill -f '[p]ython3 -m http.server 80' 2>/dev/null || true; "
-                    " cd /var/www && nohup python3 -m http.server 80 </dev/null "
-                    " >/dev/null 2>&1 & sleep 0.5)"
-                ),
-                timeout=60,
-            )
         self._large_url = url
         return url
 
@@ -977,30 +792,41 @@ class ReceiverResourceContention(ProblemBase):
         campus = self.scenario_name == "campus_lan"
         host = host or params.host_name
         for _ in range(trials):
-            stats = http_download_stats(
-                self.runtime,
-                host,
-                url,
-                max_time_sec=max_time_sec,
-                output_path=_CAMPUS_CATALOG_PATH if campus else "/dev/null",
-                compressed=campus,
+            output_path = (
+                self.runtime.exec(host, "mktemp /run/catalog.XXXXXX").strip()
+                if campus
+                else "/dev/null"
             )
-            sample = asdict(stats)
-            self._last_downloads.append(sample)
-            if campus:
-                decoded = self.runtime.exec(
-                    host, f"stat -c %s {_CAMPUS_CATALOG_PATH} 2>/dev/null"
-                ).strip()
-                sample["decoded_bytes"] = int(decoded) if decoded.isdigit() else None
-                if (
-                    not stats.ok
-                    or stats.exit_code != 0
-                    or sample["decoded_bytes"] != _CAMPUS_CATALOG_BYTES
-                ):
-                    return None, None
-            if stats.ok and stats.throughput_bps is not None and stats.time_total_s:
-                throughputs.append(stats.throughput_bps)
-                times.append(stats.time_total_s)
+            try:
+                stats = http_download_stats(
+                    self.runtime,
+                    host,
+                    url,
+                    max_time_sec=max_time_sec,
+                    output_path=output_path,
+                    compressed=campus,
+                )
+                sample = asdict(stats)
+                self._last_downloads.append(sample)
+                if campus:
+                    decoded = self.runtime.exec(
+                        host, f"stat -c %s {output_path} 2>/dev/null"
+                    ).strip()
+                    sample["decoded_bytes"] = (
+                        int(decoded) if decoded.isdigit() else None
+                    )
+                    if (
+                        not stats.ok
+                        or stats.exit_code != 0
+                        or sample["decoded_bytes"] != _CAMPUS_CATALOG_BYTES
+                    ):
+                        return None, None
+                if stats.ok and stats.throughput_bps is not None and stats.time_total_s:
+                    throughputs.append(stats.throughput_bps)
+                    times.append(stats.time_total_s)
+            finally:
+                if campus:
+                    self.runtime.exec(host, f"rm -f {output_path}")
         return median_float(throughputs), median_float(times)
 
     def inject_fault(self, params: ReceiverResourceContentionParams):
@@ -1043,8 +869,8 @@ class ReceiverResourceContention(ProblemBase):
 
         # Share one small CPU slice between the archive batch and the download.
         # A multi-core container lets the batch and curl run side by side,
-        # so the transfer never slows down. llmd/k3s rejects NanoCPUs updates;
-        # those nodes keep the workload-only path.
+        # so the transfer never slows down. Runtimes that reject quota updates
+        # keep the workload-only path.
         self._archive = _stage_archive_job(
             self.runtime, params.host_name, params.stress_cpus
         )

@@ -1,4 +1,4 @@
-"""Contract tests for the curated 0.2.0 test-split fixture (no Docker)."""
+"""Contract tests for the curated 0.3.0 test-split fixture (no Docker)."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ pytestmark = pytest.mark.contract
 
 
 @pytest.mark.contract
-def test_curated_rows_are_subset_of_0_2_0_test_split() -> None:
+def test_curated_rows_are_subset_of_release_test_split() -> None:
     curated = load_curated_cases()
     assert len(curated) == 3
     release_cases = yaml.safe_load(RELEASE_TEST_YAML.read_text(encoding="utf-8"))[
@@ -44,7 +44,7 @@ def test_curated_rows_are_subset_of_0_2_0_test_split() -> None:
     release_ids = {case_identity(row) for row in release_cases}
     for row in curated:
         assert case_identity(row) in release_ids, (
-            f"curated row not in 0.2.0 test.yaml: "
+            f"curated row not in 0.3.0 test.yaml: "
             f"{row.get('scenario')} / {row.get('problem')} / {row.get('topo_size')}"
         )
 
