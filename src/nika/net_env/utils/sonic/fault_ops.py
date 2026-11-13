@@ -19,6 +19,8 @@ import shlex
 from nika.net_env.utils.sonic.common import container_iface, sonic_port
 from nika.net_env.verify import frr_bgp_established_peers
 from nika.problems.support.frr import FRR_SAVE_COMMAND
+from nika.problems.support.ospf import router_lsa_origins
+from nika.problems.support.recovery import checked_exec
 from nika.problems.support.router_ops import RouterFaultOps, OspfNeighbor
 
 _FRR_CONF = "/etc/frr/frr.conf"
@@ -141,6 +143,61 @@ class SonicFaultOps(RouterFaultOps):
     def bgp_established_peers(self) -> set[str]:
         return frr_bgp_established_peers(self._vtysh("show bgp summary json"))
 
+    def set_bgp_password(self, peer: str, password: str | None) -> None:
+        line = (
+            f"neighbor {peer} password {password}"
+            if password is not None
+            else f"no neighbor {peer} password"
+        )
+        self._configure(f"router bgp {self.bgp_asn()}", line)
+        self._exec(FRR_SAVE_COMMAND)
+
+    def bgp_password_configured(self, peer: str) -> bool:
+        return bool(
+            re.search(
+                rf"^\s+neighbor {re.escape(peer)} password .+$", self._bgp_block(), re.M
+            )
+        )
+
+    def reset_bgp_session(self, peer: str) -> None:
+        self._vtysh(f"clear bgp {peer}")
+
+    def bgp_received_prefixes(self, peer: str) -> set[str]:
+        data = json.loads(
+            self._vtysh(f"show bgp ipv4 unicast neighbors {peer} routes json")
+        )
+        if not isinstance(data.get("routes"), dict):
+            raise ValueError(f"Unreadable BGP routes on {self.node!r}: {data}")
+        return set(data["routes"])
+
+    def _bgp_peers(self) -> set[str]:
+        return set(
+            re.findall(r"^\s+neighbor (\S+) remote-as ", self._bgp_block(), re.M)
+        )
+
+    def enable_bgp_ttl_security(self) -> None:
+        self._configure(
+            f"router bgp {self.bgp_asn()}",
+            *(
+                f"neighbor {peer} ttl-security hops 1"
+                for peer in sorted(self._bgp_peers())
+            ),
+        )
+        self._exec(FRR_SAVE_COMMAND)
+        self.reset_bgp()
+
+    def bgp_ttl_security_enabled(self) -> bool:
+        peers = self._bgp_peers()
+        secured = set(
+            re.findall(
+                r"^\s+neighbor (\S+) ttl-security hops 1$", self._bgp_block(), re.M
+            )
+        )
+        return bool(peers) and peers <= secured
+
+    def reset_bgp(self) -> None:
+        self._vtysh("clear bgp *")
+
     def remote_bgp_prefixes(self) -> list[str]:
         routes = json.loads(self._vtysh("show ip route bgp json") or "{}")
         return sorted(
@@ -152,11 +209,113 @@ class SonicFaultOps(RouterFaultOps):
     # Routing process
 
     def stop_routing_process(self) -> None:
-        # A crashed routing container takes every FRR daemon with it.
-        for daemon in _ROUTING_DAEMONS:
-            self._exec(f"pkill -9 -x {daemon} || true")
+        # Stop supervision too, so a dead daemon stays down.
+        running = [name for name, up in self.routing_process_status().items() if up]
+        if running:
+            self._exec("supervisorctl stop " + " ".join(running), timeout=90)
+
+    def routing_process_status(self) -> dict[str, bool]:
+        output = self._exec("supervisorctl status")
+        status = {
+            fields[0]: fields[1] == "RUNNING"
+            for line in output.splitlines()
+            if len(fields := line.split()) >= 2 and fields[0] in _ROUTING_DAEMONS
+        }
+        if "zebra" not in status:
+            raise RuntimeError(
+                f"SONiC routing process status unavailable on {self.node}"
+            )
+        return status
+
+    def start_routing_process(self, saved: dict[str, bool]) -> None:
+        current = self.routing_process_status()
+        start = [name for name, up in saved.items() if up and not current.get(name)]
+        if start:
+            # Protocol daemons connect to zebra when they start.
+            start.sort(key=lambda name: (name != "zebra", name))
+            self._exec("supervisorctl start " + " ".join(start), timeout=90)
+            output = checked_exec(self.runtime, self.node, "vtysh -b")
+            if re.search(
+                r"failed to connect|not running|connection refused|%|\[TIMEOUT\]",
+                output,
+                re.I,
+            ):
+                raise RuntimeError(
+                    f"SONiC routing configuration reload failed on {self.node}: {output}"
+                )
 
     # OSPF
+
+    def connected_routes(self) -> set[str]:
+        return set(json.loads(self._vtysh("show ip route connected json")))
+
+    def ospf_router_id(self) -> str | None:
+        return json.loads(self._vtysh("show ip ospf json")).get("routerId")
+
+    def ospf_neighbor_ids(self) -> set[str]:
+        return {neighbor.router_id for neighbor in self.ospf_neighbors()}
+
+    def ospf_router_lsa_ids(self) -> set[str]:
+        origins = router_lsa_origins(self._vtysh("show ip ospf database"))
+        return set().union(*origins.values())
+
+    def set_ospf_router_id(self, router_id: str) -> None:
+        self._configure("router ospf", f"ospf router-id {router_id}")
+        self._vtysh("clear ip ospf process")
+        self._exec(FRR_SAVE_COMMAND)
+
+    def _ospf_interface(self, interface: str) -> dict:
+        port = self._port(interface)
+        data = json.loads(self._vtysh("show ip ospf interface json"))
+        info = data.get("interfaces", {}).get(port)
+        if not info:
+            raise ValueError(f"OSPF does not run on {self.node}:{interface} ({port})")
+        return info
+
+    def ospf_interface_neighbor_full(self, interface: str) -> bool:
+        return any(
+            neighbor.interface == container_iface(self._port(interface))
+            and neighbor.state.lower().startswith("full")
+            for neighbor in self.ospf_neighbors()
+        )
+
+    def ospf_interface_timers(self, interface: str) -> tuple[int, int]:
+        data = self._ospf_interface(interface)
+        hello_ms = int(data["timerMsecs"])
+        if hello_ms <= 0 or hello_ms % 1000:
+            raise ValueError(
+                f"Unsupported OSPF hello interval {hello_ms} ms on "
+                f"{self.node}:{interface}; expected positive whole seconds"
+            )
+        return hello_ms // 1000, int(data["timerDeadSecs"])
+
+    def set_ospf_interface_timers(self, interface: str, hello: int, dead: int) -> None:
+        self._configure(
+            f"interface {self._port(interface)}",
+            f"ip ospf hello-interval {hello}",
+            f"ip ospf dead-interval {dead}",
+        )
+        self._exec(FRR_SAVE_COMMAND)
+
+    def ospf_network_type(self, interface: str) -> str:
+        token = self._ospf_interface(interface)["networkType"]
+        types = {
+            "BROADCAST": "broadcast",
+            "POINTOPOINT": "point-to-point",
+            "POINTOMULTIPOINT": "point-to-multipoint",
+            "NBMA": "non-broadcast",
+        }
+        if token not in types:
+            raise ValueError(
+                f"Unsupported OSPF network type {token!r} on {self.node}:{interface}"
+            )
+        return types[token]
+
+    def set_ospf_network_type(self, interface: str, network_type: str) -> None:
+        self._configure(
+            f"interface {self._port(interface)}", f"ip ospf network {network_type}"
+        )
+        self._exec(FRR_SAVE_COMMAND)
 
     def ospf_interface_areas(self) -> list[str]:
         return re.findall(r"^\s+network \S+ area (\S+)", self._ospf_block(), re.M)
@@ -218,16 +377,14 @@ class SonicFaultOps(RouterFaultOps):
                 return
         raise ValueError(f"No OSPF network covers {self.node}:{interface}")
 
-    def ipv4_addresses(self) -> dict[str, tuple[str, ...]]:
+    def ipv4_addresses(self) -> set[str]:
         data = json.loads(self._exec("ip -j -4 address show"))
         return {
-            container_iface(row["ifname"]): tuple(
-                f"{address['local']}/{address['prefixlen']}"
-                for address in row.get("addr_info", [])
-                if address.get("family") == "inet"
-            )
+            address["local"]
             for row in data
-            if row["ifname"].startswith("Ethernet")
+            if row["ifname"].startswith(("Ethernet", "Loopback"))
+            for address in row.get("addr_info", [])
+            if address.get("family") == "inet"
         }
 
     def ospf_neighbors(self) -> list[OspfNeighbor]:
@@ -336,6 +493,58 @@ class SonicFaultOps(RouterFaultOps):
                     raise RuntimeError(
                         f"SONiC MTU recovery failed on {self.node}:{interface}"
                     )
+
+    # IS-IS
+
+    def _isis_block(self) -> tuple[str, str]:
+        match = re.search(
+            r"^router isis (\S+)\n(.*?)(?=^\S|\Z)", self._running(), re.M | re.S
+        )
+        if match is None:
+            raise ValueError(f"No IS-IS instance on SONiC router {self.node!r}")
+        return match[1], match[2]
+
+    def isis_metric_style(self) -> str:
+        match = re.search(r"^ metric-style (\S+)$", self._isis_block()[1], re.M)
+        return match[1] if match else "wide"
+
+    def set_isis_metric_style(self, style: str) -> None:
+        self._configure(f"router isis {self._isis_block()[0]}", f"metric-style {style}")
+        self._exec(FRR_SAVE_COMMAND)
+
+    def isis_level(self) -> str:
+        match = re.search(r"^ is-type (\S+)$", self._isis_block()[1], re.M)
+        return match[1] if match else "level-1-2"
+
+    def set_isis_level(self, level: str) -> None:
+        self._configure(f"router isis {self._isis_block()[0]}", f"is-type {level}")
+        self._exec(FRR_SAVE_COMMAND)
+
+    def isis_hello_authentication(self) -> dict[str, str]:
+        circuits = {}
+        for interface, block in re.findall(
+            r"^interface (\S+)[^\n]*\n(.*?)(?=^\S|\Z)", self._running(), re.M | re.S
+        ):
+            if not re.search(r"^ ip router isis \S+", block, re.M):
+                continue
+            if re.search(r"^ isis passive\s*$", block, re.M):
+                continue
+            auth = re.search(r"^ isis password (\S+)", block, re.M)
+            circuits[container_iface(interface)] = auth[1] if auth else "none"
+        return circuits
+
+    def set_isis_hello_password(self, password: str | None) -> None:
+        lines = []
+        for interface in self.isis_hello_authentication():
+            lines.extend(
+                [
+                    f"interface {self._port(interface)}",
+                    f"isis password md5 {password}" if password else "no isis password",
+                    "exit",
+                ]
+            )
+        self._configure(*lines)
+        self._exec(FRR_SAVE_COMMAND)
 
     # Packet filters
 

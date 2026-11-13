@@ -15,6 +15,18 @@ failure:
         node: router_core_1
       fault_type: icmp_frag_needed_filter_misconfiguration
   - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: router_core_1
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_1
+      fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: s
     device_profile: routeros
     traffic:
       pattern: uniform

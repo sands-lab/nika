@@ -141,3 +141,72 @@ failure:
         kind: link
         name: n2:eth2--n6:eth3
       fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      burst: 16kb
+      host_name: n2
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.46
+      rate: 512kbit
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: link
+        name: n2:eth2--n6:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      burst: 16kb
+      host_name: n6
+      intf_name: eth0
+      limit: 32kb
+      peer_host: pc_n1
+      probe_dst_ip: 10.254.0.2
+      rate: 512kbit
+      symptom_host: pc_n6
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth0--n6:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      burst: 16kb
+      host_name: n6
+      intf_name: eth3
+      limit: 32kb
+      peer_host: pc_n2
+      probe_dst_ip: 10.254.0.30
+      rate: 512kbit
+      symptom_host: pc_n6
+    root_causes:
+    - resource:
+        kind: link
+        name: n2:eth2--n6:eth3
+      fault_type: link_capacity_bottleneck

@@ -49,7 +49,10 @@ def test_link_and_router_targets_polska() -> None:
         "host_name": device,
         "intf_name": iface,
     }
-    assert isp_inject_params("frr_service_down", inv) == {
+    assert isp_inject_params("frr_service_down", inv) == isp_inject_params(
+        "routing_service_down", inv
+    )
+    assert isp_inject_params("routing_service_down", inv) == {
         "host_name": first_router(inv)
     }
 

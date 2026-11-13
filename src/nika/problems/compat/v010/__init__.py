@@ -36,7 +36,9 @@ from nika.problems.compat.v010.traffic import LinkBandwidthThrottling
 from nika.problems.compat.v010.vpn import VPNMembershipMissing
 from nika.problems.base import ProblemBase
 
-RELEASE_VERSION = "0.1.0"
+from nika.problems.compat import RELEASE_010
+
+RELEASE_VERSION = RELEASE_010
 
 FAILURES: dict[str, type[ProblemBase]] = {
     cls.root_cause_name: cls

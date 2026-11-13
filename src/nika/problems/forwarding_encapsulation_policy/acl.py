@@ -782,6 +782,7 @@ class IcmpAclBlock(_AclRecovery, ProblemBase):
     symptom_class = "unreachable"
     root_cause_name = "icmp_acl_block"
     description = "ICMP is blocked by an ACL."
+    supported_backends = ("kathara", "containerlab")
     TAGS: str = ["icmp"]
 
     Params = IcmpAclBlockParams

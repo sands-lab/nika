@@ -7,6 +7,23 @@ failure:
     igp: ospf
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n9
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: node
+        node: n9
+      fault_type: ospf_hello_interval_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     traffic:

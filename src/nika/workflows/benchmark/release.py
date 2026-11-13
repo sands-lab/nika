@@ -38,6 +38,7 @@ from nika.problems.registry import (
     compatible_columns,
     get_problem_class,
     list_avail_problem_instances,
+    resolve_problem_name,
 )
 from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
@@ -465,7 +466,7 @@ def load_release_from_dir(
     if not cases_path.is_file():
         raise ReleaseError(f"Missing {split} cases file: {cases_path}")
 
-    cases = load_benchmark_yaml(cases_path)
+    cases = load_benchmark_yaml(cases_path, release=version)
     defaults = dict(manifest.get("defaults") or DEFAULTS_V1)
     defaults.pop("case_timeout_sec", None)
     scoring = dict(manifest.get("scoring") or SCORING)
@@ -481,7 +482,7 @@ def load_release_from_dir(
         path = root / str(entry["cases_file"])
         _check_split_hash(dict(meta or {}), path, name=version)
         if path.is_file() and not entry["case_count"]:
-            entry["case_count"] = len(load_benchmark_yaml(path))
+            entry["case_count"] = len(load_benchmark_yaml(path, release=version))
         resolved_splits[name] = entry
 
     declared_count = int(split_meta.get("case_count") or 0)
@@ -682,6 +683,7 @@ def _validate_release_splits(
     *,
     expected_failures: set[str],
     frozen: bool = False,
+    release: str | None = None,
 ) -> None:
     """Check split isolation and failure coverage.
 
@@ -701,9 +703,15 @@ def _validate_release_splits(
         if not is_healthy_case(problem)
     }
     if frozen:
-        if failures - expected_failures:
+        unregistered = {
+            name
+            for name in failures
+            if (cls := get_problem_class(name, release=release)) is None
+            or resolve_problem_name(cls.root_cause_name) not in expected_failures
+        }
+        if unregistered:
             raise ReleaseError(
-                f"Release lists unregistered failures: {sorted(failures - expected_failures)}"
+                f"Release lists unregistered failures: {sorted(unregistered)}"
             )
     elif failures != expected_failures:
         missing = sorted(expected_failures - failures)
@@ -770,7 +778,8 @@ def preflight_release(
             {
                 row["problem"]
                 for row in release.cases
-                if get_problem_class(row["problem"], row["scenario"]) is None
+                if get_problem_class(row["problem"], row["scenario"], release.version)
+                is None
             }
         )
     else:
@@ -786,7 +795,13 @@ def preflight_release(
             )
             if not is_healthy_case(row["problem"])
         }
-        missing_problems = sorted(problems - set(list_avail_problem_instances()))
+        registered = set(list_avail_problem_instances())
+        missing_problems = sorted(
+            name
+            for name in problems
+            if (cls := get_problem_class(name, release=release.version)) is None
+            or resolve_problem_name(cls.root_cause_name) not in registered
+        )
     missing_scenarios = sorted(scenarios - known_scenarios)
     if missing_scenarios:
         raise ReleaseError(f"Missing scenarios: {missing_scenarios}")
@@ -827,7 +842,11 @@ def preflight_release(
             )
         else:
             _validate_release_splits(
-                dev, test, expected_failures=_benchmark_failures(), frozen=True
+                dev,
+                test,
+                expected_failures=_benchmark_failures(),
+                frozen=True,
+                release=release.version,
             )
 
     _verify_mcp_policy(release.cases, release.tools)
@@ -1084,7 +1103,7 @@ def freeze_release(
     cases = materialize_cases(list(raw.get("cases") or []))
     cases_path = dest / "dev.yaml"
     write_cases_yaml(cases_path, seed=raw.get("seed"), cases=cases)
-    loaded = load_benchmark_yaml(cases_path)
+    loaded = load_benchmark_yaml(cases_path, release=version)
 
     scenarios = {row["scenario"] for row in loaded}
     images = {"required": collect_images_for_scenarios(scenarios)}
@@ -1121,8 +1140,8 @@ def freeze_split_release(
     missing = [name for name in required if not (source_dir / name).is_file()]
     if missing:
         raise ReleaseError(f"Release candidate is missing files: {missing}")
-    dev = load_benchmark_yaml(source_dir / "dev.yaml")
-    test = load_benchmark_yaml(source_dir / "test.yaml")
+    dev = load_benchmark_yaml(source_dir / "dev.yaml", release=version)
+    test = load_benchmark_yaml(source_dir / "test.yaml", release=version)
     _validate_release_splits(
         dev,
         test,

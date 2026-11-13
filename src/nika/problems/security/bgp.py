@@ -25,6 +25,8 @@ from nika.problems.support.oracle import (
     all_of,
     contains,
     shell,
+    srl,
+    srl_cli,
     vtysh,
 )
 from nika.problems.support.benchmark_targets import (
@@ -38,6 +40,7 @@ from nika.net_env.utils.kathara.frr_origin import (
 from nika.problems.support.recovery import FileSnapshot, checked_exec
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import native_fault_ops
+from nika.service.containerlab.srl_api import srl_json, srl_bgp_prefix_paths
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -127,6 +130,18 @@ def _other_origin_seen(output: str) -> bool:
     return any(origin not in own for origin, _ in _bgp_paths(output))
 
 
+def _srl_bgp_routes(data):
+    """Iterate route records in an SR Linux JSON subtree."""
+    if isinstance(data, dict):
+        if "prefix" in data or "ipv4-prefix" in data:
+            yield data
+        for value in data.values():
+            yield from _srl_bgp_routes(value)
+    elif isinstance(data, list):
+        for value in data:
+            yield from _srl_bgp_routes(value)
+
+
 def _scenario_targets(net_env) -> list:
     """Hijacks the scenario knows to win over the owner's route, if any."""
     targets = getattr(net_env, "bgp_hijack_targets", None)
@@ -165,9 +180,7 @@ class BGPHijacking(ProblemBase):
         "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
         "configuration, which RouterOS routers do not have.",
     }
-    # Kathara, plus Containerlab platforms whose provider originates the
-    # prefix (SONiC). SR Linux has no implementation.
-    supported_backends = None
+    supported_backends = ("kathara", "containerlab")
     BENCHMARK_TARGET_ROLE = "access_routers"
 
     Params = BGPHijackingParams
@@ -272,6 +285,8 @@ class BGPHijacking(ProblemBase):
                 params.target_network or self._default_target_network(), strict=False
             )
         )
+        if srl_cli(self.net_env, hijacker):
+            return self._srl_playbook(params, prefix)
         owners = self._prefix_owners(prefix, hijacker)
         owner_asns = self._node_asns(owners)
         # Without a known owner, the owner's path on the hijacker shows it.
@@ -371,6 +386,227 @@ class BGPHijacking(ProblemBase):
             steps=steps,
         )
 
+    def _srl_advertised_to(self, host: str, prefix: str) -> list[str]:
+        data = self.runtime.lab_api.srl_read(
+            host,
+            "network-instance default bgp-rib afi-safi ipv4-unicast "
+            "ipv4-unicast rib-in-out rib-out-post",
+        )
+        return sorted(
+            {
+                row["neighbor"]
+                for row in _srl_bgp_routes(data)
+                if row.get("prefix") == prefix
+            }
+        )
+
+    def _srl_observer_paths(self, params, prefix):
+        if not params.symptom_host:
+            return None
+        paths = srl_bgp_prefix_paths(
+            self.runtime.lab_api.srl_exec_cli(
+                params.symptom_host,
+                "info from state network-instance default bgp-rib | as json",
+            ),
+            prefix,
+        )
+        return sorted(
+            (row["aspath"], tuple(row["nexthops"]), row["originator"] or "")
+            for row in paths
+            if row["best"]
+        )
+
+    def _inject_srl(self, params: BGPHijackingParams, prefix: str) -> None:
+        host = params.host_name
+        api = self.runtime.lab_api
+        network = ipaddress.ip_network(prefix, strict=False)
+        self._target_network = str(network)
+        if not self._prefix_owners(str(network), host):
+            raise RuntimeCapabilityError(
+                "SR Linux hijacking needs an existing business prefix owned by another router"
+            )
+        self._srl_exports_before = self._srl_advertised_to(host, str(network))
+        self._srl_observer_before = self._srl_observer_paths(params, str(network))
+        data = api.srl_read(host, "interface lo0", state=False)
+        interfaces = data.get("interface", [])
+        self._srl_lo0_before = data
+        self._srl_had_lo0 = bool(interfaces)
+        used = {
+            row["index"]
+            for interface in interfaces
+            for row in interface.get("subinterface", [])
+        }
+        index = next(i for i in range(1, 4095) if i not in used)
+        self._srl_origin = f"lo0.{index}"
+        self._srl_origin_index = index
+        address = params.probe_dst_ip or str(network.network_address + 1)
+        if ipaddress.ip_address(address) not in network:
+            raise ValueError(f"Probe address {address} is outside {network}")
+        routing_policy = api.srl_read(host, "routing-policy", state=False)
+        self._srl_policy_before = routing_policy
+        policy = routing_policy["routing-policy"]
+        bgp = api.srl_read(host, "network-instance default protocols bgp")[
+            "network-instance"
+        ][0]["protocols"]["bgp"]
+        exports = {
+            name
+            for neighbor in bgp.get("neighbor", [])
+            for family in neighbor.get("afi-safi", [])
+            if family["afi-safi-name"].split(":")[-1] == "ipv4-unicast"
+            for name in family.get("export-policy", [])
+        }
+        # Admit the local origin through the existing export gates, including
+        # a renderer's prefix allow-list before the business-prefix policy.
+        prefix_sets = {
+            statement["match"]["prefix-set"]
+            for rule in policy.get("policy", [])
+            if rule["name"] in exports
+            for statement in rule.get("statement", [])
+            if statement.get("match", {}).get("prefix-set")
+            and not statement["match"].get("protocol")
+            and statement.get("action", {}).get("policy-result")
+            in {"accept", "next-policy", "next-statement"}
+        }
+        self._srl_export_additions = [
+            row["name"]
+            for row in policy.get("prefix-set", [])
+            if row["name"] in prefix_sets
+            and not any(
+                entry["ip-prefix"] == str(network) for entry in row.get("prefix", [])
+            )
+        ]
+        api.srl_configure(
+            host,
+            *(
+                f"/routing-policy prefix-set {name} prefix {network} mask-length-range exact"
+                for name in self._srl_export_additions
+            ),
+            *([] if interfaces else ["/interface lo0 admin-state enable"]),
+            f"/interface lo0 subinterface {index} admin-state enable",
+            f"/interface lo0 subinterface {index} ipv4 admin-state enable",
+            f"/interface lo0 subinterface {index} ipv4 address {address}/{network.prefixlen}",
+            f"/network-instance default interface {self._srl_origin}",
+        )
+        if not wait_until(
+            lambda: self._srl_advertised_to(host, str(network)), 60, interval_s=3
+        ):
+            raise RuntimeError(f"{host} did not advertise hijacked prefix {network}")
+
+    def _srl_playbook(self, params, prefix):
+        host = params.host_name
+        steps = [
+            srl(
+                host,
+                "info from state network-instance default bgp-rib afi-safi "
+                "ipv4-unicast ipv4-unicast rib-in-out rib-out-post | as json",
+                f"Check that {host} exports {prefix} to BGP peers.",
+                Check(
+                    "the unauthorized prefix is advertised to a peer",
+                    lambda output: any(
+                        row.get("prefix") == prefix
+                        for row in _srl_bgp_routes(srl_json(output))
+                    ),
+                ),
+                evidence=True,
+            ),
+        ]
+        # Read the route origin as well as export; an exported transit route
+        # alone does not show unauthorized local origination.
+        steps.append(
+            srl(
+                host,
+                "info from state network-instance default route-table ipv4-unicast | as json",
+                f"Check that {host} locally originates {prefix}.",
+                Check(
+                    "the business prefix is locally connected on the hijacker",
+                    lambda output: any(
+                        row.get("ipv4-prefix") == prefix
+                        and row.get("active")
+                        and row.get("route-type", "").split(":")[-1] == "local"
+                        for row in _srl_bgp_routes(srl_json(output))
+                    ),
+                ),
+                evidence=True,
+            )
+        )
+        if params.symptom_host:
+            observed = {}
+            hijacker_asns = self._node_asns([host])
+            owner_asns = self._node_asns(self._prefix_owners(prefix, host))
+
+            def remember(output):
+                data = srl_json(output)
+                observed["addresses"] = {
+                    str(ipaddress.ip_interface(address["ip-prefix"]).ip)
+                    for interface in data.get("interface", [])
+                    for subinterface in interface.get("subinterface", [])
+                    for address in subinterface.get("ipv4", {}).get("address", [])
+                    if ipaddress.ip_interface(address["ip-prefix"]).ip
+                    not in ipaddress.ip_network(prefix)
+                }
+                return bool(observed["addresses"])
+
+            steps.extend(
+                [
+                    srl(
+                        host,
+                        "info from running interface * | as json",
+                        f"Read {host}'s addresses to identify its BGP next hop.",
+                        Check(
+                            "the hijacker has an address outside the target prefix",
+                            remember,
+                        ),
+                    ),
+                    srl(
+                        params.symptom_host,
+                        "info from state network-instance default bgp-rib | as json",
+                        f"Check that {params.symptom_host} prefers the unauthorized origin.",
+                        Check(
+                            "the observer's best BGP path originates at the hijacker",
+                            lambda output: any(
+                                row["best"]
+                                and (
+                                    row["aspath"].split()[-1:]
+                                    in [[asn] for asn in hijacker_asns - owner_asns]
+                                    if hijacker_asns - owner_asns
+                                    else (
+                                        set(row["nexthops"])
+                                        & observed.get("addresses", set())
+                                        or row["originator"]
+                                        in observed.get("addresses", set())
+                                    )
+                                )
+                                for row in srl_bgp_prefix_paths(output, prefix)
+                            ),
+                        ),
+                        evidence=True,
+                        attempts=6,
+                    ),
+                ]
+            )
+        for owner in self._prefix_owners(prefix, host)[:1]:
+            steps.append(
+                srl(
+                    owner,
+                    "info from state network-instance default route-table ipv4-unicast | as json",
+                    f"Check that {owner} also owns {prefix}.",
+                    Check(
+                        "the same prefix is connected at its legitimate owner",
+                        lambda output: any(
+                            row.get("ipv4-prefix") == prefix
+                            and row.get("active")
+                            and row.get("route-type", "").split(":")[-1] == "local"
+                            for row in _srl_bgp_routes(srl_json(output))
+                        ),
+                    ),
+                    evidence=True,
+                )
+            )
+        return OraclePlaybook(
+            finding=f"{host} originates and exports {prefix}, which belongs to another router.",
+            steps=steps,
+        )
+
     def inject_fault(self, params: BGPHijackingParams):
         target_network = (
             params.target_network
@@ -378,6 +614,9 @@ class BGPHijacking(ProblemBase):
             else self._default_target_network()
         )
         self._target_network = target_network
+        if srl_cli(self.net_env, params.host_name):
+            self._inject_srl(params, target_network)
+            return
         ops = native_fault_ops(self, params.host_name, "originate_bgp_prefix")
         if ops is not None:
             self._native_bgp_config = ops.save_config()
@@ -480,6 +719,39 @@ class BGPHijacking(ProblemBase):
                 fault_type=self.root_cause_name,
                 verified=False,
                 details={"error": "Pre-injection BGP state is unavailable."},
+            )
+        if srl_cli(self.net_env, host):
+            api = self.runtime.lab_api
+            api.srl_configure(
+                host,
+                *(
+                    f"delete /routing-policy prefix-set {name} prefix {target} mask-length-range exact"
+                    for name in self._srl_export_additions
+                ),
+                f"delete /network-instance default interface {self._srl_origin}",
+                (
+                    f"delete /interface lo0 subinterface {self._srl_origin_index}"
+                    if self._srl_had_lo0
+                    else "delete /interface lo0"
+                ),
+            )
+            restored = wait_until(
+                lambda: (
+                    self._srl_advertised_to(host, target) == self._srl_exports_before
+                    and self._srl_observer_paths(params, target)
+                    == self._srl_observer_before
+                ),
+                60,
+                interval_s=3,
+            )
+            return build_verify_result(
+                self.root_cause_name,
+                restored
+                and api.srl_read(host, "interface lo0", state=False)
+                == self._srl_lo0_before
+                and api.srl_read(host, "routing-policy", state=False)
+                == self._srl_policy_before,
+                {"host": host, "target_network": target},
             )
         ops = native_fault_ops(self, host, "originate_bgp_prefix")
         if ops is not None:
@@ -599,6 +871,16 @@ class BGPHijacking(ProblemBase):
             else getattr(self, "_target_network", None)
             or self._default_target_network()
         )
+        if srl_cli(self.net_env, params.host_name):
+            target_network = str(ipaddress.ip_network(target_network, strict=False))
+            advertised = self._srl_advertised_to(params.host_name, target_network)
+            return build_verify_result(
+                self.root_cause_name,
+                bool(advertised)
+                and target_network
+                in self.runtime.lab_api.srl_routes(params.host_name, "local"),
+                {"host": params.host_name, "advertised_to": advertised},
+            )
         ops = native_fault_ops(self, params.host_name, "bgp_advertised_to")
         if ops is not None:
             network = str(ipaddress.ip_network(target_network, strict=False))

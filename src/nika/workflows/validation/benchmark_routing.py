@@ -1227,7 +1227,7 @@ def build_benchmark_isp_experiment(
         )
         name = "benchmark-area-" + target
 
-        config = env.lab.machines[target].fs.readtext("etc/frr/frr.conf")
+        config = nodes[target].frr_conf
         old = (
             "router ospf\n"
             + config.split("router ospf\n", 1)[1].split("\n!", 1)[0]

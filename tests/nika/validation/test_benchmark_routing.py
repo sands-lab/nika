@@ -280,9 +280,13 @@ def test_as_selection_predicates_follow_original_order_before_synthesis():
     )
     from nika.problems.rca.inventory import load_offline_net_env
 
-    profile = benchmark_isp_profiles([ROOT / "benchmark/working/cases.yaml"])[
-        "isp_abilene--ospf--ebgp--kathara"
-    ]
+    profile = benchmark_isp_profiles(
+        [
+            ROOT / "benchmark/working/cases.yaml",
+            ROOT / "benchmark/releases/0.2.0/dev.yaml",
+            ROOT / "benchmark/releases/0.2.0/test.yaml",
+        ]
+    )["isp_abilene--ospf--ebgp--kathara"]
     env = load_offline_net_env(profile["scenario"], **profile["deployment"])
     for order in ((65002, 65003), (65003, 65002)):
         requirement = BgpAsSelectionRequirement(
@@ -307,11 +311,20 @@ def test_as_selection_predicates_follow_original_order_before_synthesis():
 
 @pytest.mark.contract
 def test_benchmark_profiles_preserve_protocol_and_backend_choices():
-    profiles = benchmark_isp_profiles([ROOT / "benchmark/working/cases.yaml"])
+    profiles = benchmark_isp_profiles(
+        [
+            ROOT / "benchmark/working/cases.yaml",
+            ROOT
+            / "benchmark/working/pool/isp_janos-us/ospf_area_misconfiguration.yaml",
+            ROOT / "benchmark/releases/0.2.0/dev.yaml",
+            ROOT / "benchmark/releases/0.2.0/test.yaml",
+        ]
+    )
     native = next(
         profile
         for profile in profiles.values()
         if profile["deployment"]["backend"] == "containerlab"
+        and profile["deployment"]["device_profile"] == "nokia_srlinux"
         and profile["deployment"]["igp"] == "isis"
         and profile["deployment"]["bgp_mode"] == "ibgp_rr"
     )
@@ -617,9 +630,13 @@ def test_benchmark_bgp_preserves_as_boundaries_and_fault_targets(scenario):
     from nika.net_env.isp.igp.plan import active_igp_links
     from nika.net_env.net_env_pool import get_net_env_instance
 
-    profile = benchmark_isp_profiles([ROOT / "benchmark/working/cases.yaml"])[
-        f"{scenario}--ospf--ebgp--kathara"
-    ]
+    profile = benchmark_isp_profiles(
+        [
+            ROOT / "benchmark/working/cases.yaml",
+            ROOT / "benchmark/releases/0.2.0/dev.yaml",
+            ROOT / "benchmark/releases/0.2.0/test.yaml",
+        ]
+    )[f"{scenario}--ospf--ebgp--kathara"]
     spec = build_benchmark_isp_experiment(profile)
     env = load_offline_net_env(
         scenario, **spec.deployment.model_dump(exclude_none=True)

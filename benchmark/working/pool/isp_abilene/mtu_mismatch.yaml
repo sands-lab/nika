@@ -46,6 +46,25 @@ failure:
     bgp_mode: none
     rpki: false
     backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: atlam5
+      intf_name: eth0
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: atlam5
+        name: eth0
+      fault_type: mtu_mismatch
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
     device_profile: routeros
     traffic:
       pattern: gravity

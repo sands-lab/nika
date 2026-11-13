@@ -22,6 +22,7 @@ from nika.service.lab.iosxr_api import (
 # nothing about what it drops.
 _FILTER_ACL = "TRANSIT-FILTER"
 _OSPF_FILTER_ACL = "CONTROL-FILTER"
+_FRAG_FILTER_ACL = "EDGE-FILTER"
 # Loopback holding an originated prefix; Loopback0 is the router ID.
 _ORIGIN_LOOPBACK = "Loopback1"
 _ADDRESSED_INTERFACE = re.compile(
@@ -154,7 +155,7 @@ class IosxrFaultOps(RouterFaultOps):
             )
         self._exec(_replace_command(saved))
 
-    # Routing sessions
+    # Routing processes and sessions
 
     def bgp_established_peers(self) -> set[str]:
         from nika.net_env.vendor_validation import _parse_iosxr_bgp_summary
@@ -745,6 +746,61 @@ class IosxrFaultOps(RouterFaultOps):
         )
 
     # Interfaces
+
+    def interface_mtu(self, interface: str) -> int | None:
+        output = self._show(f"show ipv4 interface {iosxr_interface(interface)}")
+        match = re.search(r"\((\d+) is available to IP\)", output)
+        return int(match[1]) if match else None
+
+    def set_interface_mtu(self, interface: str, mtu: int) -> None:
+        self._apply(
+            f"interface {iosxr_interface(interface)}", f" ipv4 mtu {int(mtu)}", "!"
+        )
+
+    def block_icmp_frag_needed(self) -> None:
+        interfaces = {name for name, _ in self._addressed_interfaces()}
+        if not interfaces:
+            raise ValueError(f"No addressed interfaces on {self.node!r}")
+        config = self.save_config()
+        if f"ipv4 access-list {_FRAG_FILTER_ACL}" in config:
+            raise ValueError(f"ACL {_FRAG_FILTER_ACL} already exists on {self.node!r}")
+        for name, body in re.findall(
+            r"^interface (\S+)\n(.*?)(?=^!|\Z)", config, re.M | re.S
+        ):
+            if name in interfaces and re.search(r"^ ipv4 access-group ", body, re.M):
+                raise ValueError(f"{self.node}:{name} already has an IPv4 ACL")
+        lines = [
+            f"ipv4 access-list {_FRAG_FILTER_ACL}",
+            " 10 deny icmp any any packet-too-big",
+            " 20 permit ipv4 any any",
+            "!",
+        ]
+        for name in sorted(interfaces):
+            lines += [
+                f"interface {name}",
+                f" ipv4 access-group {_FRAG_FILTER_ACL} ingress",
+                f" ipv4 access-group {_FRAG_FILTER_ACL} egress",
+                "!",
+            ]
+        self._apply(*lines)
+
+    def icmp_frag_needed_blocked(self) -> bool:
+        acl = self._show(f"show running-config ipv4 access-list {_FRAG_FILTER_ACL}")
+        if not re.search(r"^ 10 deny icmp any any packet-too-big\s*$", acl, re.M):
+            return False
+        config = self._show("show running-config interface")
+        applied = {
+            name
+            for name, body in re.findall(
+                r"^interface (\S+)\n(.*?)(?=^!|\Z)", config, re.M | re.S
+            )
+            if all(
+                f" ipv4 access-group {_FRAG_FILTER_ACL} {direction}" in body
+                for direction in ("ingress", "egress")
+            )
+        }
+        interfaces = {name for name, _ in self._addressed_interfaces()}
+        return bool(interfaces) and interfaces <= applied
 
     def interface_up(self, interface: str) -> bool:
         output = self._show(f"show interfaces {iosxr_interface(interface)} brief")

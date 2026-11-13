@@ -27,8 +27,10 @@ from nika.problems.support.oracle import (
     addr_step,
     is_ip_node,
     toward,
+    iosxr,
+    router_cli,
 )
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -70,6 +72,11 @@ def _below_default(output: str) -> bool:
     return match is not None and int(match.group(1)) < 1500
 
 
+def _ip_mtu(output: str) -> int | None:
+    match = re.search(r"\((\d+) is available to IP\)", output) or _MTU_RE.search(output)
+    return int(match[1]) if match else None
+
+
 class MtuMismatchParams(BaseModel):
     """Parameters for injecting a path-MTU / MTU-mismatch fault."""
 
@@ -91,7 +98,9 @@ class MtuMismatch(ProblemBase):
     root_cause_owner = "interface"
     description = "Interface MTU is misconfigured and mismatches its link peer."
     TAGS: list[str] = ["link", "icmp"]
-    native_router_operations = frozenset({"interface_mtu", "set_interface_mtu"})
+    native_router_operations = frozenset(
+        {"interface_mtu", "set_interface_mtu", "save_config", "restore_config"}
+    )
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS
     COMPATIBLE_PLATFORMS = LINUX_PMTU_PLATFORMS
 
@@ -137,6 +146,11 @@ class MtuMismatch(ProblemBase):
             self._original_mtus = original
         ops = native_fault_ops(self, host, "set_interface_mtu")
         if ops is not None:
+            if ops.profile == "iosxr":
+                saved = getattr(self, "_native_mtu_configs", {})
+                if host not in saved:
+                    saved[host] = (ops, ops.save_config())
+                    self._native_mtu_configs = saved
             ops.set_interface_mtu(intf, mtu)
             return
         self.runtime.exec(host, f"ip link set dev {intf} mtu {int(mtu)}")
@@ -151,8 +165,12 @@ class MtuMismatch(ProblemBase):
 
     def recover_fault(self, params: MtuMismatchParams) -> dict:
         original = getattr(self, "_original_mtus", {})
+        saved = getattr(self, "_native_mtu_configs", {})
+        for ops, config in saved.values():
+            ops.restore_config(config)
         for (host, intf), mtu in original.items():
-            self._set_mtu(host, intf, mtu)
+            if host not in saved:
+                self._set_mtu(host, intf, mtu)
         observed = {
             f"{host}:{intf}": self._read_mtu(host, intf) for host, intf in original
         }
@@ -165,6 +183,44 @@ class MtuMismatch(ProblemBase):
 
     def oracle_playbook(self, params: MtuMismatchParams) -> OraclePlaybook:
         host, intf = params.host_name, params.intf_name
+        if native_router_profile(self.net_env, host) == "iosxr":
+            from nika.net_env.utils.iosxr.common import iosxr_interface
+
+            steps = [
+                iosxr(
+                    host,
+                    f"show ipv4 interface {iosxr_interface(intf)}",
+                    f"Read the IPv4 MTU of {host}:{intf}.",
+                    Check(
+                        "the interface has a reduced IPv4 MTU",
+                        lambda out: _ip_mtu(out) == params.mtu and params.mtu < 1500,
+                    ),
+                    evidence=True,
+                )
+            ]
+            peer = _segment_neighbor(self.net_env, host, intf)
+            if peer is not None:
+                far, far_intf = peer
+                steps.append(
+                    router_cli(
+                        self.net_env,
+                        far,
+                        f"Compare the MTU of {far}:{far_intf} with {host}:{intf}.",
+                        Check(
+                            "the peer has a different IPv4 MTU",
+                            lambda out: (
+                                _ip_mtu(out) is not None and _ip_mtu(out) != params.mtu
+                            ),
+                        ),
+                        frr=f"ip -o link show dev {far_intf}",
+                        iosxr_command=f"show ipv4 interface {iosxr_interface(far_intf)}",
+                        evidence=True,
+                    )
+                )
+            return OraclePlaybook(
+                finding=f"{host}:{intf} has a reduced IPv4 MTU that differs from its peer.",
+                steps=steps,
+            )
         steps = [
             shell(
                 host,

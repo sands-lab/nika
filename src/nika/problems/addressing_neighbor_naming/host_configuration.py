@@ -838,6 +838,44 @@ class HostIncorrectGateway(ProblemBase):
 # ==========================================
 
 
+def widened_prefix_neighbors(
+    net_env, host: str, prefix_length: int
+) -> list[str] | None:
+    """Nodes outside ``host``'s subnet whose startup address lies in its widened prefix.
+
+    Returns ``None`` when the host's address is not known offline.
+    """
+    lab = getattr(net_env, "lab", None)
+    machines = getattr(lab, "machines", None)
+    if not machines:
+        return None
+    sources = dict(getattr(net_env, "native_sources", {}) or {})
+    addresses: dict[str, list] = {}
+    for name in machines:
+        path = f"{name}.startup"
+        if name in sources:
+            text = sources[name][1]
+        elif lab.fs.exists(path):
+            text = lab.fs.readtext(path)
+        else:
+            text = ""
+        addresses[name] = [
+            ipaddress.ip_interface(value)
+            for value in re.findall(r"ip (?:addr|address) add (\S+/\d+)", text)
+        ]
+    if not addresses.get(host):
+        return None
+    real = addresses[host][0]
+    wide = ipaddress.ip_interface(f"{real.ip}/{prefix_length}").network
+    return sorted(
+        name
+        for name, values in addresses.items()
+        if name != host
+        and not any(value.ip in real.network for value in values)
+        and any(value.ip in wide for value in values)
+    )
+
+
 class HostIncorrectNetmaskParams(BaseModel):
     """Parameters for injecting an incorrect params.host_name netmask fault."""
 
@@ -853,7 +891,6 @@ class HostIncorrectNetmask(ProblemBase):
     root_cause_owner = "interface"
     description = "Host netmask/prefix length is incorrect."
     TAGS: str = ["pc", "frr"]
-
     Params = HostIncorrectNetmaskParams
 
     @classmethod
@@ -861,6 +898,18 @@ class HostIncorrectNetmask(ProblemBase):
         params = endpoint_target(ctx)
         params["netmask_prefix"] = "8"
         return params
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        host = inject.get("host_name")
+        neighbors = widened_prefix_neighbors(
+            ctx.net_env, host, int(inject.get("netmask_prefix") or 8)
+        )
+        if neighbors == []:
+            raise ValueError(
+                f"{cls.root_cause_name} on {host}: no lab address outside its "
+                "subnet lies in the widened prefix, so the mask misdirects no traffic"
+            )
 
     symptom_desc = "Some hosts seem to be unreachable in the network."
 

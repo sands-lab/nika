@@ -44,7 +44,6 @@ UNSUPPORTED = "unsupported"
 
 # ISP base scenarios share one capability surface; validate the family once.
 ISP_ENVIRONMENT = "isp"
-_PREFERRED_ISP = "isp_abilene"
 
 
 def cell_environment(scenario: str) -> str:
@@ -94,9 +93,11 @@ def declared_cells(pool: Path | None = None) -> list[Cell]:
 
     Prefers a case whose target is a router of that platform, so the cell
     exercises the vendor's fault operations rather than only the FRR/Linux
-    nodes around it.
+    nodes around it. Among those cases, choose the smallest deployable graph
+    in the pool, then break ties by scenario and candidate ID.
     """
     from nika.problems.support.router_ops import router_platform_has_provider
+    from nika.workflows.benchmark.e2e_validation import isp_containerlab_node_count
     from nika.workflows.benchmark.generate import default_pool_dir
     from nika.workflows.benchmark.healthy import is_healthy_case
     from nika.workflows.benchmark.load_config import load_benchmark_input
@@ -118,7 +119,12 @@ def declared_cells(pool: Path | None = None) -> list[Cell]:
     for (environment, profile, failure), rows in sorted(groups.items()):
         ranked = sorted(
             rows,
-            key=lambda r: (r["scenario"] != _PREFERRED_ISP, r["candidate_option_id"]),
+            key=lambda r: (
+                isp_containerlab_node_count(r["scenario"]) or 0,
+                {"": 0, "s": 1, "m": 2, "l": 3}[r.get("topo_size", "")],
+                r["scenario"],
+                r["candidate_option_id"],
+            ),
         )
         chosen = next((r for r in ranked if _native_target(r, env_cache)), None)
         cells.append(

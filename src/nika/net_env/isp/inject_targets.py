@@ -26,7 +26,7 @@ LINK_HOST_ONLY_PROBLEMS = frozenset(
         "link_capacity_bottleneck",
         "link_packet_corruption",
         "icmp_acl_block",
-        "frr_service_down",
+        "routing_service_down",
         "ospf_area_misconfiguration",
         "ospf_neighbor_missing",
         "ospf_acl_block",
@@ -381,6 +381,9 @@ def isp_inject_params(
     bgp_inventory: Mapping[str, Any] | None = None,
 ) -> dict[str, str]:
     """Build ``--set``-style inject overrides for an ISP-compatible problem."""
+    from nika.problems.registry import resolve_problem_name
+
+    problem = resolve_problem_name(problem)
     if problem in LINK_INTF_PROBLEMS or problem in LINK_BACKBONE_PROBLEMS:
         device, iface = first_link_endpoint(isp_inventory)
         return {"host_name": device, "intf_name": iface}

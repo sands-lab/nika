@@ -181,11 +181,11 @@ class ScoringTest:
         truth = _gt(
             RootCause(resource=node_resource("a"), fault_type=max_prefix),
             RootCause(resource=node_resource("b"), fault_type=max_prefix),
-            RootCause(resource=node_resource("b"), fault_type="frr_service_down"),
+            RootCause(resource=node_resource("b"), fault_type="routing_service_down"),
         )
         submitted = _sub(
             RootCause(resource=node_resource("a"), fault_type=max_prefix),
-            RootCause(resource=node_resource("b"), fault_type="frr_service_down"),
+            RootCause(resource=node_resource("b"), fault_type="routing_service_down"),
         )
         scores = score_rca_v2(submitted, truth)
         assert scores["rca_f1"] == scores["localization_f1"] == 1.0

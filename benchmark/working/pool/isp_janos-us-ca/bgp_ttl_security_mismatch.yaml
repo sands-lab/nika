@@ -7,6 +7,230 @@ failure:
     igp: ospf
     bgp_mode: ebgp
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: chicago
+    root_causes:
+    - resource:
+        kind: node
+        node: chicago
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: cincinnati
+    root_causes:
+    - resource:
+        kind: node
+        node: cincinnati
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: cleveland
+    root_causes:
+    - resource:
+        kind: node
+        node: cleveland
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: dallas
+    root_causes:
+    - resource:
+        kind: node
+        node: dallas
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: denver
+    root_causes:
+    - resource:
+        kind: node
+        node: denver
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: detroit
+    root_causes:
+    - resource:
+        kind: node
+        node: detroit
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: elpaso
+    root_causes:
+    - resource:
+        kind: node
+        node: elpaso
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: kansascity
+    root_causes:
+    - resource:
+        kind: node
+        node: kansascity
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: minneapolis
+    root_causes:
+    - resource:
+        kind: node
+        node: minneapolis
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: newyork
+    root_causes:
+    - resource:
+        kind: node
+        node: newyork
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: philadelphia
+    root_causes:
+    - resource:
+        kind: node
+        node: philadelphia
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: phoenix
+    root_causes:
+    - resource:
+        kind: node
+        node: phoenix
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pittsburgh
+    root_causes:
+    - resource:
+        kind: node
+        node: pittsburgh
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: winnipeg
+    root_causes:
+    - resource:
+        kind: node
+        node: winnipeg
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
     backend: kathara
     device_profile: frr
     traffic:

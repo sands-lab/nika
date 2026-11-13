@@ -11,54 +11,83 @@ from nika.problems.support.oracle import (
     OraclePlaybook,
     contains,
     process_absent,
+    router_cli,
     shell,
     vtysh,
 )
 from nika.problems.support.polling import wait_until
 from nika.problems.support.recovery import checked_exec
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.utils.logger import system_logger
 
 logger = system_logger
 
 # ==================================================================
-# Problem: FRR service down on a router device
+# Problem: routing service down on a router device
 # ==================================================================
 
 
-class FrrDownParams(BaseModel):
-    """Parameters for injecting an FRR service down fault."""
+class RoutingServiceDownParams(BaseModel):
+    """Target for a routing service outage."""
 
     host_name: str = Field(description="Target router host name.")
-    service_name: str = Field(default="frr", description="Service name.")
 
 
-class FrrDown(ProblemBase):
-    """FRR device down problem."""
+class RoutingServiceDown(ProblemBase):
+    """The complete routing service on a router is stopped."""
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     symptom_probe = "custom"
     symptom_class = "control_plane"
-    root_cause_name: str = "frr_service_down"
-    description = "FRR routing daemon is unavailable."
-    TAGS: str = ["frr"]
-    native_router_operations = frozenset({"stop_routing_process"})
+    root_cause_name: str = "routing_service_down"
+    description = "The router's routing service is unavailable."
+    TAGS = []
+    native_router_operations = frozenset(
+        {"stop_routing_process", "start_routing_process", "routing_process_status"}
+    )
 
-    Params = FrrDownParams
+    Params = RoutingServiceDownParams
+
+    @classmethod
+    def is_compatible(cls, target, device_profile=None, *, backend=None):
+        from nika.net_env.net_env_pool import effective_tags
+        from nika.problems.support.router_ops import router_platform_has_provider
+
+        if not super().is_compatible(target, device_profile, backend=backend):
+            return False
+        tags = effective_tags(target)
+        return "frr" in tags or any(
+            cls.runs_on_device_profile(profile)
+            for profile in {*tags, device_profile}
+            if router_platform_has_provider(profile)
+        )
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return {"host_name": ctx.router0}
+
+    @classmethod
+    def benchmark_node_targets(cls, ctx, targets):
+        # A service outage applies across router roles, including native cores
+        # in mixed deployments. Static Linux routers have no routing service.
+        identities = getattr(ctx.net_env, "machine_identities", None) or {}
+        return sorted(
+            node
+            for node in ctx.net_env.routers
+            if "frr"
+            in (identity.capabilities if (identity := identities.get(node)) else ())
+            or native_router_profile(ctx.net_env, node) is not None
+        )
 
     symptom_desc = "Users report connectivity issues to other hosts in the network."
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
 
-    def root_cause_resources(self, params: FrrDownParams):
+    def root_cause_resources(self, params: RoutingServiceDownParams):
         return [node_resource(params.host_name)]
 
-    def oracle_playbook(self, params: FrrDownParams) -> OraclePlaybook:
+    def oracle_playbook(self, params: RoutingServiceDownParams) -> OraclePlaybook:
         host = params.host_name
         steps = [
             shell(
@@ -84,9 +113,14 @@ class FrrDown(ProblemBase):
         ]
         for _intf, peer, _peer_intf in linked_routers(self.net_env, host)[:1]:
             steps.append(
-                shell(
+                router_cli(
+                    self.net_env,
                     peer,
-                    "; ".join(
+                    f"Check neighbor {peer}'s routing adjacencies toward {host}.",
+                    iosxr_command="show bgp summary",
+                    routeros_command="/routing/bgp/session/print detail",
+                    srl_command="show network-instance default protocols bgp neighbor",
+                    frr="; ".join(
                         vtysh(show) + " 2>&1 | head -15"
                         for show in (
                             "show ip ospf neighbor",
@@ -94,20 +128,25 @@ class FrrDown(ProblemBase):
                             "show bgp summary",
                         )
                     ),
-                    f"Check neighbor {peer}'s routing adjacencies toward {host}.",
                 )
             )
         return OraclePlaybook(
             finding=(
-                f"The FRR routing daemons on {host} are not running, so it holds "
+                f"The routing service on {host} is stopped, so it holds "
                 "no routing adjacencies and stops exchanging routes."
             ),
             steps=steps,
         )
 
-    def inject_fault(self, params: FrrDownParams):
+    def inject_fault(self, params: RoutingServiceDownParams):
         ops = native_fault_ops(self, params.host_name, "stop_routing_process")
         if ops is not None:
+            self._routing_ops = ops
+            self._routing_processes = ops.routing_process_status()
+            if self._routing_processes.get("zebra"):
+                self._routing_peers = ops.bgp_established_peers()
+                self._routing_bgp_routes = ops.remote_bgp_prefixes()
+                self._routing_ospf_routes = ops.ospf_routes()
             ops.stop_routing_process()
             return
         self._routing_was_running = bool(
@@ -139,7 +178,47 @@ class FrrDown(ProblemBase):
         ):
             self.runtime.kill_process(params.host_name, daemon)
 
-    def recover_fault(self, params: FrrDownParams) -> dict:
+    def recover_fault(self, params: RoutingServiceDownParams) -> dict:
+        ops = getattr(self, "_routing_ops", None)
+        if ops is not None:
+            saved = self._routing_processes
+            details = {"host": params.host_name, "routing_available": False}
+            try:
+                ops.start_routing_process(saved)
+            except Exception as exc:
+                return build_verify_result(
+                    self.root_cause_name, False, {**details, "error": str(exc)}
+                )
+
+            def restored():
+                status = ops.routing_process_status()
+                details["routing_processes"] = status
+                if status != saved:
+                    return False
+                if not saved.get("zebra"):
+                    return True
+                output = ops.frr_shell("vtysh -c 'show ip route' 2>&1")
+                available = bool(output.strip()) and not any(
+                    error in output.lower()
+                    for error in (
+                        "failed to connect",
+                        "not running",
+                        "connection refused",
+                        "%",
+                        "[timeout]",
+                    )
+                )
+                details["routing_available"] = available
+                converged = (
+                    ops.bgp_established_peers() == self._routing_peers
+                    and ops.remote_bgp_prefixes() == self._routing_bgp_routes
+                    and ops.ospf_routes() == self._routing_ospf_routes
+                )
+                details["routing_converged"] = converged
+                return available and converged
+
+            verified = wait_until(restored, 90)
+            return build_verify_result(self.root_cause_name, verified, details)
         was_running = getattr(self, "_routing_was_running", None)
         if was_running is None:
             return build_verify_result(
@@ -181,9 +260,16 @@ class FrrDown(ProblemBase):
             {"host": params.host_name, "routing_available": restored},
         )
 
-    def verify_fault(self, params: FrrDownParams) -> dict:
-        """Verify FRR is down by checking zebra is not running and routing is unavailable."""
-        native_fault_ops(self, params.host_name, "stop_routing_process")
+    def verify_fault(self, params: RoutingServiceDownParams) -> dict:
+        """Verify the router's routing processes are stopped."""
+        ops = native_fault_ops(self, params.host_name, "routing_process_status")
+        if ops is not None:
+            status = ops.routing_process_status()
+            return build_verify_result(
+                self.root_cause_name,
+                bool(status) and not any(status.values()),
+                {"host": params.host_name, "routing_processes": status},
+            )
         zebra_output = self.runtime.exec(
             params.host_name, "pgrep -a zebra 2>/dev/null || echo NONE"
         ).strip()

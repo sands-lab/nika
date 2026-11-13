@@ -79,7 +79,9 @@ def test_oracle_submission_scores_one(row: dict) -> None:
             c["resource_id"] for c in causes if c["resource_id"].startswith("k8s/")
         }
         _, errors = validate_root_cause_choices(
-            causes, catalog_ids=set(catalog), fault_types=set(fault_candidates())
+            causes,
+            catalog_ids=set(catalog),
+            fault_types=set(fault_candidates(_RELEASE)),
         )
         assert not errors, errors
 

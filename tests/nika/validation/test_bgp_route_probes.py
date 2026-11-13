@@ -97,3 +97,63 @@ def test_unreadable_rpki_observer_is_not_rejection():
     ok, result = probes.rpki_leak_split(problem, None)
     assert not ok
     assert result["details"]["error"] == "bgp_query_failed_on_observer"
+
+
+def test_srl_hijack_uses_best_path_origin_beyond_a_transit_next_hop(monkeypatch):
+    import json
+
+    problem = _problem("nokia_srlinux", "")
+    problem.runtime.list_nodes = lambda: []
+    attrs = {
+        "index": "42",
+        "next-hop": "192.0.2.1",
+        "as-path": {
+            "segment": [
+                {"as-path-index": 1, "type": "as-sequence", "member": [65001, 65003]}
+            ]
+        },
+    }
+    rib = {
+        "attr-sets": {"attr-set": [attrs]},
+        "afi-safi": [
+            {
+                "afi-safi-name": "srl_nokia-common:ipv4-unicast",
+                "ipv4-unicast": {
+                    "local-rib": {
+                        "route": [
+                            {
+                                "prefix": "203.0.113.0/24",
+                                "attr-id": "42",
+                                "best-route": True,
+                            }
+                        ]
+                    }
+                },
+            }
+        ],
+    }
+    problem.runtime.lab_api = SimpleNamespace(
+        srl_exec_cli=lambda *_: json.dumps(
+            {"network-instance": [{"name": "default", "bgp-rib": rib}]}
+        ),
+        srl_get_bgp_as=lambda node: 65001 if node == "origin" else 65002,
+    )
+    params = SimpleNamespace(
+        host_name="origin",
+        symptom_host="observer",
+        target_network="203.0.113.0/24",
+        observer_host=None,
+        probe_dst_ip="203.0.113.1",
+    )
+    monkeypatch.setattr(probes, "_router_addresses", lambda *_: {"192.0.2.1"})
+    # Forwarding through the hijacker does not prove it originated the route.
+    reading = probes._hijack_reading(problem, params)
+    assert reading["best_via_hijacker"] is False
+    attrs["as-path"]["segment"][0]["member"] = [65001]
+    assert probes._hijack_reading(problem, params)["best_via_hijacker"] is True
+    rib["afi-safi"][0]["ipv4-unicast"]["local-rib"]["route"][0]["best-route"] = False
+    assert probes._hijack_reading(problem, params)["best_via_hijacker"] is False
+    problem.runtime.lab_api.srl_exec_cli = lambda *_: "Parsing error"
+    ok, reading = probes.hijack_baseline(problem, params)
+    assert not ok
+    assert reading["error"] == "bgp_query_failed_on_observer"

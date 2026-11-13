@@ -146,7 +146,9 @@ def _isis_oracle(problem, host, setting):
     observed = {}
 
     def value(output, profile):
-        if getattr(problem.net_env, "backend", None) == "containerlab":
+        if (
+            getattr(problem.net_env, "backend", None) == "containerlab"
+        ) and profile is None:
             instance = srl_instance(output, "isis")
             if setting == "metric":
                 return next(
@@ -295,7 +297,7 @@ class IsisMetricStyleMismatch(ProblemBase):
     effect_protocol = "isis"
     TAGS = ["isis"]
     isp_protocol = {"igp": "isis", "bgp_mode": "none", "rpki": False}
-    supported_backends = ("kathara",)
+    supported_backends = None
     native_router_operations = frozenset({"isis_metric_style", "set_isis_metric_style"})
     Params = IsisMetricStyleMismatchParams
 
@@ -439,6 +441,10 @@ class IsisCircuitLevelMismatch(ProblemBase):
         return _isis_oracle(self, params.host_name, "level")
 
     def _set_level(self, host: str, level: str) -> None:
+        ops = native_fault_ops(self, host, "set_isis_level")
+        if ops is not None:
+            ops.set_isis_level(level)
+            return
         if getattr(self.net_env, "backend", None) == "containerlab":
             instance = self.runtime.lab_api.srl_protocol_instance(
                 host, "isis", state=False
@@ -480,10 +486,6 @@ class IsisCircuitLevelMismatch(ProblemBase):
                 f"{base} level-capability {mode}",
             )
             return
-        ops = native_fault_ops(self, host, "set_isis_level")
-        if ops is not None:
-            ops.set_isis_level(level)
-            return
         config = self.runtime.exec(host, "vtysh -c 'show running-config' 2>/dev/null")
         process = _isis_process(config)
         if not process:
@@ -496,14 +498,14 @@ class IsisCircuitLevelMismatch(ProblemBase):
         frr_save_config(self.runtime, host)
 
     def _level(self, host: str) -> str | None:
+        ops = native_fault_ops(self, host, "isis_level")
+        if ops is not None:
+            return ops.isis_level()
         if getattr(self.net_env, "backend", None) == "containerlab":
             instance = self.runtime.lab_api.srl_protocol_instance(host, "isis")
             return {"L1": _LEVEL1, "L2": _LEVEL2, "L1L2": "level-1-2"}.get(
                 instance["level-capability"]
             )
-        ops = native_fault_ops(self, host, "isis_level")
-        if ops is not None:
-            return ops.isis_level()
         config = self.runtime.exec(host, "vtysh -c 'show running-config' 2>/dev/null")
         return _is_type(config)
 
@@ -619,17 +621,21 @@ class IsisAuthenticationMismatch(ProblemBase):
         return _isis_oracle(self, params.host_name, "auth")
 
     def _authentication(self, host: str) -> dict[str, str]:
+        ops = native_fault_ops(self, host, "isis_hello_authentication")
+        if ops is not None:
+            return ops.isis_hello_authentication()
         if getattr(self.net_env, "backend", None) == "containerlab":
             return _srl_authentication(
                 self.runtime.lab_api.srl_protocol_instance(host, "isis", state=False)
             )
-        ops = native_fault_ops(self, host, "isis_hello_authentication")
-        if ops is not None:
-            return ops.isis_hello_authentication()
         config = self.runtime.exec(host, "vtysh -c 'show running-config' 2>/dev/null")
         return _hello_authentication(config)
 
     def _set_password(self, host: str, password: str | None) -> None:
+        ops = native_fault_ops(self, host, "set_isis_hello_password")
+        if ops is not None:
+            ops.set_isis_hello_password(password)
+            return
         if getattr(self.net_env, "backend", None) == "containerlab":
             instance = self.runtime.lab_api.srl_protocol_instance(
                 host, "isis", state=False
@@ -650,10 +656,6 @@ class IsisAuthenticationMismatch(ProblemBase):
                     else [f"delete {path}"]
                 )
             self.runtime.lab_api.srl_configure(host, *commands)
-            return
-        ops = native_fault_ops(self, host, "set_isis_hello_password")
-        if ops is not None:
-            ops.set_isis_hello_password(password)
             return
         lines = []
         for interface in self._authentication(host):

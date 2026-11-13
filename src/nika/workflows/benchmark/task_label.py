@@ -7,8 +7,9 @@ from nika.net_env.net_env_pool import (
     resolve_scenario_id,
     scenario_requires_topo_size,
 )
-from nika.problems.registry import list_avail_problem_names
+from nika.problems.registry import get_problem_class, resolve_problem_name
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
+from nika.workflows.benchmark.healthy import is_healthy_case
 
 _SIZE_TOKENS = ("s", "m", "l")
 
@@ -35,11 +36,21 @@ def parse_task_label(label: str) -> tuple[str, str, str]:
     text = (label or "").strip()
     if not text:
         raise ValueError("Task label must be a non-empty string.")
-    matches = [
-        (scenario, size, problem)
-        for scenario, problem, size in _iter_label_triples()
-        if format_task_label(scenario, problem, size or None) == text
-    ]
+    from nika.net_env.compat.v010 import scenario_specs
+
+    matches = []
+    for scenario in {*list_all_net_envs(), *scenario_specs()}:
+        sizes = _SIZE_TOKENS if scenario_requires_topo_size(scenario) else ("",)
+        for size in sizes:
+            prefix = format_task_label(scenario, "", size or None)
+            if not text.startswith(prefix):
+                continue
+            problem = resolve_problem_name(text[len(prefix) :], scenario)
+            if (
+                is_healthy_case(problem)
+                or get_problem_class(problem, scenario) is not None
+            ):
+                matches.append((scenario, size, problem))
     if len(matches) == 1:
         return matches[0]
     if not matches:
@@ -61,14 +72,3 @@ def resolve_default_inject_params(
     if overrides:
         params.update(overrides)
     return params
-
-
-def _iter_label_triples() -> list[tuple[str, str, str]]:
-    triples: list[tuple[str, str, str]] = []
-    for scenario in list_all_net_envs():
-        for problem in list_avail_problem_names():
-            if scenario_requires_topo_size(scenario):
-                triples.extend((scenario, problem, size) for size in _SIZE_TOKENS)
-            else:
-                triples.append((scenario, problem, ""))
-    return triples

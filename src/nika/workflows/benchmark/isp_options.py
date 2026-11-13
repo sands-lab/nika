@@ -139,10 +139,18 @@ def _resolve_stack(
 
 
 def isp_options_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
-    """Return ISP kwargs from a normalized case row, or ``None`` when not ISP."""
+    """Return ISP kwargs, or a non-ISP lab's router platform, from a normalized row."""
     scenario = str(row.get("scenario") or "")
     if not is_isp_scenario(scenario):
-        return None
+        return _native_profile_option(
+            scenario,
+            {
+                "topo": None,
+                **{key: None for key in ISP_PROTOCOL_KEYS},
+                "backend": row.get("backend") or None,
+                "device_profile": row.get("device_profile") or None,
+            },
+        )
     stack = _resolve_stack(
         scenario=scenario,
         backend=row.get("backend"),

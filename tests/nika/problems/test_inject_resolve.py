@@ -178,6 +178,20 @@ def test_victim_host_problems_target_leaf_routers(topo_size: str, problem: str) 
     validate_benchmark_case("dc_clos", problem, inject, topo_size)
 
 
+def test_host_incorrect_netmask_requires_a_misdirected_destination() -> None:
+    # The k8s client's widened /8 holds no other lab address; worker3's does.
+    with pytest.raises(ValueError, match="widened prefix"):
+        validate_benchmark_case(
+            "k8s_lab", "host_incorrect_netmask", {"host_name": "client"}, ""
+        )
+    validate_benchmark_case(
+        "k8s_lab",
+        "host_incorrect_netmask",
+        {"host_name": "worker3", "netmask_prefix": "8"},
+        "",
+    )
+
+
 def test_host_static_blackhole_rejects_spine_target() -> None:
     with pytest.raises(ValueError, match="leaf router"):
         validate_benchmark_case(
@@ -258,6 +272,7 @@ def test_link_fragmentation_disabled_alias_resolves_to_mtu_mismatch() -> None:
     )
     assert row["problem"] == "mtu_mismatch"
     assert row["root_causes"][0]["fault_type"] == "mtu_mismatch"
+    assert get_problem_class(row["problem"]) is cls
 
 
 def test_mtu_mismatch_resolves_to_intermediate_router() -> None:
