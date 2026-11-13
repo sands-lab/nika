@@ -143,17 +143,21 @@ Configure the caller repository's `HF_TOKEN` secret for restricted trajectories.
 
 ### Use the documentation review fallback
 
-If the hosted documentation reviewer runs out of quota, select the self-hosted fallback for that review. Keep a GitHub Actions self-hosted runner with the `nika-docs-fallback` label online on a machine with Git, Python 3, and Codex CLI available. Run `codex login` as the runner user and confirm `codex login status` succeeds. On Linux, install `bubblewrap` and complete the [Codex sandbox prerequisites](https://developers.openai.com/codex/concepts/sandboxing#prerequisites). The fallback review uses that user's configured model and login, which must have available quota.
+The required `Letta Docs Review` check passes only when a reviewer approves the PR's documentation changes. Hosted Letta reviews by default. If Letta stops because its model quota or credits ran out, the same workflow run hands the review to a self-hosted fallback reviewer. A Letta FAIL verdict or any other Letta error does not trigger the fallback.
 
-Fallback review supports PRs whose head branch belongs to this repository. Select it for a PR:
+Keep a GitHub Actions self-hosted runner with the `nika-docs-fallback` label online on a machine with Git, Python 3, and Codex CLI available. Run `codex login` as the runner user and confirm `codex login status` succeeds. On Linux, install `bubblewrap` and complete the [Codex sandbox prerequisites](https://developers.openai.com/codex/concepts/sandboxing#prerequisites). The fallback review uses that user's configured model and login, which must have available quota.
+
+The fallback reviews only PRs whose head branch belongs to this repository. When Letta runs out of quota on a fork PR, the check fails and says so. To skip Letta and use the fallback for every run of a PR, add the label:
 
 ```shell
 gh pr edit <number> --add-label docs-review-fallback
 ```
 
-The review runs Codex in read-only mode with the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md) on the pull request's test merge, verifies commands and links against the checkout, and records its verdict and findings in the job summary and downloadable JSON artifact. The native `Letta Docs Review` Actions job remains the required check. A blocking finding or failed review keeps the check failing.
+Remove the label to return to hosted Letta.
 
-A change to the head, base, or test merge during review requires another run. Commits on a PR with `docs-review-fallback` continue to use the fallback runner; use Actions **Re-run jobs** to retry the current commit. Remove the label to restore hosted Letta for that PR. PRs without the label use hosted Letta by default. Starting a job on another machine does not increase the quota of its configured model account.
+The fallback runs Codex in read-only mode with the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md) on the PR's test merge and verifies commands and links against the checkout. It posts its verdict and findings, grouped by file and marked blocking or optional, as a PR comment and updates that comment on later runs. The job summary and a downloadable JSON artifact hold the same report. A blocking finding or a failed review keeps the check failing.
+
+If the head, base, or test merge changes during review, the check fails; run the review again for the new commit. Use Actions **Re-run all jobs** to retry the current commit. Moving the review to another machine does not add quota to its configured model account.
 
 ## Verify benchmark engines
 

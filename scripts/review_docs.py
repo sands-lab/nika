@@ -1,12 +1,36 @@
-"""Run a documentation review with the runner user's Codex login."""
+"""Run a documentation review with the runner user's Codex login.
+
+``review_docs.py letta-quota <execution_file>`` instead reports whether a hosted
+Letta review stopped because its model quota or credits ran out.
+"""
 
 from __future__ import annotations
 
+from collections import defaultdict
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
+
+# Quota and credit markers that Letta Code treats as non-retryable
+# (src/agent/turn-recovery-policy.ts in letta-ai/letta-code).
+QUOTA_MARKERS = (
+    "agents-limit-exceeded",
+    "exceeded-quota",
+    "free-usage-exceeded",
+    "premium-usage-exceeded",
+    "standard-usage-exceeded",
+    "basic-usage-exceeded",
+    "not-enough-credits",
+    "llm_insufficient_credits",
+    "hosted model usage limit",
+    "out of credits",
+    "usage_limit_reached",
+    "insufficient_quota",
+)
+COMMENT_MARKER = "<!-- nika-docs-review -->"
 
 
 SCHEMA = {
@@ -63,7 +87,45 @@ def review_verdict(report: dict, files: list[str]) -> str:
     return report["verdict"]
 
 
+def letta_quota_exhausted(events: list) -> bool:
+    """Return whether a Letta stream-json run ended on a quota or credit error."""
+    errors = [
+        e
+        for e in events
+        if isinstance(e, dict)
+        and (e.get("type") == "error" or e.get("is_error") is True)
+    ]
+    text = json.dumps(errors).lower()
+    return any(marker in text for marker in QUOTA_MARKERS)
+
+
+def review_comment(report: dict, verdict: str, run_url: str) -> str:
+    """Format the review as a PR comment grouped by file."""
+    body = (
+        f"{COMMENT_MARKER}\n## Documentation review: {verdict}\n\n{report['summary']}\n"
+    )
+    findings = defaultdict(list)
+    for finding in sorted(report["findings"], key=lambda f: (f["file"], f["line"])):
+        findings[finding["file"]].append(finding)
+    for file, items in findings.items():
+        body += f"\n### `{file}`\n\n"
+        for finding in items:
+            body += (
+                f"- [{finding['severity']}] line {finding['line']}: "
+                f"{finding['reason']}\n"
+            )
+    return (
+        body
+        + f"\nReviewed by the self-hosted fallback reviewer in [this run]({run_url}).\n"
+    )
+
+
 def main() -> None:
+    if sys.argv[1:2] == ["letta-quota"]:
+        path = Path(sys.argv[2])
+        events = json.loads(path.read_text()) if path.is_file() else []
+        print("true" if letta_quota_exhausted(events) else "false")
+        return
     files = json.loads(os.environ["REVIEW_FILES"])
     base, head = os.environ["REVIEW_BASE"], os.environ["REVIEW_HEAD"]
     commit = os.environ["REVIEW_COMMIT"]
@@ -122,12 +184,8 @@ inspect credentials, or run other agents. Return the requested JSON report.
         + "\n"
     )
     Path(".letta-docs-verdict").write_text(verdict + "\n")
-    summary = f"## Documentation review: {verdict}\n\n{report['summary']}\n"
-    for finding in report["findings"]:
-        summary += (
-            f"\n- **{finding['severity']}** {finding['file']}:{finding['line']}: "
-            f"{finding['reason']}\n"
-        )
+    summary = review_comment(report, verdict, os.environ.get("REVIEW_RUN_URL", ""))
+    Path(os.environ["REVIEW_COMMENT"]).write_text(summary)
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as stream:
             stream.write(summary)

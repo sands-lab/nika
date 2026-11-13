@@ -2,7 +2,7 @@
 
 import pytest
 
-from scripts.review_docs import review_verdict
+from scripts.review_docs import letta_quota_exhausted, review_verdict
 
 pytestmark = pytest.mark.unit
 
@@ -59,3 +59,21 @@ def test_invalid_findings_cannot_pass(field, value):
             {"verdict": "PASS", "summary": "Review", "findings": [finding]},
             ["docs/README.md"],
         )
+
+
+def test_only_quota_errors_select_the_fallback_reviewer():
+    review = [
+        {"type": "system", "subtype": "init", "agent_id": "agent-1"},
+        {"type": "assistant", "content": "Note the usage_limit_reached wording."},
+        {"type": "result", "subtype": "success", "is_error": False},
+    ]
+    assert not letta_quota_exhausted(review)
+    crash = [{"type": "error", "message": "Connection reset", "stop_reason": "error"}]
+    assert not letta_quota_exhausted(crash)
+    quota = {
+        "type": "error",
+        "message": "LLM API error",
+        "stop_reason": "llm_api_error",
+        "api_error": {"detail": "Error code: 429 - usage_limit_reached"},
+    }
+    assert letta_quota_exhausted([*review[:2], quota])

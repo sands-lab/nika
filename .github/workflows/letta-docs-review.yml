@@ -5,21 +5,30 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
     branches: [main, dev]
 
+concurrency:
+  group: letta-docs-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  docs-review:
-    name: Letta Docs Review
+  target:
+    name: Resolve docs review target
     if: github.event.pull_request.draft == false
-    timeout-minutes: 30
-    concurrency:
-      group: letta-docs-review-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
-    runs-on: ${{ contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') && 'nika-docs-fallback' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
-      issues: write
-      pull-requests: write
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.docs.outputs.changed }}
+      pr: ${{ steps.docs.outputs.pr }}
+      head: ${{ steps.docs.outputs.head }}
+      base: ${{ steps.docs.outputs.base }}
+      commit: ${{ steps.docs.outputs.commit }}
+      files: ${{ steps.docs.outputs.files }}
+      same_repo: ${{ steps.docs.outputs.same_repo }}
     steps:
       - name: Resolve review target
         id: docs
@@ -57,14 +66,33 @@ jobs:
             core.setOutput('base', pr.base.sha);
             core.setOutput('commit', commit);
             core.setOutput('files', JSON.stringify(docs.map(f => f.filename)));
+            core.setOutput('same_repo', pr.head.repo.full_name === process.env.GITHUB_REPOSITORY ? 'true' : 'false');
+
+  hosted:
+    name: Hosted Letta review
+    needs: target
+    if: needs.target.outputs.changed == 'true' && !contains(github.event.pull_request.labels.*.name, 'docs-review-fallback')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      verdict: ${{ steps.result.outputs.verdict }}
+      quota_exhausted: ${{ steps.result.outputs.quota_exhausted }}
+    steps:
       - uses: actions/checkout@v4
-        if: steps.docs.outputs.changed == 'true'
         with:
           fetch-depth: 0
-          ref: ${{ steps.docs.outputs.commit }}
+          ref: ${{ needs.target.outputs.commit }}
           persist-credentials: false
       - uses: letta-ai/letta-code-action@v0
-        if: steps.docs.outputs.changed == 'true' && !contains(github.event.pull_request.labels.*.name, 'docs-review-fallback')
+        id: letta
+        # A quota failure hands the review to the fallback job; the gate fails other errors.
+        continue-on-error: true
         with:
           letta_api_key: ${{ secrets.LETTA_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -77,11 +105,11 @@ jobs:
           # Show diagnostics on explicitly requested debug reruns.
           show_full_output: ${{ runner.debug == '1' }}
           prompt: |
-            Review pull request #${{ steps.docs.outputs.pr }} for documentation quality only.
+            Review pull request #${{ needs.target.outputs.pr }} for documentation quality only.
 
             1. List the human-facing docs changed in this PR: `README.md` files and files
                under `docs/`, e.g. with
-               `gh pr diff ${{ steps.docs.outputs.pr }} --name-only | grep -E '(^|/)README\.md$|^docs/'`.
+               `gh pr diff ${{ needs.target.outputs.pr }} --name-only | grep -E '(^|/)README\.md$|^docs/'`.
                Other Markdown files (agent skills, notes) are out of scope.
             2. Review each changed docs file (README files first) against the
                human-facing documentation guidelines stored in your memory. Recall
@@ -105,25 +133,13 @@ jobs:
             Finally, you MUST write the verdict to the file `${{ github.workspace }}/.letta-docs-verdict`
             containing exactly one word: `FAIL` if any blocking finding remains, otherwise `PASS`.
             Do not commit this file.
-      - name: Review with fallback runner
-        if: steps.docs.outputs.changed == 'true' && contains(github.event.pull_request.labels.*.name, 'docs-review-fallback')
-        env:
-          REVIEW_FILES: ${{ steps.docs.outputs.files }}
-          REVIEW_BASE: ${{ steps.docs.outputs.base }}
-          REVIEW_HEAD: ${{ steps.docs.outputs.head }}
-          REVIEW_COMMIT: ${{ steps.docs.outputs.commit }}
-          REVIEW_OUTPUT: ${{ runner.temp }}/docs-review-${{ github.run_id }}-${{ github.run_attempt }}.json
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          python3 scripts/review_docs.py
       - name: Verify reviewed commit
-        if: steps.docs.outputs.changed == 'true'
         uses: actions/github-script@v7
         env:
-          REVIEW_PR: ${{ steps.docs.outputs.pr }}
-          REVIEW_HEAD: ${{ steps.docs.outputs.head }}
-          REVIEW_BASE: ${{ steps.docs.outputs.base }}
-          REVIEW_COMMIT: ${{ steps.docs.outputs.commit }}
+          REVIEW_PR: ${{ needs.target.outputs.pr }}
+          REVIEW_HEAD: ${{ needs.target.outputs.head }}
+          REVIEW_BASE: ${{ needs.target.outputs.base }}
+          REVIEW_COMMIT: ${{ needs.target.outputs.commit }}
         with:
           script: |
             const {data: pr} = await github.rest.pulls.get({
@@ -133,25 +149,143 @@ jobs:
                 pr.merge_commit_sha !== process.env.REVIEW_COMMIT) {
               throw new Error('The pull request changed during review; review the new head');
             }
-      - name: Upload fallback review
-        if: always() && contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') && steps.docs.outputs.changed == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: docs-review-${{ steps.docs.outputs.pr }}
-          path: ${{ runner.temp }}/docs-review-${{ github.run_id }}-${{ github.run_attempt }}.json
-          if-no-files-found: ignore
-      - name: Enforce docs verdict
+      - name: Record hosted result
+        id: result
         if: always()
         env:
-          DOCS_CHANGED: ${{ steps.docs.outputs.changed }}
+          LETTA_OUTCOME: ${{ steps.letta.outcome }}
+          LETTA_EXECUTION_FILE: ${{ steps.letta.outputs.execution_file }}
         run: |
+          verdict=$(tr -d '[:space:]' < .letta-docs-verdict 2>/dev/null || true)
+          quota=false
+          if [ "$LETTA_OUTCOME" = failure ]; then
+            quota=$(python3 scripts/review_docs.py letta-quota "${LETTA_EXECUTION_FILE:-/nonexistent}")
+          fi
+          echo "Letta outcome: $LETTA_OUTCOME; verdict: ${verdict:-missing}; quota exhausted: $quota"
+          if [ "$quota" = true ]; then
+            echo "::warning::Letta ran out of model quota or credits; handing the review to the self-hosted fallback."
+          fi
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "quota_exhausted=$quota" >> "$GITHUB_OUTPUT"
+
+  fallback:
+    name: Fallback docs review
+    needs: [target, hosted]
+    # Runs when the PR selects the fallback or hosted Letta ran out of quota.
+    if: >-
+      always() && needs.target.outputs.changed == 'true' && needs.target.outputs.same_repo == 'true' &&
+      (contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') || needs.hosted.outputs.quota_exhausted == 'true')
+    runs-on: nika-docs-fallback
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    outputs:
+      verdict: ${{ steps.result.outputs.verdict }}
+    steps:
+      - name: Name review outputs
+        run: |
+          prefix="$RUNNER_TEMP/docs-review-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          echo "REVIEW_OUTPUT=$prefix.json" >> "$GITHUB_ENV"
+          echo "REVIEW_COMMENT=$prefix.md" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.target.outputs.commit }}
+          persist-credentials: false
+      - name: Review with fallback runner
+        env:
+          REVIEW_FILES: ${{ needs.target.outputs.files }}
+          REVIEW_BASE: ${{ needs.target.outputs.base }}
+          REVIEW_HEAD: ${{ needs.target.outputs.head }}
+          REVIEW_COMMIT: ${{ needs.target.outputs.commit }}
+          REVIEW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          python3 scripts/review_docs.py
+      - name: Verify reviewed commit
+        uses: actions/github-script@v7
+        env:
+          REVIEW_PR: ${{ needs.target.outputs.pr }}
+          REVIEW_HEAD: ${{ needs.target.outputs.head }}
+          REVIEW_BASE: ${{ needs.target.outputs.base }}
+          REVIEW_COMMIT: ${{ needs.target.outputs.commit }}
+        with:
+          script: |
+            const {data: pr} = await github.rest.pulls.get({
+              ...context.repo, pull_number: Number(process.env.REVIEW_PR)
+            });
+            if (pr.head.sha !== process.env.REVIEW_HEAD || pr.base.sha !== process.env.REVIEW_BASE ||
+                pr.merge_commit_sha !== process.env.REVIEW_COMMIT) {
+              throw new Error('The pull request changed during review; review the new head');
+            }
+      - name: Comment review result
+        uses: actions/github-script@v7
+        env:
+          REVIEW_PR: ${{ needs.target.outputs.pr }}
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync(process.env.REVIEW_COMMENT, 'utf8');
+            const issue_number = Number(process.env.REVIEW_PR);
+            const comments = await github.paginate(github.rest.issues.listComments, {...context.repo, issue_number});
+            const previous = comments.find(c => c.user.type === 'Bot' && c.body.startsWith('<!-- nika-docs-review -->'));
+            if (previous) {
+              await github.rest.issues.updateComment({...context.repo, comment_id: previous.id, body});
+            } else {
+              await github.rest.issues.createComment({...context.repo, issue_number, body});
+            }
+      - name: Record fallback verdict
+        id: result
+        run: echo "verdict=$(tr -d '[:space:]' < .letta-docs-verdict)" >> "$GITHUB_OUTPUT"
+      - name: Upload fallback review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-review-${{ needs.target.outputs.pr }}
+          path: ${{ env.REVIEW_OUTPUT }}
+          if-no-files-found: ignore
+
+  gate:
+    # Required merge check; keep this name.
+    name: Letta Docs Review
+    needs: [target, hosted, fallback]
+    if: always() && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce docs verdict
+        env:
+          TARGET_RESULT: ${{ needs.target.result }}
+          DOCS_CHANGED: ${{ needs.target.outputs.changed }}
+          SAME_REPO: ${{ needs.target.outputs.same_repo }}
+          FALLBACK_SELECTED: ${{ contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') }}
+          QUOTA_EXHAUSTED: ${{ needs.hosted.outputs.quota_exhausted }}
+          HOSTED_RESULT: ${{ needs.hosted.result }}
+          HOSTED_VERDICT: ${{ needs.hosted.outputs.verdict }}
+          FALLBACK_RESULT: ${{ needs.fallback.result }}
+          FALLBACK_VERDICT: ${{ needs.fallback.outputs.verdict }}
+        run: |
+          if [ "$TARGET_RESULT" != success ]; then
+            echo "::error::Could not resolve the review target. See the Resolve docs review target job."
+            exit 1
+          fi
           if [ "$DOCS_CHANGED" = false ]; then
             echo "No human-facing documentation changed."
             exit 0
           fi
-          verdict=$(tr -d '[:space:]' < .letta-docs-verdict 2>/dev/null || true)
-          echo "Docs review verdict: ${verdict:-missing}"
-          if [ "$verdict" != "PASS" ]; then
-            echo "::error::Documentation review did not pass. See the review step and job summary."
+          if [ "$FALLBACK_SELECTED" = true ] || [ "$QUOTA_EXHAUSTED" = true ]; then
+            if [ "$SAME_REPO" != true ]; then
+              echo "::error::Hosted Letta is out of quota, and the fallback reviewer only reviews branches in this repository."
+              exit 1
+            fi
+            reviewer=fallback result=$FALLBACK_RESULT verdict=$FALLBACK_VERDICT
+          else
+            reviewer="hosted Letta" result=$HOSTED_RESULT verdict=$HOSTED_VERDICT
+          fi
+          echo "Docs review ($reviewer, job $result) verdict: ${verdict:-missing}"
+          if [ "$result" != success ] || [ "$verdict" != PASS ]; then
+            echo "::error::Documentation review did not pass. See the $reviewer review job and its PR comment."
             exit 1
           fi
