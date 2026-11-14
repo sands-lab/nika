@@ -145,7 +145,7 @@ Configure the caller repository's `HF_TOKEN` secret for restricted trajectories.
 
 The required `Letta Docs Review` check passes only when a reviewer approves the PR's documentation changes. Hosted Letta reviews by default. If Letta stops because its model quota or credits ran out, the same workflow run hands the review to a self-hosted fallback reviewer. A Letta FAIL verdict or any other Letta error does not trigger the fallback. Either reviewer's verdict and findings, grouped by file and marked blocking or optional, appear in one PR comment that later runs update, and in the reviewer job's summary.
 
-A fork PR's docs are reviewed only after a maintainer reads its changes and adds the `run-docs-review` label; until then the check fails and says so. The review then covers the commit that was labeled. A new push removes the label, so the maintainer reads the new commits and adds it again:
+A fork PR's docs are reviewed only after a maintainer reads its changes and adds the `run-docs-review` label; until then the check fails and says so. Fork reviews use the default branch's copy of the workflow and need the repository's Actions settings to allow `pull_request_target`, so changes to the workflow reach fork PRs once they are on `main`. The review then covers the commit that was labeled. A new push removes the label, so the maintainer reads the new commits and adds it again:
 
 ```shell
 gh pr edit <number> --add-label run-docs-review
