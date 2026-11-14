@@ -1,15 +1,23 @@
 name: Letta Docs Review
 
-# pull_request_target gives fork PRs the Letta key. It runs this file from the base
-# branch, and the PR's test merge is only ever checked out into pr/ as review data.
-# A fork PR is reviewed only after a maintainer reads it and adds run-docs-review.
+# Each PR is reviewed by exactly one of the two events:
+# - pull_request reviews PRs from branches in this repository with the PR's own copy
+#   of this file.
+# - pull_request_target reviews fork PRs, which get no secrets under pull_request.
+#   GitHub always runs it from the default branch's copy of this file, so keep that
+#   copy in sync; it serves PRs to every branch below. A fork PR is reviewed only
+#   after a maintainer reads it and adds run-docs-review, and its test merge is only
+#   checked out into pr/ as review data.
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    branches: [main, dev]
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
     branches: [main, dev]
 
 concurrency:
-  group: letta-docs-review-${{ github.event.pull_request.number }}
+  group: letta-docs-review-${{ github.event_name }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -18,7 +26,7 @@ permissions:
 jobs:
   target:
     name: Resolve docs review target
-    if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false && ((github.event_name == 'pull_request') == (github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -282,10 +290,11 @@ jobs:
           if-no-files-found: ignore
 
   gate:
-    # Required merge check; keep this name.
-    name: Letta Docs Review
+    # Required merge check. Only the responsible event's run reports it; the other
+    # run's skipped gate takes another name, because a skipped required check passes.
+    name: ${{ ((github.event_name == 'pull_request') == (github.event.pull_request.head.repo.full_name == github.repository)) && 'Letta Docs Review' || 'Letta Docs Review (other trigger)' }}
     needs: [target, hosted, fallback]
-    if: always() && github.event.pull_request.draft == false
+    if: always() && github.event.pull_request.draft == false && ((github.event_name == 'pull_request') == (github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
