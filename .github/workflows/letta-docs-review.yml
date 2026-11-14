@@ -129,6 +129,8 @@ jobs:
           ref: ${{ needs.target.outputs.commit }}
           path: pr
           persist-credentials: false
+          # Fork code is only read as review data, after a maintainer approved it.
+          allow-unsafe-pr-checkout: true
       - uses: letta-ai/letta-code-action@v0
         id: letta
         # A quota failure hands the review to the fallback job; the gate fails other errors.
@@ -249,6 +251,8 @@ jobs:
           ref: ${{ needs.target.outputs.commit }}
           path: pr
           persist-credentials: false
+          # Fork code is only read as review data, after a maintainer approved it.
+          allow-unsafe-pr-checkout: true
       - name: Review with fallback runner
         env:
           REVIEW_FILES: ${{ needs.target.outputs.files }}
