@@ -53,21 +53,7 @@ jobs:
               throw new Error('A pull request number is required');
             }
             const pull_number = Number(process.env.REVIEW_PR);
-            // Review the PR's current test merge, not the event's: a re-run then follows a moved
-            // base. GitHub recomputes the merge asynchronously, so wait briefly for it.
-            let pr, commit;
-            for (let attempt = 0; attempt < 12 && !commit; attempt++) {
-              if (attempt) await new Promise(resolve => setTimeout(resolve, 5000));
-              ({data: pr} = await github.rest.pulls.get({...context.repo, pull_number}));
-              if (pr.mergeable === false) throw new Error('The pull request has merge conflicts; resolve them first');
-              if (pr.mergeable === null || !pr.merge_commit_sha) continue;
-              const {data: merge} = await github.rest.git.getCommit({...context.repo, commit_sha: pr.merge_commit_sha});
-              if (merge.parents.length === 2 && merge.parents[0].sha === pr.base.sha &&
-                  merge.parents[1].sha === pr.head.sha) {
-                commit = pr.merge_commit_sha;
-              }
-            }
-            if (!commit) throw new Error('GitHub has not prepared the test merge for the current head; re-run in a minute');
+            let {data: pr} = await github.rest.pulls.get({...context.repo, pull_number});
             if (pr.state !== 'open' || pr.draft || !['dev', 'main'].includes(pr.base.ref)) {
               throw new Error('Select an open, ready pull request targeting dev or main');
             }
@@ -77,24 +63,42 @@ jobs:
               (f.filename.startsWith('docs/') || /(^|\/)README\.md$/.test(f.filename)));
             const sameRepo = pr.head.repo.full_name === process.env.GITHUB_REPOSITORY;
             const approval = 'run-docs-review';
-            const approved = pr.labels.some(label => label.name === approval);
+            const block = message => {
+              core.setOutput('blocked', message);
+              core.setOutput('changed', 'false');
+            };
+            // Approval covers the commit the maintainer read; a new push withdraws it. This
+            // comes before waiting for the test merge, which a blocked review does not need.
             if (!sameRepo && docs.length > 0) {
-              // Approval covers the commit the maintainer read; a new push withdraws it.
-              let blocked = '';
+              const approved = pr.labels.some(label => label.name === approval);
               // A reopened PR may carry commits pushed while it was closed.
               if (['synchronize', 'reopened'].includes(context.payload.action) && approved) {
                 await github.rest.issues.removeLabel({...context.repo, issue_number: pull_number, name: approval});
-                blocked = `New commits withdrew the ${approval} label; a maintainer must review them and add it again.`;
-              } else if (!approved) {
-                blocked = `A maintainer must review this fork PR and add the ${approval} label before its docs are reviewed.`;
-              } else if (pr.head.sha !== context.payload.pull_request.head.sha) {
-                blocked = `The PR changed after the ${approval} label was added; a maintainer must add it again.`;
+                return block(`New commits withdrew the ${approval} label; a maintainer must review them and add it again.`);
               }
-              if (blocked) {
-                core.setOutput('blocked', blocked);
-                core.setOutput('changed', 'false');
-                return;
+              if (!approved) {
+                return block(`A maintainer must review this fork PR and add the ${approval} label before its docs are reviewed.`);
               }
+            }
+            // Review the PR's current test merge, not the event's: a re-run then follows a moved
+            // base. GitHub recomputes the merge asynchronously, so wait for it.
+            let commit;
+            for (let attempt = 0; attempt < 36 && !commit; attempt++) {
+              if (attempt) {
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                ({data: pr} = await github.rest.pulls.get({...context.repo, pull_number}));
+              }
+              if (pr.mergeable === false) throw new Error('The pull request has merge conflicts; resolve them first');
+              if (pr.mergeable === null || !pr.merge_commit_sha) continue;
+              const {data: merge} = await github.rest.git.getCommit({...context.repo, commit_sha: pr.merge_commit_sha});
+              if (merge.parents.length === 2 && merge.parents[0].sha === pr.base.sha &&
+                  merge.parents[1].sha === pr.head.sha) {
+                commit = pr.merge_commit_sha;
+              }
+            }
+            if (!commit) throw new Error('GitHub has not prepared the test merge for the current head; re-run in a few minutes');
+            if (!sameRepo && docs.length > 0 && pr.head.sha !== context.payload.pull_request.head.sha) {
+              return block(`The PR changed after the ${approval} label was added; a maintainer must add it again.`);
             }
             core.setOutput('changed', docs.length > 0 ? 'true' : 'false');
             core.setOutput('pr', pull_number);
