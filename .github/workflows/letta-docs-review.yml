@@ -82,7 +82,7 @@ jobs:
             }
             // Review the PR's current test merge, not the event's: a re-run then follows a moved
             // base. GitHub recomputes the merge asynchronously, so wait for it.
-            let commit;
+            let commit, base;
             for (let attempt = 0; attempt < 36 && !commit; attempt++) {
               if (attempt) {
                 await new Promise(resolve => setTimeout(resolve, 5000));
@@ -90,10 +90,14 @@ jobs:
               }
               if (pr.mergeable === false) throw new Error('The pull request has merge conflicts; resolve them first');
               if (pr.mergeable === null || !pr.merge_commit_sha) continue;
+              // pr.base.sha goes stale when the base branch moves; the test merge uses the
+              // branch's current tip, so compare against that.
               const {data: merge} = await github.rest.git.getCommit({...context.repo, commit_sha: pr.merge_commit_sha});
-              if (merge.parents.length === 2 && merge.parents[0].sha === pr.base.sha &&
+              const {data: baseRef} = await github.rest.git.getRef({...context.repo, ref: `heads/${pr.base.ref}`});
+              if (merge.parents.length === 2 && merge.parents[0].sha === baseRef.object.sha &&
                   merge.parents[1].sha === pr.head.sha) {
                 commit = pr.merge_commit_sha;
+                base = merge.parents[0].sha;
               }
             }
             if (!commit) throw new Error('GitHub has not prepared the test merge for the current head; re-run in a few minutes');
@@ -103,7 +107,7 @@ jobs:
             core.setOutput('changed', docs.length > 0 ? 'true' : 'false');
             core.setOutput('pr', pull_number);
             core.setOutput('head', pr.head.sha);
-            core.setOutput('base', pr.base.sha);
+            core.setOutput('base', base);
             core.setOutput('commit', commit);
             core.setOutput('files', JSON.stringify(docs.map(f => f.filename)));
 
@@ -184,15 +188,14 @@ jobs:
         env:
           REVIEW_PR: ${{ needs.target.outputs.pr }}
           REVIEW_HEAD: ${{ needs.target.outputs.head }}
-          REVIEW_BASE: ${{ needs.target.outputs.base }}
           REVIEW_COMMIT: ${{ needs.target.outputs.commit }}
         with:
           script: |
             const {data: pr} = await github.rest.pulls.get({
               ...context.repo, pull_number: Number(process.env.REVIEW_PR)
             });
-            if (pr.head.sha !== process.env.REVIEW_HEAD || pr.base.sha !== process.env.REVIEW_BASE ||
-                pr.merge_commit_sha !== process.env.REVIEW_COMMIT) {
+            // The test merge pins the base, so head and merge identify the reviewed state.
+            if (pr.head.sha !== process.env.REVIEW_HEAD || pr.merge_commit_sha !== process.env.REVIEW_COMMIT) {
               throw new Error('The pull request changed during review; review the new head');
             }
       - name: Record hosted result
@@ -273,15 +276,14 @@ jobs:
         env:
           REVIEW_PR: ${{ needs.target.outputs.pr }}
           REVIEW_HEAD: ${{ needs.target.outputs.head }}
-          REVIEW_BASE: ${{ needs.target.outputs.base }}
           REVIEW_COMMIT: ${{ needs.target.outputs.commit }}
         with:
           script: |
             const {data: pr} = await github.rest.pulls.get({
               ...context.repo, pull_number: Number(process.env.REVIEW_PR)
             });
-            if (pr.head.sha !== process.env.REVIEW_HEAD || pr.base.sha !== process.env.REVIEW_BASE ||
-                pr.merge_commit_sha !== process.env.REVIEW_COMMIT) {
+            // The test merge pins the base, so head and merge identify the reviewed state.
+            if (pr.head.sha !== process.env.REVIEW_HEAD || pr.merge_commit_sha !== process.env.REVIEW_COMMIT) {
               throw new Error('The pull request changed during review; review the new head');
             }
       - name: Record fallback verdict
