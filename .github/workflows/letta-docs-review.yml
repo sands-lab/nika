@@ -90,12 +90,15 @@ jobs:
               }
               if (pr.mergeable === false) throw new Error('The pull request has merge conflicts; resolve them first');
               if (pr.mergeable === null || !pr.merge_commit_sha) continue;
-              // pr.base.sha goes stale when the base branch moves; the test merge uses the
-              // branch's current tip, so compare against that.
+              // The test merge must contain the current head. GitHub recomputes it only when
+              // the PR changes, so its base may trail the base branch; it must still be a
+              // commit on that branch. (pr.base.sha is not used: it can go stale too.)
               const {data: merge} = await github.rest.git.getCommit({...context.repo, commit_sha: pr.merge_commit_sha});
-              const {data: baseRef} = await github.rest.git.getRef({...context.repo, ref: `heads/${pr.base.ref}`});
-              if (merge.parents.length === 2 && merge.parents[0].sha === baseRef.object.sha &&
-                  merge.parents[1].sha === pr.head.sha) {
+              if (merge.parents.length !== 2 || merge.parents[1].sha !== pr.head.sha) continue;
+              const {data: onBase} = await github.rest.repos.compareCommits({
+                ...context.repo, base: merge.parents[0].sha, head: pr.base.ref, per_page: 1,
+              });
+              if (['identical', 'ahead'].includes(onBase.status)) {
                 commit = pr.merge_commit_sha;
                 base = merge.parents[0].sha;
               }
