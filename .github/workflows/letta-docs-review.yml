@@ -33,7 +33,6 @@ jobs:
       base: ${{ steps.docs.outputs.base }}
       commit: ${{ steps.docs.outputs.commit }}
       files: ${{ steps.docs.outputs.files }}
-      same_repo: ${{ steps.docs.outputs.same_repo }}
     steps:
       - name: Resolve review target
         id: docs
@@ -63,10 +62,6 @@ jobs:
             if (!commit) throw new Error('GitHub has not prepared the test merge for the current head; re-run in a minute');
             if (pr.state !== 'open' || pr.draft || !['dev', 'main'].includes(pr.base.ref)) {
               throw new Error('Select an open, ready pull request targeting dev or main');
-            }
-            if (pr.labels.some(label => label.name === 'docs-review-fallback') &&
-                pr.head.repo.full_name !== process.env.GITHUB_REPOSITORY) {
-              throw new Error('Fallback review requires a branch in this repository');
             }
             const files = await github.paginate(github.rest.pulls.listFiles, {...context.repo, pull_number});
             if (files.length < pr.changed_files) throw new Error('Changed-file list is incomplete; split the PR');
@@ -99,7 +94,6 @@ jobs:
             core.setOutput('base', pr.base.sha);
             core.setOutput('commit', commit);
             core.setOutput('files', JSON.stringify(docs.map(f => f.filename)));
-            core.setOutput('same_repo', sameRepo ? 'true' : 'false');
 
   hosted:
     name: Hosted Letta review
@@ -193,6 +187,8 @@ jobs:
         env:
           LETTA_OUTCOME: ${{ steps.letta.outcome }}
           LETTA_EXECUTION_FILE: ${{ steps.letta.outputs.execution_file }}
+          # Lets the report check refuse a review that quotes the key.
+          LETTA_API_KEY: ${{ secrets.LETTA_API_KEY }}
           REVIEW_FILES: ${{ needs.target.outputs.files }}
           REVIEW_COMMENT: ${{ runner.temp }}/docs-review-comment.md
           REVIEW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -219,7 +215,7 @@ jobs:
     needs: [target, hosted]
     # Runs when the PR selects the fallback or hosted Letta ran out of quota.
     if: >-
-      always() && needs.target.outputs.changed == 'true' && needs.target.outputs.same_repo == 'true' &&
+      always() && needs.target.outputs.changed == 'true' &&
       (contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') || needs.hosted.outputs.quota_exhausted == 'true')
     runs-on: nika-docs-fallback
     timeout-minutes: 30
@@ -325,7 +321,6 @@ jobs:
           TARGET_RESULT: ${{ needs.target.result }}
           BLOCKED: ${{ needs.target.outputs.blocked }}
           DOCS_CHANGED: ${{ needs.target.outputs.changed }}
-          SAME_REPO: ${{ needs.target.outputs.same_repo }}
           FALLBACK_SELECTED: ${{ contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') }}
           QUOTA_EXHAUSTED: ${{ needs.hosted.outputs.quota_exhausted }}
           HOSTED_RESULT: ${{ needs.hosted.result }}
@@ -346,10 +341,6 @@ jobs:
             exit 0
           fi
           if [ "$FALLBACK_SELECTED" = true ] || [ "$QUOTA_EXHAUSTED" = true ]; then
-            if [ "$SAME_REPO" != true ]; then
-              echo "::error::Hosted Letta is out of quota, and the fallback reviewer only reviews branches in this repository."
-              exit 1
-            fi
             reviewer=fallback result=$FALLBACK_RESULT verdict=$FALLBACK_VERDICT
           else
             reviewer="hosted Letta" result=$HOSTED_RESULT verdict=$HOSTED_VERDICT

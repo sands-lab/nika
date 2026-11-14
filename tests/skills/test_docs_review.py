@@ -4,7 +4,12 @@ import json
 
 import pytest
 
-from scripts.review_docs import letta_quota_exhausted, main, review_verdict
+from scripts.review_docs import (
+    check_no_secrets,
+    letta_quota_exhausted,
+    main,
+    review_verdict,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -108,3 +113,23 @@ def test_hosted_report_publishes_the_same_comment_as_the_fallback(
     monkeypatch.setattr("sys.argv", ["review_docs.py", "report", "missing.json"])
     with pytest.raises(SystemExit, match="missing or invalid"):
         main()
+
+
+def test_reports_quoting_credentials_are_not_published(tmp_path, monkeypatch):
+    codex_home = tmp_path / "codex"
+    codex_home.mkdir()
+    login = "codex-login-secret-value-0123456789"
+    (codex_home / "auth.json").write_text(json.dumps({"tokens": {"access": login}}))
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.delenv("LETTA_API_KEY", raising=False)
+    finding = {"file": "docs/README.md", "line": 1, "severity": "optional"}
+    clean = {
+        "verdict": "PASS",
+        "summary": "Fine.",
+        "findings": [{**finding, "reason": "Shorten."}],
+    }
+    check_no_secrets(clean)
+    for leaked in (f"see {login}", "token ghp_" + "a" * 36):
+        report = {**clean, "findings": [{**finding, "reason": leaked}]}
+        with pytest.raises(ValueError, match="credential"):
+            check_no_secrets(report)

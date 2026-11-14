@@ -12,6 +12,7 @@ from collections import defaultdict
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -34,6 +35,13 @@ QUOTA_MARKERS = (
 )
 COMMENT_MARKER = "<!-- nika-docs-review -->"
 VERDICT_FILE = ".docs-review-verdict"
+# Credential shapes a published review must never contain.
+SECRET_PATTERNS = re.compile(
+    r"gh[opsur]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}"
+    r"|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
+    r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
+)
+SECRET_ENV = ("LETTA_API_KEY", "GH_TOKEN", "GITHUB_TOKEN")
 
 
 SCHEMA = {
@@ -120,9 +128,36 @@ def review_comment(report: dict, verdict: str, run_url: str, reviewer: str) -> s
     return body + f"\nReviewed by the {reviewer} in [this run]({run_url}).\n"
 
 
+def known_secrets() -> list[str]:
+    """Return this runner's credential values: CI tokens and the Codex login."""
+    values = [os.environ[name] for name in SECRET_ENV if os.environ.get(name)]
+    auth = Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser() / "auth.json"
+    try:
+        stack = [json.loads(auth.read_text())]
+    except (OSError, ValueError):
+        stack = []
+    while stack:
+        item = stack.pop()
+        if isinstance(item, dict):
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+        elif isinstance(item, str) and len(item) >= 20:
+            values.append(item)
+    return values
+
+
+def check_no_secrets(report: dict) -> None:
+    """Refuse a report that contains a credential, so it never reaches a public comment."""
+    text = json.dumps(report)
+    if SECRET_PATTERNS.search(text) or any(value in text for value in known_secrets()):
+        raise ValueError("The review contains a credential and was not published")
+
+
 def publish(report: dict, files: list[str], reviewer: str) -> str:
     """Validate a review, then write its verdict, PR comment, and job summary."""
     verdict = review_verdict(report, files)
+    check_no_secrets(report)
     Path(VERDICT_FILE).write_text(verdict + "\n")
     comment = review_comment(
         report, verdict, os.environ.get("REVIEW_RUN_URL", ""), reviewer
@@ -175,10 +210,16 @@ inspect credentials, or run other agents. Return the requested JSON report.
     environment = os.environ.copy()
     for name in ("GH_TOKEN", "GITHUB_TOKEN", "LETTA_API_KEY"):
         environment.pop(name, None)
-    with tempfile.TemporaryDirectory(prefix="nika-docs-review-") as directory:
+    # Codex's transcript can echo files it read, so it stays on the runner instead
+    # of the public job log; only the checked report is published.
+    log = output.with_suffix(".codex.log")
+    with (
+        tempfile.TemporaryDirectory(prefix="nika-docs-review-") as directory,
+        log.open("w") as transcript,
+    ):
         schema = Path(directory) / "schema.json"
         schema.write_text(json.dumps(SCHEMA))
-        subprocess.run(
+        codex = subprocess.run(
             [
                 "codex",
                 "--no-daemon",
@@ -197,10 +238,16 @@ inspect credentials, or run other agents. Return the requested JSON report.
             input=prompt,
             text=True,
             env=environment,
-            check=True,
+            stdout=transcript,
+            stderr=subprocess.STDOUT,
+        )
+    if codex.returncode:
+        sys.exit(
+            f"Codex exited with status {codex.returncode}; its transcript stays on the runner at {log}"
         )
     report = json.loads(output.read_text())
-    review_verdict(report, files)
+    output.unlink()
+    publish(report, files, "self-hosted fallback reviewer")
     output.write_text(
         json.dumps(
             {"head": head, "base": base, "reviewed_commit": commit, "review": report},
@@ -208,7 +255,6 @@ inspect credentials, or run other agents. Return the requested JSON report.
         )
         + "\n"
     )
-    publish(report, files, "self-hosted fallback reviewer")
 
 
 if __name__ == "__main__":

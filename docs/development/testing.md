@@ -153,7 +153,7 @@ gh pr edit <number> --add-label run-docs-review
 
 Keep a GitHub Actions self-hosted runner with the `nika-docs-fallback` label online on a machine with Git, Python 3, and Codex CLI available. Run `codex login` as the runner user and confirm `codex login status` succeeds. On Linux, install `bubblewrap` and complete the [Codex sandbox prerequisites](https://developers.openai.com/codex/concepts/sandboxing#prerequisites). The fallback review uses that user's configured model and login, which must have available quota.
 
-The fallback reviews only PRs whose head branch belongs to this repository. When Letta runs out of quota on a fork PR, the check fails and says so. To skip Letta and use the fallback for every run of a PR, add the label:
+To skip Letta and use the fallback for every run of a PR, add the label:
 
 ```shell
 gh pr edit <number> --add-label docs-review-fallback
@@ -161,7 +161,7 @@ gh pr edit <number> --add-label docs-review-fallback
 
 Remove the label to return to hosted Letta.
 
-The fallback runs Codex in read-only mode with the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md) on the PR's test merge and verifies commands and links against the checkout. A downloadable JSON artifact holds its report. A blocking finding or a failed review keeps the check failing.
+The fallback runs Codex in read-only mode with the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md) on the PR's test merge and verifies commands and links against the checkout. A downloadable JSON artifact holds its report; Codex's transcript stays on the runner. Either reviewer's report is not published when it contains a credential, and the check then fails. A blocking finding or a failed review keeps the check failing.
 
 If the head, base, or test merge changes during review, the check fails. Use Actions **Re-run all jobs** to review the PR's current test merge. Moving the review to another machine does not add quota to its configured model account.
 
