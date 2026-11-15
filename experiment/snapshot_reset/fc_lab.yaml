@@ -1,0 +1,131 @@
+# NIKA run configuration template.
+# Setup: cp config/nika.example.yaml config/nika.yaml, then edit the copy.
+# CLI flags override this file. This file overrides built-in defaults.
+# Keep API keys and other credentials in the repo-root .env file.
+#
+# Per-agent templates (copy one and pass --run-config):
+#   config/byo.langgraph.example.yaml
+#   config/byo.mcp_agent.example.yaml
+#   config/byo.autogen.example.yaml
+#   config/cli.codex.example.yaml
+#   config/cli.claude.example.yaml
+#   config/sdk.codex_sdk.example.yaml
+#   config/sdk.claude_sdk.example.yaml
+# List registered names with: uv run nika agent list
+
+# LangGraph ReAct on the host against a self-hosted OpenAI-compatible endpoint.
+# Set NIKA_CUSTOM_API_KEY in .env when auth is required.
+agent:
+  type: mock
+  provider: custom
+  model: mock
+  max_steps: 20
+  # Wall-clock budget in seconds for one agent run (diagnosis + submission),
+  # for every agent type. 0 disables it. Keep it below benchmark.case_timeout_sec.
+  timeout_sec: 1800
+  # Load shared troubleshooting skills for Claude and Codex agents.
+  enable_skills: true
+  # Optional for OpenAI, Anthropic, and supported custom models.
+  # DeepSeek ignores this setting.
+  reasoning_effort: low
+  # Output-token cap per model response. Not applied by Codex agents or SADE.
+  max_tokens: 8192
+  custom:
+    base_url: http://mcnode24:8000/v1
+
+# Configure NIKA runtime and lab behavior.
+nika:
+  # Write run artifacts under this directory.
+  result_dir: /home/ubuntu/reset-exp/nika/results_fc
+  remote:
+    # Run lab operations on a remote NIKA server.
+    enabled: false
+    # Required when remote mode is enabled.
+    url: null
+    # Reserved for remote artifact storage. Keep null.
+    artifact_root: null
+  sandbox:
+    # Keep the sandbox after a run for debugging.
+    keep: false
+    # Limit sandbox CPU resources. Null uses the sandbox runtime default.
+    cpus: null
+    # Limit sandbox memory, such as 8g. Null uses the runtime default.
+    memory: null
+    # Install SDK agents from cached wheels instead of downloading packages.
+    offline_sdk_wheels: true
+    # Route sandboxd and sbx traffic through this proxy.
+    upstream_proxy: null
+  observability:
+    # Send byo.langgraph traces to Langfuse.
+    langfuse_enabled: false
+    # Langfuse API base URL.
+    langfuse_host: https://cloud.langfuse.com
+  judge:
+    # Provider used by `nika eval judge`.
+    provider: openai
+    # Model used by `nika eval judge`.
+    model: gpt-5-mini
+  lab:
+    # Attempt a Kathara deployment up to this many times.
+    deploy_attempts: 4
+    # Wait this many seconds for Kathara machines to start.
+    deploy_ready_timeout_sec: 90
+    # Wait this many seconds for services after containers start.
+    deploy_settle_sec: 5
+    # Wait this many seconds for Kathara containers to stop.
+    undeploy_verify_timeout_sec: 30
+    # Stop scenario readiness checks after this many seconds.
+    ready_max_wait_sec: 180
+    # Wait this many seconds between readiness checks.
+    ready_retry_delay_sec: 5
+    # Check an injected fault this many times before reporting failure.
+    failure_verify_max_attempts: 3
+    # Wait this many seconds between fault checks.
+    failure_verify_retry_delay_sec: 5
+    # Limit concurrent Containerlab create/wire workers (clab deploy --max-workers).
+    # Lower this (for example to 1) if Containerlab ISP labs OOM during deploy.
+    containerlab_max_workers: 2
+  mcp:
+    # Stop waiting for an MCP response after this many seconds. Set 0 to disable.
+    read_timeout_sec: 99
+    # Bind the MCP gateway to this address.
+    gateway_host: "127.0.0.1"
+    # Bind the MCP gateway to this port. Set 0 to choose a free port.
+    gateway_port: 0
+    # Cap MCP tool text returned to the agent. Over this size, keep the first
+    # and last halves and elide the middle (mini-swe-agent style). 0 disables.
+    tool_output_max_chars: 10000
+  static_validation:
+    # Run supported topology checks with Batfish before deployment.
+    enabled: false
+  runtime_validation:
+    # light checks readiness. full runs each scenario's deeper verification.
+    depth: light
+    # Compare healthy and faulty contract evidence after fault injection.
+    failure_effect: false
+  execution:
+    mode: firecracker
+    firecracker:
+      case_images: false
+
+# Configure benchmark execution.
+benchmark:
+  # Run this frozen benchmark release. Null uses ad-hoc or CLI selection.
+  release: null
+  # Select a release split, such as dev or test.
+  split: null
+  # Run this many trials at the same time.
+  batch_size: 4
+  # Run heavy labs exclusively, with no peer sessions.
+  heavy_batch_size: 1
+  # Stop each trial after this many seconds. Set 0 to disable.
+  case_timeout_sec: 2400
+  # Continue an ad-hoc batch after a failed trial. Release runs continue unless
+  # you pass --abort-on-error.
+  continue_on_error: true
+  # Retry failed or incomplete trials with this many extra passes.
+  retry_passes: 0
+  # Reuse completed trial slots instead of running them again.
+  resume: true
+  # Add this tag to generated session IDs.
+  session_tag: null
