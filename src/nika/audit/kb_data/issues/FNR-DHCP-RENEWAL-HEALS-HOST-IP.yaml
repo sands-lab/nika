@@ -1,0 +1,28 @@
+id: FNR-DHCP-RENEWAL-HEALS-HOST-IP
+title: DHCP renewal removes an injected incorrect host IP
+class: fault_not_realized
+severity: warn
+status: fixed
+fixed_in: 105c2c3a
+summary: >-
+  HostIncorrectIP previously changed only the live interface address. The
+  running DHCP client could restore its healthy leased address during the
+  trial. The repair keeps the wrong address in a neutral DHCP address hook
+  and restores the original hook before recovering the live IPv4 state.
+guideline: >-
+  Confirm that the tested engine predates the repair and the target uses
+  DHCP. Check the address after a natural renewal and an explicit renewal,
+  rather than treating the initial injection result as persistence evidence.
+  Recovery must restore both the original hook and subsequent healthy DHCP
+  behavior. Do not infer that every host fault has the same mechanism.
+scope:
+  fault_types:
+  - host_incorrect_ip
+detect: []
+provenance:
+  source: real Kathara campus DHCP reproduction on nika01
+  date: '2026-11-10'
+  refs: []
+  found_by: manual
+evidence:
+- 'tests/nika/problems/test_dhcp_address_renewal.py checks natural and forced renewal, exact hook restoration, recovered addressing, routing, and connectivity.'

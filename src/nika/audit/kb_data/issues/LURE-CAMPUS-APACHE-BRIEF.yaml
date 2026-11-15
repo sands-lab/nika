@@ -1,0 +1,26 @@
+id: LURE-CAMPUS-APACHE-BRIEF
+title: campus_lan brief says Apache; servers run a Python web server
+class: healthy_lure
+role: known
+severity: info
+status: fixed
+fixed_in: c00630bc
+summary: The campus_lan description named Apache while the web servers run web_server.py, so agents looked
+  for apache2 and read its absence as a fault (H6).
+scope:
+  scenarios:
+  - campus_lan
+detect:
+- kind: text
+  where:
+  - tool_call
+  exclude_authored: false
+  pattern: (?:systemctl|service)\s+\w*\s*apache2|apache2ctl|/etc/apache2
+provenance:
+  source: healthy-hunter paper_cases
+  date: '2026-10-12'
+  refs:
+  - healthy-hunter
+  found_by: live_audit
+guideline: A generic process grep for nginx|apache is not the lure; an agent managing or configuring an
+  apache2 service on campus_lan is.

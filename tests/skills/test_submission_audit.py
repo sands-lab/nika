@@ -12,40 +12,40 @@ from typing import Any
 
 import pytest
 
-from experiment.submission_audit import skill  # noqa: F401  (adds auditlib to sys.path)
+
 import yaml
 import httpx
 
-from auditlib.cohort import TrialRecord, healthy_fp_rate, run_metrics
-from auditlib.cohort_audit import Row, _same, prompt_rows, signature_for
-from auditlib.cohort_audit import curate as curate_cohort
-from auditlib.cohort_audit import judge as judge_cohort
-from auditlib.pipeline import _exact, _verdicts
-from auditlib.curate import (
+from nika.audit.cohort import TrialRecord, healthy_fp_rate, run_metrics
+from nika.audit.cohort_audit import Row, _same, prompt_rows, signature_for
+from nika.audit.cohort_audit import curate as curate_cohort
+from nika.audit.cohort_audit import judge as judge_cohort
+from nika.audit.pipeline import _exact, _verdicts
+from nika.audit.curate import (
     common_text,
     covered_by_signature,
     curate_group,
     recorded_by,
     to_pattern,
 )
-from auditlib.detectors import run_trial
-from auditlib.kb import KB_DIR, Issue, Scope, Signature, load_kb
-from auditlib.review import check_citations, check_issue, review_packet
-from auditlib.runner import audit_trajectories, prompt_contrast
-from auditlib.scan import ScanConfig
-from auditlib.scan import _parse as _parse_findings
-from auditlib.scan import chunks as scan_chunks
-from auditlib.source import SourceUnavailable, request_source, source_hash
-from auditlib.trace import load_trial, trial_dirs
-from auditlib.contracts import advertised_claims
-from auditlib.scan import scan_trials
+from nika.audit.detectors import run_trial
+from nika.audit.kb import KB_DIR, Issue, Scope, Signature, load_kb
+from nika.audit.review import check_citations, check_issue, review_packet
+from nika.audit.runner import audit_trajectories, prompt_contrast
+from nika.audit.scan import ScanConfig
+from nika.audit.scan import _parse as _parse_findings
+from nika.audit.scan import chunks as scan_chunks
+from nika.audit.source import SourceUnavailable, request_source, source_hash
+from nika.audit.trace import load_trial, trial_dirs
+from nika.audit.contracts import advertised_claims
+from nika.audit.scan import scan_trials
 
 pytestmark = pytest.mark.unit
 
 
 @pytest.mark.parametrize("server_delay", [0.1, 5.1])
 def test_http_retries_share_one_wall_time_budget(monkeypatch, server_delay) -> None:
-    import auditlib.scan as scanner
+    import nika.audit.scan as scanner
 
     clock = [0.0]
     attempts = []
@@ -132,7 +132,7 @@ def test_contracts_only_review_initial_capability_assertions(tmp_path: Path) -> 
 def test_bad_scan_replies_are_errors_not_empty_findings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reply: dict
 ) -> None:
-    import auditlib.scan as scanner
+    import nika.audit.scan as scanner
 
     path = _trial(
         tmp_path, "t__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
@@ -147,7 +147,7 @@ def test_bad_scan_replies_are_errors_not_empty_findings(
 def test_scan_recovers_once_and_keeps_failure_cost(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.scan as scanner
+    import nika.audit.scan as scanner
 
     path = _trial(
         tmp_path, "t__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
@@ -192,7 +192,7 @@ def test_scan_recovers_once_and_keeps_failure_cost(
 def test_cohort_resume_preserves_valid_tables_and_retries_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.cohort_audit as cohort
+    import nika.audit.cohort_audit as cohort
 
     row = Row("tool:probe", "tool", "", "probe: 10 calls, 90% errors")
     finding = {
@@ -253,7 +253,7 @@ def test_cohort_resume_preserves_valid_tables_and_retries_failures(
 def test_cohort_judgment_cache_does_not_reuse_errors_or_changed_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.cohort_audit as cohort
+    import nika.audit.cohort_audit as cohort
 
     row = Row("tool:probe", "tool", "", "probe: 10 calls, 90% errors")
     finding = {"class": "harness_defect", "claim": "Probe errors", "row": row.id}
@@ -303,7 +303,7 @@ def test_cohort_judgment_cache_does_not_reuse_errors_or_changed_evidence(
 def test_schema_recovery_falls_back_on_endpoints_without_schema_support(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.scan as scanner
+    import nika.audit.scan as scanner
 
     path = _trial(
         tmp_path, "t__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
@@ -334,66 +334,6 @@ def test_schema_recovery_falls_back_on_endpoints_without_schema_support(
     assert len(first["failed_responses"]) == 2
 
 
-@pytest.mark.parametrize(
-    "content",
-    ["invalid", "[]", '{"refs": null}', '{"refs": ["UNKNOWN"], "reason": "test"}'],
-)
-def test_bad_mapper_replies_fail_and_are_not_cached(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: str
-) -> None:
-    from experiment.submission_audit import map_issues as mapper
-
-    issues = tmp_path / "kb/issues"
-    issues.mkdir(parents=True)
-    (issues / "ISSUE-TEST.yaml").write_text("id: ISSUE-TEST\nsummary: test\n")
-    monkeypatch.setattr(
-        mapper, "chat", lambda *args: {"content": content, "finish": "stop"}
-    )
-    cache, persisted = {}, []
-    mapping, failed = mapper.map_run(
-        tmp_path,
-        ScanConfig(base_url="unused", model="unused", workers=1),
-        "system",
-        {"REF-TEST"},
-        cache,
-        on_result=lambda: persisted.append(dict(cache)),
-    )
-    assert not mapping and failed == ["ISSUE-TEST"] and not cache and not persisted
-    calls = []
-    monkeypatch.setattr(
-        mapper,
-        "chat",
-        lambda *args: (
-            calls.append(1)
-            or {"content": '{"refs": [], "reason": "No match"}', "finish": "stop"}
-        ),
-    )
-    assert mapper.map_run(
-        tmp_path,
-        ScanConfig(base_url="unused", model="unused", workers=1),
-        "system",
-        {"REF-TEST"},
-        cache,
-        on_result=lambda: persisted.append(dict(cache)),
-    ) == ({"ISSUE-TEST": []}, [])
-    assert persisted == [cache]
-    mapper.map_run(
-        tmp_path,
-        ScanConfig(base_url="unused", model="unused", workers=1),
-        "system",
-        {"REF-TEST"},
-        cache,
-    )
-    assert len(calls) == 1
-    journal = [
-        json.loads(line)
-        for line in (tmp_path / "mapping-calls.jsonl").read_text().splitlines()
-    ]
-    assert len(journal) == 2
-    assert not journal[0]["valid"] and journal[0]["response"]["content"] == content
-    assert journal[1]["valid"] and journal[0]["key"] == journal[1]["key"]
-
-
 @pytest.mark.parametrize("source_kind", ["source_absence", "source_text"])
 def test_source_checks_require_reviewed_providers_and_report_unknowns(
     tmp_path: Path,
@@ -409,18 +349,19 @@ def test_source_checks_require_reviewed_providers_and_report_unknowns(
 
     git("init", "-q")
     git("config", "core.autocrlf", "false")
+    git("config", "user.name", "Zhihao Wang")
+    git("config", "user.email", "zhihao.wang@kaust.edu.sa")
     provider = repo / "src/agent/provider.py"
     provider.parent.mkdir(parents=True)
     provider_bytes = b'ASSET_ROOT = "src/agent/assets"\r\n'
     provider.write_bytes(provider_bytes)
+    knowledge = repo / "src/nika/audit/kb_data/issues/known.yaml"
+    knowledge.parent.mkdir(parents=True)
+    knowledge.write_text("ASSET_ROOT: learned audit answer\n")
 
     def commit() -> str:
         git("add", ".")
         git(
-            "-c",
-            "user.name=Test",
-            "-c",
-            "user.email=test@example.com",
             "commit",
             "-qm",
             "fixture",
@@ -519,9 +460,17 @@ def test_source_checks_require_reviewed_providers_and_report_unknowns(
             missing,
             {
                 "action": "read",
-                "path": "experiment/submission_audit/reference_issues.yaml",
+                "path": "reference_issues.yaml",
             },
         )
+    with pytest.raises(SourceUnavailable, match="audit knowledge"):
+        request_source(
+            repo,
+            missing,
+            {"action": "read", "path": "src/nika/audit/kb_data/issues/known.yaml"},
+        )
+    listed = request_source(repo, missing, {"action": "list", "path": "src/nika"})
+    assert "src/nika/audit/kb_data/issues/known.yaml" not in listed["paths"]
     with pytest.raises(ValueError):
         Signature(
             kind="source_absence",
@@ -618,7 +567,7 @@ def _trial(
 
 
 def test_brief_triage_uses_initial_observed_endpoints(tmp_path: Path) -> None:
-    from auditlib.brief import _check_facts, brief_claims
+    from nika.audit.brief import _check_facts, _source_facts, brief_claims
 
     path = _trial(
         tmp_path,
@@ -640,7 +589,22 @@ def test_brief_triage_uses_initial_observed_endpoints(tmp_path: Path) -> None:
         rca=1,
     )
     trial = load_trial(path)
+    trial.run["scenario_topo_size"] = "m"
+    trial.run["scenario_params"] = {
+        "topo_size": "m",
+        "lab_name": "session-only",
+        "runtime_workdir": "/private/runtime",
+    }
+    fingerprint = json.loads(trial.run["benchmark_fingerprint"])
+    fingerprint.update(
+        problem="fault-label", problems=["fault-label"], inject={"node": "fault-target"}
+    )
+    trial.run["benchmark_fingerprint"] = json.dumps(fingerprint)
     claim = brief_claims([trial])[0]
+    assert claim["deployment"]["topology_size"] == "m"
+    assert claim["deployment"]["parameters"] == {"topo_size": "m"}
+    assert "fault-label" not in json.dumps(claim["deployment"])
+    assert "fault-target" not in json.dumps(claim["deployment"])
     assert claim["inventory_without_topology_endpoint"] == ["leaf_b"]
     observed = [
         {
@@ -656,6 +620,17 @@ def test_brief_triage_uses_initial_observed_endpoints(tmp_path: Path) -> None:
         "source_paths": ["src/nika/provider.py"],
     }
     _check_facts(claim, facts, observed)
+    incomplete = _source_facts(
+        claim,
+        {
+            "content": json.dumps({**facts, "connected_nodes": ["switch", "leaf_a"]}),
+            "finish": "stop",
+        },
+        observed,
+    )
+    assert incomplete["deployment_identified"] is False
+    assert "leaf_b" in incomplete["reason"]
+    assert incomplete["missing_connected_nodes"] == []
     _check_facts(
         claim,
         {**facts, "observed_topology_nodes": ["switch:eth0", "leaf_a:eth0"]},
@@ -683,9 +658,13 @@ def test_brief_triage_uses_initial_observed_endpoints(tmp_path: Path) -> None:
     initial.text = "PCs: leaf_a, leaf_b\nTopology: " + ", ".join(
         f"(switch:eth{i}, leaf_a:eth{i})" for i in range(20)
     )
-    unsupported = []
-    assert brief_claims([trial], unsupported=unsupported) == []
-    assert len(unsupported) == 1 and "200-character" in unsupported[0]["reason"]
+    long_claim = brief_claims([trial])[0]
+    assert long_claim["literal"] == initial.text.splitlines()[1]
+    assert len(long_claim["literal"]) > 200
+    assert long_claim["inventory_without_topology_endpoint"] == ["leaf_b"]
+    _check_facts(long_claim, facts, observed)
+    initial.text += ", (switch:eth20, leaf_b:eth0)"
+    assert brief_claims([trial]) == []
 
 
 def test_contextual_signatures_require_the_actual_call_and_pristine_state(
@@ -753,7 +732,7 @@ def test_contextual_signatures_require_the_actual_call_and_pristine_state(
 def test_boundary_requires_source_ownership_and_runtime_interface_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.boundary as boundary
+    import nika.audit.boundary as boundary
 
     source = {
         "src/nika/net_env/example/router.startup": "ip address add 10.1.0.1/24 dev eth0\nip address add 10.4.0.2/30 dev eth1\niptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE\n",
@@ -817,6 +796,20 @@ def test_boundary_requires_source_ownership_and_runtime_interface_evidence(
         s for s in missing.steps if s.kind == "tool_result"
     ).text = "eth0 UP 10.1.0.1/24"
     assert boundary.collect_boundaries([missing], tmp_path, load_kb())[0] == []
+    with monkeypatch.context() as unavailable:
+
+        def absent_source(*args):
+            raise boundary.SourceUnavailable("no startup provider")
+
+        unavailable.setattr(boundary, "_owners", absent_source)
+        assert boundary.collect_boundaries([missing], tmp_path, load_kb()) == ([], [])
+        leads, unsupported = boundary.collect_boundaries([trial], tmp_path, load_kb())
+        assert not leads and unsupported[0]["reason"] == "no startup provider"
+    printed = load_trial(path)
+    next(s for s in printed.steps if s.kind == "tool_call").text = json.dumps(
+        {"host_name": "router", "command": "printf 'eth2 UP 172.17.0.2/16'"}
+    )
+    assert boundary.collect_boundaries([printed], tmp_path, load_kb()) == ([], [])
     no_brief = load_trial(path)
     no_brief.run["nika_git_commit"] = "a" * 40
     no_brief.steps = [s for s in no_brief.steps if s.kind != "prompt"]
@@ -1110,6 +1103,42 @@ provenance: {source: test, date: '2026-10-25'}
     )
     assert not check_issue(misses, sources=[source])["ok"]
     assert not check_issue(issue, sources=[])["ok"], "a rule needs a source trial"
+
+
+@pytest.mark.parametrize(
+    "tool, path, body, scenario, expected",
+    [
+        ("sdn_onos_rest", "/onos/v1/devices", {}, "sdn_l3_clos", True),
+        ("sdn_onos_rest", "/onos/v1/devices", {"devices": []}, "sdn_l3_clos", False),
+        ("sdn_onos_rest", "/onos/v1/other", {}, "sdn_l3_clos", False),
+        ("sdn_onos_rest", "/onos/v1/devices/of:1", {}, "sdn_l3_clos", False),
+        ("exec_shell", "/onos/v1/devices", {}, "sdn_l3_clos", False),
+        ("sdn_onos_rest", "/onos/v1/devices", {}, "campus_lan", False),
+    ],
+)
+def test_onos_empty_reply_lead_requires_its_producing_request(
+    tmp_path, tool, path, body, scenario, expected
+):
+    events = _claude_call(
+        "c1", f"mcp__kathara_sdn_mcp_server__{tool}", "", json.dumps({"body": body})
+    )
+    events[0]["claude_event"]["message"]["content"][0]["input"] = {"path": path}
+    source = _trial(
+        tmp_path,
+        "sdn__healthy__t01",
+        events,
+        gt=HEALTHY_GT,
+        submission=HEALTHY_GT,
+        rca=1,
+        scenario=scenario,
+    )
+    kb = load_kb()
+    issue = kb.issue("TOOL-ONOS-EMPTY-REST-REPLY")
+    assert issue.role == "lead" and issue.severity == "info"
+    audit = audit_trajectories(source, kb=kb.model_copy(update={"issues": [issue]}))
+    assert bool(audit["leads"]) == expected
+    assert audit["known_issues"] == []
+    assert audit["verdict"] == "pass"
 
 
 def test_prompt_contrast_flags_lines_only_fault_tasks_get(tmp_path: Path) -> None:
@@ -1410,6 +1439,106 @@ def test_curation_writes_a_signature_from_shared_excerpt_text(tmp_path: Path) ->
     assert recorded_by({**repair_group, "class": "shortcut"}, hits, exact) is None
 
 
+def test_reviewed_knowledge_is_reused_by_later_submissions(tmp_path: Path) -> None:
+    from nika.audit.pipeline import review_submission
+
+    approved = tmp_path / "approved"
+    shutil.copytree(KB_DIR, approved, ignore=shutil.ignore_patterns("issues"))
+    (approved / "issues").mkdir()
+
+    def submission(name: str):
+        root = tmp_path / name
+        paths = []
+        for label, output in (("leak", "frr.conf.sav"), ("clean", "frr.conf")):
+            paths.append(
+                _trial(
+                    root,
+                    f"{name}__{label}__t01",
+                    _claude_call(
+                        "c1",
+                        "mcp__kathara_base_mcp_server__exec_shell",
+                        "ls /etc/frr",
+                        output,
+                    ),
+                    gt=DNS_GT,
+                    submission=DNS_GT,
+                    rca=1.0,
+                )
+            )
+        records = [
+            {
+                "trial": paths[0].name,
+                "sample": sample,
+                "errors": [],
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "findings": [
+                    {
+                        "class": "shortcut",
+                        "claim": "A backup config file is left next to the live FRR config.",
+                        "step": 1,
+                        "excerpt": "frr.conf.sav",
+                        "citation_status": "supported",
+                    }
+                ],
+            }
+            for sample in range(2)
+        ]
+        return root, paths, records
+
+    first, _, records = submission("first")
+    proposed = tmp_path / "proposed"
+    shutil.copytree(approved, proposed)
+    result = review_submission(
+        first,
+        proposed,
+        tmp_path / "first-review",
+        scan=None,
+        adjudicate=None,
+        precomputed={
+            "records": records,
+            "verdicts": [
+                {
+                    "verdict": "real",
+                    "reason": "Backup config is exposed.",
+                    "tokens": [0, 0],
+                }
+            ],
+        },
+    )
+    assert len(result["written"]) == 1
+    issue_id = result["written"][0]
+    assert not list((approved / "issues").iterdir())
+
+    later, paths, records = submission("later")
+    before = audit_trajectories(later, kb=load_kb(approved))
+    assert all(
+        hit["issue"] != issue_id for hits in before["trials"].values() for hit in hits
+    )
+
+    # Adopting the reviewed proposal changes the next submission's knowledge.
+    shutil.copy2(proposed / "issues" / f"{issue_id}.yaml", approved / "issues")
+    next_snapshot = tmp_path / "next-snapshot"
+    shutil.copytree(approved, next_snapshot)
+    reused = review_submission(
+        later,
+        next_snapshot,
+        tmp_path / "later-review",
+        scan=None,
+        adjudicate=None,
+        precomputed={"records": records, "verdicts": []},
+    )
+    assert reused["recorded"] == 1
+    assert reused["adjudicated"] == 0
+    assert reused["written"] == []
+    report = json.loads((tmp_path / "later-review/audit.json").read_text())
+    assert any(hit["issue"] == issue_id for hit in report["trials"][paths[0].name])
+    assert all(
+        hit["issue"] != issue_id for hit in report["trials"].get(paths[1].name, [])
+    )
+    assert len(list((approved / "issues").glob("*.yaml"))) == 1
+
+
 @pytest.mark.parametrize("restriction", ["tool", "scope", "where", "authored"])
 def test_dedup_requires_the_detector_to_match_its_cited_step(tmp_path, restriction):
     paths = [
@@ -1472,7 +1601,7 @@ def test_dedup_requires_the_detector_to_match_its_cited_step(tmp_path, restricti
 def test_curation_validates_uncited_outputs_and_retries_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
 ) -> None:
-    from auditlib import curate_validate as validator
+    from nika.audit import curate_validate as validator
 
     root = tmp_path / "pkg"
     for i in range(4):
@@ -1594,22 +1723,27 @@ def test_curation_validates_uncited_outputs_and_retries_errors(
 def test_source_reader_unwraps_only_unambiguous_readonly_actions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.contracts as contracts
+    import nika.audit.contracts as contracts
 
     replies = iter(
         [
             {"function": {"action": "search", "query": "provider", "path": "src"}},
             {"function": {"action": "read"}, "params": {"action": "search"}},
             {"action": "computer_use"},
+            '{"action":"search","path":"src","query":"provider"}\n{"action":"finish"}',
             {"action": "finish"},
         ]
     )
     requests, observations = [], []
-    monkeypatch.setattr(
-        contracts,
-        "chat",
-        lambda *args: {"content": json.dumps(next(replies)), "finish": "stop"},
-    )
+
+    def answer(*args):
+        value = next(replies)
+        return {
+            "content": value if isinstance(value, str) else json.dumps(value),
+            "finish": "stop",
+        }
+
+    monkeypatch.setattr(contracts, "chat", answer)
     monkeypatch.setattr(
         contracts,
         "request_source",
@@ -1625,7 +1759,22 @@ def test_source_reader_unwraps_only_unambiguous_readonly_actions(
         observations=observations,
     )
     assert result["action"] == "finish" and len(requests) == 1
-    assert sum("error" in o["source_result"] for o in observations) == 2
+    assert sum("error" in o["source_result"] for o in observations) == 3
+    calls = []
+    monkeypatch.setattr(
+        contracts, "chat", lambda *args: {"content": "{} {}", "finish": "stop"}
+    )
+    with pytest.raises(ValueError, match="unambiguous"):
+        contracts.read_evidence(
+            None,
+            {},
+            "a" * 40,
+            tmp_path,
+            ScanConfig(base_url="unused", model="test"),
+            "Read evidence",
+            calls=calls,
+        )
+    assert len(calls) == 2 and len(requests) == 1
 
 
 def test_cross_trial_findings_become_scoped_statistics() -> None:
@@ -1722,7 +1871,7 @@ def test_invalid_adjudications_are_retried_instead_of_cached(
         calls.append(1)
         return {"content": replies.pop(0), "finish": "stop"}
 
-    monkeypatch.setattr("auditlib.adjudicate.chat", chat)
+    monkeypatch.setattr("nika.audit.adjudicate.chat", chat)
     cache = tmp_path / "verdicts.json"
     old_key = json.dumps([group["class"], group["claim"], group["all_refs"]])
     cache.write_text(
@@ -1740,7 +1889,7 @@ def test_invalid_adjudications_are_retried_instead_of_cached(
     )
     assert len(calls) == 2
     monkeypatch.setattr(
-        "auditlib.cohort_audit.chat",
+        "nika.audit.cohort_audit.chat",
         lambda *args: {"content": content, "finish": "stop"},
     )
     finding = {"class": "shortcut", "row": "prompt:test", "claim": "Prompt cue"}
@@ -1775,6 +1924,7 @@ def test_changed_evidence_invalidates_a_cached_verdict(
     replies = [
         '{"verdict":"real","reason":"Backup present."}',
         '{"verdict":"by_design","reason":"No backup in the new evidence."}',
+        '{"verdict":"unclear","reason":"The newly selected provider must review the evidence."}',
     ]
     calls = []
 
@@ -1782,7 +1932,7 @@ def test_changed_evidence_invalidates_a_cached_verdict(
         calls.append(1)
         return {"content": replies.pop(0), "finish": "stop"}
 
-    monkeypatch.setattr("auditlib.adjudicate.chat", chat)
+    monkeypatch.setattr("nika.audit.adjudicate.chat", chat)
     cache = tmp_path / "verdicts.json"
     cfg = ScanConfig(base_url="unused", model="test")
     assert (
@@ -1798,12 +1948,136 @@ def test_changed_evidence_invalidates_a_cached_verdict(
         == "by_design"
     )
     assert len(calls) == 2
+    cfg.base_url = "another-provider"
+    assert (
+        _verdicts(cache, [group], [0], trials, load_kb(), cfg)[0]["verdict"]
+        == "unclear"
+    )
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize("failure", ["interrupted", "failed_reply"])
+def test_scan_retains_completed_calls_and_retries_only_failed_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    import nika.audit.pipeline as pipeline
+    import nika.audit.scan as scanner
+
+    path = _trial(
+        tmp_path, "t__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
+    )
+    count = 0
+
+    def chat(*args, **kwargs):
+        nonlocal count
+        count += 1
+        if count == 2:
+            if failure == "interrupted":
+                raise RuntimeError("interrupted scan")
+            return {"error": "reviewer unavailable", "sec": 0}
+        return {"content": '{"findings": []}', "finish": "stop", "sec": 0}
+
+    monkeypatch.setattr(scanner, "chat", chat)
+    cfg = ScanConfig(base_url="unused", model="test", samples=2, workers=1, retries=0)
+    cache = tmp_path / "scan.jsonl"
+    if failure == "interrupted":
+        with pytest.raises(RuntimeError, match="interrupted scan"):
+            pipeline._scans(cache, [path], load_kb(), cfg, {})
+    else:
+        first = pipeline._scans(cache, [path], load_kb(), cfg, {})
+        assert first[1]["errors"] == ["reviewer unavailable"]
+        saved = [json.loads(line) for line in cache.read_text().splitlines()]
+        assert saved[1]["failed_responses"][0]["error"] == "reviewer unavailable"
+    journal = tmp_path / "scan-calls.jsonl"
+    assert json.loads(journal.read_text().splitlines()[0])["sample"] == 0
+    with journal.open("a") as handle:
+        handle.write('{"trial":')
+
+    retried = pipeline._scans(cache, [path], load_kb(), cfg, {})
+
+    assert count == 3
+    assert [r["sample"] for r in retried] == [0, 1]
+    assert retried[0]["cached"] and not retried[1].get("cached")
+    assert not any(r["errors"] for r in retried)
+    if failure == "failed_reply":
+        assert retried[1]["requests"] == 2
+        assert retried[1]["recovered_errors"] == ["reviewer unavailable"]
+        assert len(retried[1]["failed_responses"]) == 1
+    assert all(json.loads(line) for line in journal.read_text().splitlines())
+
+
+@pytest.mark.parametrize("command", [None, ("reviewer",)])
+def test_review_retries_cli_failures_without_replaying_interrupted_http_streams(
+    tmp_path, monkeypatch, command
+):
+    import nika.audit.pipeline as pipeline
+    import nika.audit.scan as scanner
+
+    root = tmp_path / "submission"
+    _trial(root, "case__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1)
+    seed = tmp_path / "kb"
+    shutil.copytree(KB_DIR, seed)
+    calls = []
+
+    def chat(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            return {
+                "error": "reviewer unavailable" if command else "interrupted stream",
+                "sec": 0,
+            }
+        return {"content": '{"findings": []}', "finish": "stop", "sec": 0}
+
+    monkeypatch.setattr(scanner, "chat", chat)
+    monkeypatch.setattr(pipeline, "_verdicts", lambda *args: [])
+    cfg = ScanConfig(base_url="unused", model="test", command=command, workers=1)
+    summary = pipeline.review_submission(
+        root, seed, tmp_path / "review", scan=cfg, adjudicate=None
+    )
+
+    assert len(calls) == (2 if command else 1)
+    assert summary["retried_scans"] == (1 if command else 0)
+    assert summary["errors"][0] == (0 if command else 1)
+
+
+@pytest.mark.parametrize("changed", ["evidence", "model"])
+def test_scan_cache_rechecks_changed_inputs_but_reuses_different_worker_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: str
+) -> None:
+    from dataclasses import replace
+
+    import nika.audit.pipeline as pipeline
+    import nika.audit.scan as scanner
+
+    path = _trial(
+        tmp_path, "t__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
+    )
+    calls = []
+
+    def chat(*args, **kwargs):
+        calls.append(1)
+        return {"content": '{"findings": []}', "finish": "stop", "sec": 0}
+
+    monkeypatch.setattr(scanner, "chat", chat)
+    cfg = ScanConfig(base_url="unused", model="test", workers=1)
+    cache = tmp_path / "scan.jsonl"
+    pipeline._scans(cache, [path], load_kb(), cfg, {})
+    cached = pipeline._scans(cache, [path], load_kb(), replace(cfg, workers=2), {})
+    assert len(calls) == 1 and cached[0]["cached"]
+    if changed == "evidence":
+        (path / "ground_truth.json").write_text(json.dumps(DNS_GT))
+    else:
+        cfg = replace(cfg, model="different-model")
+
+    result = pipeline._scans(cache, [path], load_kb(), cfg, {})
+
+    assert len(calls) == 2 and not result[0].get("cached")
 
 
 def test_completed_verdict_survives_interruption_of_the_remaining_batch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.pipeline as pipeline
+    import nika.audit.pipeline as pipeline
 
     group = {
         "class": "shortcut",
@@ -1847,7 +2121,7 @@ def test_completed_verdict_survives_interruption_of_the_remaining_batch(
 
 
 def test_adjudication_whitespace_preserves_the_explicit_verdict() -> None:
-    from auditlib.adjudicate import _verdict
+    from nika.audit.adjudicate import _verdict
 
     result = _verdict(
         '{"verdict":" unclear", "reason":"The tool schema is not recorded."}'
@@ -1863,10 +2137,10 @@ def test_adjudication_whitespace_preserves_the_explicit_verdict() -> None:
 
 
 def test_truncated_judgment_is_an_error_even_if_json_is_complete(monkeypatch) -> None:
-    from auditlib.adjudicate import adjudicate_groups
+    from nika.audit.adjudicate import adjudicate_groups
 
     monkeypatch.setattr(
-        "auditlib.adjudicate.chat",
+        "nika.audit.adjudicate.chat",
         lambda *args: {
             "content": '{"verdict":"real","reason":"A claim."}',
             "finish": "length",
@@ -1891,7 +2165,7 @@ def test_truncated_judgment_is_an_error_even_if_json_is_complete(monkeypatch) ->
 def test_measured_controls_refine_a_signature_and_prevent_false_dedup(
     tmp_path: Path,
 ) -> None:
-    from auditlib.curate import observation_capsule
+    from nika.audit.curate import observation_capsule
 
     output = "alpha localhost$\nbeta controller$\ngamma worker"
     root = tmp_path / "pkg"
@@ -1906,7 +2180,9 @@ def test_measured_controls_refine_a_signature_and_prevent_false_dedup(
         )
     trials = {f.name: load_trial(f) for f in trial_dirs(root)}
     tid = sorted(trials)[0]
-    kbdir = skill.builtin_kb_dir(tmp_path / "kb")
+    kbdir = tmp_path / "kb"
+    shutil.copytree(KB_DIR, kbdir, ignore=shutil.ignore_patterns("issues"))
+    (kbdir / "issues").mkdir()
     kb = load_kb(kbdir)
     group = {
         "class": "healthy_lure",
@@ -1975,7 +2251,7 @@ def test_measured_controls_refine_a_signature_and_prevent_false_dedup(
 def test_automatic_file_probe_requires_matching_source_and_unterminated_last_record(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import auditlib.normalization as normalization
+    import nika.audit.normalization as normalization
 
     raw = "127.0.0.1 localhost\n192.0.2.1 earlier\n192.0.2.2 last"
     events = _claude_call(
@@ -2018,8 +2294,8 @@ def test_automatic_file_probe_requires_matching_source_and_unterminated_last_rec
 
 
 def test_stale_source_navigation_falls_back_to_acquisition(tmp_path, monkeypatch):
-    import auditlib.brief as brief
-    from auditlib.kb import SourceRead
+    import nika.audit.brief as brief
+    from nika.audit.kb import SourceRead
 
     for invalid in (
         {"path": "../private", "start": 1, "end": 2},
@@ -2090,7 +2366,7 @@ def test_stale_source_navigation_falls_back_to_acquisition(tmp_path, monkeypatch
 
 
 def test_source_facts_recover_one_outer_object_without_accepting_conflicting_answers():
-    from auditlib.contracts import _object
+    from nika.audit.contracts import _object
 
     facts = {"selected_node_uses_image": True, "details": {"provider": "source.py"}}
     reply = {
@@ -2116,7 +2392,7 @@ def test_source_facts_recover_one_outer_object_without_accepting_conflicting_ans
 def test_reasoning_stream_collects_answer_and_usage_but_rejects_partial_stream(
     monkeypatch, stream_end
 ):
-    import auditlib.scan as scan
+    import nika.audit.scan as scan
 
     monkeypatch.setattr(scan, "_NO_STREAM", set())
     requests = []
@@ -2164,7 +2440,7 @@ def test_reasoning_stream_collects_answer_and_usage_but_rejects_partial_stream(
 def test_streaming_fallback_preserves_compatible_endpoints_and_counts_requests(
     monkeypatch,
 ):
-    import auditlib.scan as scan
+    import nika.audit.scan as scan
 
     monkeypatch.setattr(scan, "_NO_STREAM", set())
     modes = []
@@ -2195,7 +2471,7 @@ def test_streaming_fallback_preserves_compatible_endpoints_and_counts_requests(
 
 
 def test_streaming_checks_deadline_and_closes_the_response(monkeypatch):
-    import auditlib.scan as scan
+    import nika.audit.scan as scan
 
     clock, closed = [0.0], []
     monkeypatch.setattr(scan, "_NO_STREAM", set())
@@ -2230,7 +2506,7 @@ def test_streaming_checks_deadline_and_closes_the_response(monkeypatch):
 
 def test_capture_proof_requires_both_controls_exact_source_and_matching_binary():
     import copy
-    from auditlib.capture_probe import CapturePlan, confirms_start_failure
+    from nika.audit.capture_probe import CapturePlan, confirms_start_failure
 
     plan = {
         "image": "image@sha256:" + "a" * 64,
@@ -2302,7 +2578,7 @@ def test_capture_proof_requires_both_controls_exact_source_and_matching_binary()
 
 
 def test_runtime_scopes_do_not_transfer_to_other_or_unknown_backends(tmp_path):
-    from auditlib.detectors import in_scope
+    from nika.audit.detectors import in_scope
 
     path = _trial(
         tmp_path, "lab__healthy__t01", [], gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1
@@ -2323,10 +2599,11 @@ def test_runtime_scopes_do_not_transfer_to_other_or_unknown_backends(tmp_path):
 
 
 @pytest.mark.parametrize("repair_succeeds", [True, False])
+@pytest.mark.parametrize("unread_provider", [True, False])
 def test_capture_source_repair_is_bounded_and_charges_both_attempts(
-    tmp_path, monkeypatch, repair_succeeds
+    tmp_path, monkeypatch, repair_succeeds, unread_provider
 ):
-    from auditlib import capture
+    from nika.audit import capture
 
     candidate = {
         "commit": "a" * 40,
@@ -2337,7 +2614,15 @@ def test_capture_source_repair_is_bounded_and_charges_both_attempts(
         "scenario": "deployment",
     }
     monkeypatch.setattr(capture, "source_packet", lambda c: {"commit": c["commit"]})
-    monkeypatch.setattr(capture, "request_source", lambda *args: {"matches": []})
+    reads = []
+
+    def source(repo, commit, request):
+        if request["action"] == "read":
+            reads.append(request["path"])
+            return {"path": request["path"], "lines": ["1: image provider"]}
+        return {"matches": []}
+
+    monkeypatch.setattr(capture, "request_source", source)
     budgets, answers = [], []
 
     def read(*args, **kwargs):
@@ -2348,18 +2633,25 @@ def test_capture_source_repair_is_bounded_and_charges_both_attempts(
     def answer(*args, **kwargs):
         answers.append(True)
         facts = {"resolved": repair_succeeds and len(answers) > 1}
+        if unread_provider:
+            facts["provider_files"] = ["src/nika/image.py"]
         return {"content": json.dumps(facts), "finish": "stop"}
 
     def check(record, *args):
         if not record["facts"]["resolved"]:
             raise ValueError("imported image definition is missing")
+        if unread_provider:
+            assert "src/nika/image.py" in {
+                o["source_result"].get("path") for o in record["observations"]
+            }
 
     monkeypatch.setattr(capture, "read_evidence", read)
     monkeypatch.setattr(capture, "chat", answer)
     monkeypatch.setattr(capture, "_check_source", check)
     cfg = ScanConfig(base_url="unused", model="test")
     result = capture.inspect_source(candidate, tmp_path, cfg, tmp_path)
-    assert budgets == [6, 2]
+    assert budgets == [6, 1 if unread_provider else 2]
+    assert reads == (["src/nika/image.py"] if unread_provider else [])
     assert len(result["calls"]) == 4
     assert bool(result.get("error")) is not repair_succeeds
     assert result["prior_acquisition"]["error"]
@@ -2368,27 +2660,29 @@ def test_capture_source_repair_is_bounded_and_charges_both_attempts(
         assert len(answers) == 2
 
 
-def test_frr_backup_evidence_does_not_label_a_dhcp_reference(tmp_path):
-    from experiment.submission_audit import scan_eval
+def test_call_evidence_includes_its_matching_result_and_tool_namespace(tmp_path):
+    from nika.audit.adjudicate import _evidence
 
-    _trial(
+    path = _trial(
         tmp_path,
-        "enterprise_branch__healthy__t01",
+        "case__healthy__t01",
         _claude_call(
-            "backup",
+            "probe",
             "mcp__kathara_base_mcp_server__exec_shell",
-            "ls /etc/frr",
-            "daemons\nfrr.conf\nfrr.conf.sav\nvtysh.conf",
-        ),
+            "curl -I http://192.0.2.1",
+            "HTTP/1.1 200 OK",
+        )
+        + _claude_call("other", "exec_shell", "unrelated", "UNRELATED-RESULT"),
         gt=HEALTHY_GT,
         submission=HEALTHY_GT,
         rca=1,
-        scenario="enterprise_branch",
     )
-    aliases = yaml.safe_load((scan_eval.HERE / "issue_refs.yaml").read_text())
-    found = scan_eval.labels(tmp_path, aliases)
-    assert "REF-FRR-SAV" in found
-    assert "REF-DHCP-LEASES-BACKUP" not in found
+    trial = load_trial(path)
+    call = next(s for s in trial.steps if s.kind == "tool_call")
+    packet = _evidence(trial, call.index)
+    assert "kathara_base_mcp_server::exec_shell" in packet
+    assert "curl -I" in packet and "HTTP/1.1 200 OK" in packet
+    assert "UNRELATED-RESULT" not in packet
 
 
 @pytest.mark.parametrize(
@@ -2397,8 +2691,8 @@ def test_frr_backup_evidence_does_not_label_a_dhcp_reference(tmp_path):
 def test_missing_tool_evidence_keeps_namespace_and_prior_advertisement(
     tmp_path: Path, requested_server: str
 ) -> None:
-    from auditlib.adjudicate import group_prompt
-    from auditlib.trace import Step, Trial
+    from nika.audit.adjudicate import group_prompt
+    from nika.audit.trace import Step, Trial
 
     advertised = "mcp__kathara_frr_mcp_server__frr_get_rpki_status"
     requested = f"mcp__{requested_server}__frr_get_rpki_status"
@@ -2463,3 +2757,43 @@ def test_missing_tool_evidence_keeps_namespace_and_prior_advertisement(
     trial.steps[3].text = f"No such tool available: {requested}"
     trial.steps[1].meta = {}
     assert "Request-specific tool identity" not in group_prompt(group, {"trial": trial})
+
+
+def test_cli_reviewer_isolates_calls_and_terminates_children(tmp_path):
+    import os
+    import signal
+    import sys
+    from nika.audit.scan import _cli_chat
+
+    command = (
+        sys.executable,
+        "-c",
+        "from pathlib import Path; import json; p=Path('state'); print(json.dumps({'findings': [], 'cwd': str(Path.cwd()), 'previous': p.exists()})); p.touch()",
+    )
+    cfg = ScanConfig(base_url="", model="local", command=command)
+    replies = [
+        json.loads(_cli_chat(cfg, "system", "packet")["content"]) for _ in range(2)
+    ]
+    assert all(not reply["previous"] for reply in replies)
+    assert replies[0]["cwd"] != replies[1]["cwd"]
+    assert all(not Path(reply["cwd"]).exists() for reply in replies)
+
+    pids = tmp_path / "pids.json"
+    script = "import json,os,subprocess,sys,time; child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); open(sys.argv[1],'w').write(json.dumps([os.getpid(),child.pid])); time.sleep(30)"
+    cfg.command = (sys.executable, "-c", script, str(pids))
+    cfg.timeout = 2
+    cfg.retries = 8
+    try:
+        result = _cli_chat(cfg, "system", "packet")
+        assert result["error"] == "reviewer timeout"
+        parent, child = json.loads(pids.read_text())
+        assert not Path(f"/proc/{parent}").exists()
+        status = Path(f"/proc/{child}/stat")
+        assert not status.exists() or status.read_text().split()[2] in {"Z", "X"}
+    finally:
+        if pids.exists():
+            parent, _ = json.loads(pids.read_text())
+            try:
+                os.killpg(parent, signal.SIGKILL)
+            except ProcessLookupError:
+                pass

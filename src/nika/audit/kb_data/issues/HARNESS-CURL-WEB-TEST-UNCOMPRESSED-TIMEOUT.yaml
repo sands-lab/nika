@@ -1,0 +1,35 @@
+id: HARNESS-CURL-WEB-TEST-UNCOMPRESSED-TIMEOUT
+title: In release 0.2.0 curl_web_test fetched the campus_lan catalog without Accept-Encoding, so the raw 64 MiB body always exceeded the 10 s cap
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: At the release commit, curl_web_test ran 'curl --connect-timeout 5 --max-time 10' without --compressed
+  (src/nika/service/kathara/base_api.py). The campus_lan brief says clients fetch the catalog with gzip, but the
+  uncompressed catalog is 67108864 bytes and takes about 13 s. The fetch therefore timed out in all 16 campus_lan
+  cases whatever the fault, including off-path DHCP and OSPF faults, across 20 submissions, and agents read the
+  timeout as a web or path fault. c00630bc adds --compressed (src/nika/service/shell.py).
+guideline: Counts on a curl_web_test [TIMEOUT] with --max-time 10 in campus_lan on a release-0.2.0 commit. On a
+  commit with c00630bc a timeout can be a real symptom (for example a web or path fault); check whether the
+  command carries --compressed before calling it a regression. Timeouts in other environments are not this issue.
+scope:
+  scenarios:
+  - campus_lan
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: curl_web_test
+  pattern: \[TIMEOUT\] Command 'curl --connect-timeout 5 --max-time 10 (?!.*--compressed)
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-CURL-WEB-TEST-UNCOMPRESSED-TIMEOUT)
+  date: '2026-10-28'
+  refs:
+  - campus_lan__device_forwardin__h0b9011ea426b__t01:6
+  - campus_lan__dhcp_missing_sub__h495aae94c5be__t01:213
+  found_by: agentic
+evidence:
+- 'campus_lan__device_forwardin__h0b9011ea426b__t01 (20261012_claude_code_gemma_4_31b_it) step 6: [TIMEOUT] Command
+  ''curl --connect-timeout 5 --max-time 10 -w ''namelookup:%{time_namelookup}, ...'
+- 'campus_lan__dhcp_missing_sub__h495aae94c5be__t01 (20261007_claude_code_qwen3_6_35b_a3b_fp8) step 213: HTTP_CODE: 200
+  TIME_TOTAL: 13.009501 SIZE: 67108864'

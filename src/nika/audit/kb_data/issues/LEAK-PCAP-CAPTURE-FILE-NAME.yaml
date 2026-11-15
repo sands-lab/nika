@@ -1,0 +1,19 @@
+id: LEAK-PCAP-CAPTURE-FILE-NAME
+title: Packet capture files named after the benchmark
+class: shortcut
+role: known
+severity: info
+status: fixed
+fixed_in: c00630bc
+summary: packet_capture_start wrote /tmp/nika-capture-<id>.pcapng and returned that path, telling the
+  agent it runs in NIKA (no fault information).
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: /tmp/nika-capture-
+provenance:
+  source: agentic audit pilot B (Claude Haiku 5.5) on 20261014_claude_code_qwen3_5_27b with planted defects
+  date: '2026-10-25'
+  found_by: agentic
+  refs:
+  - campus_lan__device_forwardin__h0b9011ea426b__t02

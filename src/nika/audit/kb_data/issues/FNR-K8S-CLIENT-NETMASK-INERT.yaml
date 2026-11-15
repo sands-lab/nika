@@ -1,0 +1,37 @@
+id: FNR-K8S-CLIENT-NETMASK-INERT
+title: k8s_lab host_incorrect_netmask on client/eth0 is inert
+class: fault_not_realized
+severity: warn
+status: fixed
+fixed_in: 6c8ab721
+summary: >-
+  Case h5b4decc91a36 widens the k8s_lab client from 3.0.0.2/24 to /8. The only other 3.x address is as2r1
+  3.0.0.1, so /8 versus /24 changes no path: client traffic to every node still works. All 18 trials of
+  the case in the six submissions that ran it scored rca_f1=0, several after seeing 3.0.0.2/8 and correctly
+  not flagging it. The release case was replaced by a solvable one on worker3 (hd97786be63fb) in 6c8ab721.
+guideline: >-
+  Applies only to the client/eth0 case (the agent sees 3.0.0.2/8 on client). The worker3 case is a different,
+  realised fault and is not this issue. Do not count a miss on the client case as an agent error.
+scope:
+  fault_types:
+  - host_incorrect_netmask
+  scenarios:
+  - k8s_lab
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: 3\.0\.0\.2/8\b
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-K8S-CLIENT-NETMASK-INERT)
+  date: '2026-10-28'
+  refs:
+  - k8s_lab__host_incorrect_netm__h5b4decc91a36__t01:38
+  - k8s_lab__host_incorrect_netm__h5b4decc91a36__t01:164
+  found_by: agentic
+evidence:
+- '20261008_codex_qwen3_6_35b_a3b_fp8 k8s_lab__host_incorrect_netm__h5b4decc91a36__t01 step 38: eth0 UP
+  3.0.0.2/8 | default via 3.0.0.1 dev eth0 | 3.0.0.0/8 dev eth0 proto kernel scope link src 3.0.0.2'
+- '20261008_codex_qwen3_6_35b_a3b_fp8 k8s_lab__host_incorrect_netm__h5b4decc91a36__t01 step 164: 64 bytes
+  from 201.1.1.2 ... 2 received, 0% packet loss'

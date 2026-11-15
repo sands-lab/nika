@@ -1,0 +1,22 @@
+id: LURE-ENTERPRISE-BRANCH-VRF-WAN
+title: 'enterprise_branch: healthy baseline lure'
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: Guest/IoT VRFs are local-only and the WAN path is about 160 ms by design; agents reported bgp_missing_route_advertisement
+  on every edge (healthy 29/36) and in 225 of 333 fault trials.
+scope:
+  scenarios:
+  - enterprise_branch
+detect:
+- kind: metric
+  metric: healthy_label_share
+  threshold: 0.3
+  min_trials: 3
+  pattern: bgp_missing_route_advertisement|bgp_
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B1
+  date: '2026-10-14'
+  refs: []
+  found_by: manual

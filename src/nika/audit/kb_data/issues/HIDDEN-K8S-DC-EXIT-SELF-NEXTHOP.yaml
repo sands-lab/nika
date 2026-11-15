@@ -1,0 +1,31 @@
+id: HIDDEN-K8S-DC-EXIT-SELF-NEXTHOP
+title: k8s dc_exit routes via its own address
+class: healthy_lure
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: k8s_lab dc_exit routed 201/8 and 101/8 via its own 10.0.2.1, a self-referencing static route
+  in the fault-free lab (H9).
+guideline: Agents that report it on a healthy task are right. Confirm with references/live-confirm.md.
+scope:
+  scenarios:
+  - k8s_lab
+  healthy: true
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: (?:101|201)\.0\.0\.0/8 via 10\.0\.2\.1 dev eth2
+provenance:
+  source: healthy-hunter paper_cases
+  date: '2026-10-12'
+  refs:
+  - healthy-hunter
+  - k8s_lab__healthy__t01:32
+  - k8s_lab__healthy__t01:34
+  found_by: live_audit
+evidence:
+- 'k8s_lab__healthy__t01 (20261016_claude_code_claude_opus_5_5) step 32: 101.0.0.0/8 via 10.0.2.1 dev eth2'
+- 'k8s_lab__healthy__t01 step 34: its `101.0.0.0/8` and `201.0.0.0/8` routes oddly point to `10.0.2.1` on eth2, which
+  is its own address. (submission-audit runs 2026-10-28, verified REF-LURE-K8S-DC-EXIT-SELF-NEXTHOP)'

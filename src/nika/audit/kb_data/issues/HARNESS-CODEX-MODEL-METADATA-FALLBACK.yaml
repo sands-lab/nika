@@ -1,0 +1,18 @@
+id: HARNESS-CODEX-MODEL-METADATA-FALLBACK
+title: Codex runs without model metadata
+class: harness_defect
+severity: info
+status: open
+summary: Codex warns that it has no metadata for the served model and falls back to defaults (context
+  window, tool format), which can degrade a run.
+detect:
+- kind: text
+  where:
+  - harness
+  exclude_authored: false
+  pattern: Model metadata for .* not found
+provenance:
+  source: audit census of 0.2.0 codex trajectories
+  date: '2026-10-25'
+  refs: []
+  found_by: deterministic
