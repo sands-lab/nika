@@ -11,19 +11,10 @@ This directory preserves the NIKA collectors and combined analysis for the Octob
 | `analyze.py` | Combine NIKA and external benchmark timings into `phases.csv` |
 | `setup_breakdown.py`, `make_figs.py` | Historical setup analysis and figures |
 
-NetOpsBench and NetArena collectors live in the separate `network-benchmark-experiments` Git repository. On xwangz-vm its checkout is `/home/ubuntu/network-benchmark-experiments`. Collector outputs and their upstream workspace results remain outside the source repository.
+NetOpsBench and NetArena collectors live in the separate `network-benchmark-experiments` Git repository. On xwangz-vm its checkout is `/home/ubuntu/network-benchmark-experiments`. Keep new collector outputs and upstream workspace results outside the source repository.
 
-To reanalyze the historical artifacts, set their locations explicitly:
+The author retired the historical raw data, trajectories, aggregates and figures on xwangz-vm on 2026-11-15 before restarting experiments. The old numbers remain historical placeholders in the notes and manuscript, pending new measurements.
 
-```sh
-export NIKA_RESET_RESULTS=/path/to/reset-exp
-export NETOPSBENCH_RUNS=/path/to/NetOpsBench/.netopsbench/runs
-export NIKA_FIRECRACKER_ROOT=/path/to/firecracker-metadata
-uv run python experiment/snapshot_reset/analyze.py
-uv run --with matplotlib python experiment/snapshot_reset/setup_breakdown.py
-uv run --with matplotlib python experiment/snapshot_reset/make_figs.py
-```
-
-The analysis uses historical size tiers and fixed experiment groups. Snapshot build metadata has a separate retention archive on xwangz-vm. Existing `phases.csv` and `setup.csv` preserve the historical aggregates. The analysis may omit image-to-variant mappings if you supply a metadata root without the original image records.
+For new runs, adapt these historical collectors to the current runtime and derive the inventory and size groups from the frozen experiment configuration. The analysis reads artifact locations from `NIKA_RESET_RESULTS`, `NETOPSBENCH_RUNS` and `NIKA_FIRECRACKER_ROOT`. Its original size tiers, experiment groups and filters describe the retired study.
 
 Keep measurement failures and unsupported variants in new runs. The historical analysis filters some incomplete runs and must not define admission or reporting rules for a new experiment.
