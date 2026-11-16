@@ -22,12 +22,14 @@ A manifest with an `engine` block selects a separate engine container. A manifes
 
 ```yaml
 engine:
-  tag: da91a98ada54
+  tag: 543fcae713ea
   api:
     version: 1
 ```
 
-This is the engine reference in release 0.2.0's manifest. Despite its field name, `engine.tag` accepts a Git tag or commit. The frontend builds that reference from a clean `git archive`, so uncommitted changes do not enter the image. `nika engine build <ref>` builds it ahead of a run. Without a local image whose commit label matches the reference, the first release run builds the image itself.
+This is the engine reference in release 0.2.0's manifest, a commit on the `release/0.2.0` branch. Despite its field name, `engine.tag` accepts a Git tag or commit. The frontend builds that reference from a clean `git archive`, so uncommitted changes do not enter the image. `nika engine build <ref>` builds it ahead of a run. Without a local image whose commit label matches the reference, the first release run builds the image itself.
+
+A release's engine lives on its maintenance branch, `release/<version>`. The branch starts at the commit the release first pinned and receives only the engine changes it needs to serve the current lifecycle API, so everything that defines the release stays as published. Commits on a release branch are never rewritten, so every pinned commit stays buildable. `engine.tag` names such a commit until the release is tagged; a release tag does not move once it exists.
 
 A manifest may also provide `engine.image`. The frontend uses that image when it exists locally or can be pulled; otherwise it builds from `engine.tag`. An image override does not check the image's commit against the Git reference. Run provenance records the image ID actually used.
 
@@ -63,7 +65,7 @@ Published releases do not change. Corrections follow the [versioning policy](../
 | `score` | Trial handle and infrastructure evidence flag | `Scores`: score status, the release's scoring ID, its score metrics (null when not graded), and why grading failed |
 | `stop_trial` | Trial handle and final session status | Closes the environment |
 
-For a release run, the frontend builds its trial grid from `list_tasks`: each task ID times the release's trial count. Before it lists the tasks, the engine checks that it can serve all of them: their environments, failures, MCP servers, and the Dev/Test split rules. It resolves `--task-id` against that list, admits trials by the resource class the engine reports, and starts each trial by task ID. The engine reads the task from its own split file, derives the failures, injection parameters, and expected root causes from it, and refuses an unknown task ID before deploying. The engine also records the task's fingerprint, `benchmark_fingerprint`, in the trial's `run.json`. Runs without a release, such as ad-hoc task matrices and single tasks, send the full task row to the in-process engine; an engine container refuses task rows.
+For a release run, the frontend builds its trial grid from `list_tasks`: each task ID times the release's trial count. Before it lists the tasks, the engine checks that it can serve all of them: their environments, failures, MCP servers, and the Dev/Test split rules. It resolves `--task-id` against that list, admits trials by the resource class the engine reports, and starts each trial by task ID. The engine reads the task from its own split file, derives the failures, injection parameters, and expected root causes from it, and refuses an unknown task ID before deploying. The engine also records the task's fingerprint, `benchmark_fingerprint`, in the trial's `run.json`. Runs without a release, such as ad-hoc task matrices and single tasks, send the full task row to the in-process engine; an engine container refuses task rows. Published task IDs never change: [`test_release_tasks.py`](../../tests/benchmark/test_release_tasks.py) pins the task IDs, resource classes, and deployed tasks of every published release.
 
 The engine and frontend share trial directories: the engine writes `ground_truth.json` as it prepares or executes the timeline, and it records the validated answer, `submission.json`, there. `score` grades the trial from those two files and the frontend's infrastructure evidence flag alone, and returns the scores in its reply. The `Scores` fields are fixed in engine API version 1; metric names and values belong to the release, so a release can add or remove a metric without a new API version. The current protocol does not transfer all results as HTTP response data.
 
@@ -121,6 +123,8 @@ During diagnosis, agents use the permitted network tools. During submission, the
 
 The gateway limits tool result text to 10,000 characters, with truncation notes and elision markers added outside the limit. See [Tool output limit](../agents/mcp-servers.md#tool-output-limit) for the retained text and list-item rules.
 
+The frontend may hold task details and ground truth, for example to show progress or to package results. It must keep them from the agent: the agent gets an opaque session ID, and nothing the frontend passes to the agent names the task or its failures.
+
 Agent harnesses use MCP tools rather than direct container access. Changes to what the agent observes or how NIKA evaluates its answer must follow the [versioning policy](../../VERSIONING.md).
 
 ## D. Results schema
@@ -149,7 +153,7 @@ Two interface versions serve different readers:
 | `engine.api.version` in the release manifest | Engine lifecycle API, manifest interpretation, and engine-written results | `1` |
 | `schema_version` in run-directory `run.json` | Frontend-written run records | `1` |
 
-Backward-compatible additions retain the interface version. A breaking change requires another supported version. The frontend rejects unsupported versions before running a release or reading its results. These interface versions do not replace the benchmark version or determine whether a change needs an edition, revision, or patch; use the [versioning policy](../../VERSIONING.md) for that decision.
+Backward-compatible additions retain the interface version. A breaking change requires another supported version. Engine API version 1 may still change incompatibly until a release tag pins an engine that serves it. The frontend rejects unsupported versions before running a release or reading its results. These interface versions do not replace the benchmark version or determine whether a change needs an edition, revision, or patch; use the [versioning policy](../../VERSIONING.md) for that decision.
 
 ## Verify an integration
 

@@ -15,7 +15,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from nika.benchmark_engine.container import RUN_LABEL, _git_commit, image_id
+from nika.benchmark_engine.container import (
+    COMMIT_LABEL,
+    RUN_LABEL,
+    _image_label,
+    image_id,
+)
 from nika.config import SESSIONS_DIR
 from nika.problems.rca.materialize import assert_root_causes_match
 from nika.runtime.factory import runtime_for_session
@@ -178,7 +183,10 @@ def test_pinned_release_runs_on_engine_container(
                     ]
                     assert provenance["engine"]["tag"] == tag
                     assert provenance["engine"]["image"] == image_id(image)
-                    assert provenance["engine"]["commit"] == _git_commit(tag)
+                    # A supplied image may come from another branch, so compare its own label.
+                    assert provenance["engine"]["commit"] == _image_label(
+                        image, COMMIT_LABEL
+                    )
                     assert provenance["engine"]["dirty"] is False
                     assert provenance["engine"]["api"] == 1
                     engine_log = (result_dir / "benchmark_engine.log").read_text()

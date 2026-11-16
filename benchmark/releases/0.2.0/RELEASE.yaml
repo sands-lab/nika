@@ -1,7 +1,7 @@
 id: nika-bench
 version: 0.2.0
 engine:
-  tag: da91a98ada54
+  tag: 543fcae713ea
   api:
     version: 1
 splits:
