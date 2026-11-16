@@ -26,6 +26,8 @@ from nika.benchmark_engine.protocol import (
     FaultCheck,
     GatewayRequest,
     Resource,
+    Scores,
+    TaskList,
     TrialHandle,
     TrialRequest,
 )
@@ -41,7 +43,7 @@ from nika.validation.presence import (
 )
 from nika.workflows.benchmark.healthy import write_healthy_session_artifacts
 from nika.workflows.env.start import start_net_env
-from nika.workflows.eval.session import run_eval_metrics
+from nika.workflows.eval.session import grade_trial
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
 
@@ -87,8 +89,27 @@ class BenchmarkEngine:
             host=engine_host_info(),
         )
 
+    def list_tasks(self, release: str, split: str) -> TaskList:
+        """List *release*'s tasks in *split* once this NIKA can serve them all."""
+        from nika.benchmark_engine.tasks import task_info
+        from nika.workflows.benchmark.release import load_release, preflight_release
+
+        loaded = load_release(release, split=split)
+        preflight_release(loaded, check_images=False)
+        return TaskList(
+            release=loaded.version,
+            split=loaded.split,
+            task_file_sha256=_sha256(loaded.cases_path),
+            tasks=[task_info(row) for row in loaded.cases],
+        )
+
     def start_trial(self, request: TrialRequest) -> TrialHandle:
+        from nika.benchmark_engine.tasks import resolve_trial
+        from nika.workflows.benchmark.resume import benchmark_row_fingerprint
+
+        request = resolve_trial(request)
         task = request.task
+        assert task is not None
         scenario = task["scenario"]
         size = (
             task.get("topo_size") or None
@@ -118,11 +139,13 @@ class BenchmarkEngine:
             )
         trial_dir = request.trial_dir
         try:
+            session = Session().load_running_session(session_id=session_id)
             if request.release:
                 # Injection resolves the release's failure variants from it.
-                Session().load_running_session(session_id=session_id).update_session(
-                    "benchmark_version", request.release
-                )
+                session.update_session("benchmark_version", request.release)
+            session.update_session(
+                "benchmark_fingerprint", benchmark_row_fingerprint(task)
+            )
             if trial_dir is None:
                 trial_dir = str(load_session_meta_for_close(session_id)["session_dir"])
         except BaseException:
@@ -262,20 +285,9 @@ class BenchmarkEngine:
             error=raw.get("error"),
         )
 
-    def score(
-        self,
-        handle: TrialHandle,
-        *,
-        result_dir: str | None = None,
-        infra_evidence: bool = False,
-    ) -> None:
-        """Write ``eval_metrics.json`` into the trial directory."""
-        run_eval_metrics(
-            session_id=handle.session_id,
-            result_dir=result_dir,
-            session_dir=handle.trial_path,
-            infra_evidence=infra_evidence,
-        )
+    def score(self, handle: TrialHandle, *, infra_evidence: bool = False) -> Scores:
+        """Grade the trial's submission; the frontend writes the results file."""
+        return grade_trial(handle.trial_path, infra_evidence=infra_evidence)
 
     def stop_trial(self, handle: TrialHandle, *, status: str = "finished") -> None:
         self._started.pop(handle.session_id, None)

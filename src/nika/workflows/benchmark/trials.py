@@ -93,6 +93,11 @@ def _inject_label_parts(inject: Any) -> list[str]:
 
 def format_trial_label(row: dict[str, Any], *, trial_index: int) -> str:
     """Human-facing trial id: scenario/problem, size, inject, tNN."""
+    return f"{task_label(row)} t{trial_index:02d}"
+
+
+def task_label(row: dict[str, Any]) -> str:
+    """Human-facing task label: scenario/problem, size, inject."""
     scenario = str(row.get("scenario") or "?")
     problem = str(row.get("problem") or "?")
     bits = [f"{scenario}/{problem}"]
@@ -100,7 +105,6 @@ def format_trial_label(row: dict[str, Any], *, trial_index: int) -> str:
     if topo != "":
         bits.append(str(topo))
     bits.extend(_inject_label_parts(row.get("inject")))
-    bits.append(f"t{trial_index:02d}")
     return " ".join(bits)
 
 
@@ -439,6 +443,7 @@ def _restore_success_eval_metrics(path: Path) -> bool:
     """
     from nika.benchmark_engine import benchmark_engine
     from nika.benchmark_engine.protocol import TrialHandle
+    from nika.workflows.eval.session import score_trial
 
     metrics_path = path / "eval_metrics.json"
     if metrics_path.is_file():
@@ -452,8 +457,9 @@ def _restore_success_eval_metrics(path: Path) -> bool:
     ):
         return False
     try:
-        benchmark_engine().score(
-            TrialHandle(session_id=str(session_id), trial_dir=str(path))
+        score_trial(
+            benchmark_engine(),
+            TrialHandle(session_id=str(session_id), trial_dir=str(path)),
         )
     except Exception:  # noqa: BLE001 - the slot stays incomplete and reruns
         return False

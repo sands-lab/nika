@@ -175,7 +175,7 @@ def test_curated_timeout_continues_remaining(tmp_path: Path) -> None:
             with (
                 patch("nika.benchmark_engine.engine.close_session"),
                 patch(
-                    "nika.benchmark_engine.engine.run_eval_metrics",
+                    "nika.benchmark_engine.engine.grade_trial",
                     side_effect=RuntimeError("no closed session"),
                 ),
                 patch(

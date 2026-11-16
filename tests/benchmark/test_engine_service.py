@@ -25,6 +25,9 @@ from nika.benchmark_engine.protocol import (
     FaultCheck,
     GatewayRequest,
     Resource,
+    Scores,
+    TaskInfo,
+    TaskList,
     TrialHandle,
     TrialRequest,
 )
@@ -58,11 +61,32 @@ GATEWAY = GatewayRequest(
 
 
 REQUEST = TrialRequest(
-    task={"scenario": "dc_clos"},
-    failures=["link_down"],
+    task_id="dc_clos__link_down__s__h6ad1501e0f8a",
     session_id=HANDLE.session_id,
     trial_dir=HANDLE.trial_dir,
     release="0.2.0",
+    split="test",
+)
+# Metric names are release content; ``null`` marks a metric not graded.
+SCORES = Scores(
+    status="scored",
+    scoring_id="rule-based",
+    metrics={"detection_score": 1.0, "rca_f1": 0.5, "fault_type_f1": None},
+)
+TASKS = TaskList(
+    release="0.2.0",
+    split="test",
+    task_file_sha256="0" * 64,
+    tasks=[
+        TaskInfo(
+            task_id=REQUEST.task_id,
+            scenario="dc_clos",
+            topo_size="s",
+            resource_class="light",
+            faults=["link_down"],
+            label="dc_clos/link_down s host=client_0 intf=eth0",
+        )
+    ],
 )
 TASK = AgentTask(task_description="Hosts in pod 1 cannot reach the web server.")
 
@@ -84,6 +108,10 @@ class _StubEngine:
             release_id="nika-bench",
             release_version=release or "0.2.0",
         )
+
+    def list_tasks(self, release, split):
+        self.calls.append(("list_tasks", release, split))
+        return TASKS
 
     def start_trial(self, request):
         self.calls.append(("start_trial", request))
@@ -108,8 +136,9 @@ class _StubEngine:
     def fault_check(self, handle):
         return FaultCheck(result="present", fault="link_down")
 
-    def score(self, handle, *, result_dir=None, infra_evidence=False):
-        self.calls.append(("score", handle, result_dir, infra_evidence))
+    def score(self, handle, *, infra_evidence=False):
+        self.calls.append(("score", handle, infra_evidence))
+        return SCORES
 
     def stop_trial(self, handle, *, status="finished"):
         if handle.session_id == "gone":
@@ -141,13 +170,14 @@ def test_client_drives_every_operation_over_http() -> None:
     with _serve(create_engine_app(engine, token=TOKEN)) as url:
         client = EngineClient(url, token=TOKEN)
         assert client.describe("0.1.0").release_version == "0.1.0"
+        assert client.list_tasks("0.2.0", "test") == TASKS
         assert client.start_trial(REQUEST) == HANDLE
         # The agent's task comes from the engine, not the shared session store.
         assert client.begin(HANDLE) == TASK
         assert client.agent_endpoints(HANDLE, GATEWAY) == ENDPOINTS
         client.close_agent_endpoints(HANDLE)
         assert client.fault_check(HANDLE).result == "present"
-        client.score(HANDLE, result_dir="/results", infra_evidence=True)
+        assert client.score(HANDLE, infra_evidence=True) == SCORES
         client.stop_trial(HANDLE, status="aborted")
 
         with pytest.raises(FileNotFoundError):
@@ -159,13 +189,28 @@ def test_client_drives_every_operation_over_http() -> None:
         with pytest.raises(EngineError, match="invalid engine token"):
             EngineClient(url, token="wrong").describe()
 
+    assert ("list_tasks", "0.2.0", "test") in engine.calls
     assert ("start_trial", REQUEST) in engine.calls
     assert ("begin", HANDLE) in engine.calls
     # The release's access policy reaches the engine that runs the gateway.
     assert ("agent_endpoints", HANDLE, GATEWAY) in engine.calls
     assert ("close_agent_endpoints", HANDLE) in engine.calls
-    assert ("score", HANDLE, "/results", True) in engine.calls
+    assert ("score", HANDLE, True) in engine.calls
     assert ("stop_trial", HANDLE, "aborted") in engine.calls
+
+
+def test_pinned_engine_refuses_a_task_row() -> None:
+    engine = _StubEngine()
+    row = TrialRequest(
+        task={"scenario": "dc_clos", "problem": "link_down"},
+        failures=["link_down"],
+        session_id=HANDLE.session_id,
+        trial_dir=HANDLE.trial_dir,
+    )
+    with _serve(create_engine_app(engine, token=TOKEN)) as url:
+        with pytest.raises(EngineError, match="not accept task rows"):
+            EngineClient(url, token=TOKEN).start_trial(row)
+    assert not [call for call in engine.calls if call[0] == "start_trial"]
 
 
 def test_repeated_requests_do_not_redo_work_and_a_retry_redeploys() -> None:

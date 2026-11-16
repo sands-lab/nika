@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Engine API versions this frontend speaks (``engine.api.version`` in a release
 # manifest). One version covers the manifest format, the lifecycle operations,
@@ -51,17 +51,50 @@ class EngineDescription(_Message):
     host: HostInfo | None = None
 
 
+class TaskInfo(_Message):
+    """One task of a release split, as ``list_tasks`` reports it.
+
+    ``resource_class`` is ``light``, ``large``, ``k8s``, or ``clab``; the
+    frontend admits trials by it. ``label`` is the progress label without the
+    trial number.
+    """
+
+    task_id: str
+    scenario: str
+    topo_size: str | None = None
+    resource_class: str
+    faults: list[str] = Field(default_factory=list)
+    label: str
+
+
+class TaskList(_Message):
+    """The tasks of one release split, in split-file order.
+
+    ``task_file_sha256`` is the hash of the split file the engine read; the
+    frontend checks it against the release manifest.
+    """
+
+    release: str
+    split: str
+    task_file_sha256: str
+    tasks: list[TaskInfo]
+
+
 class TrialRequest(_Message):
     """One trial of one task.
 
-    ``task`` is the task row as the split file defines it. A pinned benchmark
-    engine checks it against its own copy; the current NIKA's engine deploys it.
-    ``release`` is the version of the release the task belongs to, which
-    selects that release's failure variants.
+    A release trial names its task by ``task_id`` with ``release`` and
+    ``split``; the engine reads the task from its own split file and derives
+    the failures, injection parameters, expected root causes, and healthy flag
+    from it. A run without a release sends the full task row as ``task``
+    instead, with those fields. Only the in-process engine accepts a task row.
+    ``release`` also selects that release's failure variants.
     """
 
-    task: dict[str, Any]
-    failures: list[str]
+    task: dict[str, Any] | None = None
+    task_id: str | None = None
+    split: str | None = None
+    failures: list[str] = Field(default_factory=list)
     inject: dict[str, Any] = Field(default_factory=dict)
     expected_root_causes: list[Any] | None = None
     healthy: bool = False
@@ -70,6 +103,27 @@ class TrialRequest(_Message):
     result_dir: str | None = None
     session_tag: str | None = None
     release: str | None = None
+
+    @model_validator(mode="after")
+    def _one_task(self) -> TrialRequest:
+        if (self.task is None) == (self.task_id is None):
+            raise ValueError("A trial request sets exactly one of task and task_id")
+        if self.task_id is not None:
+            if not self.release or not self.split:
+                raise ValueError("A task_id request needs release and split")
+            if (
+                self.failures
+                or self.inject
+                or self.expected_root_causes is not None
+                or self.healthy
+            ):
+                raise ValueError(
+                    "A task_id request takes its failures, injection parameters, "
+                    "root causes, and healthy flag from the engine's task"
+                )
+        elif self.split is not None:
+            raise ValueError("split applies to task_id requests only")
+        return self
 
 
 class Resource(_Message):
@@ -180,6 +234,21 @@ class AgentEndpoints(_Message):
     servers: list[str]
 
 
+class Scores(_Message):
+    """The grade of one trial, as ``score`` returns it.
+
+    ``status`` is the trial's score status (``scored``, ``no_submission``,
+    ``grading_error``, or ``infra_error``). ``metrics`` holds the release's
+    score columns, null when the trial was not graded; their names belong to
+    the release, not to this envelope. ``error`` says why grading failed.
+    """
+
+    status: str
+    scoring_id: str
+    metrics: dict[str, float | None]
+    error: str | None = None
+
+
 class EngineError(RuntimeError):
     """A lifecycle step failed; ``outcome`` drives retry and resume."""
 
@@ -207,6 +276,10 @@ class LifecycleProtocol(Protocol):
 
     def describe(self, release: str | None = None) -> EngineDescription: ...
 
+    def list_tasks(self, release: str, split: str) -> TaskList:
+        """The tasks of one release split; an engine computes their IDs."""
+        ...
+
     def start_trial(self, request: TrialRequest) -> TrialHandle: ...
 
     def begin(self, handle: TrialHandle) -> AgentTask:
@@ -221,12 +294,12 @@ class LifecycleProtocol(Protocol):
 
     def fault_check(self, handle: TrialHandle) -> FaultCheck: ...
 
-    def score(
-        self,
-        handle: TrialHandle,
-        *,
-        result_dir: str | None = None,
-        infra_evidence: bool = False,
-    ) -> None: ...
+    def score(self, handle: TrialHandle, *, infra_evidence: bool = False) -> Scores:
+        """Grade the trial's submission against its ground truth.
+
+        ``infra_evidence`` reports an infrastructure failure the frontend saw;
+        it turns a missing submission into ``infra_error``.
+        """
+        ...
 
     def stop_trial(self, handle: TrialHandle, *, status: str = "finished") -> None: ...

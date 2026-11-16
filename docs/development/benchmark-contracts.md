@@ -127,14 +127,14 @@ The benchmark engine is a long-lived HTTP service on the host loopback interface
 | Operation | Input | Output |
 | --- | --- | --- |
 | `describe` | Release | Supported engine API versions, release ID and version, engine commit, task-file hashes, host Docker and kernel versions |
-| `list_tasks` | Split | Task IDs and the deployment parameters the frontend schedules on, never ground truth |
-| `start_trial` | Task ID, release version, trial index, trial directory | Trial handle, and every resource the benchmark engine created |
+| `list_tasks` | Release version and split | The split file's hash and, in file order, each task's ID, environment, topology size, resource class, failure names, and progress label |
+| `start_trial` | `TrialRequest`: task ID with release version and split, or a task row; session ID and result paths | Trial handle, and every resource the benchmark engine created |
 | `begin` | Trial handle | The task description the agent receives, once the agent may start; for every current task, its failure is then injected and verified |
 | `trial_status` | Session ID | Over HTTP, the trial's state (see [Trial states](#trial-states)) |
 | `agent_endpoints` | Trial handle, access policy, where the agent runs | The trial's MCP gateway (contract C): its URL for the frontend and for the agent, the session and phase tokens, and the MCP servers it serves |
 | `close_agent_endpoints` | Trial handle | Closes the trial's MCP gateway |
 | `fault_check` | Trial handle | Whether the injected failure is still present |
-| `score` | Trial handle | Scores and score status, computed from the recorded answer |
+| `score` | Trial handle and infrastructure evidence flag | `Scores`: score status, the release's scoring ID, its score metrics (null when not graded), and why grading failed |
 | `stop_trial` | Trial handle or resource list | Teardown; safe to repeat, including after a frontend crash |
 
 Rules:
@@ -144,7 +144,8 @@ Rules:
 * The frontend sends the release version in the `start_trial` request and receives the agent's task description from `begin`, instead of exchanging them through the engine's session record.
 * `begin` marks the moment the agent is about to start, and the engine decides what the task needs by then. A task that injects a failure later in the trial schedules it in the engine from that moment, and the frontend's calls stay the same.
 * The frontend decides whether a failed trial can be scored by whether `begin` returned, which it records as `ready` in the trial's `run.json` so that a parent process can read it after a worker dies. It does not read `ground_truth.json` for this decision.
-* The frontend never grades an answer itself. When resume finds a solved trial without metrics, it asks the run's engine to `score` it.
+* A release trial names its task by task ID, release version, and split. The engine reads the task from its own split file, derives the failures, injection parameters, and expected root causes from it, refuses an unknown task ID before deploying, and records the task's `benchmark_fingerprint` in the trial's `run.json`. Runs without a release send the full task row to the in-process engine; an engine container refuses task rows.
+* The frontend never grades an answer itself. When resume finds a solved trial without metrics, it asks the run's engine to `score` it. `score` grades from `submission.json` and `ground_truth.json` alone and writes nothing; the frontend adds token, step, and tool-call counts and validity flags from the trial's traces and writes `eval_metrics.json`.
 * Errors carry one of the outcome classes in `src/nika/workflows/benchmark/outcomes.py` (`agent_failed`, `endpoint_failed`, `infra_failed`), so retry and resume behave the same for every release.
 * The frontend moves a trial from diagnosis to submission through the gateway's phase endpoint, with the phase token from `agent_endpoints`, which never reaches the agent. The gateway freezes the diagnosis report and returns the submission context.
 * Within an engine API version, changes are additive only (see [Contract versions](#contract-versions)).
@@ -161,12 +162,9 @@ When a manifest declares an `engine` block, the frontend starts one container fo
 * **Access.** The engine listens on the host's loopback interface and accepts only lifecycle requests that carry the run's token. The gateway it opens for a trial binds where the agent's sandbox reaches it, as on a host install, and accepts only MCP requests that carry that trial's session token. The gateway writes `tool_calls.jsonl` into the shared trial directory.
 * **Limits.** Firecracker execution and NIKA Remote cannot run a release that pins a benchmark engine yet, and the frontend stops such a run with an error. The engine exits when the frontend process ends; environments left behind are removed with `nika session close`.
 
-Some parts still rely on the frontend's split files or on the trial directory that the engine container shares, so ground truth reaches the frontend before `score`:
+Some parts still rely on the trial directory that the engine container shares, so ground truth reaches the frontend before `score`: `begin` writes `ground_truth.json` into the trial directory, and `score` reads it there.
 
-* The frontend reads task rows, including their expected root causes, from the split files that ship with it, and sends them to `start_trial` instead of task IDs from `list_tasks`.
-* `begin` writes `ground_truth.json` into the trial directory, and `score` writes `eval_metrics.json` there instead of returning scores.
-
-Once the frontend sends task IDs only and the engine writes `ground_truth.json` at `score`, ground truth stays in the engine until `score`. A pinned engine on a remote lab host needs the engine's files to come back through the protocol instead of a shared directory.
+Once the engine writes `ground_truth.json` at `score`, ground truth stays in the engine until `score`. A pinned engine on a remote lab host needs the engine's files to come back through the protocol instead of a shared directory.
 
 The frontend also still writes its own trial fields, such as `ready`, the agent settings, and the run's provenance, through the session record that the engine creates, and the sandbox manager reads the environment name and lab backend from that record. An engine from an earlier release therefore has to keep that record in the format the current frontend reads.
 
@@ -236,7 +234,7 @@ The results schema defines what a run writes, so the current frontend can packag
 | `tool_calls.jsonl` | Benchmark engine (gateway) | Every tool call the agent made |
 | `submission.json` | Benchmark engine (`submit` tool) | The validated answer |
 | `ground_truth.json` | Benchmark engine | Injected failures; written by `begin` today, and by `score` once ground truth leaves the shared trial directory |
-| `eval_metrics.json` | Benchmark engine for scores, frontend for token, step, and tool-call counts | Per-trial metrics |
+| `eval_metrics.json` | Frontend, with scores from the engine's `score` reply | Scores, token, step, and tool-call counts, and validity flags |
 
 Every run directory records `schema_version` and a `provenance` block in `run.json`:
 

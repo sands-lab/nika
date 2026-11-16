@@ -175,9 +175,18 @@ class TestTrialHelpers:
         assert healed["outcome"] == "success"
 
     def test_resume_scores_a_solved_trial_through_the_engine(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from nika.benchmark_engine import use_engine
+        from nika.benchmark_engine.protocol import Scores
+        from nika.utils.session_store import SessionStore
+
+        # The frontend records the scores in the session index.
+        monkeypatch.setattr(
+            SessionStore.__init__,
+            "__defaults__",
+            (tmp_path / "sessions", tmp_path / "sessions.db"),
+        )
 
         trials = expand_trials([ROW_A], n_trials=1)
         path = trial_dir(tmp_path, trials[0].case_key, 1)
@@ -187,13 +196,13 @@ class TestTrialHelpers:
         scored: list[str] = []
 
         class _Engine:
-            def score(self, handle, *, result_dir=None, infra_evidence=False):
+            def score(self, handle, *, infra_evidence=False):
                 scored.append(handle.session_id)
-                (handle.trial_path / "eval_metrics.json").write_text(
-                    "{}", encoding="utf-8"
+                return Scores(
+                    status="scored", scoring_id="rule-based", metrics={"rca_f1": 0.5}
                 )
 
-        # The run's engine scores it; the frontend never grades an answer.
+        # The run's engine grades it; the frontend never grades an answer.
         with use_engine(_Engine()):
             _root, pending = scan_trials(
                 trials=trials, result_dir=tmp_path, resume=True
@@ -201,6 +210,8 @@ class TestTrialHelpers:
         assert pending == []
         assert scored == [path.name]
         assert is_valid_trial(path)
+        metrics = json.loads((path / "eval_metrics.json").read_text(encoding="utf-8"))
+        assert metrics["rca_f1"] == 0.5
 
     def test_resume_heals_finished_without_outcome_agent_failed(
         self, tmp_path: Path
@@ -853,7 +864,7 @@ class TestAgentFailedFinalization:
         with (
             patch("nika.benchmark_engine.engine.close_session"),
             patch(
-                "nika.benchmark_engine.engine.run_eval_metrics",
+                "nika.benchmark_engine.engine.grade_trial",
                 side_effect=RuntimeError("no closed session"),
             ),
             patch(

@@ -18,6 +18,9 @@ from nika.problems.rca import RootCause
 from nika.problems.rca.models import FaultResource, ResourceKind
 from nika.evaluator.score_status import zero_scores
 
+# The ``scoring.id`` of release manifests this scorer implements.
+SCORING_ID = "rule-based"
+
 
 class GradingError(Exception):
     """Ground truth or scorer failed; trial should be ``grading_error``."""

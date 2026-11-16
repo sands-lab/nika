@@ -131,7 +131,10 @@ def test_begin_logs_the_post_inject_read_and_returns_the_task(
     monkeypatch.setattr(
         engine_module, "write_healthy_session_artifacts", lambda session_id: None
     )
-    session = SimpleNamespace(task_description="Is the network healthy?")
+    session = SimpleNamespace(
+        task_description="Is the network healthy?",
+        update_session=lambda key, value: None,
+    )
     monkeypatch.setattr(
         engine_module,
         "Session",
@@ -140,7 +143,7 @@ def test_begin_logs_the_post_inject_read_and_returns_the_task(
     engine = BenchmarkEngine()
     handle = engine.start_trial(
         TrialRequest(
-            task={"scenario": "dc_clos"},
+            task={"scenario": "dc_clos", "problem": "healthy"},
             failures=[],
             healthy=True,
             session_id="s-healthy",

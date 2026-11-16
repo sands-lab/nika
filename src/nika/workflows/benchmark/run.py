@@ -103,10 +103,7 @@ from nika.workflows.benchmark.release import (
     verify_engine,
     write_job_metadata,
 )
-from nika.workflows.benchmark.resume import (
-    benchmark_row_fingerprint,
-    benchmark_row_from_case,
-)
+from nika.workflows.benchmark.resume import benchmark_row_from_case
 from nika.workflows.benchmark.run_progress import (
     run_display_name,
     update_progress,
@@ -127,6 +124,7 @@ from nika.workflows.benchmark.trials import (
     trial_outcome,
     trial_ready,
 )
+from nika.workflows.eval.session import score_trial
 from nika.workflows.session.close import close_session
 
 
@@ -700,7 +698,8 @@ def _finalize_failed_trial(
     # Counted finished slots get metrics; retryable error slots do not.
     if status == "finished":
         try:
-            benchmark_engine().score(
+            score_trial(
+                benchmark_engine(),
                 _trial_handle(session_id, session_dir),
                 result_dir=result_dir,
                 infra_evidence=score_status == "infra_error",
@@ -815,8 +814,10 @@ def _close_and_eval_success(
         session_dir, outcome="success", agent_error=agent_error, score_status="scored"
     )
     try:
-        benchmark_engine().score(
-            _trial_handle(session_id, session_dir), result_dir=result_dir
+        score_trial(
+            benchmark_engine(),
+            _trial_handle(session_id, session_dir),
+            result_dir=result_dir,
         )
     except Exception as eval_error:  # noqa: BLE001 - outcome already stamped
         # Never write -1 placeholders for a success: --resume scores it again.
@@ -957,19 +958,29 @@ def run_single_case(
 
     engine = benchmark_engine()
     healthy = is_healthy_case(problem)
+    release = (release_meta or {}).get("version")
+    split = (release_meta or {}).get("split")
+    # A release trial names its task; the engine reads it from its split file.
+    task_fields: dict[str, Any] = (
+        {"task_id": case_key, "split": split}
+        if release and split and case_key
+        else {
+            "task": row,
+            "failures": resolved_problems,
+            "inject": inject_args,
+            "expected_root_causes": expected_root_causes,
+            "healthy": healthy,
+        }
+    )
     request = TrialRequest(
-        task=row,
-        failures=resolved_problems,
-        inject=inject_args,
-        expected_root_causes=expected_root_causes,
-        healthy=healthy,
+        **task_fields,
         # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
         # incorporate result_dir so parallel same-task runs do not share a lab.
         session_id=store_session_id_for_trial(trial_id, result_dir) or trial_id,
         trial_dir=predetermined_dir,
         result_dir=result_dir,
         session_tag=session_tag,
-        release=(release_meta or {}).get("version"),
+        release=release,
     )
 
     _phase("deploy")
@@ -987,13 +998,10 @@ def run_single_case(
         ready = True
 
         _stamp_release_meta(session_id, release_meta)
-        session = Session().load_running_session(session_id=session_id)
-        session.update_session(
-            "benchmark_fingerprint",
-            benchmark_row_fingerprint(row),
-        )
         if candidate_option_id:
-            session.update_session("candidate_option_id", candidate_option_id)
+            Session().load_running_session(session_id=session_id).update_session(
+                "candidate_option_id", candidate_option_id
+            )
         _stamp_trial_meta(
             session_id,
             trial_id=trial_id,
@@ -1031,7 +1039,7 @@ def run_single_case(
                 engine.stop_trial(handle)
             except FileNotFoundError:
                 pass  # Closed by another process while the agent ran.
-            engine.score(handle)
+            score_trial(engine, handle, result_dir=result_dir)
             _ensure_messages_file(session_dir)
             try:
                 closed = Session().load_closed_session(

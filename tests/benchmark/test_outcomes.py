@@ -666,8 +666,8 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
     def fake_agent(**kwargs):
         agent_effect(session_path)
 
-    def fake_score(*, session_dir, **kwargs):
-        (Path(session_dir) / "eval_metrics.json").write_text("{}", encoding="utf-8")
+    def fake_score(engine, handle, **kwargs):
+        (handle.trial_path / "eval_metrics.json").write_text("{}", encoding="utf-8")
 
     with (
         patch(
@@ -677,7 +677,7 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
         patch("nika.benchmark_engine.engine.inject_failure", side_effect=fake_inject),
         patch("nika.workflows.benchmark.run.start_agent", side_effect=fake_agent),
         patch("nika.benchmark_engine.engine.close_session"),
-        patch("nika.benchmark_engine.engine.run_eval_metrics", side_effect=fake_score),
+        patch("nika.workflows.benchmark.run.score_trial", side_effect=fake_score),
         patch("nika.workflows.benchmark.run._stamp_release_meta"),
         patch("nika.workflows.benchmark.run._stamp_trial_meta"),
         patch(
