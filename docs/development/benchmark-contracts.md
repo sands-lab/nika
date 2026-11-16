@@ -9,8 +9,8 @@ The **frontend** is the NIKA CLI and its agent orchestration code. The **benchma
 | Component | Responsibilities |
 | --- | --- |
 | Agent | Investigate through MCP tools and produce a diagnosis |
-| Frontend | Select tasks, schedule trials, launch agent sandboxes, enforce agent budgets, record provenance, evaluate validity, and package results |
-| Benchmark engine | Deploy and close environments, inject and check failures, provide task descriptions and MCP gateways, validate submissions, and compute scores |
+| Frontend | Select tasks, schedule trials, launch agent sandboxes, enforce agent budgets, record provenance, evaluate validity, write trial metrics, and package results |
+| Benchmark engine | Read the release's task files and compute task IDs, deploy and close environments, inject and check failures, provide task descriptions and MCP gateways, validate submissions, and compute scores |
 
 The frontend also maps unstructured diagnosis reports through [`ReportMapper`](../../src/nika/agents/submission.py). The engine's task tool validates and records the resulting answer. Moving the mapper into the release's engine remains follow-up work under [#291](https://github.com/sands-lab/nika/issues/291) and [#292](https://github.com/sands-lab/nika/issues/292).
 
@@ -31,7 +31,7 @@ This is the engine reference in release 0.2.0's manifest. Despite its field name
 
 A manifest may also provide `engine.image`. The frontend uses that image when it exists locally or can be pulled; otherwise it builds from `engine.tag`. An image override does not check the image's commit against the Git reference. Run provenance records the image ID actually used.
 
-Before deploying trials, the frontend checks the supported API version, the manifest's task-file hashes, and the hashes the engine reports through `describe`. See [`release.py`](../../src/nika/workflows/benchmark/release.py) for release validation and [`container.py`](../../src/nika/benchmark_engine/container.py) for image resolution.
+Before deploying trials, the frontend checks the supported API version and compares the manifest's task-file hashes with the hashes the engine reports through `describe` and `list_tasks`. A release run takes its tasks from the engine; the frontend reads the local task files only to warn when they differ from the official release. See [`release.py`](../../src/nika/workflows/benchmark/release.py) for release validation and [`container.py`](../../src/nika/benchmark_engine/container.py) for image resolution.
 
 Optional `evaluation` fields constrain release runs:
 
@@ -40,8 +40,9 @@ Optional `evaluation` fields constrain release runs:
 | `access` | Diagnosis tool and node access policy | All tools and nodes allowed |
 | `max_trial_sec` | Maximum permitted agent timeout | No release-specific bound |
 | `submission_modes` | Allowed structured or unstructured submission modes | Both modes allowed |
+| `validity.max_harness_rate` | Highest rate of each harness validity flag (`truncated_final_turn`, `infra_error`) that `nika leaderboard validate` accepts | 5% |
 
-The frontend rejects a configured access role with a different policy, a timeout above the release bound, or a disallowed submission mode. The submitter chooses agent step, token, and time budgets within these constraints. The engine fixes tool output limits in its code; users cannot override them through run configuration.
+The frontend rejects a configured access role with a different policy, a timeout above the release bound, or a disallowed submission mode. Leaderboard validation reads the harness limit from the release it checks against, so no command-line option changes it. The submitter chooses agent step, token, and time budgets within these constraints. The engine fixes tool output limits in its code; users cannot override them through run configuration.
 
 Published releases do not change. Corrections follow the [versioning policy](../../VERSIONING.md); editing a published manifest or task file is not a way to update its behavior.
 
@@ -52,22 +53,25 @@ Published releases do not change. Corrections follow the [versioning policy](../
 | Operation | Input | Result |
 | --- | --- | --- |
 | `describe` | Optional release version | API versions, release identity, engine commit, task-file hashes, host Docker and kernel versions |
-| `start_trial` | `TrialRequest`: task row, failure parameters, session ID, release version, and result paths | `TrialHandle` identifying the session, trial directory, and resources |
+| `list_tasks` | Release version and split | The split file's hash and, in file order, each task's ID, environment, topology size, resource class, failure names, and progress label |
+| `start_trial` | `TrialRequest`: task ID with release version and split, or a task row; session ID and result paths | `TrialHandle` identifying the session, trial directory, and resources |
 | `begin` | Trial handle | Agent task description after deployment and timeline preparation succeed; `scheduled` indicates that the frontend must release the timeline |
 | `schedule_operation` | Trial handle and `start`, `agent-ready`, `status`, or `close` | Starts or observes the engine-owned timeline, or drains its work and recovers its mutations |
 | `agent_endpoints` | Trial handle and gateway request | MCP gateway URLs, session and phase tokens, and MCP server selection |
 | `close_agent_endpoints` | Trial handle | Closes the trial's gateway |
 | `fault_check` | Trial handle | Failure-presence result or check error |
-| `score` | Trial handle, optional result directory and infrastructure evidence flag | Writes evaluation artifacts |
+| `score` | Trial handle and infrastructure evidence flag | `Scores`: score status, the release's scoring ID, its score metrics (null when not graded), and why grading failed |
 | `stop_trial` | Trial handle and final session status | Closes the environment |
 
-The frontend sends task rows, including expected root causes, rather than task IDs. The pinned engine checks release task rows against its own split files. The engine and frontend share trial directories: the engine writes `ground_truth.json` as it prepares or executes the timeline, and `score` writes scores there. Ground truth reaches the frontend before scoring. The current protocol does not transfer all results as HTTP response data.
+For a release run, the frontend builds its trial grid from `list_tasks`: each task ID times the release's trial count. Before it lists the tasks, the engine checks that it can serve all of them: their environments, failures, MCP servers, and the Dev/Test split rules. It resolves `--task-id` against that list, admits trials by the resource class the engine reports, and starts each trial by task ID. The engine reads the task from its own split file, derives the failures, injection parameters, and expected root causes from it, and refuses an unknown task ID before deploying. The engine also records the task's fingerprint, `benchmark_fingerprint`, in the trial's `run.json`. Runs without a release, such as ad-hoc task matrices and single tasks, send the full task row to the in-process engine; an engine container refuses task rows.
+
+The engine and frontend share trial directories: the engine writes `ground_truth.json` as it prepares or executes the timeline, and it records the validated answer, `submission.json`, there. `score` grades the trial from those two files and the frontend's infrastructure evidence flag alone, and returns the scores in its reply. The `Scores` fields are fixed in engine API version 1; metric names and values belong to the release, so a release can add or remove a metric without a new API version. The current protocol does not transfer all results as HTTP response data.
 
 For engines returning `scheduled: true`, the frontend opens the gateway before starting the timeline and waiting for its agent-start boundary. It observes completion and revisions through `schedule_operation`; the engine performs failure injection, traffic changes, and recovery on the lab controller. Engines that omit this field keep their existing immediate-start behavior. Explicit scheduled tasks require an engine that supports this operation.
 
 For a timed schedule, `fault_check` checks every currently active fault occurrence on its injecting instance. Planned recovery removes that occurrence from the presence requirement. With no active faults, the result is `not_applicable`; other active faults must still be present. A missing active artifact remains `absent`, and a scheduler failure remains an error. Checks hold the scheduler's mutation locks so injection and recovery cannot produce a partial observation. Agent observations of recovered faults remain valid evidence for the task's diagnosis.
 
-The frontend records `ready: true` in the trial's `run.json` after `begin` returns. Failure handling and resume use that field to determine whether the agent received a valid task. The frontend asks the engine to score completed trials, including on resume when metrics are missing. It does not grade the answer itself.
+The frontend records `ready: true` in the trial's `run.json` after `begin` returns. Failure handling and resume use that field to determine whether the agent received a valid task. The frontend asks the engine to score completed trials, including on resume when metrics are missing. It does not grade the answer itself. It sends an infrastructure failure it observed, or one recorded as the trial's `agent_error`, as the evidence flag. It then adds token, step, and tool-call counts and validity flags from the trial's traces, writes `eval_metrics.json`, and records `score_status` and `eval_metrics` in the trial's `run.json`.
 
 ### Trial states
 
@@ -130,7 +134,7 @@ The results schema distinguishes the frontend that ran the agent from the engine
 | `nika.jsonl`, `messages.jsonl`, `model_calls.jsonl` | Frontend and environment event collection | Lifecycle events, agent messages, model calls |
 | `tool_calls.jsonl` | Engine gateway | Recorded MCP calls |
 | `submission.json`, `ground_truth.json` | Engine | Validated answer and injected failures |
-| `eval_metrics.json` | Engine for scores, frontend for usage counts | Scores and token, step, and tool-call counts |
+| `eval_metrics.json` | Frontend, with scores from the engine's `score` reply | Scores, token, step, and tool-call counts, and validity flags |
 
 Run-directory `run.json` records `schema_version: 1` and `provenance.frontend`, `provenance.engine`, and `provenance.host`. These blocks include the frontend version and commit, engine API and commit, pinned engine reference and image ID when applicable, and environment host Docker and kernel versions. For an ad-hoc batch, the engine release is null. An in-process engine has no pinned tag or image.
 

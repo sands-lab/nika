@@ -24,14 +24,6 @@ _RELEASE_SOURCE_HELP = (
 @leaderboard_app.command("validate")
 def leaderboard_validate(
     package: Path = typer.Argument(..., help="Scores package directory to validate."),
-    max_harness_rate: float = typer.Option(
-        0.05,
-        "--max-harness-rate",
-        min=0.0,
-        max=1.0,
-        help="Fail when truncated_final_turn or infra_error flags exceed this "
-        "fraction of trials. Empty traces and absent faults always fail; other flags warn.",
-    ),
     trajectories: Optional[Path] = typer.Option(
         None,
         "--trajectories",
@@ -99,7 +91,6 @@ def leaderboard_validate(
             source = json.loads((downloaded / "fetch-source.json").read_text())
         report = validate_leaderboard_submission(
             package,
-            max_harness_rate=max_harness_rate,
             release_source=release_source,
             trajectories_dir=trajectories,
             audit_repo=audit_repo,

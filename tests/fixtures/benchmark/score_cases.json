@@ -1,0 +1,1056 @@
+{
+  "cases": {
+    "scored": {
+      "run": {
+        "session_id": "score-fixture-scored",
+        "status": "finished",
+        "scenario_name": "dc_clos",
+        "problem_names": [
+          "receiver_resource_contention"
+        ],
+        "max_tokens": 4096,
+        "outcome": "success"
+      },
+      "files": {
+        "submission.json": {
+          "diagnosis_report": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. ",
+          "is_anomaly": true,
+          "root_causes": [
+            {
+              "resource_id": "node/client_0",
+              "fault_type": "receiver_resource_contention"
+            },
+            {
+              "resource_id": "node/spine_router_0_0",
+              "fault_type": "link_down"
+            }
+          ]
+        },
+        "ground_truth.json": {
+          "is_anomaly": true,
+          "root_causes": [
+            {
+              "resource": {
+                "kind": "node",
+                "node": "client_0",
+                "id": "node/client_0"
+              },
+              "resource_id": "node/client_0",
+              "fault_type": "receiver_resource_contention"
+            }
+          ],
+          "failure_domain": "endpoint_application"
+        },
+        "messages.jsonl": [
+          {
+            "event": "llm_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:00+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:01+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "tool_calls"
+            },
+            "usage_metadata": {
+              "input_tokens": 1200,
+              "output_tokens": 80
+            }
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:02+00:00"
+          },
+          {
+            "event": "tool_error",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:03+00:00"
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:04+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:05+00:00",
+            "text": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. ",
+            "generation_info": {
+              "finish_reason": "stop"
+            },
+            "usage_metadata": {
+              "input_tokens": 1500,
+              "output_tokens": 300
+            }
+          },
+          {
+            "event": "diagnosis_frozen",
+            "phase": "diagnosis",
+            "report": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. "
+          },
+          {
+            "event": "llm_end",
+            "phase": "submission",
+            "timestamp": "2026-11-16T10:00:06+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "length"
+            },
+            "usage_metadata": {
+              "input_tokens": 900,
+              "output_tokens": 50
+            }
+          }
+        ],
+        "nika.jsonl": [
+          {
+            "event": "fault_presence_recheck",
+            "data": {
+              "phase": "before_cleanup",
+              "result": "present",
+              "fault": "receiver_resource_contention"
+            }
+          }
+        ]
+      },
+      "infra_evidence": false,
+      "expected": {
+        "eval_metrics": {
+          "detection_score": 1.0,
+          "rca_accuracy": 1.0,
+          "rca_precision": 0.5,
+          "rca_recall": 1.0,
+          "rca_f1": 0.6667,
+          "localization_accuracy": 1.0,
+          "localization_precision": 0.5,
+          "localization_recall": 1.0,
+          "localization_f1": 0.6667,
+          "fault_type_precision": 0.5,
+          "fault_type_recall": 1.0,
+          "fault_type_f1": 0.6667,
+          "in_tokens": 2700,
+          "out_tokens": 380,
+          "steps": 2,
+          "tool_calls": 2,
+          "tool_errors": 1,
+          "validity_flags": [
+            "truncated_final_turn"
+          ]
+        },
+        "score_status": "scored",
+        "run_eval_metrics": {
+          "detection_score": 1.0,
+          "rca_accuracy": 1.0,
+          "rca_precision": 0.5,
+          "rca_recall": 1.0,
+          "rca_f1": 0.6667,
+          "localization_accuracy": 1.0,
+          "localization_precision": 0.5,
+          "localization_recall": 1.0,
+          "localization_f1": 0.6667,
+          "fault_type_precision": 0.5,
+          "fault_type_recall": 1.0,
+          "fault_type_f1": 0.6667,
+          "in_tokens": 2700,
+          "out_tokens": 380,
+          "steps": 2,
+          "tool_calls": 2,
+          "tool_errors": 1,
+          "validity_flags": [
+            "truncated_final_turn"
+          ]
+        }
+      }
+    },
+    "scored_healthy": {
+      "run": {
+        "session_id": "score-fixture-scored_healthy",
+        "status": "finished",
+        "scenario_name": "dc_clos",
+        "problem_names": [
+          "receiver_resource_contention"
+        ],
+        "max_tokens": 4096,
+        "outcome": "success"
+      },
+      "files": {
+        "submission.json": {
+          "diagnosis_report": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. ",
+          "is_anomaly": false,
+          "root_causes": []
+        },
+        "ground_truth.json": {
+          "is_anomaly": false,
+          "root_causes": []
+        },
+        "messages.jsonl": [
+          {
+            "event": "llm_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:00+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:01+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "tool_calls"
+            },
+            "usage_metadata": {
+              "input_tokens": 1200,
+              "output_tokens": 80
+            }
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:02+00:00"
+          },
+          {
+            "event": "tool_error",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:03+00:00"
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:04+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:05+00:00",
+            "text": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. ",
+            "generation_info": {
+              "finish_reason": "stop"
+            },
+            "usage_metadata": {
+              "input_tokens": 1500,
+              "output_tokens": 300
+            }
+          }
+        ],
+        "nika.jsonl": []
+      },
+      "infra_evidence": false,
+      "expected": {
+        "eval_metrics": {
+          "detection_score": 1.0,
+          "rca_accuracy": 1.0,
+          "rca_precision": 1.0,
+          "rca_recall": 1.0,
+          "rca_f1": 1.0,
+          "localization_accuracy": 1.0,
+          "localization_precision": 1.0,
+          "localization_recall": 1.0,
+          "localization_f1": 1.0,
+          "fault_type_precision": 1.0,
+          "fault_type_recall": 1.0,
+          "fault_type_f1": 1.0,
+          "in_tokens": 2700,
+          "out_tokens": 380,
+          "steps": 2,
+          "tool_calls": 2,
+          "tool_errors": 1,
+          "validity_flags": []
+        },
+        "score_status": "scored",
+        "run_eval_metrics": {
+          "detection_score": 1.0,
+          "rca_accuracy": 1.0,
+          "rca_precision": 1.0,
+          "rca_recall": 1.0,
+          "rca_f1": 1.0,
+          "localization_accuracy": 1.0,
+          "localization_precision": 1.0,
+          "localization_recall": 1.0,
+          "localization_f1": 1.0,
+          "fault_type_precision": 1.0,
+          "fault_type_recall": 1.0,
+          "fault_type_f1": 1.0,
+          "in_tokens": 2700,
+          "out_tokens": 380,
+          "steps": 2,
+          "tool_calls": 2,
+          "tool_errors": 1,
+          "validity_flags": []
+        }
+      }
+    },
+    "no_submission": {
+      "run": {
+        "session_id": "score-fixture-no_submission",
+        "status": "finished",
+        "scenario_name": "dc_clos",
+        "problem_names": [
+          "receiver_resource_contention"
+        ],
+        "max_tokens": 4096,
+        "outcome": "agent_failed",
+        "agent_error": "agent stopped before submitting"
+      },
+      "files": {
+        "ground_truth.json": {
+          "is_anomaly": true,
+          "root_causes": [
+            {
+              "resource": {
+                "kind": "node",
+                "node": "client_0",
+                "id": "node/client_0"
+              },
+              "resource_id": "node/client_0",
+              "fault_type": "receiver_resource_contention"
+            }
+          ],
+          "failure_domain": "endpoint_application"
+        },
+        "messages.jsonl": [
+          {
+            "event": "llm_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:00+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:01+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "tool_calls"
+            },
+            "usage_metadata": {
+              "input_tokens": 1200,
+              "output_tokens": 80
+            }
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:02+00:00"
+          },
+          {
+            "event": "tool_error",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:03+00:00"
+          }
+        ],
+        "nika.jsonl": [
+          {
+            "event": "fault_presence_recheck",
+            "data": {
+              "phase": "before_cleanup",
+              "result": "absent",
+              "fault": "receiver_resource_contention"
+            }
+          }
+        ]
+      },
+      "infra_evidence": false,
+      "expected": {
+        "eval_metrics": {
+          "detection_score": 0.0,
+          "localization_accuracy": 0.0,
+          "localization_precision": 0.0,
+          "localization_recall": 0.0,
+          "localization_f1": 0.0,
+          "rca_accuracy": 0.0,
+          "rca_precision": 0.0,
+          "rca_recall": 0.0,
+          "rca_f1": 0.0,
+          "fault_type_precision": 0.0,
+          "fault_type_recall": 0.0,
+          "fault_type_f1": 0.0,
+          "in_tokens": 1200,
+          "out_tokens": 80,
+          "steps": 1,
+          "tool_calls": 1,
+          "tool_errors": 1,
+          "validity_flags": [
+            "no_submission",
+            "empty_report",
+            "fault_absent_at_cleanup"
+          ]
+        },
+        "score_status": "no_submission",
+        "run_eval_metrics": {
+          "detection_score": 0.0,
+          "localization_accuracy": 0.0,
+          "localization_precision": 0.0,
+          "localization_recall": 0.0,
+          "localization_f1": 0.0,
+          "rca_accuracy": 0.0,
+          "rca_precision": 0.0,
+          "rca_recall": 0.0,
+          "rca_f1": 0.0,
+          "fault_type_precision": 0.0,
+          "fault_type_recall": 0.0,
+          "fault_type_f1": 0.0,
+          "in_tokens": 1200,
+          "out_tokens": 80,
+          "steps": 1,
+          "tool_calls": 1,
+          "tool_errors": 1,
+          "validity_flags": [
+            "no_submission",
+            "empty_report",
+            "fault_absent_at_cleanup"
+          ]
+        }
+      }
+    },
+    "infra_evidence": {
+      "run": {
+        "session_id": "score-fixture-infra_evidence",
+        "status": "finished",
+        "scenario_name": "dc_clos",
+        "problem_names": [
+          "receiver_resource_contention"
+        ],
+        "max_tokens": 4096,
+        "outcome": "agent_failed",
+        "agent_error": "worker exited with code 1"
+      },
+      "files": {
+        "ground_truth.json": {
+          "is_anomaly": true,
+          "root_causes": [
+            {
+              "resource": {
+                "kind": "node",
+                "node": "client_0",
+                "id": "node/client_0"
+              },
+              "resource_id": "node/client_0",
+              "fault_type": "receiver_resource_contention"
+            }
+          ],
+          "failure_domain": "endpoint_application"
+        },
+        "messages.jsonl": [
+          {
+            "event": "llm_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:00+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:01+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "tool_calls"
+            },
+            "usage_metadata": {
+              "input_tokens": 1200,
+              "output_tokens": 80
+            }
+          }
+        ],
+        "nika.jsonl": []
+      },
+      "infra_evidence": true,
+      "expected": {
+        "eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": 1200,
+          "out_tokens": 80,
+          "steps": 1,
+          "tool_calls": 0,
+          "tool_errors": 0,
+          "validity_flags": [
+            "no_submission",
+            "empty_report",
+            "infra_error"
+          ]
+        },
+        "score_status": "infra_error",
+        "run_eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": 1200,
+          "out_tokens": 80,
+          "steps": 1,
+          "tool_calls": 0,
+          "tool_errors": 0,
+          "validity_flags": [
+            "no_submission",
+            "empty_report",
+            "infra_error"
+          ]
+        }
+      }
+    },
+    "infra_from_agent_error": {
+      "run": {
+        "session_id": "score-fixture-infra_from_agent_error",
+        "status": "finished",
+        "scenario_name": "dc_clos",
+        "problem_names": [
+          "receiver_resource_contention"
+        ],
+        "max_tokens": 4096,
+        "outcome": "agent_failed",
+        "agent_error": "LLM provider rate limit exceeded (429)"
+      },
+      "files": {
+        "ground_truth.json": {
+          "is_anomaly": true,
+          "root_causes": [
+            {
+              "resource": {
+                "kind": "node",
+                "node": "client_0",
+                "id": "node/client_0"
+              },
+              "resource_id": "node/client_0",
+              "fault_type": "receiver_resource_contention"
+            }
+          ],
+          "failure_domain": "endpoint_application"
+        },
+        "messages.jsonl": [],
+        "nika.jsonl": []
+      },
+      "infra_evidence": false,
+      "expected": {
+        "eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": 0,
+          "out_tokens": 0,
+          "steps": 0,
+          "tool_calls": 0,
+          "tool_errors": 0,
+          "validity_flags": [
+            "empty_trace",
+            "no_submission",
+            "empty_report",
+            "infra_error"
+          ]
+        },
+        "score_status": "infra_error",
+        "run_eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": 0,
+          "out_tokens": 0,
+          "steps": 0,
+          "tool_calls": 0,
+          "tool_errors": 0,
+          "validity_flags": [
+            "empty_trace",
+            "no_submission",
+            "empty_report",
+            "infra_error"
+          ]
+        }
+      }
+    },
+    "unreadable_ground_truth": {
+      "run": {
+        "session_id": "score-fixture-unreadable_ground_truth",
+        "status": "finished",
+        "scenario_name": "dc_clos",
+        "problem_names": [
+          "receiver_resource_contention"
+        ],
+        "max_tokens": 4096,
+        "outcome": "success"
+      },
+      "files": {
+        "submission.json": {
+          "diagnosis_report": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. ",
+          "is_anomaly": true,
+          "root_causes": [
+            {
+              "resource_id": "node/client_0",
+              "fault_type": "receiver_resource_contention"
+            },
+            {
+              "resource_id": "node/spine_router_0_0",
+              "fault_type": "link_down"
+            }
+          ]
+        },
+        "ground_truth.json": "{not json",
+        "messages.jsonl": [
+          {
+            "event": "llm_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:00+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:01+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "tool_calls"
+            },
+            "usage_metadata": {
+              "input_tokens": 1200,
+              "output_tokens": 80
+            }
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:02+00:00"
+          },
+          {
+            "event": "tool_error",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:03+00:00"
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:04+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:05+00:00",
+            "text": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. ",
+            "generation_info": {
+              "finish_reason": "stop"
+            },
+            "usage_metadata": {
+              "input_tokens": 1500,
+              "output_tokens": 300
+            }
+          },
+          {
+            "event": "diagnosis_frozen",
+            "phase": "diagnosis",
+            "report": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. "
+          },
+          {
+            "event": "llm_end",
+            "phase": "submission",
+            "timestamp": "2026-11-16T10:00:06+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "length"
+            },
+            "usage_metadata": {
+              "input_tokens": 900,
+              "output_tokens": 50
+            }
+          }
+        ],
+        "nika.jsonl": [
+          {
+            "event": "fault_presence_recheck",
+            "data": {
+              "phase": "before_cleanup",
+              "result": "present",
+              "fault": "receiver_resource_contention"
+            }
+          }
+        ]
+      },
+      "infra_evidence": false,
+      "expected": {
+        "eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": null,
+          "out_tokens": null,
+          "steps": null,
+          "tool_calls": null,
+          "tool_errors": null
+        },
+        "score_status": "grading_error",
+        "run_eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": null,
+          "out_tokens": null,
+          "steps": null,
+          "tool_calls": null,
+          "tool_errors": null
+        }
+      }
+    },
+    "missing_ground_truth": {
+      "run": {
+        "session_id": "score-fixture-missing_ground_truth",
+        "status": "finished",
+        "scenario_name": "dc_clos",
+        "problem_names": [
+          "receiver_resource_contention"
+        ],
+        "max_tokens": 4096,
+        "outcome": "agent_failed",
+        "agent_error": "agent stopped before submitting"
+      },
+      "files": {
+        "messages.jsonl": [],
+        "nika.jsonl": []
+      },
+      "infra_evidence": false,
+      "expected": {
+        "eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": null,
+          "out_tokens": null,
+          "steps": null,
+          "tool_calls": null,
+          "tool_errors": null
+        },
+        "score_status": "infra_error",
+        "run_eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": null,
+          "out_tokens": null,
+          "steps": null,
+          "tool_calls": null,
+          "tool_errors": null
+        }
+      }
+    },
+    "grading_error": {
+      "run": {
+        "session_id": "score-fixture-grading_error",
+        "status": "finished",
+        "scenario_name": "dc_clos",
+        "problem_names": [
+          "receiver_resource_contention"
+        ],
+        "max_tokens": 4096,
+        "outcome": "success"
+      },
+      "files": {
+        "submission.json": {
+          "diagnosis_report": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. ",
+          "is_anomaly": true,
+          "root_causes": [
+            {
+              "resource_id": "node/client_0",
+              "fault_type": "receiver_resource_contention"
+            },
+            {
+              "resource_id": "node/spine_router_0_0",
+              "fault_type": "link_down"
+            }
+          ]
+        },
+        "ground_truth.json": {
+          "is_anomaly": true
+        },
+        "messages.jsonl": [
+          {
+            "event": "llm_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:00+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:01+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "tool_calls"
+            },
+            "usage_metadata": {
+              "input_tokens": 1200,
+              "output_tokens": 80
+            }
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:02+00:00"
+          },
+          {
+            "event": "tool_error",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:03+00:00"
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:04+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:05+00:00",
+            "text": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. ",
+            "generation_info": {
+              "finish_reason": "stop"
+            },
+            "usage_metadata": {
+              "input_tokens": 1500,
+              "output_tokens": 300
+            }
+          },
+          {
+            "event": "diagnosis_frozen",
+            "phase": "diagnosis",
+            "report": "# Diagnosis\n\nclient_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. client_0 shows receiver resource contention. "
+          },
+          {
+            "event": "llm_end",
+            "phase": "submission",
+            "timestamp": "2026-11-16T10:00:06+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "length"
+            },
+            "usage_metadata": {
+              "input_tokens": 900,
+              "output_tokens": 50
+            }
+          }
+        ],
+        "nika.jsonl": []
+      },
+      "infra_evidence": false,
+      "expected": {
+        "eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": 2700,
+          "out_tokens": 380,
+          "steps": 2,
+          "tool_calls": 2,
+          "tool_errors": 1,
+          "validity_flags": [
+            "truncated_final_turn"
+          ]
+        },
+        "score_status": "grading_error",
+        "run_eval_metrics": {
+          "detection_score": null,
+          "localization_accuracy": null,
+          "localization_precision": null,
+          "localization_recall": null,
+          "localization_f1": null,
+          "rca_accuracy": null,
+          "rca_precision": null,
+          "rca_recall": null,
+          "rca_f1": null,
+          "fault_type_precision": null,
+          "fault_type_recall": null,
+          "fault_type_f1": null,
+          "in_tokens": 2700,
+          "out_tokens": 380,
+          "steps": 2,
+          "tool_calls": 2,
+          "tool_errors": 1,
+          "validity_flags": [
+            "truncated_final_turn"
+          ]
+        }
+      }
+    },
+    "corrupt_submission": {
+      "run": {
+        "session_id": "score-fixture-corrupt_submission",
+        "status": "finished",
+        "scenario_name": "dc_clos",
+        "problem_names": [
+          "receiver_resource_contention"
+        ],
+        "max_tokens": 4096,
+        "outcome": "success"
+      },
+      "files": {
+        "submission.json": "not json",
+        "ground_truth.json": {
+          "is_anomaly": true,
+          "root_causes": [
+            {
+              "resource": {
+                "kind": "node",
+                "node": "client_0",
+                "id": "node/client_0"
+              },
+              "resource_id": "node/client_0",
+              "fault_type": "receiver_resource_contention"
+            }
+          ],
+          "failure_domain": "endpoint_application"
+        },
+        "messages.jsonl": [
+          {
+            "event": "llm_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:00+00:00"
+          },
+          {
+            "event": "llm_end",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:01+00:00",
+            "text": "",
+            "generation_info": {
+              "finish_reason": "tool_calls"
+            },
+            "usage_metadata": {
+              "input_tokens": 1200,
+              "output_tokens": 80
+            }
+          },
+          {
+            "event": "tool_start",
+            "phase": "diagnosis",
+            "timestamp": "2026-11-16T10:00:02+00:00"
+          }
+        ],
+        "nika.jsonl": []
+      },
+      "infra_evidence": false,
+      "expected": {
+        "eval_metrics": {
+          "detection_score": 0.0,
+          "rca_accuracy": 0.0,
+          "rca_precision": 0.0,
+          "rca_recall": 0.0,
+          "rca_f1": 0.0,
+          "localization_accuracy": 0.0,
+          "localization_precision": 0.0,
+          "localization_recall": 0.0,
+          "localization_f1": 0.0,
+          "fault_type_precision": 0.0,
+          "fault_type_recall": 0.0,
+          "fault_type_f1": 0.0,
+          "in_tokens": 1200,
+          "out_tokens": 80,
+          "steps": 1,
+          "tool_calls": 1,
+          "tool_errors": 0,
+          "validity_flags": [
+            "no_submission",
+            "empty_report"
+          ]
+        },
+        "score_status": "scored",
+        "run_eval_metrics": {
+          "detection_score": 0.0,
+          "rca_accuracy": 0.0,
+          "rca_precision": 0.0,
+          "rca_recall": 0.0,
+          "rca_f1": 0.0,
+          "localization_accuracy": 0.0,
+          "localization_precision": 0.0,
+          "localization_recall": 0.0,
+          "localization_f1": 0.0,
+          "fault_type_precision": 0.0,
+          "fault_type_recall": 0.0,
+          "fault_type_f1": 0.0,
+          "in_tokens": 1200,
+          "out_tokens": 80,
+          "steps": 1,
+          "tool_calls": 1,
+          "tool_errors": 0,
+          "validity_flags": [
+            "no_submission",
+            "empty_report"
+          ]
+        }
+      }
+    }
+  }
+}

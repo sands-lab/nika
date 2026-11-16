@@ -15,6 +15,7 @@ from typing import Any, Literal
 import yaml
 
 from nika.config import BENCHMARK_DIR, BENCHMARK_VERSION, REPO_ROOT
+from nika.evaluator.validity import DEFAULT_MAX_HARNESS_RATE
 from nika.utils.session_artifacts import write_json_atomic
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
@@ -51,6 +52,7 @@ from nika.benchmark_engine.protocol import (
     AccessPolicy,
     AgentAccess,
     EngineDescription,
+    TaskList,
     UnsupportedContractVersion,
     require_supported,
 )
@@ -181,6 +183,12 @@ class BenchmarkRelease:
     @property
     def submission_modes(self) -> tuple[str, ...]:
         return tuple(self.evaluation.get("submission_modes") or SUBMISSION_MODES)
+
+    @property
+    def max_harness_rate(self) -> float:
+        """Highest rate of each harness validity flag a valid run may have."""
+        value = (self.evaluation.get("validity") or {}).get("max_harness_rate")
+        return DEFAULT_MAX_HARNESS_RATE if value is None else float(value)
 
 
 def releases_dir() -> Path:
@@ -336,6 +344,22 @@ def _check_evaluation(manifest: dict[str, Any], *, name: str) -> None:
             f"Release {name}: evaluation.submission_modes must list modes from "
             f"{list(SUBMISSION_MODES)}, got {modes!r}"
         )
+    validity = evaluation.get("validity") or {}
+    if not isinstance(validity, dict) or set(validity) - {"max_harness_rate"}:
+        raise ReleaseError(
+            f"Release {name}: evaluation.validity may only set max_harness_rate, "
+            f"got {validity!r}"
+        )
+    rate = validity.get("max_harness_rate")
+    if rate is not None and (
+        isinstance(rate, bool)
+        or not isinstance(rate, (int, float))
+        or not 0.0 <= rate <= 1.0
+    ):
+        raise ReleaseError(
+            f"Release {name}: evaluation.validity.max_harness_rate must be a "
+            f"number from 0 to 1, got {rate!r}"
+        )
 
 
 def _check_split_hash(meta: dict[str, Any], path: Path, *, name: str) -> None:
@@ -372,6 +396,31 @@ def verify_engine(release: BenchmarkRelease, engine: EngineDescription) -> None:
                 f"The benchmark engine's {cases_file} for {release.ref} does not "
                 f"match the sha256 in RELEASE.yaml (expected {expected}, got {actual})."
             )
+
+
+def verify_task_list(release: BenchmarkRelease, tasks: TaskList) -> None:
+    """Refuse a task list that does not come from *release*'s split file."""
+    if (tasks.release, tasks.split) != (release.version, release.split):
+        raise ReleaseError(
+            f"The benchmark engine listed the tasks of {tasks.release} "
+            f"{tasks.split!r}, not {release.version} {release.split!r}."
+        )
+    meta = (release.manifest.get("splits") or {}).get(release.split) or {}
+    expected = meta.get("sha256")
+    if expected is not None and tasks.task_file_sha256 != str(expected):
+        raise ReleaseError(
+            f"The benchmark engine listed {release.ref} {release.split!r} tasks "
+            f"from a file that does not match the sha256 in RELEASE.yaml "
+            f"(expected {expected}, got {tasks.task_file_sha256})."
+        )
+    if release.case_count and len(tasks.tasks) != release.case_count:
+        raise ReleaseError(
+            f"The benchmark engine listed {len(tasks.tasks)} {release.split!r} "
+            f"tasks; RELEASE.yaml declares {release.case_count}."
+        )
+    ids = [task.task_id for task in tasks.tasks]
+    if len(set(ids)) != len(ids):
+        raise ReleaseError(f"The benchmark engine listed duplicate task ids: {ids}")
 
 
 def check_run_settings(release: BenchmarkRelease, *, agent_type: str | None) -> None:
@@ -442,8 +491,14 @@ def load_release_from_dir(
     root: Path,
     *,
     split: SplitName = "dev",
+    read_tasks: bool = True,
 ) -> BenchmarkRelease:
-    """Load a release from an explicit directory containing ``RELEASE.yaml``."""
+    """Load a release from an explicit directory containing ``RELEASE.yaml``.
+
+    With ``read_tasks=False``, only the manifest is read: ``cases`` stays
+    empty and ``case_count`` is the count the manifest declares. A release
+    run reads its tasks from the benchmark engine instead.
+    """
     root = Path(root)
     split = normalize_split(split, default="dev")
     manifest_path = root / "RELEASE.yaml"
@@ -463,10 +518,10 @@ def load_release_from_dir(
     split_meta = _normalize_split_meta(splits_raw[split], name=split)
     cases_file = str(split_meta["cases_file"])
     cases_path = root / cases_file
-    if not cases_path.is_file():
+    if read_tasks and not cases_path.is_file():
         raise ReleaseError(f"Missing {split} cases file: {cases_path}")
 
-    cases = load_benchmark_yaml(cases_path, release=version)
+    cases = load_benchmark_yaml(cases_path, release=version) if read_tasks else []
     defaults = dict(manifest.get("defaults") or DEFAULTS_V1)
     defaults.pop("case_timeout_sec", None)
     scoring = dict(manifest.get("scoring") or SCORING)
@@ -480,13 +535,14 @@ def load_release_from_dir(
     for name, meta in splits_raw.items():
         entry = _normalize_split_meta(meta, name=name)
         path = root / str(entry["cases_file"])
-        _check_split_hash(dict(meta or {}), path, name=version)
-        if path.is_file() and not entry["case_count"]:
-            entry["case_count"] = len(load_benchmark_yaml(path, release=version))
+        if read_tasks:
+            _check_split_hash(dict(meta or {}), path, name=version)
+            if path.is_file() and not entry["case_count"]:
+                entry["case_count"] = len(load_benchmark_yaml(path, release=version))
         resolved_splits[name] = entry
 
     declared_count = int(split_meta.get("case_count") or 0)
-    if declared_count and declared_count != len(cases):
+    if read_tasks and declared_count and declared_count != len(cases):
         raise ReleaseError(
             f"{split} case_count {declared_count} does not match "
             f"{cases_path.name} ({len(cases)})"
@@ -500,7 +556,7 @@ def load_release_from_dir(
         split=split,
         cases_path=cases_path,
         cases=cases,
-        case_count=len(cases),
+        case_count=len(cases) if read_tasks else declared_count,
         splits=resolved_splits,
         defaults=defaults,
         scoring=scoring,
@@ -515,6 +571,7 @@ def load_release(
     ref: str = DEFAULT_RELEASE_VERSION,
     *,
     split: SplitName | str = "dev",
+    read_tasks: bool = True,
 ) -> BenchmarkRelease:
     """Load and resolve a frozen release by version or ``id@version``."""
     _bench_id, selector = parse_release_ref(ref)
@@ -522,6 +579,7 @@ def load_release(
     return load_release_from_dir(
         root,
         split=normalize_split(split, default="dev"),
+        read_tasks=read_tasks,
     )
 
 
@@ -758,6 +816,42 @@ def preflight_release(
 
     Raises ``ReleaseError`` on the first failure.
     """
+    release_scenarios = verify_release_tasks(release)
+    required = list(release.images.get("required") or [])
+    if check_images and required:
+        # Frozen manifests may name images without the pin NIKA now deploys
+        # (e.g. ``nika/base``, ``kathara/p4``); ensure the pinned references.
+        current = {
+            image_repository(ref): ref
+            for ref in collect_images_for_scenarios(release_scenarios)
+        }
+        ensure_release_images(
+            release, [current.get(image_repository(ref), ref) for ref in required]
+        )
+
+
+def ensure_release_images(
+    release: BenchmarkRelease, required: list[str] | None = None
+) -> None:
+    """Build or pull the images *release*'s manifest requires (or *required*)."""
+    if required is None:
+        required = list(release.images.get("required") or [])
+    if not required:
+        return
+    try:
+        # Same ensure/build/pull path as ordinary lab deploy.
+        ensure_nika_docker_images(required)
+    except Exception as exc:
+        raise ReleaseError(f"Required Docker images unavailable: {exc}") from exc
+
+
+def verify_release_tasks(release: BenchmarkRelease) -> set[str]:
+    """Check that this NIKA can serve every task of *release*.
+
+    Checks the split's case count, the scenarios and failures the tasks use,
+    their images' licenses, Dev/Test isolation, and the MCP allowlist. Returns
+    the scenarios of all splits. Raises ``ReleaseError`` on the first failure.
+    """
     if release.case_count != len(release.cases):
         raise ReleaseError("Internal case_count mismatch")
 
@@ -850,21 +944,7 @@ def preflight_release(
             )
 
     _verify_mcp_policy(release.cases, release.tools)
-
-    required = list(release.images.get("required") or [])
-    if check_images and required:
-        # Frozen manifests may name images without the pin NIKA now deploys
-        # (e.g. ``nika/base``, ``kathara/p4``); ensure the pinned references.
-        current = {
-            image_repository(ref): ref
-            for ref in collect_images_for_scenarios(release_scenarios)
-        }
-        required = [current.get(image_repository(ref), ref) for ref in required]
-        try:
-            # Same ensure/build/pull path as ordinary lab deploy.
-            ensure_nika_docker_images(required)
-        except Exception as exc:
-            raise ReleaseError(f"Required Docker images unavailable: {exc}") from exc
+    return release_scenarios
 
 
 def read_git_commit() -> tuple[str | None, bool]:

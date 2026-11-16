@@ -12,7 +12,6 @@ from pydantic import ValidationError
 from nika.benchmark_engine.protocol import UnsupportedContractVersion
 from nika.config import REPO_ROOT
 from nika.evaluator.validity import (
-    DEFAULT_MAX_HARNESS_RATE,
     EMPTY_TRACE,
     FAULT_ABSENT_AT_CLEANUP,
     validity_findings,
@@ -111,7 +110,7 @@ def benchmark_identity_mismatches(
 def validate_leaderboard_submission(
     submission_dir: str | Path,
     *,
-    max_harness_rate: float = DEFAULT_MAX_HARNESS_RATE,
+    max_harness_rate: float | None = None,
     release_source: ReleaseSource = "official",
     trajectories_dir: str | Path | None = None,
     audit_repo: Path | None = None,
@@ -121,7 +120,8 @@ def validate_leaderboard_submission(
     Expected trials come from the official tag or legacy release commit.
     ``release_source="local"`` reads this checkout for offline development.
     Empty traces and absent faults reject submission at any rate. Harness
-    flags reject submission above ``max_harness_rate``; other flags warn.
+    flags reject submission above ``max_harness_rate``, which defaults to the
+    release's ``evaluation.validity.max_harness_rate``; other flags warn.
     """
     issues = IssueCollector()
     root = _resolve_submission_dir(submission_dir)
@@ -290,7 +290,9 @@ def validate_leaderboard_submission(
                     if flag not in (EMPTY_TRACE, FAULT_ABSENT_AT_CLEANUP)
                 },
                 len(trial_results),
-                max_harness_rate=max_harness_rate,
+                max_harness_rate=release.max_harness_rate
+                if max_harness_rate is None
+                else max_harness_rate,
             )
             issues.extend("ERROR_RUN_VALIDITY", v_errors)
             issues.extend("WARNING_RUN_VALIDITY", v_warnings)

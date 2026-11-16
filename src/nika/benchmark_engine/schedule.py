@@ -6,8 +6,10 @@ from nika.workflows.schedule import _RUNNERS, _RUNNERS_LOCK, write_schedule_owne
 
 
 class EngineSessionScheduler(RemoteSessionScheduler):
-    def __init__(self, engine, handle, plan):
-        super().__init__(handle.session_id, plan, client=engine)
+    """The frontend's view of a timeline; the engine holds its schedule."""
+
+    def __init__(self, engine, handle):
+        super().__init__(handle.session_id, None, client=engine)
         self.handle = handle
 
     def _call(self, operation, **kwargs):
@@ -28,3 +30,6 @@ class EngineSessionScheduler(RemoteSessionScheduler):
                     raise ValueError("This session already has a scheduler")
                 _RUNNERS[self.session_id] = self
         self._prepared = True
+
+    def wait_agent_start(self):
+        self._call("agent-ready")

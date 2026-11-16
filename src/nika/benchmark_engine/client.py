@@ -19,6 +19,8 @@ from nika.benchmark_engine.protocol import (
     EngineError,
     FaultCheck,
     GatewayRequest,
+    Scores,
+    TaskList,
     TrialHandle,
     TrialRequest,
     TrialState,
@@ -152,6 +154,9 @@ class EngineClient:
     def describe(self, release: str | None = None) -> EngineDescription:
         return self._model(EngineDescription, "describe", {"release": release})
 
+    def list_tasks(self, release: str, split: str) -> TaskList:
+        return self._model(TaskList, "list_tasks", {"release": release, "split": split})
+
     def start_trial(self, request: TrialRequest) -> TrialHandle:
         if request.session_id is None:
             from nika.utils.session_id import make_session_id
@@ -228,18 +233,12 @@ class EngineClient:
             FaultCheck, "fault_check", {"handle": handle.model_dump(mode="json")}
         )
 
-    def score(
-        self,
-        handle: TrialHandle,
-        *,
-        result_dir: str | None = None,
-        infra_evidence: bool = False,
-    ) -> None:
-        self._call(
+    def score(self, handle: TrialHandle, *, infra_evidence: bool = False) -> Scores:
+        return self._model(
+            Scores,
             "score",
             {
                 "handle": handle.model_dump(mode="json"),
-                "result_dir": result_dir,
                 "infra_evidence": infra_evidence,
             },
         )

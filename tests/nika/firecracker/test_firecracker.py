@@ -438,7 +438,7 @@ def test_firecracker_runs_have_no_heavy_tier() -> None:
 
     from nika.workflows.benchmark.admit import CLASS_LIGHT, resource_class
 
-    trial = SimpleNamespace(row={"scenario": "k8s_lab"}, case_key="k")
+    trial = SimpleNamespace(row={"scenario": "k8s_lab"}, case_key="k", task=None)
     set_run_config(RunConfig())
     assert resource_class(trial) != CLASS_LIGHT
     set_run_config(

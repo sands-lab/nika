@@ -1,0 +1,1415 @@
+{
+ "0.1.0/dev": [
+  {
+   "task_id": "campus_lan__arp_acl_block__s__h61f1bcc3bcc1",
+   "resource_class": "light",
+   "deployed_sha256": "222d9292d7ddf7f1bb7e9d8b5078ddd2036a5e8955d647b68147d470d593435a"
+  },
+  {
+   "task_id": "campus_lan__arp_cache_poison__h4e83231c043f",
+   "resource_class": "light",
+   "deployed_sha256": "fffa3df1b62cca35149a6b147cc8ec023262b0adf2d2f9c8e7927f158a61f9ac"
+  },
+  {
+   "task_id": "dc_clos__bgp_acl_block__s__h5b59886f4ea8",
+   "resource_class": "light",
+   "deployed_sha256": "78b7424076eb85f3a67281ddf2d4b73c0d6cb887fbef8e4d13e5cad6c1538ce3"
+  },
+  {
+   "task_id": "dc_clos__bgp_asn_misconfig__hb94519c4b15b",
+   "resource_class": "light",
+   "deployed_sha256": "fd5af3cd899370f4ddd8ac1a6bcd15303d7ecbedaf0f66c41f4eaa71d2d9b116"
+  },
+  {
+   "task_id": "dc_clos__bgp_blackhole_route__h2f54e7c9628e",
+   "resource_class": "light",
+   "deployed_sha256": "8382340fbeac83fcd11abcede6e5a4df264d5ef257dd5549b7efa8a0053f10d8"
+  },
+  {
+   "task_id": "dc_clos__bgp_hijacking__s__h07cb826ba44d",
+   "resource_class": "light",
+   "deployed_sha256": "d35086b5b204a688ec0d8b138142cb0a593feac89cd518bce1bcbd9a5b480eb2"
+  },
+  {
+   "task_id": "dc_clos__bgp_missing_route_a__h0aed5d42995c",
+   "resource_class": "light",
+   "deployed_sha256": "68fad511d0cfcf64e28cc5d28302f810a94a20be9e60c20c11298270827cc2b9"
+  },
+  {
+   "task_id": "p4_bloom_filter__bmv2_switch__h8386750ef061",
+   "resource_class": "light",
+   "deployed_sha256": "837dc9aa8291da6a8b367e2100e5f1b04c3a0b60057ab128f06745c920a569ba"
+  },
+  {
+   "task_id": "campus_lan__dhcp_missing_sub__h804baccc7449",
+   "resource_class": "light",
+   "deployed_sha256": "9e4971af0581ddebde8ef8119c291e60e1bfa5ede7fca8841690a4a268aacde9"
+  },
+  {
+   "task_id": "campus_lan__dhcp_service_dow__h30f0a035018b",
+   "resource_class": "light",
+   "deployed_sha256": "793b57be0e13605ee60cdc0f00d0b0af85afd644987687b62724ea4a8bb5bcb0"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_dns__h9b143597a475",
+   "resource_class": "light",
+   "deployed_sha256": "467e5f58f3a606a55bbceadc660fb876fafd994a90a540c283c7eb320cbcac7c"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_gat__h73cf59b1e1a5",
+   "resource_class": "light",
+   "deployed_sha256": "c879793cb87e14a66c52936117ac0fd73b070212df251d07e4aefffcbdf7ce00"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_sub__hb45c6472d271",
+   "resource_class": "light",
+   "deployed_sha256": "bb7a560d8c4aa816b1660ceb6dbd050400ffd6f187d27369f7f2d261b609bb40"
+  },
+  {
+   "task_id": "campus_lan__dns_lookup_laten__h74fb84eeb117",
+   "resource_class": "light",
+   "deployed_sha256": "bae5da83edbcd6f8404319c44adbf1b094fc7a50056ed2435d2e46abcbbb677d"
+  },
+  {
+   "task_id": "campus_lan__dns_port_blocked__hffe10678a36b",
+   "resource_class": "light",
+   "deployed_sha256": "501cb9bde5dfbd8aeb77b73ba0337d3ee511957bc44264ce5c654b903fa9127f"
+  },
+  {
+   "task_id": "campus_lan__dns_record_error__h1a5ff3ac6614",
+   "resource_class": "light",
+   "deployed_sha256": "ee5ba4e93c3184bd00f8a757ff4b8191140824cfa656fe3172be985127aa980e"
+  },
+  {
+   "task_id": "campus_lan__dns_service_down__h427cffe3725f",
+   "resource_class": "light",
+   "deployed_sha256": "cb39f4b10c3e421891eb70299442558b2138d1848b389a8161df16df34b132a1"
+  },
+  {
+   "task_id": "sdn_l3_clos__flow_rule_loop__hb240814aba9c",
+   "resource_class": "light",
+   "deployed_sha256": "dd8926ef2cde1e3934f22747e0d98c42386a3dd39cf75051d3a0dffe71f3228a"
+  },
+  {
+   "task_id": "sdn_l3_clos__flow_rule_shado__ha8432e1e4f75",
+   "resource_class": "light",
+   "deployed_sha256": "62bfc1a192c75eec8dce5b9db7502b771a5e0ddddaa7eaf7687d3b8a6662aa4d"
+  },
+  {
+   "task_id": "campus_lan__frr_service_down__hfea8509353a2",
+   "resource_class": "light",
+   "deployed_sha256": "0feb735d895aeaec4700a5b54c21d367cbbb4f0c7e341488514b3c29d1b151ad"
+  },
+  {
+   "task_id": "dc_clos__host_crash__s__host_name-dns_pod0",
+   "resource_class": "light",
+   "deployed_sha256": "ae2f624b08489aacfea3e45525fb5d54ef6f2b1d9c0917d28ec0153901ce9568"
+  },
+  {
+   "task_id": "campus_lan__host_incorrect_d__h20de3c96ea61",
+   "resource_class": "light",
+   "deployed_sha256": "97ed45e1bf82770d8f96941a2586302fe68cf8030717493041189022d8765574"
+  },
+  {
+   "task_id": "campus_lan__host_incorrect_g__ha478ddcf2517",
+   "resource_class": "light",
+   "deployed_sha256": "b1e4d73de091b985bf5b72a62eaca6fd968b285d0249c1fd1b0773b81178e9c8"
+  },
+  {
+   "task_id": "campus_lan__host_incorrect_i__h3411c6cd79b0",
+   "resource_class": "light",
+   "deployed_sha256": "0edd12f8b01ab47ae3207498c25169f991f3821506131f51f4d1a2442b124386"
+  },
+  {
+   "task_id": "campus_lan__host_incorrect_n__hf4a3703c8bdb",
+   "resource_class": "light",
+   "deployed_sha256": "ed6fa94e4c2af06417ef506a77c065ba1cfa02c07263cb63b13193a71c11b682"
+  },
+  {
+   "task_id": "dc_clos__host_ip_conflict__s__h6b859d897492",
+   "resource_class": "light",
+   "deployed_sha256": "fb5d38483c56d2e6d7a9768b58c072186fad515990551c174b90abc769d0cc82"
+  },
+  {
+   "task_id": "campus_lan__host_missing_ip__ha0aa92b23922",
+   "resource_class": "light",
+   "deployed_sha256": "050b701631bedb040047fd0029fdc34207f9b4aff2f309e7da14b426eba960f7"
+  },
+  {
+   "task_id": "dc_clos__host_static_blackho__ha20f8dcf5a6f",
+   "resource_class": "light",
+   "deployed_sha256": "846507b812eddda28cb975539d42e2360c3d38cf02c82f2a4ec14012bd363d7e"
+  },
+  {
+   "task_id": "rip_small_internet_vpn__host__hef4d6f5cedcf",
+   "resource_class": "light",
+   "deployed_sha256": "41764b90cf78cdc3fad27179cfbc94622068f022cb2dac2d8de4185b003f5676"
+  },
+  {
+   "task_id": "campus_lan__http_acl_block__hf347aca0a3a8",
+   "resource_class": "light",
+   "deployed_sha256": "9e9907a660b275043744071fd68d138d8460bb55d3cad46600076fed3a66fc59"
+  },
+  {
+   "task_id": "campus_lan__icmp_acl_block__haec47e889e67",
+   "resource_class": "light",
+   "deployed_sha256": "cd2752db5e263a09086e228230ea843669d1b0f2e214f44a43de238ad4d021b9"
+  },
+  {
+   "task_id": "campus_lan__incast_traffic_n__h38b3830531de",
+   "resource_class": "light",
+   "deployed_sha256": "a41976d10124055a491f8fbc08851c5568708cfc0a6f5c28ac9b422126e76a05"
+  },
+  {
+   "task_id": "dc_clos__link_bandwidth_thro__h2dc6e6f02a6e",
+   "resource_class": "light",
+   "deployed_sha256": "090046e1f5233604e211c0d258a39d974249b5b34e1fbf656aab9f85d0d51aff"
+  },
+  {
+   "task_id": "dc_clos__link_detach__s__hac6ca57113d2",
+   "resource_class": "light",
+   "deployed_sha256": "00811d2b3fd67fae646ff6dd7067d6f7d6ffb619a8ab28c4833008c5b6649d0d"
+  },
+  {
+   "task_id": "dc_clos__link_down__s__h6ad1501e0f8a",
+   "resource_class": "light",
+   "deployed_sha256": "25115cdf51932648f8ddda75ce46141d8dcd814d65fd4e10a9eb7170ae5a7f51"
+  },
+  {
+   "task_id": "dc_clos__link_flap__s__hf66b6578925d",
+   "resource_class": "light",
+   "deployed_sha256": "5acce8aa535f45571da5d96ee02cca2104b40be3d31bcba29002b74175ccc7fe"
+  },
+  {
+   "task_id": "dc_clos__mtu_mismatch__s__he868700e0af0",
+   "resource_class": "light",
+   "deployed_sha256": "9e0d17f65eaf416efc872d72a8c767b0121d82aa0cd4abf066027a1f07312e7b"
+  },
+  {
+   "task_id": "dc_clos__link_packet_corrupt__h7936ae124307",
+   "resource_class": "light",
+   "deployed_sha256": "5cc52886ebedb0b8c7e97cdbe096c8c34b4504c53e3f80c6fd1232505ee025dc"
+  },
+  {
+   "task_id": "campus_lan__load_balancer_ov__h7ebb476305fd",
+   "resource_class": "light",
+   "deployed_sha256": "c9918f7fc142f27536f7ad1f0c6e8815f10cac83bcf2dc2d8a242978b0ca086a"
+  },
+  {
+   "task_id": "campus_lan__mac_address_conf__h28b054278784",
+   "resource_class": "light",
+   "deployed_sha256": "1259b9dbce9fad89c91efc4ebca28f08f4165da764d51656915737c688ab818a"
+  },
+  {
+   "task_id": "p4_mpls__mpls_label_limit_ex__h9805b4a61717",
+   "resource_class": "light",
+   "deployed_sha256": "e517dfcd0796ae97fb0c4ea4e6ac4a6a1623829046e20827301f5fdc3763a907"
+  },
+  {
+   "task_id": "campus_lan__ospf_acl_block__h770ad466f9f3",
+   "resource_class": "light",
+   "deployed_sha256": "07f6f0bc648f24ed8a5f4499fd15df3187dbe7b52abb70e64541052fa676e1be"
+  },
+  {
+   "task_id": "campus_lan__ospf_area_miscon__h33c171e9a97c",
+   "resource_class": "light",
+   "deployed_sha256": "c47e0a4d6ab48eefd32f163f5c2e6d7e40e1136d5e183756921a82e25cf7d0d0"
+  },
+  {
+   "task_id": "campus_lan__ospf_neighbor_mi__hc014ed57b068",
+   "resource_class": "light",
+   "deployed_sha256": "f52aa07895884b1b44604b104185682cb94d693430650ccc00b534ad4f6709f5"
+  },
+  {
+   "task_id": "p4_bloom_filter__p4_aggressi__h4fb35f828e06",
+   "resource_class": "light",
+   "deployed_sha256": "042ff65a547a5b6ee7b48e5e08ea06fe4a3bc08f044242df6db294bf77a07267"
+  },
+  {
+   "task_id": "p4_bloom_filter__p4_compilat__h30c0d50e6bb7",
+   "resource_class": "light",
+   "deployed_sha256": "39fd2566e7da66b58266192ef5e9c57339346ef999a0d702e99e6080c00995a9"
+  },
+  {
+   "task_id": "p4_bloom_filter__p4_header_d__hdaf96904b66b",
+   "resource_class": "light",
+   "deployed_sha256": "d0d6e5c0f18a4ac1460240be60f6237dfa430f3ee54cb3d1cb8dcb88fc871eb9"
+  },
+  {
+   "task_id": "p4_bloom_filter__p4_table_en__h9bba2092a84b",
+   "resource_class": "light",
+   "deployed_sha256": "c078a31ce964c35a513ff71079ef653d17ad75dc4c33b7803601fec092ba29c0"
+  },
+  {
+   "task_id": "p4_bloom_filter__p4_table_en__h2eb0715b34a0",
+   "resource_class": "light",
+   "deployed_sha256": "fd5f313ab7b41d84a1a471701f1be5d0471374f9a3e04e2aaf0ffa042ec3fd9b"
+  },
+  {
+   "task_id": "campus_lan__receiver_resourc__h5136f9e7070e",
+   "resource_class": "light",
+   "deployed_sha256": "4ffbf3f33c2e30f3b39f303d20fb7c5a1e10370c2374d1e5caaa1daea1c9b0ca"
+  },
+  {
+   "task_id": "sdn_clos__sdn_controller_cra__he6f174d459ad",
+   "resource_class": "light",
+   "deployed_sha256": "d18bd758c716b66068f1456ab35fdc1b95c8210fbdd93f4eb4b7be4412829bff"
+  },
+  {
+   "task_id": "campus_lan__sender_applicati__h804d419d6306",
+   "resource_class": "light",
+   "deployed_sha256": "060cf0d252e67cb64db151f30a0e5912e0e1c1e96da213737df7504188d55b1b"
+  },
+  {
+   "task_id": "campus_lan__sender_resource__h6f8116709158",
+   "resource_class": "light",
+   "deployed_sha256": "248e61d22d53252892d74fc64308945b0cc2ab41f49a637a3fa209ecde5d97d1"
+  },
+  {
+   "task_id": "sdn_clos__southbound_port_bl__hb84d7f9b6eae",
+   "resource_class": "light",
+   "deployed_sha256": "de1700408f3e1d05c63766104f2a65653899b6c82d4606b1f2172389bc0b1fc1"
+  },
+  {
+   "task_id": "sdn_clos__southbound_port_mi__h7412ce757b37",
+   "resource_class": "light",
+   "deployed_sha256": "dd85cc2b899e2c8f6e48bbff1f528aea3cb4ed0815cfb08000a6b5a55f228aeb"
+  },
+  {
+   "task_id": "campus_lan__web_dos_attack__h2570d65c66be",
+   "resource_class": "light",
+   "deployed_sha256": "eab1e20d5eef11c56ade24452638f38bc5bb2b168ff6dc320ac2a4ffef4e5d41"
+  }
+ ],
+ "0.1.0/test": [
+  {
+   "task_id": "dc_clos__arp_acl_block__l__hc74e74706a6f",
+   "resource_class": "large",
+   "deployed_sha256": "263d3b08b6c66324980710cd006c143dcc39271bf860d5469843199c0616ae06"
+  },
+  {
+   "task_id": "dc_clos__arp_cache_poisoning__h5347185baf3b",
+   "resource_class": "large",
+   "deployed_sha256": "ecc07d9e8c7eec5fef4c3442bf6c4f85f7b050eea61d284d3e8f733d4bb84f3d"
+  },
+  {
+   "task_id": "dc_clos__bgp_acl_block__l__h5701a78d42de",
+   "resource_class": "large",
+   "deployed_sha256": "82285f5bdd51aafdda35a8e7c374f08bb81e19ad253ed1c62688ae4a96928def"
+  },
+  {
+   "task_id": "dc_clos__bgp_asn_misconfig__hc448d8736012",
+   "resource_class": "large",
+   "deployed_sha256": "aba89c65976efb349a6c64b1a30537a06d0cd568a8a63849c75eb115f219f372"
+  },
+  {
+   "task_id": "dc_clos__bgp_blackhole_route__h2bfc700ceb15",
+   "resource_class": "large",
+   "deployed_sha256": "b90e1c5c16a2b0e73d021fa2201b80991791a0430db0b2eb598fc705041b6dd4"
+  },
+  {
+   "task_id": "dc_clos__bgp_hijacking__l__h093d0dd0bc59",
+   "resource_class": "large",
+   "deployed_sha256": "da4fd116ee16f95d81b441ef2fcd86670c8ca68856e3f449bc63ea4c84399484"
+  },
+  {
+   "task_id": "dc_clos__bgp_missing_route_a__hc9461457b26e",
+   "resource_class": "large",
+   "deployed_sha256": "c0d16d3ad212aefdb54ede926c72777498696cd0211e673f1a9a1fbb9992e149"
+  },
+  {
+   "task_id": "p4_counter__bmv2_switch_down__host_name-s1",
+   "resource_class": "light",
+   "deployed_sha256": "16cff9d0be8b69941ab549eefd6d9470f49ba47ae3bd64ba873abba35d3c51a0"
+  },
+  {
+   "task_id": "campus_lan__dhcp_missing_sub__h192e6deda58e",
+   "resource_class": "large",
+   "deployed_sha256": "711c3fd88118a7695907c3ede8a9975991db92572d8d9623b059bb793725400e"
+  },
+  {
+   "task_id": "campus_lan__dhcp_service_dow__he8cfd9c7787e",
+   "resource_class": "large",
+   "deployed_sha256": "c52e1efbb6ecaa8c1fb7efe7ec0514db1e20d4eb084ecac6300f22715b1b7c2e"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_dns__h11e83d10f81d",
+   "resource_class": "large",
+   "deployed_sha256": "4e02438cbb32014ea4bf1aff07788c6e87f27234b427b106dd6905bf2dfb296e"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_gat__hef7b836da149",
+   "resource_class": "large",
+   "deployed_sha256": "c574e4f0ba48d24be473229c3b1372ab9bab17354e20e29bf96428828279bc2c"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_sub__hdb351f65e243",
+   "resource_class": "large",
+   "deployed_sha256": "d49396c3168c5ec3b30cf5279ce28f062bf4e3cf850da40385b178a2511c7cc1"
+  },
+  {
+   "task_id": "dc_clos__dns_lookup_latency__ha566182b93f7",
+   "resource_class": "large",
+   "deployed_sha256": "c3f63e5f38335f1a86c00273f550e46aca354ef0e29c31dc2b68f0adfece4d2e"
+  },
+  {
+   "task_id": "dc_clos__dns_port_blocked__l__h7a277fa2191b",
+   "resource_class": "large",
+   "deployed_sha256": "cde62daa8b21e51499fa14a183f51dd68de36296ac47f2a6f66fc66e91e5f87d"
+  },
+  {
+   "task_id": "dc_clos__dns_record_error__l__h6e8b29b7b9fd",
+   "resource_class": "large",
+   "deployed_sha256": "acb493ebc77f1e6b401baa7f7fd0667b9dc5475e6e33aa4584289f43f7c6cb11"
+  },
+  {
+   "task_id": "dc_clos__dns_service_down__l__he78eca956be7",
+   "resource_class": "large",
+   "deployed_sha256": "9eb74252c69565dfce252485f450821f77b1abdca5dfa40ef136bccbca101cd8"
+  },
+  {
+   "task_id": "sdn_star__flow_rule_loop__l__h3d6f90eec3c8",
+   "resource_class": "large",
+   "deployed_sha256": "b9449df47474c1c49f6a6da07ffb6798f9e4ef7f58ba4ef7b19ee4e12b295f83"
+  },
+  {
+   "task_id": "sdn_star__flow_rule_shadowin__he039b8f706a0",
+   "resource_class": "large",
+   "deployed_sha256": "5955473ec8316c1d1fbc859d81a5011ea4ced2e294c3f243a3fcc7bf6e173cd1"
+  },
+  {
+   "task_id": "dc_clos__frr_service_down__l__h6abed8e5c2f5",
+   "resource_class": "large",
+   "deployed_sha256": "18612b06b682b137b9534690bff55c03361982af39333e80748a2ba710cd513a"
+  },
+  {
+   "task_id": "dc_clos__host_crash__l__host_name-client_1",
+   "resource_class": "large",
+   "deployed_sha256": "2045b58c8bb86189e0856056c04bbfbf484625e6f5829c50fa5c02d76a1b4b97"
+  },
+  {
+   "task_id": "dc_clos__host_incorrect_dns__h9f646dedddda",
+   "resource_class": "large",
+   "deployed_sha256": "2ef476cf059f6c166f4dbde3b8b3865828a1e418ff1a3ec82f340e62f104316b"
+  },
+  {
+   "task_id": "dc_clos__host_incorrect_gate__h9c0b8b593100",
+   "resource_class": "large",
+   "deployed_sha256": "6f32d29db8fd0364c7fe53e117bdaf84be2afcbb724a2948116d505d0c448b86"
+  },
+  {
+   "task_id": "dc_clos__host_incorrect_ip__hec002b658792",
+   "resource_class": "large",
+   "deployed_sha256": "84bf00acd5007797c8dd66a4e4273e2d69e16a74494058647771f10203586bef"
+  },
+  {
+   "task_id": "dc_clos__host_incorrect_netm__h87451db48fa7",
+   "resource_class": "large",
+   "deployed_sha256": "1017292e552c73dfd85f1ade0525929fa4cba18154874aa0ffac58d86f8fa1c5"
+  },
+  {
+   "task_id": "dc_clos__host_ip_conflict__l__h043b95076637",
+   "resource_class": "large",
+   "deployed_sha256": "fbc6ed661b84943eb333a928dd25fc12c57ab28991d373eda05fab02c85de31d"
+  },
+  {
+   "task_id": "dc_clos__host_missing_ip__l__h4f39e93d8fc7",
+   "resource_class": "large",
+   "deployed_sha256": "1bf776ff30af5cf3efdba1aaa964f74ff44b8b8507303bfe6fa9436fed295163"
+  },
+  {
+   "task_id": "dc_clos__host_static_blackho__h6b6c713f7d0a",
+   "resource_class": "large",
+   "deployed_sha256": "5be8adc8e7feccd0d50371666d896057d99a5e154a18f87058eb49f656ece053"
+  },
+  {
+   "task_id": "rip_small_internet_vpn__host__h5fb09a317eb3",
+   "resource_class": "large",
+   "deployed_sha256": "2663f71430dbc7cabe576099f86fada8165a315e67306c6fccbac8c46a3a6cf6"
+  },
+  {
+   "task_id": "dc_clos__http_acl_block__l__h9dcb17bfa587",
+   "resource_class": "large",
+   "deployed_sha256": "777ea59726981b12def31498caa64a60606d55112c274b40eaee0fc4fd4da72a"
+  },
+  {
+   "task_id": "dc_clos__icmp_acl_block__l__he8aba8367b95",
+   "resource_class": "large",
+   "deployed_sha256": "6bd22d45535fd41ca07dc40a578f88e62c8a16ec4fc03b4d151250b101209316"
+  },
+  {
+   "task_id": "dc_clos__incast_traffic_netw__hcfb2474b96a7",
+   "resource_class": "large",
+   "deployed_sha256": "c63421c5c1fa87674c9e393ae614b612927a69fc5aff05b3228cc87be79df7e4"
+  },
+  {
+   "task_id": "dc_clos__link_bandwidth_thro__h0fb588b9cb6b",
+   "resource_class": "large",
+   "deployed_sha256": "e3c2d0863716ce5a327fae139c41bcdac73e716ea1230971a32958dd0833bdc2"
+  },
+  {
+   "task_id": "dc_clos__link_detach__l__h318387911cd0",
+   "resource_class": "large",
+   "deployed_sha256": "84062208c303448699f6b349c17a0a8b114912c34c3f15e41e398fa807504bab"
+  },
+  {
+   "task_id": "dc_clos__link_down__l__ha2aa263b3cd8",
+   "resource_class": "large",
+   "deployed_sha256": "411bdd1d283c6f84b481799d01773f92b29944b12e41c0759bfade72a68b73d0"
+  },
+  {
+   "task_id": "dc_clos__link_flap__l__hfebb43b0d9c3",
+   "resource_class": "large",
+   "deployed_sha256": "bd35129d480c0403c97778296fcf4686a0d01c0d611c6d1236da9299fd921475"
+  },
+  {
+   "task_id": "dc_clos__mtu_mismatch__l__h91d82a3295ea",
+   "resource_class": "large",
+   "deployed_sha256": "fa6e33b7972f224763c94c6c11cfb9d3898b6b3b617b5e2e901ce795b85b986a"
+  },
+  {
+   "task_id": "dc_clos__link_packet_corrupt__hc18f7d51adbf",
+   "resource_class": "large",
+   "deployed_sha256": "a6a28c39cafe1de0705f9d49f3082c20bed117b8ae775a6ba657d6204d824a19"
+  },
+  {
+   "task_id": "campus_lan__load_balancer_ov__hce863de91bce",
+   "resource_class": "large",
+   "deployed_sha256": "f00cafa16a6333781823bce9855b9c6f7772760979c22d0a985d2d2172f7cdaa"
+  },
+  {
+   "task_id": "dc_clos__mac_address_conflic__h8e34c843dfdb",
+   "resource_class": "large",
+   "deployed_sha256": "d7d97b4d20d7e839c5d1db020c0c71c171ce9be86352d02be4bd0d19130f3e8b"
+  },
+  {
+   "task_id": "p4_mpls__mpls_label_limit_ex__h6148dba8ec40",
+   "resource_class": "light",
+   "deployed_sha256": "47c4f980ac456fc35a57674fbda627c054a703b0caa836abbfe85b7856d30c23"
+  },
+  {
+   "task_id": "campus_lan__ospf_acl_block__h27a6877d8293",
+   "resource_class": "large",
+   "deployed_sha256": "24f5aa656252c01b04f24b37862036d2ca190f81fae93388c6a14d6ddc71a409"
+  },
+  {
+   "task_id": "campus_lan__ospf_area_miscon__he06096bac146",
+   "resource_class": "large",
+   "deployed_sha256": "1ccea47018357a8700792454ea52bba5dc2dcaa2a4cd09a2f33799494c665900"
+  },
+  {
+   "task_id": "campus_lan__ospf_neighbor_mi__h3afc019c8335",
+   "resource_class": "large",
+   "deployed_sha256": "11fdf2828c3335e3d9171fa2c0f1840346bbeb1a81951656ae06566fb0fae0bd"
+  },
+  {
+   "task_id": "p4_bloom_filter__p4_aggressi__h0d31a58e976f",
+   "resource_class": "light",
+   "deployed_sha256": "57610983ac3df7a1b55ca6d6dc24c0f000bfc1dd4ab9095776fd0e57ad4b9f54"
+  },
+  {
+   "task_id": "p4_counter__p4_compilation_e__h4827884d41e6",
+   "resource_class": "light",
+   "deployed_sha256": "a4c76c460a40f280d76c8d21ca5a384641b52afab314e2f1602297bd5e29d032"
+  },
+  {
+   "task_id": "p4_counter__p4_header_defini__h6403ea8502bd",
+   "resource_class": "light",
+   "deployed_sha256": "a0c2869f90b89bd6e76dd6a88e8a025c40d24401605d8a50ce39f3a72cbf7ea2"
+  },
+  {
+   "task_id": "p4_counter__p4_table_entry_m__h203722f34df6",
+   "resource_class": "light",
+   "deployed_sha256": "2c3947875b5b08f8a6a59e6a0eb2e4b132ea296ab85152ccfbfbdf280833a75e"
+  },
+  {
+   "task_id": "p4_counter__p4_table_entry_m__h9b27da348f9f",
+   "resource_class": "light",
+   "deployed_sha256": "7e191a25998618f7617cfa82ca87bf63e0ddb7b744f2975ea255829018080f3f"
+  },
+  {
+   "task_id": "dc_clos__receiver_resource_c__h715d7959ce24",
+   "resource_class": "large",
+   "deployed_sha256": "68dc00f4cfdb3b933226cdb0e6854fcfbc783a311e8fa7979552258ce4d7fcc3"
+  },
+  {
+   "task_id": "sdn_star__sdn_controller_cra__h42cb0552ed96",
+   "resource_class": "large",
+   "deployed_sha256": "494cad86eb4503915ec158d67b98b9bed5379598291ea192d5db467c4a0add94"
+  },
+  {
+   "task_id": "dc_clos__sender_application__he75dd9404f51",
+   "resource_class": "large",
+   "deployed_sha256": "8ea9881a6cddf12cfd83c8f682557a2bb79b851c30107357c34c08725cf45d4f"
+  },
+  {
+   "task_id": "dc_clos__sender_resource_con__h675a89474487",
+   "resource_class": "large",
+   "deployed_sha256": "108dd90dd61ab8b80d196be756ef592a8df098e73320a02c3a7af6bdb4a0e74a"
+  },
+  {
+   "task_id": "sdn_star__southbound_port_bl__h3a532ec0dfb5",
+   "resource_class": "large",
+   "deployed_sha256": "3d1380f6831c2f0392f0dea262444bd9a12d3e7a4f2b0a981c7d37463229a4f5"
+  },
+  {
+   "task_id": "sdn_star__southbound_port_mi__hdcbd46aa0916",
+   "resource_class": "large",
+   "deployed_sha256": "0dac47f06e26c3d1242aca293be934377a2e203d3f5d0ccf9cc379ec7b8339b4"
+  },
+  {
+   "task_id": "dc_clos__web_dos_attack__l__hd9e634928ba7",
+   "resource_class": "large",
+   "deployed_sha256": "7862d433cba34eb1f0c89b4ea0273367d6a82c03b97856785d99abd0aa5202e8"
+  }
+ ],
+ "0.2.0/dev": [
+  {
+   "task_id": "enterprise_branch__arp_acl_b__hb977b5a7df88",
+   "resource_class": "light",
+   "deployed_sha256": "6624ca8b514d519bd9e8598895af6e34ab02e693654128f627740ec9b6a22fb0"
+  },
+  {
+   "task_id": "k8s_lab__arp_cache_poisoning__h94a5af818629",
+   "resource_class": "k8s",
+   "deployed_sha256": "d5a6f1711c9195675d347dbcd8081a8e8b55ca940e3784cfbe561fb24d2e723f"
+  },
+  {
+   "task_id": "isp_nobel-eu__bgp_acl_block__h1852b8a25b7e",
+   "resource_class": "light",
+   "deployed_sha256": "09fbb48a216aff86958f17f0b823cc23343a7e4b9d7abf97a570cafc800418a5"
+  },
+  {
+   "task_id": "isp_cost266__bgp_asn_misconf__hcccb98707011",
+   "resource_class": "large",
+   "deployed_sha256": "96b8a2de346386f4a17b23dd0554033e2712cff680fecc51c66883e2dcec7c2f"
+  },
+  {
+   "task_id": "isp_abilene_ebgp_rtbh__bgp_b__h77fc4d06884f",
+   "resource_class": "light",
+   "deployed_sha256": "ecbaad0610f8b8c4dcea9736f47f376220dc215bbe08020fa7e40f1dbbb95ba2"
+  },
+  {
+   "task_id": "isp_janos-us__bgp_hijacking__haf59b2452168",
+   "resource_class": "light",
+   "deployed_sha256": "69667ccdd281d5e9b6c0fffcf7cb44b6a62e3d53d41b9d8d31a2f60f493e01ac"
+  },
+  {
+   "task_id": "isp_geant__bgp_max_prefix_ex__h23d36b998665",
+   "resource_class": "light",
+   "deployed_sha256": "ed21b4236970f12092a90c05ff24626db545664745162a16d38db83abf38a62c"
+  },
+  {
+   "task_id": "isp_pioro40__bgp_missing_rou__hddab0e658f44",
+   "resource_class": "large",
+   "deployed_sha256": "80954ee34d67e6826d45d15d50194d515b485f7fb50866928843f2f73a559fbf"
+  },
+  {
+   "task_id": "isp_abilene_ebgp_rpki__bgp_r__h15059e4a06eb",
+   "resource_class": "light",
+   "deployed_sha256": "c16b4685c717e4b55280591da1f18063c8ad925b14c866d1994b25440930ff9c"
+  },
+  {
+   "task_id": "p4_dc_fabric__bmv2_switch_do__hc547af983c59",
+   "resource_class": "large",
+   "deployed_sha256": "83a5655a836874f8849847a0240e73289157682e3cb25c6a8bb2ae79decca385"
+  },
+  {
+   "task_id": "sdn_l3_clos__device_forwardi__hed1b7d3a5c26",
+   "resource_class": "light",
+   "deployed_sha256": "30d750683d5085bcd475be55381cbd77be6b8004b24e79783033efddd37e0c30"
+  },
+  {
+   "task_id": "campus_lan__dhcp_missing_sub__hcc6953db690f",
+   "resource_class": "light",
+   "deployed_sha256": "44924981302e5bd63e8653d5671d432a4d8b633a4be7c6f87a05cbf9a99f5905"
+  },
+  {
+   "task_id": "campus_lan__dhcp_service_dow__h9f0ce77bb449",
+   "resource_class": "large",
+   "deployed_sha256": "80aaaf6f757ae77bec15195e490867afa72a3d82ea4ae2beec2654d2af88448d"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_dns__h9b143597a475",
+   "resource_class": "light",
+   "deployed_sha256": "467e5f58f3a606a55bbceadc660fb876fafd994a90a540c283c7eb320cbcac7c"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_gat__h521faaf7d975",
+   "resource_class": "large",
+   "deployed_sha256": "927f9fd0bde0f519369cebe18e1d125b4e692b981bc7493b70e3f75c727e0b9d"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_sub__h700baa99d83c",
+   "resource_class": "light",
+   "deployed_sha256": "089f0872a9a1f125863936fc8cfac1b6be6955715a24f1e040183d9ee5c498d5"
+  },
+  {
+   "task_id": "dc_clos__dns_lookup_latency__h6cf5d9fef358",
+   "resource_class": "light",
+   "deployed_sha256": "ace30e838f551cc5eba09912442f6167f22f98235d39dc290701e520ac297920"
+  },
+  {
+   "task_id": "dc_clos__dns_port_blocked__m__h06816cd59e9f",
+   "resource_class": "light",
+   "deployed_sha256": "65269b0f2ff887a4adc36aa0ea3932e052e435c9c74bbcb0d34aa0850be24be8"
+  },
+  {
+   "task_id": "dc_clos__dns_record_error__l__h4eecdf672157",
+   "resource_class": "large",
+   "deployed_sha256": "ed078c6cc83cb4846b01a00da7d64d9a4543dd9e8e0d34167393b9a2cfc87a14"
+  },
+  {
+   "task_id": "dc_clos__dns_service_down__s__hd9aff9b74462",
+   "resource_class": "light",
+   "deployed_sha256": "154a812e1020c957c70400af606e97a35aeba4b9c3b1a5241533ba1c184a7d4a"
+  },
+  {
+   "task_id": "sdn_l3_clos__flow_rule_loop__h93b4e639bdb6",
+   "resource_class": "light",
+   "deployed_sha256": "8ac73722350493b218035ba9a874628545139a95d2e4bbe92d4ed96c04216c15"
+  },
+  {
+   "task_id": "sdn_l3_clos__flow_rule_shado__haf328620ddaf",
+   "resource_class": "large",
+   "deployed_sha256": "2c3c9b1d8272149066182d0a67929e43abad870472f51b4ce99a2e35ebb86216"
+  },
+  {
+   "task_id": "k8s_lab__frr_service_down__h3b275ab08d77",
+   "resource_class": "k8s",
+   "deployed_sha256": "f3d0289dba2fdfbf2c9123eda9e772a05f14cc475d8a0e05ff8ed6419a04dc10"
+  },
+  {
+   "task_id": "dc_clos__host_incorrect_dns__h0c1c34601512",
+   "resource_class": "light",
+   "deployed_sha256": "0b1a49c95806b547f26cbcd16309f9106afef316ed5e3f7c4b6b047b5581e677"
+  },
+  {
+   "task_id": "k8s_lab__host_incorrect_gate__hbce486ca6dfa",
+   "resource_class": "k8s",
+   "deployed_sha256": "53f0d50e1319640f27102ba7a94df93bbb6b4fc7375b4567d36714a9a944aaba"
+  },
+  {
+   "task_id": "llmd_lab__host_incorrect_ip__h039181b43eb2",
+   "resource_class": "k8s",
+   "deployed_sha256": "456069ed27caf7a97cb5d6c9963889656251fcf12ebb18e8e1a81f74e2287e1d"
+  },
+  {
+   "task_id": "enterprise_branch__host_inco__h712cf806319f",
+   "resource_class": "light",
+   "deployed_sha256": "76dbbd64d726b2394949ccdad9d9f88f25078db448722fd98dff0ff0e047feae"
+  },
+  {
+   "task_id": "enterprise_branch__host_ip_c__h7b6036ed29b1",
+   "resource_class": "large",
+   "deployed_sha256": "ea1b269c423ae1c23093b1e4118bfd100da2e5cb1cb69128cc681fe1cb711ddd"
+  },
+  {
+   "task_id": "p4_dc_fabric__host_missing_i__h54dc3ea81bb8",
+   "resource_class": "light",
+   "deployed_sha256": "4da19120773fe63eeebd3352f234fdef11d438dfaa0889b926fc2d4b5ff476e3"
+  },
+  {
+   "task_id": "isp_geant_ebgp_rpki__host_st__h052f5d9cd6ff",
+   "resource_class": "light",
+   "deployed_sha256": "fbee17018442baddd8e252b03b044fc95e524b57f0a8dfa18e2c49f792c3ee69"
+  },
+  {
+   "task_id": "llmd_lab__http_acl_block__host_name-client",
+   "resource_class": "k8s",
+   "deployed_sha256": "9769cc106c46379791a025bceae9bd3f50a0236aed27c6901e00fa28e2b0e1d3"
+  },
+  {
+   "task_id": "isp_janos-us-ca__icmp_acl_bl__h5ef6bf900cca",
+   "resource_class": "large",
+   "deployed_sha256": "9e51b9667c9851bdda76473e1d6c9fe02922b8b38fb3cbdec784933a9e6e68e6"
+  },
+  {
+   "task_id": "isp_abilene__icmp_frag_neede__h15f087697199",
+   "resource_class": "light",
+   "deployed_sha256": "935a0da8bbb93a417b333143f42d591f20f682703f24419123067bc4d41d7119"
+  },
+  {
+   "task_id": "p4_dc_gateway__incast_traffi__ha60fb0cbbcd1",
+   "resource_class": "light",
+   "deployed_sha256": "988fad06e985a5b21b3dcb103148b8a4ff2c2ae9ffedae8d1b0d315f702fe48a"
+  },
+  {
+   "task_id": "p4_dc_gateway__int_insuffici__h67bc2541336e",
+   "resource_class": "light",
+   "deployed_sha256": "21a61977f20b51d016fef9edf6ebc1e8fff01afd2c2140e557028b91ad61d8f0"
+  },
+  {
+   "task_id": "llmd_lab__k8s_clusterip_rout__h7a486fd12054",
+   "resource_class": "k8s",
+   "deployed_sha256": "eecd92ad2cd69a11b40d94e8efb71db7d89ecdcefa410818dbc9405c6747c9f1"
+  },
+  {
+   "task_id": "k8s_lab__k8s_coredns_isolate__h5e9a5a650146",
+   "resource_class": "k8s",
+   "deployed_sha256": "2419df2bd9b547773ef16872a9f8eeeda01208a774830227408292fe0d751a9d"
+  },
+  {
+   "task_id": "llmd_lab__k8s_networkpolicy__h6f77d96a44d4",
+   "resource_class": "k8s",
+   "deployed_sha256": "9f68d046ca06346dde71b86ada9d2d365dada944c50af444bc277139354b2fd4"
+  },
+  {
+   "task_id": "llmd_lab__k8s_worker_apiserv__h0e0b63d80bc1",
+   "resource_class": "k8s",
+   "deployed_sha256": "8e43fe50ec0da0916d29ddf2fc7847a0c85aee8648da12893f00e5d6a69b2fc9"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_action_sel__hfccd8b8976cf",
+   "resource_class": "large",
+   "deployed_sha256": "de8fdd2e2177a2623f86b396736658dcf911915dff62b406e9a1f0dfd44c3d5e"
+  },
+  {
+   "task_id": "p4_dc_gateway__lb_pending_co__h17d60b504579",
+   "resource_class": "light",
+   "deployed_sha256": "d648f4b84e17fe6275bf25599504067714674d755b02f4487c3d1be8d1c1f7db"
+  },
+  {
+   "task_id": "min3clos__link_capacity_bott__he7ee68fb5990",
+   "resource_class": "clab",
+   "deployed_sha256": "2b2f8187fc04af820654c87bd7ff772c1166629d7efb888a2eef75e3e096f2b5"
+  },
+  {
+   "task_id": "isp_ta2__link_detach__l__isi__h3f2e012c61a7",
+   "resource_class": "large",
+   "deployed_sha256": "a7cf5629b3aff6516295d1c1f73e3e07c9ced4563c69c5064de2ca50eeea571d"
+  },
+  {
+   "task_id": "isp_dfn-bwin__link_down__s__hd6e5b229e38b",
+   "resource_class": "light",
+   "deployed_sha256": "df5de008bb4c42e628eb6d2d7ecdb79f49d6b273ebe97a558667d609872ae38c"
+  },
+  {
+   "task_id": "isp_nobel-germany__link_flap__hdeec108e88ab",
+   "resource_class": "light",
+   "deployed_sha256": "71f45825d74581b26789003c8841aac181de7b8d8ee005f3f7b7eccaff8cf48a"
+  },
+  {
+   "task_id": "isp_india35__link_packet_cor__h4529855ae333",
+   "resource_class": "large",
+   "deployed_sha256": "03b70697dd285642615918496316021f5d3bb62c7a073ad8c5d150b4de6ba141"
+  },
+  {
+   "task_id": "campus_lan__load_balancer_ov__h3e3af67de17f",
+   "resource_class": "light",
+   "deployed_sha256": "97a22ce41a1c03d6fe52b88cceecab84fe887f785dd158824d008228d37eb68c"
+  },
+  {
+   "task_id": "campus_lan__mac_address_conf__h5cbed84b3a25",
+   "resource_class": "light",
+   "deployed_sha256": "e51ab674da1982c680953f2a3bf04c5a68509caf24b0faeb24e40ef2f070f581"
+  },
+  {
+   "task_id": "enterprise_branch__mtu_misma__hd4dc0ff740ca",
+   "resource_class": "large",
+   "deployed_sha256": "88d085489dc9e39e684592eba4b044df4148ed1fe08729c38f266ee5db424279"
+  },
+  {
+   "task_id": "enterprise_branch__nat_mappi__h9c79300c50ef",
+   "resource_class": "light",
+   "deployed_sha256": "b345779923cb42d3b329120ff06acd954416b7fb7412ef3c0ec91ab61633582d"
+  },
+  {
+   "task_id": "isp_ta1__ospf_acl_block__m__hee99857acb83",
+   "resource_class": "light",
+   "deployed_sha256": "613a1a7d43f8e2d55aa73e6ff55b568164de85b077da393f737c204fe4a07b43"
+  },
+  {
+   "task_id": "isp_germany50__ospf_area_mis__h494e892ae096",
+   "resource_class": "large",
+   "deployed_sha256": "3008ca347300ec4da45fc2665ab1570e5553ab173f4e3477b47b54d9fbfe88d5"
+  },
+  {
+   "task_id": "isp_dfn-bwin_ebgp_rtbh__ospf__h35ca131ed66a",
+   "resource_class": "light",
+   "deployed_sha256": "41db171b81e142d38ae6427bf328608aaa2a5f6ec6b70d494faa8fa77f3ee1b5"
+  },
+  {
+   "task_id": "p4_dc_fabric__p4_action_sele__h37349dcfa625",
+   "resource_class": "light",
+   "deployed_sha256": "d936d58510c815ceb0f483600afad75d48f90fd1f931a2a05f8212830782b450"
+  },
+  {
+   "task_id": "p4_dc_fabric__p4_ecmp_group__h2d06503f8df4",
+   "resource_class": "large",
+   "deployed_sha256": "6c183beab2abe69bc1a3e1ae0ec2352160d9bc55b6c9844984c68b55d8d7543f"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_ecn_thresh__hf1b4904685a7",
+   "resource_class": "light",
+   "deployed_sha256": "65d2f0cef23e7ed5b246d49818acd559f8d374da21be5aa99987916c76b480cf"
+  },
+  {
+   "task_id": "p4_dc_fabric__p4_table_entry__h0a3bcc61d836",
+   "resource_class": "light",
+   "deployed_sha256": "237c36bcdf68323ee3f39aa3875a1289f7ba755a3ba8104dd388031ec4095594"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_table_entr__hb6edb600a61e",
+   "resource_class": "large",
+   "deployed_sha256": "0979c547c337edc431e63c796fbae579ce5746dbde82e422760ef8185f39e06a"
+  },
+  {
+   "task_id": "p4_dc_fabric__p4_table_resou__h78c866a5cc56",
+   "resource_class": "light",
+   "deployed_sha256": "ebb2fa7e1fa1385c7a227f144657056b7425322b9f0707140f07422f20718b9e"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_tcam_entry__he9af85e642b9",
+   "resource_class": "light",
+   "deployed_sha256": "33cfac51b6a89d90405a51d7e41021af06ee5eeff0c158fa4344922b91c71adb"
+  },
+  {
+   "task_id": "p4_dc_fabric__p4runtime_part__h3d9005c7a810",
+   "resource_class": "large",
+   "deployed_sha256": "d3b15131d4ba33bb22b9cb9b700da5bc358336fb6c4a944397e17a17eb0f28dc"
+  },
+  {
+   "task_id": "p4_dc_fabric__p4runtime_pipe__h13d9c0c1b2fb",
+   "resource_class": "light",
+   "deployed_sha256": "c31d1db23305b21c0202fb9f7afd5b073161824c306fe181dbec8ffc40288239"
+  },
+  {
+   "task_id": "llmd_lab__receiver_resource__h494b49e3caef",
+   "resource_class": "k8s",
+   "deployed_sha256": "3e2540ffeb4db17adc30e3c2e35430e372b074aca4a23c6dc55367b56bc2de57"
+  },
+  {
+   "task_id": "sdn_l3_clos__sdn_controller__h5d6c4fd43cc3",
+   "resource_class": "light",
+   "deployed_sha256": "493fb25767f0f93e8580d00c2a076b0dd8ac226f6fde46d05c852db9a4f0bedd"
+  },
+  {
+   "task_id": "sdn_l3_clos__sender_resource__h09454ec990a3",
+   "resource_class": "large",
+   "deployed_sha256": "d19d44d00e0ab527ac474c63d42e87e6be16dda13f6503544622d83e95785431"
+  },
+  {
+   "task_id": "p4_dc_gateway__silent_egress__h8e7629e69975",
+   "resource_class": "light",
+   "deployed_sha256": "0f4143f48441945ee88ad7ff9f1b28c97bf7735ee5f7fa515be0f4009cbbd520"
+  },
+  {
+   "task_id": "enterprise_branch__snat_port__h804de6d05b47",
+   "resource_class": "light",
+   "deployed_sha256": "e9ebb1f144549abd88ce57ff0b2632b576ddad48b0f9a68c60d6843b4fa6d3cd"
+  },
+  {
+   "task_id": "sdn_l3_clos__southbound_port__h86c1d32918bb",
+   "resource_class": "large",
+   "deployed_sha256": "6ff41f70656b8ccb216449650d0d9ead1b3ef841764a163b64e7e23da6563b6e"
+  },
+  {
+   "task_id": "sdn_l3_clos__southbound_port__hc4d3b7b937bc",
+   "resource_class": "light",
+   "deployed_sha256": "d7500a3838de4dcc24b2616ba5895e8036b71da0671840f367fc6c277319254e"
+  },
+  {
+   "task_id": "enterprise_branch__tcp_recei__h5712c2a381a7",
+   "resource_class": "large",
+   "deployed_sha256": "f3ed18f6ed34e96a41b71207a6ec49eff8cadcad49e17ba3145d5deee4fb788c"
+  },
+  {
+   "task_id": "p4_dc_gateway__tcp_syn_flood__h01a127285645",
+   "resource_class": "light",
+   "deployed_sha256": "b90ac3e1958c355cf426e838ef1b49463fd23fd34a8d55e5ce85d99cca9e4b21"
+  },
+  {
+   "task_id": "enterprise_branch__vrf_dscp__hd3bcf0bf81a9",
+   "resource_class": "light",
+   "deployed_sha256": "1bf0a51fe04145c95fe12d177db4023458d43de8a2cedf372d2382366fabb71b"
+  },
+  {
+   "task_id": "dc_clos__web_dos_attack__m__hd7df1bd2eee2",
+   "resource_class": "light",
+   "deployed_sha256": "54cd23f9319b1abc95c4e7be7ecbd0f3d2172a09b6d7754cc5d05b98a80346c0"
+  },
+  {
+   "task_id": "enterprise_branch__wireguard__h6a17fbe319c4",
+   "resource_class": "large",
+   "deployed_sha256": "75f0377174939c7b79d9916a42bdb149efd65b104d5b8959edadd95482a33ee6"
+  },
+  {
+   "task_id": "enterprise_branch__wireguard__h7c732bdb00da",
+   "resource_class": "light",
+   "deployed_sha256": "3c1d36bbe2d8ecda03f91099c633a705bcf9b73b1f6705dd05d53aa7b620fe2f"
+  },
+  {
+   "task_id": "min3clos__healthy",
+   "resource_class": "clab",
+   "deployed_sha256": "a9130b8c5703e21286a1eb29bced65954e493415485d4ee62546ac7d5779c3c0"
+  },
+  {
+   "task_id": "isp_di-yuan__healthy__s__osp__h7f5199904fb9",
+   "resource_class": "clab",
+   "deployed_sha256": "6f13226d8d69ef1ef8763b5cc9bfc16b9705ce26c0f89a9a3e83c38534d7cacf"
+  },
+  {
+   "task_id": "isp_pdh__healthy__s__isis__i__h84929ef0fae8",
+   "resource_class": "clab",
+   "deployed_sha256": "25c7dc9dcff34389c34eca52c64d136cca64ef9064735c262119059802f329e0"
+  },
+  {
+   "task_id": "isp_dfn-bwin__healthy__s__os__ha6a69fb49da5",
+   "resource_class": "clab",
+   "deployed_sha256": "fffd6df85bfc681feb589a1a86a79e06a1ba2902673729ba779a775f759d7b43"
+  },
+  {
+   "task_id": "isp_pdh__healthy__s__isis__n__he69dabbc2102",
+   "resource_class": "clab",
+   "deployed_sha256": "f1ca90a63e4b37cd220690d5451701df887a931f0d8883189b39931f8d5da5f2"
+  },
+  {
+   "task_id": "isp_dfn-gwin__healthy__s__is__h4b5bd9c163b6",
+   "resource_class": "clab",
+   "deployed_sha256": "337c9205b328042da63ac9434be35ed349227e49f8f6d9e5500cbc4c9beee6ee"
+  },
+  {
+   "task_id": "isp_di-yuan__healthy__s__isi__h0f29f1dfa7a6",
+   "resource_class": "clab",
+   "deployed_sha256": "28d97d122b58cbdb60949912dcd19d5e10e195a3bc0a3f465af7edf7060fbd13"
+  },
+  {
+   "task_id": "isp_pdh__healthy__s__ospf__e__h0b99fe8ebb29",
+   "resource_class": "clab",
+   "deployed_sha256": "448c36bbc4c5de400544875c986d67d2c55e469e074c9216378a91644873b0b1"
+  },
+  {
+   "task_id": "isp_di-yuan__healthy__s__isi__h70a6825b53f9",
+   "resource_class": "clab",
+   "deployed_sha256": "47ba12afb224b4f330c53c2a7e37a1122212b1f6f47f145378b0ef7747e1bda0"
+  }
+ ],
+ "0.2.0/test": [
+  {
+   "task_id": "dc_clos__arp_acl_block__m__heebcdfb08b4d",
+   "resource_class": "light",
+   "deployed_sha256": "fcf84fbf8593114b161506a1fb3519334a70cd37e7fe8cb10ab5b3a073601249"
+  },
+  {
+   "task_id": "sdn_l3_clos__arp_cache_poiso__hb377eed72e6e",
+   "resource_class": "large",
+   "deployed_sha256": "13f60e8bfdc1c1f3c184c4c4f748991a6f4a21ad9efdead810700a26156ad105"
+  },
+  {
+   "task_id": "isp_pdh__bgp_acl_block__s__i__hbe4170621772",
+   "resource_class": "clab",
+   "deployed_sha256": "4713d462f9f2a93e06207639e28b6f4f50c8aa53914ea3e72128863cd180054b"
+  },
+  {
+   "task_id": "k8s_lab__bgp_asn_misconfig__he4a55dc53b83",
+   "resource_class": "k8s",
+   "deployed_sha256": "2696d9029e378f7f2ebc80420f1aa7e94224a3bd230e27897b673b7b3f6e5815"
+  },
+  {
+   "task_id": "isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e",
+   "resource_class": "light",
+   "deployed_sha256": "c875e47d7ea41fc6f51d50618c39ceefc7e10b70410b2f9a1386f0e339d436d6"
+  },
+  {
+   "task_id": "enterprise_branch__bgp_hijac__h4ee5d8e07e75",
+   "resource_class": "large",
+   "deployed_sha256": "670baa79ae3f422e4549ff79f39d3de7e127f9705232e56c260b9becd8f9bfc3"
+  },
+  {
+   "task_id": "isp_abilene__bgp_max_prefix__h3f31ac15a8fa",
+   "resource_class": "light",
+   "deployed_sha256": "347704732b874b47e17a47deced63c21617f7612772c3f498aaaad65a1cecff2"
+  },
+  {
+   "task_id": "enterprise_branch__bgp_missi__h3315430073e8",
+   "resource_class": "light",
+   "deployed_sha256": "f5420356106cfcda948bf88283a8f5a2b50821df9db7bca5fdc6a70788deeaed"
+  },
+  {
+   "task_id": "isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006",
+   "resource_class": "light",
+   "deployed_sha256": "a1ce35847da7f97525f94e6ef61e77130a393fc5344bf220e50846c6a2ad3377"
+  },
+  {
+   "task_id": "p4_dc_gateway__bmv2_switch_d__h8e9f694d6699",
+   "resource_class": "light",
+   "deployed_sha256": "1b50116a94f01006e6cb91f37b2e3dfdd47a91df04f639fca23520b3ee59ebed"
+  },
+  {
+   "task_id": "campus_lan__device_forwardin__h0b9011ea426b",
+   "resource_class": "large",
+   "deployed_sha256": "e0b206f383cd20d746f71f50bb1c41822851eb388f2cec077bd1b00c204e1f9a"
+  },
+  {
+   "task_id": "campus_lan__dhcp_missing_sub__h495aae94c5be",
+   "resource_class": "large",
+   "deployed_sha256": "9239d8f33907237dd82a86e508873e9191d32e412c51ee7448600d7195b88d72"
+  },
+  {
+   "task_id": "campus_lan__dhcp_service_dow__h46c12f643f13",
+   "resource_class": "light",
+   "deployed_sha256": "1c6004300949ec1bd31dcaf4d0faf3dc986e6b0d427a139c8b3284c2978926c2"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_dns__h4ee0ce80b947",
+   "resource_class": "large",
+   "deployed_sha256": "91aed044b1f6338c68a1240f7c0416b7ccb7336a4af5b4271ad141b4431a9351"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_gat__ha283c5609ad2",
+   "resource_class": "light",
+   "deployed_sha256": "344e15ca4e8458cfde86c7e86c40c2abc50c4417eb0d3be87c1e2e5747e3b9a8"
+  },
+  {
+   "task_id": "campus_lan__dhcp_spoofed_sub__h34b421b469e8",
+   "resource_class": "light",
+   "deployed_sha256": "430359054c11937bf757e881da40cf3c77ab9cdc5101c539391620f9ee3b06c9"
+  },
+  {
+   "task_id": "campus_lan__dns_lookup_laten__h9afd41613374",
+   "resource_class": "light",
+   "deployed_sha256": "0b2424e895ba318394e540f05a75ece2762215a1fa927aa91cba0464c16d7fa6"
+  },
+  {
+   "task_id": "campus_lan__dns_port_blocked__h6a276d3ed5cb",
+   "resource_class": "large",
+   "deployed_sha256": "252c96bd19cbdb8403fadc19580ba0c35fcea56e263449392db26464962adb26"
+  },
+  {
+   "task_id": "campus_lan__dns_record_error__h139fe82d0c0f",
+   "resource_class": "light",
+   "deployed_sha256": "c686fd802101f8d1ee73e23bca9e7e803730e76c5bc4aad4ad589aeb804b490e"
+  },
+  {
+   "task_id": "campus_lan__dns_service_down__h88cd16fc8e7e",
+   "resource_class": "light",
+   "deployed_sha256": "d4dc89b9b44863177561f3889fa659c29cbd8c1bb4e11a310694f62b819adac0"
+  },
+  {
+   "task_id": "sdn_l3_clos__flow_rule_loop__hebae33c8d7d4",
+   "resource_class": "light",
+   "deployed_sha256": "bb2a3d9148f6eef1f8b2f895c67b87132e9d79c37dfad55191de2399b6640aff"
+  },
+  {
+   "task_id": "sdn_l3_clos__flow_rule_shado__he6582a3b1d4e",
+   "resource_class": "light",
+   "deployed_sha256": "09bfca694bb83f49f1135ca248b60d0fd29a1f0a5c6a7cfa6236114d21b3a2aa"
+  },
+  {
+   "task_id": "isp_germany50__frr_service_d__h4af1d78aea8d",
+   "resource_class": "large",
+   "deployed_sha256": "cdb9448a1547daffc1498e82202e93f2cd582f738ea89494dd69ed26772fea20"
+  },
+  {
+   "task_id": "campus_lan__host_incorrect_d__h5ac233e53e43",
+   "resource_class": "light",
+   "deployed_sha256": "84e1544b3acb212fb74da9f407b058aa6f841f80e2e5a02c5d375c397fd86a4e"
+  },
+  {
+   "task_id": "dc_clos__host_incorrect_gate__hdfd5978709a2",
+   "resource_class": "large",
+   "deployed_sha256": "07827d550e36d7a8ca12d03bfad93b3893420a4b54f3b5fcda9bdb66db3ee551"
+  },
+  {
+   "task_id": "p4_dc_gateway__host_incorrec__hb01d277c5754",
+   "resource_class": "light",
+   "deployed_sha256": "b33b02ead58604b9f6e5674f38c76eae12575ce262491b9fdacb3f20c68f5639"
+  },
+  {
+   "task_id": "k8s_lab__host_incorrect_netm__hd97786be63fb",
+   "resource_class": "k8s",
+   "deployed_sha256": "71439b568fe8f9a4a317564924c03921109c46c24819faaba8a112da2a426312"
+  },
+  {
+   "task_id": "llmd_lab__host_ip_conflict__h7172cc7c30cf",
+   "resource_class": "k8s",
+   "deployed_sha256": "73df893d2b788fd65b426bceaadd9e377b23c9efbf81b755d9527b870196fe61"
+  },
+  {
+   "task_id": "llmd_lab__host_missing_ip__h235346563fb5",
+   "resource_class": "k8s",
+   "deployed_sha256": "b642bb360e912dbf5a7324a2c9b4ca3ed6635e4c8ef0afe5b0b912426a3d0ffd"
+  },
+  {
+   "task_id": "enterprise_branch__host_stat__h693056222d8b",
+   "resource_class": "large",
+   "deployed_sha256": "34b36a566aee2b5a4e650514b4833f5b212564a826cf9b0670928ed6c4bf536e"
+  },
+  {
+   "task_id": "p4_dc_gateway__http_acl_bloc__hcec9063e909a",
+   "resource_class": "light",
+   "deployed_sha256": "013c4a4e9752f99552d579e7afca9219d1daa20497d455b48d36710aa12adfe4"
+  },
+  {
+   "task_id": "p4_dc_gateway__icmp_acl_bloc__h2ed8bf2882e3",
+   "resource_class": "light",
+   "deployed_sha256": "069119e4b6c6f505bab7c2fdebbfd39515a66b2b3ffa8c5819961871b2cd44e4"
+  },
+  {
+   "task_id": "p4_dc_gateway__icmp_frag_nee__ha855b5fd985e",
+   "resource_class": "light",
+   "deployed_sha256": "24bbb301b251c71ba59489e1fb034c88934f486a80232661d0033f4df85496aa"
+  },
+  {
+   "task_id": "p4_dc_fabric__incast_traffic__haee9406964cc",
+   "resource_class": "large",
+   "deployed_sha256": "5b4f669e41d3868457796585defc7388a8b898f5684ca25663fe61c771c24a7e"
+  },
+  {
+   "task_id": "p4_dc_gateway__int_insuffici__h65e77e85f180",
+   "resource_class": "light",
+   "deployed_sha256": "dbcc156821cf9727e4d7bb2da50e41331b3f7cd4d46767752986cd6f94b4c608"
+  },
+  {
+   "task_id": "k8s_lab__k8s_clusterip_routi__he53ec359efd5",
+   "resource_class": "k8s",
+   "deployed_sha256": "a6d87f84c048e03fe89f0ac8b410a94665ef5ecd587276c0e3c53255b351d34f"
+  },
+  {
+   "task_id": "llmd_lab__k8s_coredns_isolat__h7de12dd02b9a",
+   "resource_class": "k8s",
+   "deployed_sha256": "ca1874392be31409f2069ea8359860288a447a27187ec1a181e2532c9e343b2f"
+  },
+  {
+   "task_id": "k8s_lab__k8s_networkpolicy_d__hadf9af15da3f",
+   "resource_class": "k8s",
+   "deployed_sha256": "5c02792b78205d5c73cbbc54d878d2bb4bb77fb6850c91ba861acf793377fa88"
+  },
+  {
+   "task_id": "k8s_lab__k8s_worker_apiserve__hc58ead3adbe3",
+   "resource_class": "k8s",
+   "deployed_sha256": "0eed21425d8f65c9a22b30cdd11f824d0644711dcf22abaf2129c8045dd119fe"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_table_reso__hd257eb075fea",
+   "resource_class": "light",
+   "deployed_sha256": "cc4edc4224a57f3a038c503b1c2a108d838c4bc7141b0141de9f43e90b7d8dd1"
+  },
+  {
+   "task_id": "p4_dc_gateway__lb_pending_co__he9ad04263eac",
+   "resource_class": "large",
+   "deployed_sha256": "264e5864c3fea1c377c7fc32037d911fbeb432f5acca304b6f3cb70852cce497"
+  },
+  {
+   "task_id": "isp_di-yuan__link_capacity_b__h3f527f20073c",
+   "resource_class": "light",
+   "deployed_sha256": "2bb660492dbbcc7c991b9eba5367f8cab2ca71b50fa4930370c47e8163a147e2"
+  },
+  {
+   "task_id": "dc_clos__link_detach__m__h240c6b1dc30f",
+   "resource_class": "light",
+   "deployed_sha256": "9daae52aa1117a42cd92a14cbdbef9380153721132089e6f4a5e4b84a97d1b43"
+  },
+  {
+   "task_id": "enterprise_branch__link_down__hcecf68b8564f",
+   "resource_class": "large",
+   "deployed_sha256": "0edd413e1192bca35ede133c7e76b444383f2ea8b8418d129defe1e54266d76b"
+  },
+  {
+   "task_id": "sdn_l3_clos__link_flap__s__h02db78d97263",
+   "resource_class": "light",
+   "deployed_sha256": "8fb187521a0544965bab12f56c8802172ac87a053b13fbd682899dfa3893e5d0"
+  },
+  {
+   "task_id": "enterprise_branch__link_pack__ha7c5a53baacc",
+   "resource_class": "light",
+   "deployed_sha256": "9d93a6693fa0dfd477bc94bfd16a4e7a49a257054ee553a262cf0d1081687303"
+  },
+  {
+   "task_id": "campus_lan__load_balancer_ov__h6884d70d40e0",
+   "resource_class": "large",
+   "deployed_sha256": "d2e4b36589d0ea19df863b44d3971350a9b677c573e3aef1619ee681800c9264"
+  },
+  {
+   "task_id": "campus_lan__mac_address_conf__had54d040ef0c",
+   "resource_class": "light",
+   "deployed_sha256": "e242558d626ba3dbc5b2f15e8dc7bd72adf4a41a64c5ef620a2b99b6154bc0cd"
+  },
+  {
+   "task_id": "isp_geant_ebgp_rpki__mtu_mis__h109c2a93c023",
+   "resource_class": "light",
+   "deployed_sha256": "fe3bfccc5f8d77611a2f3cbbb185c7444eddd25821b1ac55d5cf14e31cd0b2cc"
+  },
+  {
+   "task_id": "enterprise_branch__nat_mappi__h9a2736339326",
+   "resource_class": "large",
+   "deployed_sha256": "4ccc8a3efc9ea8d6b62e37dfaf64b9ee107afbd38c4ca5d0ba7c7e3d3a151a6d"
+  },
+  {
+   "task_id": "campus_lan__ospf_acl_block__h6251e03d65a2",
+   "resource_class": "light",
+   "deployed_sha256": "2c73b2330bd9643694c66c552f2bd563a133cba6628dbcaebf5be3150affc526"
+  },
+  {
+   "task_id": "campus_lan__ospf_area_miscon__h7ddf09bc0f6e",
+   "resource_class": "light",
+   "deployed_sha256": "4d5d177621632d75f30abfefca1a65e9593b3feefa1b2ebe1d60fbf2c31c4b2a"
+  },
+  {
+   "task_id": "campus_lan__ospf_neighbor_mi__hfcf4b0494422",
+   "resource_class": "large",
+   "deployed_sha256": "712a0e588aff97d87b657faf8afe3c53f58c379d9397f899b47d206bb50186a5"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_action_sel__h194b101c6b85",
+   "resource_class": "light",
+   "deployed_sha256": "1cf83fa2e75257d836adb951f294a0519d3164850619b2dedd90778242161c85"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_ecmp_group__hee7f0e686145",
+   "resource_class": "light",
+   "deployed_sha256": "60cd534d37a44e3d9bbdacd97d931da47379cca3c1f8f2f80a9663f94782bca6"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_ecn_thresh__h4bf62883ca88",
+   "resource_class": "large",
+   "deployed_sha256": "0d6e1ea15bc7ecb855c25bf75cd129c600b89a8f14357e83de76d9b575858827"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_table_entr__hb84a5ff985c3",
+   "resource_class": "light",
+   "deployed_sha256": "f56b76e14f894a3c3782aaa1393514eeb8b31ddc3dfd5d98e8f7fc95808b0678"
+  },
+  {
+   "task_id": "p4_dc_fabric__p4_table_entry__h3bb65a370906",
+   "resource_class": "light",
+   "deployed_sha256": "0b053368a325ffbe06a81124f0cb46bafffc355eb390da27fcc78522b9e42974"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_table_reso__h2bab5479b819",
+   "resource_class": "large",
+   "deployed_sha256": "5dadcce184d52f30bd6c9e478279d3bb591a2b73439edd9e9be2e62ef5872175"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4_tcam_entry__hfd952409a6c1",
+   "resource_class": "light",
+   "deployed_sha256": "523822b32542c89926920910e8cc32717e0c20d4616fa568c4e8afc40385d745"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4runtime_par__h92346d5301fa",
+   "resource_class": "light",
+   "deployed_sha256": "e18efabb14c45780192d8b2a26b64e903b75b3bd7f2d6d4baf4e08426d84d2f1"
+  },
+  {
+   "task_id": "p4_dc_gateway__p4runtime_pip__hd91a418d6945",
+   "resource_class": "large",
+   "deployed_sha256": "3e16ccc9ca74f7560dff0385e2ca7a86207dc4bd7014b7a532b09e49aae4297b"
+  },
+  {
+   "task_id": "dc_clos__receiver_resource_c__ha2be5b357067",
+   "resource_class": "light",
+   "deployed_sha256": "787ca638aca947a5048af539707cee139721113aea91c3b41f004aaaad12cafc"
+  },
+  {
+   "task_id": "sdn_l3_clos__sdn_controller__h7b118290aaf1",
+   "resource_class": "large",
+   "deployed_sha256": "b1119660cd8f094cff3e39211a3d3ebb50ac39fbcae791b896d1e26949ced303"
+  },
+  {
+   "task_id": "llmd_lab__sender_resource_co__h1bbe56e6f9c3",
+   "resource_class": "k8s",
+   "deployed_sha256": "faa8f93381c6b5534553efb4e5f1945a4063279e280c0fdd2f01a323043b625c"
+  },
+  {
+   "task_id": "p4_dc_gateway__silent_egress__h8eba7ba89f0d",
+   "resource_class": "light",
+   "deployed_sha256": "5f8a1c663c5743d994f941d2676e9c3c39169c00b55d0bb7c54276317628cd0b"
+  },
+  {
+   "task_id": "enterprise_branch__snat_port__h52fb6c69e2af",
+   "resource_class": "light",
+   "deployed_sha256": "0516a9fd76242e05f732cafea3149213edfd079ee42d6de6f181cfd21d2a2aaa"
+  },
+  {
+   "task_id": "sdn_l3_clos__southbound_port__hc71cfcc62969",
+   "resource_class": "light",
+   "deployed_sha256": "38f3f989a62da777b488d75f70dfb0e8b506e3b4c037557fadaa7e344d7cb402"
+  },
+  {
+   "task_id": "sdn_l3_clos__southbound_port__h001765cc535d",
+   "resource_class": "large",
+   "deployed_sha256": "99c93b1cf04c423a2549c821139f4d095c9ef2c45ea4a56ede61c92f7d54390e"
+  },
+  {
+   "task_id": "enterprise_branch__tcp_recei__h131c3a680384",
+   "resource_class": "light",
+   "deployed_sha256": "a7934b233293f2670443867022decffcc8bc9e945114e2bb6e88a9ceca0106e4"
+  },
+  {
+   "task_id": "p4_dc_gateway__tcp_syn_flood__hc408eaaa9f62",
+   "resource_class": "large",
+   "deployed_sha256": "1be7aaf96589a1d0d13894839c14bb400e30ea96caa3b26e0c60794b49bcc2a8"
+  },
+  {
+   "task_id": "enterprise_branch__vrf_dscp__hcd608018d99c",
+   "resource_class": "light",
+   "deployed_sha256": "74fe077ccd3aec7fd014a95cca292ebcd9eb3f7cd5d7827536742078bf26da06"
+  },
+  {
+   "task_id": "sdn_l3_clos__web_dos_attack__hb8cb4f83387a",
+   "resource_class": "light",
+   "deployed_sha256": "6de25ce6331579a3d67e156fed9262f19cbd78a33d1577fe5a996d15d6509c83"
+  },
+  {
+   "task_id": "enterprise_branch__wireguard__hffb08b156bdd",
+   "resource_class": "light",
+   "deployed_sha256": "1d75f458b42a47ad344dacf23d62249f0a2458afbcda17efb014afc997d78dab"
+  },
+  {
+   "task_id": "enterprise_branch__wireguard__hcd29627d2190",
+   "resource_class": "large",
+   "deployed_sha256": "f4c1dec2431e817af0cbcb5803d7dd6602ba343acec14522e093761969e7fdc8"
+  },
+  {
+   "task_id": "min3clos__bgp_asn_misconfig__h72c7bf7e08f2",
+   "resource_class": "clab",
+   "deployed_sha256": "94c606d4e02d8482854723135e60ec0aac673b9a69f104d0330c99c42bcbe042"
+  },
+  {
+   "task_id": "llmd_lab__healthy",
+   "resource_class": "k8s",
+   "deployed_sha256": "601ee6d7c28f1776b0a1ac2a930415afe1406557a1ef7bc47b625eb999f4da45"
+  },
+  {
+   "task_id": "dc_clos__healthy__m",
+   "resource_class": "light",
+   "deployed_sha256": "c8e1af1ec6cbcd4839fcb55350cf947ef962a71e901012302d1103183bb5e4aa"
+  },
+  {
+   "task_id": "dc_clos__healthy__l",
+   "resource_class": "large",
+   "deployed_sha256": "a9501074cf1b513befce8c4f7f297ba8d32c386997e0d649896f70f2307c7861"
+  },
+  {
+   "task_id": "k8s_lab__healthy",
+   "resource_class": "k8s",
+   "deployed_sha256": "ccecb448545c055a8c855fa841266c44660af4a8e1c8b28c77c5050a857bef44"
+  },
+  {
+   "task_id": "sdn_l3_clos__healthy__m",
+   "resource_class": "light",
+   "deployed_sha256": "49de040f236de91b742091a3cbe75cb18d8ac769b187f9062dca0aeb52e6d774"
+  },
+  {
+   "task_id": "p4_dc_gateway__healthy__m",
+   "resource_class": "light",
+   "deployed_sha256": "3412b236353ee2209056c23a6aad51a0225cd0218dcb3865251f4c3966641b54"
+  },
+  {
+   "task_id": "sdn_l3_clos__healthy__l",
+   "resource_class": "large",
+   "deployed_sha256": "70ce0aeb49631f6c278c8461cf62f33905896c95de7f7635b7dca4300f7879f0"
+  },
+  {
+   "task_id": "enterprise_branch__healthy__m",
+   "resource_class": "light",
+   "deployed_sha256": "76b39d4dd3458a6bf923a5d0a90d40805acf14f5ac99e3ef5743654b84e33858"
+  },
+  {
+   "task_id": "dc_clos__healthy__s",
+   "resource_class": "light",
+   "deployed_sha256": "c51dea3e4bb5ae7de77f83f793b5c08dc5083d0c7e5df386cea58796fe89a8d5"
+  }
+ ]
+}

@@ -1379,3 +1379,22 @@ def test_missing_trajectories_reports_audit_not_run(mini_release_env):
         issue["code"] == "WARNING_TRAJECTORY_AUDIT_NOT_RUN"
         for issue in serialized["warnings"]
     )
+
+
+def test_validate_reads_harness_limit_from_release(mini_release_env) -> None:
+    release, result_dir = mini_release_env
+    package = _pack(result_dir)
+    result_path = next((package / RESULTS_DIRNAME / "trials").glob("*/result.json"))
+    result = json.loads(result_path.read_text())
+    result["validity_flags"] = ["truncated_final_turn"]
+    _write_json(result_path, result)
+
+    report = validate_leaderboard_submission(package)
+    assert any("exceeds harness limit 5.0%" in error for error in report.errors)
+
+    manifest_path = release.root / "RELEASE.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    manifest["evaluation"] = {"validity": {"max_harness_rate": 1.0}}
+    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False))
+    report = validate_leaderboard_submission(package)
+    assert not any("exceeds harness limit" in error for error in report.errors)

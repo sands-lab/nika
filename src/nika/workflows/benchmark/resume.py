@@ -133,7 +133,16 @@ def benchmark_row_from_case(
     device_profile: str | None = None,
     telemetry: list[str] | None = None,
     traffic: Any = None,
+    problems: list[str] | None = None,
+    schedule: dict[str, Any] | None = None,
+    release: str | None = None,
 ) -> dict[str, Any]:
+    """The task row a trial deploys.
+
+    ``problems`` lists a multi-fault task's failures. A ``schedule`` is
+    normalized for *release*, and its events name the failures when
+    ``problems`` is empty.
+    """
     row: dict[str, Any] = {
         "scenario": scenario,
         "problem": problem,
@@ -154,6 +163,17 @@ def benchmark_row_from_case(
         row["device_profile"] = device_profile
     row.update(telemetry_field(telemetry))
     row.update(traffic_field(traffic))
+    if schedule is not None:
+        from nika.schedule import schedule_for_task
+
+        row["schedule"] = schedule
+        row["problems"] = list(
+            problems
+            or [e["problem"] for e in schedule.get("events", []) if e.get("problem")]
+        )
+        row["schedule"] = schedule_for_task(row, release).case_value()
+    elif problems:
+        row["problems"] = problems
     return row
 
 
