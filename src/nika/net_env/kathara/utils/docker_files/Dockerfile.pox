@@ -1,4 +1,4 @@
-FROM kathara/pox:latest
+FROM kathara/pox:latest@sha256:703ef8decbbede3ba6adc91af39e5d2b1c5e398e5049edcd5933bd4497267f69
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends stress-ng nftables && \

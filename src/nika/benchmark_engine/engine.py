@@ -87,11 +87,13 @@ class BenchmarkEngine:
 
     def list_tasks(self, release: str, split: str) -> TaskList:
         """List the split's tasks once this release's preflight passes."""
+        from nika.benchmark_engine.images import ensure_upstream_images
         from nika.benchmark_engine.tasks import task_info
         from nika.workflows.benchmark.release import load_release, preflight_release
 
         loaded = load_release(_require_release(release), split=split)
         preflight_release(loaded, check_images=False)
+        ensure_upstream_images()
         return TaskList(
             release=loaded.version,
             split=loaded.split,
