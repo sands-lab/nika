@@ -10,6 +10,7 @@ responses pass to and from the agent unchanged.
 from __future__ import annotations
 
 import json
+import re
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,7 +33,12 @@ def _jsonrpc_payload(body: bytes, content_type: str) -> dict[str, Any] | None:
     """The JSON-RPC response in a JSON or server-sent event body."""
     text = body.decode("utf-8", errors="replace")
     candidates = (
-        [line[5:].strip() for line in text.splitlines() if line.startswith("data:")]
+        # Only CR and LF end SSE lines; JSON text may hold U+2028 and U+2029.
+        [
+            line[5:].strip()
+            for line in re.split(r"\r\n|\r|\n", text)
+            if line.startswith("data:")
+        ]
         if "event-stream" in content_type
         else [text]
     )

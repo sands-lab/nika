@@ -76,7 +76,9 @@ def _mcp_client() -> TestClient:
 def test_engine_session_requires_its_token(tmp_path) -> None:
     _engine_session(tmp_path)
     client = _mcp_client()
-    missing = client.post(f"/mcp/{SERVER}/mcp", json=CALL, headers={"X-Session-Id": "trial-1"})
+    missing = client.post(
+        f"/mcp/{SERVER}/mcp", json=CALL, headers={"X-Session-Id": "trial-1"}
+    )
     assert missing.status_code == 401
     wrong = client.post(
         f"/mcp/{SERVER}/mcp",
@@ -200,3 +202,15 @@ def test_engine_phase_advance_without_a_report_is_refused(tmp_path) -> None:
     )
     assert response.status_code == 400
     assert get_phase("trial-1") == "diagnosis"
+
+
+def test_tool_result_keeps_unicode_line_separators() -> None:
+    from nika.service.mcp_gateway.tool_log import tool_result
+
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {"content": [{"type": "text", "text": "a b"}], "isError": False},
+    }
+    body = f"event: message\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    assert tool_result(body.encode(), "text/event-stream") == (False, "a b")
