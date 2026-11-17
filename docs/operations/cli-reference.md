@@ -512,7 +512,8 @@ nika leaderboard submit --result_dir results/my-run \
 
 | Flag | Meaning |
 |------|---------|
-| `--submission DIR` | Required. Directory with the edited `metadata.yaml` and `README.md` from `template` |
+| `--submission DIR` | Directory with the edited `metadata.yaml` and `README.md` from `template` |
+| `--name TEXT`, `--authors TEXT` | Instead of `--submission`: entry name and authors, from which `submit` generates the metadata and README |
 | `--out DIR` | Scores package directory (default `{result_dir}/{YYYYMMDD}_{slug}/`); trajectories go to a sibling `{name}_trajectories/` |
 | `--draft` | Open the GitHub PR as a draft |
 | `--title TEXT` | GitHub PR title (default `Add submission <package>`) |
