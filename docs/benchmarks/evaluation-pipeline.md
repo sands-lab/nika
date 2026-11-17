@@ -65,7 +65,7 @@ sequenceDiagram
 
 An agent run has two phases: diagnosis and submission.
 
-During **diagnosis**, the agent explores the environment and reports what it found. The phase is limited by `agent.max_steps`, the maximum number of LLM requests per phase as counted by NIKA's model proxy, including requests from sub-agents. `agent.timeout_sec` limits the whole run. If the step budget runs out, the latest assistant text becomes the report. An empty report or one starting with `ERROR:` fails the run before submission.
+During **diagnosis**, the agent explores the environment and reports what it found. The phase is limited by `agent.max_steps`, the maximum number of LLM requests the agent may make in each of its phases, as counted by NIKA's model proxy, including requests from sub-agents. `agent.timeout_sec` limits the whole run. In unstructured mode, NIKA's mapping calls do not count toward `agent.max_steps`: each mapping model makes its `samples` calls plus at most one corrective retry per sample, within the time left in `agent.timeout_sec`. If the step budget runs out, the latest assistant text becomes the report. An empty report or one starting with `ERROR:` fails the run before submission.
 
 At the phase boundary, NIKA freezes the report and cuts off the network tools. During **submission**, the answer must contain:
 
@@ -248,8 +248,8 @@ These are the parameters most relevant to evaluation. See [all configuration set
 
 | Parameter | Purpose |
 | --- | --- |
-| `agent.max_steps` | Maximum number of LLM requests per phase, counted by NIKA's model proxy, including sub-agents. When the budget runs out during diagnosis, the latest assistant text becomes the report. |
-| `agent.timeout_sec` | Maximum duration of the whole agent run. |
+| `agent.max_steps` | Maximum number of LLM requests the agent may make in each of its phases, counted by NIKA's model proxy, including sub-agents. When the budget runs out during diagnosis, the latest assistant text becomes the report. It does not limit NIKA's mapping calls in unstructured mode. |
+| `agent.timeout_sec` | Maximum duration of the whole agent run, including unstructured mapping. |
 | `agent.max_tokens` | Maximum output tokens; it also caps mapper output. |
 | `agent.submission.mode` | `structured` uses the agent's model to submit; `unstructured` has NIKA map the frozen report to an answer. Defaults to `structured`. |
 | `agent.submission.provider`, `model` | Provider and model used for a single mapping model in unstructured mode. |
