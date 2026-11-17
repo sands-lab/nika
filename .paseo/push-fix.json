@@ -1,0 +1,11 @@
+{
+  "checks": ["Letta Docs Review"],
+  "prePushInstructions": "Before this push, list the files under docs/ and README.md that this branch changes compared with its pull request base branch. If there are none, do nothing. Otherwise apply the NIKA documentation skill (.agents/skills/nika-docs/SKILL.md) and the GLOSSARY.md terms to each changed file: check every command, option, default, path, and link against the current code; give each idea one home by linking to the reference that owns it instead of repeating it; describe only implemented behavior; and keep the wording plain without hard-wrapped paragraphs. Commit any fixes with a Conventional Commit message such as docs(scope): summary.",
+  "prePushEveryRound": true,
+  "fixInstructions": "The Letta Docs Review job log does not contain the findings. Read them from the latest pull request comment that contains <!-- nika-docs-review --> (for example: gh api repos/{owner}/{repo}/issues/{number}/comments --jq '[.[] | select(.body | test(\"nika-docs-review\"))] | last | .body'). Fix every [blocking] finding after verifying it against the code, keep edits minimal, follow AGENTS.md and the NIKA documentation skill, and commit with a Conventional Commit message. Do not change code to satisfy a documentation finding unless the finding shows the code is wrong.",
+  "maxRounds": 4,
+  "pollIntervalSec": 60,
+  "timeoutMin": 10,
+  "includeReviews": true,
+  "remote": "origin"
+}
