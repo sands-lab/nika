@@ -228,7 +228,7 @@ The optional LLM judge is an after-the-fact review, not part of the benchmark ru
 | How many models? | One or several, depending on configuration. | One. |
 | When does it run? | As part of unstructured submission. | Separately, after the run. |
 
-The default judge settings are `nika.judge.provider: openai` and `nika.judge.model: gpt-5-mini`. Judge results may appear in `nika eval summary` when present, but are never published with leaderboard trajectories.
+The judge's provider and model are set by `nika.judge` in the [run configuration](../operations/configuration.md#nika-settings). Judge results may appear in `nika eval summary` when present, but are never published with leaderboard trajectories.
 
 ## Run evaluation and find details
 
