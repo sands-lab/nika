@@ -2,11 +2,33 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 from nika.config import RESULTS_DIR
 
 RUN_FILENAME = "run.json"
+
+
+def write_text_atomic(path: str | Path, text: str) -> None:
+    """Replace *path* with *text* so concurrent readers never see a partial file.
+
+    A benchmark engine and its frontend read and write the same session files.
+    """
+    path = Path(path)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def is_finished_session(run_meta: dict) -> bool:

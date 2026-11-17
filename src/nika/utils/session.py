@@ -9,6 +9,7 @@ from nika.utils.session_artifacts import (
     RUN_FILENAME,
     is_finished_session,
     iter_session_dirs,
+    write_text_atomic,
 )
 from nika.utils.session_resolve import resolve_running_session_id
 from nika.utils.session_index import extract_gt_fields, extract_index_fields
@@ -234,8 +235,7 @@ class Session:
         serializable = {
             k: v for k, v in payload.items() if k not in ("store", "failure_injections")
         }
-        with open(run_path, "w", encoding="utf-8") as f:
-            json.dump(serializable, f, indent=2, default=str)
+        write_text_atomic(run_path, json.dumps(serializable, indent=2, default=str))
 
     def update_session(self, key: str, value: Any):
         setattr(self, key, value)
@@ -264,21 +264,22 @@ class Session:
 
     def write_gt(self, gt: dict[str, Any]):
         os.makedirs(self.session_dir, exist_ok=True)
-        with open(self.session_dir + "/ground_truth.json", "w") as f:
-            f.write(json.dumps(gt, indent=4))
+        write_text_atomic(
+            self.session_dir + "/ground_truth.json", json.dumps(gt, indent=4)
+        )
         if hasattr(self, "session_id"):
             self.store.index.upsert(
                 {"session_id": self.session_id, **extract_gt_fields(gt)},
             )
 
-    def clear_session(self):
+    def clear_session(self, status: str = "finished"):
         if not hasattr(self, "session_id"):
             raise ValueError("Session ID is not set.")
         payload = {k: v for k, v in self.__dict__.items() if k != "store"}
-        payload["status"] = "finished"
+        payload["status"] = status
         if getattr(self, "session_dir", None):
             self._write_run_json(payload)
-        self.store.delete_session(self.session_id)
+        self.store.delete_session(self.session_id, status=status)
 
     def start_session(self):
         self.start_time = datetime.now().isoformat()

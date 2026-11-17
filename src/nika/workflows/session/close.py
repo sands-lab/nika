@@ -197,6 +197,7 @@ def _stop_session_record(
     *,
     undeploy: bool = True,
     session_id: str | None = None,
+    status: str = "finished",
 ) -> None:
     session = Session()
     session._apply_session_meta(session_meta)
@@ -301,7 +302,7 @@ def _stop_session_record(
             backend=backend,
         )
 
-    session.clear_session()
+    session.clear_session(status=status)
     log_event(
         "session_cleared",
         f"Cleared session {session.session_id} for scenario {scenario}",
@@ -316,6 +317,7 @@ def close_session(
     undeploy: bool = True,
     stop_all: bool = False,
     session_dir: str | Path | None = None,
+    status: str = "finished",
 ) -> None:
     """Close one or all running sessions and clear runtime state.
 
@@ -363,7 +365,9 @@ def close_session(
         meta = load_session_meta_for_close(
             session_id, session_dir=session_dir, store=store
         )
-        _stop_session_record(meta, undeploy=undeploy, session_id=session_id)
+        _stop_session_record(
+            meta, undeploy=undeploy, session_id=session_id, status=status
+        )
         return
 
     if not running:

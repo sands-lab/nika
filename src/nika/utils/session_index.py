@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     root_cause_name TEXT,
     root_cause_category TEXT,
     faulty_devices TEXT,
+    failure_domain TEXT,
     failure_count INTEGER DEFAULT 0,
     agent_type TEXT,
     llm_provider TEXT,
@@ -205,6 +206,11 @@ class SessionIndex:
         with self._connect() as conn:
             conn.execute(_CREATE_TABLE_SQL)
 
+    def _table_columns(self, conn: sqlite3.Connection) -> set[str]:
+        # The index may be shared with a newer NIKA whose table lacks some of
+        # these columns (a benchmark engine and its frontend use one index).
+        return {row[1] for row in conn.execute("PRAGMA table_info(sessions)")}
+
     def _maybe_rebuild(self) -> None:
         if self.db_path.resolve() != Path(SESSIONS_DB).resolve():
             return
@@ -246,7 +252,10 @@ class SessionIndex:
             elif "created_at" not in payload:
                 payload["created_at"] = existing["created_at"]
 
-            columns = [c for c in _UPSERT_COLUMNS if c in payload]
+            table_columns = self._table_columns(conn)
+            columns = [
+                c for c in _UPSERT_COLUMNS if c in payload and c in table_columns
+            ]
             if not columns:
                 return
 
@@ -294,16 +303,20 @@ class SessionIndex:
             )
 
     def mark_finished(
-        self, session_id: str, *, doc: Mapping[str, Any] | None = None
+        self,
+        session_id: str,
+        *,
+        doc: Mapping[str, Any] | None = None,
+        status: str = "finished",
     ) -> None:
         fields: dict[str, Any] = {
             "session_id": session_id,
-            "status": "finished",
+            "status": status,
             "updated_at": _now_iso(),
         }
         if doc is not None:
             fields.update(extract_index_fields(doc))
-            fields["status"] = "finished"
+            fields["status"] = status
         self.upsert(fields)
 
     def purge(self, session_id: str) -> None:

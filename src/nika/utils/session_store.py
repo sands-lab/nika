@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.config import SESSIONS_DB, SESSIONS_DIR
+from nika.utils.session_artifacts import write_text_atomic
 from nika.utils.session_index import SessionIndex
 
 
@@ -41,10 +42,9 @@ class SessionStore:
         return json.loads(path.read_text(encoding="utf-8"))
 
     def _write(self, data: dict[str, Any]) -> None:
-        path = self._path(data["session_id"])
-        path.write_text(
+        write_text_atomic(
+            self._path(data["session_id"]),
             json.dumps(data, ensure_ascii=False, indent=2, default=str),
-            encoding="utf-8",
         )
 
     # ------------------------------------------------------------------
@@ -75,7 +75,7 @@ class SessionStore:
     def get_session(self, session_id: str) -> dict[str, Any]:
         return self._read(session_id)
 
-    def delete_session(self, session_id: str) -> None:
+    def delete_session(self, session_id: str, *, status: str = "finished") -> None:
         """Remove the runtime session document after results have been persisted."""
         doc: dict[str, Any] | None = None
         path = self._path(session_id)
@@ -83,10 +83,10 @@ class SessionStore:
             doc = json.loads(path.read_text(encoding="utf-8"))
             path.unlink()
         if doc is not None:
-            doc["status"] = "finished"
-            self.index.mark_finished(session_id, doc=doc)
+            doc["status"] = status
+            self.index.mark_finished(session_id, doc=doc, status=status)
         else:
-            self.index.mark_finished(session_id)
+            self.index.mark_finished(session_id, status=status)
 
     def list_running_sessions(self) -> list[dict[str, Any]]:
         return self.index.list_sessions(running_only=True)

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -10,7 +11,23 @@ _REPO_ROOT = REPO_ROOT  # backward-compatible alias
 # MCP servers are spawned as subprocesses with an unrelated cwd; load .env from repo root.
 load_dotenv(REPO_ROOT / ".env")
 
-RUNTIME_DIR = REPO_ROOT / "runtime"
+# Root of runtime state. A benchmark engine container shares the frontend's
+# state through this variable; without it, state stays in the checkout.
+ENV_STATE_DIR = "NIKA_STATE_DIR"
+
+
+def _state_dir() -> Path:
+    raw = os.environ.get(ENV_STATE_DIR, "").strip()
+    if not raw:
+        return REPO_ROOT
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        raise ValueError(f"{ENV_STATE_DIR} must be an absolute path, got {raw!r}")
+    return path.resolve()
+
+
+STATE_DIR = _state_dir()
+RUNTIME_DIR = STATE_DIR / "runtime"
 SESSIONS_DIR = RUNTIME_DIR / "sessions"
 SESSIONS_DB = RUNTIME_DIR / "sessions.db"
 BENCHMARK_RUNS_DIR = RUNTIME_DIR / "benchmark_runs"
