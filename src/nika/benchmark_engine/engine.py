@@ -105,6 +105,7 @@ class BenchmarkEngine:
         """Deploy the task's environment as the release runner did."""
         from nika.benchmark_engine.tasks import resolve_trial
         from nika.net_env.net_env_pool import scenario_requires_topo_size
+        from nika.utils.agent_session_id import make_agent_session_id
         from nika.utils.session import Session
         from nika.workflows.benchmark.resume import (
             benchmark_row_fingerprint,
@@ -142,6 +143,8 @@ class BenchmarkEngine:
         )
         try:
             session = Session().load_running_session(session_id=session_id)
+            # The session ID names the task; the agent gets this one instead.
+            session.update_session("agent_session_id", make_agent_session_id())
             session.update_session("benchmark_version", request.release)
             session.update_session(
                 "benchmark_fingerprint",
@@ -220,6 +223,7 @@ class BenchmarkEngine:
             bind_host=request.bind_host,
             sandbox=request.sandbox,
             agent_host=request.agent_host,
+            agent_session_id=row.get("agent_session_id"),
         )
         return AgentEndpoints(
             gateway_url=lease.manager.base_url,

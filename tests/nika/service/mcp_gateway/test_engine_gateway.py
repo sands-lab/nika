@@ -214,3 +214,90 @@ def test_tool_result_keeps_unicode_line_separators() -> None:
     }
     body = f"event: message\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
     assert tool_result(body.encode(), "text/event-stream") == (False, "a b")
+
+
+TRIAL_ID = "dc_clos_bgp__host_crash__45fc915a__t01__r6adaabfd"
+AGENT_ID = "20261117-130215-a-9c41e7"
+
+
+def _agent_session(tmp_path: Path) -> None:
+    register_session(
+        TRIAL_ID,
+        scenario_name="dc_clos_bgp",
+        session_dir=str(tmp_path),
+        access_token="session-secret",
+        phase_token="phase-secret",
+        agent_session_id=AGENT_ID,
+    )
+
+
+def test_agent_session_id_reaches_the_trial(tmp_path) -> None:
+    from nika.service.mcp_gateway.context import get_bound_session_id
+
+    _agent_session(tmp_path)
+    bound: list[str | None] = []
+
+    async def tool_server(scope, receive, send):
+        bound.append(get_bound_session_id())
+        await _mcp_server(scope, receive, send)
+
+    gate = PhaseGateMiddleware(tool_server, server_name=SERVER, blocked_app=tool_server)
+    client = TestClient(Starlette(routes=[Mount(f"/mcp/{SERVER}", app=gate)]))
+    response = client.post(
+        f"/mcp/{SERVER}/mcp",
+        json=CALL,
+        headers={"X-Session-Id": AGENT_ID, "X-Session-Token": "session-secret"},
+    )
+    assert response.status_code == 200
+    # Tools address the lab by the trial's session ID; the record lands in its
+    # trial directory.
+    assert bound == [TRIAL_ID]
+    assert (tmp_path / "tool_calls.jsonl").is_file()
+
+
+def test_trial_session_id_is_refused(tmp_path) -> None:
+    _agent_session(tmp_path)
+    response = _mcp_client().post(
+        f"/mcp/{SERVER}/mcp",
+        json=CALL,
+        headers={"X-Session-Id": TRIAL_ID, "X-Session-Token": "session-secret"},
+    )
+    assert response.status_code == 403
+    assert TRIAL_ID not in response.text
+    assert not (tmp_path / "tool_calls.jsonl").exists()
+
+
+def test_phase_advance_names_the_agent_session(tmp_path, monkeypatch) -> None:
+    _agent_session(tmp_path)
+    monkeypatch.setattr(
+        gateway_app, "_submission_catalogs", lambda sid: (["host_crash"], [])
+    )
+    client = TestClient(create_gateway_app())
+    headers = {"NIKA-Phase-Token": "phase-secret"}
+    refused = client.post(
+        f"/gateway/sessions/{TRIAL_ID}/phase",
+        headers={**headers, "X-Session-Id": TRIAL_ID},
+        json={"phase": "submission", "diagnosis_report": "r"},
+    )
+    assert refused.status_code == 404
+    accepted = client.post(
+        f"/gateway/sessions/{AGENT_ID}/phase",
+        headers={**headers, "X-Session-Id": AGENT_ID},
+        json={"phase": "submission", "diagnosis_report": "r"},
+    )
+    assert accepted.status_code == 200
+    assert get_phase(AGENT_ID) == "submission"
+    assert TRIAL_ID not in accepted.text
+
+
+def test_unregistering_the_trial_removes_its_agent_session(tmp_path) -> None:
+    from nika.service.mcp_gateway.session_registry import (
+        get_session,
+        is_withheld,
+        unregister_session,
+    )
+
+    _agent_session(tmp_path)
+    unregister_session(TRIAL_ID)
+    assert get_session(AGENT_ID) is None
+    assert not is_withheld(TRIAL_ID)

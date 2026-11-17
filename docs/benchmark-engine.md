@@ -35,7 +35,7 @@ Phase rules are those of release 0.1.0: during diagnosis the agent sees every se
 
 The agent's harness then builds its submission prompt from that context; the prompt belongs to the frontend's harness, not to the release. The `submit` tool validates and records the answer as in release 0.1.0.
 
-MCP requests carry the session ID in `X-Session-Id` and the trial's session token in `X-Session-Token`. The gateway records every tool call in `tool_calls.jsonl`.
+A trial's session ID contains its task ID, which names the environment and the failure, so the agent never sees it. `start_trial` gives the trial a random agent session ID, such as `20261117-130215-a-9c41e7`, and writes both IDs to the session record; the frontend uses the agent session ID for the agent's sandbox, workspace, and MCP configuration. MCP requests carry the agent session ID in `X-Session-Id` and the trial's session token in `X-Session-Token`, and the frontend's phase advance names the trial by the agent session ID. The gateway refuses a request that names the trial's session ID. It records every tool call in the trial's `tool_calls.jsonl`.
 
 ## Scores
 

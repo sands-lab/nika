@@ -56,8 +56,13 @@ class GatewayLeases:
         bind_host: str | None = None,
         sandbox: bool = False,
         agent_host: str | None = None,
+        agent_session_id: str | None = None,
     ) -> GatewayLease:
-        """Start *session_id*'s gateway, or return the one already open."""
+        """Start *session_id*'s gateway, or return the one already open.
+
+        With *agent_session_id*, MCP requests and phase advances name the trial
+        by it, and a request naming *session_id* is refused.
+        """
         with self._lock:
             lease = self._leases.get(session_id)
             if lease is not None:
@@ -88,6 +93,7 @@ class GatewayLeases:
                 session_dir=session_dir,
                 access_token=lease.access_token,
                 phase_token=lease.phase_token,
+                agent_session_id=agent_session_id,
             )
             self._leases[session_id] = lease
             return lease

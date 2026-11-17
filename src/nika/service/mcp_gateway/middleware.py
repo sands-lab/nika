@@ -10,7 +10,11 @@ from mcp.server.fastmcp import FastMCP
 
 from nika.service.mcp_gateway.context import bind_session, reset_session
 from nika.service.mcp_gateway.policy import is_server_allowed
-from nika.service.mcp_gateway.session_registry import GatewaySession, get_session
+from nika.service.mcp_gateway.session_registry import (
+    GatewaySession,
+    get_session,
+    is_withheld,
+)
 
 SESSION_HEADER = "NIKA-Session-Id"
 # Header names of the current NIKA frontend's agent harnesses. A benchmark
@@ -63,6 +67,18 @@ class PhaseGateMiddleware:
             return
 
         entry = get_session(session_id)
+        if entry is None and is_withheld(session_id):
+            # A trial's own session ID names its task; agents get another one.
+            await _send_json(
+                send,
+                status=403,
+                payload={
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32002, "message": "Unknown session."},
+                    "id": None,
+                },
+            )
+            return
         if entry is not None and entry.access_token is not None:
             presented = headers.get(SESSION_TOKEN_HEADER.lower().encode(), b"")
             if not hmac.compare_digest(presented.decode(), entry.access_token):
@@ -83,7 +99,8 @@ class PhaseGateMiddleware:
         allowed = is_server_allowed(session_id, self.server_name)
         target_app = self.app if allowed else self.blocked_app
 
-        token = bind_session(session_id)
+        # Tools address the lab and trial directory by the session's own ID.
+        token = bind_session(entry.session_id if entry is not None else session_id)
         try:
             if entry is not None and entry.session_dir and scope["method"] == "POST":
                 await _recorded(

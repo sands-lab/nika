@@ -173,7 +173,7 @@ async def _advance_engine_trial(entry, phase: str, body: dict) -> JSONResponse:
                     status_code=400,
                 )
     try:
-        advance_phase(entry.session_id, phase)  # type: ignore[arg-type]
+        advance_phase(entry.key, phase)  # type: ignore[arg-type]
     except KeyError as exc:
         return JSONResponse({"error": str(exc)}, status_code=404)
     if phase != SUBMISSION:
