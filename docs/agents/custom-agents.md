@@ -1,38 +1,29 @@
 # Integrate a custom agent
 
-Bring your own agent, written with any framework, and NIKA tests it on real network incidents: it provides the lab, the tools your agent uses to inspect it, and the scoring.
+To test your own agent on NIKA's network incidents, write one Python file that diagnoses the incident. NIKA provides the environment, the MCP tools your agent investigates with, the submission step, and the scoring.
 
 This guide builds an agent with [NOOA](https://github.com/NVIDIA-NeMo/labs-OO-Agents), NVIDIA's object-oriented agent framework. Other frameworks follow the same steps.
 
 ## How a run works
 
-Every run of `nika agent run` goes through the same steps:
+Every `nika agent run` goes through the same four steps:
 
-```mermaid
-flowchart LR
-    A[Start lab] --> B[Inject fault] --> C[Diagnose] --> D[Submit] --> E[Score]
-    classDef nika fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
-    classDef agent fill:#fef3c7,stroke:#b45309,color:#78350f
-    class A,B,D,E nika
-    class C agent
-```
+1. **Start the environment and inject the failure.** NIKA deploys the network and breaks it, for example by taking a link down.
+2. **Diagnose.** Your agent receives a description of the symptoms and investigates the live network through NIKA's [MCP tools](mcp-servers.md). It returns a written report.
+3. **Submit.** NIKA freezes the report and converts it into a structured answer: which component failed and how. By default, your agent's model writes the answer. It uses only the report, and the network is no longer reachable.
+4. **Score.** NIKA compares the answer with the failure it injected, then closes the environment.
 
-Blue steps are run by NIKA; the orange step is run by your agent.
-
-1. **Start lab** and **inject fault**: NIKA deploys the network and breaks it, for example by taking a link down.
-2. **Diagnose**: your agent gets a description of the symptoms and investigates the live network through NIKA's [MCP tools](mcp-servers.md), such as running commands on devices or measuring reachability. It returns a written diagnosis report.
-3. **Submit**: NIKA freezes the report and converts it into a structured answer, which component failed and how, by default with your agent's model. The answer comes only from the report; the network is no longer reachable.
-4. **Score**: NIKA compares that answer with the fault it injected, then closes the lab.
-
-Your agent implements **Diagnose**. NIKA handles the other steps.
+Your agent implements step 2. NIKA handles the others.
 
 ## 1. Write your agent
 
-A custom agent is one Python file in `src/agent/custom/`, and the file name is its name: `src/agent/custom/nooa.py` runs as agent type `custom.nooa`. You do not register it or edit NIKA.
+A custom agent is one Python file in `src/agent/custom/`. The file name is the agent's name: `src/agent/custom/nooa.py` runs as agent type `custom.nooa`. You do not register the agent or edit NIKA.
 
-The file defines one class that inherits `DiagnosisAgent` and implements `diagnose`: it receives the incident description and returns the diagnosis report. `DiagnosisAgent` holds the run settings, such as `self.model` and `self.max_steps`, and its `diagnosis_mcp_config()` returns the MCP servers your agent may use. Create model clients from the standard `OPENAI_BASE_URL` and `OPENAI_API_KEY` variables (or `ANTHROPIC_*`): NIKA runs your agent in an isolated sandbox and points them at your provider.
+The file defines a class that inherits `DiagnosisAgent` and implements `diagnose`. `diagnose` receives the incident description and returns the diagnosis report. `DiagnosisAgent` provides the run settings, such as `self.model` and `self.max_steps`. Its `diagnosis_mcp_config()` method returns the MCP servers your agent may use.
 
-The example has two classes. `NetworkInvestigator` is the NOOA agent that reasons about the network. `NooaAgent` is the class NIKA runs: it declares what its sandbox needs, connects the investigator to the lab's MCP tools, and returns its report.
+Create model clients from the standard `OPENAI_BASE_URL` and `OPENAI_API_KEY` variables (or `ANTHROPIC_*`). NIKA runs your agent in an isolated sandbox and points these variables at your provider.
+
+The NOOA example has two classes. `NetworkInvestigator` is the NOOA agent that reasons about the network. `NooaAgent` is the class NIKA runs. It declares what its sandbox needs, connects the investigator to the MCP tools, and returns the report.
 
 ```python
 from nooa import Agent
@@ -75,21 +66,23 @@ class NooaAgent(DiagnosisAgent):
         return await investigator.investigate(task_description)
 ```
 
-Your framework is not installed in NIKA's environment. The class attributes, all optional, tell NIKA what to set up in the agent's sandbox:
+Your framework is not installed in NIKA's environment. These class attributes are optional. They tell NIKA what to set up in the agent's sandbox:
 
 | Attribute | Default | Meaning |
 | --- | --- | --- |
-| `dependencies` | none | pip requirements, installed from PyPI on every run. Pin versions so every run installs the same packages. |
-| `requires_python` | the sandbox's Python | Version specifier, such as `">=3.12,<3.14"`. When the sandbox's Python does not match, NIKA downloads a matching interpreter into the sandbox and installs your agent and its packages there from PyPI. |
-| `providers` | all | LLM providers your model client supports, among `openai`, `anthropic`, `deepseek`, and `custom`. NIKA rejects any other provider before the run starts. |
+| `dependencies` | none | pip requirements that NIKA installs from PyPI on every run. Pin the versions so every run installs the same packages. |
+| `requires_python` | the sandbox's Python | Version specifier, such as `">=3.12,<3.14"`. When the sandbox's Python does not match, NIKA sets up a matching interpreter and installs the agent's packages in it. |
+| `providers` | all | Providers your model client supports: `openai`, `anthropic`, `deepseek`, or `custom`. NIKA rejects any other value before the run starts. |
 
-NIKA reads these attributes without importing your file, so write them as literal values, on a class that inherits `DiagnosisAgent` directly. Everything under `src/agent/` is copied into the sandbox, where the agent must not learn which benchmark runs it: keep the word "NIKA" out of the file, including comments.
+NIKA reads these attributes from the source without importing your file, so write them as literal values on a class that inherits `DiagnosisAgent` directly.
 
-The repository ships the complete NOOA agent as [`src/agent/custom/nooa.py`](../../src/agent/custom/nooa.py), which also records its tool calls and model turns and honors the step limit. The [NOOA agent example](nooa-example.md) explains those additions.
+NIKA copies everything under `src/agent/` into the sandbox, and the agent must not learn which benchmark runs it. Do not name NIKA anywhere in the file, including comments.
+
+The repository includes the complete NOOA agent as [`src/agent/custom/nooa.py`](../../src/agent/custom/nooa.py). It adds trace events and the step limit; see the [NOOA agent example](nooa-example.md).
 
 ## 2. Run it
 
-For this NOOA example, configure an [OpenAI API key](../operations/agent-sandbox.md#api-keys), then select a supported provider and model in your existing configuration:
+For the NOOA example, configure an [OpenAI API key](../operations/agent-sandbox.md#api-keys), then select the agent and model in your configuration:
 
 ```shell
 uv run nika config set agent.type=custom.nooa \
@@ -97,9 +90,9 @@ uv run nika config set agent.type=custom.nooa \
 uv run nika agent run --problem dc_clos_s_link_down
 ```
 
-These settings preserve your sandbox runtime and select `custom.nooa` for both `nika agent run` and `nika benchmark run`. NIKA runs the agent in its sandbox, carries out every step above, and prints the score at the end. `uv run nika agent list` shows the agent with its providers.
+NIKA runs the agent in its sandbox, carries out every step above, and prints the score at the end. `uv run nika agent list` shows the agent and its providers.
 
-For an OpenAI-compatible endpoint, use the [NOOA profile setup](nooa-example.md#run-it) and run with that profile instead. Custom agents use API credentials; subscription logins apply only to the built-in Codex and Claude agents.
+For an OpenAI-compatible endpoint, use the [NOOA profile setup](nooa-example.md#run-it) instead. Custom agents use API credentials. Subscription logins apply only to the built-in Codex and Claude agents.
 
 <details>
 <summary>Example investigation from a real run</summary>
@@ -125,4 +118,4 @@ Score: detection, root cause, and localization 1.0 (17 steps, 20 tool calls)
 
 ## Agents in their own project
 
-An agent in `src/agent/custom/` lives in your NIKA checkout. If it already has its own repository, or you want to version it separately, NIKA can run it from that project instead: register the project with `nika agent add`, which reads a `nika-agent.yaml` manifest, or pass its class as `-a module.path:ClassName`. The [registration reference](agent-reference.md#custom-agent-registration) describes both.
+An agent in `src/agent/custom/` lives in your NIKA checkout. If the agent has its own repository, or you want to version it separately, run it from that project instead. Register the project with `nika agent add`, which reads a `nika-agent.yaml` manifest, or pass its class as `-a module.path:ClassName`. The [registration reference](agent-reference.md#custom-agent-registration) describes both.

@@ -23,7 +23,7 @@
 
 ## ❓ What is NIKA?
 
-Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **Network Incident Benchmark for AI Agents**, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces network incidents across data center and campus networks, enterprise WAN overlays, ISP backbones, SDN and P4 fabrics, Kubernetes clusters, and vendor routing environments. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark, NIKA is powered by state-of-the-art network emulation backends like [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
+Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **Network Incident Benchmark for AI Agents**, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces network incidents across data center and campus networks, enterprise WAN overlays, ISP backbones, SDN and P4 fabrics, Kubernetes clusters, and vendor routing environments. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark. NIKA runs on network emulation backends such as [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
 
 <p align="center">
   <a href="https://sands-lab.github.io/nika/leaderboard/#gh-light-mode-only"><img src="./assets/images/nika-leaderboard-banner-light.svg#gh-light-mode-only" alt="🏆 NIKA Leaderboard: compare agents and submit your own" width="432"/></a>
@@ -34,11 +34,11 @@ Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network
 
 NIKA enables the comparison of AI agents for network operations under identical, reproducible conditions. This may help different users:
 
-- 💬 **Network SRE** *"I respond to network incidents every day. I want an AI agent to help, but I can't test it in the production network due to safety concerns."*
-- 💬 **Network Manager** *"A vendor is pitching me an AI solution for network operations. It passes all the offline telecom benchmarks (TeleQnA, TeleLogs, TeleMath, 3GPP-TSG), but I need evidence it can handle live network operations before I sign off."*
-- 💬 **AI Researcher** *"I'm designing a new harness for networking tasks. I need a benchmark to ablate components, measure reproducibly, and compare against published baselines."*
-- 💬 **Applied ML Engineer** *"I want to post-train an open-source model on network troubleshooting and need a structured dataset paired with a rigorous evaluation framework."*
-- 💬 **Contributor** *"I want to publish a twin of my network environment along with the common faults I experience, and see if the community can create an agent better than mine!"*
+- **Network SRE** *"I respond to network incidents every day. I want an AI agent to help, but I can't test it in the production network due to safety concerns."*
+- **Network Manager** *"A vendor is pitching me an AI solution for network operations. It passes all the offline telecom benchmarks (TeleQnA, TeleLogs, TeleMath, 3GPP-TSG), but I need evidence it can handle live network operations before I sign off."*
+- **AI Researcher** *"I'm designing a new harness for networking tasks. I need a benchmark to ablate components, measure reproducibly, and compare against published baselines."*
+- **Applied ML Engineer** *"I want to post-train an open-source model on network troubleshooting and need a structured dataset paired with a rigorous evaluation framework."*
+- **Contributor** *"I want to publish a twin of my network environment along with the common faults I experience, and see if the community can create an agent better than mine!"*
 
 ## ✨ Features
 
@@ -124,7 +124,7 @@ cd nika
 ./scripts/install.sh
 ```
 
-The installer keeps NIKA's tools in `.venv/` and `.nika_cache/` and does not install system packages.
+By default, the installer keeps NIKA's tools in `.venv/` and `.nika_cache/` and installs no system packages. The optional `--with-sbx` and `--with-firecracker` options can install packages with `apt`.
 
 More install options: [Installation](docs/operations/installation.md).
 If containers lose network access or environments fail to start, see [Troubleshooting](docs/operations/troubleshooting.md).
@@ -225,7 +225,7 @@ For environment and session management, see the [CLI reference](docs/operations/
 
 Pick the path that matches what you're trying to do:
 
-**🏁 I want to run the benchmark, any agent**
+**I want to run the benchmark, any agent**
 
 1. [Quick start](#-quick-start) — run a task or a benchmark release.
 2. [Run configuration](docs/operations/configuration.md): YAML settings, credentials, defaults, and migration.
@@ -233,21 +233,21 @@ Pick the path that matches what you're trying to do:
 4. [Browse sessions with `nika inspect`](docs/operations/session-inspect.md): local UI over result directories for agent timelines and scores.
 5. [Leaderboard submission](docs/benchmarks/leaderboard-submission.md) (GitHub scores + Hugging Face trajectories)
 
-**🔌 I want to connect my own agent**
+**I want to connect my own agent**
 
 1. [Choose and run an agent](docs/agents/agent-implementations.md): agent choices and hosted/self-hosted walkthroughs; [agent reference](docs/agents/agent-reference.md) for configuration and limits.
 2. [Agent integration workflow](docs/agents/custom-agents.md): agent contract and integration workflow.
 3. [Agent skills](docs/agents/agent-skills.md): reusable troubleshooting knowledge you can attach to an agent.
 4. [Agent sandboxing](docs/operations/agent-sandbox.md): isolated microVM execution.
 
-**🌐 I want to create a new network environment**
+**I want to create a new network environment**
 
 1. [Creating benchmark tasks](docs/development/creating-benchmark-tasks.md)
 2. [Network environment reference](docs/operations/network-scenarios.md)
 3. [Failure reference](docs/operations/failures.md)
 4. [Testing guide](docs/development/testing.md)
 
-**💬 I want to ask a question or contribute**
+**I want to ask a question or contribute**
 
 1. [NIKA Slack community](https://sands-lab.github.io/nika/community/)
 2. [GitHub issues](https://github.com/sands-lab/nika/issues)
@@ -259,7 +259,7 @@ NIKA is part of a growing ecosystem. The table below compares NIKA with other be
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 104 registered fault types <br> 40 network environments | ⭐️⭐️ <br> [Working-pool task counts](docs/operations/failures.md#domain-boundaries) | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 104 registered fault types <br> 300 registered network environments | ⭐️⭐️ <br> [Working-pool task counts](docs/operations/failures.md#domain-boundaries) | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |

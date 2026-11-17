@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Match the error or symptom below, apply the fix, then re-run the same command. Sections cover host and lab bring-up today; agent and eval failures can land here later.
+Find the error or symptom below, apply the fix, then re-run the same command. Each section covers a host setting or a lab startup problem.
 
 Related references: [Network scenarios](network-scenarios.md), [CLI reference](cli-reference.md), [NIKA Slack community](https://sands-lab.github.io/nika/community/).
 
@@ -19,13 +19,7 @@ XRd host prerequisites: [XRd host setup tutorial](https://xrdocs.io/virtual-rout
 
 ### Match these symptoms
 
-**`k8s_lab` / `llmd_lab`:** Lab verification aborts while the environment is still coming up (before failure injection):
-
-```text
-Lab verification aborted for 'k8s_lab__…': k3s node container(s) not running: ['controller']
-```
-
-`nika.jsonl` or the worker log records `env_verify_failed` with the same text. Tracker: [sands-lab/nika#54](https://github.com/sands-lab/nika/issues/54#issuecomment-5743222111).
+**`k8s_lab` / `llmd_lab`:** Lab verification fails while the environment is still coming up, before failure injection. NIKA reports the wait as `Lab verification pending for …`, then records `env_verify_failed` in `nika.jsonl`. `docker ps -a` shows a k3s node container that has exited. Tracker: [sands-lab/nika#54](https://github.com/sands-lab/nika/issues/54#issuecomment-5743222111).
 
 **`iosxr_simple_bgp`:** Verification fails checks such as `router1_bgp_established` or `pc1_gateway_reachable` (lab `VERIFY_MAX_WAIT_SEC` is 480). `pc*` containers stay up; XR routers exit:
 
@@ -430,7 +424,7 @@ sudo docker plugin enable kathara/katharanp_vde:amd64
 
 Use the installed name for both commands (for example, the `:arm64` tag on ARM hosts). Restarting the plugin does not close NIKA sessions or remove their containers. Retry closing the affected sessions, then redeploy labs that you need.
 
-To resume a benchmark, use the original run configuration and result directory with `--resume`. NIKA keeps valid completed trials and retries incomplete trials and trials marked `infra_error`. Check the resume summary before continuing.
+To resume a benchmark, use the original run configuration and result directory with `--resume`. NIKA keeps valid completed trials and retries incomplete trials, including trials that ended as `endpoint_failed` or `infra_failed`. Check the resume summary before continuing.
 
 ### Verify deployment and teardown
 

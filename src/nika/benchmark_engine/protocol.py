@@ -3,7 +3,7 @@
 The frontend drives every trial through these operations and never reaches
 into a release's environment, failure, tool, or scoring code directly. The
 engine also runs each trial's MCP gateway, so everything the agent observes
-comes from the release. See ``docs/development/benchmark-contracts.md``.
+comes from the release. See ``specs/benchmark-contracts.md``.
 """
 
 from __future__ import annotations

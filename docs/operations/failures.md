@@ -1,19 +1,17 @@
-# Failure taxonomy and reference
+# Failure reference
 
-The Sources column links each failure to its [public evidence](#public-sources): key passages, source locations, code correspondence, and evidence limits.
+A failure is a root cause that NIKA injects into a network environment, such as `link_down`. Each failure belongs to one network subsystem, and its stable ID is its `root_cause_name`. This page is for people choosing failures for a benchmark and for reviewers checking NIKA's coverage. It lists every registered failure with the environments that run it, what it changes, and the signal an agent should look for. The Sources column links each failure to its [public evidence](#public-sources): key passages, source locations, code correspondence, and evidence limits.
 
-This reference is for benchmark authors and paper reviewers who analyze NIKA coverage. NIKA assigns each registered failure to one network subsystem. The registry keeps `root_cause_name` as the stable failure ID.
-
-Run these commands against the installed checkout:
+To list the failures in your checkout, or to read one in full, run:
 
 ```shell
 uv run nika failure list
 uv run nika failure describe <failure_id>
 ```
 
-The Verification evidence column states what `verify_fault` checks to gate `nika failure inject`; some checks also include selected behavioral conditions. The Trigger and signal column describes expected behavior under the stated traffic and topology, rather than a result guaranteed by an artifact check. Test-path **`evaluate_symptom`** (unified probe API under `src/nika/validation/symptom/`) checks user-visible impact separately; user workflows do not call it. See [Testing guide](../development/testing.md#problem-injection-testsnikaproblems).
+The **Verification evidence** column lists the checks that `nika failure inject` runs before it accepts an injection. The **Trigger and signal** column describes the behavior to expect under the stated traffic and topology. It is not a result that every run guarantees. NIKA's test suite also checks user-visible impact with a separate symptom probe, `evaluate_symptom` in `src/nika/validation/symptom/`. The agent workflow does not use that probe (see the [Testing guide](../development/testing.md#problem-injection-testsnikaproblems)).
 
-`sender_resource_contention`, `receiver_resource_contention`, and `tcp_syn_flood_attack` run until recovery or session close. Their `duration` input remains accepted for stored task definitions; it does not set a timer.
+`sender_resource_contention`, `receiver_resource_contention`, and `tcp_syn_flood_attack` run until recovery or session close. Their `duration` input is still accepted in stored task definitions, but it does not set a timer.
 
 ## Taxonomy model
 
@@ -44,7 +42,7 @@ The domains follow the failed network mechanism.
 
 ## Compatibility sets
 
-The scenario labels below reproduce tag-subset matching (`TAGS` on each failure vs scenario tags; optional `COMPATIBLE_COLUMNS` when tags alone are too broad). A tag match means that the scenario exposes the required device family. Injection still requires a suitable target inside the selected scenario.
+A failure runs in an environment when that environment exposes the device family the failure needs, such as BGP routers or DNS servers. The sets below group the environments by those families. Injection still needs a suitable target inside the selected environment.
 
 | Set | Scenario IDs |
 | --- | --- |
@@ -68,7 +66,7 @@ For base `isp_*` scenarios, OSPF failures require `--igp ospf` and IS-IS failure
 
 ## Router platforms
 
-Failures that change a router's own state run on FRR by default. On SR Linux they run through the failure's Containerlab branch. On IOS XR, RouterOS and SONiC they run through a fault-operations provider: `src/nika/net_env/utils/<platform>/fault_ops.py` implements the `RouterFaultOps` operations of [`router_ops.py`](../../src/nika/problems/support/router_ops.py), and a failure targets a platform's routers only when the provider implements every operation in the failure's `native_router_operations`. Failures that act on the container link outside the router OS (`link_down`, `link_flap`, `link_capacity_bottleneck`, `link_packet_corruption`) run on every platform the backend supports.
+Failures that change a router's own state run on FRR by default. On SR Linux they use the failure's Containerlab implementation. On IOS XR, RouterOS, and SONiC, each platform implements the router operations that the failure needs, as defined in [`router_ops.py`](../../src/nika/problems/support/router_ops.py). A failure targets a platform's routers only when the platform implements every operation the failure lists. Failures that act on the container link outside the router OS (`link_down`, `link_flap`, `link_capacity_bottleneck`, `link_packet_corruption`) run on every platform the backend supports.
 
 | Failure | IOS XR | RouterOS | SONiC |
 | --- | --- | --- | --- |
@@ -179,7 +177,7 @@ uv run nika benchmark run --config tests/fixtures/benchmark/latent_backup.yaml -
 
 Without the RouterOS image, add `--device-profile frr` to run only the FRR variant.
 
-Both failures use the default initial offset of `0s`; this task does not reserve an observation interval between them. Inspect `frr_bgp_peer_up` or `routeros_bgp_peer_up` by node and neighbor, together with BGP neighbor syslog events from `telemetry: [syslog, prometheus]`. To study the standby failure before the primary outage, author distinct offsets with [scheduled failure events](../benchmarks/scheduling.md#define-the-tasks-events).
+Both failures use the default initial offset of `0s`; this task does not reserve an observation interval between them. Inspect `frr_bgp_peer_up` or `routeros_bgp_peer_up` by node and neighbor, together with BGP neighbor syslog events from `telemetry: [syslog, prometheus]`. To study the standby failure before the primary outage, author distinct offsets with [scheduled failure events](../benchmarks/scheduling.md#event-fields).
 
 The task's live test checks corporate access to HQ and guest Internet access. Both work with only the latent fault and fail with both faults. Repairing the primary restores both services while the backup remains broken. Repairing only the backup restores corporate access to HQ, but guest Internet access still fails because the guest VRF uses the primary ISP attachment. Full branch service therefore requires primary recovery; both root causes must be repaired to restore redundancy. The oracle must confirm both playbooks to solve the task. If it confirms only one, it submits that root cause for partial RCA credit.
 
@@ -272,7 +270,7 @@ Recovery can reset in-flight transfers opened while the fault was active. Client
 
 ## Regenerate benchmark candidates
 
-Failure IDs, `TAGS`, and `COMPATIBLE_COLUMNS` define compatibility. Regenerate the candidate catalog after a registry, compatibility, topology, or inject-target change. Then refresh the failure × scenario tables in [Benchmark configuration](../benchmarks/benchmark-configuration.md):
+Maintainers regenerate the candidate catalog after a change to the failure registry, to compatibility, to a topology, or to an inject target. Then refresh the failure × environment tables in [Benchmark configuration](../benchmarks/benchmark-configuration.md):
 
 ```shell
 uv run nika benchmark generate
@@ -2258,7 +2256,7 @@ Source: [WireGuard, Conceptual Overview](https://www.wireguard.com/#conceptual-o
 
 ### Maintain and export sources
 
-Edit [failure-sources.json](failure-sources.json), then update this reference or export a CSV for the paper appendix:
+Edit [failure-sources.json](../../specs/failure-sources.json), then update this reference or export a CSV for the paper appendix:
 
 ```shell
 uv run python scripts/failure_sources.py --require-complete --write-docs

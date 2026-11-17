@@ -1,12 +1,14 @@
-# Network scenario reference
+# Network environments
 
-This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists scenario IDs through `nika env list` (including one ID per SNDlib or Topology Zoo ISP topology plus named ISP specials). Most scenarios use one backend; SNDlib ISP topology scenarios support both Kathara and Containerlab.
+A task runs on a network environment: a network design that NIKA deploys on Kathará or Containerlab before it injects the incident. This page helps you pick an environment, deploy it, and find the details of each one. Each environment has an ID, such as `dc_clos`, that you pass to `nika env run`.
 
-The [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py) registry defines the authoritative scenario IDs, backends, tags, and size controls. Backend implementations live under [`net_env/`](../../src/nika/net_env/). Confirm the installed checkout with:
+To list the environments in your checkout, run:
 
 ```shell
 uv run nika env list
 ```
+
+The [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py) registry is the authoritative source for IDs, backends, tags, and sizes. Backend implementations live under [`net_env/`](../../src/nika/net_env/).
 
 ## Backend requirements
 
@@ -19,26 +21,11 @@ Install with [`./scripts/install.sh`](../../scripts/install.sh). Installer optio
 
 Containerlab scenarios run Nokia SR Linux routers by default, which NIKA configures over gNMI with `gnmic`. Pass `--device-profile sonic` to run them on [SONiC](#sonic-routers-on-containerlab) instead. `min3clos` is Containerlab-only. `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
 
-Link failures must act outside the nodes, where an agent cannot see them. Kathara links already pass through host-side bridges. On Containerlab, NIKA deploys each link between two nodes as two veths into the host namespace and joins their host ends with a `tc` redirect, so link failures act on the host ends. Node interfaces keep their names and addresses, and the host ends disappear with the lab. Joining those host ends needs passwordless `sudo` for `ip` and `tc` on the Docker host; see [Allow passwordless sudo for Containerlab](installation.md#allow-passwordless-sudo-for-containerlab).
+On Containerlab, NIKA joins the two ends of each link on the Docker host, so a link failure acts outside the nodes and the agent cannot see it there. Node interfaces keep their names and addresses. Joining the link ends needs passwordless `sudo` for `ip` and `tc` on the Docker host; see [Allow passwordless sudo for Containerlab](installation.md#allow-passwordless-sudo-for-containerlab).
 
 Containerlab scenarios pull the Nokia SR Linux image or load the SONiC virtual switch image, and run their Linux hosts on the locally built `nika/base` image. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually (or via `./scripts/install.sh --with-vendor-images --xrd-tarball …`). See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario). `routeros_simple_bgp` needs a MikroTik RouterOS `vrnetlab` image (build with `./scripts/install.sh --with-vendor-images`; clone lands under `.nika_cache/vendor/vrnetlab`); see [RouterOS simple BGP](#routeros-simple-bgp-scenario).
 
-### Concurrency and `--batch-size`
-
-Benchmark runs use two concurrency limits (see [`benchmark` settings](configuration.md#benchmark-settings)), both sliding windows that default to `1`:
-
-- `--batch-size` caps light trials: ``s``/``m`` Kathara cases.
-- `--heavy-batch-size` caps heavy trials: Containerlab, `k8s_lab` / `llmd_lab` / `iosxr_simple_bgp`, and any topo_size ``l`` case.
-
-Heavy and light trials never run at the same time. With the default `--heavy-batch-size 1`, each heavy session runs alone on the host. Raise it only when the host has capacity for several heavy labs at once, for example `--batch-size 8 --heavy-batch-size 4`.
-
-Why heavy labs need a separate cap:
-
-- `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
-- Every lab adds entries to the host's shared neighbor table. Large or concurrent labs overflow the kernel default and drop packets at random. See [Host neighbor table overflows](troubleshooting.md#host-neighbor-table-overflows-large-or-concurrent-labs).
-- Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once. Within one lab, NIKA also passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`). Lower it if deploy OOMs; see [Containerlab deploy OOM](troubleshooting.md#containerlab-deploy-oom-on-memory-tight-hosts).
-
-## Scenario catalog
+## Choose an environment
 
 | Scenario ID | Backend | Scale control | Options | Network |
 | --- | --- | --- | --- | --- |
@@ -66,6 +53,25 @@ uv run nika env run dc_clos -s s
 
 Fixed scenarios reject a size. Each SNDlib ISP topology is its own scenario ID (for example `isp_abilene`); size is metadata for benchmark sampling only.
 
+---
+
+The rest of this page describes each environment in detail, and how benchmark runs share the host between them. Read the section for the environment you deploy.
+
+## Concurrency and `--batch-size`
+
+Benchmark runs use two concurrency limits (see [`benchmark` settings](configuration.md#benchmark-settings)), both sliding windows that default to `1`:
+
+- `--batch-size` caps light trials: ``s``/``m`` Kathara cases.
+- `--heavy-batch-size` caps heavy trials: Containerlab, `k8s_lab` / `llmd_lab` / `iosxr_simple_bgp`, and any topo_size ``l`` case.
+
+Heavy and light trials never run at the same time. With the default `--heavy-batch-size 1`, each heavy session runs alone on the host. Raise it only when the host has capacity for several heavy labs at once, for example `--batch-size 8 --heavy-batch-size 4`.
+
+Why heavy labs need a separate cap:
+
+- `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
+- Every lab adds entries to the host's shared neighbor table. Large or concurrent labs overflow the kernel default and drop packets at random. See [Host neighbor table overflows](troubleshooting.md#host-neighbor-table-overflows-large-or-concurrent-labs).
+- Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once. Within one lab, NIKA also passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`). Lower it if deploy OOMs; see [Containerlab deploy OOM](troubleshooting.md#containerlab-deploy-oom-on-memory-tight-hosts).
+
 ## Data-center Clos scenario
 
 `dc_clos`, `sdn_l3_clos` and `p4_dc_fabric` use the [same Clos design](../../src/nika/net_env/clos/design.py): a complete leaf–spine graph, one web endpoint per leaf and the remaining endpoints as clients. Rack `i` uses `10.0.i.0/24`, gateway `.1` and endpoint addresses from `.11`.
@@ -90,7 +96,7 @@ In `dc_clos`, router ASNs start at 65001 in spine-then-leaf order, and inter-rou
 uv run nika env run dc_clos -s s
 ```
 
-The [construction and verification guide](../development/scenario-verification.md#shared-clos-design) describes the common requirements and the checks specific to each implementation.
+The [construction and verification guide](../../specs/scenario-verification.md#shared-clos-design) describes the common requirements and the checks specific to each implementation.
 
 ## Campus LAN scenario
 
@@ -551,7 +557,7 @@ For `min3clos`, startup verification checks deployed nodes, client addresses, BG
 
 SONiC routers export all three [telemetry](#telemetry) kinds over the management network.
 
-To check the generated SONiC configuration against the environment's validation contract before deployment, add `--static-validation`. Batfish then reads each router's `config_db.json` and `frr.conf`; [Batfish static validation](../development/scenario-validation.md#batfish-static-validation) lists what it models.
+To check the generated SONiC configuration against the environment's validation contract before deployment, add `--static-validation`. Batfish then reads each router's `config_db.json` and `frr.conf`; [Batfish static validation](../../specs/scenario-validation.md#batfish-static-validation) lists what it models.
 
 [Router platforms](failures.md#router-platforms) lists how failures act on SONiC routers.
 
@@ -777,9 +783,9 @@ SONiC routers export over the same management network (`eth0`). Their rsyslogd f
 
 The collector is off the topology: it has no scenario interfaces, no injected failures, and no packet captures. NIKA starts collectors and exporters after the environment is verified.
 
-## Inspect and close a scenario
+## Inspect and close an environment
 
-Each deployment creates a session and stores runtime state under `runtime/`. Use the session commands instead of deleting runtime files or backend objects.
+Each deployment creates a session and stores its runtime state under `runtime/`. Use the session commands to inspect and close it, instead of deleting runtime files or backend objects.
 
 ```shell
 uv run nika session inspect

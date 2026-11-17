@@ -1,53 +1,22 @@
-# Configure agent skills
+# Give an agent skills
 
-This guide is for agent implementers who attach reusable troubleshooting instructions to Claude Code, Codex, OpenCode, or DeepSeek Harness agents. A skill is a directory containing a `SKILL.md` file.
+A **skill** is a set of reusable troubleshooting instructions that an agent can load during diagnosis. Use one when several incidents share a failure pattern and you want the agent to run the same checks each time. A skill is a directory that contains a `SKILL.md` file.
 
-Implementation: [`utils/skills.py`](../../src/agent/utils/skills.py) prepares skill workspaces; [`agent/skills/`](../../src/agent/skills/) stores the shared library.
+Skills are on by default for the agents that support them. Set `agent.enable_skills` in `config/nika.yaml` to `false` to turn them off.
 
-Skills are optional. Enable or disable them with `agent.enable_skills` in `config/nika.yaml` (default: `true`).
+## Which agents load skills
 
-## Supported agents
-
-| Agent | Skill mechanism |
-|-------|-----------------|
-| `sdk.claude_sdk` | Claude Code `Skill` tool + `.claude/skills/` |
-| `cli.claude` | Same as above via `claude -p --setting-sources project` |
-| `cli.codex` | Codex skills under `.agents/skills/` + `AGENTS.md` |
-| `sdk.codex_sdk` | Same as Codex CLI |
-| `cli.opencode` | Shared skills under `.opencode/skills/` |
-| `cli.dsh` | Shared skills under `.agents/skills/` + `AGENTS.md` |
-| `community.sade` | Own 15-skill library under `src/agent/community/sade/.claude/` (separate from the shared library) |
+| Agent | Skill source |
+| --- | --- |
+| `sdk.claude_sdk`, `cli.claude` | The shared library, through Claude Code's skill discovery |
+| `cli.codex`, `sdk.codex_sdk` | The shared library, through Codex skill discovery |
+| `cli.opencode` | The shared library |
+| `cli.dsh` | The shared library |
+| `community.sade` | Its own 15-skill library, separate from the shared library |
 
 `byo.langgraph`, `byo.mcp_agent`, and `byo.autogen` do not load skills.
 
-## Default skill library
-
-The shared library lives at [`src/agent/skills/`](../../src/agent/skills/):
-
-```
-src/agent/skills/
-├── skills/                 # canonical skill sources (loaded by default)
-├── .claude/
-│   ├── CLAUDE.md           # skill index for Claude Code
-│   └── skills/ → ../skills/
-└── .agents/
-    └── skills/ → ../skills/   # Codex discovery path
-```
-
-Claude agents load `.claude/` via `setting_sources=["project"]`. Codex agents receive `.agents/skills/` and a short `AGENTS.md` in the per-session workspace. OpenCode agents receive `.opencode/skills/`. DeepSeek Harness agents receive the same `.agents/skills/` layout and `AGENTS.md` as Codex, in the isolated headless workspace.
-
-`skill-loading-check` is a test-only fixture under [`tests/agent/fixtures/skills/`](../../tests/agent/fixtures/skills/skill-loading-check/SKILL.md). It is not part of the production skill package. [Testing](../development/testing.md) describes how unit and live sandbox tests load it.
-
-## Configuration
-
-```yaml
-agent:
-  enable_skills: true
-```
-
-Set `agent.enable_skills` in `config/nika.yaml` to load or disable the shared skill library.
-
-## Writing a custom skill
+## Write a skill
 
 ### 1. Create `SKILL.md`
 
@@ -56,7 +25,7 @@ Every skill needs YAML frontmatter and markdown instructions:
 ```markdown
 ---
 name: my-link-skill
-description: Diagnose link and interface faults. Use when an interface is DOWN or flapping.
+description: Diagnose link and interface failures. Use when an interface is DOWN or flapping.
 ---
 
 # Link Faults
@@ -66,75 +35,73 @@ description: Diagnose link and interface faults. Use when an interface is DOWN o
 3. ...
 ```
 
-**Description tips**
+Write the description for discovery. It should say what the skill does and when to use it. Keep `SKILL.md` under about 500 lines, and move long reference material into sibling files.
 
-- Write in third person (the description is used for discovery).
-- Include both **what** the skill does and **when** to use it.
-- Keep `SKILL.md` under ~500 lines; put long references in sibling files.
+### 2. Add the skill to the shared library
 
-### 2. Add the skill directory
-
-Place the skill under the canonical tree:
+Place the skill directory under the library's skill folder:
 
 ```text
 src/agent/skills/skills/my-link-skill/SKILL.md
 ```
 
-Symlinks under `.claude/skills/` and `.agents/skills/` point at `skills/`, so both agent families discover a new directory there.
+The shared library in the repository currently contains no skills. An agent with `enable_skills` on loads whatever you add here.
 
-### 3. Register in `CLAUDE.md` (recommended)
+### 3. Route to it from the index (recommended)
 
-Add a row to [`src/agent/skills/.claude/CLAUDE.md`](../../src/agent/skills/.claude/CLAUDE.md) so Claude Code agents can route symptoms to your skill.
+Add a row to [`src/agent/skills/.claude/CLAUDE.md`](../../src/agent/skills/.claude/CLAUDE.md). Claude Code agents use this index to route symptoms to your skill.
 
-### 4. Optional helper scripts
+### 4. Add helper scripts (optional)
 
-Add scripts under `skills/my-link-skill/scripts/` and document how to run them. SADE uses `h.py` as a stable launcher; shared skills can reference MCP tools directly or add a similar launcher if needed.
+Put scripts under `skills/my-link-skill/scripts/`, and document how to run them in `SKILL.md`. SADE uses `h.py` as a stable launcher. Shared skills can call MCP tools directly, or add a similar launcher.
 
-### 5. Test locally
+### 5. Try it on one environment
 
-Run a small scenario with skills enabled:
+Deploy a small environment with skills on, inject a failure, and run an agent:
 
 ```shell
 uv run nika env run dc_clos -s s
 uv run nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
-uv run nika agent run -a sdk.claude_sdk -p deepseek -m deepseek-v4-flash -n 20
+uv run nika agent run -a sdk.claude_sdk -p deepseek -m deepseek-v4-flash
 ```
 
-Inspect `results/{session_id}/messages.jsonl` for `Skill` tool calls (Claude), `$skill` mentions (Codex), or lowercase `skill` tool calls (OpenCode and DeepSeek Harness).
+Then check `results/{session_id}/messages.jsonl` for the skill calls: `Skill` tool calls for Claude, `$skill` mentions for Codex, and `skill` tool calls for OpenCode and DeepSeek Harness.
 
-Run `uv run pytest tests/agent/test_skills.py -v` for the skill unit and integration tests.
+---
+
+The rest of this page is reference: how agents invoke skills, and where the code lives.
 
 ## How agents invoke skills
 
-**Claude Code agents** use the native Skill tool:
+Claude Code agents use the native `Skill` tool, with the parameter `skill`:
 
 ```text
 Skill(skill="my-link-skill")
 ```
 
-The parameter name is `skill`, not `name`.
-
-**Codex agents** discover skills from `.agents/skills/` and can be invoked with:
-
-```text
-$my-link-skill
-```
-
-Or implicitly when the task matches the skill description.
-
-**OpenCode** discovers skills from `.opencode/skills/`. **DeepSeek Harness** uses the same `.agents/skills/` path and `AGENTS.md` as Codex. Both invoke:
+Codex agents discover skills in `.agents/skills/`. They invoke one by name, such as `$my-link-skill`, or when a task matches its description. OpenCode and DeepSeek Harness agents call:
 
 ```text
 skill({ name: "my-link-skill" })
 ```
 
+Codex and DeepSeek Harness read a short `AGENTS.md` that NIKA writes into the session workspace, along with the skill directories. Claude Code reads the `.claude/` tree of the library.
+
 ## Advanced example: SADE
 
-[`community.sade`](community/sade.md) ships a 15-skill fault-family library with phase-gated prompts, `CLAUDE.md` routing, and the `h.py` helper launcher. It uses the same Claude Code mechanism but keeps its own `.claude/` tree under the SADE package directory.
+[`community.sade`](community/sade.md) ships a 15-skill failure-family library, with phase-gated prompts, `CLAUDE.md` routing, and the `h.py` helper launcher. It uses the same Claude Code mechanism, but keeps its own `.claude/` tree under the SADE package. Use SADE as a model for a large library, and use `src/agent/skills/` for shared or project-specific additions.
 
-Use SADE as a reference for large skill libraries; use `src/agent/skills/` for shared or project-specific additions.
+## Test skills
+
+Run the skill unit and integration tests with:
+
+```shell
+uv run pytest tests/agent/test_skills.py -v
+```
+
+The test skill `skill-loading-check` is a fixture under [`tests/agent/fixtures/skills/`](../../tests/agent/fixtures/skills/skill-loading-check/SKILL.md). It is not part of the skill library. [Testing](../development/testing.md) describes how unit and live sandbox tests load it.
 
 ## Code reference
 
 - Shared helpers: [`src/agent/utils/skills.py`](../../src/agent/utils/skills.py)
-- Test skill (opt-in fixture): [`tests/agent/fixtures/skills/skill-loading-check/SKILL.md`](../../tests/agent/fixtures/skills/skill-loading-check/SKILL.md)
+- Shared library layout: [`src/agent/skills/`](../../src/agent/skills/)

@@ -1,6 +1,6 @@
 # Scenario validation
 
-This reference is for scenario and verifier maintainers who define a healthy baseline for a registered network scenario. Read [Network scenarios](../operations/network-scenarios.md) to select and configure a scenario.
+This reference is for scenario and verifier maintainers who define a healthy baseline for a registered network scenario. Read [Network scenarios](../docs/operations/network-scenarios.md) to select and configure a scenario.
 
 Every current scenario uses a **two-layer** healthy baseline, aligned with failure inject (`verify_fault` vs test-path `evaluate_symptom`):
 
@@ -47,7 +47,7 @@ For a scenario without a contract, `verify_lab()` returns `verified`, boolean `c
 
 ## Runtime observation collection
 
-To keep verification bounded as a topology grows, declare independent observations with [`VerifyCommand`](../../src/nika/net_env/verify_collection.py), collect them once per node and phase, and let checks read the resulting `VerifyCollection`. Existing public scenario verification signatures remain unchanged.
+To keep verification bounded as a topology grows, declare independent observations with [`VerifyCommand`](../src/nika/net_env/verify_collection.py), collect them once per node and phase, and let checks read the resulting `VerifyCollection`. Existing public scenario verification signatures remain unchanged.
 
 ```python
 from nika.net_env.verify_collection import VerifyCommand, collect_verify_commands
@@ -67,20 +67,20 @@ Historical compatibility scenarios keep their existing verification paths.
 
 ## Scenario coverage
 
-The scenario registry in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py) is the source of truth.
+The scenario registry in [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py) is the source of truth.
 
 | Scenario | Backend | Healthy intent | Batfish static validation | Runtime verifier |
 | --- | --- | --- | --- | --- |
-| `dc_clos` | Kathara | eBGP Clos fabric with DNS and HTTP services |  | [`dc_clos/verify.py`](../../src/nika/net_env/dc_clos/verify.py) |
-| `campus_lan` | Kathara | Multi-area OSPF campus with DHCP services |  | [`campus_lan/verify.py`](../../src/nika/net_env/campus_lan/verify.py) |
-| `enterprise_branch` | Kathara | WireGuard and BGP overlay with VRF isolation |  | [`enterprise_branch/verify.py`](../../src/nika/net_env/enterprise_branch/verify.py) |
-| `sdn_l3_clos` | Kathara | ONOS-controlled OVS L3 Clos and ECMP |  | [`sdn_l3_clos/verify.py`](../../src/nika/net_env/sdn_l3_clos/verify.py) |
-| `p4_dc_fabric` | Kathara | P4Runtime-programmed Clos forwarding and ECMP |  | [`p4_dc_fabric/verify.py`](../../src/nika/net_env/p4_dc_fabric/verify.py) |
-| `p4_dc_gateway` | Kathara | P4 gateway-spine-leaf service path and complete INT-MX telemetry |  | [`p4_dc_gateway/verify.py`](../../src/nika/net_env/p4_dc_gateway/verify.py) |
-| `isp_<topology>` | Kathara or Containerlab | SNDlib or Topology Zoo IGP/BGP forwarding, adjacency, and policy | Kathara + FRR; Containerlab + SONiC | [`kathara/verify.py`](../../src/nika/net_env/isp/kathara/verify.py), [`containerlab/verify.py`](../../src/nika/net_env/isp/containerlab/verify.py) |
-| `min3clos` | Containerlab | SR Linux or SONiC eBGP Clos client connectivity | SONiC | [`min3clos/verify.py`](../../src/nika/net_env/min3clos/verify.py) |
-| `k8s_lab` | Kathara | BGP fat-tree and k3s Word application |  | [`k8s_lab/verify.py`](../../src/nika/net_env/k8s_lab/verify.py) |
-| `llmd_lab` | Kathara | L2 k3s inference cluster and gateway API |  | [`llmd_lab/verify.py`](../../src/nika/net_env/llmd_lab/verify.py) |
+| `dc_clos` | Kathara | eBGP Clos fabric with DNS and HTTP services |  | [`dc_clos/verify.py`](../src/nika/net_env/dc_clos/verify.py) |
+| `campus_lan` | Kathara | Multi-area OSPF campus with DHCP services |  | [`campus_lan/verify.py`](../src/nika/net_env/campus_lan/verify.py) |
+| `enterprise_branch` | Kathara | WireGuard and BGP overlay with VRF isolation |  | [`enterprise_branch/verify.py`](../src/nika/net_env/enterprise_branch/verify.py) |
+| `sdn_l3_clos` | Kathara | ONOS-controlled OVS L3 Clos and ECMP |  | [`sdn_l3_clos/verify.py`](../src/nika/net_env/sdn_l3_clos/verify.py) |
+| `p4_dc_fabric` | Kathara | P4Runtime-programmed Clos forwarding and ECMP |  | [`p4_dc_fabric/verify.py`](../src/nika/net_env/p4_dc_fabric/verify.py) |
+| `p4_dc_gateway` | Kathara | P4 gateway-spine-leaf service path and complete INT-MX telemetry |  | [`p4_dc_gateway/verify.py`](../src/nika/net_env/p4_dc_gateway/verify.py) |
+| `isp_<topology>` | Kathara or Containerlab | SNDlib or Topology Zoo IGP/BGP forwarding, adjacency, and policy | Kathara + FRR; Containerlab + SONiC | [`kathara/verify.py`](../src/nika/net_env/isp/kathara/verify.py), [`containerlab/verify.py`](../src/nika/net_env/isp/containerlab/verify.py) |
+| `min3clos` | Containerlab | SR Linux or SONiC eBGP Clos client connectivity | SONiC | [`min3clos/verify.py`](../src/nika/net_env/min3clos/verify.py) |
+| `k8s_lab` | Kathara | BGP fat-tree and k3s Word application |  | [`k8s_lab/verify.py`](../src/nika/net_env/k8s_lab/verify.py) |
+| `llmd_lab` | Kathara | L2 k3s inference cluster and gateway API |  | [`llmd_lab/verify.py`](../src/nika/net_env/llmd_lab/verify.py) |
 
 ## Runtime validation by scenario
 
@@ -98,7 +98,7 @@ Each row below corresponds to one runtime check or one generated family of check
 | Every client to the declared DNS servers | Ping and query the declared service names | A reply and the expected DNS answer |
 | Every client to each named web service | Request URLs such as `http://web-2.fabric` | HTTP returns `200` |
 
-The checks use each router's native query for mixed IOS XR or RouterOS deployments. The shared topology and service declarations are described under [Data-center Clos](../operations/network-scenarios.md#data-center-clos-scenario).
+The checks use each router's native query for mixed IOS XR or RouterOS deployments. The shared topology and service declarations are described under [Data-center Clos](../docs/operations/network-scenarios.md#data-center-clos-scenario).
 
 ### `campus_lan`
 
@@ -254,9 +254,9 @@ uv run nika env run min3clos --device-profile sonic --static-validation
 
 The `min3clos` contract requires its four eBGP sessions, the OSPF adjacency of each leaf with the spine, and ICMP between the client gateways of both leaves.
 
-[`snapshot.py`](../../src/nika/validation/batfish/snapshot.py) writes the exact generated FRR configuration for each Kathara ISP router into Batfish's concatenated Cumulus format. It also writes traffic hosts and `batfish/layer1_topology.json`. The adapter does not synthesize another routing configuration.
+[`snapshot.py`](../src/nika/validation/batfish/snapshot.py) writes the exact generated FRR configuration for each Kathara ISP router into Batfish's concatenated Cumulus format. It also writes traffic hosts and `batfish/layer1_topology.json`. The adapter does not synthesize another routing configuration.
 
-[`compiler.py`](../../src/nika/validation/batfish/compiler.py) compiles supported contract intents into counterexample searches.
+[`compiler.py`](../src/nika/validation/batfish/compiler.py) compiles supported contract intents into counterexample searches.
 
 | Target | Measurement | Purpose | Expected result |
 | --- | --- | --- | --- |
@@ -273,7 +273,7 @@ The pinned Batfish version does not model FRR `match rpki invalid`. An RPKI ISP 
 
 ### SONiC snapshots
 
-[`sonic.py`](../../src/nika/validation/batfish/sonic.py) writes each SONiC router's deployed `config_db.json` and `frr.conf` to `sonic_configs/<router>/`, the layout Batfish's SONiC parser reads. It also writes ISP traffic hosts and the Layer 1 topology under SONiC port names. Batfish takes ports, IPv4 addresses and loopbacks from CONFIG_DB and OSPFv2, BGP, prefix lists and route maps from FRR. Reports name interfaces by the design's names (`eth0`, `lo`), which `interface_aliases` in the snapshot metadata maps to SONiC ports.
+[`sonic.py`](../src/nika/validation/batfish/sonic.py) writes each SONiC router's deployed `config_db.json` and `frr.conf` to `sonic_configs/<router>/`, the layout Batfish's SONiC parser reads. It also writes ISP traffic hosts and the Layer 1 topology under SONiC port names. Batfish takes ports, IPv4 addresses and loopbacks from CONFIG_DB and OSPFv2, BGP, prefix lists and route maps from FRR. Reports name interfaces by the design's names (`eth0`, `lo`), which `interface_aliases` in the snapshot metadata maps to SONiC ports.
 
 | Construct | Static model |
 | --- | --- |
@@ -289,7 +289,7 @@ Batfish records the ignored lines as parse warnings, and the configuration parse
 
 ## Validation contract schema
 
-[`contract.py`](../../src/nika/net_env/contract.py) defines Pydantic models that reject unknown fields and serialize as JSON.
+[`contract.py`](../src/nika/net_env/contract.py) defines Pydantic models that reject unknown fields and serialize as JSON.
 
 | Model | Purpose |
 | --- | --- |
@@ -325,7 +325,7 @@ Failure-effect validation compares the healthy contract with the lab after a rea
 ## Add or change a runtime validation
 
 1. Define the healthy behavior from the scenario's topology model, plan, workload, and policy. Do not derive it from the result of the command that checks it.
-2. Add the check in the scenario's `verify.py`. Use `LabRuntime` and helpers from [`net_env/verify.py`](../../src/nika/net_env/verify.py) for node presence, probes, process state, routes, or HTTP. Add a local helper for protocol-specific parsing.
+2. Add the check in the scenario's `verify.py`. Use `LabRuntime` and helpers from [`net_env/verify.py`](../src/nika/net_env/verify.py) for node presence, probes, process state, routes, or HTTP. Add a local helper for protocol-specific parsing.
 3. Generate checks from the model or plan for scalable scenarios. Fixed sample checks suit readiness signals; policy invariants such as VRF isolation should iterate over designed entities.
 4. Return `build_lab_verify_result(scenario_name=..., verified=all(checks.values()), checks=checks, details=...)`. Keep checks boolean and stable for startup logs and tests. Put diagnostic observations in `details`.
 5. Ensure `verify_lab()` passes its workload, model, plan, topology size, or other design inputs to the verifier. `verify_lab_with_retry()` polls the method using `VERIFY_MAX_WAIT_SEC` and `VERIFY_RETRY_DELAY_SEC` when the scenario defines them.

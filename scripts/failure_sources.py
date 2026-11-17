@@ -16,7 +16,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG = ROOT / "docs/operations/failure-sources.json"
+CATALOG = ROOT / "specs/failure-sources.json"
 SOURCE_TYPES = (
     "incident_report",
     "operator_mailing_list",

@@ -1,24 +1,24 @@
 # Oracle solver
 
-A benchmark task is only fair if a careful operator could solve it with the tools the agent gets. The `oracle` agent checks that for every task. For each injected failure it follows the failure's playbook, a reference diagnosis: the commands an operator would run, the observation each one must show, and the evidence that identifies the root cause. It runs those steps through the same [MCP tools](../agents/mcp-servers.md) as any agent, and submits the root cause only when the evidence holds. A task the oracle cannot solve points at a fault the agent cannot observe, or at a defect in the task or its scoring.
+A task is fair only if a careful operator could solve it with the tools the agent gets. The `oracle` agent checks this for every task. For each injected failure, it follows a reference diagnosis, called a playbook: the commands an operator would run, the observation each command must show, and the evidence that identifies the root cause. It runs the steps through the same [MCP tools](../agents/mcp-servers.md) as any agent, and it submits a root cause only when the evidence holds.
 
-The oracle knows the injected failure and its parameters, so its scores are not agent results. Use it to validate tasks and to read a worked diagnosis for each one, not to compare agents.
+A task the oracle cannot solve points to a failure the agent cannot observe, or to a defect in the task or its scoring.
 
-## Run the oracle on a benchmark release
+The oracle knows the injected failure, so its scores are not agent results. Use it to validate tasks and to read a worked diagnosis for each one, not to compare agents.
 
-Run these commands from the repository root on a lab host prepared by [Installation](../operations/installation.md). The oracle runs in the NIKA process, so it needs neither LLM credentials nor an agent sandbox:
+## Check a benchmark release
+
+Run these commands from the repository root on a host set up by [Installation](../operations/installation.md). The oracle runs inside the NIKA process, so it needs no LLM credentials and no agent sandbox.
 
 ```shell
 uv run nika benchmark run --release 0.2.0 --split test --agent oracle
 ```
 
-Every solvable fault task scores 1.0 for detection and RCA, and every healthy task scores 1.0 for detection. To run one trial, add `--task-id {task_id}__t01`. To run the oracle on a session where you injected a failure yourself, run `uv run nika agent run --agent oracle`.
-
-Each trial directory also contains `oracle.json`. `solved` is true when the oracle confirmed every injected failure. Each entry in `faults` lists its steps (tool call, expected observation, whether it held, and an output excerpt) and `failed_evidence`, the numbers of the evidence steps that did not hold. A readable version of the same steps is the diagnosis report, which `nika inspect` shows.
+Solvable fault tasks score 1.0 for detection and RCA, and healthy tasks score 1.0 for detection. To run one trial, add `--task-id {task_id}__t01`. To run the oracle against a session where you injected a failure yourself, use `uv run nika agent run --agent oracle`.
 
 ## Read a task's reference diagnosis
 
-`nika benchmark describe --oracle` prints a task's reference diagnosis without starting the environment:
+`nika benchmark describe --oracle` prints a task's reference diagnosis without starting its environment:
 
 ```shell
 uv run nika benchmark describe enterprise_branch__link_down__hcecf68b8564f \
@@ -58,23 +58,34 @@ oracle:
     fault_type: link_down
 ```
 
-Playbooks that read the running environment's state, such as those for Containerlab tasks, cannot be built offline; for them `describe --oracle` prints `unavailable offline`, so run the oracle on a live session instead.
+Playbooks that read the state of a running environment, such as those for Containerlab tasks, cannot be built offline. For these tasks the command prints `unavailable offline`, so run the oracle on a live session instead.
+
+## Read the oracle's report
+
+Each trial directory contains an `oracle.json` file:
+
+- `solved` is `true` when the oracle confirmed every injected failure.
+- `faults` has one entry per failure, with its `fault_type`, whether it was `confirmed`, its `finding`, and its `steps`.
+- Each step records its purpose, the tool and arguments it called, the expected observation, whether the observation held, and an output excerpt.
+- `failed_evidence` lists the numbers of the evidence steps that did not hold.
+
+The diagnosis report that `nika inspect` shows presents the same steps in readable form.
 
 ## How the oracle solves a task
 
 1. It rebuilds each injected failure from the session's injection record and asks the failure for its playbook.
-2. It measures the symptom with a Pingmesh snapshot, then runs the playbook steps in order. A step whose observation takes time to settle after injection, or that checks an intermittent fault, is retried until the observation holds.
-3. It submits the ground-truth root causes of every failure whose evidence steps all hold. In a multi-fault task it can therefore submit the confirmed faults and leave out an unconfirmed one, which earns partial RCA credit while `oracle.json` reports `solved: false`. When no failure is confirmed, it does not submit, so the trial ends as `no_submission` and scores 0.
+2. It measures the symptom with a Pingmesh snapshot, then runs the playbook steps in order. A step that checks state which settles after injection, or an intermittent fault, is retried until its observation holds.
+3. It submits the ground-truth root causes of every failure whose evidence steps all hold. In a multi-failure task, it can submit the confirmed failures and leave out an unconfirmed one. That earns partial RCA credit, and `oracle.json` reports `solved: false`. When no failure is confirmed, it does not submit, so the trial ends as `no_submission` and scores 0.
 
-A healthy task's playbook is a Pingmesh snapshot that must report no anomalies; the oracle then submits `is_anomaly: false`, and otherwise does not submit.
+For a healthy task, the playbook is a Pingmesh snapshot that must report no anomalies. The oracle then submits `is_anomaly: false`, and otherwise it does not submit.
 
 ## Write a playbook for a new failure
 
-Each failure implements `oracle_playbook(params)` next to `inject_fault` and `verify_fault`. Build it from the step templates in [`support/oracle.py`](../../src/nika/problems/support/oracle.py), such as `shell`, `ping`, `nft_rule`, `iface_down`, `kubectl`, `p4rt`, and `onos`, and the checks `contains`, `lacks`, and `all_of`. The `link_down` playbook in [`link.py`](../../src/nika/problems/link_interface/link.py):
+Each failure implements `oracle_playbook(params)` next to `inject_fault` and `verify_fault`. Build the playbook from the step helpers in [`support/oracle.py`](../../src/nika/problems/support/oracle.py), such as `shell`, `ping`, `nft_rule`, `iface_down`, `kubectl`, `p4rt`, and `onos`, with the checks `contains`, `lacks`, and `all_of`. This is the `link_down` playbook from [`link.py`](../../src/nika/problems/link_interface/link.py):
 
 ```python
 def oracle_playbook(self, params: LinkFailureParams) -> OraclePlaybook:
-    intf = resolve_default_intf(params.intf_name, self.net_env)
+    intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
     host = params.host_name
     steps = [
         shell(
@@ -93,13 +104,13 @@ def oracle_playbook(self, params: LinkFailureParams) -> OraclePlaybook:
     )
 ```
 
-Follow these rules so the playbook proves solvability rather than restating the answer:
+A playbook must prove that the task can be solved, not restate the answer:
 
-- Collect evidence only through the agent's MCP tools. Injection parameters and the topology may choose where to look, but not what is observed.
+- Collect evidence only through the agent's MCP tools. Injection parameters and the topology can decide where to look, but not what counts as an observation.
 - Mark as evidence only the observations that tell this failure apart from similar ones in the [fault ontology](root-cause-evaluation.md#submit-a-diagnosis). For example, `dns_service_down` needs no `named` process and no port 53 listener, while `dns_port_blocked` needs `named` running behind a port 53 drop rule.
-- Keep steps read-only. Probe traffic is fine; configuration changes and restarts are not.
+- Keep the steps read-only. Probe traffic is fine; configuration changes and restarts are not.
 - Cover every backend and device profile the failure runs on. Test the playbook on a real task with `uv run nika benchmark run --release 0.2.0 --split test --agent oracle --task-id {task_id}`, or with `uv run nika agent run --agent oracle` on a session where you injected the failure.
 
-## Release 0.2.0 results
+## Reference: release 0.2.0 results
 
 On 2026-10-31, with one trial per task, the oracle solved 166 of the 169 tasks in release 0.2.0 with detection and RCA scores of 1.0. Rerunning the other three solved them too: `k8s_lab__bgp_asn_misconfig__he4a55dc53b83` after a playbook fix, and the two `receiver_resource_contention` tasks (`llmd_lab__receiver_resource__h494b49e3caef` and `dc_clos__receiver_resource_c__ha2be5b357067`) after a correction to the injected fault. In release 0.2.0 that fault limits the receiver to 0.02 CPU, so any command run on the receiver can take more than a minute. The correction raises the limit to 0.05 CPU, which still roughly halves the download rate. Because it changes the injected fault, the correction belongs to the next benchmark revision under the [versioning policy](../../VERSIONING.md).

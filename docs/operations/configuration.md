@@ -1,6 +1,6 @@
-# Run configuration reference
+# Run configuration
 
-This reference is for operators who configure NIKA runs. NIKA reads run settings from `config/nika.yaml` and credentials from the repository-root `.env`.
+Set how NIKA runs agents, labs, and benchmarks. Run settings live in `config/nika.yaml`, and provider credentials live in the repository-root `.env`.
 
 The installer creates these files when missing. For a manual checkout, create them before configuring a sandbox runtime:
 
@@ -47,6 +47,10 @@ NIKA resolves values in this order:
 The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) is the full platform reference (`agent:` / `nika:` / `benchmark:`) with a default `byo.langgraph` profile. The per-agent `config/<agent>.example.yaml` files provide agent settings to use in your profile. Missing keys fall back to schema defaults, including `sbx` for the sandbox backend. A run must set `agent.model` (or pass `-m/--model`).
 
 Relative result paths resolve from the repository root. NIKA rejects unknown YAML keys and values outside the validation constraints below.
+
+---
+
+The sections below are the reference: every key with its default and its limits. Find the group you need, or search for the key.
 
 ## `agent` settings
 

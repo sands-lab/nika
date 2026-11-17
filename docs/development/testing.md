@@ -1,8 +1,6 @@
 # Testing guide
 
-This guide is for contributors who need to choose and run the smallest relevant NIKA test suite. The test layout mirrors the product packages:
-
-Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../../tests/support/) contains shared integration helpers.
+Use this guide to pick the smallest test suite that covers your change, and to see what CI runs. The test layout mirrors the product packages. [`tests/`](../../tests/) holds the suites, and [`tests/support/`](../../tests/support/) holds the shared integration helpers.
 
 - `tests/agent/` → `src/agent/`
 - `tests/nika/` → `src/nika/`
@@ -34,6 +32,19 @@ Local lab integration tests need the `labs` dependency group, which `uv sync` in
 
 Packet capture inspect tests and live inspect operations require `tshark` on lab nodes (`nika/base` and `nika/frr` images). Rebuild those images after Dockerfile changes. Capture uses `tcpdump` or `dumpcap` when present on the node.
 
+## Choose a suite
+
+Start with the smallest suite that covers your change.
+
+| Change | Run | Requirements |
+|--------|-----|--------------|
+| Logic, parsing, schemas, or registries | `uv run pytest -m "(unit or contract) and not live" -q` | None; no Docker |
+| Images, light startup, or the curated CI path | `uv run pytest -m ci_smoke -q` | Docker |
+| A backend or service integration | `uv run pytest -m integration -q` | Docker or containerlab, depending on the test |
+| A complete user, benchmark, scenario, or failure workflow | `uv run pytest -m "e2e and not live" -q` | Docker; no live credentials |
+| Agent sandbox isolation | `uv run pytest -m sandbox -q` | `sbx` or an E2B service, plus Docker; run serially |
+| Real LLM, GitHub, or Batfish service behavior | `uv run pytest -m live -q` | Credentials for that service |
+
 ## Pytest markers
 
 Markers are registered in `pyproject.toml`. Each test declares exactly one execution tier: `unit`, `contract`, `integration`, or `e2e`. Collection fails when a test has no tier or multiple tiers. `sandbox`, `live`, `ci_smoke`, and `nightly` add run requirements or scheduling information.
@@ -49,26 +60,6 @@ Markers are registered in `pyproject.toml`. Each test declares exactly one execu
 | `ci_smoke` | Curated dual-arch GitHub Actions smoke (`tests/ci/`) |
 | `nightly` | Heavy suites for scheduled runners |
 
-```shell
-# Fast local smoke (no Docker)
-uv run pytest -m "(unit or contract) and not live" -q
-
-# Curated CI smoke (Docker; same set as Actions)
-uv run pytest -m ci_smoke -q
-
-# Emulator / lab integration (Docker / containerlab)
-uv run pytest -m integration -q
-
-# Complete workflows that do not need live credentials
-uv run pytest -m "e2e and not live" -q
-
-# Sandbox isolation (serial; sbx or an E2B service, plus Docker)
-uv run pytest -m sandbox -q
-
-# Real LLM / live services (credentials required)
-uv run pytest -m live -q
-```
-
 ## GitHub Actions
 
 Workflows live under [`.github/workflows/`](../../.github/workflows/):
@@ -77,6 +68,7 @@ Workflows live under [`.github/workflows/`](../../.github/workflows/):
 |----------|------|---------|------|
 | [`ci.yml`](../../.github/workflows/ci.yml) | PR, push to `main`, manual | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines; seven engine oracle jobs covering Kathará, Containerlab, P4, and SDN; available published-engine checks |
 | [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | dual-arch startup/artifact suites; amd64 benchmark shards | All dev and test tasks from the latest benchmark release through the current engine and in process. Existing startup/artifact suites remain. |
+| [`specs-review.yml`](../../.github/workflows/specs-review.yml) | PR that changes `specs/`, `src/`, `config/`, `benchmark/`, or `scripts/` (same-repository PRs) | `ubuntu-latest` | Claude compares the specifications in `specs/` with the code they describe and posts one advisory PR comment. It needs the `ANTHROPIC_API_KEY` secret. |
 
 PR jobs shard one environment or image per runner. The engine matrix runs Kathará, Containerlab, and P4 on amd64 and arm64, plus SDN on amd64: seven jobs. SDN stays on amd64 because its ONOS dependency needs emulation on arm64; see the [maintainer decision](https://github.com/sands-lab/nika/issues/309#issuecomment-6624618475). On PRs, the `changes` job picks jobs from the changed paths:
 
@@ -106,6 +98,10 @@ NIKA_CI_FAILURE_CASE=dc_clos-link_down uv run pytest tests/ci/test_failure_injec
 NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,abilene,janos-us NIKA_CI_ISP_BGP_MODES=ibgp_rr \
   uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 ```
+
+---
+
+The subsections below cover how maintainers operate the CI runners and review bots.
 
 ### Maintain self-hosted review runners
 
@@ -200,6 +196,10 @@ NIKA_CI_ENGINE_SHARD_INDEX=0 NIKA_CI_ENGINE_SHARD_COUNT=8 \
 ```
 
 Workflow configuration describes intended coverage, not evidence that a release passed. Check the selected revision's completed jobs and per-trial artifacts before reporting full-release verification. A passing PR sample does not establish that every task passed. Nightly covers the selected release, including its environment and deployment-profile combinations. Newly registered failures absent from that release are outside this inventory. Derive task counts from the selected manifest rather than copying counts from an earlier audit.
+
+---
+
+The sections below list the test modules in each area and their prerequisites. Read the one for the area you change.
 
 ## Shared support (`tests/support/`)
 

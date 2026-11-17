@@ -57,12 +57,19 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | --- | --- | --- |
 | Review public evidence for a failure or export source coverage | [Failure sources](operations/failures.md#public-sources) | Reference |
 | Add a scenario, failure, traffic source, or candidate case | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
-| Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
-| Construct and verify routing, SDN and P4 environments | [Environment construction and verification](development/scenario-verification.md) | Explanation |
 | Check which release 0.2.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
-| Integrate the frontend with a release's benchmark engine | [Benchmark release contracts](development/benchmark-contracts.md) | Reference |
-| Maintain leaderboard packaging and release validation | [Leaderboard submission internals](development/leaderboard-internals.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
+
+## Specifications
+
+The [specs](../specs/README.md) folder holds the contracts and internals that the code must satisfy. Developers and coding agents read it; the pages here explain how to use NIKA and link to it instead of restating it.
+
+| Goal | Read | Type |
+| --- | --- | --- |
+| Define healthy-network intents or implement a verifier | [Scenario validation](../specs/scenario-validation.md) | Reference |
+| Construct and verify routing, SDN and P4 environments | [Environment construction and verification](../specs/scenario-verification.md) | Explanation |
+| Integrate the frontend with a release's benchmark engine | [Benchmark release contracts](../specs/benchmark-contracts.md) | Reference |
+| Maintain leaderboard packaging and release validation | [Leaderboard submission internals](../specs/leaderboard-internals.md) | Reference |
 
 ## Maintain the documentation
 
@@ -83,6 +90,6 @@ uv run nika agent list
 | Failure registry and labels | [`registry.py`](../src/nika/problems/registry.py), [`base.py`](../src/nika/problems/base.py), [`rca/`](../src/nika/problems/rca/) |
 | Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/nika/agents/registry.py) |
 | MCP server catalog and selection | [`mcp/registry.py`](../src/nika/mcp/registry.py), [`mcp/servers/`](../src/nika/mcp/servers/), [`mcp/gateway/`](../src/nika/mcp/gateway/) |
-| Benchmark release contracts | [`benchmark_engine/protocol.py`](../src/nika/benchmark_engine/protocol.py), [`benchmark_engine/engine.py`](../src/nika/benchmark_engine/engine.py), [`benchmark-contracts.md`](development/benchmark-contracts.md) |
+| Benchmark release contracts | [`benchmark_engine/protocol.py`](../src/nika/benchmark_engine/protocol.py), [`benchmark_engine/engine.py`](../src/nika/benchmark_engine/engine.py), [`benchmark-contracts.md`](../specs/benchmark-contracts.md) |
 | Benchmark generation | [`workflows/benchmark/`](../src/nika/workflows/benchmark/) (`nika benchmark generate` / `select`) |
 | Test suites | [`tests/`](../tests/) |
