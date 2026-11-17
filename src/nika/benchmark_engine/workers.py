@@ -87,6 +87,20 @@ class _Worker:
             _raise(*value)
         return value
 
+    def abort(self) -> None:
+        """End the process even while a call is in flight; that call fails."""
+        self.process.terminate()
+        self.process.join(10.0)
+        if self.process.is_alive():
+            self.process.kill()
+            self.process.join(5.0)
+
+    def busy(self) -> bool:
+        if self._lock.acquire(blocking=False):
+            self._lock.release()
+            return False
+        return True
+
     def close(self) -> None:
         with self._lock:
             try:
@@ -132,6 +146,17 @@ class ProcessPerTrialEngine:
             worker = self._workers.pop(session_id, None)
         if worker is not None:
             worker.close()
+
+    def abort(self, session_id: str) -> None:
+        """End a trial's process, interrupting a deploy or an injection.
+
+        The session record stays, so ``stop_trial`` then closes the trial's
+        environment in a new process.
+        """
+        with self._lock:
+            worker = self._workers.pop(session_id, None)
+        if worker is not None:
+            worker.abort()
 
     def describe(self, release: str | None = None) -> EngineDescription:
         return self._local.describe(release)
@@ -186,4 +211,7 @@ class ProcessPerTrialEngine:
             workers = list(self._workers.values())
             self._workers.clear()
         for worker in workers:
-            worker.close()
+            if worker.busy():
+                worker.abort()
+            else:
+                worker.close()

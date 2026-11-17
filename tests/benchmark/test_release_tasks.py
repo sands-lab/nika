@@ -61,11 +61,9 @@ def test_task_id_resolves_to_the_runners_trial(split: str) -> None:
 
 
 def test_unknown_task_id_is_refused_before_deploy(monkeypatch) -> None:
-    import nika.workflows.env.start as start
+    from nika.workflows.env import start
 
-    monkeypatch.setattr(
-        start, "start_net_env", lambda *a, **k: pytest.fail("deployed")
-    )
+    monkeypatch.setattr(start, "start_net_env", lambda *a, **k: pytest.fail("deployed"))
     with pytest.raises(EngineError, match="Unknown task id"):
         BenchmarkEngine().start_trial(
             TrialRequest(
@@ -86,3 +84,15 @@ def test_engine_serves_only_release_010() -> None:
     assert described.task_file_sha256 == {
         f"{split}.yaml": PINNED[split]["task_file_sha256"] for split in ("dev", "test")
     }
+
+
+def test_unsupported_gateway_options_are_not_agent_failures() -> None:
+    """A refused configuration must not count as a zero-scored agent failure."""
+    from nika.benchmark_engine.protocol import GatewayRequest, TrialHandle
+
+    handle = TrialHandle(session_id="s1", trial_dir="/results/trials/s1")
+    with pytest.raises(EngineError) as refused:
+        BenchmarkEngine().agent_endpoints(
+            handle, GatewayRequest(tool_call_limits={"diagnosis": 50})
+        )
+    assert refused.value.outcome == "infra_failed"

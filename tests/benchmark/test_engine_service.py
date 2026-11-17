@@ -51,6 +51,7 @@ class _StubEngine:
         self.release = threading.Event()
         self.release.set()
         self.begin_error: Exception | None = None
+        self.aborted: list[str] = []
 
     def describe(self, release=None):
         self.calls.append(("describe", release))
@@ -112,6 +113,10 @@ class _StubEngine:
     def stop_trial(self, handle, *, status="finished"):
         self.calls.append(("stop_trial", handle.session_id, status))
 
+    def abort(self, session_id):
+        self.aborted.append(session_id)
+        self.release.set()
+
 
 def _post(client, operation, body):
     return client.post(f"/v1/{operation}", json=body, headers=HEADERS)
@@ -145,9 +150,7 @@ def test_health_needs_no_token_and_reports_api(client) -> None:
 def test_operations_need_the_run_token(client) -> None:
     response = client.post("/v1/describe", json={"release": "0.1.0"})
     assert response.status_code == 401
-    wrong = client.post(
-        "/v1/describe", json={}, headers={"NIKA-Engine-Token": "other"}
-    )
+    wrong = client.post("/v1/describe", json={}, headers={"NIKA-Engine-Token": "other"})
     assert wrong.status_code == 401
 
 
@@ -244,3 +247,26 @@ def test_frontend_request_fields_validate() -> None:
     )
     assert request.tool_call_limits is None
     assert "tool_call_limits" not in request.model_dump()
+
+
+def test_stop_ends_a_deploy_that_does_not_finish(client, engine, monkeypatch) -> None:
+    """A stop during a hung deploy ends the trial's process, then tears down."""
+    from nika.benchmark_engine import server
+
+    monkeypatch.setattr(server, "_ABORT_GRACE_SEC", 0.2)
+    engine.release.clear()
+    _post(client, "start_trial", {"request": REQUEST.model_dump()})
+    _post(client, "stop_trial", {"handle": HANDLE.model_dump(), "status": "aborted"})
+    stopped = _wait_state(client, HANDLE.session_id, {"stopped"})
+    assert stopped["state"] == "stopped"
+    assert engine.aborted == [HANDLE.session_id]
+    assert ("stop_trial", HANDLE.session_id, "aborted") in engine.calls
+
+
+def test_stop_waits_for_a_deploy_that_finishes(client, engine) -> None:
+    engine.release.clear()
+    _post(client, "start_trial", {"request": REQUEST.model_dump()})
+    _post(client, "stop_trial", {"handle": HANDLE.model_dump()})
+    engine.release.set()
+    _wait_state(client, HANDLE.session_id, {"stopped"})
+    assert engine.aborted == []

@@ -11,7 +11,16 @@ set -eu
 uid="${NIKA_UID:-0}"
 gid="${NIKA_GID:-0}"
 username="${NIKA_USER:-nika}"
+# The host's Kathara settings (device and network prefixes, network plugin),
+# copied because Kathara rewrites the file.
+copy_kathara_conf() {
+  if [ -f /run/nika/kathara.conf ]; then
+    mkdir -p "$1/.config"
+    cp /run/nika/kathara.conf "$1/.config/kathara.conf"
+  fi
+}
 if [ "${uid}" = "0" ]; then
+  copy_kathara_conf /root
   exec nika engine serve "$@"
 fi
 
@@ -34,11 +43,8 @@ if [ -S /var/run/docker.sock ]; then
   usermod -aG hostdocker "${username}"
 fi
 
-# The host's Kathara settings (device and network prefixes, network plugin),
-# copied because Kathara rewrites the file.
-if [ -f /run/nika/kathara.conf ]; then
-  mkdir -p /home/nika/.config
-  cp /run/nika/kathara.conf /home/nika/.config/kathara.conf
+copy_kathara_conf /home/nika
+if [ -d /home/nika/.config ]; then
   chown -R "${uid}:${gid}" /home/nika/.config
 fi
 

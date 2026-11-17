@@ -87,13 +87,13 @@ class BenchmarkEngine:
 
     def list_tasks(self, release: str, split: str) -> TaskList:
         """List the split's tasks once this release's preflight passes."""
-        from nika.benchmark_engine.images import ensure_upstream_images
+        from nika.benchmark_engine.images import ensure_lab_images
         from nika.benchmark_engine.tasks import task_info
         from nika.workflows.benchmark.release import load_release, preflight_release
 
         loaded = load_release(_require_release(release), split=split)
         preflight_release(loaded, check_images=False)
-        ensure_upstream_images()
+        ensure_lab_images()
         return TaskList(
             release=loaded.version,
             split=loaded.split,
@@ -203,13 +203,11 @@ class BenchmarkEngine:
             raise EngineError(
                 f"Release {RELEASE_VERSION} has no tool-call limits; run it without "
                 "agent.tool_call_limits.",
-                outcome="agent_failed",
             )
         if not _allows_everything(request):
             raise EngineError(
                 f"Release {RELEASE_VERSION} has no diagnosis access policy; run it "
                 "with the default access, which allows every tool and node.",
-                outcome="agent_failed",
             )
         row = SessionStore().get_session(handle.session_id)
         scenario = str(row.get("scenario_name") or "")

@@ -50,6 +50,9 @@ _Operation = Callable[[dict[str, Any]], BaseModel | None]
 # How long shutdown waits for teardowns in progress; the frontend's
 # ``docker stop`` waits 30 seconds before it kills the container.
 _DRAIN_SEC = 25.0
+# How long a stop waits for a deploy or injection in progress before it ends
+# the trial's process, as release 0.1.0's watchdog killed a trial's process.
+_ABORT_GRACE_SEC = 20.0
 
 # States from which ``start_trial`` starts a new attempt, such as a retry.
 _RESTARTABLE: frozenset[TrialState] = frozenset({"stopped", "failed"})
@@ -69,6 +72,8 @@ class _Trial:
         self.task: AgentTask | None = None
         self.error: BaseException | None = None
         self.work = threading.Lock()
+        # Set once a stop_trial has finished, whether or not it succeeded.
+        self.stopped = threading.Event()
 
     def status(self) -> TrialStatus:
         error = self.error
@@ -148,6 +153,7 @@ class _Trials:
                 self._trials[handle.session_id] = trial
             elif trial.state in ("stopping", "stopped"):
                 return trial.status()
+            busy = trial.state in ("deploying", "preparing")
             trial.state = "stopping"
             trial.error = None
             self._run(
@@ -155,6 +161,7 @@ class _Trials:
                 "stop_trial",
                 lambda: self._engine.stop_trial(trial.handle or handle, status=status),
                 done="stopped",
+                preempt=busy,
             )
             return trial.status()
 
@@ -165,10 +172,8 @@ class _Trials:
             stopping = [t for t in self._trials.values() if t.state == "stopping"]
         for trial in stopping:
             remaining = deadline - time.monotonic()
-            if remaining <= 0 or not trial.work.acquire(timeout=remaining):
+            if remaining <= 0 or not trial.stopped.wait(remaining):
                 logger.warning("trial %s was still stopping at exit", trial.session_id)
-                continue
-            trial.work.release()
 
     def status(self, args: dict[str, Any]) -> TrialStatus:
         with self._lock:
@@ -187,9 +192,27 @@ class _Trials:
         work: Callable[[], Any],
         *,
         done: TrialState,
+        preempt: bool = False,
     ) -> None:
+        def acquire() -> None:
+            if not preempt:
+                trial.work.acquire()
+                return
+            if trial.work.acquire(timeout=_ABORT_GRACE_SEC):
+                return
+            abort = getattr(self._engine, "abort", None)
+            if abort is not None:
+                logger.warning(
+                    "ending trial %s, still busy %.0fs after its stop request",
+                    trial.session_id,
+                    _ABORT_GRACE_SEC,
+                )
+                abort(trial.session_id)
+            trial.work.acquire()
+
         def target() -> None:
-            with trial.work:
+            acquire()
+            try:
                 result: Any = None
                 error: BaseException | None = None
                 try:
@@ -210,6 +233,10 @@ class _Trials:
                         return  # A queued stop_trial decides the final state.
                     trial.state = done if error is None else "failed"
                     trial.error = error
+            finally:
+                trial.work.release()
+                if done == "stopped":
+                    trial.stopped.set()
 
         threading.Thread(
             target=target, name=f"{operation}-{trial.session_id}", daemon=True
