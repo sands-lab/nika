@@ -99,7 +99,7 @@ Mapping is part of scoring and is performed by NIKA, not by the agent. Unstructu
 
 Configure `agent.submission.provider`, `model`, and optionally `base_url` to select the mapping model. A custom `base_url` selects its endpoint; if omitted, it defaults to `agent.base_url`.
 
-`agent.submission.samples` sets the number of independent mapping calls and defaults to `1`. Temperature defaults to the provider's default. Each invalid answer, such as non-JSON output or an unknown ID, gets one corrective retry. A sample that remains invalid does not vote. The model's answer is its most frequent valid answer; ties go to the earliest sample. Output is capped by `agent.max_tokens`.
+`agent.submission.samples` sets the number of independent mapping calls and defaults to `1`. When `temperature` is unset, NIKA sends none and the endpoint's default applies; set it explicitly if you need a specific value, such as `0`. Each invalid answer, such as non-JSON output or an unknown ID, gets one corrective retry. A sample that remains invalid does not vote. The model's answer is its most frequent valid answer; ties go to the earliest sample. Output is capped by `agent.max_tokens`.
 
 > [!TIP]
 > When `samples` is greater than `1`, set `temperature` above zero if you want the calls to be likely to differ. Otherwise, the samples are likely to be identical.
@@ -154,7 +154,7 @@ agent:
 
 ## 🎯 How answers are scored
 
-NIKA scores each trial deterministically when it closes. The metrics measure different parts of the answer:
+NIKA scores each trial deterministically when it closes. A release run uses the scoring code of the release's benchmark engine. The metrics measure different parts of the answer:
 
 | Metric | What it measures |
 | --- | --- |
@@ -232,8 +232,8 @@ The default judge settings are `nika.judge.provider: openai` and `nika.judge.mod
 
 ## Run evaluation and find details
 
-- `nika benchmark run …` runs the benchmark and writes metrics as each trial closes.
-- `nika eval metrics --result_dir DIR` computes or recomputes per-trial metrics.
+- `nika benchmark run …` runs the benchmark and writes metrics as each trial closes. For a release run, the release's benchmark engine computes them.
+- `nika eval metrics --result_dir DIR` recomputes per-trial metrics with the installed NIKA's scoring code and overwrites the existing ones. To reproduce a release's official scores, keep the metrics its engine wrote, or regrade with that release's scoring code.
 - `nika eval summary --result_dir DIR` aggregates the results.
 - `nika eval judge -p PROVIDER -m MODEL` optionally reviews sessions after the run; use `--session_id` or `--result_dir` to select them.
 - The [oracle solver](oracle-solver.md) checks that a task can be solved with the agent tools.
@@ -255,7 +255,7 @@ These are the parameters most relevant to evaluation. See [all configuration set
 | `agent.submission.provider`, `model` | Provider and model used for a single mapping model in unstructured mode. |
 | `agent.submission.base_url` | Custom endpoint for the single mapping model; defaults to `agent.base_url`. |
 | `agent.submission.samples` | Number of independent calls for a single mapping model. Defaults to `1`. |
-| `agent.submission.temperature` | Sampling temperature. Defaults to the provider's default; with multiple samples, a value above zero makes varied answers more likely. |
+| `agent.submission.temperature` | Sampling temperature. When unset, NIKA sends none and the endpoint's default applies; with multiple samples, a value above zero makes varied answers more likely. |
 | `agent.submission.mappers` | List of mapping models for multi-model voting. Each entry can set its provider, model, endpoint, samples, temperature, and `weight`, which defaults to `1` and only breaks voting ties. |
 | `agent.submission.min_agreement` | Minimum number of mapper models that must support the winning answer. Defaults to `1`; if unmet, nothing is submitted. |
 | `nika.judge.provider`, `nika.judge.model` | Provider and model for the optional, after-the-fact judge. Defaults to `openai` and `gpt-5-mini`. |

@@ -441,7 +441,7 @@ class SubmissionMapperSettings(BaseModel):
     base_url: str | None = None
     # Independent mappings of the report; this model votes for its majority.
     samples: int = 1
-    # Sampling temperature; null keeps the provider default (0 for custom).
+    # Sampling temperature; null sends none, so the endpoint's default applies.
     # Use a value above 0 when samples > 1.
     temperature: float | None = None
     # Priority when models tie in the vote across models; higher wins.
@@ -478,8 +478,8 @@ class AgentSubmissionSettings(BaseModel):
     base_url: str | None = None
     # Independent mappings of the report; the majority answer is submitted.
     samples: int = 1
-    # Sampling temperature of the mapping model; null keeps the provider
-    # default (0 for custom). Use a value above 0 when samples > 1.
+    # Sampling temperature of the mapping model; null sends none, so the
+    # endpoint's default applies. Use a value above 0 when samples > 1.
     temperature: float | None = None
     # Several mapping models instead of the single one above. Each model
     # settles on its own majority answer, then the models vote.

@@ -442,7 +442,7 @@ nika eval summary --result_dir results/
 
 Eval commands operate on **closed** sessions only. After a benchmark run (or a manual `nika session close`), use eval for post-hoc scoring:
 
-- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: write rule-based metrics to `eval_metrics.json`. Scoring contract: [Score a submission](../benchmarks/root-cause-evaluation.md#score-a-submission). With `--result_dir` and no `--session_id`, processes every closed session under that directory. Benchmark writes metrics when each case closes.
+- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: write rule-based metrics to `eval_metrics.json`. Scoring contract: [Score a submission](../benchmarks/root-cause-evaluation.md#score-a-submission). With `--result_dir` and no `--session_id`, processes every closed session under that directory. Benchmark writes metrics when each case closes; for a release run, the release's engine computes them. This command regrades with the installed NIKA's scoring code and overwrites them.
 - **`nika eval judge -p PROVIDER -m MODEL [--session_id ID] [--result_dir PATH]`**: LLM judge → `llm_judge.json`. With `--result_dir` and no `--session_id`, judges every closed session under that directory.
 - **`nika eval summary [filters] [-o PATH] [--result_dir PATH]`**: scan finished sessions, write one CSV, and print a visual summary to the terminal. See [report output](#nika-eval-summary-report-output).
 - **`nika eval clean [-y] [--force]`**: delete historical artifacts under `results/`, runtime session JSON files, and the SQLite index at `runtime/sessions.db`. Refuses when running sessions exist unless **`--force`** is passed.

@@ -207,7 +207,7 @@ nika eval metrics --result_dir results/my_run
 nika eval summary --result_dir results/my_run
 ```
 
-`nika eval metrics` with `--result_dir` and no `--session_id` processes every closed session under that directory. Benchmark runs already write metrics when each case closes. `nika eval summary` uses the same aggregation as `nika leaderboard pack`. CLI options: [nika eval](../operations/cli-reference.md#nika-eval).
+`nika eval metrics` with `--result_dir` and no `--session_id` processes every closed session under that directory. Benchmark runs already write metrics when each case closes; a release run uses its engine's scoring code. `nika eval metrics` regrades with the installed NIKA's scoring code and overwrites those metrics, so keep the engine's metrics to reproduce a release's official scores. `nika eval summary` uses the same aggregation as `nika leaderboard pack`. CLI options: [nika eval](../operations/cli-reference.md#nika-eval).
 
 ## Materialize labels on a case matrix
 
