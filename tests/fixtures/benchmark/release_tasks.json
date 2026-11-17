@@ -1,0 +1,1662 @@
+{
+ "0.1.0": {
+  "dev": {
+   "task_file_sha256": "c3a217d42d2580722b0fc6e676f7aa8b50572382881d9cfc70eeae5b579c5629",
+   "tasks": [
+    {
+     "task_id": "ospf_enterprise_dhcp__arp_acl_block__28ae99a9",
+     "resource_class": "light",
+     "faults": [
+      "arp_acl_block"
+     ],
+     "row_fingerprint": "28ae99a9dff63be4ba90dedd8c6c20f96bb7e24ed54a5bd1042b38c005a079d4"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__arp_cache_poisoning__4bd04228",
+     "resource_class": "light",
+     "faults": [
+      "arp_cache_poisoning"
+     ],
+     "row_fingerprint": "4bd04228031c2265104b10ae60f3b693700f68460ba155d887ce2f8fe864d00d"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_acl_block__659f59f5",
+     "resource_class": "light",
+     "faults": [
+      "bgp_acl_block"
+     ],
+     "row_fingerprint": "659f59f52c5b23bf6be66b396e8746239773f81c662ca0b5e95348a8501b041b"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_asn_misconfig__a9b85f70",
+     "resource_class": "light",
+     "faults": [
+      "bgp_asn_misconfig"
+     ],
+     "row_fingerprint": "a9b85f7086da9de285d8d89a18d3bc190af3af43aaf7037cfd89ca916b7195cd"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_blackhole_route_leak__bcbab6dc",
+     "resource_class": "light",
+     "faults": [
+      "bgp_blackhole_route_leak"
+     ],
+     "row_fingerprint": "bcbab6dcece1a62c3c92be630fbc5e6b05f5767ffb12fbdf60ef98743aa38031"
+    },
+    {
+     "task_id": "dc_clos_service__bgp_hijacking__143029ea",
+     "resource_class": "light",
+     "faults": [
+      "bgp_hijacking"
+     ],
+     "row_fingerprint": "143029eabb912dfb61796a21f933641395015962d51db87a4fb97007989a67e9"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_missing_route_advertisement__6846ed9c",
+     "resource_class": "light",
+     "faults": [
+      "bgp_missing_route_advertisement"
+     ],
+     "row_fingerprint": "6846ed9cc87d5ce52437f5bca8ce3340fcfe038e09fe9addf29be138fae4e0af"
+    },
+    {
+     "task_id": "p4_bloom_filter__bmv2_switch_down__ba03bb5f",
+     "resource_class": "light",
+     "faults": [
+      "bmv2_switch_down"
+     ],
+     "row_fingerprint": "ba03bb5f2d01bd1f71dea41fd59c3ef5422f953fc6b88023c8a917e6f9aa5c78"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_missing_subnet__b97612b6",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_missing_subnet"
+     ],
+     "row_fingerprint": "b97612b6482c831ecf1f41ae27f089301d7e9a7e0bfe88a99f78781ce00345b9"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_service_down__b9be0ea1",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_service_down"
+     ],
+     "row_fingerprint": "b9be0ea1a7c7a1c176b9ae5f75b9580960a5a1e9ad3a406ee098a921630adfe6"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_spoofed_dns__9630e588",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_spoofed_dns"
+     ],
+     "row_fingerprint": "9630e588c3f44723edcd6b5233560ffe28a2749d119caa102cf11a69b8f5223e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_spoofed_gateway__d453e7bc",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_spoofed_gateway"
+     ],
+     "row_fingerprint": "d453e7bcc3896e3a569962b642fcb9aeb91f907b92c0f4e29a2011794dc4845a"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_spoofed_subnet__7167b386",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_spoofed_subnet"
+     ],
+     "row_fingerprint": "7167b38603dbc7eabbef3e0fd7eacd250c27ef7d28d3185f2eee93ac542afb5a"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_lookup_latency__bd3b9394",
+     "resource_class": "light",
+     "faults": [
+      "dns_lookup_latency"
+     ],
+     "row_fingerprint": "bd3b9394c4e85d37c08786336886665a85f7ff543e29488bf0c0a6dc21462a4b"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_port_blocked__5c1f8a56",
+     "resource_class": "light",
+     "faults": [
+      "dns_port_blocked"
+     ],
+     "row_fingerprint": "5c1f8a56c23b25872586d0498bc9121dfaca29c22c9ee59d1d82cfcdea3901fa"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_record_error__4f65fcd4",
+     "resource_class": "light",
+     "faults": [
+      "dns_record_error"
+     ],
+     "row_fingerprint": "4f65fcd4b3a957e60b2b7f0626514b2a9df4b3919cac277059aa216603cebf22"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_service_down__5b3ed05b",
+     "resource_class": "light",
+     "faults": [
+      "dns_service_down"
+     ],
+     "row_fingerprint": "5b3ed05bdfbfed66485ef18239b18d976711a0a88a30d3825a0e258e06a6e48f"
+    },
+    {
+     "task_id": "sdn_clos__flow_rule_loop__e9891e91",
+     "resource_class": "light",
+     "faults": [
+      "flow_rule_loop"
+     ],
+     "row_fingerprint": "e9891e918edc3cbb5b23e1bd426b6a4939f782a5f83b3524fb9831e2bb8ce9a7"
+    },
+    {
+     "task_id": "sdn_clos__flow_rule_shadowing__50e88b4d",
+     "resource_class": "light",
+     "faults": [
+      "flow_rule_shadowing"
+     ],
+     "row_fingerprint": "50e88b4d192f228a30c96c404df5f8bb39ab96fd12e2c30437d169c966d1bfe4"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__frr_service_down__b9dd6fce",
+     "resource_class": "light",
+     "faults": [
+      "frr_service_down"
+     ],
+     "row_fingerprint": "b9dd6fce7cc1be3e55f6fe3ed521cdfc6b7be762bedb1febfccae7be00d85db5"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_crash__45fc915a",
+     "resource_class": "light",
+     "faults": [
+      "host_crash"
+     ],
+     "row_fingerprint": "45fc915af3caca7afa2b84ef3eb3114c3269fc049bc78b6af2a10bc085f1d028"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__host_incorrect_dns__4dd10aa1",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_dns"
+     ],
+     "row_fingerprint": "4dd10aa174dbaa8a924e83e569212801dfd47a1aae0da105d1373e53b333d530"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__host_incorrect_gateway__3fc9ce65",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_gateway"
+     ],
+     "row_fingerprint": "3fc9ce6552a999ef43bb34c2d552613f9a5591122cacb7897df2c1282de31702"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_incorrect_ip__bdb2bbcb",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_ip"
+     ],
+     "row_fingerprint": "bdb2bbcb8e886ec0b7091de6e9d540e39d044138f54028cdc47bb3eae3e4e1c1"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_incorrect_netmask__356f7836",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_netmask"
+     ],
+     "row_fingerprint": "356f7836aa95432f252db35c4754c52ab9310414f31e80077c950fa0b8b4950f"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_ip_conflict__6e2a4c90",
+     "resource_class": "light",
+     "faults": [
+      "host_ip_conflict"
+     ],
+     "row_fingerprint": "6e2a4c90ecb883a40264306befaf9ab98d9e9c312531a9450dc02ad2ec206c95"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_missing_ip__827da760",
+     "resource_class": "light",
+     "faults": [
+      "host_missing_ip"
+     ],
+     "row_fingerprint": "827da7607f97fa7506ba499e70fd4dd11b40e32aa08a6140da2842f9edf2bc3f"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_static_blackhole__d3b8b670",
+     "resource_class": "light",
+     "faults": [
+      "host_static_blackhole"
+     ],
+     "row_fingerprint": "d3b8b670682c6438304a8943cb7012d591356c35ad030f19126f2d196d0fc9e8"
+    },
+    {
+     "task_id": "rip_small_internet_vpn__host_vpn_membership_missing__45279441",
+     "resource_class": "light",
+     "faults": [
+      "host_vpn_membership_missing"
+     ],
+     "row_fingerprint": "452794414d6e7d08e1b7fe440eea035bce34e5548aed6a0149ee45b9a9c04e5b"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__http_acl_block__c08d56e1",
+     "resource_class": "light",
+     "faults": [
+      "http_acl_block"
+     ],
+     "row_fingerprint": "c08d56e12f573066bc6ac965979c83c918e8fd489a3f63887302b302df95a2e4"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__icmp_acl_block__a94f1fe4",
+     "resource_class": "light",
+     "faults": [
+      "icmp_acl_block"
+     ],
+     "row_fingerprint": "a94f1fe4490c3115aa68ddfe4b66914579ebc7a7cc89f975dfc217d19c05529e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__incast_traffic_network_limitation__fffe1e43",
+     "resource_class": "light",
+     "faults": [
+      "incast_traffic_network_limitation"
+     ],
+     "row_fingerprint": "fffe1e43231e4def955a0291ce2ed780119214cd185f4ee9755da021a425916f"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_bandwidth_throttling__32c5a1d7",
+     "resource_class": "light",
+     "faults": [
+      "link_bandwidth_throttling"
+     ],
+     "row_fingerprint": "32c5a1d7d9b199b0f66370bd9358c32502c3a6d9b391f8c51ccf9e7a639569bc"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_detach__9a2b28e3",
+     "resource_class": "light",
+     "faults": [
+      "link_detach"
+     ],
+     "row_fingerprint": "9a2b28e3687198b50a32eb3f31fc161e158db9bcb06308e0fcecb92afa306748"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_down__e2c3e8cb",
+     "resource_class": "light",
+     "faults": [
+      "link_down"
+     ],
+     "row_fingerprint": "e2c3e8cb5576b9b348822710c7b690c92bc3d5fb819433b2fa10d172b4c44afe"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_flap__e7bb9ecc",
+     "resource_class": "light",
+     "faults": [
+      "link_flap"
+     ],
+     "row_fingerprint": "e7bb9eccbb421c5bae506fb6c7ec0d561642800bb83370b2f97f885cad0f9b52"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_fragmentation_disabled__858db54a",
+     "resource_class": "light",
+     "faults": [
+      "link_fragmentation_disabled"
+     ],
+     "row_fingerprint": "858db54a74e7508139a08950f69b089c9022cbb52b0c5f72348d82c68e2aee59"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_high_packet_corruption__c60179e1",
+     "resource_class": "light",
+     "faults": [
+      "link_high_packet_corruption"
+     ],
+     "row_fingerprint": "c60179e1f04f45e4ad94f9ebb68bdf50f937e3c4f2acf16866cbce0ba73d8b60"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__load_balancer_overload__222448aa",
+     "resource_class": "light",
+     "faults": [
+      "load_balancer_overload"
+     ],
+     "row_fingerprint": "222448aa175bb8776173e0484a500bb2f37d79fb9361108cf09e827aaac8534f"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__mac_address_conflict__4b85b97e",
+     "resource_class": "light",
+     "faults": [
+      "mac_address_conflict"
+     ],
+     "row_fingerprint": "4b85b97e2a9a85c9bd73c56ae04791ce0cf0e1c4062b934c9666082423fc0667"
+    },
+    {
+     "task_id": "p4_mpls__mpls_label_limit_exceeded__abad3b83",
+     "resource_class": "light",
+     "faults": [
+      "mpls_label_limit_exceeded"
+     ],
+     "row_fingerprint": "abad3b83d9947cc37bd3ff449bfb907a96df88dbd46f10e809fdf08264e433a3"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_acl_block__aa4816dc",
+     "resource_class": "light",
+     "faults": [
+      "ospf_acl_block"
+     ],
+     "row_fingerprint": "aa4816dcf90a626b21b8b3490bff97f7f205461b88f309436f162e1666573096"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_area_misconfiguration__818ef2c7",
+     "resource_class": "light",
+     "faults": [
+      "ospf_area_misconfiguration"
+     ],
+     "row_fingerprint": "818ef2c7d6c60708313430d624ef01e5fb786672d88b50a39fa761e90d3417ea"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_neighbor_missing__c942db33",
+     "resource_class": "light",
+     "faults": [
+      "ospf_neighbor_missing"
+     ],
+     "row_fingerprint": "c942db33346952aefdde29a5c7ccf6fd1489645beeb8a7000b01910df26956c4"
+    },
+    {
+     "task_id": "p4_bloom_filter__p4_aggressive_detection_thresholds__a713bb63",
+     "resource_class": "light",
+     "faults": [
+      "p4_aggressive_detection_thresholds"
+     ],
+     "row_fingerprint": "a713bb634b6265d00371d467fd37e5fe68326cf05cf2f9ec918b95b438b563e9"
+    },
+    {
+     "task_id": "p4_bloom_filter__p4_compilation_error_parser_state__c1894e0e",
+     "resource_class": "light",
+     "faults": [
+      "p4_compilation_error_parser_state"
+     ],
+     "row_fingerprint": "c1894e0e23aad9219b7d86700b8fc9154f725e8c5d75cae2e272f67542da9112"
+    },
+    {
+     "task_id": "p4_bloom_filter__p4_header_definition_error__e3525e1d",
+     "resource_class": "light",
+     "faults": [
+      "p4_header_definition_error"
+     ],
+     "row_fingerprint": "e3525e1dbfdec37d2ec99722200f277d26bdcf866bde8c51c23e4b11fa87075f"
+    },
+    {
+     "task_id": "p4_bloom_filter__p4_table_entry_misconfig__168009cf",
+     "resource_class": "light",
+     "faults": [
+      "p4_table_entry_misconfig"
+     ],
+     "row_fingerprint": "168009cf4d95238d0354e84ac92afd219baaa0521f6d9a0fa5cf60da59d9d0e6"
+    },
+    {
+     "task_id": "p4_bloom_filter__p4_table_entry_missing__8dd22c3a",
+     "resource_class": "light",
+     "faults": [
+      "p4_table_entry_missing"
+     ],
+     "row_fingerprint": "8dd22c3afbeba1ab9086accf0e4333b457200f31ecca5cea0cf828fee4a0743a"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__receiver_resource_contention__704199f2",
+     "resource_class": "light",
+     "faults": [
+      "receiver_resource_contention"
+     ],
+     "row_fingerprint": "704199f2f6c9328017b0204aaae30c0477e2841e4f74f6831ff7914cbfb82392"
+    },
+    {
+     "task_id": "sdn_clos__sdn_controller_crash__e2954a9a",
+     "resource_class": "light",
+     "faults": [
+      "sdn_controller_crash"
+     ],
+     "row_fingerprint": "e2954a9a735b219c88092418154484b263c767ccd9059fc63139fa071f126741"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__sender_application_delay__e6bcc149",
+     "resource_class": "light",
+     "faults": [
+      "sender_application_delay"
+     ],
+     "row_fingerprint": "e6bcc149f6c90199eb14c0aafc5a4f45bcafa52c761591cee5c37416132ecf6b"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__sender_resource_contention__93912e95",
+     "resource_class": "light",
+     "faults": [
+      "sender_resource_contention"
+     ],
+     "row_fingerprint": "93912e95177f690f6bac5bfe820b1f169a554f58cf4c31751db60c48945a3ac3"
+    },
+    {
+     "task_id": "sdn_clos__southbound_port_block__02c651b7",
+     "resource_class": "light",
+     "faults": [
+      "southbound_port_block"
+     ],
+     "row_fingerprint": "02c651b7ed6b5d7dfb2ae61e3e3e4b8ff31b3dc2412bbbb0e615e771e177d0b9"
+    },
+    {
+     "task_id": "sdn_clos__southbound_port_mismatch__80f470a9",
+     "resource_class": "light",
+     "faults": [
+      "southbound_port_mismatch"
+     ],
+     "row_fingerprint": "80f470a97d7e4ca86e614234711767fbab7e8577bc7e17425aaa7f236a73f64d"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__web_dos_attack__2e4551f3",
+     "resource_class": "light",
+     "faults": [
+      "web_dos_attack"
+     ],
+     "row_fingerprint": "2e4551f345ea392aa862da678bb070aa563476c200d7e38414e60b0ec7c76e87"
+    }
+   ]
+  },
+  "test": {
+   "task_file_sha256": "7cd21807957b974de1e1840dd6582f8104dd78897e4e15a3fe1dd20bdebb02df",
+   "tasks": [
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_record_error__9d36de46",
+     "resource_class": "light",
+     "faults": [
+      "dns_record_error"
+     ],
+     "row_fingerprint": "9d36de469b83b3234372e82df61348ac8a994047d9bfc0fec6cd4b1e70b5d9ea"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_record_error__52e8031d",
+     "resource_class": "light",
+     "faults": [
+      "dns_record_error"
+     ],
+     "row_fingerprint": "52e8031d1fc5ccaf3033b8766d4dd0949a8c3f3b9da9eae04941e6ff7a59490d"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_record_error__a48f0bd8",
+     "resource_class": "large",
+     "faults": [
+      "dns_record_error"
+     ],
+     "row_fingerprint": "a48f0bd89b82838f2c468818672f53322a9067d8dfc4db94af1ca742117ebfcd"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_crash__45fc915a",
+     "resource_class": "light",
+     "faults": [
+      "host_crash"
+     ],
+     "row_fingerprint": "45fc915af3caca7afa2b84ef3eb3114c3269fc049bc78b6af2a10bc085f1d028"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_crash__a28639ca",
+     "resource_class": "light",
+     "faults": [
+      "host_crash"
+     ],
+     "row_fingerprint": "a28639cabc0a385d1d5041024094b0cef22784b0ccd191bb82cda108654a23ed"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_crash__eee79e73",
+     "resource_class": "large",
+     "faults": [
+      "host_crash"
+     ],
+     "row_fingerprint": "eee79e732bb97b3e4ec7e66338e6855e67334c33f3ff843bdbecb26f7aa1ccdc"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_ip_conflict__1d5f5735",
+     "resource_class": "light",
+     "faults": [
+      "host_ip_conflict"
+     ],
+     "row_fingerprint": "1d5f57354c6cf9ee6b8160a927f17db214fe0fbd620c506f9289096b101033ab"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_ip_conflict__d815e7ca",
+     "resource_class": "light",
+     "faults": [
+      "host_ip_conflict"
+     ],
+     "row_fingerprint": "d815e7ca950bcb5bab2f6c6194a0ce5ceaf6602262631df89adde549c89b2823"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_ip_conflict__2bba517e",
+     "resource_class": "large",
+     "faults": [
+      "host_ip_conflict"
+     ],
+     "row_fingerprint": "2bba517e01a4b533fa66eff0ddb298d9b05377ec3a9a80082bc4b3f8a9a56c45"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__host_incorrect_dns__4dd10aa1",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_dns"
+     ],
+     "row_fingerprint": "4dd10aa174dbaa8a924e83e569212801dfd47a1aae0da105d1373e53b333d530"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__host_incorrect_dns__9361cc58",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_dns"
+     ],
+     "row_fingerprint": "9361cc5899c7729bc45a918889348e178a29b99e56d9d0bed8bfee72f6dc2256"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__host_incorrect_dns__539ed9fe",
+     "resource_class": "large",
+     "faults": [
+      "host_incorrect_dns"
+     ],
+     "row_fingerprint": "539ed9fe2927269a60705dc1e02babeb869efd0ce37228e7266c1a9696a46f01"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__host_incorrect_gateway__702f3f28",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_gateway"
+     ],
+     "row_fingerprint": "702f3f2856c265b71bbb2e5488277ceb8f5c945a5bdadf5c531354b1170ed135"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__host_incorrect_gateway__3ade8ac5",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_gateway"
+     ],
+     "row_fingerprint": "3ade8ac5589dc4f5ec64201be8a2038f39b01c13a2e13d60c79cee9a7aab9ab4"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__host_incorrect_gateway__e992decd",
+     "resource_class": "large",
+     "faults": [
+      "host_incorrect_gateway"
+     ],
+     "row_fingerprint": "e992decd9e6e0ca6ce5af2303f1a7c61c2924c7cbe704a74127543428373ae83"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_incorrect_ip__90787c8d",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_ip"
+     ],
+     "row_fingerprint": "90787c8d1a90095a92a29a93bf08e0f2dda46dc1339592935d25e5f0eabb9ffa"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_incorrect_ip__602bef37",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_ip"
+     ],
+     "row_fingerprint": "602bef37ace965ad4bad1ba844e8bcf0b9c2bfb09d1aff37f347cdc65f416b76"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_incorrect_ip__45383059",
+     "resource_class": "large",
+     "faults": [
+      "host_incorrect_ip"
+     ],
+     "row_fingerprint": "453830599e00c485c56921c3158aa3499b11cdb4e2b4d180ee0fba7870137979"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_incorrect_netmask__f2fed77b",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_netmask"
+     ],
+     "row_fingerprint": "f2fed77bd8ea150ac7d49ade0b346cfcc4c554d806f548e382d958d453162c0a"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_incorrect_netmask__573e4f05",
+     "resource_class": "light",
+     "faults": [
+      "host_incorrect_netmask"
+     ],
+     "row_fingerprint": "573e4f05f165a8f9121dacaf4f94528288b611593e55cf4b5f733b4ee5eb3a31"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_incorrect_netmask__503d5819",
+     "resource_class": "large",
+     "faults": [
+      "host_incorrect_netmask"
+     ],
+     "row_fingerprint": "503d5819b3dba1b8c2e8ac5859df4f206016565125ff472ab577df0ee3891e50"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_missing_ip__27725e75",
+     "resource_class": "light",
+     "faults": [
+      "host_missing_ip"
+     ],
+     "row_fingerprint": "27725e751ba2edc734a2adab073ec3df6cfa9fa39e82792ebad2b6a05abbc05c"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_missing_ip__a394e580",
+     "resource_class": "light",
+     "faults": [
+      "host_missing_ip"
+     ],
+     "row_fingerprint": "a394e580edff9f06e075b7b678728af7ad35e68afe2c27ffc590adbf44c9acd0"
+    },
+    {
+     "task_id": "ospf_enterprise_static__host_missing_ip__6e981568",
+     "resource_class": "large",
+     "faults": [
+      "host_missing_ip"
+     ],
+     "row_fingerprint": "6e981568743f016bedb162cfd9e5ddf28f52994fc42f772ae8cbd53e983f89d3"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_service_down__b9be0ea1",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_service_down"
+     ],
+     "row_fingerprint": "b9be0ea1a7c7a1c176b9ae5f75b9580960a5a1e9ad3a406ee098a921630adfe6"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_service_down__4930b903",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_service_down"
+     ],
+     "row_fingerprint": "4930b903cdd53700589b1f4a49196c5fc9fd0b448c18d6c3a24c169cc4c4f385"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_service_down__91a27745",
+     "resource_class": "large",
+     "faults": [
+      "dhcp_service_down"
+     ],
+     "row_fingerprint": "91a27745a475dc179b358a980dd1e141e31ddee199eae18652d3e4704defb6c4"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_service_down__5b3ed05b",
+     "resource_class": "light",
+     "faults": [
+      "dns_service_down"
+     ],
+     "row_fingerprint": "5b3ed05bdfbfed66485ef18239b18d976711a0a88a30d3825a0e258e06a6e48f"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_service_down__9056be40",
+     "resource_class": "light",
+     "faults": [
+      "dns_service_down"
+     ],
+     "row_fingerprint": "9056be40c6b0d2dc5c6783a612f569d6435b131b1722b46d39ba38e85646abd4"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_service_down__1fac2891",
+     "resource_class": "large",
+     "faults": [
+      "dns_service_down"
+     ],
+     "row_fingerprint": "1fac2891dab57584a074f051329d58104f5318471ea0d9bc0601f2f970f0d266"
+    },
+    {
+     "task_id": "rip_small_internet_vpn__host_vpn_membership_missing__907169a0",
+     "resource_class": "light",
+     "faults": [
+      "host_vpn_membership_missing"
+     ],
+     "row_fingerprint": "907169a02b0f2f749a8bfc451d42348de2fbdf5cd9078a1410d850c0716525b9"
+    },
+    {
+     "task_id": "rip_small_internet_vpn__host_vpn_membership_missing__72337c97",
+     "resource_class": "light",
+     "faults": [
+      "host_vpn_membership_missing"
+     ],
+     "row_fingerprint": "72337c971be360d8f069f41031d01bd533332516cdda1e9dd9732af07f1c1a32"
+    },
+    {
+     "task_id": "rip_small_internet_vpn__host_vpn_membership_missing__d21d689f",
+     "resource_class": "large",
+     "faults": [
+      "host_vpn_membership_missing"
+     ],
+     "row_fingerprint": "d21d689f186de3b2466504d335006f64eee68c161f7f81a7da5ea270764aa33c"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_detach__bcea8885",
+     "resource_class": "light",
+     "faults": [
+      "link_detach"
+     ],
+     "row_fingerprint": "bcea8885b5f08daaf9935ec3dd7dad77cb64ad1f89f48da8a753af03f5ba389e"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_detach__58dff5e1",
+     "resource_class": "light",
+     "faults": [
+      "link_detach"
+     ],
+     "row_fingerprint": "58dff5e165ae7b1dec7880e75a2fbae85a017ec8b662fb067207891cf6111969"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_detach__0685c8b4",
+     "resource_class": "large",
+     "faults": [
+      "link_detach"
+     ],
+     "row_fingerprint": "0685c8b498b3ec3c6d3c84558aaa452e524136a404d3dbbbb45f19bd420a7339"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_down__1f4505f8",
+     "resource_class": "light",
+     "faults": [
+      "link_down"
+     ],
+     "row_fingerprint": "1f4505f88b59632ab443d7853d65799f188e551f5002a328a9767138e222ef2b"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_down__6f920d54",
+     "resource_class": "light",
+     "faults": [
+      "link_down"
+     ],
+     "row_fingerprint": "6f920d54b6783055023b881c9e60021a8fdccb2d7678a1d6a1df14ccf0cda293"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_down__41d28807",
+     "resource_class": "large",
+     "faults": [
+      "link_down"
+     ],
+     "row_fingerprint": "41d28807e20d19939b4df0aa96083a9407e3535a63bb0c3a37e9cfe7c1395fbc"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_flap__e7bb9ecc",
+     "resource_class": "light",
+     "faults": [
+      "link_flap"
+     ],
+     "row_fingerprint": "e7bb9eccbb421c5bae506fb6c7ec0d561642800bb83370b2f97f885cad0f9b52"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_flap__f8796f89",
+     "resource_class": "light",
+     "faults": [
+      "link_flap"
+     ],
+     "row_fingerprint": "f8796f89cece2d65d2db52a659e60f50e42108c95072a80c28a0dd2d4d1176c8"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_flap__59532938",
+     "resource_class": "large",
+     "faults": [
+      "link_flap"
+     ],
+     "row_fingerprint": "59532938d0d8a6d8303c4d98ec322a8762612d90cd928b7e1c9c108633e68918"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_fragmentation_disabled__858db54a",
+     "resource_class": "light",
+     "faults": [
+      "link_fragmentation_disabled"
+     ],
+     "row_fingerprint": "858db54a74e7508139a08950f69b089c9022cbb52b0c5f72348d82c68e2aee59"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_fragmentation_disabled__8ce8ff40",
+     "resource_class": "light",
+     "faults": [
+      "link_fragmentation_disabled"
+     ],
+     "row_fingerprint": "8ce8ff40e76d693703d972fb915899718ab3e85355b47cda6bfbf50e5dd48255"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_fragmentation_disabled__10d1da96",
+     "resource_class": "large",
+     "faults": [
+      "link_fragmentation_disabled"
+     ],
+     "row_fingerprint": "10d1da96b28c0d5b38727d3b7bbd71c047a409636841979b4884520b8912f5bc"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__arp_acl_block__0da525ad",
+     "resource_class": "light",
+     "faults": [
+      "arp_acl_block"
+     ],
+     "row_fingerprint": "0da525ad03318723da1daa4d9a058283ff59155d9c3fc28bb58b279ce4b854b5"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__arp_acl_block__4daba747",
+     "resource_class": "light",
+     "faults": [
+      "arp_acl_block"
+     ],
+     "row_fingerprint": "4daba74740022c33c2c2dd6e228fce906267e6e731c5190f04ee5ef03d28276e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__arp_acl_block__f3b25ff1",
+     "resource_class": "large",
+     "faults": [
+      "arp_acl_block"
+     ],
+     "row_fingerprint": "f3b25ff1fbd28b6c062da9535385d58ce108b47e7187b1ce40cf8fd5f04ca4a1"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_acl_block__86d97357",
+     "resource_class": "light",
+     "faults": [
+      "bgp_acl_block"
+     ],
+     "row_fingerprint": "86d973578d9c287a75779db97d6424f4b6663415ce4eb71d722768d45fcc8f12"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_acl_block__f2677746",
+     "resource_class": "light",
+     "faults": [
+      "bgp_acl_block"
+     ],
+     "row_fingerprint": "f267774675e0358f4cdaac6f037599540db32a3266a8f88afc059eac550cca0b"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_acl_block__54daf842",
+     "resource_class": "large",
+     "faults": [
+      "bgp_acl_block"
+     ],
+     "row_fingerprint": "54daf8421ccf78979c587f8021f136584ede64d0f38b8f7f0aec787f95fd019d"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_port_blocked__5c1f8a56",
+     "resource_class": "light",
+     "faults": [
+      "dns_port_blocked"
+     ],
+     "row_fingerprint": "5c1f8a56c23b25872586d0498bc9121dfaca29c22c9ee59d1d82cfcdea3901fa"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_port_blocked__b0562ec5",
+     "resource_class": "light",
+     "faults": [
+      "dns_port_blocked"
+     ],
+     "row_fingerprint": "b0562ec58d70409f8510c91d2f2f3712a3ada742e225767dfd3ee1da99306c9e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_port_blocked__2e79094b",
+     "resource_class": "large",
+     "faults": [
+      "dns_port_blocked"
+     ],
+     "row_fingerprint": "2e79094b6dc2c8631cfd7cf6e1b00a60d2c0e3ea4fa641368863b701cfbfe059"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__http_acl_block__c08d56e1",
+     "resource_class": "light",
+     "faults": [
+      "http_acl_block"
+     ],
+     "row_fingerprint": "c08d56e12f573066bc6ac965979c83c918e8fd489a3f63887302b302df95a2e4"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__http_acl_block__65da44b0",
+     "resource_class": "light",
+     "faults": [
+      "http_acl_block"
+     ],
+     "row_fingerprint": "65da44b0b79e81fedc8c6c86b251e0f2d5e1fc2a83a2a56e5f4d8f5fbb4e1ca9"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__http_acl_block__36a55958",
+     "resource_class": "large",
+     "faults": [
+      "http_acl_block"
+     ],
+     "row_fingerprint": "36a55958baf807a485b426c8c0a845bc72f3bce8613d94f4c43f6747b94f2817"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__icmp_acl_block__25000533",
+     "resource_class": "light",
+     "faults": [
+      "icmp_acl_block"
+     ],
+     "row_fingerprint": "25000533fedfc8b00dfb8138dd38e8936b55dd09f33bf0e52228bf1c17c43d96"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__icmp_acl_block__1b26e6f9",
+     "resource_class": "light",
+     "faults": [
+      "icmp_acl_block"
+     ],
+     "row_fingerprint": "1b26e6f9aa1cb8921e34de3b63f5aee03546621e6dcf28119fbd0b92d4811b40"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__icmp_acl_block__c6d8de16",
+     "resource_class": "large",
+     "faults": [
+      "icmp_acl_block"
+     ],
+     "row_fingerprint": "c6d8de166707e9f6dc905d75c5a4e4480e4963502e5b56cdaa84a7ebf0a4f990"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_acl_block__5ab60e9c",
+     "resource_class": "light",
+     "faults": [
+      "ospf_acl_block"
+     ],
+     "row_fingerprint": "5ab60e9c79e0db91602e04510856509263732a05c95b7e0dfc5700df3c62550b"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_acl_block__947adc21",
+     "resource_class": "light",
+     "faults": [
+      "ospf_acl_block"
+     ],
+     "row_fingerprint": "947adc21f63e58a8997f6af015a7b139b1013e0e1fcaf3825981a388c488d2f4"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_acl_block__bad634e9",
+     "resource_class": "large",
+     "faults": [
+      "ospf_acl_block"
+     ],
+     "row_fingerprint": "bad634e9714f28ca487bf8a669d0e647c29bc8c7ab963d5c6bd8a3500f43c652"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_asn_misconfig__a9b85f70",
+     "resource_class": "light",
+     "faults": [
+      "bgp_asn_misconfig"
+     ],
+     "row_fingerprint": "a9b85f7086da9de285d8d89a18d3bc190af3af43aaf7037cfd89ca916b7195cd"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_asn_misconfig__328eb345",
+     "resource_class": "light",
+     "faults": [
+      "bgp_asn_misconfig"
+     ],
+     "row_fingerprint": "328eb3454e767296a926f16e663545a76056cb65b298c8bf677dd46c0b3f0d52"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_asn_misconfig__ab54944f",
+     "resource_class": "large",
+     "faults": [
+      "bgp_asn_misconfig"
+     ],
+     "row_fingerprint": "ab54944fb81783c78f5fc629162bae595dac690345557a9f7f4fb952342332ac"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_blackhole_route_leak__bcbab6dc",
+     "resource_class": "light",
+     "faults": [
+      "bgp_blackhole_route_leak"
+     ],
+     "row_fingerprint": "bcbab6dcece1a62c3c92be630fbc5e6b05f5767ffb12fbdf60ef98743aa38031"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_blackhole_route_leak__a2985036",
+     "resource_class": "light",
+     "faults": [
+      "bgp_blackhole_route_leak"
+     ],
+     "row_fingerprint": "a2985036efa820320305909e3efa8db0cfaa9569f7c17f75048acc390ccd2b11"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_blackhole_route_leak__055294d7",
+     "resource_class": "large",
+     "faults": [
+      "bgp_blackhole_route_leak"
+     ],
+     "row_fingerprint": "055294d71a2d88985724963bf1f9cb08b18208fecb58c30cf5f166ffaf80e5b1"
+    },
+    {
+     "task_id": "dc_clos_service__bgp_hijacking__143029ea",
+     "resource_class": "light",
+     "faults": [
+      "bgp_hijacking"
+     ],
+     "row_fingerprint": "143029eabb912dfb61796a21f933641395015962d51db87a4fb97007989a67e9"
+    },
+    {
+     "task_id": "dc_clos_service__bgp_hijacking__534bb617",
+     "resource_class": "light",
+     "faults": [
+      "bgp_hijacking"
+     ],
+     "row_fingerprint": "534bb61738f1691f6b283fa706e430f7642c19d2013ae361b0a51b22041fbe5d"
+    },
+    {
+     "task_id": "dc_clos_service__bgp_hijacking__7d6c7210",
+     "resource_class": "large",
+     "faults": [
+      "bgp_hijacking"
+     ],
+     "row_fingerprint": "7d6c721062d75e346fdc36261bba9d020b41585ed4347fb1140a1b8d3143dfb8"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_missing_route_advertisement__4fafa2b4",
+     "resource_class": "light",
+     "faults": [
+      "bgp_missing_route_advertisement"
+     ],
+     "row_fingerprint": "4fafa2b47cdbd2a25bcfc8b576ed921a729d44810145b773319a5c4b01c9a0ff"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_missing_route_advertisement__d913b712",
+     "resource_class": "light",
+     "faults": [
+      "bgp_missing_route_advertisement"
+     ],
+     "row_fingerprint": "d913b712d643b95fe4c321fe8de107fd656158ffe9d69e020086a45b73ea3ea3"
+    },
+    {
+     "task_id": "dc_clos_bgp__bgp_missing_route_advertisement__6a6f64ac",
+     "resource_class": "large",
+     "faults": [
+      "bgp_missing_route_advertisement"
+     ],
+     "row_fingerprint": "6a6f64ac02c63e536a0cee6b71b5fba4869aaceea5ba72ec5f022e30b18f8b2e"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_static_blackhole__db923fd3",
+     "resource_class": "light",
+     "faults": [
+      "host_static_blackhole"
+     ],
+     "row_fingerprint": "db923fd36d1cafe78ac01cc6d81b6fb357315ac17bf56b55fcf5333ecab1b601"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_static_blackhole__1493896e",
+     "resource_class": "light",
+     "faults": [
+      "host_static_blackhole"
+     ],
+     "row_fingerprint": "1493896e2af5092026bd6ee69be434d4eb811b997947ffec69fa5cd19884ad5b"
+    },
+    {
+     "task_id": "dc_clos_bgp__host_static_blackhole__c4113c7f",
+     "resource_class": "large",
+     "faults": [
+      "host_static_blackhole"
+     ],
+     "row_fingerprint": "c4113c7f8349237e02aa1d244f7cb7558db1e8dddb5bc22f69908d573b70569e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_missing_subnet__b97612b6",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_missing_subnet"
+     ],
+     "row_fingerprint": "b97612b6482c831ecf1f41ae27f089301d7e9a7e0bfe88a99f78781ce00345b9"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_missing_subnet__2a0bc578",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_missing_subnet"
+     ],
+     "row_fingerprint": "2a0bc57817e67692403bf896175eb2b59b9c8cf59223c4b1507cb4b9e537c481"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_missing_subnet__b5448346",
+     "resource_class": "large",
+     "faults": [
+      "dhcp_missing_subnet"
+     ],
+     "row_fingerprint": "b54483468dcb0aae0e5307863ee0bf79d30a7221e0ba9eb918bb487571ad3f11"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__mac_address_conflict__0ed8ee1f",
+     "resource_class": "light",
+     "faults": [
+      "mac_address_conflict"
+     ],
+     "row_fingerprint": "0ed8ee1f37fd0db199cd6bbc34c633fd58a83018a4a214065fabf00897c14a8c"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__mac_address_conflict__0a8c535c",
+     "resource_class": "light",
+     "faults": [
+      "mac_address_conflict"
+     ],
+     "row_fingerprint": "0a8c535c3d443cfba576a64eb902636dcb4f2fd72d827bb3f499c028b41dcfa9"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__mac_address_conflict__bfdf49a4",
+     "resource_class": "large",
+     "faults": [
+      "mac_address_conflict"
+     ],
+     "row_fingerprint": "bfdf49a4055c73065c5f73e0f23e7540c1ff63d576a4991b24df3c337f795f1e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_area_misconfiguration__d89e8170",
+     "resource_class": "light",
+     "faults": [
+      "ospf_area_misconfiguration"
+     ],
+     "row_fingerprint": "d89e81703a3a643cd5bd72c0cd1ed432e89f7a616cecce7ade39b66085e263a7"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_area_misconfiguration__e21c8547",
+     "resource_class": "light",
+     "faults": [
+      "ospf_area_misconfiguration"
+     ],
+     "row_fingerprint": "e21c8547d2475b98b16a1f9de27d4098291a223e14a13476fe59c947df1c7431"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_area_misconfiguration__3ebd5e51",
+     "resource_class": "large",
+     "faults": [
+      "ospf_area_misconfiguration"
+     ],
+     "row_fingerprint": "3ebd5e515f3d95b40bac8aaafdfbdb86b2d63d5643320c1c299b4203dca08f28"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_neighbor_missing__c138ef8f",
+     "resource_class": "light",
+     "faults": [
+      "ospf_neighbor_missing"
+     ],
+     "row_fingerprint": "c138ef8fb57e95a8e1b9d6fd4fa71caf0b10b6649bdb2d12ee7dc8fcd6c6074c"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_neighbor_missing__076b403b",
+     "resource_class": "light",
+     "faults": [
+      "ospf_neighbor_missing"
+     ],
+     "row_fingerprint": "076b403baff235e708b798c13087dabd8c21728560ae27c77f95f5e548ba8c2e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__ospf_neighbor_missing__284279e9",
+     "resource_class": "large",
+     "faults": [
+      "ospf_neighbor_missing"
+     ],
+     "row_fingerprint": "284279e9064538fd506ddf0e4107b32fe27ed174c97676b5fc299d7b4dd01ec5"
+    },
+    {
+     "task_id": "sdn_clos__flow_rule_loop__dcc626b1",
+     "resource_class": "light",
+     "faults": [
+      "flow_rule_loop"
+     ],
+     "row_fingerprint": "dcc626b16b6a9bf8b95ebeccfdb05fea6507509417d7cd264bfbc55520ed3c6a"
+    },
+    {
+     "task_id": "sdn_clos__flow_rule_loop__df9cbc16",
+     "resource_class": "light",
+     "faults": [
+      "flow_rule_loop"
+     ],
+     "row_fingerprint": "df9cbc162d4035be53ceec92222e0822dac2df04fcd23caac8b2ec0132972741"
+    },
+    {
+     "task_id": "sdn_clos__flow_rule_loop__dc5c1535",
+     "resource_class": "large",
+     "faults": [
+      "flow_rule_loop"
+     ],
+     "row_fingerprint": "dc5c1535fe123e0cece6ef62a8bc923766ad99d5c201d3094cb875a0f0905697"
+    },
+    {
+     "task_id": "sdn_clos__flow_rule_shadowing__e11b09a3",
+     "resource_class": "light",
+     "faults": [
+      "flow_rule_shadowing"
+     ],
+     "row_fingerprint": "e11b09a3d966c9260226c5ad72d9835111b589cb08c6ec165e7d6d71b7836ef3"
+    },
+    {
+     "task_id": "sdn_clos__flow_rule_shadowing__a6a9720d",
+     "resource_class": "light",
+     "faults": [
+      "flow_rule_shadowing"
+     ],
+     "row_fingerprint": "a6a9720d89d00cf21f461f3db287d79d3aa62e77212ce314663ae2f8c2e92140"
+    },
+    {
+     "task_id": "sdn_clos__flow_rule_shadowing__d364361b",
+     "resource_class": "large",
+     "faults": [
+      "flow_rule_shadowing"
+     ],
+     "row_fingerprint": "d364361bfbb755726cbc039525b4f9041f8c1fb9bf2045c6fa8447e942e6f40c"
+    },
+    {
+     "task_id": "sdn_clos__sdn_controller_crash__e2954a9a",
+     "resource_class": "light",
+     "faults": [
+      "sdn_controller_crash"
+     ],
+     "row_fingerprint": "e2954a9a735b219c88092418154484b263c767ccd9059fc63139fa071f126741"
+    },
+    {
+     "task_id": "sdn_clos__sdn_controller_crash__b92183e9",
+     "resource_class": "light",
+     "faults": [
+      "sdn_controller_crash"
+     ],
+     "row_fingerprint": "b92183e90cfa7dff5be0917140de856472f67899cd50210e7f3408fe81fdb09c"
+    },
+    {
+     "task_id": "sdn_clos__sdn_controller_crash__5c06c7bf",
+     "resource_class": "large",
+     "faults": [
+      "sdn_controller_crash"
+     ],
+     "row_fingerprint": "5c06c7bfbab912340a065953fe3617688d55e68778a47f70feac26e70bc49aab"
+    },
+    {
+     "task_id": "sdn_clos__southbound_port_block__02c651b7",
+     "resource_class": "light",
+     "faults": [
+      "southbound_port_block"
+     ],
+     "row_fingerprint": "02c651b7ed6b5d7dfb2ae61e3e3e4b8ff31b3dc2412bbbb0e615e771e177d0b9"
+    },
+    {
+     "task_id": "sdn_clos__southbound_port_block__e2c774ba",
+     "resource_class": "light",
+     "faults": [
+      "southbound_port_block"
+     ],
+     "row_fingerprint": "e2c774ba44d328afbbe86db847d2df99f137b5d5469988330e96f720b34d113c"
+    },
+    {
+     "task_id": "sdn_clos__southbound_port_block__564e17dc",
+     "resource_class": "large",
+     "faults": [
+      "southbound_port_block"
+     ],
+     "row_fingerprint": "564e17dc1c68256fffd412f086d2f392a426684c4e3403d6e21c73c7334ec503"
+    },
+    {
+     "task_id": "sdn_clos__southbound_port_mismatch__80f470a9",
+     "resource_class": "light",
+     "faults": [
+      "southbound_port_mismatch"
+     ],
+     "row_fingerprint": "80f470a97d7e4ca86e614234711767fbab7e8577bc7e17425aaa7f236a73f64d"
+    },
+    {
+     "task_id": "sdn_clos__southbound_port_mismatch__1096b970",
+     "resource_class": "light",
+     "faults": [
+      "southbound_port_mismatch"
+     ],
+     "row_fingerprint": "1096b970bd89c07b49107a6579392160969b3b1e3e34d3f4e3cdd7f7086d5fac"
+    },
+    {
+     "task_id": "sdn_clos__southbound_port_mismatch__b3988fe2",
+     "resource_class": "large",
+     "faults": [
+      "southbound_port_mismatch"
+     ],
+     "row_fingerprint": "b3988fe24eb005fc556a6156cd5171c5e14911c9f2dad698fa73dee8cd91f642"
+    },
+    {
+     "task_id": "p4_bloom_filter__p4_header_definition_error__e3525e1d",
+     "resource_class": "light",
+     "faults": [
+      "p4_header_definition_error"
+     ],
+     "row_fingerprint": "e3525e1dbfdec37d2ec99722200f277d26bdcf866bde8c51c23e4b11fa87075f"
+    },
+    {
+     "task_id": "p4_bloom_filter__p4_compilation_error_parser_state__c1894e0e",
+     "resource_class": "light",
+     "faults": [
+      "p4_compilation_error_parser_state"
+     ],
+     "row_fingerprint": "c1894e0e23aad9219b7d86700b8fc9154f725e8c5d75cae2e272f67542da9112"
+    },
+    {
+     "task_id": "p4_mpls__mpls_label_limit_exceeded__8b52f1b8",
+     "resource_class": "light",
+     "faults": [
+      "mpls_label_limit_exceeded"
+     ],
+     "row_fingerprint": "8b52f1b8d97a4fcfba4b5cb07fdb060e27faff20c1d244f46324a4fd2fabf826"
+    },
+    {
+     "task_id": "p4_bloom_filter__p4_table_entry_misconfig__168009cf",
+     "resource_class": "light",
+     "faults": [
+      "p4_table_entry_misconfig"
+     ],
+     "row_fingerprint": "168009cf4d95238d0354e84ac92afd219baaa0521f6d9a0fa5cf60da59d9d0e6"
+    },
+    {
+     "task_id": "p4_bloom_filter__p4_table_entry_missing__8dd22c3a",
+     "resource_class": "light",
+     "faults": [
+      "p4_table_entry_missing"
+     ],
+     "row_fingerprint": "8dd22c3afbeba1ab9086accf0e4333b457200f31ecca5cea0cf828fee4a0743a"
+    },
+    {
+     "task_id": "p4_bloom_filter__bmv2_switch_down__ba03bb5f",
+     "resource_class": "light",
+     "faults": [
+      "bmv2_switch_down"
+     ],
+     "row_fingerprint": "ba03bb5f2d01bd1f71dea41fd59c3ef5422f953fc6b88023c8a917e6f9aa5c78"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__frr_service_down__b9dd6fce",
+     "resource_class": "light",
+     "faults": [
+      "frr_service_down"
+     ],
+     "row_fingerprint": "b9dd6fce7cc1be3e55f6fe3ed521cdfc6b7be762bedb1febfccae7be00d85db5"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__frr_service_down__2aa7f99d",
+     "resource_class": "light",
+     "faults": [
+      "frr_service_down"
+     ],
+     "row_fingerprint": "2aa7f99d4355215e6571a0d987a53ee0add7e4f5a5b408497460813db586b31e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__frr_service_down__49df845b",
+     "resource_class": "large",
+     "faults": [
+      "frr_service_down"
+     ],
+     "row_fingerprint": "49df845b7f760e9aca4b236444bfd7b9e088b09a4124673d7ff414c547f9d8b1"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__arp_cache_poisoning__a9da43a4",
+     "resource_class": "light",
+     "faults": [
+      "arp_cache_poisoning"
+     ],
+     "row_fingerprint": "a9da43a447a46ab7241885388e16d21f6443a8bb17504e349c22f0a82dcfddb1"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__arp_cache_poisoning__d697d213",
+     "resource_class": "light",
+     "faults": [
+      "arp_cache_poisoning"
+     ],
+     "row_fingerprint": "d697d213c19dcd24cfb231340b8866b8b3d93f964bf43e3bede010698d4626eb"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__arp_cache_poisoning__9930550e",
+     "resource_class": "large",
+     "faults": [
+      "arp_cache_poisoning"
+     ],
+     "row_fingerprint": "9930550eefeebb6f6030ee81c86e9bcd99d138a364f6e8609e0b9b51c5c7dc7a"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_spoofed_dns__9630e588",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_spoofed_dns"
+     ],
+     "row_fingerprint": "9630e588c3f44723edcd6b5233560ffe28a2749d119caa102cf11a69b8f5223e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_spoofed_dns__1df94a5d",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_spoofed_dns"
+     ],
+     "row_fingerprint": "1df94a5dd08958690ae43197033070c07df7206b3165927edcf0b3bb52bc1d7f"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_spoofed_dns__047f9991",
+     "resource_class": "large",
+     "faults": [
+      "dhcp_spoofed_dns"
+     ],
+     "row_fingerprint": "047f9991b1bee3cd89b1900cec44058b0e1259f084abf398d9ed847f30e76e5c"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_spoofed_gateway__bd6298c0",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_spoofed_gateway"
+     ],
+     "row_fingerprint": "bd6298c061dfdd3fa330d37cba195e9351dd9d5e8d330f87e88e80a98e8a97f4"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_spoofed_gateway__af305c04",
+     "resource_class": "light",
+     "faults": [
+      "dhcp_spoofed_gateway"
+     ],
+     "row_fingerprint": "af305c04f26e4779fb1d4a810c4368c08923d55e09e90260f4d62f18498d7c0f"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dhcp_spoofed_gateway__890f1521",
+     "resource_class": "large",
+     "faults": [
+      "dhcp_spoofed_gateway"
+     ],
+     "row_fingerprint": "890f1521f5ac0909357aff62c3085a4df7a7d9d8daf9f4e2ca929e9bd9f5f78b"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__web_dos_attack__4d98d7d4",
+     "resource_class": "light",
+     "faults": [
+      "web_dos_attack"
+     ],
+     "row_fingerprint": "4d98d7d46e5f100bbb4b9dcc590b71865368b5437121f4f11535854c0118df3b"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__web_dos_attack__baec7178",
+     "resource_class": "light",
+     "faults": [
+      "web_dos_attack"
+     ],
+     "row_fingerprint": "baec7178dada344bb8188de20157a59fc068771e0b98982ba340ddb15899900d"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__web_dos_attack__06a09d99",
+     "resource_class": "large",
+     "faults": [
+      "web_dos_attack"
+     ],
+     "row_fingerprint": "06a09d99497a902319cbb652ed1f442e8908cef0246f33b5e3d1c7af61a9fd09"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__incast_traffic_network_limitation__0cd9c06b",
+     "resource_class": "light",
+     "faults": [
+      "incast_traffic_network_limitation"
+     ],
+     "row_fingerprint": "0cd9c06b49e915530e1438af8f5d54c3df242eb599b4e8cedffe342fc74db302"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__incast_traffic_network_limitation__9207265b",
+     "resource_class": "light",
+     "faults": [
+      "incast_traffic_network_limitation"
+     ],
+     "row_fingerprint": "9207265b4ff53f173d06ae085ade552f6c9357c23e8fc9a62ebd8ae92d0629f1"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__incast_traffic_network_limitation__4c6ac69c",
+     "resource_class": "large",
+     "faults": [
+      "incast_traffic_network_limitation"
+     ],
+     "row_fingerprint": "4c6ac69c1bc3f7d398dde9ffebdde3ddee122b94484a09ca1c9a66afff14950b"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_bandwidth_throttling__e9d8dec6",
+     "resource_class": "light",
+     "faults": [
+      "link_bandwidth_throttling"
+     ],
+     "row_fingerprint": "e9d8dec627704eaa979217a77a9faff8e0c855878b9171b8bf9afd98397e7b89"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_bandwidth_throttling__75a96a65",
+     "resource_class": "light",
+     "faults": [
+      "link_bandwidth_throttling"
+     ],
+     "row_fingerprint": "75a96a6563bd76e9c1a4f78573c9531e2faa17c681a9c13ae16ccc7c9cb1e6e7"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_bandwidth_throttling__591ce5e4",
+     "resource_class": "large",
+     "faults": [
+      "link_bandwidth_throttling"
+     ],
+     "row_fingerprint": "591ce5e424808fee07ad39f456eaef5d72f1581702328a9e0110467a37d2b2fb"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_high_packet_corruption__c60179e1",
+     "resource_class": "light",
+     "faults": [
+      "link_high_packet_corruption"
+     ],
+     "row_fingerprint": "c60179e1f04f45e4ad94f9ebb68bdf50f937e3c4f2acf16866cbce0ba73d8b60"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_high_packet_corruption__a3e179c6",
+     "resource_class": "light",
+     "faults": [
+      "link_high_packet_corruption"
+     ],
+     "row_fingerprint": "a3e179c66082aa7092b0baab1d97948a114963e172709f5e116608cb40af0df2"
+    },
+    {
+     "task_id": "dc_clos_bgp__link_high_packet_corruption__4221547f",
+     "resource_class": "large",
+     "faults": [
+      "link_high_packet_corruption"
+     ],
+     "row_fingerprint": "4221547f24af8f896f8c205ef2a8d3ff3a2095dc9466ae1a62f02c60164c1ef3"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_lookup_latency__bd3b9394",
+     "resource_class": "light",
+     "faults": [
+      "dns_lookup_latency"
+     ],
+     "row_fingerprint": "bd3b9394c4e85d37c08786336886665a85f7ff543e29488bf0c0a6dc21462a4b"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_lookup_latency__3be73643",
+     "resource_class": "light",
+     "faults": [
+      "dns_lookup_latency"
+     ],
+     "row_fingerprint": "3be736434dbe6aa0907798f328ab202d8aeb1fbc4d2ba485fc471d9d5b9ff809"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__dns_lookup_latency__3be21521",
+     "resource_class": "large",
+     "faults": [
+      "dns_lookup_latency"
+     ],
+     "row_fingerprint": "3be21521812e221d1b7ec91844ed6d635b94c9d50a696326ddf5c2dd26d6c75d"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__load_balancer_overload__222448aa",
+     "resource_class": "light",
+     "faults": [
+      "load_balancer_overload"
+     ],
+     "row_fingerprint": "222448aa175bb8776173e0484a500bb2f37d79fb9361108cf09e827aaac8534f"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__load_balancer_overload__b389113b",
+     "resource_class": "light",
+     "faults": [
+      "load_balancer_overload"
+     ],
+     "row_fingerprint": "b389113bf6d2d64f5aa37a0ae108c5d2ba0ca057da80bcd35067baadc8f1f732"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__load_balancer_overload__9b19fd6d",
+     "resource_class": "large",
+     "faults": [
+      "load_balancer_overload"
+     ],
+     "row_fingerprint": "9b19fd6db7c3c1207deae5b6b643d2163573983473b5dd99dda311dde5ac4427"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__receiver_resource_contention__704199f2",
+     "resource_class": "light",
+     "faults": [
+      "receiver_resource_contention"
+     ],
+     "row_fingerprint": "704199f2f6c9328017b0204aaae30c0477e2841e4f74f6831ff7914cbfb82392"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__receiver_resource_contention__03646646",
+     "resource_class": "light",
+     "faults": [
+      "receiver_resource_contention"
+     ],
+     "row_fingerprint": "03646646922562aad6f99d6148c4d9c88d03dc6d4208f1884db599a54f359663"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__receiver_resource_contention__e77d0435",
+     "resource_class": "large",
+     "faults": [
+      "receiver_resource_contention"
+     ],
+     "row_fingerprint": "e77d04354393cc7c19604c33942431faad680092764cd9eeb785a94a08c3b9e5"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__sender_application_delay__a274b34d",
+     "resource_class": "light",
+     "faults": [
+      "sender_application_delay"
+     ],
+     "row_fingerprint": "a274b34d801977dde3795965637d99de8643c7a6d78d2b39a5a7803bd86a9d03"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__sender_application_delay__41e2fa90",
+     "resource_class": "light",
+     "faults": [
+      "sender_application_delay"
+     ],
+     "row_fingerprint": "41e2fa908759988c7aa7d08275b0010d88168d45984bceebc55d81665a48a0a5"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__sender_application_delay__e2052da2",
+     "resource_class": "large",
+     "faults": [
+      "sender_application_delay"
+     ],
+     "row_fingerprint": "e2052da2da5e2920754e5abbd0b5d605d659b108ef27c526fac0e4355ecc8ecd"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__sender_resource_contention__8e381212",
+     "resource_class": "light",
+     "faults": [
+      "sender_resource_contention"
+     ],
+     "row_fingerprint": "8e381212fc60bfe1f29ea112c3f5a75f31b38443df9d123ad5e4b0fa9101222e"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__sender_resource_contention__d0b5acbd",
+     "resource_class": "light",
+     "faults": [
+      "sender_resource_contention"
+     ],
+     "row_fingerprint": "d0b5acbd0d3097f0ab7a70a861fbe8f859ea74fde8865c090b11fca6c6321dcc"
+    },
+    {
+     "task_id": "ospf_enterprise_dhcp__sender_resource_contention__08a3fcdc",
+     "resource_class": "large",
+     "faults": [
+      "sender_resource_contention"
+     ],
+     "row_fingerprint": "08a3fcdc5c6238a3359034bc33dee4e1db12f58fa80ac438b558b8f9c04d00da"
+    }
+   ]
+  }
+ }
+}
