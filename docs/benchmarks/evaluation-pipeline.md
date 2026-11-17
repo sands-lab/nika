@@ -95,6 +95,8 @@ Mapping is part of scoring and is performed by NIKA, not by the agent. Unstructu
 > [!IMPORTANT]
 > Unstructured runs cannot be packed for the leaderboard.
 
+Mapping models run on the NIKA host and authenticate with API keys, not with the Claude or ChatGPT subscription login that a sandboxed agent can use. Before you configure them, set each mapping model's provider key in the repository-root `.env`, as listed in [API keys](../operations/agent-sandbox.md#api-keys).
+
 ### One mapping model
 
 Configure `agent.submission.provider`, `model`, and optionally `base_url` to select the mapping model. A custom `base_url` selects its endpoint; if omitted, it defaults to `agent.base_url`.
