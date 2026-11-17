@@ -47,9 +47,9 @@ class TestFrozenRelease010:
         dev = load_release("0.1.0", split="dev")
         test = load_release("0.1.0", split="test")
         assert dev.case_count == 56
-        assert test.case_count == 56
+        assert test.case_count == 150
         assert int(dev.splits["dev"]["case_count"]) == 56
-        assert int(test.splits["test"]["case_count"]) == 56
+        assert int(test.splits["test"]["case_count"]) == 150
         assert "case_digests" not in dev.manifest
         assert dev.benchmark_digest == test.benchmark_digest
         assert dev.n_trials == 3
@@ -58,14 +58,22 @@ class TestFrozenRelease010:
     def test_heldout_isolation(self) -> None:
         dev = resolve_cases("0.1.0", split="dev")
         test = resolve_cases("0.1.0", split="test")
-        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
-        assert {r["problem"] for r in dev} == {r["problem"] for r in test}
-        assert len({r["problem"] for r in test}) == 56
-        # Same problem, different instance.
-        by_dev = {r["problem"]: r for r in dev}
-        for row in test:
-            assert benchmark_row_fingerprint(row) != benchmark_row_fingerprint(
-                by_dev[row["problem"]]
+        exception = load_release("0.1.0").manifest["dev_test_isolation"]
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test, exception=exception)
+        assert len({r["problem"] for r in dev}) == 56
+        assert len({r["problem"] for r in test}) == 54
+        assert len(exception["shared_tasks"]) == 26
+
+    def test_heldout_isolation_rejects_undeclared_overlap(self) -> None:
+        dev = resolve_cases("0.1.0", split="dev")
+        test = resolve_cases("0.1.0", split="test")
+        exception = dict(load_release("0.1.0").manifest["dev_test_isolation"])
+        with pytest.raises(ReleaseError, match="problem sets differ"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        exception["shared_tasks"] = exception["shared_tasks"][1:]
+        with pytest.raises(ReleaseError, match="isolation failed"):
+            verify_dev_test_isolation(
+                dev_cases=dev, test_cases=test, exception=exception
             )
 
     def test_nika_alias_and_short_version(self) -> None:

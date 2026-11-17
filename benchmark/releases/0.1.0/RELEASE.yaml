@@ -1,16 +1,21 @@
 id: nika-bench
 version: 0.1.0
+engine:
+  api:
+    version: 1
 splits:
   dev:
     cases_file: dev.yaml
     case_count: 56
     cases_sha256: c3a217d42d2580722b0fc6e676f7aa8b50572382881d9cfc70eeae5b579c5629
+    sha256: c3a217d42d2580722b0fc6e676f7aa8b50572382881d9cfc70eeae5b579c5629
   test:
     cases_file: test.yaml
-    case_count: 56
-    cases_sha256: 98441c92c560976a3fe216df5aeebce22170fcd223ebe6c5bb44ee84e329acc0
+    case_count: 150
+    cases_sha256: 7cd21807957b974de1e1840dd6582f8104dd78897e4e15a3fe1dd20bdebb02df
+    sha256: 7cd21807957b974de1e1840dd6582f8104dd78897e4e15a3fe1dd20bdebb02df
 default_split_for_release: test
-benchmark_digest: f80d926658b9dfc1a86bc2a58970668b35e7db3771f0d82a3a0bc360759c9bed
+benchmark_digest: 717e6584293283b82258d279bef82871e4d619ebff2c53b97231c0b172d473b0
 defaults:
   case_timeout_sec: 2400
   n_trials: 3
@@ -43,6 +48,43 @@ images:
   - kathara/nika-wireguard
   - kathara/p4
   - kathara/sdn
+evaluation:
+  submission_modes:
+  - structured
+dev_test_isolation:
+  reason: The test split is the 150 incidents of the NIKA paper (arXiv 2512.16381
+    v1, Zenodo record); the dev split predates it and shares these incidents with
+    it.
+  shared_tasks:
+  - dc_clos_bgp__bgp_asn_misconfig__a9b85f70
+  - dc_clos_bgp__bgp_blackhole_route_leak__bcbab6dc
+  - dc_clos_bgp__host_crash__45fc915a
+  - dc_clos_bgp__link_flap__e7bb9ecc
+  - dc_clos_bgp__link_fragmentation_disabled__858db54a
+  - dc_clos_bgp__link_high_packet_corruption__c60179e1
+  - dc_clos_service__bgp_hijacking__143029ea
+  - ospf_enterprise_dhcp__dhcp_missing_subnet__b97612b6
+  - ospf_enterprise_dhcp__dhcp_service_down__b9be0ea1
+  - ospf_enterprise_dhcp__dhcp_spoofed_dns__9630e588
+  - ospf_enterprise_dhcp__dns_lookup_latency__bd3b9394
+  - ospf_enterprise_dhcp__dns_port_blocked__5c1f8a56
+  - ospf_enterprise_dhcp__dns_service_down__5b3ed05b
+  - ospf_enterprise_dhcp__frr_service_down__b9dd6fce
+  - ospf_enterprise_dhcp__host_incorrect_dns__4dd10aa1
+  - ospf_enterprise_dhcp__http_acl_block__c08d56e1
+  - ospf_enterprise_dhcp__load_balancer_overload__222448aa
+  - ospf_enterprise_dhcp__receiver_resource_contention__704199f2
+  - p4_bloom_filter__bmv2_switch_down__ba03bb5f
+  - p4_bloom_filter__p4_compilation_error_parser_state__c1894e0e
+  - p4_bloom_filter__p4_header_definition_error__e3525e1d
+  - p4_bloom_filter__p4_table_entry_misconfig__168009cf
+  - p4_bloom_filter__p4_table_entry_missing__8dd22c3a
+  - sdn_clos__sdn_controller_crash__e2954a9a
+  - sdn_clos__southbound_port_block__02c651b7
+  - sdn_clos__southbound_port_mismatch__80f470a9
+  dev_only_failures:
+  - dhcp_spoofed_subnet
+  - p4_aggressive_detection_thresholds
 scenario_problem_pin:
   scenarios:
     dc_clos_bgp:
@@ -60,9 +102,6 @@ scenario_problem_pin:
     p4_bloom_filter:
       path: src/nika/net_env/kathara/p4/p4_bloom_filter/lab.py
       sha256: 81e5fad959169f639424bafacd603cff4e7f89eb4d28e905765be6f38be7a83d
-    p4_counter:
-      path: src/nika/net_env/kathara/p4/p4_counter/lab.py
-      sha256: d97d8431d69888fe77395236dd24c12f5892e1bc29ea621f6bfa0531d778170e
     p4_mpls:
       path: src/nika/net_env/kathara/p4/p4_mpls/lab.py
       sha256: 14a372c0e5210c877fd1bcba3262a5f5db5d781f9fbc77593b914f0f43247d70
@@ -72,9 +111,6 @@ scenario_problem_pin:
     sdn_clos:
       path: src/nika/net_env/kathara/sdn/clos_topo.py
       sha256: ea806e49716c50873fcc239d53829078d03623a276bbc6324b23c2fa07203d8b
-    sdn_star:
-      path: src/nika/net_env/kathara/sdn/star_topo.py
-      sha256: 1013386edcda6fed784d7610892c57d113f042d315b95ba15a311943de096a02
   problems:
     arp_acl_block:
       path: src/nika/problems/misconfigurations/acl_error.py
