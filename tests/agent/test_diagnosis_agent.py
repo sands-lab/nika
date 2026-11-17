@@ -12,7 +12,7 @@ from agent.base import DiagnosisAgent, max_steps_report
 from agent.runtime.__main__ import main as run_phase
 from agent.utils.loggers import MessageLogger
 from nika.agents.registry import run_pipeline
-from nika.evaluator.report_mapper import ReportMapper
+from nika.evaluator.report_mapper import MapperModel, ReportMapper
 
 pytestmark = pytest.mark.unit
 
@@ -92,7 +92,7 @@ def test_report_mapper_replaces_agent_submit(tmp_path: Path, monkeypatch) -> Non
         lambda sid, report: {"resources": []},
     )
     agent = _Agent(tmp_path, "pc1 eth0 down")
-    mapper = _Mapper(llm=None, provider="custom", model="m")
+    mapper = _Mapper(models=[MapperModel(llm=None, provider="custom", model="m")])
     asyncio.run(run_pipeline(agent, "task", report_mapper=mapper))
     assert not agent.submitted
     rows = [

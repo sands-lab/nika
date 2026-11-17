@@ -2,7 +2,8 @@
 
 Agents write their own events in the sandbox; the host appends the events of
 the steps it runs: budget stops, and the unstructured submission (model calls,
-``submission_sample``, ``submission_vote``, and the ``submit`` tool call).
+``submission_sample``, ``submission_vote``, ``submission_agreement``, and the
+``submit`` tool call).
 Rows use the trace format of the runtime contract
 (``{timestamp, phase, event, **payload}``), so inspect and the trace parser
 read host and agent rows alike.

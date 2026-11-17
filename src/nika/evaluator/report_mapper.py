@@ -4,14 +4,23 @@
 
 * ``structured`` (default): the agent's own model, in the agent's sandbox
   (agent package, not this module).
-* ``unstructured``: a :class:`ReportMapper` with its own configured model, for
-  every agent type. This step is part of scoring, so its prompt, context
-  formatting, model client, and traces live here. Each of ``samples`` independent model calls returns a JSON
-  answer, checked against the frozen catalogs (one corrective retry per
-  sample). NIKA submits the majority answer once through the task MCP
-  ``submit`` tool, which validates and records it as usual. Each attempt is
-  traced as ``submission_sample`` (raw text, parsed answer or error) and the
-  vote as ``submission_vote`` (per-sample answers, counts, chosen answer).
+* ``unstructured``: a :class:`ReportMapper` with one or more configured
+  models, for every agent type. This step is part of scoring, so its prompt,
+  context formatting, model client, and traces live here.
+
+Each model makes ``samples`` independent calls that return a JSON answer,
+checked against the frozen catalogs (one corrective retry per sample), and
+settles on its majority answer (:func:`vote`). With several models, each
+model's answer is one vote; the answer with the most models wins, ties go to
+the highest-weight supporter and then to configuration order, and the winner
+needs ``min_agreement`` models (:func:`agree`). NIKA submits the chosen answer
+once through the task MCP ``submit`` tool, which validates and records it as
+usual.
+
+Each attempt is traced as ``submission_sample`` (raw text, parsed answer or
+error), each model's vote as ``submission_vote`` (per-sample answers, counts,
+chosen answer), and with several models the vote across them as
+``submission_agreement``.
 
 Neither mode reaches the network: submission sees only the frozen report, the
 fault ontology, and the resource catalog.
@@ -131,6 +140,65 @@ def vote(answers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def agree(
+    model_answers: list[dict[str, Any] | None],
+    weights: list[float],
+    *,
+    min_agreement: int = 1,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Vote across models: ``(chosen answer or None, tally)``.
+
+    Each model's answer is one vote; ``None`` abstains. The tally lists each
+    distinct answer with its ``count`` and 1-based ``models``, winner first:
+    most models, then the highest supporter weight, then the earliest
+    supporter. The winner needs at least *min_agreement* models.
+    """
+    supporters: dict[str, list[int]] = {}
+    for index, answer in enumerate(model_answers):
+        if answer is not None:
+            key = json.dumps(answer, sort_keys=True)
+            supporters.setdefault(key, []).append(index)
+    ranked = sorted(
+        supporters.items(),
+        key=lambda item: (
+            -len(item[1]),
+            -max(weights[i] for i in item[1]),
+            item[1][0],
+        ),
+    )
+    tally = [
+        {
+            "answer": json.loads(key),
+            "count": len(models),
+            "models": [i + 1 for i in models],
+        }
+        for key, models in ranked
+    ]
+    if not tally or tally[0]["count"] < min_agreement:
+        return None, tally
+    return tally[0]["answer"], tally
+
+
+@dataclass
+class MapperModel:
+    """One mapping model and its sampling settings."""
+
+    llm: Runnable
+    provider: str
+    model: str
+    samples: int = 1
+    temperature: float | None = None
+    weight: float = 1.0
+
+    def trace_fields(self) -> dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "samples": self.samples,
+            "temperature": self.temperature,
+        }
+
+
 @dataclass
 class ReportMapper:
     """Unstructured submission: map the frozen report with a configured model.
@@ -141,11 +209,8 @@ class ReportMapper:
     whole submission phase; :meth:`submit` maps and records the answer.
     """
 
-    llm: Runnable
-    provider: str
-    model: str
-    samples: int = 1
-    temperature: float | None = None
+    models: list[MapperModel]
+    min_agreement: int = 1
 
     @classmethod
     def from_settings(
@@ -156,28 +221,35 @@ class ReportMapper:
             return None
         from nika.evaluator.model_client import load_model
 
-        provider = str(settings.provider)
-        model = str(settings.model)
-        llm: Runnable = load_model(
-            provider, model, max_tokens=max_tokens, base_url=settings.base_url
-        )
-        if settings.temperature is not None:
-            llm = llm.bind(temperature=settings.temperature)
-        return cls(
-            llm=llm,
-            provider=provider,
-            model=model,
-            samples=settings.samples,
-            temperature=settings.temperature,
-        )
+        models = []
+        for mapper in settings.mapper_settings():
+            llm: Runnable = load_model(
+                mapper.provider,
+                mapper.model,
+                max_tokens=max_tokens,
+                base_url=mapper.base_url,
+            )
+            if mapper.temperature is not None:
+                llm = llm.bind(temperature=mapper.temperature)
+            models.append(
+                MapperModel(
+                    llm=llm,
+                    provider=mapper.provider,
+                    model=mapper.model,
+                    samples=mapper.samples,
+                    temperature=mapper.temperature,
+                    weight=mapper.weight,
+                )
+            )
+        return cls(models=models, min_agreement=settings.min_agreement)
 
     def trace_fields(self) -> dict[str, Any]:
+        if len(self.models) == 1:
+            return {"submission_mode": "unstructured", **self.models[0].trace_fields()}
         return {
             "submission_mode": "unstructured",
-            "provider": self.provider,
-            "model": self.model,
-            "samples": self.samples,
-            "temperature": self.temperature,
+            "mappers": [{**m.trace_fields(), "weight": m.weight} for m in self.models],
+            "min_agreement": self.min_agreement,
         }
 
     async def run(
@@ -239,37 +311,80 @@ class ReportMapper:
             for item in context["fault_ontology"]
         }
         logger = TraceLogger(SUBMISSION, trace_dir, echo=stream_output)
-        per_sample = [
-            await self._sample(
-                diagnosis_report,
-                context,
-                sample=index,
-                catalog_ids=catalog_ids,
-                fault_types=fault_types,
-                logger=logger,
+        several = len(self.models) > 1
+        model_answers = []
+        for index, mapper in enumerate(self.models, start=1):
+            # With several models, rows name the model they belong to.
+            label = (
+                {"mapper": index, "provider": mapper.provider, "model": mapper.model}
+                if several
+                else {}
             )
-            for index in range(1, self.samples + 1)
-        ]
-        answers = [answer for answer in per_sample if answer is not None]
-        votes = vote(answers)
-        chosen = votes[0]["answer"] if votes else None
-        logger.log(
-            "submission_vote",
-            {
-                "answers": per_sample,
-                "votes": votes,
-                "chosen": chosen,
-                "message": f"{len(answers)}/{self.samples} valid sample(s)",
-            },
-        )
-        if chosen is None:
-            return f"{ERROR_PREFIX} no valid answer in {self.samples} sample(s)"
+            prefix = f"{mapper.model}: " if several else ""
+            per_sample = [
+                await self._sample(
+                    mapper,
+                    diagnosis_report,
+                    context,
+                    sample=sample,
+                    catalog_ids=catalog_ids,
+                    fault_types=fault_types,
+                    logger=logger,
+                    label=label,
+                    prefix=prefix,
+                )
+                for sample in range(1, mapper.samples + 1)
+            ]
+            answers = [answer for answer in per_sample if answer is not None]
+            votes = vote(answers)
+            model_answers.append(votes[0]["answer"] if votes else None)
+            logger.log(
+                "submission_vote",
+                {
+                    **label,
+                    "answers": per_sample,
+                    "votes": votes,
+                    "chosen": model_answers[-1],
+                    "message": f"{prefix}{len(answers)}/{mapper.samples} "
+                    "valid sample(s)",
+                },
+            )
+        if not several:
+            chosen = model_answers[0]
+            if chosen is None:
+                samples = self.models[0].samples
+                return f"{ERROR_PREFIX} no valid answer in {samples} sample(s)"
+        else:
+            chosen, tally = agree(
+                model_answers,
+                [m.weight for m in self.models],
+                min_agreement=self.min_agreement,
+            )
+            agreeing = tally[0]["count"] if tally else 0
+            logger.log(
+                "submission_agreement",
+                {
+                    "answers": model_answers,
+                    "votes": tally,
+                    "min_agreement": self.min_agreement,
+                    "chosen": chosen,
+                    "message": f"{agreeing}/{len(self.models)} model(s) agree "
+                    f"(min_agreement {self.min_agreement})",
+                },
+            )
+            if chosen is None:
+                return (
+                    f"{ERROR_PREFIX} no answer reached min_agreement "
+                    f"{self.min_agreement}: at most {agreeing} of "
+                    f"{len(self.models)} model(s) agree"
+                )
         return await _record(
             chosen, session_id=session_id, scenario_name=scenario_name, logger=logger
         )
 
     async def _sample(
         self,
+        mapper: MapperModel,
         diagnosis_report: str,
         context: dict[str, Any],
         *,
@@ -277,6 +392,8 @@ class ReportMapper:
         catalog_ids: set[str],
         fault_types: set[str],
         logger: TraceLogger,
+        label: dict[str, Any],
+        prefix: str,
     ) -> dict[str, Any] | None:
         """One mapping of the report; each attempt is logged as ``submission_sample``."""
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -289,7 +406,7 @@ class ReportMapper:
         for attempt in range(1, _ATTEMPTS_PER_SAMPLE + 1):
             reply, text, answer = None, None, None
             try:
-                reply = await self.llm.ainvoke(
+                reply = await mapper.llm.ainvoke(
                     messages, config={"callbacks": callbacks}
                 )
             except Exception as exc:  # noqa: BLE001 - other samples can still vote
@@ -302,12 +419,13 @@ class ReportMapper:
             logger.log(
                 "submission_sample",
                 {
+                    **label,
                     "sample": sample,
                     "attempt": attempt,
                     "text": text,
                     "answer": answer,
                     "error": error or None,
-                    "message": f"sample {sample} attempt {attempt}: "
+                    "message": f"{prefix}sample {sample} attempt {attempt}: "
                     + ("valid" if answer is not None else f"invalid ({error})"),
                 },
             )
