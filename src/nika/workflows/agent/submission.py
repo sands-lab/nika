@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.protocols import DIAGNOSIS
-from agent.utils.loggers import MESSAGES_FILENAME
+from agent.runtime.contract import MESSAGES_FILENAME
 from nika.problems.compat import PUBLISHED_RELEASES
 from nika.problems.compat.routing import published_fault_ontology
 from nika.problems.compat.v010 import (

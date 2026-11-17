@@ -17,11 +17,11 @@ from typing import BinaryIO
 
 from agent.protocols import DIAGNOSIS, PHASES
 from agent.runtime.contract import (
+    MESSAGES_FILENAME,
     RUNTIME_ENV_FILENAME,
     SESSION_TOKEN_HEADER,
     TASK_FILENAME,
 )
-from agent.utils.loggers import MESSAGES_FILENAME
 from agent.utils.skills import (
     DEFAULT_SKILLS_ROOT,
     SKILLS_DIRNAME,

@@ -13,8 +13,8 @@ from datetime import datetime
 from pathlib import Path
 
 from agent.protocols import DIAGNOSIS
-from agent.utils.usage import normalize_usage
 from nika.agents.sandbox.model_calls import MODEL_CALLS_FILENAME, model_call_metrics
+from nika.evaluator.usage import normalize_usage
 from nika.mcp.gateway.tool_log import TOOL_CALLS_FILENAME
 
 

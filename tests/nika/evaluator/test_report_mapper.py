@@ -1,11 +1,11 @@
-"""NIKA-owned submission: answer parsing, majority vote, and mode settings."""
+"""Unstructured submission: answer parsing, majority vote, traces, and mode settings."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
 
-from nika.agents.submission import parse_answer, vote
+from nika.evaluator.report_mapper import parse_answer, vote
 from nika.run_config.schema import AgentSubmissionSettings
 
 pytestmark = pytest.mark.unit
@@ -82,7 +82,7 @@ def test_report_mapper_traces_samples_and_vote(tmp_path, monkeypatch) -> None:
 
     from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
-    from nika.agents.submission import ReportMapper
+    from nika.evaluator.report_mapper import ReportMapper
 
     link = json.dumps(_LINK_DOWN)
     replies = ["no idea", link, '{"is_anomaly": false, "root_causes": []}', link]
@@ -92,7 +92,7 @@ def test_report_mapper_traces_samples_and_vote(tmp_path, monkeypatch) -> None:
         recorded.append(answer)
         return "Submitted"
 
-    monkeypatch.setattr("nika.agents.submission._record", record)
+    monkeypatch.setattr("nika.evaluator.report_mapper._record", record)
     mapper = ReportMapper(
         llm=FakeListChatModel(responses=replies),
         provider="custom",
@@ -136,3 +136,18 @@ def test_parse_answer_takes_last_answer_object_after_reasoning() -> None:
         '[{"resource_id": "link/a--b", "fault_type": "link_down"}]} done {x}'
     )
     assert parse_answer(text, **_CATALOG) == (_LINK_DOWN, "")
+
+
+def test_mapper_model_client_targets_custom_endpoint(monkeypatch) -> None:
+    from nika.evaluator.model_client import load_model
+
+    monkeypatch.setenv("NIKA_CUSTOM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.delenv("NIKA_CUSTOM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    llm = load_model("custom", "qwen", max_tokens=512)
+    assert llm.model_name == "qwen"
+    assert llm.openai_api_base == "http://vllm:8000/v1"
+    # max_tokens stays max_tokens: not every OpenAI-compatible server accepts
+    # max_completion_tokens.
+    assert llm.extra_body == {"max_tokens": 512} and llm.max_tokens is None
+    assert llm.streaming and llm.stream_usage

@@ -3,8 +3,7 @@ import json
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-# from agent.llm.langchain_deepseek import DeepSeekLLM
-from agent.llm.model_factory import load_model
+from nika.evaluator.model_client import load_model
 
 load_dotenv()
 
@@ -79,7 +78,7 @@ class LLMJudge:
     def __init__(
         self, judge_llm_provider: str = "openai", judge_model: str = "gpt-5-mini"
     ):
-        self.llm = load_model(llm_provider=judge_llm_provider, model=judge_model)
+        self.llm = load_model(judge_llm_provider, judge_model)
         self.llm = self.llm.with_structured_output(JudgeResponse)
         self.prompt = LLM_JUDGE_PROMPT_TEMPLATE
 

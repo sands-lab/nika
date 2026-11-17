@@ -12,7 +12,7 @@ The **frontend** is the NIKA CLI and its agent orchestration code. The **benchma
 | Frontend | Select tasks, schedule trials, launch agent sandboxes, enforce agent budgets, record provenance, evaluate validity, write trial metrics, and package results |
 | Benchmark engine | Read the release's task files and compute task IDs, deploy and close environments, inject and check failures, provide task descriptions and MCP gateways, validate submissions, and compute scores |
 
-The frontend also maps unstructured diagnosis reports through [`ReportMapper`](../../src/nika/agents/submission.py). The engine's task tool validates and records the resulting answer. Moving the mapper into the release's engine remains follow-up work under [#291](https://github.com/sands-lab/nika/issues/291) and [#292](https://github.com/sands-lab/nika/issues/292).
+The frontend also maps unstructured diagnosis reports through [`ReportMapper`](../../src/nika/evaluator/report_mapper.py), which owns the mapping prompt, the model client, and the submission traces. The engine's task tool validates and records the resulting answer. Moving the mapper into the release's engine remains follow-up work under [#292](https://github.com/sands-lab/nika/issues/292).
 
 A manifest with an `engine` block selects a separate engine container. A manifest without one uses the current NIKA's engine in process. Ad-hoc task matrices also use the in-process engine. An emulation backend, such as Kathará or Containerlab, runs the engine's environments; it is distinct from the benchmark engine.
 

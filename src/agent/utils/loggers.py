@@ -44,11 +44,10 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, ToolMessage
 from langchain_core.outputs.generation import Generation
 
+from agent.runtime.contract import MESSAGES_FILENAME
 from agent.utils.display import display_agent_event
 from agent.utils.reasoning_capture import reasoning_fields_for_log
 from agent.utils.usage import normalize_usage
-
-MESSAGES_FILENAME = "messages.jsonl"
 
 # Active LangChain chat-model call so HTTP-level retries can emit ``llm_retry``
 # markers into the same messages.jsonl span (inspect splits them for display).

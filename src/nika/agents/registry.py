@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from nika.agents.submission import ReportMapper
+    from nika.evaluator.report_mapper import ReportMapper
 
 ALL_PROVIDERS = frozenset({"openai", "anthropic", "deepseek", "custom"})
 
@@ -227,7 +227,6 @@ async def run_pipeline(
     agent: Any, task_description: str, *, report_mapper: ReportMapper | None = None
 ) -> None:
     """Diagnosis, freeze and phase advance, then submission, for a host-run agent."""
-    from agent.base import run_submission_phase
     from nika.agents.mcp_config import begin_submission_mcp_phase
 
     from nika.workflows.schedule import continuation_prompt, scheduler_for
@@ -253,17 +252,13 @@ async def run_pipeline(
     if report_mapper is None:
         await agent.run_submission(report, context)
         return
-    await run_submission_phase(
-        lambda: report_mapper.submit(
-            report,
-            context,
-            session_id=agent.session_id,
-            scenario_name=agent.scenario_name,
-            trace_dir=agent.trace_dir,
-        ),
+    await report_mapper.run(
+        report,
+        context,
+        session_id=agent.session_id,
+        scenario_name=agent.scenario_name,
         trace_dir=agent.trace_dir,
         stream_output=agent.stream_output,
-        **report_mapper.trace_fields(),
     )
 
 
