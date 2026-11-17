@@ -249,7 +249,10 @@ The package metrics differ from the aggregate NIKA recomputes from the per-trial
 
 ### `ERROR_GRADING_ERROR`
 
-Some trials have `score_status=grading_error`. Repair the grading inputs and [regrade the saved submissions](root-cause-evaluation.md#run-offline-eval), then pack again. Keep the recorded agent answers:
+Some trials have `score_status=grading_error`. Repair the grading inputs and [regrade the saved submissions](root-cause-evaluation.md#run-offline-eval), then pack again. Keep the recorded agent answers.
+
+> [!WARNING]
+> This command regrades every closed trial under the directory with the installed NIKA's scoring code and overwrites their metrics, including trials that were graded correctly. A release that runs on a pinned benchmark engine is scored by that engine's code, which can differ from the installed NIKA's, and NIKA has no command that regrades with the engine's code. Run it on such a release only if the installed NIKA scores the same way as the release's engine.
 
 ```shell
 uv run nika eval metrics --result_dir results/my-run
