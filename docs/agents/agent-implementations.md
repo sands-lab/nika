@@ -1,27 +1,56 @@
 # Choose and run an agent
 
-NIKA runs troubleshooting agents against network incidents and scores their diagnoses. A **harness** connects a model to the investigation loop and tools. Start with LangGraph (`byo.langgraph`); changing its provider or model does not require a new harness.
+NIKA evaluates an **agent**: a model plus the **harness** that drives it. The harness is the investigation loop, prompts, and tool access around the model. This page shows how to run your first agent on a task and inspect the result. Then it covers the other harnesses and self-hosted models.
 
-## Run your first incident
+## Run your first agent
 
-Complete [Installation](../operations/installation.md), [set up a sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime), and add your provider key to the repository's `.env`. Every agent runs in its own sandbox, isolated from NIKA:
+Complete [installation](../operations/installation.md) and [set up a sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime). Every agent runs in its own sandbox, isolated from NIKA. Add your provider key to the repository's `.env`:
 
 ```dotenv
 OPENAI_API_KEY=<your-api-key>
 ```
+
+Run LangGraph (`byo.langgraph`) on one task:
 
 ```shell
 uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
   --problem dc_clos_s_link_down
 ```
 
-NIKA creates the lab, injects the failure, runs the agent, evaluates its answer, and closes the lab. Keep the printed session ID.
+NIKA deploys the network environment, injects the failure, runs the agent, scores its answer, and closes the environment.
 
-> **Interactive setup:** run `uv run nika` to [choose a task and agent](../operations/tui.md).
+> [!TIP]
+> Run `uv run nika` to choose a task and agent in the [interactive shell](../operations/tui.md).
 
-## Available harnesses
+## Inspect the result
 
-Each harness name links to its example configuration. Docker Sandboxes runs the sandboxes as microVMs on the NIKA host and needs KVM, while E2B runs them on E2B cloud or an E2B-compatible service (like AgentENV).
+Open the results in the web UI:
+
+```shell
+uv run nika inspect
+```
+
+![NIKA Inspect showing an agent's tool calls and router output](../../assets/images/nika-inspect-timeline.png)
+
+*A Claude Code investigation, with a selected tool call and its router output.*
+
+Open your session to follow the investigation in **Timeline**, inspect tool inputs and outputs, and compare the answer with the ground truth in **Scores**. See [Inspect](../operations/session-inspect.md) for the dashboard, and [root-cause scoring](../benchmarks/root-cause-evaluation.md) for how answers are scored.
+
+To print the metrics in the terminal, pass the session ID that `nika inspect` shows:
+
+```shell
+uv run nika eval metrics --session_id <session_id>
+```
+
+---
+
+The sections below cover the other harnesses and models. For provider support and every option, see the [agent reference](agent-reference.md). To bring your own harness, see [custom agents](custom-agents.md).
+
+## Choose a harness
+
+Pick the harness that matches the framework or CLI you already use. Each name links to its example configuration. Changing the provider or model does not require a new harness.
+
+A Claude or ChatGPT subscription needs a [subscription login](../operations/agent-sandbox.md#subscriptions) on the NIKA host first, because NIKA does not reuse your local CLI login.
 
 ### Agent frameworks
 
@@ -31,12 +60,10 @@ Each harness name links to its example configuration. Docker Sandboxes runs the 
 
 ### Coding agent CLIs and SDKs
 
-For a Claude or ChatGPT subscription, complete the [subscription login](../operations/agent-sandbox.md#subscriptions) for your runtime first; NIKA does not import your local CLI login:
-
 - [Codex CLI](../../config/cli.codex.example.yaml) (`cli.codex`)
 - [Claude Code](../../config/cli.claude.example.yaml) (`cli.claude`)
-- [OpenCode](../../config/cli.opencode.example.yaml) (`cli.opencode`; [Node.js 22+](../operations/agent-sandbox.md#set-up-the-runtime) on the NIKA host)
-- [DeepSeek Harness](../../config/cli.dsh.example.yaml) (`cli.dsh`; [Node.js 22+](../operations/agent-sandbox.md#set-up-the-runtime) on the NIKA host)
+- [OpenCode](../../config/cli.opencode.example.yaml) (`cli.opencode`; needs [Node.js 22+](../operations/agent-sandbox.md#set-up-the-runtime) on the NIKA host)
+- [DeepSeek Harness](../../config/cli.dsh.example.yaml) (`cli.dsh`; needs [Node.js 22+](../operations/agent-sandbox.md#set-up-the-runtime) on the NIKA host)
 - [Codex SDK](../../config/sdk.codex_sdk.example.yaml) (`sdk.codex_sdk`)
 - [Claude Agent SDK](../../config/sdk.claude_sdk.example.yaml) (`sdk.claude_sdk`)
 
@@ -50,14 +77,11 @@ uv run nika agent run -a cli.codex -p openai -m gpt-5-mini \
 ### Community and testing
 
 - [SADE](community/sade.md) combines a structured troubleshooting workflow with a skill library. Read the [SADE paper](https://arxiv.org/abs/2605.04530).
-- `mock` checks the pipeline without an LLM.
-- `oracle` runs the reference diagnosis of each task; see [Oracle solver](../benchmarks/oracle-solver.md).
-
-See the [agent reference](agent-reference.md) for provider support and options, or [custom agents](custom-agents.md) to add your own investigation loop.
+- `oracle` runs the reference diagnosis of each task. See [Oracle solver](../benchmarks/oracle-solver.md).
 
 ## Use a self-hosted model
 
-Use `byo.langgraph` with `-p custom` and an OpenAI-compatible endpoint. The model must support tool calling.
+To evaluate a model served on your own machine or network, run LangGraph with `-p custom` and an OpenAI-compatible endpoint. The model must support tool calling.
 
 ### Ollama
 
@@ -65,13 +89,13 @@ Install [Ollama](https://docs.ollama.com/), start `ollama serve`, then run in an
 
 ```shell
 ollama pull qwen2.5:7b
-uv run nika agent run -a byo.langgraph -p custom -m qwen2.5:7b -n 20 \
+uv run nika agent run -a byo.langgraph -p custom -m qwen2.5:7b \
   --base-url http://localhost:11434/v1 --problem dc_clos_s_link_down
 ```
 
 ### vLLM
 
-Install [vLLM](https://docs.vllm.ai/en/stable/) and start a tool-enabled server:
+Install [vLLM](https://docs.vllm.ai/en/stable/) and start a server with tool calling enabled:
 
 ```shell
 vllm serve Qwen/Qwen2.5-7B-Instruct \
@@ -83,36 +107,25 @@ In another terminal:
 
 ```shell
 uv run nika agent run -a byo.langgraph -p custom \
-  -m Qwen/Qwen2.5-7B-Instruct -n 20 \
+  -m Qwen/Qwen2.5-7B-Instruct \
   --base-url http://localhost:8000/v1 --problem dc_clos_s_link_down
 ```
 
-Other models may need different [vLLM tool-calling settings](https://docs.vllm.ai/en/stable/features/tool_calling/). For authenticated endpoints, set `NIKA_CUSTOM_API_KEY` in `.env`; local unauthenticated endpoints need no key.
+Other models may need different [vLLM tool-calling settings](https://docs.vllm.ai/en/stable/features/tool_calling/). For an authenticated endpoint, set `NIKA_CUSTOM_API_KEY` in `.env`. A local endpoint without authentication needs no key.
 
-To save these flags, use `agent.type`, `agent.provider`, `agent.model`, `agent.max_steps`, and `agent.base_url` in [`config/nika.yaml`](../operations/configuration.md).
+The sandbox sends model requests through NIKA's host, so the endpoint must be reachable from the host. An endpoint on the host's `localhost` works. Claude-family agents also need an Anthropic-compatible API; see [endpoint compatibility](agent-reference.md#custom-endpoint-compatibility).
 
-For sandboxed agents, NIKA forwards model requests to the endpoint from the NIKA host, so the endpoint must be reachable from the host; an endpoint on the host's `localhost` works. Claude-family agents also require an Anthropic-compatible API. See [endpoint compatibility](agent-reference.md#custom-endpoint-compatibility) before adapting these examples.
+To save these settings, set `agent.type`, `agent.provider`, `agent.model`, and `agent.base_url` in [`config/nika.yaml`](../operations/configuration.md).
 
-## Inspect results
+## Run an agent on an existing environment
 
-```shell
-uv run nika inspect
-```
-
-![NIKA Inspect showing an agent's tool calls and router output](../../assets/images/nika-inspect-timeline.png)
-
-*A Claude Code investigation, with a selected tool call and its router output.*
-
-Open your session to follow the investigation in **Timeline**, inspect tool inputs and outputs, and compare the answer with ground truth in **Scores**. See [Inspect](../operations/session-inspect.md) for dashboard details and [root-cause scoring](../benchmarks/root-cause-evaluation.md) for how answers are evaluated.
-
-For metrics in the terminal:
+To run an agent on an environment that you deploy and inject yourself, pass the session ID to `nika agent run` with `--session_id`:
 
 ```shell
-uv run nika eval metrics --session_id <session_id>
-```
-
-Runs with `--problem` manage lab cleanup. If you instead use an existing lab, close the session you created when finished:
-
-```shell
+uv run nika env run dc_clos -s s
+uv run nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
+uv run nika agent run -a cli.codex -p openai -m gpt-5-mini --session_id <session_id>
 uv run nika session close --session_id <session_id> -y
 ```
+
+Close the session when you are done so its environment is removed.

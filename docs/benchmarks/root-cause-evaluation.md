@@ -1,28 +1,124 @@
-# Root-cause ground truth and scoring
+# Ground truth and scoring
 
-This reference is for maintainers who define failures, integrate troubleshooting agents, or evaluate submissions. It specifies the resource catalog, ground-truth format, submission contract, scoring, and benchmark label materialization.
+Every trial is scored against its ground truth: the failures NIKA injected. This page explains what an agent submits, how NIKA scores a submission, what each trial status means, and how the scores add up. To see where scoring fits in a run, read [how NIKA evaluates an agent](evaluation-pipeline.md) first.
 
-Implementation: [`rca/models.py`](../../src/nika/problems/rca/models.py) defines the data model; [`rca/inventory.py`](../../src/nika/problems/rca/inventory.py) builds the resource catalog; [`base.py`](../../src/nika/problems/base.py) derives ground truth; [`ownership.py`](../../src/nika/problems/ownership.py) defines submission owner-kind policy; [`task_server.py`](../../src/nika/mcp/servers/common/task_server.py) validates submissions; [`scoring.py`](../../src/nika/evaluator/scoring.py) computes metrics; [`migrate.py`](../../src/nika/workflows/benchmark/migrate.py) materializes labels in benchmark YAML.
+Each injected failure is one root cause, written as a pair: the resource the failure changed (`resource_id`) and the failure's ID (`fault_type`), such as `link_down`.
 
-## Root-cause contract
+## Submit a diagnosis
 
-NIKA represents each independent injected fault as one `(resource_id, fault_type)` pair.
+An agent submits two fields:
 
-- `resource_id` identifies the mutated resource in the lab catalog.
-- `fault_type` is a registered failure ID such as `link_down` or `bgp_asn_misconfig`. The task MCP server returns the accepted values from `list_avail_problems()`.
+- `is_anomaly`: `true` when the agent reports a failure, and `false` for a healthy task.
+- `root_causes`: the list of `(resource_id, fault_type)` pairs it identifies.
 
-The resource catalog uses these canonical IDs:
+```json
+{
+  "is_anomaly": true,
+  "root_causes": [
+    {
+      "resource_id": "link/pc1:eth0--router1:eth0",
+      "fault_type": "link_down"
+    }
+  ]
+}
+```
+
+The submission phase gives the agent the lists it must choose from: the fault types, with a description of each, and the resources in the environment. Use the IDs exactly as they appear there. Resource IDs follow these formats:
 
 | Resource kind | ID format | Example |
 | --- | --- | --- |
 | Node | `node/{name}` | `node/pc1` |
 | Interface | `interface/{node}/{interface}` | `interface/pc1/eth0` |
-| Link | `link/{sorted node:intf joined by --}` | `link/pc1:eth0--router1:eth0` |
+| Link | `link/{endpoints joined by --}` | `link/pc1:eth0--router1:eth0` |
 | Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/NetworkPolicy/word-ns/default-deny-ingress` |
 
-Owner kind follows the mutated catalog object. Controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`) use the undirected link TP set. Interface removals, egress hooks, and queueing faults stay on `interface/...`.
+The submit tool rejects an unknown `resource_id` or `fault_type`, and a duplicate pair, and it saves nothing for a rejected submission. After the consecutive-rejection limit (`agent.submit_reject_limit`, 5 by default), the agent can no longer submit. A trial without a valid submission ends as `no_submission` or another status described below.
 
-Benchmark YAML stores the parsed resource fields (`kind` / `node` / `name`, or the k8s fields) plus `fault_type`. NIKA derives `resource_id` from those fields when it scores, injects, or accepts a submit. Agent submissions may send either `resource_id` or the same resource fields; `submit` always writes the constructed `resource_id`.
+## Score a submission
+
+NIKA computes these metrics for each trial and writes them to `eval_metrics.json`.
+
+| Metric group | Compared set | Fields |
+| --- | --- | --- |
+| Detection | `is_anomaly` | `detection_score`: `1.0` if correct, `0.0` if not |
+| Joint RCA | `(resource_id, fault_type)` pairs | `rca_precision`, `rca_recall`, `rca_f1` |
+| Localization | `resource_id` | `localization_precision`, `localization_recall`, `localization_f1` |
+| Fault type | `fault_type` | `fault_type_precision`, `fault_type_recall`, `fault_type_f1` |
+
+`rca_accuracy` and `localization_accuracy` repeat the recall values for older tools.
+
+### How pairs match
+
+- A fault type matches only when it is identical.
+- A predicted resource matches a ground-truth resource when it is the same resource or a more specific part of it:
+
+| Ground-truth resource | Also matched by |
+| --- | --- |
+| `node/{node}` | Any `interface/{node}/{ifname}` on that node |
+| `link/{endpoints}` | `interface/{node}/{ifname}` for either endpoint of that link |
+
+- Matching is one to one. Each ground-truth item counts once, so naming both ends of a faulty link gives one true positive and one false positive.
+- A coarser answer does not match an interface fault. Naming only the node is not enough.
+- Some distributed failures accept any of several locations. For `bgp_max_prefix_exceeded`, naming either the receiver or the peer that advertises the excess prefixes earns full RCA credit with the correct fault type. Localization counts those two locations once.
+
+For a predicted set `P` and ground-truth set `T`, with `M` matched pairs:
+
+- `precision = M / |P|`, or `0` if `P` is empty
+- `recall = M / |T|`, or `0` if `T` is empty
+- `F1 = 2 × precision × recall / (precision + recall)`, or `0` if both are `0`
+
+### Healthy tasks
+
+A healthy task has no root causes. Its answer earns full credit only when it says `is_anomaly: false` with an empty `root_causes` list. Reporting an anomaly with an empty list scores `0`.
+
+### Invalid answers
+
+An `is_anomaly` value that cannot be parsed scores `0`. A `root_causes` list that cannot be parsed scores `0` on every RCA metric. Both still count as a scored trial.
+
+### Trial `score_status`
+
+Each finished trial records a status in its `run.json`. NIKA first asks whether the agent wrote a submission, then decides the status.
+
+| Status | Score columns | Meaning | What to do |
+| --- | --- | --- | --- |
+| `scored` | `[0, 1]` values | The submission was graded. | Nothing. |
+| `no_submission` | `0.0` | No submission was recorded, because of a timeout, step limit, crash, rejected submit, or unknown cause. | Nothing. Do not rerun; failing to answer is the agent's result. |
+| `infra_error` | `null` | Setup or injection did not finish, or the environment, LLM API, or MCP failed. | Resume the run. Retries rerun these trials. |
+| `grading_error` | `null` | The submission exists, but the ground truth is missing or the scorer failed. | Repair the inputs and regrade. Do not rerun the agent. |
+
+A trial with a submission that was written before a later infrastructure fault keeps its submission status. A leaderboard package is rejected while any trial has `grading_error` or an unresolved `infra_error`.
+
+### Aggregate results
+
+Primary means use a fixed denominator: the number of tasks multiplied by the trials each task needs. Each trial contributes its score when it is `scored`, and `0` in every other case, including missing trials.
+
+```text
+mean = (sum of per-trial contributions) / (tasks × trials per task)
+```
+
+Report these values together:
+
+- `submission_rate`: scored trials divided by all expected trials.
+- Conditional means: the same means over scored trials only, which are `null` when no trial is scored.
+- Counts for each status.
+- Mean `rca_f1` and `localization_f1` over fault tasks, and mean `detection_score` over healthy tasks.
+
+Three trials with primary scores `[1.0, no_submission, no_submission]` give a primary mean of `1/3`, a submission rate of `1/3`, and a conditional mean of `1.0`.
+
+### Run offline eval
+
+```shell
+nika eval metrics --result_dir results/my_run
+nika eval summary --result_dir results/my_run
+```
+
+`nika eval metrics` scores every closed session under the directory with the installed NIKA's scoring code and overwrites the metrics. To reproduce an official release score, keep the metrics the release's engine wrote. `nika eval summary` aggregates the results as described above. Options: [`nika eval`](../operations/cli-reference.md#nika-eval).
+
+## Reference
+
+### Ground-truth format in benchmark YAML
+
+A single-failure task lists its root cause like this:
 
 ```yaml
 root_causes:
@@ -32,9 +128,9 @@ root_causes:
     fault_type: link_down
 ```
 
-Healthy ground truth uses `is_anomaly: false` and an empty `root_causes` list. Benchmark YAML may include `problem: healthy` rows for no-fault control cases; those rows skip injection and persist the same healthy ground truth. A multi-fault case contains one root-cause object for each injected fault source. Each object identifies the resource that the injector mutates. Symptoms and affected peers do not become root-cause labels.
+A healthy task has `is_anomaly: false` and an empty `root_causes` list. A `problem: healthy` row is a no-failure control: it injects nothing and keeps the same healthy ground truth.
 
-Multi-fault benchmark rows use a `problems` list and nested `inject` maps. The normalized `problem` label is `problem_a+problem_b` for task labels and fingerprints.
+A multi-failure task lists one root cause for each injected failure source. The root cause names the resource the failure changed, not the symptoms or the peers that see them:
 
 ```yaml
 - scenario: dc_clos
@@ -62,156 +158,11 @@ Multi-fault benchmark rows use a `problems` list and nested `inject` maps. The n
       fault_type: icmp_frag_needed_filter_misconfiguration
 ```
 
-CLI injection accepts multiple problem IDs and per-fault `--set` overrides as `problem.field=value`.
+When you inject several failures with `nika failure inject`, prefix each `--set` override with its failure ID, as in `mtu_mismatch.host_name=leaf_2`.
 
-## Generate ground truth for a failure
+### Derive labels for a case matrix
 
-Each concrete `ProblemBase` subclass implements `root_cause_resources(params)` next to `inject_fault(params)`. Return catalog resources with the helpers in [`rca/models.py`](../../src/nika/problems/rca/models.py) and [`rca/inventory.py`](../../src/nika/problems/rca/inventory.py).
-
-```python
-from nika.problems.rca.inventory import link_containing_endpoint
-
-
-def root_cause_resources(self, params: MyFaultParams):
-    return [link_containing_endpoint(self.net_env, params.host_name, params.intf_name)]
-```
-
-For interface-owned faults, use `interface_on` instead. `ProblemBase.get_ground_truth()` combines each returned resource with the class `root_cause_name` (the failure ID / `fault_type`). Failure authors should not maintain a second root-cause table.
-
-The following paths derive labels from the same method:
-
-- `nika failure inject` writes session ground truth.
-- Catalog generation (`nika benchmark generate`) writes the candidate catalog.
-- `freeze_release` materializes an explicitly supplied flat case file.
-- `nika benchmark migrate` upgrades an existing case matrix.
-
-Candidate options and frozen releases store materialized `root_causes` so reviewers can inspect labels. The candidate catalog stores one flat executable case per `failure.cases` entry with the same `root_causes` shape shown above. During injection, NIKA derives the labels again and rejects a case when the derived value differs from the materialized value.
-
-## Submit a diagnosis
-
-During the submission phase, the agent receives a frozen diagnosis report plus a prompt-only catalog: `fault_ontology` entries `{id, description, owner_kind}` and `resources` entries `{id, kind}`. `description` explains what each failure ID means; it must not include injection method or differential diagnosis shortcuts. `submit()` still requires the exact ontology `id` as `fault_type`.
-
-`fault_ontology` always lists every registered fault type except the `healthy` sentinel. The list is the same for `--release`, `--config`, and single-case runs.
-
-1. Read the frozen resource inventory and fault ontology from the submission context.
-2. Call `submit()` with the selected pairs.
-
-```json
-{
-  "is_anomaly": true,
-  "root_causes": [
-    {
-      "resource_id": "link/pc1:eth0--router1:eth0",
-      "fault_type": "link_down"
-    }
-  ]
-}
-```
-
-The task server rejects an unknown `resource_id` or `fault_type` and does not write `submission.json`. Scoring reads `root_causes` only.
-
-## Score a submission
-
-Exact eval and leaderboard scoring contract. Implementation: [`scoring.py`](../../src/nika/evaluator/scoring.py), [`score_status.py`](../../src/nika/evaluator/score_status.py), [`aggregate.py`](../../src/nika/workflows/leaderboard/aggregate.py).
-
-### Per-trial rule-based metrics
-
-NIKA writes `eval_metrics.json` when a trial closes (or when you run `nika eval metrics`). Detection is binary. RCA metrics compare predicted and expected sets. Duplicate pairs do not change a score. Use the official release reference to reproduce its scoring. Changes to these rules require a new benchmark revision under the [versioning policy](../../VERSIONING.md).
-
-| Metric group | Compared set | Fields |
-| --- | --- | --- |
-| Detection | `is_anomaly` bool | `detection_score` (`1.0` or `0.0`) |
-| Joint RCA | `(resource_id, fault_type)` | `rca_precision`, `rca_recall`, `rca_f1` |
-| Localization | `resource_id` | `localization_precision`, `localization_recall`, `localization_f1` |
-| Fault type | `fault_type` | `fault_type_precision`, `fault_type_recall`, `fault_type_f1` |
-
-`rca_accuracy` and `localization_accuracy` equal the corresponding recall (backward-compatible aliases).
-
-For a predicted set `P` and ground-truth set `T`, let `M` be the number of matched pairs in a one-to-one matching between `P` and `T`:
-
-- `precision = M / |P|` (0 if `P` is empty)
-- `recall = M / |T|` (0 if `T` is empty)
-- `F1 = 2 * precision * recall / (precision + recall)` (0 if both are 0)
-
-Fault types match only when they are identical. A predicted resource matches a ground-truth resource when it has the same `resource_id`, or when it is a more specific part of it:
-
-| Ground-truth resource | Also matched by |
-| --- | --- |
-| `node/{node}` | any `interface/{node}/{ifname}` on that node |
-| `link/{tps}` | `interface/{node}/{ifname}` for an endpoint `{node}:{ifname}` of that link |
-
-Joint RCA uses the same rule for the resource half of each pair. Each ground-truth item is matched at most once, so naming both ends of a faulty link scores one true positive and one false positive. A coarser prediction, such as `node/{node}` for an interface fault, does not match.
-
-A failure can declare `root_cause_resource_match = "any"` when its listed resources are alternative locations for one distributed fault. For `bgp_max_prefix_exceeded`, either the receiver or its advertising peer earns full RCA credit with the correct fault type. Localization treats those endpoints as one location; naming both counts once. Other failures retain their resource requirements for RCA.
-
-Special case: when both `P` and `T` are empty, precision, recall, and F1 are all `1.0` only if the submission also says `is_anomaly: false`. That is the correct score for a healthy case. A healthy case submitted as `is_anomaly: true` with an empty `root_causes` list scores `0.0`. An agent that never submits must not reach this path (see `score_status` below).
-
-Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable `is_anomaly` also scores `0.0`. Trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, `tool_errors`) are recorded separately. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. NIKA normalizes token counts with [`usage.py`](../../src/nika/evaluator/usage.py).
-
-Score columns are only values in `[0, 1]` or `null`. They never store `-1`.
-
-`eval_metrics.json` records `validity_flags`; see [`WARNING_RUN_VALIDITY`](leaderboard-submission.md#warning_run_validity) and [`ERROR_RUN_VALIDITY`](leaderboard-submission.md#error_run_validity).
-
-### Trial `score_status`
-
-Each finished trial stores `score_status` on `run.json`. Decision order asks one question first: does `submission.json` exist?
-
-1. **Has submission**
-   - Grading succeeds → `scored` (score columns hold the computed `[0, 1]` values).
-   - Ground truth missing/corrupt or the scorer raises → `grading_error` (score columns are `null`). Fix GT or scoring code and regrade. Do not re-run the agent.
-2. **No submission**
-   - Ground truth missing (env/inject never completed) or clear env / LLM API / MCP failure evidence → `infra_error` (score columns are `null`). Resume and `--retry-passes` re-run these trials. Any residual `infra_error` after retries rejects a leaderboard pack.
-   - Otherwise (timeout, max steps, crash, early exit, failed `submit` validation, unknown cause) → `no_submission` (score columns are explicit `0.0`). Do not re-run.
-
-| Status | Score columns | Primary contribution | Follow-up |
-| --- | --- | --- | --- |
-| `scored` | `[0, 1]` | actual value | — |
-| `no_submission` | `0.0` | 0 | do not re-run |
-| `infra_error` | `null` | 0 | auto-retry; residual rejects pack |
-| `grading_error` | `null` | 0 | regrade; presence rejects pack |
-
-Lifecycle `outcome` stays `success` or `agent_failed` for resume and pack:
-
-- `scored` / `grading_error` with a submission → `success`
-- `no_submission` / residual `infra_error` → `agent_failed`
-
-If the agent already wrote `submission.json` and cleanup later hits an infra fault, status stays on the submission path (`scored` or `grading_error`).
-
-### Aggregate (leaderboard and `nika eval summary`)
-
-Primary means use a fixed denominator `N = case_count × n_trials`:
-
-`mean = (sum of per-trial contributions) / N`
-
-Each contribution is the trial's score when `score_status=scored`, and `0` for every other status (including `null` scores and trials that never landed). Missing expected trials contribute `0`.
-
-Always report these as a pair:
-
-- `submission_rate = n(scored) / N`
-- `conditional_mean_*` over the `scored` subset only (`null` when `n(scored)=0`)
-
-Also report:
-
-- `status_counts` for each `score_status`
-- fault-case means for `rca_f1` and `localization_f1`
-- healthy-case mean for `detection_score` (RCA/localization are not meaningful for healthy controls)
-
-Leaderboard pack/validate rejects a package when any trial has `grading_error` or residual `infra_error`.
-
-Example: three trials with primary scores `[1.0, no_submission, no_submission]` yield primary mean `1/3`, `submission_rate=1/3`, and conditional mean `1.0`.
-
-### Run offline eval
-
-```shell
-nika eval metrics --result_dir results/my_run
-nika eval summary --result_dir results/my_run
-```
-
-`nika eval metrics` with `--result_dir` and no `--session_id` processes every closed session under that directory. Benchmark runs already write metrics when each case closes; a release run uses its engine's scoring code. `nika eval metrics` regrades with the installed NIKA's scoring code and overwrites those metrics, so keep the engine's metrics to reproduce a release's official scores. `nika eval summary` uses the same aggregation as `nika leaderboard pack`. CLI options: [nika eval](../operations/cli-reference.md#nika-eval).
-
-## Materialize labels on a case matrix
-
-`freeze_release` attaches `root_causes` when it writes release YAML from an explicit flat case file. Use `nika benchmark migrate` on an existing YAML matrix whose top level contains `cases`. Do not pass a candidate catalog or release `RELEASE.yaml` manifest.
+NIKA derives the root causes from each failure's injection parameters. Use `nika benchmark migrate` to write those labels into an existing YAML matrix. The input must have a top-level `cases` list. Do not pass a candidate catalog or a release manifest.
 
 ```shell
 uv run nika benchmark migrate \
@@ -220,8 +171,14 @@ uv run nika benchmark migrate \
   --report /tmp/migration_report.yaml
 ```
 
-The command rewrites each case from its `scenario`, `problem`, `topo_size`, and `inject` identity fields, then adds `root_causes`. These four fields continue to define the case fingerprint; migration does not copy unrelated per-row fields.
+Each case keeps its `scenario`, `problem`, `topo_size`, and `inject` fields, which define its identity, and gains `root_causes`. A case whose failure cannot resolve to a resource is written with `root_causes_status: unresolved` and an error, and it is listed in the report. The command then fails. Pass `--allow-unresolved` to write the output anyway and keep those markers. Published releases remain immutable.
 
-If a failure mapping reports an unresolved root cause, NIKA writes the output and report, marks the row with `root_causes_status: unresolved` and `root_causes_error`, then exits with status 1. Pass `--allow-unresolved` to exit with status 0 while retaining those markers. Benchmark execution recomputes labels for unresolved rows but cannot compare them with a materialized expected value.
+### For failure authors
 
-Relabel an existing release by migrating its `dev.yaml` or `test.yaml` in place, then rewrite the manifest. Published releases remain immutable.
+Each failure returns its root cause resources from `root_cause_resources(params)`, using the helpers `link_containing_endpoint` for cable faults and `interface_on` for interface faults. NIKA combines them with the failure's ID, so do not keep a second table of root causes. See [Create benchmark tasks](../development/creating-benchmark-tasks.md#write-an-injectable-failure).
+
+Links are owned by the mutated catalog object. Controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`) use the link. Interface removals, egress hooks, and queueing faults use the interface.
+
+Maintainers: the data model is in [`src/nika/problems/rca/`](../../src/nika/problems/rca/), scoring is in [`src/nika/evaluator/scoring.py`](../../src/nika/evaluator/scoring.py), and the submit validation is in [`src/nika/mcp/servers/common/task_server.py`](../../src/nika/mcp/servers/common/task_server.py).
+
+Changes to these scoring rules or to root-cause identity are benchmark contract changes, and they need a new benchmark revision under the [versioning policy](../../VERSIONING.md).

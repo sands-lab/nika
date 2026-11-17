@@ -1,10 +1,8 @@
 # NIKA CLI reference
 
-This reference is for operators and script authors who need the complete NIKA command surface. The Python package lives in `src/nika/cli/`.
+Look up a `nika` command, its options, and where it writes results. Each group below lists its commands; `nika <group> --help` prints the options of the version you have installed.
 
-Implementation: [`main.py`](../../src/nika/cli/main.py) registers the command groups; [`commands/`](../../src/nika/cli/commands/) contains option parsing and delegates reusable behavior to [`workflows/`](../../src/nika/workflows/).
-
-Entry point: `nika` (see `[project.scripts]` in `pyproject.toml`). During development use `uv run nika …`.
+Run `nika` as installed, or `uv run nika …` from a checkout.
 
 Sessions (`runtime/`) and caches (`.nika_cache/`) live in the main Git checkout and are shared by all its worktrees (see [State directory](configuration.md#state-directory)). Everything else stays in the checkout the `nika` package is installed from: results default to its `results/`, benchmark data comes from its `benchmark/`, credentials load from its `.env`, and operational settings load from its `config/nika.yaml`. For example, a worktree at `/srv/nika-feature` of `/srv/nika` keeps sessions in `/srv/nika/runtime/` but writes results to `/srv/nika-feature/results/`. See the [run configuration reference](configuration.md).
 
@@ -26,6 +24,9 @@ Sessions (`runtime/`) and caches (`.nika_cache/`) live in the main Git checkout 
 | `nika observability` | Turn monitoring of benchmark progress and lab CPU and memory `on` / `off`, viewed in Grafana; see [monitor benchmarks and lab resources](resource-monitoring.md) |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
 | `nika engine` | Build the benchmark engine image of a published release; see [benchmark engine](#nika-engine) |
+| `nika images` | Prepare, list, and check the Docker images and caches labs use; see [runtime images](installation.md#runtime-images) |
+| `nika firecracker` | Advanced: list and clean lab images for Firecracker execution; see [Firecracker execution](firecracker.md) |
+| `nika rollout` | Advanced: run one task attempt for an external framework from a JSON request; see [external rollout clients](../development/rollout-clients.md) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `matrix-replay`, `burst`) against the running lab |
 | `nika tui` | Interactive shell with slash commands and guided forms over this CLI (bare `nika` in a terminal opens it too); see [interactive shell](tui.md) |
 
@@ -174,7 +175,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
   | `--rpki` / `--no-rpki` | Deprecated for base ISP scenarios. Use the named scenarios `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` |
   | `--backend kathara\|containerlab` | Lab backend. Required when a scenario supports both; ISP defaults to `kathara` |
   | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux\|sonic` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` and `sonic` on Containerlab; the default follows `--backend`. `min3clos` accepts `nokia_srlinux` (default) and `sonic`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros`. RouterOS supports only size `s` in these three environments. IOS XR supports only size `s` for `dc_clos`, and all sizes for `campus_lan` and `enterprise_branch`. See [SONiC routers](network-scenarios.md#sonic-routers-on-containerlab), [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
-- **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
+- **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, backend, size, status, age, session count, endpoint.
 
 ---
 
@@ -396,7 +397,7 @@ nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-
 ### Generate and select candidate cases
 
 - **`nika benchmark generate [--output DIR]`**: write the executable candidate pool (default `benchmark/working/pool`) and print how many candidate files and inject options it produced.
-- **`nika benchmark generate --validated-only`**: keep IOS XR and RouterOS cases only for cells that `validate-profiles` recorded as validated.
+- **`nika benchmark generate --validated-only`**: keep IOS XR, RouterOS, and SONiC cases only for cells that `validate-profiles` recorded as validated.
 - **`nika benchmark validate-profiles [--list] [--native-only] [--environment ENV] [--device-profile P] [--failure F] [--limit N] [--rerun]`**: run one case per (environment, device profile, failure) cell end to end and record the result in `benchmark/working/validation/device_profiles.yaml`. Heavy: cells run one at a time under `/tmp/nika-heavy-lab.lock`.
 - **`nika benchmark select [--pool DIR] [--output PATH] [--seed N] [--skip-audit]`**: pick a compact case subset from the audited pool (default output `benchmark/working/cases.yaml`, seed `42`). `--skip-audit` bypasses the pool audit gate; avoid it for release candidates.
 
@@ -550,7 +551,7 @@ When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` o
 
 ## `nika engine`
 
-A release whose manifest pins a benchmark engine runs on a container selected by its `engine` block. NIKA builds `engine.tag` from a Git tag or commit unless the manifest supplies an available `engine.image`. `nika benchmark run --release` resolves the image, builds it when needed, and starts the container itself; see [benchmark release contracts](../development/benchmark-contracts.md#b-lifecycle-protocol).
+A release whose manifest pins a benchmark engine runs on a container selected by its `engine` block. NIKA builds `engine.tag` from a Git tag or commit unless the manifest supplies an available `engine.image`. `nika benchmark run --release` resolves the image, builds it when needed, and starts the container itself; see [benchmark release contracts](../../specs/benchmark-contracts.md#b-lifecycle-protocol).
 
 - **`nika engine build <ref>`**: build the benchmark engine image of a Git tag or commit ahead of a run. NIKA prints the local image name.
 
@@ -638,3 +639,7 @@ Options:
 - Runtime sessions: `runtime/sessions/*.json` (cleared when a session is finished)
 - Eval summary CSV default: `results/0_summary/evaluation_summary.csv`
 - Benchmark data: `benchmark/*.yaml` under the repo root
+
+## Source
+
+The command groups are registered in [`main.py`](../../src/nika/cli/main.py). Option parsing lives in [`commands/`](../../src/nika/cli/commands/), and reusable behavior lives in [`workflows/`](../../src/nika/workflows/).

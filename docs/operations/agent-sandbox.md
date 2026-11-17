@@ -1,10 +1,12 @@
 # Run agents in sandboxes
 
-Every agent runs in its own isolated sandbox while NIKA deploys the network environment and scores the diagnosis. The agent reaches the environment through the session's MCP tools. Model credentials stay on the NIKA host. This guide covers setup, credentials, and evaluation. To pick an agent, see [Choose and run an agent](../agents/agent-implementations.md).
+NIKA runs every agent in its own isolated sandbox while it deploys the network environment and scores the diagnosis. The agent reaches the environment only through the session's MCP tools, and the model credentials stay on the NIKA host.
+
+This guide covers choosing a sandbox runtime, setting it up, giving the agent credentials, and running a first task. To pick an agent, see [Choose and run an agent](../agents/agent-implementations.md).
 
 ## Choose a sandbox runtime
 
-NIKA runs every agent in a sandbox, so you need one sandbox runtime. Each one runs the same agents and scores them the same way; they differ in what the NIKA host needs.
+You need one sandbox runtime. Each one runs the same agents and scores them the same way. They differ in what the NIKA host needs.
 
 | | [AgentENV](https://github.com/kvcache-ai/AgentENV) in Docker (recommended) | [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) (`sbx`) | [E2B](https://e2b.dev/) cloud |
 |---|---|---|---|
@@ -13,26 +15,7 @@ NIKA runs every agent in a sandbox, so you need one sandbox runtime. Each one ru
 | Set up with | `./scripts/install.sh --with-agentenv` | `./scripts/install.sh --with-sbx`, then `sbx login` | An `E2B_API_KEY` in `.env` |
 | Selected by | `nika.sandbox.backend: e2b` and `nika.sandbox.url` | `nika.sandbox.backend: sbx` (default) | `nika.sandbox.backend: e2b` |
 
-AgentENV needs no account and keeps everything on your host. Docker Sandboxes also stays on the host but requires signing in to Docker. Without KVM, such as on a VM without nested virtualization, use E2B cloud. Every runtime also works when the network environment runs on a [remote lab host](remote.md).
-
-## Supported agents
-
-| NIKA agent | Sandbox template | Python packages in the sandbox |
-|------------|------------------|--------------------------------|
-| `byo.langgraph` | `shell` | `langgraph` |
-| `byo.mcp_agent` | `shell` | `mcp_agent` |
-| `byo.autogen` | `shell` | `autogen` |
-| `cli.codex` | `codex` | `runtime` |
-| `cli.claude` | `claude` | `runtime` |
-| `cli.opencode` | `shell` | `runtime`, plus the pinned OpenCode CLI |
-| `cli.dsh` | `shell` | `runtime`, plus the pinned DeepSeek Harness CLI |
-| `sdk.codex_sdk` | `shell` | `codex_sdk` |
-| `sdk.claude_sdk` | `shell` | `claude_sdk` |
-| `community.sade` | `shell` | `claude_sdk` |
-| [Custom agents](../agents/custom-agents.md) (`custom.<name>`) | `shell` | `langgraph`, plus the class's `dependencies` |
-| [Added agents](../agents/agent-reference.md#custom-agent-registration) | `shell`, or the manifest's `sandbox.base` | `langgraph`, plus the agent's own dependencies |
-
-The templates are Docker's `docker/sandbox-templates` images. sbx runs them directly; E2B runs templates that NIKA builds from them (see [E2B templates](#e2b-templates)). Each package set is pinned in [`src/nika/agents/sandbox/requirements/`](../../src/nika/agents/sandbox/requirements/), so agents need nothing installed in NIKA's environment. Only the `mock` and `oracle` agents run in the NIKA process, because they read the ground truth.
+AgentENV needs no account and keeps everything on your host. Docker Sandboxes also stays on the host, but it requires signing in to Docker. Without KVM, such as on a VM without nested virtualization, use E2B cloud. Every runtime also works when the network environment runs on a [remote lab host](remote.md).
 
 ## Set up the runtime
 
@@ -46,7 +29,7 @@ Run the installer with `--with-agentenv`:
 ./scripts/install.sh --with-agentenv
 ```
 
-It loads the `ublk_drv` kernel module that AgentENV needs (and loads it again at boot), starts AgentENV as the `nika-agentenv` container on `127.0.0.1:8800` (set `AGENTENV_PORT` to change it), writes its API key to `.env` as `E2B_API_KEY`, and sets `nika.sandbox.backend: e2b` and `nika.sandbox.url: http://127.0.0.1:8800` in `config/nika.yaml`. The container restarts with Docker. `./scripts/uninstall.sh` removes it.
+The installer loads the `ublk_drv` kernel module that AgentENV needs, and loads it again at boot. It starts AgentENV as the `nika-agentenv` container on `127.0.0.1:8800` (set `AGENTENV_PORT` to change the port). It writes the API key to `.env` as `E2B_API_KEY`, and sets `nika.sandbox.backend: e2b` and `nika.sandbox.url: http://127.0.0.1:8800` in `config/nika.yaml`. The container restarts with Docker. `./scripts/uninstall.sh` removes it.
 
 The container runs privileged with the host's `/dev`, because AgentENV starts each sandbox as a Firecracker microVM. Its API has no TLS, so the installer publishes it on the loopback address only. For many concurrent sandboxes, also apply AgentENV's host tuning in [`docker-setup.sh`](https://github.com/kvcache-ai/AgentENV/blob/main/scripts/docker-setup.sh).
 
@@ -60,7 +43,7 @@ The container runs privileged with the host's `/dev`, because AgentENV starts ea
   ```
 
 - On Linux, your user needs read/write access to `/dev/kvm`, usually through the `kvm` group. `sbx diagnose` checks virtualization support. See [Manual sbx installation](installation.md#install-a-sandbox-runtime) for other install methods.
-- `sbx login` authenticates Docker; agent credentials require separate setup.
+- `sbx login` authenticates Docker. Agent credentials need separate setup.
 - NIKA supports the Balanced and deny-all global network policies of sbx. It initializes Balanced only when sbx has no policy. Under Open (`allow-all`), runs stop before anything is deployed; see [Runs stop because sbx allows all traffic](#runs-stop-because-sbx-allows-all-traffic).
 
 ### Connect to E2B cloud or another E2B-compatible service
@@ -83,7 +66,7 @@ The container runs privileged with the host's `/dev`, because AgentENV starts ea
 
 ## Authentication
 
-Every agent works with an API key. Codex and Claude agents (`cli.codex`, `sdk.codex_sdk`, `cli.claude`, `sdk.claude_sdk`, `community.sade`) can use a Claude or ChatGPT subscription instead. NIKA keeps the real credential on the host: every model request of a sandbox goes through NIKA's model proxy on the host, which adds the credential, so the sandbox only receives a per-session proxy token. See [How sandboxes stay isolated](#how-sandboxes-stay-isolated).
+Every agent works with an API key. Codex and Claude agents (`cli.codex`, `sdk.codex_sdk`, `cli.claude`, `sdk.claude_sdk`, `community.sade`) can also use a Claude or ChatGPT subscription. NIKA keeps the real credential on the host. Every model request of a sandbox goes through NIKA's model proxy on the host, which adds the credential, so the sandbox receives only a per-session proxy token. See [How sandboxes stay isolated](#how-sandboxes-stay-isolated).
 
 ### API keys
 
@@ -102,11 +85,11 @@ For example, to use an OpenAI API key:
 OPENAI_API_KEY=YOUR_API_KEY
 ```
 
-Select the matching `agent.provider` in `config/nika.yaml` or pass `-p` on the CLI. For a custom endpoint, also set `agent.base_url`; see [Endpoint compatibility](../agents/agent-reference.md#custom-endpoint-compatibility). To send `openai`, `anthropic`, or `deepseek` through a compatible gateway instead of the official API, also set `OPENAI_BASE_URL`, `ANTHROPIC_BASE_URL`, or `DEEPSEEK_BASE_URL`.
+Select the matching `agent.provider` in `config/nika.yaml`, or pass `-p` on the CLI. For a custom endpoint, also set `agent.base_url`; see [Endpoint compatibility](../agents/agent-reference.md#custom-endpoint-compatibility). To send `openai`, `anthropic`, or `deepseek` requests through a compatible gateway instead of the official API, also set `OPENAI_BASE_URL`, `ANTHROPIC_BASE_URL`, or `DEEPSEEK_BASE_URL`.
 
 ### Subscriptions
 
-Subscriptions work with Codex and Claude agents only. OpenCode, DeepSeek Harness, BYO agents, and agents you add need an API key. Your local Claude or Codex login does not authenticate a NIKA sandbox, and NIKA never copies host auth files into a sandbox. To evaluate with a Claude or ChatGPT subscription, sign in once on the NIKA host; NIKA's model proxy adds the login to the agent's model requests. If `.env` also holds an API key for the provider, NIKA uses the API key.
+Subscriptions work with Codex and Claude agents only. OpenCode, DeepSeek Harness, BYO agents, and agents you add need an API key. Your local Claude or Codex login does not authenticate a NIKA sandbox, and NIKA never copies host auth files into a sandbox. To evaluate with a Claude or ChatGPT subscription, sign in once on the NIKA host. NIKA's model proxy adds the login to the agent's model requests. If `.env` also holds an API key for the provider, NIKA uses the API key.
 
 - **Claude subscription:** create a long-lived token and add it to the repository-root `.env`:
 
@@ -118,7 +101,7 @@ Subscriptions work with Codex and Claude agents only. OpenCode, DeepSeek Harness
   CLAUDE_CODE_OAUTH_TOKEN=YOUR_TOKEN
   ```
 
-- **ChatGPT / Codex subscription:** sign in to Codex with a Codex home reserved for NIKA. NIKA refreshes this login when it expires, so keeping it separate from `~/.codex` means a refresh never signs out your own Codex. Over SSH, prepare [callback port forwarding](#oauth-callback-opens-localhost-over-ssh) first:
+- **ChatGPT / Codex subscription:** sign in to Codex with a Codex home reserved for NIKA. NIKA refreshes this login when it expires. Keeping it separate from `~/.codex` means a refresh never signs out your own Codex. Over SSH, prepare [callback port forwarding](#oauth-callback-opens-localhost-over-ssh) first:
 
   ```bash
   mkdir -p ~/.local/state/nika/codex
@@ -146,9 +129,9 @@ Run a task with the configured agent:
 uv run nika agent run --problem dc_clos_s_link_down
 ```
 
-NIKA deploys the environment, injects the failure, runs the agent, writes evaluation metrics, and closes the session. With E2B, the first run also builds the agent's [E2B template](#e2b-templates), which can take several minutes. Use [Inspect](session-inspect.md) to review the result. For a set of tasks, use [Benchmark configuration](../benchmarks/benchmark-configuration.md).
+NIKA deploys the environment, injects the failure, runs the agent, writes the evaluation metrics, and closes the session. With E2B, the first run also builds the agent's [E2B template](#e2b-templates), which can take several minutes. Use [Inspect](session-inspect.md) to review the result. For a set of tasks, use [Benchmark configuration](../benchmarks/benchmark-configuration.md).
 
-To control each stage, run the same agent on an existing session. `nika env run` prints the `session_id` used to inspect metrics:
+To control each stage yourself, run the same agent on an existing session. `nika env run` prints the `session_id` that you use to read the metrics:
 
 ```bash
 uv run nika env run dc_clos -s s
@@ -158,7 +141,7 @@ uv run nika session close -y
 uv run nika eval metrics --session_id <session_id>
 ```
 
-Use `-n` to change the LLM-turn budget per phase; see [Step limit](../agents/agent-reference.md#step-limit).
+Use `-n` to change the LLM-turn budget per phase. See [Step limit](../agents/agent-reference.md#step-limit).
 
 ## Configuration
 
@@ -167,16 +150,62 @@ Use `-n` to change the LLM-turn budget per phase; see [Step limit](../agents/age
 | `nika.sandbox.*` in `config/nika.yaml` | Both | Sandbox runtime, resource limits, dependency installation, and upstream proxy |
 | `--sandbox-backend sbx\|e2b` | Both | Runtime for one `nika agent run` (`nika.sandbox.backend`) |
 | `nika.sandbox.url` | E2B | Address of an E2B-compatible service that serves its API and sandboxes at one address |
-| `--sandbox-keep-container` | Both | Keep the sandbox after agent exit (debug). An E2B sandbox stays until `nika session close` or the end of its lifetime |
+| `--sandbox-keep-container` | Both | Keeps the sandbox after the agent exits, for debugging. An E2B sandbox stays until `nika session close` or the end of its lifetime |
 | `--sandbox-cpus` / `--sandbox-memory` | Both | Resource limits. With E2B they size the template |
-| `--sandbox-offline-sdk-wheels` / `--no-sandbox-offline-sdk-wheels` | sbx | Install the agent's Python packages from host-cached wheels (on by default) |
-| `--sandbox-proxy` | sbx | Upstream proxy for the sbx daemon and host `sbx` CLI (Docker Hub auth) |
+| `--sandbox-offline-sdk-wheels` / `--no-sandbox-offline-sdk-wheels` | sbx | Installs the agent's Python packages from host-cached wheels (on by default) |
+| `--sandbox-proxy` | sbx | Upstream proxy for the sbx daemon and host `sbx` CLI (Docker Hub authentication) |
 
-Use [Authentication](#authentication) to configure API keys or subscription login; NIKA has no separate sandbox environment file.
+Use [Authentication](#authentication) to configure API keys or subscription login. NIKA has no separate sandbox environment file.
 
-With sbx, NIKA preloads the matching `docker/sandbox-templates:*` image when ensuring environment images and at the start of agent or benchmark runs.
+With sbx, NIKA preloads the matching `docker/sandbox-templates:*` image when it ensures environment images and at the start of agent or benchmark runs.
 
-### Agent packages (optional offline wheels)
+---
+
+The rest of this page is reference material: the agents each sandbox template supports, how the model proxy records and limits requests, how sandboxes are isolated, and the troubleshooting guide for sandbox runs.
+
+## Supported agents
+
+| NIKA agent | Sandbox template | Python packages in the sandbox |
+|------------|------------------|--------------------------------|
+| `byo.langgraph` | `shell` | `langgraph` |
+| `byo.mcp_agent` | `shell` | `mcp_agent` |
+| `byo.autogen` | `shell` | `autogen` |
+| `cli.codex` | `codex` | `runtime` |
+| `cli.claude` | `claude` | `runtime` |
+| `cli.opencode` | `shell` | `runtime`, plus the pinned OpenCode CLI |
+| `cli.dsh` | `shell` | `runtime`, plus the pinned DeepSeek Harness CLI |
+| `sdk.codex_sdk` | `shell` | `codex_sdk` |
+| `sdk.claude_sdk` | `shell` | `claude_sdk` |
+| `community.sade` | `shell` | `claude_sdk` |
+| [Custom agents](../agents/custom-agents.md) (`custom.<name>`) | `shell` | `langgraph`, plus the class's `dependencies` |
+| [Added agents](../agents/agent-reference.md#custom-agent-registration) | `shell`, or the manifest's `sandbox.base` | `langgraph`, plus the agent's own dependencies |
+
+The templates are Docker's `docker/sandbox-templates` images. sbx runs them directly. E2B runs templates that NIKA builds from them (see [E2B templates](#e2b-templates)). Each package set is pinned in [`src/nika/agents/sandbox/requirements/`](../../src/nika/agents/sandbox/requirements/), so agents need nothing installed in NIKA's environment. Only the `mock` and `oracle` agents run in the NIKA process, because they read the ground truth.
+
+## Model proxy and run records
+
+Every model request of a sandboxed agent goes through a model proxy that NIKA starts on the host for the session. The sandbox reaches it at `http://host.docker.internal:<port>` on sbx, an address only that sandbox may use. On E2B and AgentENV, it reaches the proxy through the session's tunnel. The proxy does three jobs:
+
+- **Holds the credential.** The agent presents a random per-session token. The proxy rejects requests without it and sends the real API key or subscription login upstream.
+- **Records every exchange.** It writes `model_calls.jsonl` in the session result directory. Each request body is recorded as the agent sent it, and each response as the agent received it (the raw event stream for streamed replies), with the phase, status, and token usage. The MCP gateway likewise writes every tool call, its arguments, and the result the agent received to `tool_calls.jsonl`. The sandbox cannot reach either file.
+- **Enforces the step limit.** `max_steps` is the number of LLM requests each phase may make, counted at the proxy, so model calls of sub-agents count too. Token counting and model listing are not LLM requests. The proxy refuses the request past the limit, and NIKA stops the phase. A stopped diagnosis uses the latest assistant text the proxy recorded as its report, as an agent that reaches its limit itself does. Without any text, the run fails.
+
+The evaluator takes `steps`, token counts, and tool calls from these two records, not from the agent-written `messages.jsonl`. That file remains the transcript that `nika inspect` shows.
+
+### Claude Code with custom providers
+
+When you run `cli.claude` with `agent.provider: custom` (for example, a self-hosted vLLM server), the sandbox uses the Claude Code version that ships in the `claude` sandbox template. NIKA sets `DISABLE_AUTOUPDATER=1` for every `claude -p` call, so the version stays fixed for the whole run. The agent transcript (`messages.jsonl`) records the version as `claude_code_version` on the `init` event.
+
+The proxy adapts Claude-family agents to the custom server:
+
+| Adaptation | What NIKA does | Why |
+|------------|----------------|-----|
+| Context window | Reads `max_model_len` for `agent.model` from `{agent.base_url}/models`. Sets `CLAUDE_CODE_MAX_CONTEXT_TOKENS` to that value and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to `min(32000, max_model_len / 8)`. | Claude Code assumes a 200k-token window for models it does not know. Without the real limit, it does not auto-compact before the server rejects a long request. |
+| Message roles | Merges mid-conversation `role: "system"` turns into the adjacent user turn as `<system-reminder>` text and forwards all other traffic unchanged, including streamed responses. | Claude Code sends `role: "system"` entries inside `messages` from the first request on, for example the `Today's date is …` reminder. vLLM `/v1/messages` rejects them with HTTP 400 (`Input should be 'user' or 'assistant'`). |
+
+If the server does not report `max_model_len`, Claude Code keeps its defaults. NIKA sends `NIKA_CUSTOM_API_KEY` with the `/models` request when you set it. The proxy reaches the endpoint from the NIKA host, so an endpoint on the host's `localhost` works. The proxy lives in [`src/nika/agents/sandbox/model_proxy.py`](../../src/nika/agents/sandbox/model_proxy.py).
+
+## Agent packages (optional offline wheels)
 
 To reuse pinned packages without downloading them for each evaluation, sbx sandboxes install host-cached wheels by default. NIKA caches each package set under `.nika_cache/agent-wheels/<set>/`, stages it in the sandbox workspace, and installs it with `pip --no-index`. The host downloads the wheels with `python3 -m pip`, or with `uvx` when the system Python has no pip. A custom or added agent's own dependencies always come from PyPI, and so does everything for an agent whose `requires_python` excludes the sandbox's Python. E2B templates already contain the packages.
 
@@ -195,68 +224,36 @@ uv run nika agent run -a sdk.claude_sdk --no-sandbox-offline-sdk-wheels \
   --problem dc_clos_s_link_down
 ```
 
-The committed pins are the source of truth for sandboxes. Top-level packages match the exact pins in `pyproject.toml`; after changing a set's `.in` file or those pins, regenerate the sets with `scripts/compile_agent_requirements.sh`, which resolves them against the local `uv.lock`. A changed set invalidates its wheel cache.
+The committed pins are the source of truth for sandboxes. Top-level packages match the exact pins in `pyproject.toml`. After you change a set's `.in` file or those pins, regenerate the sets with `scripts/compile_agent_requirements.sh`, which resolves them against the local `uv.lock`. A changed set invalidates its wheel cache.
 
 OpenCode and DeepSeek Harness need their Node CLIs inside the sandbox. The sandbox cannot reach the npm registry, so the NIKA host installs each pinned package once (Node.js 22+ on the host), copies it into the workspace as `.npm-prefix/`, and the agent runs the binary from there.
 
-### E2B templates
+## E2B templates
 
 E2B starts each sandbox from a template that the service builds and keeps. NIKA builds one template for each sandbox template an agent uses, from the same `docker/sandbox-templates` image that sbx runs, and installs the agent's pinned Python packages into it. OpenCode and DeepSeek Harness still receive their host-cached npm packages through the workspace.
 
-NIKA prepares the configured agent's template when it deploys an environment, when you run `uv run nika images prepare`, and before an agent run. A build can take several minutes; later runs reuse the template. NIKA builds a new template when the pinned image, the pinned packages, `nika.sandbox.cpus`, or `nika.sandbox.memory` change.
-
-## Model proxy and run records
-
-Every model request of a sandboxed agent goes through a model proxy that NIKA starts on the host for the session. The sandbox reaches it at `http://host.docker.internal:<port>` on sbx, which only that sandbox may use, or through the session's tunnel on E2B and AgentENV. The proxy does three jobs:
-
-- **Holds the credential.** The agent presents a random per-session token; the proxy rejects requests without it and sends the real API key or subscription login upstream.
-- **Records every exchange.** It writes `model_calls.jsonl` in the session result directory: each request body exactly as the agent sent it and each response exactly as the agent received it (the raw event stream for streamed replies), with the phase, status, and token usage. The MCP gateway likewise writes every tool call, its arguments, and the result the agent received to `tool_calls.jsonl`. The sandbox cannot reach either file.
-- **Enforces the step limit.** `max_steps` is the number of LLM requests each phase may make, counted at the proxy, so model calls of sub-agents count too. Token counting and model listing are not LLM requests. The proxy refuses the request past the limit, and NIKA stops the phase. A stopped diagnosis uses the latest assistant text the proxy recorded as its report, like an agent that reaches its limit itself; without any text the run fails.
-
-The evaluator takes `steps`, token counts, and tool calls from these two records rather than from the agent-written `messages.jsonl`, which remains the transcript that `nika inspect` shows.
-
-### Claude Code with custom providers
-
-When you run `cli.claude` with `agent.provider: custom` (for example, a self-hosted vLLM server), the sandbox uses the Claude Code version that ships in the `claude` sandbox template. NIKA sets `DISABLE_AUTOUPDATER=1` for every `claude -p` call, so the version stays fixed for the whole run. The agent transcript (`messages.jsonl`) records the version as `claude_code_version` on the `init` event.
-
-The proxy adapts Claude-family agents to the custom server:
-
-| Adaptation | What NIKA does | Why |
-|------------|----------------|-----|
-| Context window | Reads `max_model_len` for `agent.model` from `{agent.base_url}/models`. Sets `CLAUDE_CODE_MAX_CONTEXT_TOKENS` to that value and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to `min(32000, max_model_len / 8)`. | Claude Code assumes a 200k-token window for models it does not know. Without the real limit, it does not auto-compact before the server rejects a long request. |
-| Message roles | Merges mid-conversation `role: "system"` turns into the adjacent user turn as `<system-reminder>` text and forwards all other traffic unchanged, including streamed responses. | Claude Code sends `role: "system"` entries inside `messages` from the first request on, for example the `Today's date is …` reminder. vLLM `/v1/messages` rejects them with HTTP 400 (`Input should be 'user' or 'assistant'`). |
-
-If the server does not report `max_model_len`, Claude Code keeps its defaults. NIKA sends `NIKA_CUSTOM_API_KEY` with the `/models` request when you set it. The proxy reaches the endpoint from the NIKA host, so an endpoint on the host's `localhost` works. The proxy lives in [`src/nika/agents/sandbox/model_proxy.py`](../../src/nika/agents/sandbox/model_proxy.py).
+NIKA prepares the configured agent's template when it deploys an environment, when you run `uv run nika images prepare`, and before an agent run. A build can take several minutes, and later runs reuse the template. NIKA builds a new template when the pinned image, the pinned packages, `nika.sandbox.cpus`, or `nika.sandbox.memory` change.
 
 ## Architecture
 
-The network environment, MCP gateway, and orchestration run on the host. The agent and its framework run in a sandbox and use the gateway to inspect the environment.
+The network environment, MCP gateway, and orchestration run on the host. The agent and its framework run in the sandbox and use the gateway to inspect the environment.
 
-```
-Host (NIKA orchestration)                 Sandbox (agent only)
-├── Kathara / MCP gateway                 └── python -m agent.runtime <phase>
-├── ground_truth.json                          ├── task.json, agent/ (+ added project, skills, wheels)
-├── Host phase driver (freeze + advance)       ├── claude / codex CLIs, SDKs, or BYO frameworks
-├── Model proxy (credentials, records, step limit)  └── environment tools: MCP HTTP only
-└── sbx CLI or E2B API
-```
+Each task uses an ephemeral workspace, `$TMPDIR/agent-workspaces-<uid>/{agent_session_id}/`. sbx mounts it into the microVM at the same path, and E2B copies it into the sandbox at the same path. It holds:
 
-Each task uses an ephemeral workspace, `$TMPDIR/agent-workspaces-<uid>/{agent_session_id}/`. sbx mounts it into the microVM at the same path; E2B copies it into the sandbox at the same path. It holds:
+- `task.json`: the run settings and the session's MCP endpoints.
+- `agent/`: the agent package, with no NIKA code, plus `project/` for an added agent.
+- `.runtime_env.json`: `AGENT_WORKSPACE`, `PYTHONPATH`, and the standard model client variables (`OPENAI_*` or `ANTHROPIC_*`) that point at the model proxy, with its per-session token.
 
-- `task.json`: the run settings and the session's MCP endpoints, read by [`agent.runtime`](../../src/agent/runtime/contract.py);
-- `agent/`: the agent package, with no NIKA code, plus `project/` for an added agent;
-- `.runtime_env.json`: `AGENT_WORKSPACE`, `PYTHONPATH`, and the standard model client variables (`OPENAI_*` or `ANTHROPIC_*`) pointing at the model proxy, with its per-session token.
+The opaque `agent_session_id` is what agents see in `task.json`, the MCP `X-Session-Id` header, sandbox names, and the workspace path. The host session id and trial directory name stay on the host, so benchmark case keys cannot leak as shortcuts. `ground_truth.json` and host fields such as `problem_names` never enter the sandbox.
 
-The opaque `agent_session_id` is minted at env start and is what agents see in `task.json`, the MCP `X-Session-Id` header, sandbox names, and the workspace path. The human-readable host `session_id` / trial dirname (`trials/{case_key}__tNN/`) stays on the host, so benchmark case keys cannot leak as shortcuts. `ground_truth.json` and host `run.json` fields such as `problem_names` never enter the sandbox.
-
-The agent writes its transcript in the workspace. The host copies new lines into its own `messages.jsonl` in the trial dir about once per second, so `nika inspect` and the benchmark dashboard can tail the run. The host drops any `diagnosis_frozen` event from the workspace copy and any event tagged with a phase other than the one running. After the run, NIKA copies `task.json` as `sandbox_manifest.json`, with its MCP access token redacted, and discards the workspace. NIKA never copies `submission.json` or `messages.jsonl` out of the workspace; the host MCP `submit()` tool writes the scored `submission.json` after validation.
+The agent writes its transcript in the workspace. The host copies new lines into its own `messages.jsonl` about once per second, so `nika inspect` and the benchmark dashboard can follow the run. After the run, NIKA copies `task.json` as `sandbox_manifest.json`, with its MCP access token redacted, and then discards the workspace. NIKA never copies `submission.json` or the workspace `messages.jsonl` out of the workspace. The host MCP `submit()` tool writes the scored `submission.json` after validation.
 
 ### Phase boundary
 
 During diagnosis, the agent cannot reach the submission context (fault ontology and resource catalog):
 
 1. The MCP gateway's phase-advance endpoint requires a per-session secret that the host keeps in memory. NIKA never writes that secret into the sandbox environment, workspace, or MCP config. A request without that secret gets HTTP 403.
-2. The agent runs diagnosis in one sandbox command, which writes `report.json` and exits. The host then records `diagnosis_frozen` from that report, advances the gateway, writes `submission_context.json` into the workspace, and starts the submission step. With unstructured submission, the host maps the report itself and the sandbox stays idle.
+2. The agent runs diagnosis in one sandbox command, which writes `report.json` and exits. The host then records `diagnosis_frozen` from that report, advances the gateway, writes `submission_context.json` into the workspace, and starts the submission step. With unstructured submission, the host maps the report itself, and the sandbox stays idle.
 
 ### How sandboxes stay isolated
 
@@ -264,19 +261,21 @@ Each agent run gets its own sandbox, workspace, and host MCP gateway on an ephem
 
 **Network egress.** During setup, Docker Sandboxes may reach PyPI (when packages install from the network), the hosts uv uses to download an interpreter when a venv is needed, and hosts listed in an [added agent's](../agents/agent-reference.md#sandbox-definition) `sandbox.egress`. After setup, the sandbox reaches the session MCP gateway and the host model proxy. Model requests, including subscription logins, go through that proxy. If NIKA cannot apply the policy, it removes the sandbox and the run fails.
 
-**Docker Sandboxes.** Each run is an sbx microVM named `agent-{agent_session_id}`. NIKA leaves host-wide sbx rules in place and denies them for this sandbox except the model proxy, then allows the session MCP gateway (`localhost:{port}`). Setup hosts stay reachable only while packages install; NIKA denies them before the agent attaches to the MCP gateway. A global rule that covers a declared host stays open as a whole during setup: `sandbox.egress: [api.openai.com]` under a global `**.openai.com` rule also leaves other `openai.com` subdomains reachable until setup ends. Parallel `--batch-size N` trials share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down. To change the proxy, stop it (`sbx daemon stop`) when no sandboxes are running.
+**Docker Sandboxes.** Each run is an sbx microVM named `agent-{agent_session_id}`. NIKA leaves host-wide sbx rules in place and denies them for this sandbox except the model proxy, then allows the session MCP gateway (`localhost:{port}`). Setup hosts stay reachable only while packages install. NIKA denies them before the agent attaches to the MCP gateway. A global rule that covers a declared host stays open as a whole during setup. For example, `sandbox.egress: [api.openai.com]` under a global `**.openai.com` rule also leaves other `openai.com` subdomains reachable until setup ends. Parallel `--batch-size N` trials share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down. To change the proxy, stop the daemon (`sbx daemon stop`) when no sandboxes are running.
 
-**E2B.** Sandboxes are created with `allow_internet_access=False`. After create, NIKA probes the sandbox and fails the run if it can open an internet connection. Packages are installed when the service builds the template, so `sandbox.egress` is unused. The sandbox reaches the session MCP gateway and model proxy through a tunnel over E2B's command channel. Both listen on the host loopback, except a [remote lab host](remote.md) serves the gateway. Lifetime is `agent.timeout_sec` plus 30 minutes, or 6.5 hours when `timeout_sec` is `0`. NIKA removes the sandbox when the run ends; `nika session close` removes it after an interrupted run.
+**E2B.** Sandboxes are created with `allow_internet_access=False`. After create, NIKA probes the sandbox and fails the run if it can open an internet connection. Packages are installed when the service builds the template, so `sandbox.egress` is unused. The sandbox reaches the session MCP gateway and model proxy through a tunnel over E2B's command channel. Both listen on the host loopback, except that a [remote lab host](remote.md) serves the gateway. The sandbox lifetime is `agent.timeout_sec` plus 30 minutes, or 6.5 hours when `timeout_sec` is `0`. NIKA removes the sandbox when the run ends. `nika session close` removes it after an interrupted run.
 
-**Sandbox boundary:** sandboxes never receive `nika/` source, host configuration, or the word NIKA. The `agent` package imports no host code, and [a contract test](../../tests/agent/test_agent_isolation_contract.py) fails if any file copied into a sandbox names NIKA. The live [sandbox agent tests](../../tests/agent/test_sandbox_agents.py) record every model request of an agent on a custom endpoint and check that neither those requests nor the sandbox's environment, home directory, or installed packages name it.
+**Sandbox boundary.** Sandboxes never receive `nika/` source, host configuration, or the word NIKA. The `agent` package imports no host code, and [a contract test](../../tests/agent/test_agent_isolation_contract.py) fails if any file copied into a sandbox names NIKA. The live [sandbox agent tests](../../tests/agent/test_sandbox_agents.py) record every model request of an agent on a custom endpoint, and check that neither those requests nor the sandbox's environment, home directory, or installed packages name it.
 
-Claude Code runs with `--strict-mcp-config` and without `WebSearch`, `WebFetch`, or claude.ai connectors; Codex runs with web search disabled. The agent reaches the network only through its MCP tools.
+Claude Code runs with `--strict-mcp-config` and without `WebSearch`, `WebFetch`, or claude.ai connectors. Codex runs with web search disabled. The agent reaches the network only through its MCP tools.
 
 ## Troubleshoot sandbox runs
 
+Use these entries when a run fails with the error shown.
+
 ### Runs stop because sbx allows all traffic
 
-NIKA limits each agent sandbox to its MCP gateway and model proxy by denying, for that sandbox, every host the global sbx policy allows. In sbx a deny always wins over an allow, so under the Open preset (`allow-all`, global rule `**`) the deny would also block the gateway and the proxy, and the agent could reach nothing. NIKA therefore stops the run with an error before it deploys anything.
+NIKA limits each agent sandbox to its MCP gateway and model proxy by denying, for that sandbox, every host the global sbx policy allows. In sbx a deny always wins over an allow. Under the Open preset (`allow-all`, global rule `**`), the deny would also block the gateway and the proxy, and the agent could reach nothing. NIKA therefore stops the run with an error before it deploys anything.
 
 To keep your host's sbx policy, use [AgentENV on this host](#run-agentenv-in-docker) with `./scripts/install.sh --with-agentenv`, or [connect to E2B cloud](#connect-to-e2b-cloud-or-another-e2b-compatible-service). Both use `nika.sandbox.backend: e2b` and confine each sandbox independently of sbx. Run your original NIKA command again after configuring the selected runtime.
 
@@ -288,7 +287,7 @@ Changing the host policy affects other sandboxes. If you choose Balanced instead
 sbx policy reset   # stops running sandboxes, then asks for a preset: choose Balanced
 ```
 
-The global policy applies to all your sandboxes, and the reset removes the global rules you added; add back the ones your other sandboxes need with `sbx policy allow network`.
+The global policy applies to all your sandboxes, and the reset removes the global rules you added. Add back the ones your other sandboxes need with `sbx policy allow network`.
 
 ### `sbx create` fails with a KVM error
 
@@ -319,15 +318,15 @@ When you run `codex login` over SSH, the callback server runs on the remote host
      -L 127.0.0.1:5411:127.0.0.1:5411 ubuntu@YOUR_SSH_HOST
    ```
 
-   Replace both port numbers with your callback port and use your SSH username and host.
-3. Leave the tunnel open while completing the browser login. If the browser already reached the failed callback page, refresh that page after opening the tunnel.
+   Replace both port numbers with your callback port, and use your SSH username and host.
+3. Leave the tunnel open while you complete the browser login. If the browser already reached the failed callback page, refresh that page after you open the tunnel.
 4. When the remote command reports success, stop the tunnel with Ctrl+C.
 
 If the login timed out, restart it and check the new callback port before signing in again. See [OpenAI's SSH callback guidance](https://learn.chatgpt.com/docs/auth#fallback-forward-the-localhost-callback-over-ssh).
 
 ### Model requests or Docker sign-in fail
 
-Model requests leave from the NIKA host through its model proxy, so the host itself must reach the provider's API; sandboxes reach only the proxy.
+Model requests leave from the NIKA host through its model proxy, so the host itself must reach the provider's API. Sandboxes reach only the proxy.
 
 With sbx, an outbound proxy for the sbx daemon is optional and off by default. If `sbx` cannot reach Docker's services, set it in `config/nika.yaml`:
 
@@ -339,15 +338,14 @@ nika:
 
 Or pass `--sandbox-proxy` on the CLI.
 
-NIKA also sets `HTTPS_PROXY` on host `sbx` subprocesses from that URL when `HTTPS_PROXY` is unset, so `sbx create` / `sbx exec` can fetch `https://login.docker.com/.well-known/jwks.json`. If Docker Hub token refresh still times out, confirm the proxy can reach `login.docker.com`, then run `sbx login`.
+NIKA also sets `HTTPS_PROXY` on host `sbx` subprocesses from that URL when `HTTPS_PROXY` is unset, so `sbx create` and `sbx exec` can fetch `https://login.docker.com/.well-known/jwks.json`. If Docker Hub token refresh still times out, confirm that the proxy can reach `login.docker.com`, then run `sbx login`.
 
 ### AgentENV or E2B runs stop before the sandbox starts
 
-- `connection refused` on `127.0.0.1:8800` means AgentENV is not running; check `docker ps -a --filter name=nika-agentenv` and `docker logs nika-agentenv`, or run `./scripts/install.sh --with-agentenv` again.
-
-- `The e2b sandbox backend needs the E2B SDK` means the Python environment is out of date; run `uv sync`.
-- `Set E2B_API_KEY in .../.env` means NIKA found no service key; see [Connect to E2B](#connect-to-e2b-cloud-or-another-e2b-compatible-service).
+- `connection refused` on `127.0.0.1:8800` means AgentENV is not running. Check `docker ps -a --filter name=nika-agentenv` and `docker logs nika-agentenv`, or run `./scripts/install.sh --with-agentenv` again.
+- `The e2b sandbox backend needs the E2B SDK` means the Python environment is out of date. Run `uv sync`.
+- `Set E2B_API_KEY in .../.env` means NIKA found no service key. See [Connect to E2B](#connect-to-e2b-cloud-or-another-e2b-compatible-service).
 - `Could not build e2b template` means the service rejected the template build. The service must implement E2B's template build API. The next run removes the failed template and builds it again.
 - `No API key or subscription login for provider` means the provider has neither an API key in `.env` nor a [subscription login](#subscriptions). This applies to every runtime.
 
-The [agent test matrix](../development/testing.md#agent-tests-testsagent) lists sandbox unit, security, isolation, and end-to-end commands with their prerequisites.
+The [agent test matrix](../development/testing.md#agent-tests-testsagent) lists the sandbox unit, security, isolation, and end-to-end commands with their prerequisites.

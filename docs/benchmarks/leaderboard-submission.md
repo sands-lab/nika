@@ -1,4 +1,4 @@
-# 🏆 Leaderboard submission
+# Leaderboard submission
 
 Publish the result of an official benchmark release run on the NIKA leaderboard. One command packs the run, validates it, and opens two pull requests:
 
@@ -23,7 +23,7 @@ Publish the result of an official benchmark release run on the NIKA leaderboard.
 - **Scores package** and **trajectories package**: the two submissions above.
 - **`metadata.yaml`**: the entry's name, authors, model, and agent harness. See [its fields](#metadatayaml).
 
-## 🚀 Submit
+## Submit
 
 ```shell
 uv run nika leaderboard submit --result_dir results/my-run \
@@ -44,7 +44,7 @@ Maintainers review and merge the PRs; the command never merges them.
 > [!NOTE]
 > This form creates minimal metadata. Review the entry's code link, project links, and harness display name before publishing, or use custom metadata.
 
-## ✏️ Submit with custom metadata
+## Submit with custom metadata
 
 To add a longer README, code links, tools, or skills, write the metadata yourself and pass `--submission` instead of `--name` and `--authors`:
 
@@ -69,7 +69,7 @@ nika leaderboard submit --result_dir results/my-run \
 | `--release-source local` | Check against this checkout's release files when offline; leaderboard CI still uses the official release |
 | `--skip-validate` | Skip local checks only; GitHub CI still validates scores |
 
-## ⚠️ If an upload fails
+## If an upload fails
 
 An upload can fail after the GitHub PR opens, for example because of a network error or missing Hub permissions. The error prints the existing PR URL. Retry with the flags the error prints:
 
@@ -81,7 +81,7 @@ Trajectories upload under the original package name, even on another date. The d
 
 ---
 
-# 📚 Reference
+# Reference
 
 The rest of this page is reference material: the files you edit or that `submit` produces, how the leaderboard prices runs, and what to do when validation fails.
 
@@ -162,7 +162,7 @@ Chart names combine the model, normalized harness name, optimization methods, an
 
 Both land under `<release_version>/{YYYYMMDD}_{slug}/`, in `submissions/` on GitHub and in `trajectories/` on Hugging Face. The `{slug}` combines the public harness and model names.
 
-## 🔍 How validation works
+## How validation works
 
 ### Audit recorded evidence
 
@@ -185,6 +185,8 @@ Open the pull request's validation check to inspect the audit summary and downlo
 
 Newly proposed audit rules require maintainer review before adoption. For reviewer setup and workflow maintenance, see [Run leaderboard submission audits](../development/testing.md#run-leaderboard-submission-audits).
 
+
+### What validation checks
 
 `submit` runs the same checks as leaderboard CI. You need the details below only when a check fails. It verifies that:
 

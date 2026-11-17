@@ -1,17 +1,35 @@
 # Scenario startup performance
 
-Resource and time cost of the environments and tasks in benchmark release 0.2.0 (test and dev splits), measured without an agent, and of SONiC Containerlab variants measured the same way. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](https://github.com/sands-lab/nika/blob/experiment/experiment/profile/README.md). NIKA budgets 256 MiB per SONiC router and 1.5 GiB per SR Linux router when it sizes Firecracker VMs and the Containerlab ISP set; the tables below are measured lab-container memory, not that budget.
+Use this page to size a host for benchmark runs. It reports the time, memory, and disk that each environment of benchmark release 0.2.0 needs to start, measured without an agent, and how many environments a host can start at once. The sizing guidance comes first; the measurement tables follow below a divider.
 
-To run the research commands below, use a separate checkout of the shared `experiment` branch.
+NIKA budgets 256 MiB per SONiC router and 1.5 GiB per SR Linux router when it sizes Firecracker VMs. The tables measure the lab-container memory that was actually used, not that budget.
 
-The page has four measurements:
+## Size a host
+
+These figures come from a 32 vCPU, 125 GiB host.
+
+- Use `batch_size: 8`. Higher values added per-environment latency and Docker load without shortening the run. Values below 8 were not measured.
+- Keep `heavy_batch_size: 1`. Heavy environments (Containerlab, k8s/llmd/XRd, and topology size `l`) run one at a time. Running them in parallel was not measured.
+- A full run of release 0.2.0 (169 tasks, both splits) takes about 4.5 hours of lab time before agent time. About 4.1 hours of that is heavy tasks. Adding CPU cores or raising `batch_size` does not shorten that part.
+- Memory per lab is about 15.7 GiB for a Containerlab SR Linux lab, 14.2 GiB for `k8s_lab`, and under 2 GiB for every Kathara ISP lab. A SONiC ISP uses less memory per router than SR Linux; `isp_brain` (161 routers) peaked at 21.3 GiB ([SONiC scale](#sonic-scale)). Memory was not the limit in the sweep: available memory never fell below 71 GiB.
+- Keep at least 13 GiB of free disk per `k8s_lab` run and 7 GiB per `llmd_lab` run, on top of the images.
+
+---
+
+The rest of this page is reference material: how the measurements were taken and the full tables.
+
+## Measurement setup
+
+The measurements are:
 
 - **Single-lab baseline:** every environment variant the release deploys, one environment at a time, 3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime verification), a 10 s hold, and cleanup.
 - **Concurrency sweep:** every release task, with its failure injected and verified as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
 - **SONiC Containerlab:** `min3clos` and the ISP topologies the 0.2.0 baseline runs on SR Linux (`isp_dfn-bwin`, `isp_dfn-gwin`, `isp_di-yuan`, `isp_pdh`), one environment at a time, 3 runs each, with `--device-profile sonic`. Same startup path, 10 s hold, and cleanup as the single-lab baseline.
 - **SONiC scale:** the largest SNDlib ISPs on Containerlab SONiC, one environment at a time, with host-side wires and a full `verify_lab()` after startup.
 
-## Run
+Metric definitions and script options are in the [profiling README](https://github.com/sands-lab/nika/blob/experiment/experiment/profile/README.md) on the shared `experiment` branch. To run the research commands below, use a separate checkout of that branch.
+
+## Host and run settings
 
 | Item | Value |
 | --- | --- |
@@ -23,8 +41,7 @@ The page has four measurements:
 | Other load | No other NIKA lab ran. An unrelated libvirt VM ran from 2026-10-02 10:21 to 11:43 UTC and overlapped 37 of the 84 runs in the ISP part of the baseline (see [Sampling quality](#sampling-quality)) |
 | Leftovers | After every step: no containers and no sessions from this run |
 
-`--release` loads one split, so the case files were built from the release YAML
-files. The baseline used one row per lab variant; the sweep used every row:
+`--release` loads one split, so the case files were built from the release YAML files. The baseline used one row per lab variant; the sweep used every row:
 
 ```bash
 uv run python - <<'EOF'
@@ -44,12 +61,7 @@ uv run python experiment/profile/profile_scenarios.py --run-config config/nika.y
   --output results/profile-20261001/scenarios-c1
 ```
 
-The baseline was collected in parts with the same settings. 39 runs (15 non-ISP
-variants) came from a run that selected labs from the scenario registry before
-profiling switched to benchmark cases; only runs whose lab variant matches a release
-variant exactly were kept. The 28 ISP variants, the 6 `campus_lan` and
-`enterprise_branch` variants, and the third run of 6 variants were profiled from
-case files with one row per variant.
+The baseline was collected in parts with the same settings. The 39 runs of 15 non-ISP variants came from a run that selected labs from the scenario registry before profiling switched to benchmark cases; only runs whose lab variant matches a release variant exactly were kept. The 28 ISP variants, the 6 `campus_lan` and `enterprise_branch` variants, and the third run of 6 variants were profiled from case files with one row per variant.
 
 Concurrency sweep, run once per `batch_size`, one after another:
 
@@ -63,8 +75,7 @@ done
 
 ## Single-lab baseline
 
-Every one of the 49 lab variants passed 3 of 3 runs. Values are medians over the 3
-runs; parentheses show min-max. Times are seconds.
+Every one of the 49 lab variants passed 3 of 3 runs. Values are medians over the 3 runs; parentheses show min-max. Times are seconds.
 
 - **Variant:** `igp/bgp_mode` set by the benchmark case, and the device image when it
   is not the FRR default. `-` means scenario defaults.
@@ -74,8 +85,7 @@ runs; parentheses show min-max. Times are seconds.
 - **CPU:** aggregate lab container CPU, where 100% is one core. Peak is the highest
   1 s sample; mean is total CPU time over the run's wall time.
 
-Rows for the same scenario are adjacent, so Kathara and Containerlab variants of an
-ISP topology sit next to each other.
+Rows for the same scenario are adjacent, so Kathara and Containerlab variants of an ISP topology sit next to each other.
 
 | Scenario | Backend | Size | Variant | OK | Containers | Deploy | Convergence | Cleanup | Total | Peak mem GiB | WS GiB | Peak CPU % | Mean CPU % |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -151,12 +161,7 @@ ISP topology sit next to each other.
 
 ## Concurrency and throughput
 
-The sweep ran all 169 cases at `batch_size` 8, 16 and 24 with `heavy_batch_size` 1.
-Light cases share the batch limit; the 78 heavy cases (45 topo_size `l`, 21
-k8s/llmd, 12 Containerlab) run alone after the light cases finish. Throughput is ok
-cases per hour of sweep wall time. Light and heavy phase times are measured from the
-first to the last resource sample of the cases in each phase. Phase times below are
-medians over ok cases, in seconds.
+The sweep ran all 169 cases at `batch_size` 8, 16 and 24 with `heavy_batch_size` 1. Light cases share the batch limit. The 78 heavy cases (45 with topology size `l`, 21 k8s/llmd, and 12 Containerlab) run alone after the light cases finish. Throughput is passed cases per hour of sweep wall time. Light and heavy phase times run from the first to the last resource sample of the cases in each phase. The phase times below are medians over passed cases, in seconds.
 
 | `batch_size` | Wall h | OK / cases | Failed | Throughput ok/h | Light phase h | Light ok/h | Heavy phase h |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -172,14 +177,9 @@ Light cases (91 ok at every level):
 | 16 | 162 | 8.9 | 3.0 | 46 | 248 | 375 | 188 | 106.6 |
 | 24 | 266 | 8.2 | 3.2 | 60 | 385 | 830 | 372 | 101.3 |
 
-Heavy cases (78 ok at every level) are unaffected by `batch_size` because they run
-alone: median deploy 103-104 s, convergence 19-25 s, inject 3.4 s, cleanup 15-16 s,
-total 176-177 s. Their minimum MemAvailable was 71.2-81.0 GiB.
+Heavy cases (78 passed at every level) are unaffected by `batch_size` because they run alone: median deploy 103-104 s, convergence 19-25 s, inject 3.4 s, cleanup 15-16 s, total 176-177 s. Their minimum MemAvailable was 71.2-81.0 GiB.
 
-Docker daemon CPU is the CPU time of `dockerd` and `containerd` during each case's
-window. The daemons are shared, so this is a measure of contention, not a per-case
-cost. Host load1 is a 1-minute average, so the first heavy cases still show load from
-the light phase.
+Docker daemon CPU is the CPU time of `dockerd` and `containerd` during each case's window. The daemons are shared, so this measures contention, not a per-case cost. Host load1 is a 1-minute average, so the first heavy cases still show load from the light phase.
 
 ### Concurrency observations
 
@@ -194,20 +194,6 @@ the light phase.
   removal.
 - **Memory is not the limit.** MemAvailable never dropped below 71 GiB of 125 GiB.
 - **Load does not cause failures.** All 169 cases passed at every level.
-
-### Sizing guidance for this host class (32 vCPU, 125 GiB)
-
-- Use `batch_size` 8. Values above 8 add per-case latency and Docker daemon load
-  without improving throughput. Values below 8 were not measured.
-- Keep `heavy_batch_size` 1. Expect a full 0.2.0 release (169 cases, both splits) to
-  take about 4.5 h of lab time before agent time, about 4.1 h of it in the heavy
-  cases. Adding CPU cores or raising `batch_size` does not shorten that part; this
-  run did not measure running heavy cases in parallel.
-- Plan memory per lab from the baseline table: about 15.7 GiB for a Containerlab
-  SR Linux lab and 14.2 GiB for `k8s_lab`, below 2 GiB for every Kathara ISP lab.
-  A Containerlab SONiC ISP is larger than Kathara FRR and smaller per router than SR Linux; `isp_brain` (161 SONiC routers) peaked at 21.3 GiB of lab-container memory ([SONiC scale](#sonic-scale)).
-- Keep at least 13 GiB of free disk per `k8s_lab` run and 7 GiB per `llmd_lab` run,
-  on top of the images.
 
 ## SONiC Containerlab
 

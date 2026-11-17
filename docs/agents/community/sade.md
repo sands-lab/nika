@@ -1,14 +1,10 @@
 # SADE community agent
 
-This reference is for operators and maintainers of NIKA's Symptom-Aware Diagnostic Escalation (SADE) community agent. SADE runs Claude Code through a phase-gated diagnostic workflow and a 15-skill network troubleshooting library. It subclasses `agent.base.DiagnosisAgent`.
-
-Implementation: [`agent.py`](../../../src/agent/community/sade/agent.py) implements the protocol; [`prompts/`](../../../src/agent/community/sade/prompts/) and [`.claude/skills/`](../../../src/agent/community/sade/.claude/skills/) contain the diagnostic workflow.
+SADE (Symptom-Aware Diagnostic Escalation) is a community agent that runs Claude Code through a phase-gated troubleshooting workflow and a library of 15 network troubleshooting skills. It is also a worked example of a large skill library; see [Give an agent skills](../agent-skills.md).
 
 ## Cite the method
 
-The paper ["SADE: Symptom-Aware Diagnostic Escalation for LLM-Based Network Troubleshooting"](https://arxiv.org/abs/2605.04530) describes the method.
-
-If you use SADE in academic research, please cite the paper:
+The paper ["SADE: Symptom-Aware Diagnostic Escalation for LLM-Based Network Troubleshooting"](https://arxiv.org/abs/2605.04530) describes the method. If you use SADE in academic research, please cite it:
 
 ```bibtex
 @misc{sade2026,
@@ -21,23 +17,33 @@ If you use SADE in academic research, please cite the paper:
 }
 ```
 
-## Install
+## Set up
 
-SADE drives Claude Code through the Anthropic Agent SDK. NIKA installs the SDK and Claude Code in SADE's sandbox, so the host needs nothing beyond a [sandbox runtime](../../operations/agent-sandbox.md).
+NIKA installs the Anthropic Agent SDK and Claude Code in SADE's sandbox. The host needs only a [sandbox runtime](../../operations/agent-sandbox.md).
 
-Set provider credentials in the repo-root `.env` (same as `cli.claude`; see [`.env.example`](../../../.env.example)), and select the provider under `agent.provider` in `config/nika.yaml`:
+Set the provider key in the repository's `.env`, as for `cli.claude` (see [`.env.example`](../../../.env.example)), then select the provider with `agent.provider` in `config/nika.yaml`:
 
 - `DEEPSEEK_API_KEY` with `agent.provider: deepseek`
 - `ANTHROPIC_API_KEY` with `agent.provider: anthropic`
-- Optional `NIKA_CUSTOM_API_KEY` with `agent.provider: custom` and `agent.base_url`
+- `NIKA_CUSTOM_API_KEY` with `agent.provider: custom` and `agent.base_url`, for an authenticated custom endpoint
 
 ## Run
 
-```bash
-nika agent run -a community.sade -n 20
+```shell
+uv run nika agent run -a community.sade
 ```
 
-SADE writes `messages.jsonl` and `submission.json`, then submits through NIKA's task MCP server.
+SADE writes `messages.jsonl` and `submission.json`, then submits through NIKA's task MCP server. `agent.max_tokens` does not apply to SADE.
+
+## How it works
+
+- **Diagnosis** runs in one Claude Code session against NIKA's diagnosis MCP servers, within the [step limit](../agent-reference.md#step-limit). The system prompt sets the SADE workflow: a blind start, branching, symptom-first diagnosis, and broad-search escalation. After observed evidence points to a failure family, the skill library and its `CLAUDE.md` index select the matching skills. When the agent reaches half of its step budget, a `PostToolUse` hook adds one reminder to the next tool result, asking SADE to write its final report once the evidence is conclusive.
+- **Submission** runs in a second Claude Code session that has only the task MCP server. SADE receives the frozen report, the fault ontology, and the resource catalog, and calls `submit` with `root_causes` as `[{resource_id, fault_type}, ...]`. See the [root-cause ground truth and scoring reference](../../benchmarks/root-cause-evaluation.md).
+- The diagnostic skills guide network inspection through the session's MCP tools. The `h.py` launcher runs `parse_large` to summarize oversized saved tool output. It does not access the network.
+
+---
+
+The rest of this page is reference for maintainers.
 
 ## Layout
 
@@ -47,12 +53,8 @@ src/agent/community/sade/
 ├── h.py                # saved-output parser launcher (python h.py parse_large <file>)
 ├── prompts/            # sade_prompt.py (phase-gated workflow)
 └── .claude/
-    ├── CLAUDE.md       # fault-routing + tool index
+    ├── CLAUDE.md       # fault-routing and tool index
     └── skills/         # 15 diagnostic and utility skills
 ```
 
-## How it works
-
-- **Diagnosis** runs inside one Claude Code session against NIKA's diagnosis MCP servers, with the host-enforced [request budget](../agent-reference.md#step-limit). The system prompt enforces the SADE workflow: blind start, branch, symptom-first diagnosis, and broad-search escalation. The skill library and `CLAUDE.md` index select a fault family after observed evidence implicates it. At half the budget, a `PostToolUse` hook adds one reminder to the next tool result that asks SADE to write its final report once evidence is conclusive.
-- **Submission** runs in a second Claude Code session with only the task MCP server. SADE gets the frozen report plus the fault ontology and resource catalog, and calls `submit` with `root_causes` as `[{resource_id, fault_type}, ...]`. See the [root-cause ground truth and scoring reference](../../benchmarks/root-cause-evaluation.md).
-- The diagnostic skills guide network inspection through the session's MCP tools. `h.py` launches `parse_large` to summarize oversized saved tool output; it does not access the network.
+Implementation: [`agent.py`](../../../src/agent/community/sade/agent.py) implements the protocol. [`prompts/`](../../../src/agent/community/sade/prompts/) and [`.claude/skills/`](../../../src/agent/community/sade/.claude/skills/) hold the diagnostic workflow.

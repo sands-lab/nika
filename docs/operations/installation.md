@@ -1,8 +1,10 @@
 # Installation
 
-Audience: someone setting up NIKA on a Linux host for the first time.
+This page sets up NIKA on a Linux host, so you can run network environments, agents, and benchmark releases from one checkout.
 
 ## Default install
+
+Check the prerequisites below, then run:
 
 ```shell
 git clone https://github.com/sands-lab/nika.git
@@ -10,9 +12,15 @@ cd nika
 ./scripts/install.sh
 ```
 
-You need Linux, Python 3.12+, `curl`, `git`, `sudo`, a usable Docker Engine, and the host `vrf` kernel module. The installer installs neither: it checks both before changing anything and stops with an error that lists what is missing. Follow [Install Docker Engine](https://docs.docker.com/engine/install/) first. Some scenarios, including `enterprise_branch` in the benchmark, create Linux VRF devices; on Ubuntu kernels that ship the module separately (cloud images and many servers), install it with `sudo apt-get install linux-modules-extra-$(uname -r)`. If your user cannot reach Docker yet, the installer adds it to the `docker` group and continues under that group.
+### Prerequisites
 
-The installer does not use apt or other system package managers. It keeps what it installs inside the repository:
+- Linux, with `curl` (to fetch uv when it is missing), `git`, and `sudo` for the host settings described below.
+- A usable Docker Engine. Follow [Install Docker Engine](https://docs.docker.com/engine/install/) first. If your user cannot reach Docker yet, the installer adds it to the `docker` group and continues under that group.
+- The host `vrf` kernel module. Some scenarios, including `enterprise_branch` in the benchmark, create Linux VRF devices. On Ubuntu kernels that ship the module separately (cloud images and many servers), install it with `sudo apt-get install linux-modules-extra-$(uname -r)`.
+
+The installer does not install Docker or the `vrf` kernel module package. It checks both before it changes anything and stops with an error that lists what is missing. Once the module is present, the installer loads it and keeps it loaded across reboots. It also provides Python 3.12 through uv when the host has none.
+
+The installer does not use apt or other system package managers, except in the opt-in sandbox runtime and Firecracker steps described below. It keeps what it installs inside the repository:
 
 | What | Where |
 | --- | --- |
@@ -127,7 +135,7 @@ Pass `--with-vendor-images` so the installer builds or loads those Docker images
 
 | Scenario | Docker image | What you provide |
 | --- | --- | --- |
-| RouterOS | `vrnetlab/mikrotik_routeros:7.21.5` | Nothing. The script downloads CHR from MikroTik and builds the image. Needs `/dev/kvm`. |
+| RouterOS | `vrnetlab/mikrotik_routeros:7.21.5` | Nothing. The script downloads CHR from MikroTik and builds the image. Use a host with `/dev/kvm`; without it the boot is slow or fails. |
 | IOS-XR (XRd) | `ios-xr/xrd-control-plane:26.2.1` | A local Cisco `.tgz` (CCO / Modeling Labs). There is no public download URL. The installer accepts the CCO bundle as downloaded and loads the `*.dockerv1.tgz` image inside it. |
 
 ```shell

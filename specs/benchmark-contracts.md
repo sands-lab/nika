@@ -1,6 +1,6 @@
 # Benchmark release contracts
 
-Use the benchmark engine interface to integrate the current NIKA frontend with the environment, failure, tool, and scoring code selected by a benchmark release. This reference describes the implemented interface. The [versioning policy](../../VERSIONING.md) governs release compatibility and changes to evaluation conditions.
+Use the benchmark engine interface to integrate the current NIKA frontend with the environment, failure, tool, and scoring code selected by a benchmark release. This reference describes the implemented interface. The [versioning policy](../VERSIONING.md) governs release compatibility and changes to evaluation conditions.
 
 ## Frontend and benchmark engine
 
@@ -12,13 +12,13 @@ The **frontend** is the NIKA CLI and its agent orchestration code. The **benchma
 | Frontend | Select tasks, schedule trials, launch agent sandboxes, enforce agent budgets, record provenance, evaluate validity, write trial metrics, and package results |
 | Benchmark engine | Read the release's task files and compute task IDs, deploy and close environments, inject and check failures, provide task descriptions and MCP gateways, validate submissions, and compute scores |
 
-The frontend also maps unstructured diagnosis reports through [`ReportMapper`](../../src/nika/evaluator/report_mapper.py), which owns the mapping prompt, the model client, and the submission traces. The engine's task tool validates and records the resulting answer. Moving the mapper into the release's engine remains follow-up work under [#292](https://github.com/sands-lab/nika/issues/292).
+The frontend also maps unstructured diagnosis reports through [`ReportMapper`](../src/nika/evaluator/report_mapper.py), which owns the mapping prompt, the model client, and the submission traces. The engine's task tool validates and records the resulting answer. Moving the mapper into the release's engine remains follow-up work under [#292](https://github.com/sands-lab/nika/issues/292).
 
 A manifest with an `engine` block selects a separate engine container. A manifest without one uses the current NIKA's engine in process. Ad-hoc task matrices also use the in-process engine. An emulation backend, such as Kathará or Containerlab, runs the engine's environments; it is distinct from the benchmark engine.
 
 ## A. Release manifest
 
-[`RELEASE.yaml`](../../benchmark/releases/0.2.0/RELEASE.yaml) declares the release identity, split files and their hashes, trial defaults, required images, and scoring policy. Its `engine` block selects the implementation and lifecycle API:
+[`RELEASE.yaml`](../benchmark/releases/0.2.0/RELEASE.yaml) declares the release identity, split files and their hashes, trial defaults, required images, and scoring policy. Its `engine` block selects the implementation and lifecycle API:
 
 ```yaml
 engine:
@@ -33,7 +33,7 @@ A release's engine lives on its maintenance branch, `release/<version>`. The bra
 
 A manifest may also provide `engine.image`. The frontend uses that image when it exists locally or can be pulled; otherwise it builds from `engine.tag`. An image override does not check the image's commit against the Git reference. Run provenance records the image ID actually used.
 
-Before deploying trials, the frontend checks the supported API version and compares the manifest's task-file hashes with the hashes the engine reports through `describe` and `list_tasks`. A release run takes its tasks from the engine; the frontend reads the local task files only to warn when they differ from the official release. See [`release.py`](../../src/nika/workflows/benchmark/release.py) for release validation and [`container.py`](../../src/nika/benchmark_engine/container.py) for image resolution.
+Before deploying trials, the frontend checks the supported API version and compares the manifest's task-file hashes with the hashes the engine reports through `describe` and `list_tasks`. A release run takes its tasks from the engine; the frontend reads the local task files only to warn when they differ from the official release. See [`release.py`](../src/nika/workflows/benchmark/release.py) for release validation and [`container.py`](../src/nika/benchmark_engine/container.py) for image resolution.
 
 Optional `evaluation` fields constrain release runs:
 
@@ -46,11 +46,11 @@ Optional `evaluation` fields constrain release runs:
 
 The frontend rejects a configured access role with a different policy, a timeout above the release bound, or a disallowed submission mode. Leaderboard validation reads the harness limit from the release it checks against, so no command-line option changes it. The submitter chooses agent step, token, and time budgets within these constraints. The engine fixes tool output limits in its code; users cannot override them through run configuration.
 
-Published releases do not change. Corrections follow the [versioning policy](../../VERSIONING.md); editing a published manifest or task file is not a way to update its behavior.
+Published releases do not change. Corrections follow the [versioning policy](../VERSIONING.md); editing a published manifest or task file is not a way to update its behavior.
 
 ## B. Lifecycle protocol
 
-[`LifecycleProtocol`](../../src/nika/benchmark_engine/protocol.py) defines the interface the trial loop uses for both the in-process engine and an engine container. [`BenchmarkEngine`](../../src/nika/benchmark_engine/engine.py) implements it. [`EngineClient`](../../src/nika/benchmark_engine/client.py) sends authenticated HTTP requests to the container's [service](../../src/nika/benchmark_engine/server.py).
+[`LifecycleProtocol`](../src/nika/benchmark_engine/protocol.py) defines the interface the trial loop uses for both the in-process engine and an engine container. [`BenchmarkEngine`](../src/nika/benchmark_engine/engine.py) implements it. [`EngineClient`](../src/nika/benchmark_engine/client.py) sends authenticated HTTP requests to the container's [service](../src/nika/benchmark_engine/server.py).
 
 | Operation | Input | Result |
 | --- | --- | --- |
@@ -65,7 +65,7 @@ Published releases do not change. Corrections follow the [versioning policy](../
 | `score` | Trial handle and infrastructure evidence flag | `Scores`: score status, the release's scoring ID, its score metrics, and why grading failed. Metrics hold computed values for a scored trial, zeros for `no_submission`, and nulls for `grading_error` and `infra_error` |
 | `stop_trial` | Trial handle and final session status | Closes the environment |
 
-For a release run, the frontend builds its trial grid from `list_tasks`: each task ID times the release's trial count. Before it lists the tasks, the engine checks that it can serve all of them: their environments, failures, MCP servers, and the Dev/Test split rules. It resolves `--task-id` against that list, admits trials by the resource class the engine reports, and starts each trial by task ID. The engine reads the task from its own split file, derives the failures, injection parameters, and expected root causes from it, and refuses an unknown task ID before deploying. The engine also records the task's fingerprint, `benchmark_fingerprint`, in the trial's `run.json`. Runs without a release, such as ad-hoc task matrices and single tasks, send the full task row to the in-process engine; an engine container refuses task rows. Published task IDs never change: [`test_release_tasks.py`](../../tests/benchmark/test_release_tasks.py) pins the task IDs, resource classes, and deployed tasks of every published release.
+For a release run, the frontend builds its trial grid from `list_tasks`: each task ID times the release's trial count. Before it lists the tasks, the engine checks that it can serve all of them: their environments, failures, MCP servers, and the Dev/Test split rules. It resolves `--task-id` against that list, admits trials by the resource class the engine reports, and starts each trial by task ID. The engine reads the task from its own split file, derives the failures, injection parameters, and expected root causes from it, and refuses an unknown task ID before deploying. The engine also records the task's fingerprint, `benchmark_fingerprint`, in the trial's `run.json`. Runs without a release, such as ad-hoc task matrices and single tasks, send the full task row to the in-process engine; an engine container refuses task rows. Published task IDs never change: [`test_release_tasks.py`](../tests/benchmark/test_release_tasks.py) pins the task IDs, resource classes, and deployed tasks of every published release.
 
 The engine and frontend share trial directories: the engine writes `ground_truth.json` as it prepares or executes the timeline, and it records the validated answer, `submission.json`, there. `score` grades the trial from those two files and the frontend's infrastructure evidence flag alone, and returns the scores in its reply. The `Scores` fields are fixed in engine API version 1; metric names and values belong to the release, so a release can add or remove a metric without a new API version. The current protocol does not transfer all results as HTTP response data.
 
@@ -103,7 +103,7 @@ The frontend starts one engine container for the run and closes it when the run 
 
 The container shares the host's Docker daemon, network and process namespaces, and NIKA state directories. It mounts the Docker socket, network namespace directory, results, runtime state, cache, Containerlab working directory, and Kathará settings. It uses the frontend user's UID, GID, and username, so host CLI commands can find the engine's sessions. Environments run as sibling containers on the host.
 
-The engine container runs with `--privileged` and passwordless `sudo`, which give its code root-equivalent access to the host. Run engine images and Git references you trust. Agent isolation uses the separate [agent sandbox](../operations/agent-sandbox.md).
+The engine container runs with `--privileged` and passwordless `sudo`, which give its code root-equivalent access to the host. Run engine images and Git references you trust. Agent isolation uses the separate [agent sandbox](../docs/operations/agent-sandbox.md).
 
 Use `nika session ps`, `nika exec`, and `nika session close` to inspect and close sessions. Cleanup of a pinned trial restarts its recorded engine image when needed, so the engine that deployed the environment also tears it down. Session metadata and trial artifacts remain part of the shared frontend/engine interface.
 
@@ -113,7 +113,7 @@ Use `nika session ps`, `nika exec`, and `nika session close` to inspect and clos
 | NIKA Remote | Supported | Rejected before deployment |
 | Firecracker | Supported | Rejected before deployment |
 
-See [Remote execution](../operations/remote.md) and [Firecracker execution](../operations/firecracker.md) for configuration. Pinned remote engines remain follow-up work in [#308](https://github.com/sands-lab/nika/issues/308).
+See [Remote execution](../docs/operations/remote.md) and [Firecracker execution](../docs/operations/firecracker.md) for configuration. Pinned remote engines remain follow-up work in [#308](https://github.com/sands-lab/nika/issues/308).
 
 ## C. Agent interface
 
@@ -121,15 +121,15 @@ The agent interface consists of the task description, MCP tools and their schema
 
 During diagnosis, agents use the permitted network tools. During submission, the gateway allows only the task server, whose `submit` tool validates and records `{is_anomaly, root_causes}`. The frontend controls the phase transition and freezes the diagnosis report. In unstructured mode, the frontend's report mapper produces the answer from that report and the frozen catalogs.
 
-The gateway limits tool result text to 10,000 characters, with truncation notes and elision markers added outside the limit. See [Tool output limit](../agents/mcp-servers.md#tool-output-limit) for the retained text and list-item rules.
+The gateway limits tool result text to 10,000 characters, with truncation notes and elision markers added outside the limit. See [Tool output limit](../docs/agents/mcp-servers.md#tool-output-limit) for the retained text and list-item rules.
 
 The frontend may hold task details and ground truth, for example to show progress or to package results. It must keep them from the agent: the agent gets an opaque session ID, and nothing the frontend passes to the agent names the task or its failures.
 
-Agent harnesses use MCP tools rather than direct container access. Changes to what the agent observes or how NIKA evaluates its answer must follow the [versioning policy](../../VERSIONING.md).
+Agent harnesses use MCP tools rather than direct container access. Changes to what the agent observes or how NIKA evaluates its answer must follow the [versioning policy](../VERSIONING.md).
 
 ## D. Results schema
 
-The results schema distinguishes the frontend that ran the agent from the engine that ran the environment. [`provenance.py`](../../src/nika/workflows/benchmark/provenance.py) defines the current schema and builds run provenance.
+The results schema distinguishes the frontend that ran the agent from the engine that ran the environment. [`provenance.py`](../src/nika/workflows/benchmark/provenance.py) defines the current schema and builds run provenance.
 
 | File | Writer | Contents |
 | --- | --- | --- |
@@ -153,8 +153,8 @@ Two interface versions serve different readers:
 | `engine.api.version` in the release manifest | Engine lifecycle API, manifest interpretation, and engine-written results | `1` |
 | `schema_version` in run-directory `run.json` | Frontend-written run records | `1` |
 
-Backward-compatible additions retain the interface version. A breaking change requires another supported version. Engine API version 1 may still change incompatibly until a release tag pins an engine that serves it. The frontend rejects unsupported versions before running a release or reading its results. These interface versions do not replace the benchmark version or determine whether a change needs an edition, revision, or patch; use the [versioning policy](../../VERSIONING.md) for that decision.
+Backward-compatible additions retain the interface version. A breaking change requires another supported version. Engine API version 1 may still change incompatibly until a release tag pins an engine that serves it. The frontend rejects unsupported versions before running a release or reading its results. These interface versions do not replace the benchmark version or determine whether a change needs an edition, revision, or patch; use the [versioning policy](../VERSIONING.md) for that decision.
 
 ## Verify an integration
 
-Run the [engine container E2E tests](testing.md#verify-benchmark-engines) to exercise the normal release workflow. They check successful oracle diagnosis, ground truth, failure presence after injection and during the trial, tool calls, provenance, and removal of owned runtime resources. The manual release verification workflow also compares pinned-engine scores with the in-process engine. Keep changes to task data, injection, tool behavior, and scoring separate from frontend execution changes so reviewers can assess their effect on benchmark reproducibility.
+Run the [engine container E2E tests](../docs/development/testing.md#verify-benchmark-engines) to exercise the normal release workflow. They check successful oracle diagnosis, ground truth, failure presence after injection and during the trial, tool calls, provenance, and removal of owned runtime resources. The manual release verification workflow also compares pinned-engine scores with the in-process engine. Keep changes to task data, injection, tool behavior, and scoring separate from frontend execution changes so reviewers can assess their effect on benchmark reproducibility.

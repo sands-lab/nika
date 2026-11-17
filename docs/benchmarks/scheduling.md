@@ -1,44 +1,20 @@
 # Schedule an incident over time
 
-Task authors can schedule failure injection, recovery, background traffic, and agent startup in one benchmark task. Each session runs its own timeline after the network and agent infrastructure are ready.
+Use a schedule when the incident changes over time: a link that goes down and comes back, a failure that starts after the agent begins, or traffic that arrives in bursts. A schedule lives in the task file. It lists the failures, recoveries, and traffic, each at a planned time, and it sets when the agent starts. Each session runs its own timeline after its network and agent infrastructure are ready.
 
-Run the [scheduled task example](../../config/benchmark-schedule.example.yaml) with your configured agent:
+## Run the example
 
 ```shell
 uv run nika benchmark run --config config/benchmark-schedule.example.yaml
 ```
 
-The example starts an incast profile, brings a client link down twice, introduces a persistent DNS error, and starts diagnosis at 10 seconds. To validate the orchestration without a model endpoint, add `--agent mock`. The mock agent uses ground truth and is for development only.
+This runs the [scheduled benchmark example](../../config/benchmark-schedule.example.yaml) with your configured agent. The example starts an incast traffic profile, brings a client link down twice, introduces a persistent DNS error, and starts diagnosis at 10 seconds.
 
-## Run tasks with default timing
+To check the timeline without a model endpoint, add `--agent mock`. The mock agent reads the ground truth, so use it only for development.
 
-Existing tasks with `problem` or `problems` and `inject` continue to work. At runtime, NIKA converts their failures into persistent events at `0s` and runs them through the same scheduler. The agent starts after every initial injection has been verified. Healthy tasks use an empty event list and start diagnosis when the environment and agent infrastructure are ready. The source YAML, task identity, and resume keys stay unchanged.
+## Write a schedule
 
-For authored schedules, `at` defaults to `0s`. Omitting `agent_start` waits for events at `0s` to finish before releasing diagnosis; later events keep their planned offsets. Set `agent_start: 0s` explicitly to start diagnosis alongside the initial injections. A numeric agent offset controls release by time, while the default controls release by injection completion.
-
-## Organize task files
-
-Keep a reusable task in its own YAML with `scenario`, deployment options, `traffic`, and `schedule` at the root. The [multi-failure task](../../config/tasks/multi-failure.example.yaml) is a complete example; run it directly:
-
-```shell
-uv run nika benchmark run --config config/tasks/multi-failure.example.yaml
-```
-
-A benchmark YAML lists complete task files under `cases`:
-
-```yaml
-cases:
-  - tasks/multi-failure.example.yaml
-  - tasks/healthy.example.yaml
-```
-
-Paths resolve relative to the benchmark YAML. Each referenced file defines one complete task, including its scenario, failure events, and traffic settings. Benchmark fields do not supply task defaults. Mixing inline tasks with paths and referencing another benchmark are rejected. The [benchmark example](../../config/benchmark-schedule.example.yaml) references the complete multi-failure task. Existing matrices containing only inline tasks remain supported for compatibility.
-
-`nika benchmark migrate` expands references and materializes ground truth into one complete `cases` YAML. Use that output when sharing or publishing a benchmark so its task definitions travel together.
-
-## Define the task's events
-
-Put `schedule` on the task alongside `scenario`, deployment options, and optional `traffic`. Scheduled tasks declare failures inside their events; omit task-level `problem`, `problems`, and `inject`.
+Put `schedule` at the root of a task file, next to `scenario`, the deployment options, and an optional `traffic` profile. Declare the failures inside the events. A scheduled task has no task-level `problem`, `problems`, or `inject`.
 
 ```yaml
 scenario: dc_clos
@@ -62,39 +38,52 @@ schedule:
       at: 20s
 ```
 
-These are two independent instances of the same failure. Event descriptions in logs include the failure, target parameters, planned time, and occurrence number. NIKA derives internal instance indices from list positions; authors do not provide IDs.
+The first event creates two independent occurrences of `link_down` on the link of `client_1_1`. Its planned down windows are 5 to 15 seconds and 35 to 45 seconds. The second event brings down the link of `web_1` at 20 seconds and leaves it down until the session ends.
+
+Each occurrence appears in the logs with its failure, target, planned time, and occurrence number. You do not assign IDs to events; NIKA derives them from their position in the list.
+
+---
+
+The rest of this page is reference material: the event fields, traffic options, how the agent start and scoring work, and the files a run writes.
+
+## Event fields
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `agent_start` | No | Diagnosis release offset; omitted means wait for initial events |
-| `events[].at` | No | Planned activation offset, default `0s` |
-| `events[].problem` | For failures | Registered failure name |
-| `events[].inject` | As required by the failure | Existing failure parameters; see `nika failure describe <name>` |
-| `events[].traffic` | For traffic | `business`, `background`, or a burst specification; mutually exclusive with `problem` |
-| `events[].duration` | For bursts and repetition | Planned time from activation to recovery or stop |
-| `events[].repeat.every` | With `repeat` | Interval between planned starts |
-| `events[].repeat.count` | With `repeat` | Total occurrences, including the first |
+| `agent_start` | No | Offset at which diagnosis is released. Omitted means wait for the initial events. |
+| `events[].at` | No | Planned activation offset. Defaults to `0s`. |
+| `events[].problem` | For failures | Registered failure name. |
+| `events[].inject` | As the failure requires | Failure parameters. See `nika failure describe <name>`. |
+| `events[].traffic` | For traffic | `business`, `background`, or a burst. Cannot be combined with `problem`. |
+| `events[].duration` | For bursts and repetition | Planned time from activation to recovery or stop. |
+| `events[].repeat.every` | With `repeat` | Interval between planned starts. |
+| `events[].repeat.count` | With `repeat` | Total occurrences, including the first. |
 
-Times accept seconds as numbers, or strings with `ms`, `s`, `m`, and `h`, including `1m30s`. Offsets are nonnegative; durations and repetition intervals are positive. Repeated events require a duration no longer than their interval and a finite positive integer count.
+## Time values and repetition
 
-The first link has planned active windows `[5s, 15s)` and `[35s, 45s)`. The second link remains down from 20 seconds until teardown. A timed failure requires a recovery implementation. Overlapping failures that resolve to the same root-cause resource are rejected.
+- Times are seconds, or strings with `ms`, `s`, `m`, and `h`, such as `1m30s`.
+- Offsets are nonnegative. Durations and repetition intervals are positive.
+- A repeated event needs a duration no longer than its interval, and a count of at least 1.
+- A failure with a `duration` or `repeat` must support recovery. NIKA rejects other timed failures.
+- Two failures that overlap in time on the same resource are rejected.
+- Infinite repetition is not supported.
 
-The scheduler calls `recover_fault` on the instance that injected each occurrence. That instance retains the original state in controller memory and must return `verified: true` after checking restoration. See the [failure recovery contract](../development/creating-benchmark-tasks.md#add-an-injectable-failure). A missing implementation rejects timed scheduling; failed restoration makes the trial `infra_failed`.
+## Traffic in a schedule
 
-## Coordinate traffic
+Define the traffic profile once in the task's `traffic` field, and control when it starts with events. Continuous periodic load belongs in the profile itself. For example, `incast_period_sec: 30` produces periodic fan-in replies without a repeated event. See [background traffic profiles](../operations/network-scenarios.md#background-traffic-profiles).
 
-Define the traffic profile once in the task's `traffic` field and control its startup through `schedule.events`. Both fields live in the same task YAML. Keep continuous periodic load in the existing [traffic profile](../operations/network-scenarios.md#background-traffic-profiles). For example, `incast_period_sec: 30` produces periodic fan-in replies alongside the profile's TCP flows. It does not require a repeated scheduler event.
+- `traffic: background` starts the task's `traffic` profile at its offset. It also suppresses the profile's automatic start during setup.
+- `traffic: business` starts the environment's business traffic sources at an offset. Their receiving services and maintenance processes still start during setup.
+- Without an explicit activation event, each workload starts normally. A persistent workload can be activated once and runs until the session ends.
 
-An event with `traffic: background` activates the task's `traffic:` profile at its offset and suppresses its automatic activation during environment startup. Use `traffic: business` to activate the environment's existing business traffic sources at an offset; their receiving services and routine maintenance processes start during environment preparation. Without an explicit activation event, each workload starts normally. Each persistent workload can be activated once and continues until the session ends.
-
-For example, add this event to start the environment's business traffic ten seconds after `t0`:
+This event starts the environment's business traffic ten seconds after `t0`:
 
 ```yaml
 - traffic: business
   at: 10s
 ```
 
-Use explicit bursts when their timing and count belong to the incident:
+Use a burst when its timing and count belong to the incident:
 
 ```yaml
 schedule:
@@ -116,50 +105,79 @@ schedule:
         count: 3
 ```
 
-This fragment uses `dc_clos` endpoints. `protocol` accepts `udp` or `tcp`. Rates are bits per second per source, with decimal `K`, `M`, and `G` suffixes; `100K` means 100,000 bit/s per source. `packet_size` is in bytes. Receivers and resolved flows are prepared before the timeline starts. Senders receive the remaining time to the planned stop boundary, so a late start does not extend the burst. Injection and traffic commands take time; inspect the journal for actual execution times and skew.
+This fragment uses `dc_clos` endpoints.
 
-## Agent completion and scoring
+- `protocol` is `udp` or `tcp`.
+- `rate` is bits per second per source, with decimal `K`, `M`, or `G` suffixes. `100K` means 100,000 bit/s per source.
+- `packet_size` is in bytes.
+- Receivers are prepared before the timeline starts. Senders get the time left until the planned stop, so a late start does not extend the burst.
 
-There is no agent end-time setting. When an agent returns a report before all scheduled operations finish, NIKA retains that provisional report. After event progress, NIKA invokes diagnosis again in the same sandbox, supplies the previous report, and keeps the shared diagnosis request budget. Host-run development agents use the same continuation contract. Only the final report is frozen for submission.
+## Reuse task files
 
-Final diagnosis starts after the last scheduled operation completes. If the timeline finishes while an earlier diagnosis invocation is still running, its report is retained as provisional and one more diagnosis invocation checks the resulting network state.
+Keep a reusable task in its own YAML file, with `scenario`, the deployment options, `traffic`, and `schedule` at the root. You can run it directly:
 
-An event without a duration completes after injection and verification; its fault can remain active. An event with a duration completes after verified recovery. Every finite occurrence must complete before final submission. After that, the agent decides when to finish. Existing agent request limits and agent/trial timeouts still apply.
+```shell
+uv run nika benchmark run --config config/tasks/multi-failure.example.yaml
+```
 
-Ground truth accumulates the distinct root causes that were successfully injected, including faults that later recovered. Each required injection is checked against its materialized per-event ground truth when present. A scheduler operation failure makes the trial retryable `infra_failed`; incomplete or failed timelines cannot score a submission. A failure that disappears before agent startup needs retained diagnostic evidence for the task to be solvable.
+A benchmark file lists complete task files under `cases`. Paths resolve relative to the benchmark file:
 
-## Timing, isolation, and artifacts
+```yaml
+cases:
+  - tasks/multi-failure.example.yaml
+  - tasks/healthy.example.yaml
+```
 
-The session's `t0` starts after deployment, healthy-network checks, schedule preparation, and agent infrastructure preparation. Events use absolute offsets from that session's monotonic clock. Different sessions have independent origins and cancellation state. The existing benchmark runner controls how many sessions run concurrently.
+Each file defines one complete task. Benchmark fields do not supply defaults to the tasks. A benchmark cannot mix inline tasks with file paths, and it cannot reference another benchmark. Existing matrices that contain only inline tasks still work.
 
-Use `nika session close --session_id <id>` to cancel one running scheduled session. On Linux, the close command signals the owning trial worker, checks its process identity, and waits for scheduler and environment cleanup. Other sessions keep running. Interrupting a benchmark also follows its existing worker cleanup and abort policy. Resume starts an interrupted timeline from a clean session.
+`nika benchmark migrate` expands the references and writes the ground truth into one complete `cases` file. Share that output when you publish a benchmark, so its task definitions travel together.
 
-Session cleanup reverses the actual injection order. If restoration fails, cleanup records the error and stops restoring older snapshots before environment teardown.
+## Agent start and scoring
 
-Recovery is scheduled at `at + duration`. If injection finishes two seconds late, a 30-second window still schedules recovery at its original end. Due commands can execute late under host load; actual command acknowledgment and verification are recorded separately. Failure operations serialize within a session because the existing injection workflow aligns saved configuration artifacts across the lab. Traffic operations can run independently. NIKA does not provide hard real-time execution guarantees.
+Without `agent_start`, NIKA waits for the events at `0s` to finish before it releases diagnosis. Later events keep their planned offsets. Set `agent_start: 0s` to start diagnosis alongside the initial injections. A numeric value releases the agent at that time.
 
-The trial directory contains:
+Tasks that use `problem`, `problems`, and `inject` keep working. NIKA runs their failures as persistent events at `0s`, so the source YAML, the task identity, and resume keys do not change. A healthy task has no events and starts diagnosis when the environment is ready. Tasks without a `schedule` use the same scheduler with these defaults.
 
-| Artifact | Contents |
+There is no end time for the agent. When the agent returns a report before the timeline finishes, NIKA keeps that report as provisional. After more events run, NIKA invokes diagnosis again in the same sandbox and gives the agent the previous report. The agent's request budget is shared across these calls. Only the final report is frozen for submission.
+
+The final diagnosis starts after the last scheduled operation. Every finite occurrence must complete before the submission. After that, the agent decides when to stop. The existing request limits and timeouts still apply.
+
+The ground truth includes every distinct root cause that was injected, including failures that later recovered. A scheduler operation failure makes the trial retryable as `infra_failed`. A timeline that does not finish, or a failed timeline, cannot score a submission. A failure that disappears before the agent starts is solvable only with retained diagnostic evidence.
+
+## Timing and cleanup
+
+The session's `t0` begins after deployment, the healthy-network checks, schedule preparation, and agent preparation. Every event offset is measured from that session's clock. Sessions have independent clocks and cancellation, and the benchmark runner controls how many run at once.
+
+- A recovery runs at `at + duration`. If an injection finishes late, the recovery still runs at its original end.
+- Commands can run late under host load. NIKA records the acknowledgment and the verification separately.
+- Failure operations run one at a time within a session. Traffic operations can run in parallel with them.
+- NIKA does not give hard real-time guarantees.
+
+To cancel one running scheduled session, run `nika session close --session_id <id>`. Other sessions keep running. An interrupted benchmark follows its usual cleanup. Resuming starts the timeline again from a clean session.
+
+Cleanup reverses the injection order. If a restoration fails, cleanup records the error and stops restoring older changes before it tears the environment down.
+
+Remote and Firecracker runs execute the same schedule on the lab host, and the agent host waits for the release and completion signals. Firecracker also synchronizes the guest's UTC clock with the host, so host and guest logs line up. Event deadlines still use the session clock.
+
+## Results you can inspect
+
+A scheduled trial directory contains these files:
+
+| File | Contents |
 | --- | --- |
-| `schedule.json` | Normalized plan and resolved per-event expected root causes |
-| `schedule-events.jsonl` | Session and occurrence indices, readable summaries, planned and actual times, operation results, ground truth, and cancellation records |
-| `schedule-status.json` | Completion, cancellation, and scheduler failure state |
+| `schedule.json` | The normalized plan and the expected root causes for each event. |
+| `schedule-events.jsonl` | One record for each action: planned and actual times, the result, the ground truth, and any cancellation. |
+| `schedule-status.json` | Whether the timeline completed, was cancelled, or failed. |
+| `ground_truth.json` | The distinct root causes used for scoring. |
 
-`ground_truth.json` contains the distinct root causes used for scoring. Each `verified` journal record identifies its event and occurrence, resolved root causes, planned offset, and actual verification time. Join it to the occurrence's `applied` and `recovered` records to reconstruct the incident history. These timestamps record controller acknowledgments and verification results; the network symptom can begin before its command completes. Agents do not report timestamps for scoring.
+The session log `nika.jsonl` also records the schedule milestones. The plan and the ground truth stay on the host, outside the agent's workspace.
 
-The session's `nika.jsonl` also contains schedule milestones. Plans and ground truth remain on the host, outside the agent workspace. Task identity includes the ordered event payloads, times, repetitions, traffic, and agent startup offset. Materializing expected root causes preserves that identity. `nika benchmark migrate` supports scheduled tasks for dataset preparation.
+Run `uv run nika inspect --result-dir <results>` to see the schedule in the Overview tab, or the events on a shared clock in the Timeline tab. The Timeline shows planned windows as dashed bars and observed windows as solid bars. An occurrence marked `ended` has reached session teardown. A recovery time appears only when the journal records one.
 
-Run `uv run nika inspect --result-dir <results>` to view a session's schedule in the Overview or Timeline tab. The schedule lists each occurrence by failure and target, with planned start and stop times, observed application and verification times, and recorded recovery times. It updates while the session runs. An occurrence marked `ended` has reached session teardown; a recovery time appears only when the journal records recovery.
+The benchmark terminal shows each session's progress, active occurrences, and next event. With `--output-mode agent`, the same milestones are printed as plain log lines, each prefixed with the task label.
 
-The Timeline tab groups orchestration events under NIKA, alongside Agent and Tools tracks. Zoom in to display scheduled failure and traffic windows on the shared clock. Dashed windows show the plan; solid windows show observed execution. Select an observed window to inspect its log record. The event list shows scheduled failure, traffic, and agent milestones. Scheduler lifecycle and dispatch records remain in the raw logs.
+The times in these records are when NIKA sent a command and when it verified the result. The symptom can start before the command finishes. Agents do not report timestamps for scoring.
 
-The compact status bar shows the current phase and target, the next operation and countdown, elapsed time, operation progress, and agent startup. NIKA uses dark, medium, and light teal shades for failure, lifecycle, and traffic events.
+## Limits
 
-The benchmark terminal shows each session's schedule progress, active occurrences, next event, and recent execution milestones. With `--output-mode agent`, these milestones stream as plain log lines prefixed by the task label.
-
-Remote and Firecracker tasks execute the same scheduler in the lab-host daemon. The agent host waits for that timeline's release and completion signals; it does not establish a second clock. Firecracker restores a healthy environment image for scheduled tasks, with explicitly scheduled traffic sources deferred, even when case images are enabled. Different timelines can reuse that healthy image.
-
-Firecracker synchronizes the restored guest's UTC clock with the host before exposing the environment. This keeps host and guest logs comparable while event deadlines continue to use the session's monotonic clock.
-
-Infinite scheduler repetition and network updates are unsupported. Tasks without `schedule` receive execution defaults and use the same scheduler. Changing when the agent encounters failures requires a new benchmark revision; published releases are unchanged.
+Changing when the agent encounters a failure changes the benchmark, so it requires a new [benchmark revision](../../VERSIONING.md). Published releases do not change.

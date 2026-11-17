@@ -1,21 +1,22 @@
 # Create benchmark tasks
 
-This guide is for NIKA contributors who add a network environment, injectable failure, traffic source, or benchmark task. It follows the runtime and registry contracts used by the current implementation.
+Add a network environment, an injectable failure, or a benchmark task to NIKA. Each part ends with commands that show the change working in a running session. Terms follow the [glossary](../../GLOSSARY.md).
 
 Core contracts: [`NetworkEnvBase`](../../src/nika/net_env/base.py), [`ProblemBase`](../../src/nika/problems/base.py), and the [`benchmark` workflows](../../src/nika/workflows/benchmark/).
 
-## Understand the task model
+## How a task is built
 
-A benchmark task combines:
+A benchmark task combines three things:
 
-- a network scenario from `src/nika/net_env/`
-- a network incident defined by registered failures and their injection parameters, or a healthy baseline
-- optional traffic generated before or during troubleshooting
-- an agent run and evaluation output under `results/{session_id}/`
+- a **network environment** from `src/nika/net_env/`
+- a **network incident**: one or more registered failures with their injection parameters, or a healthy baseline
+- a **network traffic pattern**: optional traffic that runs before or during troubleshooting
 
-Static tasks use top-level `problem` or `problems` and `inject`; `problem: healthy` selects a healthy baseline. Scheduled tasks declare failures and their parameters inside `schedule.events` and omit top-level `problem`, `problems`, and `inject`. The two forms cannot be combined. See [Incident scheduling](../benchmarks/scheduling.md) for complete task files and timing rules.
+Each run writes its agent output and evaluation under `results/{session_id}/`.
 
-The standalone session pipeline is:
+Static tasks use top-level `problem` or `problems` with `inject`. `problem: healthy` selects a healthy baseline. Scheduled tasks declare failures inside `schedule.events` and omit the top-level fields. The two forms cannot be combined. See [Incident scheduling](../benchmarks/scheduling.md) for complete task files and timing rules.
+
+To run the steps of a session by hand:
 
 ```shell
 nika env run <scenario> [-s s|m|l]
@@ -27,19 +28,19 @@ nika session close -y
 nika eval metrics
 ```
 
-For benchmark automation, `nika benchmark run` performs environment deployment, fault injection, agent run, close, and evaluation for each task.
+`nika benchmark run` performs the same steps for each task in a benchmark: it deploys the environment, injects the incident, runs the agent, closes the session, and evaluates the result.
 
-## Add a network scenario
+## Write a network environment
 
-Network environments implement `NetworkEnvBase` and bind to Kathara or Containerlab through the runtime layer. Read the [network scenario reference](../operations/network-scenarios.md) before adding another scenario ID; an existing parameterized scenario may already cover the topology.
+Read the [network scenario reference](../operations/network-scenarios.md) first. An existing parameterized scenario may already cover your topology.
 
-1. Add a single-backend lab under `src/nika/net_env/<scenario>/`. Only multi-backend scenarios use backend subdirectories, such as `src/nika/net_env/isp/kathara/` and `src/nika/net_env/isp/containerlab/`. Shared backend helpers belong in `src/nika/net_env/utils/kathara/` or `src/nika/net_env/utils/containerlab/`.
-2. Implement a class that sets `LAB_NAME`, initializes the backend lab/topology, and sets `self.name` and `self.desc`. Declare each machine's role with `declare_machine()` before `load_machines()` builds the host and router lists.
-3. If the scenario has sizes, accept `topo_size` in `__init__` and declare the supported sizes in `NetEnvSpec.topo_size`.
-4. Add import-safe metadata and a lazy module/class binding to `src/nika/net_env/net_env_pool.py`.
-5. Reference images by a pinned name: `nika_image("<name>")` for local `nika/*` builds (tagged with the benchmark version), and a `repo:tag@sha256:<digest>` reference for upstream images. Never use a floating tag such as `latest` on its own.
+1. Put a single-backend lab under `src/nika/net_env/<scenario>/`. Only multi-backend scenarios use backend subdirectories, such as `src/nika/net_env/isp/kathara/` and `src/nika/net_env/isp/containerlab/`. Put helpers shared by backends in `src/nika/net_env/utils/kathara/` or `src/nika/net_env/utils/containerlab/`.
+2. Write a class that extends `NetworkEnvBase`. It sets `LAB_NAME`, builds the backend lab, and sets `self.name` and `self.desc`. Declare each machine's role with `declare_machine()` before `load_machines()` builds the host and router lists.
+3. If the scenario has sizes, accept `topo_size` in `__init__` and list the sizes in `NetEnvSpec.topo_size`.
+4. Register the scenario in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py) with import-safe metadata and a lazy module and class binding.
+5. Pin every image. Use `nika_image("<name>")` for local `nika/*` builds, which carry the benchmark version. Use a `repo:tag@sha256:<digest>` reference for upstream images. Never use a floating tag such as `latest` on its own.
 
-Minimal shape:
+A minimal scenario class looks like this:
 
 ```python
 from Kathara.model.Lab import Lab
@@ -70,7 +71,7 @@ class MyScenario(NetworkEnvBase):
         self.load_machines()
 ```
 
-Register metadata without importing the backend package:
+Register its metadata in the pool, without importing the backend package:
 
 ```python
 "my_scenario": NetEnvSpec(
@@ -83,23 +84,9 @@ Register metadata without importing the backend package:
 ),
 ```
 
-For a scenario with more than one backend, set `backend_bindings` to one `BackendEnvBinding` per backend. Keep the scenario ID and backend-neutral semantics the same across bindings.
+For a scenario with more than one backend, set `backend_bindings` to one `BackendEnvBinding` per backend. Keep the scenario ID and its backend-neutral meaning the same across bindings.
 
-`NetEnvSpec` is the only place for scenario metadata; do not repeat `TAGS` or `TOPO_SIZE` on the class or add the scenario name to framework lists. Optional spec fields:
-
-- `family`: release split-coverage family (defaults to the scenario ID).
-- `heavy_lab`: host-shared heavy lab that the benchmark runner schedules exclusively.
-- `benchmark_excluded`: keep the scenario out of the generated candidate pool.
-- `coverage_major`: list the scenario as major in pool audits and coverage reports.
-- `licensed_images`: images need a licensed vendor download (`install.sh --with-vendor-images`).
-- `k8s_image_cache`: cache workload images on the host and load them into k3s.
-
-Scenario-specific target knowledge stays on the lab class:
-
-- `target_roles()` returns role → node lists (`hosts`, `routers`, `web`, `attacker_pool`, `access_routers`, `bgp_originators`, and the optional `edges` / `l2_endpoints`). Override it when the generic inventory is too broad, for example to exclude guest hosts or spine routers.
-- `default_probe_path()` returns the scenario's default `ProbePath` (probe source host, destination, URLs) used by injection helpers and symptom tests.
-
-Verify discovery and deployment:
+Check the environment:
 
 ```shell
 uv run nika env list
@@ -108,7 +95,25 @@ uv run nika session inspect
 uv run nika session close -y
 ```
 
-Each SNDlib graph is its own scenario ID (`isp_abilene`, `isp_france`, …). Base ISP scenarios omit `-s` and still accept protocol flags. Kathara (FRR) and Containerlab (Nokia SR Linux) share the same IDs. RPKI and RTBH are named specials only:
+---
+
+## Reference: scenario metadata and target roles
+
+`NetEnvSpec` is the only place for scenario metadata. Do not repeat `TAGS` or `TOPO_SIZE` on the class, and do not add the scenario name to framework lists. These optional fields change how the scenario is used:
+
+- `family`: release split-coverage family (defaults to the scenario ID).
+- `heavy_lab`: host-shared heavy lab that the benchmark runner schedules exclusively.
+- `benchmark_excluded`: keeps the scenario out of the generated candidate pool.
+- `coverage_major`: lists the scenario as major in pool audits and coverage reports.
+- `licensed_images`: the images need a licensed vendor download (`install.sh --with-vendor-images`).
+- `k8s_image_cache`: caches workload images on the host and loads them into k3s.
+
+Scenario-specific target knowledge stays on the lab class:
+
+- `target_roles()` maps each role to its nodes: `hosts`, `routers`, `web`, `attacker_pool`, `access_routers`, `bgp_originators`, and the optional `edges` and `l2_endpoints`. Override it when the generic inventory is too broad, for example to exclude guest hosts or spine routers.
+- `default_probe_path()` returns the scenario's default `ProbePath` (probe source host, destination, and URLs), which injection helpers and symptom tests use.
+
+Each SNDlib graph is its own scenario ID (`isp_abilene`, `isp_france`, and so on). Base ISP scenarios omit `-s` and still accept protocol flags. Kathara (FRR) and Containerlab (Nokia SR Linux) share the same IDs. RPKI and RTBH are named variants only:
 
 ```shell
 uv run nika env run isp_abilene --igp isis
@@ -120,13 +125,13 @@ uv run nika env run isp_abilene_ebgp_rtbh
 uv run nika traffic run matrix-replay --mode demands --max-intervals 1 --unit K --background
 ```
 
-See the [SNDlib ISP scenarios reference](../operations/network-scenarios.md#sndlib-isp-scenarios) for the shared compiler, backend bindings, and control knobs.
+See the [SNDlib ISP scenarios reference](../operations/network-scenarios.md#sndlib-isp-scenarios) for the shared compiler, backend bindings, and control options.
 
-## Add an injectable failure
+## Write an injectable failure
 
-Failures live under `src/nika/problems/<failure_domain>/`. The directory name must match the class `failure_domain`. Cross-domain base classes and helpers live under `src/nika/problems/support/`; support packages must not define registered failures. The registry discovers a concrete `ProblemBase` subclass when it sets `root_cause_name`, validates all taxonomy fields, and builds `META` during import. Put attacks, spoofing, and poisoning failures under `security`.
+Put each failure under `src/nika/problems/<failure_domain>/`. The directory name must match the class's `failure_domain`. Base classes and helpers shared across domains go in `src/nika/problems/support/`, which must not define registered failures. Attacks, spoofing, and poisoning failures go under `security`.
 
-Each fault is a single `ProblemBase` subclass that implements injection, verification, recovery, and unified ground truth via `get_ground_truth()`. Do not split one fault into separate Detection / Localization / RCA classes.
+A failure is one `ProblemBase` subclass. It implements injection, verification, recovery, and ground truth through `get_ground_truth()`. Do not split one failure into separate Detection, Localization, and RCA classes.
 
 ```python
 from pydantic import BaseModel, Field
@@ -182,30 +187,19 @@ class MyFault(ProblemBase):
         return build_verify_result(self.root_cause_name, observed == original, {"operstate": observed})
 ```
 
-Notes:
+Key rules:
 
-- Set `failure_domain`, `root_cause_name`, and `Params` on the class. `META` is auto-generated; you do not define it by hand.
-- Place the implementation under the matching subsystem directory.
-- `description` is a short explanation of what the failure ID means for the agent submission ontology (and preferred registry text). Name the root cause only. Do not include injection method, artifact names, verification evidence, or differential shortcuts such as "X fails while Y still works".
-- `symptom_desc` is optional user-facing symptom text. When `description` is omitted, the registry description falls back to `symptom_desc`, then `root_cause_name`.
-- `inject_fault()` should mutate only the selected lab instance.
-- Agents can compare devices, so leave no change that singles out the target beyond the root cause itself. Supporting configuration that the fault needs but that is not its root cause, such as a policy that admits a prefix flood, goes on every comparable device, as `bgp_max_prefix_exceeded` does.
-- NIKA already removes two on-disk shortcuts. When an environment starts, it deletes the `/hostlab` directory inside every Kathara node, which holds that node's original lab files, and saves every FRR router's running config. After injection, it recreates every FRR router's saved config files, keeping each router's own content, and gives them all one shared timestamp.
-- `verify_fault()` must prove the injection artifacts are present (nft/tc/config/process/quota). Failed verification marks the injection as failed and stops the run. Do not put slow network-impact probes in `verify_fault`; put those in the test-path API `nika.validation.symptom.evaluate_symptom` (contracts under `src/nika/validation/symptom/`).
-- Capture recovery state in controller memory before mutation, and call `recover_fault(params)` on the injecting instance in the same Python process. Undo only the failure's changes. Return `verified=True` only after reading back the restored state; report missing snapshots or failed restoration explicitly. Test repeated recovery, partial injection, and healthy behavior after protocol convergence.
-- `MultiFaultProblem.recover_fault()` undoes attempted injections in reverse order. It stops at a failed recovery and retains that step and the earlier steps for retry, preserving the order of dependent snapshots.
-- Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. Do not maintain a second root-cause table. Use `link_containing_endpoint` for controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`); use `interface_on` when the mutated object is an interface. See [Root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).
-- Implement `oracle_playbook(params)` with the reference diagnosis an operator would follow to confirm this fault through the agent's MCP tools. A contract test rejects a failure without one. See [Write a playbook for a new failure](../benchmarks/oracle-solver.md#write-a-playbook-for-a-new-failure).
+- Set `failure_domain`, `root_cause_name`, and `Params` on the class. NIKA builds `META` from them, so do not write it by hand.
+- `inject_fault()` changes only the selected lab instance.
+- Leave no change that singles out the target beyond the root cause. A supporting setting that the fault needs but that is not its root cause goes on every comparable device. For example, a policy that admits a prefix flood goes on all routers, as `bgp_max_prefix_exceeded` does. Agents can compare devices.
+- `verify_fault()` proves that the injection artifacts are present (nft, tc, config, process, or quota). A failed verification marks the injection as failed and stops the run. Put slow network-impact probes in the symptom API, `nika.validation.symptom.evaluate_symptom`, not here. Its contracts live under [`src/nika/validation/symptom/`](../../src/nika/validation/symptom/).
+- `recover_fault(params)` undoes only this failure's changes, on the instance that injected them, in the same Python process. Save the original state in memory before you change anything. Return `verified=True` only after you read back the restored state, and report a missing snapshot or a failed restoration explicitly. Test repeated recovery, partial injection, and healthy behavior after protocols converge.
+- `root_cause_resources(params)` gives NIKA the structured root-cause ground truth from the injection parameters. Do not keep a second root-cause table. Use `link_containing_endpoint` for controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`), and `interface_on` when the mutated object is an interface. See [Root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).
+- `oracle_playbook(params)` returns the reference diagnosis an operator would follow to confirm the fault through the agent's MCP tools. A contract test rejects a failure without one. See [Write a playbook for a new failure](../benchmarks/oracle-solver.md#write-a-playbook-for-a-new-failure).
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
-- Declare compatibility on the class: `TAGS` (subset of the scenario tags), optional `COMPATIBLE_COLUMNS` (shared sets live in `problems/support/compatible_columns.py`), `supported_backends`, and `isp_protocol` when the failure needs a specific ISP protocol stack. `ProblemBase.is_compatible()` is the single predicate used by the registry and benchmark generation.
-- Set `native_router_operations` when the failure can target routers that have a fault-operations provider: IOS XR, RouterOS and SONiC. List the operations of `RouterFaultOps` (`problems/support/router_ops.py`) that its native path calls through `native_fault_ops()` or `router_fault_ops()`; use an empty set when the failure acts outside the router OS, such as on the container interface. A failure whose FRR implementation needs nothing else from the node can list `frr_shell`, which platforms that route with FRR (SONiC) implement. The default `None` keeps the failure on FRR and Linux nodes. Generation drops targets on native routers whose vendor provider does not implement every listed operation, so do not keep a vendor × failure table.
-- SR Linux routers have no provider: a failure supports them through its `containerlab` branch, which it declares by listing `containerlab` in `supported_backends`. Without `supported_backends`, the failure runs on Kathara, and on Containerlab only with SONiC routers.
-- Leave `TRAFFIC_PROFILE` unset unless the symptom cannot show under the environment's baseline traffic (`BASELINE_TRAFFIC`, see [Baseline traffic in generated tasks](../operations/network-scenarios.md#baseline-traffic-in-generated-tasks)). A failure-specific profile makes the traffic itself a hint about the failure class.
-- Set `minimum_path_rate_kbps` when the symptom shows only where the path forwards faster than the fault slows a flow, such as a CPU-starved receiver. Generation skips device profiles whose routers cap the path below it (`NetworkEnvBase.path_rate_limit_kbps`).
-- List instance attributes that should be recorded in session injection metadata in `RECORDED_ATTRS`.
-- Declare benchmark targets on the class; `nika benchmark generate` has no per-failure code. Override `benchmark_inject_params(ctx)` to return the canonical inject params for `ctx.scenario` (the default targets `ctx.host0`), drawing only from `ctx.rng` so cases stay reproducible. Set `BENCHMARK_TARGETS` (`"node"`, `"link"`, or `"canonical"`) to choose how variants are enumerated, plus `BENCHMARK_TARGET_ROLE`, `BENCHMARK_POINT_TO_POINT`, or `BENCHMARK_TUNNEL_IFACE` when they apply. Override `benchmark_inject_options`, `validate_benchmark_inject`, or `coordinate_benchmark_inject` (with `BENCHMARK_COORDINATES`) only for failure-specific enumeration, validation, or multi-fault pairing. Shared target helpers live in `problems/support/benchmark_targets.py`.
+- Declare where the failure applies with `TAGS` (a subset of the scenario tags), optional `COMPATIBLE_COLUMNS` (shared sets live in [`problems/support/compatible_columns.py`](../../src/nika/problems/support/compatible_columns.py)), `supported_backends`, and `isp_protocol` when the failure needs a specific ISP protocol stack. `ProblemBase.is_compatible()` is the one predicate that the registry and benchmark generation use.
 
-Verify the problem:
+Check the failure:
 
 ```shell
 uv run nika failure list
@@ -218,13 +212,35 @@ uv run nika agent run --agent oracle
 
 The last command runs your `oracle_playbook` against the injected failure and writes `oracle.json` to the session directory.
 
-## Generate traffic
+---
 
-Every environment declares always-on [business traffic](../operations/network-scenarios.md#business-traffic). Tasks add a matrix-driven load with a [background traffic profile](../operations/network-scenarios.md#background-traffic-profiles). The profile planner reads only generic environment data: host nodes, `probe_intent()` isolation, and, for the `demand` pattern, `traffic_demands()`. Override `traffic_demands()` to return `{(src_host, dst_host): weight}` when your environment has a measured demand matrix. When endpoint nodes have no Python, list them in `traffic_pod_nodes()` and start their programs in `start_traffic_programs()`; the Kubernetes environments do this with host-network pods ([`k8s_traffic_pods.py`](../../src/nika/net_env/utils/k8s_traffic_pods.py)).
+## Reference: failure text, device compatibility, and shortcuts
 
-Symptom probes find their endpoints through environment hooks, so they work on every router platform. Override `link_symptom_targets(node, intf)` to name the observer and destination for a link that the default probe path does not cross, and `nat_probe_server()` to name the outside Linux server that NAT probes listen on.
+**Text.** `description` says what the failure ID means for the agent submission ontology, and it is the preferred registry text. Name only the root cause. Leave out the injection method, artifact names, verification evidence, and comparisons such as "X fails while Y still works". `symptom_desc` is optional user-facing symptom text. When `description` is omitted, the registry falls back to `symptom_desc`, then to `root_cause_name`.
 
-For one-off load during development, use the built-in generators below.
+**Shortcuts NIKA already removes.** When an environment starts, NIKA deletes `/hostlab` inside every Kathara node, which holds that node's original lab files. It also saves every FRR router's running configuration. After injection, it recreates each FRR router's saved configuration file with that router's own content and gives all of them one shared timestamp.
+
+**Multi-failure recovery.** `MultiFaultProblem.recover_fault()` undoes the attempted injections in reverse order. It stops at a failed recovery and keeps that step and the earlier ones for retry, which preserves the order of dependent snapshots.
+
+**Device platforms.** Set `native_router_operations` when the failure can target routers with a fault-operations provider: IOS XR, RouterOS, and SONiC. List the operations in `RouterFaultOps` (`problems/support/router_ops.py`) that its native path calls through `native_fault_ops()` or `router_fault_ops()`. Use an empty set when the failure acts outside the router OS, such as on the container interface. A failure whose FRR implementation needs nothing else from the node can list `frr_shell`, which platforms that route with FRR (SONiC) implement. The default `None` keeps the failure on FRR and Linux nodes. Generation drops targets whose vendor provider does not implement every listed operation, so do not keep a vendor-by-failure table.
+
+SR Linux routers have no provider. A failure supports them through its `containerlab` branch, which it declares by listing `containerlab` in `supported_backends`. Without `supported_backends`, the failure runs on Kathara, and on Containerlab only with SONiC routers.
+
+**Traffic and rate.** Leave `TRAFFIC_PROFILE` unset unless the symptom cannot show under the environment's baseline traffic (`BASELINE_TRAFFIC`, see [Baseline traffic in generated tasks](../operations/network-scenarios.md#baseline-traffic-in-generated-tasks)). A failure-specific profile makes the traffic itself a hint about the failure class. Set `minimum_path_rate_kbps` when the symptom appears only where the path forwards faster than the fault slows a flow, such as a CPU-starved receiver. Generation skips device profiles whose routers cap the path below that rate (`NetworkEnvBase.path_rate_limit_kbps`).
+
+**Session metadata.** List instance attributes that should be recorded in the session's injection metadata in `RECORDED_ATTRS`.
+
+**Benchmark targets.** `nika benchmark generate` has no per-failure code. The failure declares its targets:
+
+- Override `benchmark_inject_params(ctx)` to return the canonical inject parameters for `ctx.scenario`. The default targets `ctx.host0`. Draw only from `ctx.rng`, so cases stay reproducible.
+- Set `BENCHMARK_TARGETS` to `"node"`, `"link"`, or `"canonical"` to choose how variants are enumerated. Add `BENCHMARK_TARGET_ROLE`, `BENCHMARK_POINT_TO_POINT`, or `BENCHMARK_TUNNEL_IFACE` when they apply.
+- Override `benchmark_inject_options`, `validate_benchmark_inject`, or `coordinate_benchmark_inject` (with `BENCHMARK_COORDINATES`) only for failure-specific enumeration, validation, or multi-failure pairing.
+
+Shared target helpers live in [`problems/support/benchmark_targets.py`](../../src/nika/problems/support/benchmark_targets.py).
+
+## Add traffic
+
+Every environment runs always-on [business traffic](../operations/network-scenarios.md#business-traffic). Tasks add load through a [background traffic profile](../operations/network-scenarios.md#background-traffic-profiles). For one-off load during development, use the built-in generators.
 
 OD-matrix iperf3 traffic:
 
@@ -233,13 +249,23 @@ nika traffic run od --all-to-host pc2 --mbps 20 --interval 60
 nika traffic run od --mesh-mbps 5 --interval 300 --background
 ```
 
-Web browsing traffic requires the scenario to define `web_urls` and web servers discoverable by `load_machines()`:
+Web browsing traffic needs the scenario to define `web_urls` and web servers that `load_machines()` can discover:
 
 ```shell
 nika traffic run web --pages-min 2 --pages-max 5 --no-loop
 ```
 
-For faults that create traffic as the root cause, keep that logic inside the problem class. For background or validation traffic, prefer the traffic CLI or generator APIs.
+For faults that create traffic as their root cause, keep that logic inside the failure class. Use the traffic CLI or the generator APIs for background and validation traffic.
+
+---
+
+## Reference: traffic hooks
+
+The profile planner reads only generic environment data: host nodes, `probe_intent()` isolation, and, for the `demand` pattern, `traffic_demands()`. Override `traffic_demands()` to return `{(src_host, dst_host): weight}` when your environment has a measured demand matrix.
+
+When endpoint nodes have no Python, list them in `traffic_pod_nodes()` and start their programs in `start_traffic_programs()`. The Kubernetes environments do this with host-network pods ([`k8s_traffic_pods.py`](../../src/nika/net_env/utils/k8s_traffic_pods.py)).
+
+Symptom probes find their endpoints through environment hooks, so they work on every router platform. Override `link_symptom_targets(node, intf)` to name the observer and destination for a link that the default probe path does not cross. Override `nat_probe_server()` to name the outside Linux server that NAT probes listen on.
 
 ## Add benchmark tasks
 
@@ -260,9 +286,9 @@ cases:
     root_causes: []
 ```
 
-A multi-fault row uses `problems: [first_failure, second_failure]` and nests injection parameters under each failure ID in `inject`. Benchmark execution converts these failures into persistent events at `0s` and starts diagnosis after the initial injections are verified. To give the agent or telemetry an observation interval between failures, declare distinct offsets in [`schedule.events`](../benchmarks/scheduling.md#define-the-tasks-events). Standalone multi-failure injection honors a failure class's `MULTI_INJECT_DWELL_SEC` (zero by default); benchmark scheduling does not use that delay.
+A multi-fault row uses `problems: [first_failure, second_failure]` and nests the injection parameters under each failure ID in `inject`. Benchmark execution turns these failures into persistent events at `0s` and starts diagnosis after the initial injections are verified. To give the agent or telemetry an observation interval between failures, declare distinct offsets with `events[].at` in [`schedule.events`](../benchmarks/scheduling.md#event-fields).
 
-Regenerate the candidate catalog and refresh the failure × scenario tables in [Benchmark configuration](../benchmarks/benchmark-configuration.md) after adding a failure or scenario:
+Regenerate the candidate catalog after you add a failure or a scenario, and refresh the failure-by-scenario tables in [Benchmark configuration](../benchmarks/benchmark-configuration.md):
 
 ```shell
 uv run nika benchmark generate
@@ -287,21 +313,28 @@ uv run nika benchmark run --config benchmark/my_cases.yaml \
   -a mock
 ```
 
-## Validate the change
+> [!NOTE]
+> Standalone multi-failure injection waits for a failure class's `MULTI_INJECT_DWELL_SEC` between injections (zero by default). Benchmark scheduling does not use that delay.
+
+## Check the change
 
 - `uv run nika env list` shows the scenario.
 - `uv run nika env run <scenario>` deploys and creates a session.
 - `uv run nika failure describe <problem>` shows the expected schema.
 - `uv run nika failure inject <problem> --set ...` verifies successfully.
 - `uv run nika benchmark run ... -a mock` completes without external LLM credentials.
-- The session directory contains `ground_truth.json`, `run.json`, `events.jsonl`, and evaluation artifacts.
+- The session directory contains `ground_truth.json`, `run.json`, `nika.jsonl`, and the evaluation artifacts.
 - If compatibility or target enumeration changes, regenerate the candidate pool (`nika benchmark generate`) and the coverage tables in [Benchmark configuration](../benchmarks/benchmark-configuration.md).
 
-### Validate device-profile cells
+Update the [failure reference](../operations/failures.md) or the [network scenario reference](../operations/network-scenarios.md) in the same change when the registry or runtime behavior changes.
 
-Declared compatibility says a failure should work on an IOS XR, RouterOS or SONiC deployment; an execution run shows that it does. `nika benchmark validate-profiles` covers every router platform whose failures run through a fault-operations provider: the Kathara native profiles and the Containerlab SONiC profile. It takes one representative case per (environment, `device_profile`, failure) cell of the working pool, preferring a case that targets a router of that platform. It deploys the case, injects it, checks `verify_fault` and the ground truth, runs `recover_fault` when the failure defines it, and closes the lab.
+---
 
-Before running validation, prepare the vendor images locally using the [IOS XR setup](../operations/network-scenarios.md#ios-xr-simple-bgp-scenario) or [RouterOS setup](../operations/network-scenarios.md#routeros-simple-bgp-scenario). RouterOS also needs `/dev/kvm`, with nested virtualization enabled when the host is a VM. SONiC cells use the [SONiC virtual switch image](../operations/network-scenarios.md#sonic-routers-on-containerlab), which `uv run nika images prepare` downloads. The validator skips cells whose image is missing without recording a result.
+## Reference: validate device-profile cells
+
+Declared compatibility says that a failure should work on an IOS XR, RouterOS, or SONiC deployment. A validation run shows that it does. `nika benchmark validate-profiles` covers every router platform whose failures run through a fault-operations provider: the Kathara native profiles and the Containerlab SONiC profile. It takes one representative case per cell of the working pool, where a cell is an (environment, `device_profile`, failure) combination. It prefers a case that targets a router of that platform. For each case it deploys the environment, injects the failure, checks `verify_fault` and the ground truth, runs `recover_fault` when the failure defines it, and closes the lab.
+
+Before you run validation, prepare the vendor images with the [IOS XR setup](../operations/network-scenarios.md#ios-xr-simple-bgp-scenario) or the [RouterOS setup](../operations/network-scenarios.md#routeros-simple-bgp-scenario). RouterOS also needs `/dev/kvm`, with nested virtualization enabled when the host is a VM. SONiC cells use the [SONiC virtual switch image](../operations/network-scenarios.md#sonic-routers-on-containerlab), which `uv run nika images prepare` downloads. The validator skips a cell whose image is missing and records no result for it.
 
 ```shell
 uv run nika benchmark validate-profiles --list                 # cells and last result
@@ -310,8 +343,6 @@ uv run nika benchmark validate-profiles --environment dc_clos --device-profile r
 uv run nika benchmark validate-profiles --environment min3clos --device-profile sonic
 ```
 
-Each result is written to `benchmark/working/validation/device_profiles.yaml` as `validated`, `failed` (with the stage and error) or `unsupported` (a `RuntimeCapabilityError`), with the NIKA commit, vendor image tag and date. Do not edit this file by hand. Cells run one at a time under `/tmp/nika-heavy-lab.lock`. Recorded cells are skipped so an interrupted run resumes; validated records without `recovery: restored` are rerun. Pass `--rerun` to repeat recorded cells. Run it on demand or nightly, not for every change: a native lab takes several minutes to boot. The base ISP scenarios share one capability surface, so they form a single `isp` environment.
+Each result goes to `benchmark/working/validation/device_profiles.yaml` as `validated`, `failed` (with the stage and error), or `unsupported` (a `RuntimeCapabilityError`). A record also holds the NIKA commit, the vendor image tag, and the date. Do not edit this file by hand. Cells run one at a time under `/tmp/nika-heavy-lab.lock`. Recorded cells are skipped, so an interrupted run resumes. Validated records without `recovery: restored` are rerun. Pass `--rerun` to repeat recorded cells. Run validation on demand or nightly, not for every change, because a native lab takes several minutes to boot. The base ISP scenarios share one capability surface, so they form a single `isp` environment.
 
-The coverage matrix shows the declared compatibility and the last result per cell. `nika benchmark generate --validated-only` keeps IOS XR, RouterOS and SONiC cases only for validated cells.
-
-Update the [failure reference](../operations/failures.md) or [network scenario reference](../operations/network-scenarios.md) in the same change when the registry or runtime behavior changes.
+The coverage matrix shows the declared compatibility and the last result for each cell. `nika benchmark generate --validated-only` keeps IOS XR, RouterOS, and SONiC cases only for validated cells.

@@ -1,8 +1,6 @@
 # Browse sessions with `nika inspect`
 
-How-to for operators who want a browser UI over session and benchmark results, and for maintainers who change the React front end.
-
-The CLI flag surface lives in the [CLI reference: `nika inspect`](cli-reference.md#nika-inspect).
+Open a browser view of finished or running sessions to follow the agent's investigation, compare scores, and see where the time went. Every option is listed in the [CLI reference: `nika inspect`](cli-reference.md#nika-inspect).
 
 ![NIKA Inspect timeline of a cli.claude session on dc_clos link_down, with a selected tool call open in the event inspector](../../assets/images/nika-inspect-timeline.png)
 
@@ -110,9 +108,11 @@ Add free-form tags in the session header and filter the list by them in the Tags
 
 The server writes tags to `annotations.json` in the session directory. Edits require a loopback `--host` and a session that has stopped running; otherwise the server refuses the write.
 
-## Change the UI
+---
 
-Source: [`src/nika/inspect/www`](../../src/nika/inspect/www).
+The section below is for maintainers who change the front end. Its source is in [`src/nika/inspect/www`](../../src/nika/inspect/www).
+
+## Change the UI
 
 Hot reload:
 

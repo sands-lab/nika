@@ -1,6 +1,6 @@
-# 🧪 How NIKA evaluates an agent
+# How NIKA evaluates an agent
 
-After reading this guide, you will be able to trace how a run becomes a score, choose the submission mode that fits your comparison, and interpret the resulting summary. The diagrams show where the agent acts, where NIKA takes over, and why some runs score zero while others need infrastructure repair.
+This guide shows how a run becomes a score, how to choose the submission mode for your comparison, and how to read the summary. The diagrams show where the agent acts, where NIKA takes over, and why some runs score zero while others need infrastructure repair.
 
 ## In a nutshell
 
@@ -10,7 +10,7 @@ After reading this guide, you will be able to trace how a run becomes a score, c
 - A missing answer usually scores zero. Infrastructure or grading failures are kept separate and need retry or regrading.
 - Summary means include every expected trial, so not answering a difficult task cannot improve the result.
 
-## 🗺️ The pipeline at a glance
+## The pipeline at a glance
 
 A task combines a network environment, an incident, and a traffic pattern. Each trial follows this path:
 
@@ -78,7 +78,7 @@ The split separates investigating the problem from expressing the answer in the 
 
 See the [shared run contract](../agents/agent-reference.md#shared-run-contract) and [step limit](../agents/agent-reference.md#step-limit) for details.
 
-## 📝 Choose a submission mode
+## Choose a submission mode
 
 Set `agent.submission.mode` to `structured` or `unstructured`.
 
@@ -152,7 +152,7 @@ agent:
         model: gpt-5-mini
 ```
 
-## 🎯 How answers are scored
+## How answers are scored
 
 NIKA scores each trial deterministically when it closes. A release run uses the scoring code of the release's benchmark engine. The metrics measure different parts of the answer:
 
@@ -200,7 +200,7 @@ flowchart TD
 
 Each trial also carries validity flags that point to possible harness problems. Flags include no submission, an empty report, an empty trace (no model or tool interaction), a truncated final turn (output reached the token limit), an exhausted step budget, a fault absent at cleanup, and an infrastructure error. Flags do not change scores. Leaderboard validation rejects some conditions, such as an empty trace or an absent fault, and rate-limits others. See [run validity warnings](leaderboard-submission.md#warning_run_validity) and [run validity errors](leaderboard-submission.md#error_run_validity).
 
-## 📊 From trials to a result
+## From trials to a result
 
 Each task runs for the number of trials defined by its benchmark release. NIKA reports primary means over all expected trials: the number of tasks multiplied by the release-defined number of trials. Any trial that was not scored, including a missing trial, contributes `0`. This prevents an agent from raising its mean by failing to answer difficult tasks.
 

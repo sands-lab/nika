@@ -1,8 +1,6 @@
 # Run labs on a remote host
 
-This guide is for operators who run the NIKA CLI and agent on one machine and the network lab plus MCP gateway on another.
-
-Implementation: [`remote/server.py`](../../src/nika/remote/server.py) serves the lab API, and [`remote/workflows.py`](../../src/nika/remote/workflows.py) connects local workflows to it.
+Run the NIKA CLI and agent on one machine, and the network lab and MCP gateway on another. Your agent host keeps the results and the agent sandbox; the lab host runs the network.
 
 ## Split responsibilities between hosts
 
@@ -63,7 +61,7 @@ With remote mode enabled, use the usual workflow commands:
 uv run nika env run dc_clos -s s
 uv run nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
 uv run nika session containers
-uv run nika agent run -a mock
+uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini
 uv run nika session close -y
 uv run nika eval metrics
 ```

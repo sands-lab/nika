@@ -1,10 +1,10 @@
 # Leaderboard submission internals
 
-Use this reference to maintain release checks, result packaging, and validation reports for `nika leaderboard`. For submission commands and metadata, see [Leaderboard submission](../benchmarks/leaderboard-submission.md).
+Use this reference to maintain release checks, result packaging, and validation reports for `nika leaderboard`. For submission commands and metadata, see [Leaderboard submission](../docs/benchmarks/leaderboard-submission.md).
 
 ## Module map
 
-The packaging and validation modules live in [`src/nika/workflows/leaderboard/`](../../src/nika/workflows/leaderboard/).
+The packaging and validation modules live in [`src/nika/workflows/leaderboard/`](../src/nika/workflows/leaderboard/).
 
 | Module | Responsibility |
 | --- | --- |
@@ -23,7 +23,7 @@ The packaging and validation modules live in [`src/nika/workflows/leaderboard/`]
 | `github_cli.py`, `hf_cli.py` | Thin `gh`/`git` and Hugging Face Hub wrappers (fork handling, PR creation). |
 | `remote.py`, `hf_remote.py` | Default repo constants (`sands-lab/nika-leaderboard`, `nika-bench/nika-trajectories`) and remote path helpers. |
 
-Run-validity flags live in [`src/nika/evaluator/validity.py`](../../src/nika/evaluator/validity.py); score status in [`src/nika/evaluator/score_status.py`](../../src/nika/evaluator/score_status.py).
+Run-validity flags live in [`src/nika/evaluator/validity.py`](../src/nika/evaluator/validity.py); score status in [`src/nika/evaluator/score_status.py`](../src/nika/evaluator/score_status.py).
 
 ## Invariants that couple code and docs
 
@@ -52,11 +52,11 @@ Directory name `YYYYMMDD_<framework>_<model>`, lowercase ASCII words joined by u
 
 ## Release identity and drift
 
-Validation computes expected trials from the official `benchmark/releases/<version>/` files in `sands-lab/nika`. New releases use `v<version>` tags; historical releases use the published reference listed in the [versioning policy](../../VERSIONING.md#releases-and-reproducibility). Each trial ID includes a hash of its task definition.
+Validation computes expected trials from the official `benchmark/releases/<version>/` files in `sands-lab/nika`. New releases use `v<version>` tags; historical releases use the published reference listed in the [versioning policy](../VERSIONING.md#releases-and-reproducibility). Each trial ID includes a hash of its task definition.
 
 - `nika benchmark run --release` compares the checkout's release files with the official reference and lists changed tasks, asking whether to continue before any trial runs.
 - `submit` and `nika leaderboard validate` read the official files by default, using the same release reference as leaderboard CI. `--release-source local` checks against the checkout for offline development and adds `WARNING_LOCAL_RELEASE`; it does not establish conformance to the official release.
-- `release_check.py` reports `ERROR_RELEASE_DRIFT` once per task when all of a task's expected trials are missing but trials with the same task stem and a different hash are present, or when the release files at the run's recorded `nika_git_commit` define a task differently (for example, different ground truth). The error lists changed tasks and the official commit. Follow the user guide's [release-drift recovery](../benchmarks/leaderboard-submission.md#error_release_drift) to preserve the original results and settings.
+- `release_check.py` reports `ERROR_RELEASE_DRIFT` once per task when all of a task's expected trials are missing but trials with the same task stem and a different hash are present, or when the release files at the run's recorded `nika_git_commit` define a task differently (for example, different ground truth). The error lists changed tasks and the official commit. Follow the user guide's [release-drift recovery](../docs/benchmarks/leaderboard-submission.md#error_release_drift) to preserve the original results and settings.
 - If the recorded commit is in neither the local repo nor GitHub, only trial IDs are compared and the report carries `WARNING_RUN_COMMIT_UNVERIFIED`.
 
 Release settings that differ at the recorded producer commit produce `ERROR_BENCHMARK_MISMATCH`, even when all task identifiers match. Scores and independent trajectory validation both check the producer's release settings.
@@ -64,7 +64,7 @@ Release settings that differ at the recorded producer commit produce `ERROR_BENC
 ## Coverage and scoring
 
 - Coverage is exact: `case_count × n_trials` finished slots, with both values from the release. Example for 0.2.0: test 85 × 3 = 255, dev 84 × 3 = 252. Runs limited by `--task-id` or a single trial fail unless the directory already holds every required trial.
-- Agents submit `(resource_id, fault_type)` pairs; scoring uses set metrics on those pairs. Primary means use the fixed denominator `N = case_count × n_trials`; non-`scored` trials contribute 0. Full rules: [root-cause evaluation](../benchmarks/root-cause-evaluation.md#score-a-submission).
+- Agents submit `(resource_id, fault_type)` pairs; scoring uses set metrics on those pairs. Primary means use the fixed denominator `N = case_count × n_trials`; non-`scored` trials contribute 0. Full rules: [root-cause evaluation](../docs/benchmarks/root-cause-evaluation.md#score-a-submission).
 - `score_status` (in each trial's `run.json`): `scored`, `no_submission` (agent fault, counts as 0, do not rerun), `infra_error` (no submission and missing ground truth or env/LLM API/MCP failure evidence; auto-retried by resume and `--retry-passes`), `grading_error` (submission exists but ground truth or scorer failed; regrade, do not rerun the agent). Any `grading_error` or residual `infra_error` rejects the package with no threshold (`ERROR_GRADING_ERROR`, `ERROR_INFRA_ERROR`).
 
 ## Run-validity flags
@@ -135,13 +135,13 @@ hf discussions merge nika-bench/nika-trajectories <N> --yes --type dataset
 
 ## Metadata and model records
 
-Field meanings belong in the user guide's [metadata reference](../benchmarks/leaderboard-submission.md#metadatayaml). `meta_input.py` normalizes public harness names and derives package names; run identity retains the NIKA agent ID.
+Field meanings belong in the user guide's [metadata reference](../docs/benchmarks/leaderboard-submission.md#metadatayaml). `meta_input.py` normalizes public harness names and derives package names; run identity retains the NIKA agent ID.
 
-`hf_model.py` records the resolved repository, commit, and revision source in `agent.extra`. See [Record the open-weight model](../benchmarks/leaderboard-submission.md#record-the-open-weight-model) for discovery rules and required overrides.
+`hf_model.py` records the resolved repository, commit, and revision source in `agent.extra`. See [Record the open-weight model](../docs/benchmarks/leaderboard-submission.md#record-the-open-weight-model) for discovery rules and required overrides.
 
 ## Leaderboard-side processing
 
-The leaderboard repository maintains the model catalog and prices usage after scores merge. NIKA supplies packed token counts and model metadata. Display names and price calculations are documented in [How the website prices runs](../benchmarks/leaderboard-submission.md#how-the-website-prices-runs).
+The leaderboard repository maintains the model catalog and prices usage after scores merge. NIKA supplies packed token counts and model metadata. Display names and price calculations are documented in [How the website prices runs](../docs/benchmarks/leaderboard-submission.md#how-the-website-prices-runs).
 
 ## Review checklists
 
