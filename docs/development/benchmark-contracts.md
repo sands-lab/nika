@@ -125,6 +125,26 @@ The gateway limits tool result text to 10,000 characters, with truncation notes 
 
 The frontend may hold task details and ground truth, for example to show progress or to package results. It must keep them from the agent: the agent gets an opaque session ID, and nothing the frontend passes to the agent names the task or its failures.
 
+A trial therefore has two session IDs. The trial's session ID contains the task ID, which names the environment and the failure, so it stays on the host. The agent session ID is random, and it is the only one the agent sees:
+
+```mermaid
+flowchart LR
+    T["Trial session ID<br/>&lt;task ID&gt;__t01__r&lt;hash&gt;<br/>(names the environment and failure)"]
+    A["Agent session ID<br/>20261117-130215-a-9c41e7<br/>(random)"]
+    R[("Session record<br/>stores both IDs")]
+    Agent[Agent]
+    GW[Engine's MCP gateway]
+    Lab[Environment and trial directory]
+    T --> R
+    A --> R
+    R -- "agent session ID only" --> Agent
+    Agent -- "requests carry the agent session ID" --> GW
+    GW -- "looks up the trial session ID" --> R
+    GW -- "uses the trial session ID" --> Lab
+```
+
+The engine creates the agent session ID when it starts the trial and writes both IDs to the trial's session record. The frontend reads the agent session ID from that record for the sandbox name, the agent's workspace path, and the MCP `X-Session-Id` header. If the record has no agent session ID, the frontend falls back to the trial session ID and the agent sees the task ID, so every engine must write one.
+
 Agent harnesses use MCP tools rather than direct container access. Changes to what the agent observes or how NIKA evaluates its answer must follow the [versioning policy](../../VERSIONING.md).
 
 ## D. Results schema
