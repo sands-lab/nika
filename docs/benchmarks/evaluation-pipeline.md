@@ -238,25 +238,4 @@ The default judge settings are `nika.judge.provider: openai` and `nika.judge.mod
 - `nika eval judge -p PROVIDER -m MODEL` optionally reviews sessions after the run; use `--session_id` or `--result_dir` to select them.
 - The [oracle solver](oracle-solver.md) checks that a task can be solved with the agent tools.
 
-For command details, see [the `nika eval` CLI reference](../operations/cli-reference.md#nika-eval). For the full settings list, see [configuration](../operations/configuration.md). See [benchmark configuration](benchmark-configuration.md) for task and release details, [leaderboard submission](leaderboard-submission.md) for packing and validation, and [versioning](../../VERSIONING.md) for benchmark revisions.
-
----
-
-## Main parameters
-
-These are the parameters most relevant to evaluation. See [all configuration settings](../operations/configuration.md) for the complete list.
-
-| Parameter | Purpose |
-| --- | --- |
-| `agent.max_steps` | Maximum number of LLM requests the agent may make in each of its phases, counted by NIKA's model proxy, including sub-agents. When the budget runs out during diagnosis, the latest assistant text becomes the report. It does not limit NIKA's mapping calls in unstructured mode. |
-| `agent.timeout_sec` | Maximum duration of the whole agent run, including unstructured mapping. |
-| `agent.max_tokens` | Maximum output tokens; it also caps mapper output. |
-| `agent.submission.mode` | `structured` uses the agent's model to submit; `unstructured` has NIKA map the frozen report to an answer. Defaults to `structured`. |
-| `agent.submission.provider`, `model` | Provider and model used for a single mapping model in unstructured mode. |
-| `agent.submission.base_url` | Custom endpoint for the single mapping model; defaults to `agent.base_url`. |
-| `agent.submission.samples` | Number of independent calls for a single mapping model. Defaults to `1`. |
-| `agent.submission.temperature` | Sampling temperature. When unset, NIKA sends none and the endpoint's default applies; with multiple samples, a value above zero makes varied answers more likely. |
-| `agent.submission.mappers` | List of mapping models for multi-model voting. Each entry can set its provider, model, endpoint, samples, temperature, and `weight`, which defaults to `1` and only breaks voting ties. |
-| `agent.submission.min_agreement` | Minimum number of mapper models that must support the winning answer. Defaults to `1`; if unmet, nothing is submitted. |
-| `nika.judge.provider`, `nika.judge.model` | Provider and model for the optional, after-the-fact judge. Defaults to `openai` and `gpt-5-mini`. |
-| Release-defined number of trials | Number of trials run for each task in the benchmark release. |
+For command details, see [the `nika eval` CLI reference](../operations/cli-reference.md#nika-eval). For every setting mentioned on this page, including the `agent.submission` options and their defaults, see [run configuration](../operations/configuration.md). See [benchmark configuration](benchmark-configuration.md) for task and release details, [leaderboard submission](leaderboard-submission.md) for packing and validation, and [versioning](../../VERSIONING.md) for benchmark revisions.
