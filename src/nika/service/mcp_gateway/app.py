@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -10,12 +11,13 @@ from importlib import import_module
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
+from agent.protocols import PHASES, SUBMISSION
 from nika.runtime.extras import raise_missing_extra
-from agent.protocols import PHASES
 from nika.service.mcp_gateway.middleware import (
     PhaseGateMiddleware,
     _empty_mcp,
@@ -93,18 +95,31 @@ async def gateway_health(_request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
+PHASE_TOKEN_HEADER = "NIKA-Phase-Token"
+
+
 async def gateway_advance_phase(request: Request) -> JSONResponse:
-    from nika.service.mcp_gateway.middleware import SESSION_HEADER
+    from nika.service.mcp_gateway.middleware import SESSION_HEADER, request_session_id
 
     session_id = request.path_params["session_id"]
-    header_sid = request.headers.get(SESSION_HEADER, "").strip()
+    header_sid = request_session_id(
+        {name.lower(): value for name, value in request.scope.get("headers", [])}
+    )
     if header_sid != session_id:
         return JSONResponse(
             {"error": f"{SESSION_HEADER} must match path session_id"},
             status_code=403,
         )
-    if get_session(session_id) is None:
+    entry = get_session(session_id)
+    if entry is None:
         return JSONResponse({"error": "session not registered"}, status_code=404)
+    if entry.phase_token is not None and not hmac.compare_digest(
+        request.headers.get(PHASE_TOKEN_HEADER, "").strip(), entry.phase_token
+    ):
+        return JSONResponse(
+            {"error": f"{PHASE_TOKEN_HEADER} is missing or invalid"},
+            status_code=403,
+        )
 
     try:
         body = await request.json()
@@ -118,12 +133,84 @@ async def gateway_advance_phase(request: Request) -> JSONResponse:
             status_code=400,
         )
 
+    if entry.phase_token is None:
+        try:
+            advance_phase(session_id, phase)  # type: ignore[arg-type]
+        except KeyError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        return JSONResponse({"ok": True, "phase": phase})
+    return await _advance_engine_trial(entry, phase, body)
+
+
+async def _advance_engine_trial(entry, phase: str, body: dict) -> JSONResponse:
+    """Phase advance on a benchmark engine's trial gateway.
+
+    The frontend, not the agent, advances the phase. Entering submission
+    freezes the diagnosis report and returns the submission context: the
+    release's fault types and resources, as its task tools list them.
+    """
+    from nika.service.mcp_gateway.tool_log import (
+        freeze_diagnosis,
+        frozen_diagnosis_report,
+    )
+
+    session_dir = entry.session_dir or ""
+    report: str | None = None
+    if phase == SUBMISSION:
+        given = body.get("diagnosis_report")
+        if isinstance(given, str):
+            report = freeze_diagnosis(session_dir, given)
+        else:
+            report = frozen_diagnosis_report(session_dir)
+            if report is None:
+                return JSONResponse(
+                    {
+                        "error": (
+                            "diagnosis_report is required to advance to "
+                            "submission when diagnosis is not yet frozen"
+                        )
+                    },
+                    status_code=400,
+                )
     try:
-        advance_phase(session_id, phase)  # type: ignore[arg-type]
+        advance_phase(entry.session_id, phase)  # type: ignore[arg-type]
     except KeyError as exc:
         return JSONResponse({"error": str(exc)}, status_code=404)
+    if phase != SUBMISSION:
+        return JSONResponse({"ok": True, "phase": phase})
 
-    return JSONResponse({"ok": True, "phase": phase})
+    fault_ontology, resources = await run_in_threadpool(
+        _submission_catalogs, entry.session_id
+    )
+    for listed in (fault_ontology, resources):
+        if isinstance(listed, dict) and listed.get("error"):
+            return JSONResponse(
+                {"error": f"could not list the submission context: {listed}"},
+                status_code=500,
+            )
+    return JSONResponse(
+        {
+            "ok": True,
+            "phase": phase,
+            "submission_context": {
+                "diagnosis_report": report,
+                "fault_ontology": fault_ontology,
+                "resources": resources,
+            },
+        }
+    )
+
+
+def _submission_catalogs(session_id: str) -> tuple[object, object]:
+    """``list_avail_problems()`` and ``list_resources()`` for *session_id*."""
+    from nika.service.mcp_gateway.context import bind_session, reset_session
+    from nika.service.mcp_server.common import task_server
+
+    token = bind_session(session_id)
+    try:
+        return task_server.list_avail_problems(), task_server.list_resources()
+    finally:
+        reset_session(token)
 
 
 def _should_relax_host_checks() -> bool:

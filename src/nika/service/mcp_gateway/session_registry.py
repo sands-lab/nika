@@ -22,6 +22,12 @@ class GatewaySession:
     policy_mode: PolicyMode
     phase: Phase = DIAGNOSIS
     remote_upstreams: dict[str, str] = field(default_factory=dict)
+    # Set only for a benchmark engine's trial gateway: MCP requests must carry
+    # ``access_token``, phase advances ``phase_token``, and tool calls are
+    # recorded under ``session_dir``.
+    session_dir: str | None = None
+    access_token: str | None = None
+    phase_token: str | None = None
 
 
 def register_session(
@@ -30,6 +36,9 @@ def register_session(
     scenario_name: str = "",
     policy_mode: PolicyMode = "two_phase",
     remote_upstreams: dict[str, str] | None = None,
+    session_dir: str | None = None,
+    access_token: str | None = None,
+    phase_token: str | None = None,
 ) -> None:
     with _lock:
         _sessions[session_id] = GatewaySession(
@@ -38,6 +47,9 @@ def register_session(
             policy_mode=policy_mode,
             phase=DIAGNOSIS,
             remote_upstreams=dict(remote_upstreams or {}),
+            session_dir=session_dir,
+            access_token=access_token,
+            phase_token=phase_token,
         )
 
 
