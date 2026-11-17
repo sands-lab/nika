@@ -31,6 +31,7 @@ Use this index to find the shortest path for your task. The root [`README.md`](.
 | Implement or evaluate root-cause labels | [Root-cause ground truth and scoring](root-cause-evaluation.md) |
 | Package a leaderboard result | [Leaderboard submission](leaderboard-submission.md) |
 | Run the test suites | [Testing guide](testing.md) |
+| Run release 0.1.0 from the current NIKA | [Benchmark engine of release 0.1.0](benchmark-engine.md) |
 
 The code registries are the source of truth for available scenarios and failures. Run `uv run nika env list` and `uv run nika failure list` to inspect the installed checkout.
 
