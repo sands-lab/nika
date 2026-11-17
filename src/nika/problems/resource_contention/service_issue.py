@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from nika.problems.resource_contention.tcp_issue import CPU_STRESS_CMD
 from nika.problems.root_cause import node_resource
 from nika.problems.topology_inventory import interface_on
 from nika.problems.problem_base import (
@@ -85,8 +86,7 @@ class LoadBalancerOverload(ProblemBase):
 
     def inject_fault(self, params: LoadBalancerOverloadParams):
         self.runtime.exec(
-            params.host_name,
-            f"nohup stress-ng --cpu 0 --cpu-load 100 --iomix 0 --sock 0 --hdd 2 --vm 0 --vm-bytes 75% --timeout {params.duration} </dev/null >/dev/null 2>&1 &",
+            params.host_name, CPU_STRESS_CMD.format(duration=params.duration)
         )
 
     def verify_fault(self, params: LoadBalancerOverloadParams) -> dict:

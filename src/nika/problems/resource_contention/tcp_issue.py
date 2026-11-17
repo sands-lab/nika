@@ -7,9 +7,14 @@ from nika.problems.problem_base import (
 from nika.utils.logger import system_logger
 from pydantic import BaseModel, Field
 
-_STRESS_CMD = (
-    "nohup stress-ng --cpu 0 --cpu-load 100 --iomix 0 --sock 0 --hdd 2 "
-    "--vm 0 --vm-bytes 75% --timeout {duration} </dev/null >/dev/null 2>&1 &"
+# Resource contention competes for CPU only, as NIKA 0.2.0 does (7c682f44).
+# Release 0.1.0 also ran stress-ng's memory, disk, and I/O stressors, which size
+# themselves from the host's memory; in a lab container capped at 256 MiB they
+# were killed for lack of memory within about 90 seconds, taking the stressor
+# and, on a web server, the server with them.
+CPU_STRESS_CMD = (
+    "nohup stress-ng --cpu 0 --cpu-load 100 "
+    "--timeout {duration} </dev/null >/dev/null 2>&1 &"
 )
 
 _SLOW_SENDER_SERVER = """\
@@ -60,7 +65,7 @@ class SenderResourceContention(ProblemBase):
 
     def inject_fault(self, params: SenderResourceContentionParams):
         self.runtime.exec(
-            params.host_name, _STRESS_CMD.format(duration=params.duration)
+            params.host_name, CPU_STRESS_CMD.format(duration=params.duration)
         )
         system_logger.info(
             f"Injected TCP slow sender issue on params.host_name {params.host_name}"
@@ -149,7 +154,7 @@ class ReceiverResourceContention(ProblemBase):
 
     def inject_fault(self, params: ReceiverResourceContentionParams):
         self.runtime.exec(
-            params.host_name, _STRESS_CMD.format(duration=params.duration)
+            params.host_name, CPU_STRESS_CMD.format(duration=params.duration)
         )
         system_logger.info(
             f"Injected TCP receiver resource contention on params.host_name {params.host_name}"
