@@ -263,12 +263,11 @@ def compute_benchmark_digest(
     images: dict[str, Any],
     scenario_problem_pin: dict[str, Any],
     evaluation: dict[str, Any] | None = None,
-    dev_test_isolation: dict[str, Any] | None = None,
 ) -> str:
     """Digest from policy + per-split ``cases_sha256`` (not full case bodies).
 
-    ``evaluation`` and ``dev_test_isolation`` count only when a manifest
-    declares them, so the digests of manifests without them do not change.
+    ``evaluation`` counts only when a manifest declares it, so the digests of
+    manifests without it do not change.
     """
     split_payload = {
         name: {
@@ -290,8 +289,6 @@ def compute_benchmark_digest(
     }
     if evaluation:
         payload["evaluation"] = evaluation
-    if dev_test_isolation:
-        payload["dev_test_isolation"] = dev_test_isolation
     return _sha256_bytes(_canonical_json(payload).encode("utf-8"))
 
 
@@ -412,7 +409,6 @@ def load_release_from_dir(
         images=images,
         scenario_problem_pin=pins,
         evaluation=manifest.get("evaluation"),
-        dev_test_isolation=manifest.get("dev_test_isolation"),
     )
     stored = str(manifest.get("benchmark_digest") or "").removeprefix("sha256:")
     if verify_digest and stored and stored != digest:
@@ -529,44 +525,18 @@ def verify_dev_test_isolation(
     *,
     dev_cases: list[dict[str, Any]],
     test_cases: list[dict[str, Any]],
-    exception: dict[str, Any] | None = None,
 ) -> None:
-    """Ensure Dev/Test are disjoint instances covering the same failure types.
+    """Ensure Dev and Test share no task instance.
 
-    A release may declare a ``dev_test_isolation`` exception: the task IDs
-    both splits share and the failure types only Dev has. The splits must
-    then differ from isolation by exactly what it declares.
+    The splits may cover different failure types: release 0.1.0's test split
+    is the paper's incident set, which lacks failures its dev split has.
     """
-    from nika.workflows.benchmark.trials import case_key_for_row
-
     if not dev_cases or not test_cases:
         raise ReleaseError("Both Dev and Test splits must be non-empty")
-    exception = exception or {}
-    dev_problems = {row["problem"] for row in dev_cases}
-    test_problems = {row["problem"] for row in test_cases}
-    only_dev = sorted(dev_problems - test_problems)
-    only_test = sorted(test_problems - dev_problems)
-    declared_only_dev = sorted(exception.get("dev_only_failures") or [])
-    if only_test or only_dev != declared_only_dev:
+    overlap = _fingerprints(dev_cases) & _fingerprints(test_cases)
+    if overlap:
         raise ReleaseError(
-            f"Dev/Test problem sets differ; only_dev={only_dev}, only_test={only_test}"
-            + (f" (declared dev_only_failures={declared_only_dev})" if exception else "")
-        )
-    test_fingerprints = _fingerprints(test_cases)
-    shared = sorted(
-        case_key_for_row(row)
-        for row in dev_cases
-        if benchmark_row_fingerprint(row) in test_fingerprints
-    )
-    declared_shared = sorted(exception.get("shared_tasks") or [])
-    if shared != declared_shared:
-        raise ReleaseError(
-            f"Dev/Test held-out isolation failed: {len(shared)} shared task(s)"
-            + (
-                f", but the release declares {len(declared_shared)}"
-                if exception
-                else ""
-            )
+            f"Dev/Test held-out isolation failed: {len(overlap)} shared fingerprint(s)"
         )
 
 
@@ -612,11 +582,7 @@ def preflight_release(
         test = load_release_from_dir(
             release.root, split="test", verify_digest=False
         ).cases
-        verify_dev_test_isolation(
-            dev_cases=dev,
-            test_cases=test,
-            exception=release.manifest.get("dev_test_isolation"),
-        )
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
 
     _verify_pins(release.scenario_problem_pin, kind="scenarios")
     _verify_pins(release.scenario_problem_pin, kind="problems")
@@ -777,7 +743,6 @@ def write_release_manifest(
     scenario_problem_pin: dict[str, Any],
     engine: dict[str, Any] | None = None,
     evaluation: dict[str, Any] | None = None,
-    dev_test_isolation: dict[str, Any] | None = None,
 ) -> str:
     """Write ``RELEASE.yaml``; return its benchmark digest.
 
@@ -793,7 +758,6 @@ def write_release_manifest(
         images=images,
         scenario_problem_pin=scenario_problem_pin,
         evaluation=evaluation,
-        dev_test_isolation=dev_test_isolation,
     )
     manifest: dict[str, Any] = {"id": BENCHMARK_ID, "version": version}
     if engine:
@@ -814,8 +778,6 @@ def write_release_manifest(
     )
     if evaluation:
         manifest["evaluation"] = evaluation
-    if dev_test_isolation:
-        manifest["dev_test_isolation"] = dev_test_isolation
     manifest["scenario_problem_pin"] = scenario_problem_pin
     (dest / "RELEASE.yaml").write_text(
         yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
@@ -868,7 +830,6 @@ def rebuild_release_manifest(
         scenario_problem_pin=build_scenario_problem_pins(scenarios, problems),
         engine=dict(existing.get("engine") or ENGINE_V1),
         evaluation=existing.get("evaluation"),
-        dev_test_isolation=existing.get("dev_test_isolation"),
     )
 
 

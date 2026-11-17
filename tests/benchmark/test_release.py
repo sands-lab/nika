@@ -21,7 +21,6 @@ from nika.workflows.benchmark.release import (
     resolve_cases,
     verify_dev_test_isolation,
 )
-from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from tests.support.prerequisites import docker_available
 
@@ -46,9 +45,9 @@ class TestFrozenRelease010:
     def test_dev_and_test_counts(self) -> None:
         dev = load_release("0.1.0", split="dev")
         test = load_release("0.1.0", split="test")
-        assert dev.case_count == 56
+        assert dev.case_count == 55
         assert test.case_count == 150
-        assert int(dev.splits["dev"]["case_count"]) == 56
+        assert int(dev.splits["dev"]["case_count"]) == 55
         assert int(test.splits["test"]["case_count"]) == 150
         assert "case_digests" not in dev.manifest
         assert dev.benchmark_digest == test.benchmark_digest
@@ -58,23 +57,22 @@ class TestFrozenRelease010:
     def test_heldout_isolation(self) -> None:
         dev = resolve_cases("0.1.0", split="dev")
         test = resolve_cases("0.1.0", split="test")
-        exception = load_release("0.1.0").manifest["dev_test_isolation"]
-        verify_dev_test_isolation(dev_cases=dev, test_cases=test, exception=exception)
-        assert len({r["problem"] for r in dev}) == 56
-        assert len({r["problem"] for r in test}) == 54
-        assert len(exception["shared_tasks"]) == 26
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        dev_problems = {r["problem"] for r in dev}
+        test_problems = {r["problem"] for r in test}
+        assert len(dev_problems) == 55
+        assert len(test_problems) == 54
+        assert sorted(dev_problems - test_problems) == [
+            "dhcp_spoofed_subnet",
+            "p4_aggressive_detection_thresholds",
+        ]
+        assert sorted(test_problems - dev_problems) == ["load_balancer_overload"]
 
-    def test_heldout_isolation_rejects_undeclared_overlap(self) -> None:
+    def test_heldout_isolation_rejects_a_shared_task(self) -> None:
         dev = resolve_cases("0.1.0", split="dev")
         test = resolve_cases("0.1.0", split="test")
-        exception = dict(load_release("0.1.0").manifest["dev_test_isolation"])
-        with pytest.raises(ReleaseError, match="problem sets differ"):
-            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
-        exception["shared_tasks"] = exception["shared_tasks"][1:]
         with pytest.raises(ReleaseError, match="isolation failed"):
-            verify_dev_test_isolation(
-                dev_cases=dev, test_cases=test, exception=exception
-            )
+            verify_dev_test_isolation(dev_cases=dev + [test[0]], test_cases=test)
 
     def test_nika_alias_and_short_version(self) -> None:
         assert parse_release_ref("nika@0.1") == ("nika-bench", "0.1.0")
