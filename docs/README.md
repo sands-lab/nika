@@ -45,6 +45,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Schedule failures, recovery, traffic, and agent startup | [Incident scheduling](benchmarks/scheduling.md) | Reference |
 | Understand what release version numbers mean and when they change | [Versioning policy](../VERSIONING.md) | Reference |
 | Run the 0.1.0 case collection | [Run release 0.1.0](compat/release-0.1.0.md) | How-to |
+| Understand how a run becomes a score: phases, submission modes, scoring, and aggregation | [How NIKA evaluates an agent](benchmarks/evaluation-pipeline.md) | Explanation |
 | Understand ground truth, agent submissions, and scores | [Root-cause ground truth and scoring](benchmarks/root-cause-evaluation.md) | Reference |
 | Check that tasks are solvable and see each task's reference diagnosis | [Oracle solver](benchmarks/oracle-solver.md) | How-to |
 | Package a completed official release run | [Leaderboard submission](benchmarks/leaderboard-submission.md) | How-to |

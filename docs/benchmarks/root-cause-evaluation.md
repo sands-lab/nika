@@ -146,7 +146,7 @@ A failure can declare `root_cause_resource_match = "any"` when its listed resour
 
 Special case: when both `P` and `T` are empty, precision, recall, and F1 are all `1.0` only if the submission also says `is_anomaly: false`. That is the correct score for a healthy case. A healthy case submitted as `is_anomaly: true` with an empty `root_causes` list scores `0.0`. An agent that never submits must not reach this path (see `score_status` below).
 
-Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable `is_anomaly` also scores `0.0`. Trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, `tool_errors`) are recorded separately. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. Traces go through `agent.utils.usage.normalize_usage`.
+Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable `is_anomaly` also scores `0.0`. Trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, `tool_errors`) are recorded separately. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. NIKA normalizes token counts with [`usage.py`](../../src/nika/evaluator/usage.py).
 
 Score columns are only values in `[0, 1]` or `null`. They never store `-1`.
 
