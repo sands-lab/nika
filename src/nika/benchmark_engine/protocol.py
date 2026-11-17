@@ -27,18 +27,25 @@ ENGINE_TOKEN_HEADER = "NIKA-Engine-Token"
 FailureOutcome = Literal["agent_failed", "endpoint_failed", "infra_failed"]
 
 
-class _Message(BaseModel):
+class _Reply(BaseModel):
+    # Ignore unknown fields so an engine can add reply fields without breaking
+    # older frontends.
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+
+class _Request(BaseModel):
+    # Reject unknown fields so an engine refuses a setting it cannot honor.
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
-class HostInfo(_Message):
+class HostInfo(_Reply):
     """Docker and kernel versions of the host that runs the environments."""
 
     docker: str | None = None
     kernel: str | None = None
 
 
-class EngineDescription(_Message):
+class EngineDescription(_Reply):
     """What ``describe`` reports before a run starts."""
 
     api_versions: list[int]
@@ -51,7 +58,7 @@ class EngineDescription(_Message):
     host: HostInfo | None = None
 
 
-class TaskInfo(_Message):
+class TaskInfo(_Reply):
     """One task of a release split, as ``list_tasks`` reports it.
 
     ``resource_class`` is ``light``, ``large``, ``k8s``, or ``clab``; the
@@ -67,7 +74,7 @@ class TaskInfo(_Message):
     label: str
 
 
-class TaskList(_Message):
+class TaskList(_Reply):
     """The tasks of one release split, in split-file order.
 
     ``task_file_sha256`` is the hash of the split file the engine read; the
@@ -80,7 +87,7 @@ class TaskList(_Message):
     tasks: list[TaskInfo]
 
 
-class TrialRequest(_Message):
+class TrialRequest(_Request):
     """One trial of one task.
 
     A release trial names its task by ``task_id`` with ``release`` and
@@ -126,14 +133,14 @@ class TrialRequest(_Message):
         return self
 
 
-class Resource(_Message):
+class Resource(_Reply):
     """A host resource the benchmark engine created for a trial."""
 
     kind: str
     id: str
 
 
-class TrialHandle(_Message):
+class TrialHandle(_Reply):
     """Returned by ``start_trial``; identifies the trial in later calls."""
 
     session_id: str
@@ -145,7 +152,7 @@ class TrialHandle(_Message):
         return Path(self.trial_dir)
 
 
-class AgentTask(_Message):
+class AgentTask(_Reply):
     """What the agent is told when its trial is ready, as ``begin`` returns it."""
 
     task_description: str
@@ -158,7 +165,7 @@ TrialState = Literal[
 ]
 
 
-class TrialStatus(_Message):
+class TrialStatus(_Reply):
     """A trial's state, as the engine service reports it over HTTP.
 
     ``start_trial``, ``begin``, and ``stop_trial`` answer at once with it, and
@@ -177,7 +184,7 @@ class TrialStatus(_Message):
     outcome: FailureOutcome | None = None
 
 
-class FaultCheck(_Message):
+class FaultCheck(_Reply):
     """Whether the injected failure is still in place.
 
     ``not_applicable`` means no failure was injected (a healthy task);
@@ -190,7 +197,7 @@ class FaultCheck(_Message):
     error: str | None = None
 
 
-class AccessPolicy(_Message):
+class AccessPolicy(_Request):
     """What the agent may touch during diagnosis; ``*`` allows everything."""
 
     tools: list[str] = Field(default_factory=lambda: ["*"])
@@ -198,14 +205,14 @@ class AccessPolicy(_Message):
     node_ids: list[str] = Field(default_factory=list)
 
 
-class AgentAccess(_Message):
+class AgentAccess(_Request):
     """An access policy and the name the run records it under."""
 
     role: str
     policy: AccessPolicy = Field(default_factory=AccessPolicy)
 
 
-class GatewayRequest(_Message):
+class GatewayRequest(_Request):
     """How the trial's MCP gateway is opened.
 
     ``access`` is enforced by the engine's gateway; ``None`` lets the engine
@@ -222,7 +229,7 @@ class GatewayRequest(_Message):
     agent_host: str | None = None
 
 
-class AgentEndpoints(_Message):
+class AgentEndpoints(_Reply):
     """The trial's MCP gateway (contract C), as ``agent_endpoints`` opened it.
 
     ``gateway_url`` is how the frontend reaches it, ``agent_url`` how the
@@ -238,7 +245,7 @@ class AgentEndpoints(_Message):
     servers: list[str]
 
 
-class Scores(_Message):
+class Scores(_Reply):
     """The grade of one trial, as ``score`` returns it.
 
     ``status`` is the trial's score status (``scored``, ``no_submission``,

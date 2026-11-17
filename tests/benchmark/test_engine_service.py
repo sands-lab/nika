@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 import uvicorn
+from pydantic import ValidationError
 
 from nika.agents.mcp_config import engine_gateway, select_session_servers
 from nika.agents.sandbox.config import ENV_GATEWAY_SERVERS, ENV_GATEWAY_URL
@@ -31,6 +32,7 @@ from nika.benchmark_engine.protocol import (
     TaskList,
     TrialHandle,
     TrialRequest,
+    TrialStatus,
 )
 from nika.benchmark_engine.server import create_engine_app
 from nika.utils.net import pick_free_port
@@ -318,3 +320,15 @@ def test_default_gateway_request_retains_published_engine_wire_schema() -> None:
     payload = GatewayRequest().model_dump(mode="json")
     assert "tool_call_limits" not in payload
     assert set(payload) == {"access", "sandbox", "bind_host", "agent_host"}
+
+
+def test_replies_ignore_unknown_fields_and_requests_refuse_them() -> None:
+    # A newer engine may add reply fields; an older frontend must still parse.
+    reply = FaultCheck.model_validate({"result": "present", "checked_at": "14:02"})
+    assert reply.result == "present"
+    status = {"session_id": "s", "state": "ready", "added": 1}
+    status["handle"] = {"session_id": "s", "trial_dir": "/t", "added": 1}
+    assert TrialStatus.model_validate(status).handle.trial_dir == "/t"
+    # An engine must refuse a setting it does not know rather than drop it.
+    with pytest.raises(ValidationError):
+        GatewayRequest.model_validate({"sandbox": True, "policy_mode": "unified"})
