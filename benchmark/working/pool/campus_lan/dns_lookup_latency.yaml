@@ -4,6 +4,37 @@ failure:
   fault_type: dns_lookup_latency
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      delay_ms: '1000'
+      host_name: dns_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_lookup_latency
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      delay_ms: '1000'
+      host_name: dns_server
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_lookup_latency
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       delay_ms: '1000'
       host_name: dns_server
@@ -14,6 +45,9 @@ failure:
         node: dns_server
       fault_type: dns_lookup_latency
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       delay_ms: '1000'
       host_name: dns_server
@@ -24,6 +58,9 @@ failure:
         node: dns_server
       fault_type: dns_lookup_latency
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       delay_ms: '1000'
       host_name: dns_server

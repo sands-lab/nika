@@ -7,7 +7,7 @@ _ANTHROPIC_EFFORT_LEVELS = frozenset({"low", "medium", "high", "xhigh", "max"})
 
 
 def map_anthropic_effort(reasoning_effort: str | None) -> str | None:
-    """Map NIKA reasoning_effort to Anthropic ``output_config.effort``.
+    """Map the run's reasoning_effort to Anthropic ``output_config.effort``.
 
     Returns ``None`` when effort should be omitted (unset or ``none``).
     ``minimal`` maps to ``low``.

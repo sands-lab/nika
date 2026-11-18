@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from nika.traffic.workload import BUSINESS_RATE_SHARE, rate_budget_kbps
 from nika.net_env.enterprise_branch.addressing import (
     host_name_for,
     lan_network,
@@ -48,25 +49,27 @@ class ScaleSpec:
 
 @dataclass(frozen=True)
 class OverlayQosSpec:
-    """Per-size WireGuard overlay egress capacity and EF reservation (mbit)."""
+    """Per-size WireGuard overlay egress capacity and EF reservation (kbit/s)."""
 
-    rate_mbit: int
-    ef_mbit: int
-    bulk_flow_count: int
+    rate_kbit: int
+    ef_kbit: int
 
 
-# Overlay egress HTB: total rate, EF class guarantee, competing CS0 flow count.
+# Overlay egress HTB: total rate and EF class guarantee. The EF guarantee
+# covers the largest call each egress carries (the br1 video link), so healthy
+# media never borrows; best effort gets the rest of the link.
 OVERLAY_QOS: dict[TopoSize, OverlayQosSpec] = {
-    "s": OverlayQosSpec(rate_mbit=8, ef_mbit=2, bulk_flow_count=2),
-    "m": OverlayQosSpec(rate_mbit=16, ef_mbit=3, bulk_flow_count=4),
-    "l": OverlayQosSpec(rate_mbit=32, ef_mbit=4, bulk_flow_count=6),
+    "s": OverlayQosSpec(rate_kbit=8000, ef_kbit=4000),
+    "m": OverlayQosSpec(rate_kbit=16000, ef_kbit=7000),
+    # l keeps the m rate: eight branches share the same hubs and underlay, and
+    # a faster regional egress loads them enough to delay healthy traffic.
+    "l": OverlayQosSpec(rate_kbit=16000, ef_kbit=7000),
 }
 
 # DSCP EF = 46 → TOS 0xb8; mask 0xfc ignores ECN.
 DSCP_EF = 46
 DSCP_CS0 = 0
 TOS_EF = 0xB8
-TOS_CS0 = 0x00
 
 
 SCALE: dict[TopoSize, ScaleSpec] = {
@@ -96,45 +99,102 @@ SCALE: dict[TopoSize, ScaleSpec] = {
 # Cisco SD-WAN Small Branch Bulk-Data (300 ms) and Business-Data (400 ms) RTT
 # SLA ceilings. See docs/operations/network-scenarios.md.
 UNDERLAY_ONE_WAY_DELAY_MS = 20
+# Branch→branch crosses the hub: four attachments each way, ~160 ms RTT.
+MAX_OVERLAY_RTT_MS = 8 * UNDERLAY_ONE_WAY_DELAY_MS
 
-# Static objects served by SERVER-role HTTP hosts for bulk-transfer probes.
+# Static objects served by SERVER-role HTTP hosts. large.bin downloads in a
+# few seconds over a healthy branch path, so a capped test fetch completes.
 HTTP_SMALL_OBJECT_KB = 16
-HTTP_LARGE_OBJECT_MB = 32
+HTTP_LARGE_OBJECT_MB = 1
+# File-share archive the branch sync clients pull: long transfers that keep
+# the bulk load steady.
+SYNC_OBJECT = "projects.tar"
+SYNC_OBJECT_MB = 32
+
+# Public web/push service that GUEST and IOT clients reach through their Site
+# Edge NAT. A Linux server on a LAN of the primary provider (``isp1``) hosts it,
+# so it runs whatever platform the provider routers use.
+PUBLIC_SERVICE_HOST = "internet_web"
+PUBLIC_SERVICE_IP = "198.51.100.10"
+PUBLIC_SERVICE_GATEWAY = "198.51.100.9"
+PUBLIC_SERVICE_PREFIXLEN = 29
 
 
-def overlay_qos_for(topo_size: TopoSize) -> OverlayQosSpec:
+def overlay_qos_for(
+    topo_size: TopoSize, rate_limit_kbps: int | None = None
+) -> OverlayQosSpec:
+    """The size's overlay QoS, within the business share of a router send cap."""
     if topo_size not in OVERLAY_QOS:
         raise ValueError("topo_size should be one of 's', 'm', 'l'.")
-    return OVERLAY_QOS[topo_size]
+    return overlay_qos_within(OVERLAY_QOS[topo_size], rate_limit_kbps)
+
+
+def overlay_qos_scale(qos: OverlayQosSpec, rate_limit_kbps: int | None) -> float:
+    """Factor that fits ``qos`` into the business share of ``rate_limit_kbps``.
+
+    Edges whose platform caps each interface keep the design's proportions:
+    rates, the EF reservation and the workload shrink by the same factor.
+    """
+    budget = rate_budget_kbps(rate_limit_kbps, BUSINESS_RATE_SHARE)
+    return min(1.0, budget / qos.rate_kbit) if budget else 1.0
+
+
+def overlay_qos_within(
+    qos: OverlayQosSpec, rate_limit_kbps: int | None
+) -> OverlayQosSpec:
+    scale = overlay_qos_scale(qos, rate_limit_kbps)
+    if scale == 1.0:
+        return qos
+    return OverlayQosSpec(
+        rate_kbit=int(qos.rate_kbit * scale), ef_kbit=int(qos.ef_kbit * scale)
+    )
+
+
+def overlay_be_kbit(qos: OverlayQosSpec) -> int:
+    """Return the BE class ceiling (kbit/s): the link rate left after EF."""
+    return max(qos.rate_kbit - qos.ef_kbit, 1)
+
+
+def tc_rate(kbit: int) -> str:
+    """A rate as tc writes it: ``8mbit``, or ``600kbit`` below whole mbit."""
+    return f"{kbit // 1000}mbit" if kbit % 1000 == 0 else f"{kbit}kbit"
+
+
+def routeros_rate(kbit: int) -> str:
+    """A rate as RouterOS writes it: ``8M``, or ``600k`` below whole mbit."""
+    return f"{kbit // 1000}M" if kbit % 1000 == 0 else f"{kbit}k"
 
 
 def overlay_qos_startup_cmds(iface: str, qos: OverlayQosSpec) -> list[str]:
     """HTB dual-class QoS on a WireGuard overlay egress (EF vs default/BE).
 
-    EF keeps a reserved class with a deep queue. BE is hard-capped at its rate
-    with a deep byte-FIFO so saturating CS0 bulk builds ~500ms standing delay;
-    demoted EF then sees clear latency (and loss under overload), not just
-    fq_codel jitter on an otherwise empty sparse-flow queue.
+    EF gets a reserved high-priority class. BE is hard-capped at the rest of
+    the link and served by fq_codel, as in WAN-edge QoS with fair queueing and
+    AQM on the default class (Cisco ``fair-queue`` in class-default, OpenWrt
+    SQM ``simple.qos``): bulk transfers keep no standing queue and sparse
+    flows such as pings skip ahead, while a flow that sends above its fair
+    share of the class is dropped.
     """
-    be_mbit = max(qos.rate_mbit - qos.ef_mbit, 1)
-    # ~500ms of standing queue at the BE ceil (bytes = rate_bps * 0.5 / 8).
-    be_bfifo_bytes = max(int(be_mbit * 1_000_000 * 0.5 / 8), 64_000)
+    be_kbit = overlay_be_kbit(qos)
+    rate, ef, be = tc_rate(qos.rate_kbit), tc_rate(qos.ef_kbit), tc_rate(be_kbit)
+    # Token buckets hold 10 ms at the link rate, like a shaper's Bc = CIR x Tc,
+    # so back-to-back packets of a flow within its rate are not throttled.
+    bucket = qos.rate_kbit * 1250 // 1000
+    burst = f"burst {bucket} cburst {bucket}"
     return [
         f"tc qdisc add dev {iface} root handle 1: htb default 20 || true",
         f"tc class add dev {iface} parent 1: classid 1:1 "
-        f"htb rate {qos.rate_mbit}mbit ceil {qos.rate_mbit}mbit || true",
+        f"htb rate {rate} ceil {rate} {burst} || true",
         # EF: reserved rate, may borrow unused BE capacity up to link ceil.
         f"tc class add dev {iface} parent 1:1 classid 1:10 "
-        f"htb rate {qos.ef_mbit}mbit ceil {qos.rate_mbit}mbit prio 1 || true",
+        f"htb rate {ef} ceil {rate} {burst} prio 1 || true",
         # BE: hard-capped so bulk cannot silently use EF's reservation.
         f"tc class add dev {iface} parent 1:1 classid 1:20 "
-        f"htb rate {be_mbit}mbit ceil {be_mbit}mbit prio 2 || true",
+        f"htb rate {be} ceil {be} {burst} prio 2 || true",
         f"tc filter add dev {iface} parent 1: protocol ip prio 1 u32 "
         f"match ip tos {TOS_EF:#x} 0xfc flowid 1:10 || true",
         f"tc qdisc add dev {iface} parent 1:10 handle 10: pfifo limit 100 || true",
-        # Deep byte-FIFO: bulk keeps ~500ms standing queue for demoted EF.
-        f"tc qdisc add dev {iface} parent 1:20 handle 20: "
-        f"bfifo limit {be_bfifo_bytes} || true",
+        f"tc qdisc add dev {iface} parent 1:20 handle 20: fq_codel || true",
     ]
 
 
@@ -225,7 +285,12 @@ class TopoSpec:
         return names
 
     def all_node_names(self) -> list[str]:
-        return self.edge_names() + self.isp_names() + self.host_names()
+        return [
+            *self.edge_names(),
+            *self.isp_names(),
+            *self.host_names(),
+            PUBLIC_SERVICE_HOST,
+        ]
 
     def advertised_prefixes(self) -> list[str]:
         return [
@@ -476,64 +541,42 @@ def dscp_remark_inject_targets(topo_size: TopoSize) -> list[DscpRemarkTarget]:
     return targets
 
 
-def corp_pairs_sharing_overlay_egress(
-    topo_size: TopoSize,
-    *,
-    edge: str,
-    intf_name: str,
-    exclude: tuple[str, str] | None = None,
-) -> list[tuple[str, str]]:
-    """CORP host pairs whose primary path leaves ``edge`` via ``intf_name``.
+@dataclass(frozen=True)
+class HijackTarget:
+    """A BGP origination that wins over the owner's route at remote sites."""
 
-    Used to build competing CS0 bulk flows on the same overlay egress as the EF
-    foreground path. ``exclude`` skips the EF (src, dst) pair when provided.
+    hijacker: str
+    prefix: str
+    observer: str
+    observer_host: str
+    probe_ip: str
+
+
+def bgp_hijack_targets(topo_size: TopoSize) -> list[HijackTarget]:
+    """HQ edge originating another branch's CORP /24.
+
+    Hubs accept only up to /24 from the overlay, so a more-specific never
+    leaves the hijacker, and a branch-originated /24 loses to the owner's older
+    path at the hubs. A /24 HQ originates itself beats the owner's path at HQ
+    (locally originated) and at every other branch (primary local-pref), so
+    their traffic to that branch's CORP LAN ends at HQ.
     """
+    from nika.net_env.enterprise_branch.addressing import edge_name_for
+
     spec = build_topo_spec(topo_size)
-    site = edge[: -len("_edge")] if edge.endswith("_edge") else edge
-    if site not in spec.sites:
-        return []
-
-    local_hosts = list(_corp_hosts(spec, site))
-    pairs: list[tuple[str, str]] = []
-
-    if site in spec.branch_names() and intf_name == "wg_hq":
-        # Primary path: branch CORP → HQ / DC2 / other branches (hairpin via HQ).
-        remotes: list[str] = []
-        remotes.extend(_corp_hosts(spec, "hq"))
-        remotes.extend(_corp_hosts(spec, "dc2"))
-        for other in spec.branch_names():
-            if other == site:
-                continue
-            remotes.extend(_corp_hosts(spec, other))
-        for src in local_hosts:
-            for dst in remotes:
-                pairs.append((src, dst))
-    elif site == "hq" and intf_name.startswith("wg_br"):
-        spoke = intf_name[len("wg_") :].removesuffix("_b")
-        if spoke in spec.branch_names():
-            for src in local_hosts:
-                for dst in _corp_hosts(spec, spoke):
-                    pairs.append((src, dst))
-    elif site == "dc2" and intf_name.startswith("wg_br"):
-        spoke = intf_name[len("wg_") :].removesuffix("_b")
-        if spoke in spec.branch_names():
-            for src in local_hosts:
-                for dst in _corp_hosts(spec, spoke):
-                    pairs.append((src, dst))
-    elif site == "hq" and intf_name in {"wg_dc2", "wg_dc2_b"}:
-        for src in local_hosts:
-            for dst in _corp_hosts(spec, "dc2"):
-                pairs.append((src, dst))
-
-    if exclude is not None:
-        pairs = [p for p in pairs if p != exclude]
-
-    # Prefer diversity; keep stable order for deterministic benchmarks.
-    seen: set[tuple[str, str]] = set()
-    ordered: list[tuple[str, str]] = []
-    for pair in pairs:
-        if pair in seen:
-            continue
-        seen.add(pair)
-        ordered.append(pair)
-    return ordered
+    branches = spec.branch_names()
+    targets: list[HijackTarget] = []
+    for victim in branches:
+        observer = next(b for b in branches if b != victim)
+        victim_lan = _corp_lan(spec, victim)
+        probe_ip = victim_lan.prefix.rsplit(".", 1)[0] + ".2"
+        targets.append(
+            HijackTarget(
+                hijacker=edge_name_for("hq"),
+                prefix=victim_lan.prefix,
+                observer=edge_name_for(observer),
+                observer_host=_corp_hosts(spec, observer)[0],
+                probe_ip=probe_ip,
+            )
+        )
+    return targets

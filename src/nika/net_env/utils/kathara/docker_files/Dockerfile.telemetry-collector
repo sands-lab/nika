@@ -1,0 +1,8 @@
+ARG NIKA_IMAGE_TAG
+FROM nika/base:${NIKA_IMAGE_TAG}
+
+# Collector for every telemetry kind: nfcapd/sfcapd/nfdump, Prometheus, rsyslog.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nfdump nfdump-sflow prometheus \
+        openssh-client sshpass rsyslog && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*

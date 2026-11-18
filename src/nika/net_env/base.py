@@ -1,13 +1,18 @@
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Set
+from typing import TYPE_CHECKING, ClassVar, Set
 
 from nika.runtime.base import LabRuntime
 from nika.runtime.factory import runtime_for_net_env
 from nika.runtime.spec import LabSpec, MachineInventory, NodeIdentity, NodeRole
 
 from nika.net_env.contract import ValidationContract
+from nika.net_env.probe_intent import ProbeIntent
+
+if TYPE_CHECKING:
+    from nika.traffic.workload import BusinessWorkload
 
 
 @dataclass(frozen=True)
@@ -31,11 +36,24 @@ class ProbePath:
 
 
 class NetworkEnvBase:
+    ROUTING_PARAMETER_KINDS: ClassVar[frozenset[str]] = frozenset()
+    ROUTING_MODELS: ClassVar[frozenset[str]] = frozenset()
+
     LAB_NAME: ClassVar[str | None] = None
     # Kubernetes labs (``NetEnvSpec.k8s_image_cache``): lab node images pulled
     # on the host, and in-cluster images cached as tars and loaded into k3s.
     K8S_HOST_IMAGES: ClassVar[tuple[str, ...]] = ()
     K8S_WORKLOAD_IMAGES: ClassVar[tuple[str, ...]] = ()
+    # Routers route only frames addressed to their own interface MAC, as real
+    # L3 devices do (scenario-declared forwarding behaviour).
+    ROUTERS_CHECK_DST_MAC: ClassVar[bool] = False
+    # Background traffic profile (``nika.traffic.profiles``) that every
+    # generated benchmark case of the environment runs, faulty or healthy, so
+    # its presence says nothing about the fault. A failure's
+    # ``TRAFFIC_PROFILE`` replaces it for that failure's cases.
+    BASELINE_TRAFFIC: ClassVar[dict] = {"pattern": "uniform", "load_mbps": 1.0}
+    # Remove deploy-time file copies and align saved configs (see seal_baseline).
+    SEAL_BASELINE: ClassVar[bool] = True
     """
     Base class for network environments."""
 
@@ -86,6 +104,28 @@ class NetworkEnvBase:
     def get_lab_spec(self) -> LabSpec | None:
         """Containerlab-native scenarios may override; Kathara scenarios return None."""
         return None
+
+    def bgp_import_peers(self):
+        """Neighbors in the fixed routing sketch available for policy completion."""
+        return ()
+
+    def bgp_origin_prefixes(self):
+        """Exact prefix ownership in the fixed BGP configuration sketch."""
+        import re
+
+        design = getattr(self, "routing_design", None)
+        if design is not None:
+            return design.origin_prefixes()
+
+        from nika.net_env.native_routers import router_sketches
+
+        origins = {}
+        for node, (config, _) in router_sketches(self).items():
+            for prefix in re.findall(r"^\s*network ([0-9./]+)$", config, re.MULTILINE):
+                if prefix in origins:
+                    raise ValueError("The BGP sketch requires one origin per prefix")
+                origins[prefix] = node
+        return origins
 
     def overlay_interfaces(self) -> list[tuple[str, str]]:
         """``(node, interface)`` pairs created at startup rather than by lab links.
@@ -167,16 +207,17 @@ class NetworkEnvBase:
         self.switches = inventory.names_for_role(NodeRole.SWITCH)
         self.servers = inventory.services()
 
-    def get_topology(self) -> dict:
-        """
-        Get the topology of the network.
+    def _topology_segments(self) -> list[tuple[str, ...]]:
+        """Return every interface on each shared collision domain."""
+        from nika.telemetry import is_telemetry_link
 
-        Output format: [(host1:intf1, host2:intf2), ...]
-        """
         topology = defaultdict(list)
         machines = self.lab.machines
         for machine, stat in machines.items():
             for intf_num, intf in stat.interfaces.items():
+                # The telemetry management network is out-of-band, not a scenario link.
+                if is_telemetry_link(intf.link.name):
+                    continue
                 topology[intf.link.name].append(f"{machine}:eth{intf_num}")
         # sorted by the link name A, B, C, ...
         topology = sorted(topology.items(), key=lambda x: x[0])
@@ -186,22 +227,44 @@ class NetworkEnvBase:
             # placeholder interface) isn't a pairwise connection to report.
             if len(machines) < 2:
                 continue
-            topo_list.append((machines[0], machines[1]))
+            topo_list.append(tuple(machines))
         return topo_list
 
-    def _router_platform_label(self) -> str:
-        router_caps: set[str] = set()
+    def get_topology(self) -> list[tuple[str, str]]:
+        """Return the representative endpoint pair used by link consumers."""
+        return [(segment[0], segment[1]) for segment in self._topology_segments()]
+
+    @staticmethod
+    def _platform_label(capabilities: Iterable[str]) -> str:
+        caps = set(capabilities)
+        if "routeros" in caps:
+            return "MikroTik RouterOS"
+        if "iosxr" in caps:
+            return "IOS-XR"
+        if "nokia_srlinux" in caps or "srlinux" in caps:
+            return "Nokia SR Linux"
+        if "sonic" in caps:
+            return "SONiC"
+        if "frr" not in caps and "linux" in caps:
+            return "Linux, static routes"
+        return "FRRRouting"
+
+    def frr_routers(self) -> list[str]:
+        """Routers declared as FRR (they run mgmtd and keep a commit history)."""
+        return sorted(
+            name
+            for name, identity in self.machine_identities.items()
+            if identity.role is NodeRole.ROUTER and "frr" in identity.capabilities
+        )
+
+    def _router_platform_groups(self) -> dict[str, list[str]]:
+        """Routers grouped by the platform their declared capabilities imply."""
+        groups: dict[str, list[str]] = {}
         for name in self.routers or []:
             identity = self.machine_identities.get(name)
-            if identity is not None:
-                router_caps.update(identity.capabilities)
-        if "routeros" in router_caps:
-            return "MikroTik RouterOS"
-        if "iosxr" in router_caps:
-            return "IOS-XR"
-        if "nokia_srlinux" in router_caps or "srlinux" in router_caps:
-            return "Nokia SR Linux"
-        return "FRRRouting"
+            label = self._platform_label(identity.capabilities if identity else ())
+            groups.setdefault(label, []).append(name)
+        return groups
 
     def _format_role_inventory_lines(self) -> str:
         """Role / service inventory lines for the agent-facing network brief."""
@@ -219,9 +282,8 @@ class NetworkEnvBase:
                 lines.append(
                     f"{server_type.capitalize()} Servers: {', '.join(server_list)}"
                 )
-        if self.routers:
-            label = self._router_platform_label()
-            lines.append(f"Routers ({label}): {', '.join(self.routers)}")
+        for label, names in self._router_platform_groups().items():
+            lines.append(f"Routers ({label}): {', '.join(names)}")
         if self.links:
             lines.append(f"Links: {', '.join(self.links)}")
         return "".join(f"{line}\n" for line in lines)
@@ -236,9 +298,7 @@ class NetworkEnvBase:
         self.load_machines()
         summary = f"Network Description: {self.desc}\n"
         summary += self._format_role_inventory_lines()
-        summary += (
-            f"Topology: {', '.join(f'({a}, {b})' for a, b in self.get_topology())}"
-        )
+        summary += f"Topology: {', '.join('(' + ', '.join(segment) + ')' for segment in self._topology_segments())}"
         return summary
 
     def __str__(self):
@@ -269,22 +329,30 @@ class NetworkEnvBase:
 
         ensure_nika_docker_images(self._collect_lab_images())
 
+    def _has_readiness_verifier(self) -> bool:
+        cls = type(self)
+        if getattr(cls, "startup_verify_lab", None) is not None:
+            return True
+        return cls.verify_lab is not NetworkEnvBase.verify_lab
+
     def deploy(self):
         """Deploy the lab.
 
         The runtime checks for an existing lab and, on Kathara, required
-        images once per deploy. A fresh lab gets a fixed settle delay so
-        services launched by startup scripts can start: light startup
-        verifiers only confirm the control plane, not those services.
+        images once per deploy. After a fresh deploy, environments without
+        ``startup_verify_lab`` or ``verify_lab`` wait ``deploy_settle_sec``.
+        Environments that implement either skip the delay; callers poll
+        readiness instead.
         """
         self._ensure_runtime_files()
         deployed = self._build_runtime().deploy()
-        if deployed is not False:
-            import time
+        if deployed is False or self._has_readiness_verifier():
+            return
+        import time
 
-            from nika.runtime.shared.settings import lab_settings
+        from nika.runtime.shared.settings import lab_settings
 
-            time.sleep(lab_settings().deploy_settle_sec)
+        time.sleep(lab_settings().deploy_settle_sec)
 
     def verify_lab(self) -> dict | None:
         """Return post-deploy verification result, or ``None`` when not implemented."""
@@ -294,15 +362,170 @@ class NetworkEnvBase:
         """Return the scenario's backend-independent healthy baseline contract."""
         return self.validation_contract
 
+    def probe_intent(self) -> ProbeIntent | None:
+        """Designed isolation and RTT expectations for fleet-wide reachability probes.
+
+        Scenarios whose healthy baseline intentionally isolates endpoint pairs or
+        adds WAN latency override this; the default declares nothing.
+        """
+        return None
+
     def post_deploy(self):
         """Run once the lab is deployed and verified."""
         return
 
-    def reconcile_dataplane_after_port_reconnect(
-        self, runtime: LabRuntime, nodes: list[str]
-    ) -> None:
-        """Re-apply controller-managed forwarding after a switch port was moved."""
-        return
+    def post_restore(self) -> bool:
+        """Resume transient protocols while preserving the running configuration.
+
+        Called for healthy and injected snapshots. Never restore deployment
+        defaults: a case image must keep its injected fault. Healthy snapshots
+        require full verification when this hook changes protocol state.
+        """
+        return False
+
+    def seal_baseline(self) -> None:
+        """Leave no pristine on-disk baseline that a fault could be diffed against.
+
+        Drops the backend's deploy-time file copies, saves running configurations
+        on FRR and SR Linux, and refreshes saved-file metadata on their peers.
+        """
+        if not self.SEAL_BASELINE:
+            return
+        from nika.problems.support.frr import frr_save_config
+        from nika.utils.parallel import bounded_parallel_map
+
+        runtime = self._build_runtime()
+        runtime.drop_boot_sources()
+        bounded_parallel_map(
+            lambda router: frr_save_config(runtime, router), self.frr_routers()
+        )
+        self.align_saved_configs()
+
+    def align_saved_configs(self) -> None:
+        """Refresh saved configurations across declared router platforms."""
+        if not self.SEAL_BASELINE:
+            return
+        import time
+
+        from nika.problems.support.frr import frr_rewrite_saved_configs
+
+        runtime = self._build_runtime()
+        timestamp = time.time()
+        frr_rewrite_saved_configs(runtime, self.frr_routers(), timestamp)
+        srl_routers = [
+            node
+            for node, identity in self.machine_identities.items()
+            if "nokia_srlinux" in identity.capabilities
+        ]
+        if srl_routers:
+            runtime.lab_api.srl_align_saved_configs(srl_routers, timestamp)
+
+    def business_workload(self) -> "BusinessWorkload | None":
+        """Always-on traffic of the scenario's users and services.
+
+        Return ``None`` for a quiet lab. The workload must be symmetric across
+        cases: it never depends on a fault. See :mod:`nika.traffic.workload`.
+        """
+        return None
+
+    def traffic_demands(self) -> dict[tuple[str, str], float] | None:
+        """Measured demand between host pairs, keyed ``(src_host, dst_host)``.
+
+        The ``demand`` background traffic pattern replays it
+        (:mod:`nika.traffic.profiles`). ``None`` when the scenario has none.
+        """
+        return None
+
+    def link_symptom_targets(self, node: str, intf: str) -> dict[str, str] | None:
+        """Observer and destination whose path crosses the link at ``node:intf``.
+
+        Returns ``{"observer_device": ..., "probe_dst_ip": ...}`` for links the
+        scenario's default probe path misses, or ``None`` to keep that path.
+        Link-quality failures probe from the observer to the destination.
+        """
+        return None
+
+    @classmethod
+    def path_rate_limit_kbps(cls, device_profile: str | None) -> int | None:
+        """Kbit/s that business paths carry at most under ``device_profile``.
+
+        The routers' declared send cap; a scenario that shapes its paths below
+        it says so. ``None`` when nothing caps them.
+        """
+        from nika.net_env.native_routers import platform_rate_limit_kbps
+
+        return platform_rate_limit_kbps(device_profile)
+
+    def background_rate_limit_kbps(self) -> int | None:
+        """Capacity available to background profiles on this deployed lab."""
+        limits = [
+            self.router_rate_limit_kbps(),
+            type(self).path_rate_limit_kbps(getattr(self, "device_profile", None)),
+        ]
+        return min((limit for limit in limits if limit), default=None)
+
+    def nat_probe_server(self) -> tuple[str, str] | None:
+        """An outside ``(node, ipv4)`` Linux server that NATed hosts reach.
+
+        NAT symptom probes listen there. ``None`` makes them use the edge's
+        WAN next hop, which must then run Linux.
+        """
+        return None
+
+    def router_rate_limit_kbps(self) -> int | None:
+        """Lowest per-interface send cap of the lab's router platforms, or None.
+
+        Traffic that crosses the routers stays below it
+        (``nika.traffic.workload.rate_budget_kbps``).
+        """
+        from nika.net_env.native_routers import (
+            native_profiles,
+            platform_rate_limit_kbps,
+        )
+
+        capabilities = {
+            capability
+            for identity in self.machine_identities.values()
+            for capability in identity.capabilities
+        }
+        limits = [
+            platform_rate_limit_kbps(profile)
+            for profile in native_profiles() & capabilities
+        ]
+        return min((limit for limit in limits if limit), default=None)
+
+    def traffic_pod_nodes(self) -> frozenset[str]:
+        """Nodes without Python that run traffic programs in Kubernetes pods.
+
+        ``start_traffic_programs`` must start their programs.
+        """
+        return frozenset()
+
+    def start_traffic_programs(self, workload: "BusinessWorkload") -> None:
+        """Start a background traffic profile's programs (idempotent)."""
+        from nika.traffic.workload import start_workload
+
+        start_workload(self._build_runtime(), workload)
+
+    def stop_traffic_programs(self) -> None:
+        """Stop programs that ``start_traffic_programs`` runs outside the hosts."""
+
+    def start_business_workload(
+        self, *, services_only: bool = False
+    ) -> "BusinessWorkload | None":
+        """Start business programs, or prepare only services and maintenance."""
+        workload = self.business_workload()
+        if workload is None or not workload.processes:
+            return None
+        from nika.traffic.workload import BusinessWorkload, start_workload
+
+        if services_only:
+            workload = BusinessWorkload(
+                processes=tuple(p for p in workload.processes if not p.traffic_source)
+            )
+
+        start_workload(self._build_runtime(), workload)
+        return workload
 
     @classmethod
     def prepare_k8s_image_cache(cls) -> None:

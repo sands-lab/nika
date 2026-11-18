@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from nika.service.containerlab.base_api import ContainerlabBaseAPI
+from nika.runtime.spec import MachineInventory
 
 ENDPOINT_NAME_KEYS = ("client", "pc", "host", "server")
 EXCLUDED_NAME_KEYS = ("router", "switch", "leaf", "spine", "sw")
@@ -32,11 +33,14 @@ def discover_endpoints(api: Any) -> list[str]:
 
     api.load_machines()
     endpoints: list[str] = list(api.hosts)
+    inventory = getattr(api, "machine_inventory", None)
+    if isinstance(inventory, MachineInventory):
+        endpoints.extend(inventory.reachability_targets())
     for servers in api.servers.values():
         for server in servers:
             if server not in endpoints:
                 endpoints.append(server)
-    return sorted(endpoints)
+    return sorted(set(endpoints))
 
 
 def resolve_endpoint_ip(api: Any, host_name: str) -> str | None:

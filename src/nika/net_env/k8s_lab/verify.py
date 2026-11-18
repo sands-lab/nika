@@ -22,6 +22,13 @@ from nika.net_env.verify import (
     ping_unreachable,
 )
 from nika.runtime.base import LabRuntime
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    ping_command,
+    mesh_ping_command,
+    http_command,
+)
 from nika.utils.parallel import bounded_parallel_map
 
 _K8S_EXPECTED = (
@@ -94,8 +101,8 @@ def _fabric_bgp_failures(runtime: LabRuntime) -> dict[str, list[str]]:
     }
 
 
-def verify_k8s_lab_startup(
-    runtime: LabRuntime, *, scenario_name: str
+def _verify_k8s_lab(
+    runtime: LabRuntime, *, scenario_name: str, full: bool
 ) -> dict[str, Any]:
     """Fast readiness for inject: nodes up plus sample app namespaces/HTTP.
 
@@ -104,6 +111,23 @@ def verify_k8s_lab_startup(
     controller.startup has applied sample namespaces and both sample ingress
     paths answer — not only until k3s nodes report Ready.
     """
+    live_runtime = runtime
+    commands = [
+        VerifyCommand("controller", command, 10 if command.startswith("ip ") else 60)
+        for command in (
+            "kubectl get nodes --no-headers",
+            "kubectl get ns word-ns -o jsonpath={.status.phase}",
+            "kubectl get ns weather-ns -o jsonpath={.status.phase}",
+            "kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath={.status.loadBalancer.ingress[0].ip}",
+            "ip -4 -o addr show dev eth0",
+        )
+    ]
+    if full:
+        commands.extend(
+            VerifyCommand(router, "vtysh -c 'show bgp summary'")
+            for router in _FABRIC_BGP_PEERS
+        )
+    runtime = collect_verify_commands(live_runtime, commands)
     nodes = exec_or_empty(
         runtime, "controller", "kubectl get nodes --no-headers", timeout=60
     )
@@ -127,9 +151,22 @@ def verify_k8s_lab_startup(
         "-o jsonpath={.status.loadBalancer.ingress[0].ip}",
         timeout=60,
     ).strip()
-    sync_k8s_client_hosts(runtime)
+    sync_k8s_client_hosts(live_runtime, ingress_ip=ingress_ip)
     word_url = word_app_http_url(ingress_ip)
     weather_url = weather_app_http_url(ingress_ip)
+    commands = [
+        VerifyCommand("client", ping_command("201.1.1.2", count=3), 15),
+        VerifyCommand("client", http_command(word_url)),
+        VerifyCommand("client", http_command(weather_url)),
+    ]
+    if full:
+        commands.extend(
+            VerifyCommand("client", mesh_ping_command(address), 30)
+            for address in _K3S_NODE_ADDRESSES.values()
+        )
+    runtime = runtime.merged(
+        collect_verify_commands(live_runtime, commands, nodes=runtime.nodes)
+    )
     checks = {
         "nodes_deployed": nodes_deployed(runtime, _K8S_EXPECTED),
         "controller_ipv4": host_has_ipv4(runtime, "controller", "201.1.1.2"),
@@ -141,38 +178,38 @@ def verify_k8s_lab_startup(
         "word_app_http": http_ok(runtime, "client", word_url),
         "weather_app_http": http_ok(runtime, "client", weather_url),
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={
-            "ready_nodes": ready_nodes,
-            "ingress_ip": ingress_ip,
-            "word_url": word_url,
-            "weather_url": weather_url,
-        },
+    details = {
+        "ready_nodes": ready_nodes,
+        "ingress_ip": ingress_ip,
+        "word_url": word_url,
+        "weather_url": weather_url,
+    }
+    if full:
+        bgp_failures = _fabric_bgp_failures(runtime)
+        unreachable = ping_unreachable(runtime, "client", _K3S_NODE_ADDRESSES.values())
+        checks.update(
+            fabric_bgp_established=not bgp_failures,
+            client_reaches_k3s_nodes=not unreachable,
+        )
+        details["failures"] = {
+            "bgp_not_established": bgp_failures,
+            "unreachable_k3s_nodes": unreachable,
+        }
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details=details,
+        )
     )
+
+
+def verify_k8s_lab_startup(
+    runtime: LabRuntime, *, scenario_name: str
+) -> dict[str, Any]:
+    return _verify_k8s_lab(runtime, scenario_name=scenario_name, full=False)
 
 
 def verify_k8s_lab(runtime: LabRuntime, *, scenario_name: str) -> dict[str, Any]:
-    """Startup checks plus every fabric BGP session and every k3s node reachable."""
-    startup = verify_k8s_lab_startup(runtime, scenario_name=scenario_name)
-    bgp_failures = _fabric_bgp_failures(runtime)
-    unreachable = ping_unreachable(runtime, "client", _K3S_NODE_ADDRESSES.values())
-    checks = {
-        **startup["checks"],
-        "fabric_bgp_established": not bgp_failures,
-        "client_reaches_k3s_nodes": not unreachable,
-    }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={
-            **startup["details"],
-            "failures": {
-                "bgp_not_established": bgp_failures,
-                "unreachable_k3s_nodes": unreachable,
-            },
-        },
-    )
+    return _verify_k8s_lab(runtime, scenario_name=scenario_name, full=True)

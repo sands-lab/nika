@@ -9,6 +9,8 @@ from typing import Any
 from urllib.parse import quote
 
 from nika.config import SESSIONS_DIR
+from nika.telemetry import telemetry_field
+from nika.traffic.profiles import normalize_traffic, traffic_field
 from nika.utils.session_index import SessionIndex
 from nika.workflows.session.close import close_session
 
@@ -36,6 +38,8 @@ def _fingerprint_inject(row: dict[str, Any]) -> dict[str, Any]:
 
 def benchmark_row_identity(row: dict[str, Any]) -> dict[str, Any]:
     """Stable identity fields for one catalog/case row (names + deploy params)."""
+    from nika.schedule import Schedule
+
     return {
         "scenario": row["scenario"],
         "problem": row["problem"],
@@ -45,7 +49,22 @@ def benchmark_row_identity(row: dict[str, Any]) -> dict[str, Any]:
             key: bool(row.get(key, False)) if key == "rpki" else row.get(key) or ""
             for key in ISP_DEPLOY_KEYS
         },
+        # Only when set, so rows without telemetry keep their published identity.
+        **({"telemetry": list(row["telemetry"])} if row.get("telemetry") else {}),
+        **traffic_field(row.get("traffic")),
         "inject": _fingerprint_inject(row),
+        **(
+            {
+                "schedule": Schedule.model_validate(row["schedule"]).model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_defaults=True,
+                    exclude={"events": {"__all__": {"root_causes"}}},
+                )
+            }
+            if row.get("schedule") is not None
+            else {}
+        ),
     }
 
 
@@ -66,7 +85,23 @@ def benchmark_option_id(row: dict[str, Any]) -> str:
         ("topo_size", row.get("topo_size") or ""),
     ]
     identity.extend((key, row[key]) for key in ISP_DEPLOY_KEYS if key in row)
+    if row.get("telemetry"):
+        identity.append(("telemetry", ",".join(row["telemetry"])))
+    profile = normalize_traffic(row.get("traffic"))
+    if profile:
+        identity.append(("traffic", profile.label()))
     identity.append(("problem", row["problem"]))
+    if row.get("schedule") is not None:
+        identity.append(
+            (
+                "schedule",
+                json.dumps(
+                    benchmark_row_identity(row)["schedule"],
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            )
+        )
     identity.extend(
         (f"inject.{key}", value)
         for key, value in sorted((row.get("inject") or {}).items())
@@ -96,7 +131,18 @@ def benchmark_row_from_case(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    telemetry: list[str] | None = None,
+    traffic: Any = None,
+    problems: list[str] | None = None,
+    schedule: dict[str, Any] | None = None,
+    release: str | None = None,
 ) -> dict[str, Any]:
+    """The task row a trial deploys.
+
+    ``problems`` lists a multi-fault task's failures. A ``schedule`` is
+    normalized for *release*, and its events name the failures when
+    ``problems`` is empty.
+    """
     row: dict[str, Any] = {
         "scenario": scenario,
         "problem": problem,
@@ -115,6 +161,19 @@ def benchmark_row_from_case(
         row["backend"] = backend
     if device_profile:
         row["device_profile"] = device_profile
+    row.update(telemetry_field(telemetry))
+    row.update(traffic_field(traffic))
+    if schedule is not None:
+        from nika.schedule import schedule_for_task
+
+        row["schedule"] = schedule
+        row["problems"] = list(
+            problems
+            or [e["problem"] for e in schedule.get("events", []) if e.get("problem")]
+        )
+        row["schedule"] = schedule_for_task(row, release).case_value()
+    elif problems:
+        row["problems"] = problems
     return row
 
 

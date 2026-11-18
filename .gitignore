@@ -19,17 +19,22 @@ tmp/
 notebooks/
 uv.lock
 .agents/
-# Share the project documentation skill; keep other local agent files ignored.
+# Share the project skills; keep other local agent files ignored.
 !/.agents/
 /.agents/*
 !/.agents/skills/
 /.agents/skills/*
 !/.agents/skills/nika-docs/
+!/.agents/skills/nika-leaderboard-submit/
+!/.agents/skills/nika-submission-audit/
 !src/agent/skills/.agents/
 !src/agent/skills/.agents/**
 .cursor/
 .DS_Store
 .claude/
+!/.claude/
+/.claude/*
+!/.claude/skills
 !src/agent/skills/.claude/
 !src/agent/skills/.claude/**
 .pytest_cache/
@@ -41,4 +46,5 @@ config/**
 !config/**/*.example.yaml
 !config/**/*.example.yml
 !config/custom/README.md
+!config/systemd/*.service
 .nika_cache

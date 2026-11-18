@@ -119,7 +119,7 @@ async def gateway_advance_phase(request: Request) -> JSONResponse:
         )
 
         report = body.get("diagnosis_report")
-        if isinstance(report, str) and report:
+        if isinstance(report, str):
             freeze_diagnosis(session_id, report)
         elif load_frozen_diagnosis_report(session_id) is None:
             return JSONResponse(

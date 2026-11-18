@@ -29,13 +29,34 @@ def ping_exec_timeout(count: int) -> float:
     return float(max(int(count), 1)) + 12.0
 
 
+def curl_web_test_command(url: str) -> str:
+    """One timed HTTP fetch the way a normal client does it.
+
+    Sends ``Accept-Encoding`` (``--compressed``) and reports the HTTP status and
+    downloaded bytes alongside the timings, so a slow, empty, or non-200
+    response is distinguishable from a transport failure.
+    """
+    return (
+        "curl --compressed --connect-timeout 5 --max-time 10 "
+        "-w 'namelookup:%{time_namelookup}, "
+        "connect:%{time_connect}, "
+        "appconnect:%{time_appconnect}, "
+        "pretransfer:%{time_pretransfer}, "
+        "starttransfer:%{time_starttransfer}, "
+        "total:%{time_total}, "
+        "http_code:%{http_code}, "
+        "size_download:%{size_download}\\n' "
+        f"-o /dev/null -s {url}"
+    )
+
+
 def iperf_server_commands(server_args: str = "") -> tuple[str, str]:
     """Return ``(start, stop)`` shell commands for a one-off iperf3 daemon.
 
     The daemon records its PID so ``stop`` kills only this server, never
     iperf3 processes that scenario traffic generators run in the background.
     """
-    pidfile = f"/tmp/nika-iperf3-{uuid.uuid4().hex[:12]}.pid"
+    pidfile = f"/tmp/iperf3-{uuid.uuid4().hex[:12]}.pid"
     start = f"iperf3 -s -D -I {pidfile} {server_args}".rstrip()
     stop = (
         f'[ -s {pidfile} ] && kill "$(cat {pidfile})" 2>/dev/null; '

@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import logging
-from contextlib import ExitStack
+import os
+import shutil
+import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from nika.remote.artifacts import pack_session_dir
 from nika.remote.protocol import (
+    FOLLOWED_LOGS,
     EnvStartRequest,
     EnvStartResponse,
     FailureInjectRequest,
@@ -16,38 +21,41 @@ from nika.remote.protocol import (
     McpAttachResponse,
     PolicyMode,
     SessionContainersResponse,
+    SessionLogResponse,
+    SessionRebindRequest,
+    SessionRebindResponse,
 )
 from nika.mcp.gateway.phase import phase_advance_token
-from nika.mcp.gateway.lifecycle import (
-    McpGatewayManager,
-    SANDBOX_GATEWAY_BIND_HOST,
-    mcp_gateway_for_session,
-)
+from nika.mcp.gateway.session_registry import get_session
+from nika.benchmark_engine.protocol import AgentAccess
+from nika.mcp.gateway.lifecycle import SANDBOX_GATEWAY_BIND_HOST, GatewayLeases
+from nika.runtime.factory import resolve_backend
+from nika.utils.agent_session_id import make_agent_session_id
+from nika.utils.logger import bind_session_dir, log_event
 from nika.utils.session import Session
 from nika.utils.session_store import SessionStore
 from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
-from nika.workflows.session.close import close_session
+from nika.workflows.session.close import close_session, load_session_meta_for_close
 from nika.workflows.session.containers import list_session_containers
 from nika.workflows.session.list import list_sessions
-from nika.validation.presence import recheck_bound_artifact
+from nika.validation.presence import (
+    bind_injected_problem,
+    bound_injected_problem,
+    clear_injected_problem,
+    recheck_bound_artifact,
+)
 
 logger = logging.getLogger("nika.remote")
-
-
-class GatewayLease:
-    """Holds an open ``mcp_gateway_for_session`` context for one session."""
-
-    def __init__(self, stack: ExitStack, manager: McpGatewayManager) -> None:
-        self.stack = stack
-        self.manager = manager
+# Cap one log read so a large backlog streams in several polls.
+MAX_LOG_CHUNK = 4 << 20
 
 
 class RemoteHandlerState:
     """Process-local state for attached MCP gateways."""
 
     def __init__(self) -> None:
-        self.gateways: dict[str, GatewayLease] = {}
+        self.gateways = GatewayLeases()
 
     def attach_gateway(
         self,
@@ -56,20 +64,23 @@ class RemoteHandlerState:
         scenario_name: str,
         policy_mode: PolicyMode,
         public_host: str,
+        backend: str | None = None,
+        access: AgentAccess | None = None,
+        tool_call_limits: dict[str, int] | None = None,
     ) -> McpAttachResponse:
-        self.detach_gateway(session_id)
-        stack = ExitStack()
-        manager = stack.enter_context(
-            mcp_gateway_for_session(
-                session_id,
-                scenario_name=scenario_name,
-                policy_mode=policy_mode,
-                host=SANDBOX_GATEWAY_BIND_HOST,
-                sandbox=True,
-                sandbox_agent_host=public_host,
-            )
+        manager = self.gateways.open(
+            session_id,
+            scenario_name=scenario_name,
+            policy_mode=policy_mode,
+            host=SANDBOX_GATEWAY_BIND_HOST,
+            sandbox=True,
+            sandbox_agent_host=public_host,
+            # Multi-backend scenarios (e.g. ISP on Containerlab) serve
+            # backend-specific MCP servers; match the deployed lab.
+            backend=backend,
+            access=access,
+            tool_call_limits=tool_call_limits,
         )
-        self.gateways[session_id] = GatewayLease(stack=stack, manager=manager)
         # Agent-facing URL for this session's gateway. Read from the manager,
         # never from process-global env: concurrent attaches run in parallel
         # threads.
@@ -86,12 +97,11 @@ class RemoteHandlerState:
             gateway_port=manager.port,
             gateway_base_url=base,
             phase_token=phase_advance_token(session_id),
+            session_token=get_session(session_id).access_token,
         )
 
     def detach_gateway(self, session_id: str) -> None:
-        lease = self.gateways.pop(session_id, None)
-        if lease is not None:
-            lease.stack.close()
+        if self.gateways.close(session_id):
             logger.info("mcp detach done session_id=%s", session_id)
         else:
             logger.info("mcp detach noop session_id=%s (no lease)", session_id)
@@ -102,6 +112,53 @@ _STATE = RemoteHandlerState()
 
 def get_handler_state() -> RemoteHandlerState:
     return _STATE
+
+
+def handle_schedule(
+    session_id: str, operation: str, body: Any = None
+) -> dict[str, Any]:
+    """Run the session timeline on the lab host's monotonic clock."""
+    from nika.schedule import normalize_schedule
+    from nika.workflows.schedule import SessionScheduler, _RUNNERS, _RUNNERS_LOCK
+
+    bind_session_dir(SessionStore().get_session(session_id)["session_dir"])
+    if operation == "prepare":
+        session = Session().load_running_session(session_id=session_id)
+        if body.benchmark_version is not None:
+            session.update_session("benchmark_version", body.benchmark_version)
+        plan = normalize_schedule(
+            body.schedule, session.scenario_name, body.benchmark_version
+        )
+        with _RUNNERS_LOCK:
+            if session_id in _RUNNERS:
+                raise ValueError("This session already has a scheduler")
+            scheduler = SessionScheduler(
+                session_id,
+                plan,
+                traffic=body.traffic,
+                expected_root_causes=body.expected_root_causes,
+                restored=body.restored,
+            )
+            _RUNNERS[session_id] = scheduler
+        try:
+            scheduler.prepare()
+        except BaseException:
+            scheduler.close()
+            raise
+        return session_public_dict(session_id)
+    with _RUNNERS_LOCK:
+        scheduler = _RUNNERS.get(session_id)
+    if scheduler is None:
+        raise FileNotFoundError("No scheduler for this session")
+    if operation == "start":
+        scheduler.start()
+    elif operation == "agent-ready":
+        scheduler.wait_agent_start()
+    elif operation == "close":
+        scheduler.close()
+    elif operation != "status":
+        raise ValueError(f"Unknown schedule operation: {operation}")
+    return scheduler.status()
 
 
 def session_public_dict(session_id: str) -> dict[str, Any]:
@@ -135,7 +192,12 @@ def handle_env_start(request: EnvStartRequest) -> EnvStartResponse:
             rpki=request.rpki,
             backend=request.backend,
             device_profile=request.device_profile,
+            release=request.release,
             static_validation=request.static_validation,
+            telemetry=request.telemetry,
+            traffic=request.traffic,
+            defer_background_traffic=request.defer_background_traffic,
+            defer_business_traffic=request.defer_business_traffic,
         )
     except Exception:
         logger.exception("env start failed scenario=%s", request.scenario)
@@ -161,6 +223,7 @@ def handle_failure_inject(request: FailureInjectRequest) -> FailureInjectRespons
             problem_names=list(request.problem_names),
             session_id=request.session_id,
             param_overrides=dict(request.param_overrides or {}),
+            expected_root_causes=request.expected_root_causes,
         )
     except Exception:
         logger.exception(
@@ -204,8 +267,11 @@ def handle_mcp_attach(session_id: str, request: McpAttachRequest) -> McpAttachRe
         return get_handler_state().attach_gateway(
             session_id,
             scenario_name=str(meta.get("scenario_name") or ""),
+            backend=resolve_backend(meta),
             policy_mode=request.policy_mode,
             public_host=public_host,
+            access=request.access,
+            tool_call_limits=request.tool_call_limits,
         )
     except Exception:
         logger.exception("mcp attach failed session_id=%s", session_id)
@@ -280,15 +346,168 @@ def handle_session_containers(session_id: str) -> SessionContainersResponse:
 def handle_artifacts(session_id: str) -> bytes:
     logger.info("artifacts pack begin session_id=%s", session_id)
     try:
-        meta = SessionStore().get_session(session_id)
-        session_dir = meta.get("session_dir")
-        if not session_dir:
-            # Fall back to Session helper if store row is incomplete.
-            session = Session().load_running_session(session_id=session_id)
-            session_dir = session.session_dir
-        payload = pack_session_dir(str(session_dir))
+        payload = pack_session_dir(_session_dir(session_id))
     except Exception:
         logger.exception("artifacts pack failed session_id=%s", session_id)
         raise
     logger.info("artifacts pack done session_id=%s bytes=%s", session_id, len(payload))
     return payload
+
+
+def _session_dir(session_id: str) -> str:
+    """Results directory of a running or closed session on this host.
+
+    Closed sessions stay readable so the agent host can pull the events that
+    closing writes (``env_stop``, ``session_cleared``).
+    """
+    session_dir = load_session_meta_for_close(session_id).get("session_dir")
+    if not session_dir:
+        raise FileNotFoundError(f"Session '{session_id}' has no results directory.")
+    return str(session_dir)
+
+
+def handle_session_log(session_id: str, name: str, offset: int) -> SessionLogResponse:
+    """Return complete lines of a followed session log from byte ``offset``."""
+    if name not in FOLLOWED_LOGS:
+        raise ValueError(
+            f"Log {name!r} cannot be followed; use one of {FOLLOWED_LOGS}."
+        )
+    path = Path(_session_dir(session_id)) / name
+    server_time = time.time()
+    if not path.is_file():
+        return SessionLogResponse(data="", offset=0, server_time=server_time)
+    with path.open("rb") as fh:
+        size = fh.seek(0, os.SEEK_END)
+        # A shorter file was replaced (e.g. by a rebind): read it from the start.
+        start = offset if 0 <= offset <= size else 0
+        fh.seek(start)
+        chunk = fh.read(MAX_LOG_CHUNK)
+        if b"\n" not in chunk:
+            chunk += fh.readline()  # a single line longer than one chunk
+    end = chunk.rfind(b"\n") + 1  # never hand out a partially written line
+    return SessionLogResponse(
+        data=chunk[:end].decode("utf-8"), offset=start + end, server_time=server_time
+    )
+
+
+def handle_session_rebind(
+    session_id: str, request: SessionRebindRequest
+) -> SessionRebindResponse:
+    """Move a running session to a new id, agent id and results directory.
+
+    A lab restored from a Firecracker lab image still carries the session it was built
+    with. Each trial needs its own identity, and the build-time events in the
+    session logs are kept as ``image.<log>`` instead of opening the trial log.
+    """
+    new_id = request.session_id
+    if not new_id or Path(new_id).name != new_id or new_id in (".", ".."):
+        raise ValueError(f"Invalid session id {new_id!r}.")
+    store = SessionStore()
+    meta = store.get_session(session_id)
+    if meta.get("status") != "running":
+        raise ValueError(f"Session '{session_id}' is not running.")
+    if session_id in get_handler_state().gateways:
+        raise ValueError(f"Session '{session_id}' has an attached MCP gateway.")
+    try:
+        store.get_session(new_id)
+    except FileNotFoundError:
+        pass
+    else:
+        raise ValueError(f"Session '{new_id}' already exists.")
+    old_dir = Path(str(meta["session_dir"]))
+    new_dir = old_dir.parent / new_id
+    if new_dir.exists():
+        raise ValueError(f"Results directory {new_dir} already exists.")
+    bound = bound_injected_problem(session_id)
+    restore_ms = None
+    runtime_restored = False
+    if request.restore_runtime:
+        from nika.workflows.session.close import session_net_env
+
+        bind_session_dir(old_dir)
+        started = time.monotonic()
+        runtime_restored = session_net_env(meta).post_restore()
+        restore_ms = round((time.monotonic() - started) * 1000, 1)
+    old_dir.rename(new_dir)
+    for name in FOLLOWED_LOGS:
+        log = new_dir / name
+        if not log.is_file():
+            continue
+        kept = new_dir / f"image.{name}"
+        if kept.is_file():
+            # A case image: its lab image's build events, then its injection.
+            with open(kept, "ab") as dst, open(log, "rb") as src:
+                shutil.copyfileobj(src, dst)
+            log.unlink()
+        else:
+            log.rename(kept)
+    # A fault injected before the snapshot (case image) stays checkable.
+    if bound is not None:
+        bind_injected_problem(new_id, *bound)
+        clear_injected_problem(session_id)
+    now = datetime.now(timezone.utc).isoformat()
+    doc = dict(meta)
+    doc.update(
+        session_id=new_id,
+        agent_session_id=request.agent_session_id or make_agent_session_id(),
+        session_dir=str(new_dir),
+        created_at=now,
+        updated_at=now,
+        rebound_from=session_id,
+        runtime_restored=runtime_restored,
+    )
+    store.create_session(doc)
+    store.delete_session(session_id, status="finished")
+    session = Session()
+    session.load_running_session(session_id=new_id)
+    session._write_run_json({k: v for k, v in session.__dict__.items() if k != "store"})
+    bind_session_dir(new_dir)
+    if runtime_restored:
+        log_event(
+            "env_restore",
+            "Resumed environment protocol sessions",
+            session_id=new_id,
+            duration_ms=restore_ms,
+        )
+    log_event(
+        "session_rebind",
+        f"Session {session_id} continues as {new_id}",
+        session_id=new_id,
+        rebound_from=session_id,
+        lab_name=meta.get("lab_name"),
+    )
+    logger.info("session rebind %s -> %s", session_id, new_id)
+    return SessionRebindResponse(session_id=new_id, session=session_public_dict(new_id))
+
+
+def handle_session_verify(session_id: str) -> dict[str, Any]:
+    """Verify a running environment before failure injection.
+
+    Protocol recovery requires full checks. Other sessions use the configured depth.
+    """
+    from nika.net_env.verify import verify_lab_with_retry
+    from nika.workflows.session.close import session_net_env
+
+    meta = SessionStore().get_session(session_id)
+    if meta.get("status") != "running":
+        raise ValueError(f"Session '{session_id}' is not running.")
+    bind_session_dir(str(meta["session_dir"]))
+    net_env = session_net_env(meta)
+    started = time.monotonic()
+    result = verify_lab_with_retry(net_env, full=bool(meta.get("runtime_restored")))
+    verified = result is not None  # None: the scenario has no startup verification
+    outcome = "passed again" if verified else "skipped (no startup verification)"
+    log_event(
+        "env_reverify",
+        f"Lab verification {outcome} for {meta.get('scenario_name')} "
+        f"({meta.get('lab_name')})",
+        session_id=session_id,
+        verified=verified,
+        checks=(result or {}).get("checks"),
+        duration_ms=round((time.monotonic() - started) * 1000, 1),
+    )
+    return {
+        "session_id": session_id,
+        "verified": verified,
+        "checks": (result or {}).get("checks"),
+    }

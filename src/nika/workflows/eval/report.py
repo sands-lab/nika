@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.utils.session_artifacts import RUN_FILENAME
+from nika.evaluator.validity import validity_rates
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
     build_rca_confusion,
@@ -127,6 +128,10 @@ class SummaryReport:
     # Cost.
     token_totals: dict[str, int] = field(default_factory=dict)
     steps_totals: dict[str, int] = field(default_factory=dict)
+
+    # Run-validity gates: trials per flag (see ``nika.evaluator.validity``).
+    validity_counts: dict[str, int] = field(default_factory=dict)
+    validity_rates: dict[str, float] = field(default_factory=dict)
 
     # Metric families that were entirely absent (e.g. llm_judge_* with no judge run).
     empty_metric_families: list[str] = field(default_factory=list)
@@ -356,6 +361,8 @@ def build_summary_report(
         healthy_stats=_stats_for(healthy_records),
         token_totals=dict(aggregated.token_totals),
         steps_totals=dict(aggregated.steps_totals),
+        validity_counts=dict(aggregated.validity_counts),
+        validity_rates=validity_rates(aggregated.validity_counts, len(records)),
         empty_metric_families=_empty_metric_families(session_dirs),
     )
 

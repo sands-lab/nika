@@ -10,11 +10,56 @@ from unittest.mock import MagicMock
 
 from nika.net_env.verify import frr_bgp_established_peers, srl_bgp_established_peers
 from nika.runtime.containerlab.runtime import ContainerlabRuntime
+from nika.runtime.base import RuntimeCapabilityError
+from nika.runtime.shared.containers import isolated_container_pid, run_labelled_helper
 from nika.runtime.shared.execution import merge_exec_output
-from nika.service.containerlab.host_tc import host_veth_for
+from nika.service.containerlab.host_tc import HostTcController, host_veth_for
 from nika.service.kathara.docker_utils import link_neighbors
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize(
+    "mode,pid", [("host", 123), ("none", 0), ("none", 1), (None, 123)]
+)
+def test_lab_operations_reject_host_or_unresolved_namespaces(mode, pid) -> None:
+    container = SimpleNamespace(
+        id="unsafe",
+        attrs={"HostConfig": {"NetworkMode": mode}, "State": {"Pid": pid}},
+        reload=lambda: None,
+    )
+    with pytest.raises(RuntimeCapabilityError):
+        isolated_container_pid(container)
+
+
+def test_joined_container_namespace_cannot_hide_host_network() -> None:
+    host = SimpleNamespace(
+        id="host",
+        attrs={"HostConfig": {"NetworkMode": "host"}, "State": {"Pid": 123}},
+        reload=lambda: None,
+    )
+    joined = SimpleNamespace(
+        id="joined",
+        attrs={"HostConfig": {"NetworkMode": "container:host"}, "State": {"Pid": 456}},
+        reload=lambda: None,
+        client=SimpleNamespace(containers=SimpleNamespace(get=lambda _: host)),
+    )
+    with pytest.raises(RuntimeCapabilityError, match="host"):
+        isolated_container_pid(joined)
+    host.attrs["HostConfig"]["NetworkMode"] = "none"
+    assert isolated_container_pid(joined) == 456
+
+
+def test_host_controller_rejects_pid_in_host_network_namespace(monkeypatch) -> None:
+    container = SimpleNamespace(
+        id="node",
+        attrs={"HostConfig": {"NetworkMode": "none"}, "State": {"Pid": 123}},
+        reload=lambda: None,
+    )
+    controller = HostTcController(SimpleNamespace(get_container=lambda _: container))
+    monkeypatch.setattr(controller, "_run", lambda *args: "4026531840\n4026531840\n")
+    with pytest.raises(RuntimeCapabilityError, match="host network namespace"):
+        controller.set_node_link_down("pc1", "eth0")
 
 
 def test_exec_output_merges_streams_without_markers() -> None:
@@ -73,8 +118,12 @@ def test_host_veth_requires_matching_peer_index_and_other_namespace() -> None:
         "41: veth1a@if40: <BROADCAST,UP> mtu 1500 master br0\\    link/ether bb "
         "link-netnsid 3\n"
         "42: veth2b@if9: <BROADCAST,UP> mtu 1500\\    link/ether cc link-netnsid 4\n"
+        "43: nw12ab@if44: <BROADCAST,UP> mtu 9500\\    link/ether dd "
+        "link-netns clab-lab-r1\n"
     )
     assert host_veth_for(output, "41", "40") == "veth1a"
+    # Containerlab names node namespaces.
+    assert host_veth_for(output, "43", "44") == "nw12ab"
     # Same host ifindex, but its peer is a different interface.
     assert host_veth_for(output, "42", "40") is None
     # A bare ifindex match on a non-veth host interface is not the peer.
@@ -90,3 +139,44 @@ def test_clab_node_map_survives_transient_inspect_failure(monkeypatch) -> None:
 
     assert runtime._refresh_node_map() is False
     assert runtime._cached_container("r1") is container
+
+
+def test_run_labelled_helper_labels_waits_and_removes() -> None:
+    client = MagicMock()
+    container = MagicMock()
+    client.containers.run.return_value = container
+    container.wait.return_value = {"StatusCode": 0}
+    container.logs.return_value = b""
+
+    assert run_labelled_helper(client, "nika/base:x", ["true"], lab_name="lab1") == b""
+
+    kwargs = client.containers.run.call_args.kwargs
+    assert kwargs["detach"] is True
+    assert kwargs["labels"]["nika.lab_name"] == "lab1"
+    container.wait.assert_called_once()
+    container.remove.assert_called_with(force=True)
+
+
+def test_run_labelled_helper_stops_on_timeout() -> None:
+    client = MagicMock()
+    container = MagicMock()
+    client.containers.run.return_value = container
+    container.wait.side_effect = TimeoutError("read timed out")
+
+    with pytest.raises(RuntimeError, match="did not finish"):
+        run_labelled_helper(
+            client, "nika/base:x", ["sleep", "99"], lab_name="lab1", timeout_sec=1
+        )
+
+    container.stop.assert_called_once()
+    container.remove.assert_called_with(force=True)
+
+
+def test_missing_lab_does_not_remove_other_helpers(monkeypatch) -> None:
+    from nika.runtime.shared.containers import remove_lab_helpers
+
+    def client():
+        raise AssertionError("A missing lab must not remove helpers")
+
+    monkeypatch.setattr("nika.runtime.shared.containers.docker_client", client)
+    remove_lab_helpers(None)

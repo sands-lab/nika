@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { SchedulePanel } from "./SchedulePanel";
+import { buildScheduleSpans, isScheduleInternal, nikaEventTone, scheduleRecord, scheduleSeconds } from "./scheduleView";
 import {
   Annotations,
   CanonicalTraceEvent,
@@ -27,6 +29,7 @@ import {
   ScoresResponse,
   SessionDetail,
   SessionFacets,
+  RcaMatch,
   SessionSummary,
 } from "./api";
 import {
@@ -305,7 +308,7 @@ type SessionSortKey =
   | "size"
   | "agent"
   | "model"
-  | "rca_f1"
+  | "root_causes"
   | "detection"
   | "localization_f1"
   | "steps"
@@ -318,7 +321,7 @@ type SessionSortKey =
   | "duration";
 
 const DESC_FIRST_SORT_KEYS = new Set<SessionSortKey>([
-  "rca_f1",
+  "root_causes",
   "detection",
   "localization_f1",
   "steps",
@@ -333,6 +336,27 @@ function scoreChip(value: number | null | undefined): ReactNode {
   return value != null ? <span className="chip score">{formatScore(value)}</span> : "—";
 }
 
+/** ``found/expected +wrong`` root-cause guesses, explained in a quick tooltip. */
+function rootCausesCell(m: RcaMatch | null | undefined): ReactNode {
+  if (!m) return "—";
+  const { found, expected, wrong } = m;
+  // Green for any hit, or for a healthy network the agent left blank.
+  const correct = found > 0 || (expected === 0 && wrong === 0);
+  const guesses = `${wrong} wrong ${wrong === 1 ? "guess" : "guesses"}`;
+  const tip =
+    expected === 0
+      ? wrong === 0
+        ? "No root causes expected, none submitted"
+        : `No root causes expected, but ${guesses}`
+      : `Found ${found} of ${expected} root causes${wrong ? `, plus ${guesses}` : ""}`;
+  return (
+    <span className="rca-match" data-tip={tip}>
+      <span className={correct ? "rca-found" : undefined}>{found}</span>/{expected}
+      {wrong > 0 ? <span className="rca-wrong"> +{wrong}</span> : null}
+    </span>
+  );
+}
+
 function countCell(value: number | null | undefined): ReactNode {
   return value != null ? formatTokenCount(value) : "—";
 }
@@ -342,6 +366,8 @@ type SessionColumn = {
   label: string;
   /** Numeric columns get a ``<0.5`` / ``>=30`` filter box. */
   numeric?: (s: SessionSummary) => number | null | undefined;
+  /** Example filter shown in the empty box (default suits 0–1 scores). */
+  placeholder?: string;
 };
 
 const SESSION_COLUMNS: SessionColumn[] = [
@@ -354,15 +380,20 @@ const SESSION_COLUMNS: SessionColumn[] = [
   { id: "model", label: "Model" },
   { id: "backend", label: "Backend" },
   { id: "tags", label: "Tags" },
-  { id: "rca_f1", label: "RCA F1", numeric: (s) => s.rca_f1 },
+  {
+    id: "root_causes",
+    label: "Root causes",
+    numeric: (s) => s.rca_match?.found,
+    placeholder: "<1",
+  },
   { id: "detection", label: "Detection", numeric: (s) => s.detection_score },
   { id: "localization_f1", label: "Loc F1", numeric: (s) => s.localization_f1 },
-  { id: "steps", label: "Steps", numeric: (s) => s.steps },
-  { id: "tool_calls", label: "Tool calls", numeric: (s) => s.tool_calls },
-  { id: "in_tokens", label: "In tok", numeric: (s) => s.in_tokens },
-  { id: "out_tokens", label: "Out tok", numeric: (s) => s.out_tokens },
+  { id: "in_tokens", label: "In tok", numeric: (s) => s.in_tokens, placeholder: ">100000" },
+  { id: "out_tokens", label: "Out tok", numeric: (s) => s.out_tokens, placeholder: ">5000" },
   { id: "time", label: "Time" },
   { id: "duration", label: "Duration" },
+  { id: "steps", label: "Steps", numeric: (s) => s.steps, placeholder: ">20" },
+  { id: "tool_calls", label: "Tool calls", numeric: (s) => s.tool_calls, placeholder: ">20" },
 ];
 
 const DEFAULT_COLUMNS: SessionSortKey[] = [
@@ -373,12 +404,15 @@ const DEFAULT_COLUMNS: SessionSortKey[] = [
   "size",
   "agent",
   "model",
-  "rca_f1",
+  "root_causes",
   "time",
   "duration",
+  "steps",
+  "tool_calls",
 ];
 
-const COLUMNS_KEY = "nika-inspect-columns";
+// Bumped when the default columns change so saved layouts pick them up.
+const COLUMNS_KEY = "nika-inspect-columns-v3";
 
 function loadColumns(): SessionSortKey[] {
   try {
@@ -418,8 +452,8 @@ function sessionSortValue(s: SessionSummary, key: SessionSortKey): string | numb
       return (s.agent_type || "").toLowerCase();
     case "model":
       return (s.model || "").toLowerCase();
-    case "rca_f1":
-      return s.rca_f1 ?? null;
+    case "root_causes":
+      return s.rca_match?.found ?? null;
     case "detection":
       return s.detection_score ?? null;
     case "localization_f1":
@@ -703,7 +737,7 @@ function SessionsTable({
         <th key={col.id} className="th-filter-cell">
           <input
             className={`th-filter th-filter-num${invalid ? " invalid" : ""}`}
-            placeholder="<0.5"
+            placeholder={col.placeholder ?? "<0.5"}
             title="Numeric filter: <, <=, >, >=, =, != followed by a number"
             value={text}
             onClick={(e) => e.stopPropagation()}
@@ -768,8 +802,8 @@ function SessionsTable({
               </span>
             ))
           : "—";
-      case "rca_f1":
-        return scoreChip(s.rca_f1);
+      case "root_causes":
+        return rootCausesCell(s.rca_match);
       case "detection":
         return scoreChip(s.detection_score);
       case "localization_f1":
@@ -2295,7 +2329,7 @@ function roleBadgeLabel(row: DisplayEvent): string {
 
 function nameBadgeLabel(row: DisplayEvent): string {
   if (isToolDisplay(row)) return row.title || "tool";
-  if (row.role === "nika") return row.event?.replaceAll("_", " ") || row.title;
+  if (row.role === "nika") return row.event === "schedule_event" ? row.title : row.event?.replaceAll("_", " ") || row.title;
   if (row.role === "assistant") {
     if (row.event === "llm" || row.kind === "llm") {
       return row.attempt != null ? `llm attempt #${row.attempt}` : row.title;
@@ -2328,18 +2362,17 @@ function overviewSpanTitle(span: {
   return `${span.label} · ${formatOverviewClock(span.startMs)} – ${formatOverviewClock(span.endMs)} · ${formatDuration(dur)}`;
 }
 
-/** Bars in the same lane whose visual slots overlap on x. */
+/** Bars under the cursor in the selected lane. */
 function overlappingGroup(
   target: LaidOutOverviewSpan,
   laneItems: LaidOutOverviewSpan[],
+  cursorPct: number,
 ): LaidOutOverviewSpan[] {
-  const tL = target.leftPct;
-  const tR = tL + Math.max(target.widthPct, 0);
   return laneItems
     .filter((it) => {
       const l = it.leftPct;
       const r = l + Math.max(it.widthPct, 0);
-      return l < tR && r > tL;
+      return it === target || (l <= cursorPct && r >= cursorPct);
     })
     .sort(
       (a, b) =>
@@ -2381,12 +2414,14 @@ function clampNumber(value: number, min: number, max: number): number {
 
 function OverviewTimeline({
   events,
+  schedule,
   selectedId,
   onSelect,
   brush,
   onBrushChange,
 }: {
   events: CanonicalTraceEvent[];
+  schedule?: SessionDetail["schedule"];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   brush: TimeBrush | null;
@@ -2418,8 +2453,11 @@ function OverviewTimeline({
   } | null>(null);
   const [viewport, setViewport] = useState<DomainRange | null>(null);
   const [panning, setPanning] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<OverviewLayoutMode>(loadOverviewLayout);
+  const [layoutMode, setLayoutMode] = useState<OverviewLayoutMode>(() => schedule ? "actual" : loadOverviewLayout());
   const [overlapPop, setOverlapPop] = useState<OverlapPopup | null>(null);
+  useEffect(() => {
+    if (schedule) setLayoutMode("actual");
+  }, [!!schedule]);
 
   const setLayout = (mode: OverviewLayoutMode) => {
     setLayoutMode(mode);
@@ -2434,7 +2472,15 @@ function OverviewTimeline({
     }
   };
 
-  const spans = useMemo(() => buildOverviewSpans(events), [events]);
+  const spans = useMemo(() => {
+    const byId = new Map(events.map(event => [event.id, event]));
+    return [
+      ...buildOverviewSpans(events.filter(event => !isScheduleInternal(event)))
+        .map(span => ({...span, nikaTone: span.role === "nika" ? nikaEventTone(byId.get(span.eventId), schedule) : undefined})),
+      ...buildScheduleSpans(schedule, events),
+    ];
+  }, [events, schedule]);
+  const lanes = LANES;
 
   // One domain per mode; zoom/pan/brush never switch the projection.
   const domain = useMemo(
@@ -2447,13 +2493,13 @@ function OverviewTimeline({
     if (!domain) return [];
     const fullLen = domain.end - domain.start;
     return assignLaneStackRows(
-      domain.items.map((it) => ({
+      domain.items.filter(it => viewport != null || !it.span.schedule).map((it) => ({
         ...it,
         leftPct: ((it.x0 - domain.start) / fullLen) * 100,
         widthPct: ((it.x1 - it.x0) / fullLen) * 100,
       })),
     );
-  }, [domain]);
+  }, [domain, !!viewport]);
 
   // Drop a stale viewport when the session domain changes.
   useEffect(() => {
@@ -2505,9 +2551,8 @@ function OverviewTimeline({
   }, [stackedFull, viewDomain, layoutMode]);
 
   const laneHeights = useMemo(() => {
-    // Fixed compact lanes — overlaps stay stacked with a slight height nudge.
-    return LANES.map(() => overviewLaneHeightPx());
-  }, []);
+    return lanes.map(() => overviewLaneHeightPx());
+  }, [lanes]);
 
   const turnBoundaries = useMemo(
     () => overviewTurnBoundaryPcts(laidOut).filter((p) => p > 0 && p < 100),
@@ -2625,8 +2670,11 @@ function OverviewTimeline({
     clientX: number,
     clientY: number,
   ) => {
+    if (!hit.span.eventId) return;
     const laneItems = laidOut.filter((it) => it.span.lane === hit.span.lane);
-    const group = overlappingGroup(hit, laneItems);
+    const track = trackRef.current?.getBoundingClientRect();
+    const cursorPct = track?.width ? (clientX - track.left) / track.width * 100 : hit.leftPct;
+    const group = overlappingGroup(hit, laneItems, cursorPct);
     // Same bar again clears selection (and any overlap picker).
     if (selectedId === hit.span.eventId) {
       onSelect(null);
@@ -2671,7 +2719,7 @@ function OverviewTimeline({
     const gap = 4;
     let yCursor = 0;
     let laneIndex = -1;
-    for (let i = 0; i < LANES.length; i++) {
+    for (let i = 0; i < lanes.length; i++) {
       const h = laneHeights[i] ?? 14;
       if (y >= yCursor && y < yCursor + h) {
         laneIndex = i;
@@ -2680,7 +2728,7 @@ function OverviewTimeline({
       yCursor += h + gap;
     }
     if (laneIndex < 0) return null;
-    const laneId = LANES[laneIndex].id;
+    const laneId = lanes[laneIndex].id;
     const laneH = laneHeights[laneIndex] ?? 14;
     const localY = y - yCursor;
     const laneItems = laidOut.filter((it) => it.span.lane === laneId);
@@ -2900,7 +2948,12 @@ function OverviewTimeline({
   const timedPaint = layoutMode !== "equal";
 
   return (
-    <div className="overview">
+    <div className={`overview${schedule ? " timeline-compact" : ""}${viewport ? " timeline-zoomed" : ""}`}>
+      {schedule && viewport && <div className="schedule-legend">
+        <span className="schedule-legend-group"><b>NIKA</b><span className="schedule-kind-failure"><i />Failure</span><span className="schedule-kind-traffic"><i />Traffic</span><span className="schedule-kind-lifecycle"><i />Lifecycle</span></span><span className="schedule-kind-agent"><i />Agent</span>
+        <span className="schedule-legend-plan"><i />Planned</span><span className="schedule-legend-actual"><i />Observed</span>
+        <span className="schedule-origin">{schedule.state === "running" ? `Now ${scheduleSeconds(schedule.elapsed_sec)}` : schedule.started_at ? "Offsets from scheduler start" : "Timeline begins when infrastructure is ready"}</span>
+      </div>}
       <div className="overview-toolbar">
         <span className="overview-hint">
           Scroll to zoom · drag to select · click overlap to zoom · Esc to clear
@@ -2945,8 +2998,8 @@ function OverviewTimeline({
           className="overview-labels"
           style={{ gridTemplateRows: laneHeights.map((h) => `${h}px`).join(" ") }}
         >
-          {LANES.map((l) => (
-            <div key={l.id} className="overview-label">
+          {lanes.map((l) => (
+            <div key={l.id} className="overview-label" title={l.id === "nika" ? "NIKA: dark teal for failures, medium teal for lifecycle, light teal for traffic" : undefined}>
               {l.label}
             </div>
           ))}
@@ -2979,7 +3032,17 @@ function OverviewTimeline({
               style={{ left: `${pct}%` }}
             />
           ))}
-          {LANES.map((l, laneIndex) => {
+          {schedule?.started_at && layoutMode === "actual" && (() => {
+            const origin = Date.parse(schedule.started_at);
+            const position = (ms: number) => (ms - viewDomain.start) / viewLen * 100;
+            const zero = position(origin);
+            const now = position(origin + schedule.elapsed_sec * 1000);
+            return <>
+              {zero >= 0 && zero <= 100 && <div className="schedule-zero" style={{left: `${zero}%`}} title="Scheduler start (t₀)" />}
+              {schedule.state === "running" && now >= 0 && now <= 100 && <div className="schedule-now" style={{left: `${now}%`}} title={`Now ${scheduleSeconds(schedule.elapsed_sec)}`} />}
+            </>;
+          })()}
+          {lanes.map((l, laneIndex) => {
             const laneH = laneHeights[laneIndex] ?? 16;
             const laneItems = byLane(l.id);
             const layerCount =
@@ -3002,17 +3065,34 @@ function OverviewTimeline({
                     laneH,
                     layerCount,
                   );
+                  const window = span.schedule;
+                  const range = Math.max(1, span.endMs - span.startMs);
+                  const intervalStyle = (start: number, end: number) => ({left: `${(start - span.startMs) / range * 100}%`, width: `${Math.max(0, end - start) / range * 100}%`});
                   return (
                     <div
                       key={span.id}
                       title={overviewSpanTitle(span)}
+                      data-event-id={span.eventId || undefined}
+                      data-schedule-kind={window?.kind}
+                      aria-label={window ? span.label : undefined}
+                      role={window && span.eventId ? "button" : undefined}
+                      tabIndex={window && span.eventId ? 0 : undefined}
+                      onKeyDown={window && span.eventId ? event => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onSelect(span.eventId);
+                        }
+                      } : undefined}
                       className={[
                         "overview-span",
                         `role-${span.role}`,
+                        span.nikaTone ? `nika-tone-${span.nikaTone}` : "",
                         span.error ? "error" : "",
                         selectedId === span.eventId ? "selected" : "",
                         dimmed ? "dimmed" : "",
                         depth > 0 ? "overlap" : "",
+                        window ? `schedule-window schedule-kind-${window.kind} state-${window.state}` : "",
                       ]
                         .filter(Boolean)
                         .join(" ")}
@@ -3028,7 +3108,14 @@ function OverviewTimeline({
                             ? 30
                             : 5 + stackRow,
                       }}
-                    />
+                    >{window && <>
+                      <span className="schedule-window-plan" style={intervalStyle(window.plannedStartMs, window.plannedEndMs)}>
+                        {viewport && window.actualStartMs == null && <span className="schedule-window-label">{window.caption}</span>}
+                      </span>
+                      {window.actualStartMs != null && window.actualEndMs != null && <span className="schedule-window-actual" style={intervalStyle(window.actualStartMs, window.actualEndMs)}>
+                        {viewport && <span className="schedule-window-label">{window.caption}{window.recovered ? " ✓" : ""}</span>}
+                      </span>}
+                    </>}</div>
                   );
                 })}
               </div>
@@ -3080,9 +3167,11 @@ function OverviewTimeline({
                       key={it.span.id}
                       type="button"
                       title={overviewSpanTitle(it.span)}
+                      disabled={!it.span.eventId}
                       className={[
                         "overview-overlap-pop-bar",
                         `role-${it.span.role}`,
+                        it.span.schedule ? `schedule-kind-${it.span.schedule.kind}` : "",
                         it.span.error ? "error" : "",
                         selectedId === it.span.eventId ? "selected" : "",
                       ]
@@ -3102,7 +3191,7 @@ function OverviewTimeline({
                       }}
                     >
                       <span className="overview-overlap-pop-label">
-                        {it.span.label}
+                        {it.span.schedule?.caption ?? it.span.label}
                       </span>
                     </button>
                   );
@@ -3114,6 +3203,7 @@ function OverviewTimeline({
                 <li key={`row-${it.span.id}`}>
                   <button
                     type="button"
+                    disabled={!it.span.eventId}
                     className={
                       selectedId === it.span.eventId ? "selected" : undefined
                     }
@@ -3125,8 +3215,8 @@ function OverviewTimeline({
                       )
                     }
                   >
-                    <span className={`dot role-${it.span.role}`} aria-hidden />
-                    <span className="name">{it.span.label}</span>
+                    <span className={`dot role-${it.span.role}${it.span.schedule ? ` schedule-kind-${it.span.schedule.kind}` : ""}`} aria-hidden />
+                    <span className="name" title={it.span.label}>{it.span.schedule?.caption ?? it.span.label}</span>
                     <span className="dur">
                       {formatDuration(
                         Math.max(0, it.span.endMs - it.span.startMs),
@@ -3139,6 +3229,9 @@ function OverviewTimeline({
           </div>
         )}
       </div>
+      {schedule?.started_at && layoutMode === "actual" && viewport && <div className="schedule-axis" aria-label="Scheduler time axis">
+        {Array.from({length: 6}, (_, i) => <span key={i}>{scheduleSeconds((viewDomain.start + viewLen * i / 5 - Date.parse(schedule.started_at!)) / 1000)}</span>)}
+      </div>}
     </div>
   );
 }
@@ -3163,11 +3256,13 @@ function LiveDuration({ row }: { row: DisplayEvent }) {
 
 function Ledger({
   rows,
+  schedule,
   selectedId,
   matchedIds,
   onSelect,
 }: {
   rows: DisplayEvent[];
+  schedule?: SessionDetail["schedule"];
   selectedId: string | null;
   /** Rows hit by the trajectory find box. */
   matchedIds: Set<string>;
@@ -3203,6 +3298,17 @@ function Ledger({
         <tbody>
           {rows.map((row) => {
             const selected = selectedId === row.id;
+            const tone = row.role === "nika" ? nikaEventTone(row.start, schedule) : null;
+            const milestone = scheduleRecord(row.start);
+            const occurrence = milestone ? schedule?.occurrences.find(o => o.event_index === milestone.event_index && o.occurrence_index === milestone.occurrence_index) : null;
+            const phase = String(milestone?.status ?? "");
+            const kind = occurrence?.kind;
+            const action = occurrence ? ({
+              applied: occurrence.kind === "failure" ? "Injected" : "Traffic started",
+              restored: "Restored", verified: "Verified",
+              recovered: occurrence.kind === "failure" ? "Recovered" : "Traffic stopped",
+              operation_failed: "Failed",
+            } as Record<string, string>)[phase] : null;
             return (
               <tr
                 key={row.id}
@@ -3213,8 +3319,10 @@ function Ledger({
                 className={[
                   selected ? "selected" : "",
                   `role-${row.role}`,
+                  tone ? `nika-tone-${tone}` : "",
                   row.error ? "error" : "",
                   matchedIds.has(row.id) ? "find-hit" : "",
+                  kind ? `schedule-log schedule-kind-${kind} phase-${phase}` : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
@@ -3224,13 +3332,13 @@ function Ledger({
                   <span className={`turn-rail role-${row.role}`} aria-hidden />
                   {selected && <span className="selection-rail" aria-hidden />}
                   <span className={`rail-dot role-${row.role}`} aria-hidden />
-                  <span className={`kind-tag role-${row.role}`}>
+                  <span className={`kind-tag role-${row.role}`} title={tone ? `NIKA · ${tone}` : undefined}>
                     <span className="kind-tag-label">{roleBadgeLabel(row)}</span>
                   </span>
                 </td>
                 <td className="name-cell">
-                  <span className="name-label" title={nameBadgeLabel(row)}>
-                    {nameBadgeLabel(row)}
+                  <span className="name-label" title={action || nameBadgeLabel(row)}>
+                    {action || nameBadgeLabel(row)}
                   </span>
                 </td>
                 <td className="time-cell">{formatTs(row.timestamp)}</td>
@@ -3239,7 +3347,11 @@ function Ledger({
                 </td>
                 <td className="content-cell">
                   <div className="content-inner">
-                    {row.summary ? (
+                    {occurrence && milestone ? <>
+                      <span className="schedule-row-target">{occurrence.label}</span>
+                      {occurrence.occurrence_count > 1 && <span className="schedule-cycle">{occurrence.occurrence_index + 1}/{occurrence.occurrence_count}</span>}
+                      <span className="schedule-row-time" title={`Planned ${scheduleSeconds(Number(milestone.planned_offset))}; observed ${scheduleSeconds(Number(milestone.elapsed))}; ${Number(milestone.lateness_sec || 0).toFixed(2)}s late`}>Plan {scheduleSeconds(Number(milestone.planned_offset))} <span>→</span> {scheduleSeconds(Number(milestone.elapsed))}</span>
+                    </> : row.summary ? (
                       <span className="content-summary">{row.summary}</span>
                     ) : (
                       <span className="content-summary muted">—</span>
@@ -4884,6 +4996,7 @@ function SessionOverviewPanel({
 
   return (
     <div className="session-overview">
+      <SchedulePanel schedule={detail.schedule} stage={detail.stage} />
       <SessionTimingBlocks
         detail={detail}
         events={events}
@@ -5304,7 +5417,7 @@ function SessionView({
     [tab, allEvents, sessionLive],
   );
   const visibleRows = useMemo(
-    () => (brush ? rows.filter((r) => rowInBrush(r, brush)) : rows),
+    () => rows.filter(r => !isScheduleInternal(r.start) && (!brush || rowInBrush(r, brush))),
     [rows, brush],
   );
   const selected = useMemo(
@@ -5537,6 +5650,24 @@ function SessionView({
             onChange={(tags) => void persistAnnotations({ ...annotations, tags })}
           />
         )}
+      </div>
+      <div className="tabs">
+        {(
+          [
+            ["timeline", "Timeline"],
+            ["scores", "Scores"],
+            ["overview", "Overview"],
+            ["raw", "Raw"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            className={tab === id ? "active" : ""}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
         {isTraceTab && (
           <div className="stat-row">
             <span className="source-filter" role="group" aria-label="Event source">
@@ -5590,24 +5721,6 @@ function SessionView({
           </div>
         )}
       </div>
-      <div className="tabs">
-        {(
-          [
-            ["timeline", "Timeline"],
-            ["scores", "Scores"],
-            ["overview", "Overview"],
-            ["raw", "Raw"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            className={tab === id ? "active" : ""}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
       {shownError && <div className="empty">{shownError}</div>}
       {!shownError && tab === "overview" && (
         <SessionOverviewPanel
@@ -5624,14 +5737,17 @@ function SessionView({
         />
       )}
       {!shownError && isTraceTab && (
-        <div className="trace-layout">
+        <div className={`trace-layout${detail?.schedule ? " has-schedule" : ""}`}>
+          <SchedulePanel schedule={detail?.schedule} stage={detail?.stage} compact />
           {isTraceTab && (
             <OverviewTimeline
               events={events}
+              schedule={detail?.schedule}
               selectedId={selectedId}
               onSelect={(id) => {
                 setSelectedId(id);
                 if (id != null) setBrush(null);
+                if (id != null) setSource(null);
               }}
               brush={brush}
               onBrushChange={setBrush}
@@ -5641,6 +5757,7 @@ function SessionView({
             left={
               <Ledger
                 rows={visibleRows}
+                schedule={detail?.schedule}
                 selectedId={selectedId}
                 matchedIds={matchedIds}
                 onSelect={(row) =>

@@ -163,9 +163,6 @@ class ExecSemanticOpsMixin:
     def uses_srl_router(self, node: str) -> bool:
         return self._api().uses_srl_router(node)
 
-    def uses_iosxr_router(self, node: str) -> bool:
-        return self._api().uses_iosxr_router(node)
-
     def iosxr_get_bgp_asn_number(self, node: str) -> int:
         return self._api().iosxr_get_bgp_asn_number(node)
 
@@ -178,9 +175,6 @@ class ExecSemanticOpsMixin:
     def iosxr_withdraw_bgp_prefix(self, node: str, prefix: str) -> None:
         self._api().iosxr_withdraw_bgp_prefix(node, prefix)
 
-    def iosxr_bgp_prefix_withdrawn(self, node: str, prefix: str) -> bool:
-        return self._api().iosxr_bgp_prefix_withdrawn(node, prefix)
-
     def iosxr_apply_config(self, node: str, config_lines: list[str]) -> str:
         return self._api().iosxr_apply_config(node, config_lines)
 
@@ -190,8 +184,16 @@ class ExecSemanticOpsMixin:
     def srl_get_bgp_as(self, node: str) -> int:
         return self._api().srl_get_bgp_as(node)
 
+    def srl_run_script(
+        self, node: str, commands: tuple[str, ...] | list[str], *, timeout: float = 30
+    ) -> str:
+        return self._api()._srl_run_script(node, list(commands), timeout=timeout)
+
     def srl_set_bgp_as(self, node: str, asn: int) -> None:
         self._api().srl_set_bgp_as(node, asn)
+
+    def srl_bgp_acl_drop_179_entries(self, node: str) -> dict[int, str]:
+        return self._api().srl_bgp_acl_drop_179_entries(node)
 
     def srl_add_bgp_acl_drop_179(self, node: str) -> dict[int, str]:
         return self._api().srl_add_bgp_acl_drop_179(node)
@@ -217,12 +219,6 @@ class ExecSemanticOpsMixin:
     def srl_blackhole_static_present(self, node: str, prefix: str) -> bool:
         return self._api().srl_blackhole_static_present(node, prefix)
 
-    def srl_advertise_prefix(self, node: str, prefix: str) -> None:
-        self._api().srl_advertise_prefix(node, prefix)
-
-    def srl_prefix_advertised(self, node: str, prefix: str) -> bool:
-        return self._api().srl_prefix_advertised(node, prefix)
-
     def srl_add_blackhole_route_leak(self, node: str, prefix: str) -> None:
         self._api().srl_add_blackhole_route_leak(node, prefix)
 
@@ -231,6 +227,21 @@ class ExecSemanticOpsMixin:
 
     def srl_bgp_prefix_withdrawn(self, node: str, prefix: str) -> bool:
         return self._api().srl_bgp_prefix_withdrawn(node, prefix)
+
+    def srl_add_ospf_acl_drop(self, node: str) -> list[int]:
+        return self._api().srl_add_ospf_acl_drop(node)
+
+    def srl_ospf_acl_drop_present(self, node: str, sequences: list[int]) -> bool:
+        return self._api().srl_ospf_acl_drop_present(node, sequences)
+
+    def srl_ospf_interfaces(self, node: str) -> list[str]:
+        return self._api().srl_ospf_interfaces(node)
+
+    def srl_ospf_neighbor_interfaces(self, node: str) -> list[str]:
+        return self._api().srl_ospf_neighbor_interfaces(node)
+
+    def srl_remove_ospf_interface(self, node: str, interface: str) -> None:
+        self._api().srl_remove_ospf_interface(node, interface)
 
     def kill_process(self, node: str, process_name: str) -> str:
         return self._delegate("process", "kill_process", node, process_name)

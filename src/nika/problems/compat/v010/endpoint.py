@@ -74,15 +74,13 @@ class SenderApplicationDelay(ProblemBase):
 
     def _slow_running(self, host: str) -> bool:
         return bool(
-            self.runtime.exec(
-                host, "pgrep -af '[n]ika-010-slow-sender.py' || true"
-            ).strip()
+            self.runtime.exec(host, "pgrep -af '[w]eb_responder.py' || true").strip()
         )
 
     def inject_fault(self, params: SenderApplicationDelayParams):
         self.runtime.write_file(
             params.host_name,
-            "/tmp/nika-010-slow-sender.py",
+            "/var/tmp/web_responder.py",
             _SLOW_HTTP_SERVER,
         )
         # campus_lan serves :80 with nginx and runs web_server.service with
@@ -95,8 +93,8 @@ class SenderApplicationDelay(ProblemBase):
             "pkill -x nginx 2>/dev/null || true; "
             "pkill -f '[h]ttp.server' || true; "
             "sleep 0.3; "
-            "nohup python3 /tmp/nika-010-slow-sender.py "
-            "</dev/null >/tmp/nika-010-slow-sender.log 2>&1 &",
+            "nohup python3 /var/tmp/web_responder.py "
+            "</dev/null >/dev/null 2>&1 &",
         )
 
     def verify_fault(self, params: SenderApplicationDelayParams) -> dict:
@@ -108,9 +106,7 @@ class SenderApplicationDelay(ProblemBase):
         )
 
     def recover_fault(self, params: SenderApplicationDelayParams) -> dict:
-        self.runtime.exec(
-            params.host_name, "pkill -f '[n]ika-010-slow-sender.py' || true"
-        )
+        self.runtime.exec(params.host_name, "pkill -f '[w]eb_responder.py' || true")
         if self.scenario_name == "campus_lan":
             self.runtime.exec(
                 params.host_name, "systemctl start web_server 2>/dev/null; nginx"
@@ -119,7 +115,7 @@ class SenderApplicationDelay(ProblemBase):
             self.runtime.exec(
                 params.host_name,
                 "cd /var/www && nohup python3 -m http.server 80 "
-                "</dev/null >/tmp/nika-010-web-restored.log 2>&1 &",
+                "</dev/null >/dev/null 2>&1 &",
             )
         configured = self._slow_running(params.host_name)
         restored = "UP" in self.runtime.exec(

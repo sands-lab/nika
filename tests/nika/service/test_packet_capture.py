@@ -28,6 +28,7 @@ from nika.service.packet_capture.limits import (
 )
 from nika.service.packet_capture.manager import CaptureManager
 from nika.service.packet_capture.protocol_fields import extract_protocol_fields
+from nika.service.containerlab.srl_api import srl_linux_intf
 from tests.support.integration_base import SharedSessionTestCase
 from tests.support.prerequisites import docker_available
 
@@ -90,6 +91,84 @@ def _packet(layers: dict) -> dict:
 
 @pytest.mark.unit
 class TestProtocolFields:
+    @pytest.mark.parametrize(
+        "protocol,layer,expected",
+        [
+            (
+                "dns",
+                {
+                    "Queries": {
+                        "example.local: type A": {"dns.qry.name": "example.local"}
+                    },
+                    "dns.flags_tree": {"dns.flags.rcode": "3"},
+                },
+                {"qname": "example.local", "rcode": "3"},
+            ),
+            (
+                "bgp",
+                {
+                    "BGP OPEN": {
+                        "bgp.type": "1",
+                        "bgp.open.myas": "23456",
+                        "bgp.open.holdtime": "180",
+                        "bgp.open.identifier": "10.0.0.1",
+                        "Capabilities": {
+                            "bgp.cap.4as": "4200000001",
+                            "bgp.cap.type": "65",
+                        },
+                    }
+                },
+                {
+                    "type": "1",
+                    "asn": "4200000001",
+                    "hold_time": "180",
+                    "router_id": "10.0.0.1",
+                    "capabilities": "65",
+                },
+            ),
+            (
+                "ospf",
+                {
+                    "Header": {
+                        "ospf.msg": "1",
+                        "ospf.area_id": "0.0.0.0",
+                        "ospf.srcrouter": "10.0.0.1",
+                    },
+                    "Hello": {
+                        "ospf.hello.hello_interval": "10",
+                        "ospf.hello.router_dead_interval": "40",
+                        "ospf.hello.active_neighbor": "10.0.0.2",
+                    },
+                },
+                {
+                    "msg_type": "1",
+                    "area": "0.0.0.0",
+                    "router_id": "10.0.0.1",
+                    "hello_interval": "10",
+                    "dead_interval": "40",
+                    "neighbor": "10.0.0.2",
+                },
+            ),
+            (
+                "tls",
+                [
+                    {
+                        "Record Layer": {
+                            "tls.handshake": {
+                                "tls.handshake.extensions_server_name": "example.local"
+                            }
+                        }
+                    }
+                ],
+                {"sni": "example.local"},
+            ),
+        ],
+    )
+    def test_nested_tshark_protocol_trees(self, protocol, layer, expected) -> None:
+        fields = extract_protocol_fields(protocol, _packet({protocol: layer}))
+        for key, value in expected.items():
+            assert fields[key] == value
+
     def test_tcp_fields(self) -> None:
         fields = extract_protocol_fields(
             "tcp",
@@ -139,9 +218,9 @@ class TestProtocolFields:
                     "frame": {"frame.number": ["3"]},
                     "bgp": {
                         "bgp.type": ["1"],
-                        "bgp.as": ["65001"],
-                        "bgp.hold_time": ["180"],
-                        "bgp.identifier": ["10.0.0.1"],
+                        "bgp.open.myas": ["65001"],
+                        "bgp.open.holdtime": ["180"],
+                        "bgp.open.identifier": ["10.0.0.1"],
                     },
                 }
             ),
@@ -173,7 +252,7 @@ class TestInspectCapture:
             payload = inspect.inspect_capture(
                 runtime,
                 "pc1",
-                "/tmp/nika-capture-abc.pcapng",
+                "/tmp/capture-abc.pcapng",
                 view="packets",
                 limit=1,
                 offset=0,
@@ -190,7 +269,7 @@ class TestInspectCapture:
             inspect.inspect_capture(
                 runtime,
                 "pc1",
-                "/tmp/nika-capture-abc.pcapng",
+                "/tmp/capture-abc.pcapng",
                 view="protocol",
             )
 
@@ -199,6 +278,29 @@ class TestInspectCapture:
         runtime.exec.return_value = ""
         with pytest.raises(inspect.TsharkNotFoundError):
             inspect.require_tshark(runtime, "pc1")
+
+    def test_node_without_tshark_inspects_host_side(self) -> None:
+        runtime = MagicMock()
+        runtime.exec.return_value = ""
+        with (
+            patch.object(inspect, "_read_pcap", return_value=b"PCAP") as read,
+            patch.object(inspect, "_host_tshark", return_value="1\n") as host,
+        ):
+            out = inspect._run_tshark(
+                runtime, "s1", "/tmp/x.pcapng", ["-r", "/tmp/x.pcapng", "-Y", "ip"]
+            )
+        assert out == "1\n"
+        read.assert_called_once_with(runtime, "s1", "/tmp/x.pcapng")
+        assert host.call_args.args[0] == ["-r", "-", "-Y", "ip"]
+        assert host.call_args.kwargs["stdin"] == b"PCAP"
+
+    def test_node_with_tshark_runs_in_node(self) -> None:
+        runtime = MagicMock()
+        runtime.exec.return_value = "/usr/bin/tshark"
+        with patch.object(inspect, "_host_tshark") as host:
+            inspect._run_tshark(runtime, "pc1", "/tmp/x", ["-r", "/tmp/x"])
+        host.assert_not_called()
+        assert "tshark -r /tmp/x" in runtime.exec.call_args.args[1]
 
 
 # --- registry / gateway -----------------------------------------------------
@@ -247,9 +349,9 @@ class FakeRuntime:
             return "TShark 4.0.0"
         if "echo $! >" in command and "nohup" in command:
             return ""
-        if command.startswith("cat /tmp/nika-capture-") and command.endswith(".pid"):
+        if command.startswith("cat /tmp/capture-") and command.endswith(".pid"):
             return "4242"
-        if command.startswith("cat /tmp/nika-capture-") and ".meta.json" in command:
+        if command.startswith("cat /tmp/capture-") and ".meta.json" in command:
             path = command[len("cat ") :].strip()
             return self.files.get((node, path), "")
         if "test -f" in command and "echo yes" in command:
@@ -274,6 +376,40 @@ class FakeRuntime:
 
 @pytest.mark.unit
 class TestCaptureLifecycle:
+    def test_zero_packets_still_has_a_valid_capture_file(self) -> None:
+        class EmptyCaptureRuntime(FakeRuntime):
+            def exec(self, node, command, timeout=10):
+                if "wc -c <" in command:
+                    return "24"
+                if "tcpdump -r" in command and "wc -l" in command:
+                    return "0"
+                return super().exec(node, command, timeout)
+
+        manager = CaptureManager(runtime=EmptyCaptureRuntime())
+        capture_id = manager.start(device="client1", interface="eth0")["capture_id"]
+        stopped = manager.stop(capture_id)
+        assert stopped["packet_count"] == 0
+        assert stopped["captured_bytes"] == 24
+        assert stopped["artifact"]["remote_path"]
+
+    def test_missing_output_is_failed_not_an_empty_artifact(self) -> None:
+        class MissingOutputRuntime(FakeRuntime):
+            def exec(self, node, command, timeout=10):
+                if "wc -c <" in command:
+                    return "missing"
+                return super().exec(node, command, timeout)
+
+        runtime = MissingOutputRuntime()
+        manager = CaptureManager(runtime=runtime)
+        capture_id = manager.start(device="client1", interface="eth0")["capture_id"]
+        with pytest.raises(FileNotFoundError, match="no file"):
+            manager.stop(capture_id)
+        assert read_meta(runtime, capture_id)["status"] == "failed"
+        with pytest.raises(RuntimeError, match="failed"):
+            manager.stop(capture_id)
+        with pytest.raises(RuntimeError, match="failed"):
+            manager.inspect(capture_id, view="summary")
+
     def test_concurrent_captures_have_distinct_ids(self) -> None:
         runtime = FakeRuntime()
         manager = CaptureManager(runtime=runtime)
@@ -298,14 +434,11 @@ class TestCaptureLifecycle:
         assert stopped["packet_count"] == 2
         assert stopped["captured_bytes"] == 11
         assert stopped["artifact"]["device"] == "router1"
-        assert (
-            stopped["artifact"]["remote_path"]
-            == f"/tmp/nika-capture-{capture_id}.pcapng"
-        )
+        assert stopped["artifact"]["remote_path"] == f"/tmp/capture-{capture_id}.pcapng"
         assert stopped["artifact"]["tshark_version"] == "TShark 4.0.0"
         meta = read_meta(runtime, capture_id)
         assert meta["status"] == "stopped"
-        assert meta["remote_path"] == f"/tmp/nika-capture-{capture_id}.pcapng"
+        assert meta["remote_path"] == f"/tmp/capture-{capture_id}.pcapng"
         assert (
             "router1",
             remote_meta_path(capture_id),
@@ -318,6 +451,61 @@ class TestCaptureLifecycle:
         started = manager.start(device="client1", interface="eth0")
         with pytest.raises(RuntimeError, match="not stopped"):
             manager.inspect(started["capture_id"], view="summary")
+
+    def test_missing_interface_fails_before_capture(self) -> None:
+        class _NoSuchIface(FakeRuntime):
+            def exec(self, node: str, command: str, timeout: float = 10) -> str:
+                if command.startswith("[ -e /sys/class/net/"):
+                    self.commands.append((node, command))
+                    return "missing"
+                if command.startswith("ls /sys/class/net"):
+                    return "lo\neth0\n"
+                return super().exec(node, command, timeout)
+
+        runtime = _NoSuchIface()
+        with pytest.raises(ValueError, match=r"'eth9'.*Available interfaces: lo, eth0"):
+            CaptureManager(runtime=runtime).start(device="client1", interface="eth9")
+        assert not any("nohup" in command for _node, command in runtime.commands)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("name", "device"),
+    [
+        ("ethernet-1/3", "e1-3"),
+        ("ethernet-1/3.0", "e1-3"),
+        ("e1-3", "e1-3"),
+        ("e1-3.0", "e1-3"),
+        ("eth2", "e1-3"),
+        ("mgmt0", "mgmt0"),
+        ("any", "any"),
+    ],
+)
+def test_srl_names_map_to_default_netns_port(name: str, device: str) -> None:
+    assert srl_linux_intf(name) == device
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("sonic", "name", "device"),
+    [
+        (True, "Ethernet0", "eth1"),
+        (True, "Ethernet8", "eth3"),
+        (True, "eth2", "eth2"),
+        (False, "Ethernet0", "Ethernet0"),
+    ],
+)
+def test_sonic_ports_map_to_container_data_interface(
+    sonic: bool, name: str, device: str
+) -> None:
+    from nika.service.packet_capture.capture_backend import capture_device
+
+    runtime = MagicMock(backend="containerlab")
+    runtime.uses_srl_router.return_value = False
+    runtime.exec.side_effect = lambda node, command, timeout=None: (
+        "sonic" if "sonic-cfggen" in command and sonic else ""
+    )
+    assert capture_device(runtime, "leaf1", name) == device
 
 
 # --- live e2e ---------------------------------------------------------------
@@ -378,20 +566,17 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert stopped["packet_count"] >= 1, stopped
         assert stopped["captured_bytes"] > 0, stopped
         assert stopped["artifact"]["device"] == self.CAPTURE_HOST
-        assert (
-            stopped["artifact"]["remote_path"]
-            == f"/tmp/nika-capture-{capture_id}.pcapng"
-        )
+        assert stopped["artifact"]["remote_path"] == f"/tmp/capture-{capture_id}.pcapng"
 
         meta = read_meta(runtime, capture_id)
         assert meta["status"] == "stopped"
         assert meta["device"] == self.CAPTURE_HOST
-        assert meta["remote_path"] == f"/tmp/nika-capture-{capture_id}.pcapng"
+        assert meta["remote_path"] == f"/tmp/capture-{capture_id}.pcapng"
         assert "ground_truth" not in json.dumps(meta)
         assert not (session_dir / "packet_captures").exists()
         remote_meta = runtime.exec(
             self.CAPTURE_HOST,
-            f"test -f /tmp/nika-capture-{capture_id}.meta.json && echo yes",
+            f"test -f /tmp/capture-{capture_id}.meta.json && echo yes",
             timeout=5,
         ).strip()
         assert remote_meta == "yes"
@@ -443,8 +628,8 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         stop_b = manager.stop(second["capture_id"])
         assert stop_a["packet_count"] >= 1, stop_a
         assert stop_b["packet_count"] >= 1, stop_b
-        assert stop_a["artifact"]["remote_path"].startswith("/tmp/nika-capture-")
-        assert stop_b["artifact"]["remote_path"].startswith("/tmp/nika-capture-")
+        assert stop_a["artifact"]["remote_path"].startswith("/tmp/capture-")
+        assert stop_b["artifact"]["remote_path"].startswith("/tmp/capture-")
 
     def test_all_inspect_views_and_container_pcap_persistence(self) -> None:
         """Verify pcap stays on the node and every inspect view works in Docker."""
@@ -503,3 +688,18 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert missing["returned"] == 0
         assert missing["total_available"] == 0
         assert not (session_dir / "packet_captures").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("profile", "server"),
+    [
+        ("iosxr", "kathara_iosxr_mcp_server"),
+        ("routeros", "kathara_routeros_mcp_server"),
+    ],
+)
+def test_device_profile_sessions_get_their_router_cli(profile, server) -> None:
+    from nika.mcp.registry import select_diagnosis_servers
+
+    assert server not in select_diagnosis_servers("dc_clos")
+    assert server in select_diagnosis_servers("dc_clos", device_profile=profile)

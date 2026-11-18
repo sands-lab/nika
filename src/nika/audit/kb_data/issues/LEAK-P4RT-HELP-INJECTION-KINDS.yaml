@@ -1,0 +1,22 @@
+id: LEAK-P4RT-HELP-INJECTION-KINDS
+title: p4rt_exec help lists injection kinds
+class: shortcut
+severity: block
+status: fixed
+summary: p4rt_exec --help listed the injection kinds silent-drop, icmp-frag-needed, partial-write.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: silent-drop|icmp-frag-needed|partial-write
+  tool: p4rt_exec
+exploit: false
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B5
+  date: '2026-10-14'
+  refs:
+  - '#206'
+  found_by: manual
+guideline: ''
+fixed_in: c00630bc

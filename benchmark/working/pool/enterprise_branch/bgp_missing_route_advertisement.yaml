@@ -4,6 +4,9 @@ failure:
   fault_type: bgp_missing_route_advertisement
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
     root_causes:
@@ -12,6 +15,9 @@ failure:
         node: br1_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_edge
     root_causes:
@@ -20,6 +26,9 @@ failure:
         node: br2_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_edge
     root_causes:
@@ -28,6 +37,105 @@ failure:
         node: dc2_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: hq_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: br1_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: br2_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: dc2_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: hq_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: br1_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: br2_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: dc2_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
     root_causes:
@@ -36,6 +144,9 @@ failure:
         node: hq_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
     root_causes:
@@ -44,6 +155,9 @@ failure:
         node: br1_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_edge
     root_causes:
@@ -52,6 +166,9 @@ failure:
         node: br2_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_edge
     root_causes:
@@ -60,6 +177,9 @@ failure:
         node: br3_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_edge
     root_causes:
@@ -68,6 +188,9 @@ failure:
         node: br4_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_edge
     root_causes:
@@ -76,6 +199,9 @@ failure:
         node: dc2_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
     root_causes:
@@ -84,6 +210,9 @@ failure:
         node: hq_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
     root_causes:
@@ -92,6 +221,9 @@ failure:
         node: br1_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_edge
     root_causes:
@@ -100,6 +232,9 @@ failure:
         node: br2_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_edge
     root_causes:
@@ -108,6 +243,9 @@ failure:
         node: br3_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_edge
     root_causes:
@@ -116,6 +254,9 @@ failure:
         node: br4_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_edge
     root_causes:
@@ -124,6 +265,9 @@ failure:
         node: br5_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_edge
     root_causes:
@@ -132,6 +276,9 @@ failure:
         node: br6_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_edge
     root_causes:
@@ -140,6 +287,9 @@ failure:
         node: br7_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_edge
     root_causes:
@@ -148,6 +298,9 @@ failure:
         node: br8_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_edge
     root_causes:
@@ -156,6 +309,9 @@ failure:
         node: dc2_edge
       fault_type: bgp_missing_route_advertisement
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
     root_causes:

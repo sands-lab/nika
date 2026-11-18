@@ -74,6 +74,16 @@ def test_resource_class_k8s_family() -> None:
     assert resource_class_for_row({"scenario": "iosxr_simple_bgp"}) == CLASS_K8S
 
 
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+def test_native_isp_profiles_run_exclusively(profile) -> None:
+    assert (
+        resource_class_for_row(
+            {"scenario": "isp_arpanet196912", "device_profile": profile}
+        )
+        == CLASS_K8S
+    )
+
+
 def test_resource_class_light() -> None:
     assert resource_class_for_row({"scenario": "dc_clos"}) == CLASS_LIGHT
     assert resource_class_for_row({"scenario": "dc_clos", "topo_size": "m"}) == (

@@ -9,10 +9,14 @@ import yaml
 from nika.runtime.spec import LabSpec, LinkSpec, NodeSpec
 
 
-def parse_clab_topology(path: Path | str) -> LabSpec:
-    """Parse a containerlab topology file (``.clab.yml`` or ``.tmpl``) into ``LabSpec``."""
-    path = Path(path)
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+def parse_clab_topology(path: Path | str | dict) -> LabSpec:
+    """Parse a Containerlab topology file or document into ``LabSpec``."""
+    if isinstance(path, dict):
+        data = path
+        path = "<memory>"
+    else:
+        path = Path(path)
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(
             f"Invalid containerlab topology at {path}: expected mapping at root."

@@ -9,7 +9,7 @@ from nika.runtime.base import LabRuntime
 
 
 def remote_meta_path(capture_id: str) -> str:
-    return f"/tmp/nika-capture-{capture_id}.meta.json"
+    return f"/tmp/capture-{capture_id}.meta.json"
 
 
 def write_meta(runtime: LabRuntime, device: str, meta: dict) -> None:

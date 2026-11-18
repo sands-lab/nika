@@ -33,6 +33,72 @@ def _verify(env: Isp, root: Path, configs: dict[str, str] | None = None):
     return BatfishVerifier().verify(env.validation_contract, snapshot)
 
 
+def test_routing_workflow_rejects_unsupported_required_analysis(tmp_path):
+    from nika.workflows.validation.scenario import validate_scenario_design
+    from nika.workflows.validation.scenario_spec import ScenarioExperiment
+
+    env = Isp(topo="abilene", igp="ospf", bgp_mode="none")
+    # The RPKI design marker declares semantics outside this snapshot's
+    # model. The report may retain partial observations, but is not acceptance.
+    contract = env.validation_contract.model_copy(
+        update={
+            "contract_id": "unsupported-model.routing-workflow",
+            "design_source": {"rpki": True},
+            "intents": tuple(
+                i
+                for i in env.validation_contract.intents
+                if i.property == "reachability" and i.level == "required"
+            ),
+        }
+    )
+    spec = ScenarioExperiment(
+        scenario="isp_abilene",
+        deployment={"igp": "ospf", "bgp_mode": "none"},
+        healthy=contract,
+        incidents=(),
+    )
+    # A failed rerun must replace the acceptance of an earlier candidate.
+    (tmp_path / "summary.json").write_text(
+        '{"status": "passed", "validation_scope": "static-and-runtime"}\n'
+    )
+    with pytest.raises(RuntimeError, match="Requirements did not pass"):
+        validate_scenario_design(spec, tmp_path)
+    report = ValidationReport.model_validate_json(
+        (tmp_path / "static-healthy.json").read_text()
+    )
+    assert any(row.status == "unsupported" for row in report.results)
+    assert not (tmp_path / "summary.json").exists()
+
+
+def test_live_batfish_node_name_with_reserved_location_prefix(tmp_path):
+    from nika.workflows.validation.benchmark_routing import (
+        build_benchmark_isp_experiment,
+        isp_catalog_profiles,
+    )
+
+    env = Isp(topo="istar", igp="ospf", bgp_mode="none")
+    profile = isp_catalog_profiles()["isp_istar--isis--none--kathara"]
+    profile["deployment"]["igp"] = "ospf"
+    original = build_benchmark_isp_experiment(profile).healthy
+    intent = next(
+        i
+        for i in original.intents
+        if i.property == "reachability" and i.source.name.startswith("internet")
+    )
+    contract = original.model_copy(update={"intents": (intent,)})
+    ensure_batfish_service()
+    snapshot = build_isp_snapshot(
+        root=tmp_path,
+        contract=contract,
+        plan=env.plan,
+        traffic=env.traffic,
+        deployment_configs=env.deployment_configs,
+    )
+    report = BatfishVerifier().verify(contract, snapshot)
+    assert report.status == "passed"
+    assert report.results[0].status == "passed"
+
+
 def test_live_batfish_ospf_healthy_and_area_mutation(tmp_path) -> None:
     env = Isp(topo="abilene", igp="ospf", bgp_mode="none")
     healthy = _verify(env, tmp_path / "healthy")
@@ -235,6 +301,46 @@ def test_kathara_ospf_defaults_to_runtime_validation_only(tmp_path) -> None:
     finally:
         if session_id is not None:
             close_session(session_id=session_id)
+
+
+@pytest.mark.parametrize(
+    "deployment",
+    [
+        {"scenario": "min3clos"},
+        {"scenario": "isp_abilene", "igp": "ospf", "bgp_mode": "ebgp"},
+        {"scenario": "isp_abilene", "igp": "isis", "bgp_mode": "ibgp_rr"},
+    ],
+    ids=lambda d: "-".join(d.values()),
+)
+def test_sonic_snapshot_accepts_design_and_rejects_disabled_port(
+    deployment, tmp_path, batfish_verifier
+):
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.validation.batfish.sonic import build_sonic_snapshot
+
+    options = dict(deployment)
+    env = get_net_env_instance(
+        options.pop("scenario"),
+        backend="containerlab",
+        device_profile="sonic",
+        **options,
+    )
+    contract = env.get_validation_contract()
+    healthy = batfish_verifier.verify(
+        contract, build_sonic_snapshot(env, contract, tmp_path / "healthy")
+    )
+    assert healthy.status == "passed", healthy.model_dump_json(indent=2)
+
+    router = min(env.sonic_routers)
+    port = next(iter(env.sonic_routers[router].ports))
+    broken = batfish_verifier.verify(
+        contract,
+        build_sonic_snapshot(
+            env, contract, tmp_path / "broken", shutdown=[(router, port)]
+        ),
+    )
+    assert broken.status == "failed"
+    assert any(row.status == "failed" for row in broken.results)
 
 
 def _replace_ospf_costs(content: str, costs: dict[str, int]) -> str:

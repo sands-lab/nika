@@ -1,5 +1,6 @@
-"""Backend-agnostic network topology import and IR."""
+"""Backend-agnostic network topology import (SNDlib, Topology Zoo) and IR."""
 
+from nika.topology.catalog import ISP_TOPOLOGY_NAMES, list_topologies, load_topology
 from nika.topology.errors import (
     SndlibError,
     SndlibParseError,
@@ -15,9 +16,9 @@ from nika.topology.models import (
     TopoNode,
     link_preinstalled_capacity,
 )
-from nika.topology.sndlib.catalog import list_sndlib_topologies, load_sndlib_topology
 
 __all__ = [
+    "ISP_TOPOLOGY_NAMES",
     "AdmissiblePath",
     "CapacityModule",
     "NetworkTopology",
@@ -29,6 +30,6 @@ __all__ = [
     "TopoLink",
     "TopoNode",
     "link_preinstalled_capacity",
-    "list_sndlib_topologies",
-    "load_sndlib_topology",
+    "list_topologies",
+    "load_topology",
 ]

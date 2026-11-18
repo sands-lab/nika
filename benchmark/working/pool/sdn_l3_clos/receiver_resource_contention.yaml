@@ -4,6 +4,9 @@ failure:
   fault_type: receiver_resource_contention
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_1_1
@@ -13,42 +16,9 @@ failure:
         node: client_1_1
       fault_type: receiver_resource_contention
   - topo_size: s
-    inject:
-      duration: '3600'
-      host_name: client_2_1
-    root_causes:
-    - resource:
-        kind: node
-        node: client_2_1
-      fault_type: receiver_resource_contention
-  - topo_size: s
-    inject:
-      duration: '3600'
-      host_name: client_3_1
-    root_causes:
-    - resource:
-        kind: node
-        node: client_3_1
-      fault_type: receiver_resource_contention
-  - topo_size: s
-    inject:
-      duration: '3600'
-      host_name: client_4_1
-    root_causes:
-    - resource:
-        kind: node
-        node: client_4_1
-      fault_type: receiver_resource_contention
-  - topo_size: m
-    inject:
-      duration: '3600'
-      host_name: client_1_1
-    root_causes:
-    - resource:
-        kind: node
-        node: client_1_1
-      fault_type: receiver_resource_contention
-  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_1_2
@@ -57,16 +27,10 @@ failure:
         kind: node
         node: client_1_2
       fault_type: receiver_resource_contention
-  - topo_size: m
-    inject:
-      duration: '3600'
-      host_name: client_1_3
-    root_causes:
-    - resource:
-        kind: node
-        node: client_1_3
-      fault_type: receiver_resource_contention
-  - topo_size: m
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_2_1
@@ -75,7 +39,10 @@ failure:
         kind: node
         node: client_2_1
       fault_type: receiver_resource_contention
-  - topo_size: m
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_2_2
@@ -84,16 +51,10 @@ failure:
         kind: node
         node: client_2_2
       fault_type: receiver_resource_contention
-  - topo_size: m
-    inject:
-      duration: '3600'
-      host_name: client_2_3
-    root_causes:
-    - resource:
-        kind: node
-        node: client_2_3
-      fault_type: receiver_resource_contention
-  - topo_size: m
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_3_1
@@ -102,7 +63,10 @@ failure:
         kind: node
         node: client_3_1
       fault_type: receiver_resource_contention
-  - topo_size: m
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_3_2
@@ -111,16 +75,10 @@ failure:
         kind: node
         node: client_3_2
       fault_type: receiver_resource_contention
-  - topo_size: m
-    inject:
-      duration: '3600'
-      host_name: client_3_3
-    root_causes:
-    - resource:
-        kind: node
-        node: client_3_3
-      fault_type: receiver_resource_contention
-  - topo_size: m
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_4_1
@@ -129,7 +87,10 @@ failure:
         kind: node
         node: client_4_1
       fault_type: receiver_resource_contention
-  - topo_size: m
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_4_2
@@ -139,6 +100,141 @@ failure:
         node: client_4_2
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1_1
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_1_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1_2
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_1_3
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1_3
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2_1
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_2_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2_2
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_2_3
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2_3
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_3_1
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3_1
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_3_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3_2
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_3_3
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3_3
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_4_1
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4_1
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      duration: '3600'
+      host_name: client_4_2
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4_2
+      fault_type: receiver_resource_contention
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_4_3
@@ -148,6 +244,9 @@ failure:
         node: client_4_3
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_5_1
@@ -157,6 +256,9 @@ failure:
         node: client_5_1
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_5_2
@@ -166,6 +268,9 @@ failure:
         node: client_5_2
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_5_3
@@ -175,6 +280,9 @@ failure:
         node: client_5_3
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_6_1
@@ -184,6 +292,9 @@ failure:
         node: client_6_1
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_6_2
@@ -193,6 +304,9 @@ failure:
         node: client_6_2
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_6_3
@@ -202,6 +316,9 @@ failure:
         node: client_6_3
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_7_1
@@ -211,6 +328,9 @@ failure:
         node: client_7_1
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_7_2
@@ -220,6 +340,9 @@ failure:
         node: client_7_2
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_7_3
@@ -229,6 +352,9 @@ failure:
         node: client_7_3
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_8_1
@@ -238,6 +364,9 @@ failure:
         node: client_8_1
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_8_2
@@ -247,6 +376,9 @@ failure:
         node: client_8_2
       fault_type: receiver_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_8_3
@@ -256,6 +388,9 @@ failure:
         node: client_8_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_10_1
@@ -265,6 +400,9 @@ failure:
         node: client_10_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_10_2
@@ -274,6 +412,9 @@ failure:
         node: client_10_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_10_3
@@ -283,6 +424,9 @@ failure:
         node: client_10_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_11_1
@@ -292,6 +436,9 @@ failure:
         node: client_11_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_11_2
@@ -301,6 +448,9 @@ failure:
         node: client_11_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_11_3
@@ -310,6 +460,9 @@ failure:
         node: client_11_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_12_1
@@ -319,6 +472,9 @@ failure:
         node: client_12_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_12_2
@@ -328,6 +484,9 @@ failure:
         node: client_12_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_12_3
@@ -337,6 +496,9 @@ failure:
         node: client_12_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_13_1
@@ -346,6 +508,9 @@ failure:
         node: client_13_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_13_2
@@ -355,6 +520,9 @@ failure:
         node: client_13_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_13_3
@@ -364,6 +532,9 @@ failure:
         node: client_13_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_14_1
@@ -373,6 +544,9 @@ failure:
         node: client_14_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_14_2
@@ -382,6 +556,9 @@ failure:
         node: client_14_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_14_3
@@ -391,6 +568,9 @@ failure:
         node: client_14_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_15_1
@@ -400,6 +580,9 @@ failure:
         node: client_15_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_15_2
@@ -409,6 +592,9 @@ failure:
         node: client_15_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_15_3
@@ -418,6 +604,9 @@ failure:
         node: client_15_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_16_1
@@ -427,6 +616,9 @@ failure:
         node: client_16_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_16_2
@@ -436,6 +628,9 @@ failure:
         node: client_16_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_16_3
@@ -445,6 +640,9 @@ failure:
         node: client_16_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_1_1
@@ -454,6 +652,9 @@ failure:
         node: client_1_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_1_2
@@ -463,6 +664,9 @@ failure:
         node: client_1_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_1_3
@@ -472,6 +676,9 @@ failure:
         node: client_1_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_2_1
@@ -481,6 +688,9 @@ failure:
         node: client_2_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_2_2
@@ -490,6 +700,9 @@ failure:
         node: client_2_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_2_3
@@ -499,6 +712,9 @@ failure:
         node: client_2_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_3_1
@@ -508,6 +724,9 @@ failure:
         node: client_3_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_3_2
@@ -517,6 +736,9 @@ failure:
         node: client_3_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_3_3
@@ -526,6 +748,9 @@ failure:
         node: client_3_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_4_1
@@ -535,6 +760,9 @@ failure:
         node: client_4_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_4_2
@@ -544,6 +772,9 @@ failure:
         node: client_4_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_4_3
@@ -553,6 +784,9 @@ failure:
         node: client_4_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_5_1
@@ -562,6 +796,9 @@ failure:
         node: client_5_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_5_2
@@ -571,6 +808,9 @@ failure:
         node: client_5_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_5_3
@@ -580,6 +820,9 @@ failure:
         node: client_5_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_6_1
@@ -589,6 +832,9 @@ failure:
         node: client_6_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_6_2
@@ -598,6 +844,9 @@ failure:
         node: client_6_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_6_3
@@ -607,6 +856,9 @@ failure:
         node: client_6_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_7_1
@@ -616,6 +868,9 @@ failure:
         node: client_7_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_7_2
@@ -625,6 +880,9 @@ failure:
         node: client_7_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_7_3
@@ -634,6 +892,9 @@ failure:
         node: client_7_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_8_1
@@ -643,6 +904,9 @@ failure:
         node: client_8_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_8_2
@@ -652,6 +916,9 @@ failure:
         node: client_8_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_8_3
@@ -661,6 +928,9 @@ failure:
         node: client_8_3
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_9_1
@@ -670,6 +940,9 @@ failure:
         node: client_9_1
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_9_2
@@ -679,6 +952,9 @@ failure:
         node: client_9_2
       fault_type: receiver_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       duration: '3600'
       host_name: client_9_3

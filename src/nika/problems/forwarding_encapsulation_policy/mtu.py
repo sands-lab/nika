@@ -15,32 +15,78 @@ from nika.problems.rca.inventory import (
     parse_endpoint,
 )
 from nika.problems.support.benchmark_targets import resolve_path_mtu_target
-from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
+from nika.problems.support.compatible_columns import (
+    LINUX_PMTU_COLUMNS,
+    LINUX_PMTU_PLATFORMS,
+)
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    shell,
+    addr_step,
+    is_ip_node,
+    toward,
+    iosxr,
+    router_cli,
+)
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
 # ==========================================
-# Problem: Path MTU mismatch (undersized intermediate interface)
+# Problem: MTU mismatch (one interface below its neighbors)
 # ==========================================
 #
-# Lowers MTU on an intermediate L3 egress so DF packets larger than the path
-# MTU elicit ICMP Fragmentation Needed (type 3 / code 4). Smaller DF packets
-# still pass. Legacy id: link_fragmentation_disabled.
+# Lowers the MTU of one interface only, so it no longer matches the far end
+# of its link. OSPF stops at ExStart/Exchange because the Database
+# Description MTU check fails (RFC 2328 10.6), routed DF packets larger than
+# the MTU that leave through it elicit ICMP Fragmentation Needed, and large
+# transfers across it stall.
+# Legacy id: link_fragmentation_disabled.
 
 
 _MTU_RE = re.compile(r"\bmtu\s+(\d+)\b")
+
+
+def _mtu_differs(output: str) -> bool:
+    """The far-end MTU differs from the ``LOCAL_MTU=`` the command echoed."""
+    local = re.search(r"LOCAL_MTU=(\d+)", output)
+    far = _MTU_RE.search(output)
+    return local is not None and far is not None and local.group(1) != far.group(1)
+
+
+def _segment_neighbor(net_env, node: str, intf: str) -> tuple[str, str] | None:
+    """First other addressed endpoint on the link or LAN segment of ``node:intf``."""
+    for _key, raw in iter_link_termination_points(net_env):
+        ends = [parse_endpoint(str(item)) for item in raw]
+        if (node, intf) in ends:
+            return next(
+                (e for e in ends if e[0] != node and is_ip_node(net_env, e[0])), None
+            )
+    return None
+
+
+def _below_default(output: str) -> bool:
+    match = _MTU_RE.search(output)
+    return match is not None and int(match.group(1)) < 1500
+
+
+def _ip_mtu(output: str) -> int | None:
+    match = re.search(r"\((\d+) is available to IP\)", output) or _MTU_RE.search(output)
+    return int(match[1]) if match else None
 
 
 class MtuMismatchParams(BaseModel):
     """Parameters for injecting a path-MTU / MTU-mismatch fault."""
 
     host_name: str = Field(description="Intermediate forwarding node.")
-    intf_name: str = Field(description="Egress interface whose MTU is reduced.")
+    intf_name: str = Field(description="Interface whose MTU is misconfigured.")
     mtu: int = Field(
         default=500,
         ge=68,
         le=1500,
-        description="Reduced interface MTU in bytes (path MTU ceiling).",
+        description="Misconfigured interface MTU in bytes.",
     )
 
 
@@ -50,9 +96,13 @@ class MtuMismatch(ProblemBase):
     symptom_class = "unreachable"
     root_cause_name: str = "mtu_mismatch"
     root_cause_owner = "interface"
-    description = "Path MTU is misconfigured on an intermediate hop."
+    description = "Interface MTU is misconfigured and mismatches its link peer."
     TAGS: list[str] = ["link", "icmp"]
+    native_router_operations = frozenset(
+        {"interface_mtu", "set_interface_mtu", "save_config", "restore_config"}
+    )
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS
+    COMPATIBLE_PLATFORMS = LINUX_PMTU_PLATFORMS
 
     Params = MtuMismatchParams
 
@@ -66,27 +116,16 @@ class MtuMismatch(ProblemBase):
 
     symptom_desc = (
         "Users report size-dependent connectivity: small packets succeed while "
-        "large DF packets fail and may report ICMP Fragmentation Needed."
+        "large packets across the link are dropped or report ICMP "
+        "Fragmentation Needed, and OSPF adjacencies over it may not form."
     )
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.mtu = 500
-        self._peer: tuple[str, str] | None = None
 
     def root_cause_resources(self, params: MtuMismatchParams):
-        resources = [interface_on(self.net_env, params.host_name, params.intf_name)]
-        peer = self._mtu_peer(params)
-        if peer is not None:
-            resources.append(interface_on(self.net_env, *peer))
-        return resources
-
-    def _mtu_peer(self, params: MtuMismatchParams) -> tuple[str, str] | None:
-        """Point-to-point peer whose MTU inject also lowers (None when skipped)."""
-        peer = self._peer_endpoint(params.host_name, params.intf_name)
-        if peer is None or self._skip_peer_mtu(peer[0]):
-            return None
-        return peer
+        return [interface_on(self.net_env, params.host_name, params.intf_name)]
 
     def inject_fault(self, params: MtuMismatchParams):
         match self.lab_backend:
@@ -97,44 +136,166 @@ class MtuMismatch(ProblemBase):
                     f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
                 )
 
-    def _peer_endpoint(self, host: str, intf: str) -> tuple[str, str] | None:
-        needle = f"{host}:{intf}"
-        for _key, tps in iter_link_termination_points(self.net_env):
-            endpoints = [str(ep) for ep in tps]
-            if needle not in endpoints or len(endpoints) != 2:
-                continue
-            other = endpoints[0] if endpoints[1] == needle else endpoints[1]
-            peer_host, peer_intf = parse_endpoint(other)
-            if peer_host and peer_intf:
-                return peer_host, peer_intf
-        return None
-
     def _set_mtu(self, host: str, intf: str, mtu: int) -> None:
+        original = getattr(self, "_original_mtus", {})
+        if (host, intf) not in original:
+            value = self._read_mtu(host, intf)
+            if value is None:
+                raise RuntimeError(f"Cannot read MTU on {host}:{intf}")
+            original[host, intf] = value
+            self._original_mtus = original
+        ops = native_fault_ops(self, host, "set_interface_mtu")
+        if ops is not None:
+            if ops.profile == "iosxr":
+                saved = getattr(self, "_native_mtu_configs", {})
+                if host not in saved:
+                    saved[host] = (ops, ops.save_config())
+                    self._native_mtu_configs = saved
+            ops.set_interface_mtu(intf, mtu)
+            return
         self.runtime.exec(host, f"ip link set dev {intf} mtu {int(mtu)}")
-
-    @staticmethod
-    def _skip_peer_mtu(peer_host: str) -> bool:
-        # Lowering MTU on k3s eth0 breaks the node dataplane so even small
-        # DF pings to the controller fail (k8s_lab / llmd_lab).
-        if peer_host == "controller":
-            return True
-        return peer_host.startswith("worker")
 
     def _inject_mtu_mismatch(self, params: MtuMismatchParams) -> None:
         self.mtu = params.mtu
         self._set_mtu(params.host_name, params.intf_name, params.mtu)
-        # Ground truth labels this peer too, so a failed peer write must fail inject.
-        peer = self._mtu_peer(params)
-        self._peer = peer
-        if peer is not None:
-            self._set_mtu(peer[0], peer[1], params.mtu)
         system_logger.info(
-            f"Injected path MTU mismatch on {params.host_name}:{params.intf_name} "
+            f"Injected MTU mismatch on {params.host_name}:{params.intf_name} "
             f"(mtu={params.mtu})"
         )
 
+    def recover_fault(self, params: MtuMismatchParams) -> dict:
+        original = getattr(self, "_original_mtus", {})
+        saved = getattr(self, "_native_mtu_configs", {})
+        for ops, config in saved.values():
+            ops.restore_config(config)
+        for (host, intf), mtu in original.items():
+            if host not in saved:
+                self._set_mtu(host, intf, mtu)
+        observed = {
+            f"{host}:{intf}": self._read_mtu(host, intf) for host, intf in original
+        }
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(original)
+            and all(observed[f"{h}:{i}"] == mtu for (h, i), mtu in original.items()),
+            details={"observed_mtus": observed},
+        )
+
+    def oracle_playbook(self, params: MtuMismatchParams) -> OraclePlaybook:
+        host, intf = params.host_name, params.intf_name
+        if native_router_profile(self.net_env, host) == "iosxr":
+            from nika.net_env.utils.iosxr.common import iosxr_interface
+
+            steps = [
+                iosxr(
+                    host,
+                    f"show ipv4 interface {iosxr_interface(intf)}",
+                    f"Read the IPv4 MTU of {host}:{intf}.",
+                    Check(
+                        "the interface has a reduced IPv4 MTU",
+                        lambda out: _ip_mtu(out) == params.mtu and params.mtu < 1500,
+                    ),
+                    evidence=True,
+                )
+            ]
+            peer = _segment_neighbor(self.net_env, host, intf)
+            if peer is not None:
+                far, far_intf = peer
+                steps.append(
+                    router_cli(
+                        self.net_env,
+                        far,
+                        f"Compare the MTU of {far}:{far_intf} with {host}:{intf}.",
+                        Check(
+                            "the peer has a different IPv4 MTU",
+                            lambda out: (
+                                _ip_mtu(out) is not None and _ip_mtu(out) != params.mtu
+                            ),
+                        ),
+                        frr=f"ip -o link show dev {far_intf}",
+                        iosxr_command=f"show ipv4 interface {iosxr_interface(far_intf)}",
+                        evidence=True,
+                    )
+                )
+            return OraclePlaybook(
+                finding=f"{host}:{intf} has a reduced IPv4 MTU that differs from its peer.",
+                steps=steps,
+            )
+        steps = [
+            shell(
+                host,
+                f"ip -o link show dev {intf}",
+                f"Read the MTU of {host}:{intf}.",
+                Check(f"{host}:{intf} runs an MTU below 1500 bytes", _below_default),
+                evidence=True,
+                save_as="mtu_local",
+            )
+        ]
+        peer = _segment_neighbor(self.net_env, host, intf)
+        if peer is not None:
+            far, far_intf = peer
+
+            def far_mtu(out):
+                local = _MTU_RE.search(out.get("mtu_local", ""))
+                return {
+                    "host_name": far,
+                    "command": (
+                        f"echo LOCAL_MTU={local.group(1) if local else '?'}; "
+                        f"ip -o link show dev {far_intf}"
+                    ),
+                    "timeout": 15,
+                }
+
+            steps += [
+                OracleStep(
+                    f"Read the MTU of {far}:{far_intf}, a neighbor on the same link.",
+                    "exec_shell",
+                    far_mtu,
+                    Check(
+                        f"{far}:{far_intf} runs a different MTU than {host}:{intf}",
+                        _mtu_differs,
+                    ),
+                    evidence=True,
+                ),
+                addr_step(far, far_intf, "mtu_peer"),
+                toward(
+                    host,
+                    "mtu_peer",
+                    "ping -c 2 -W 1 -s 56 {ip} | tail -2; "
+                    "ping -c 2 -W 1 -M do -s 1400 {ip} 2>&1 | tail -3",
+                    f"Ping {far} across the link with small and with 1428-byte "
+                    "unfragmentable packets.",
+                    Check(
+                        "small probes succeed while 1428-byte DF probes fail",
+                        lambda out: bool(
+                            re.search(r"\b2 received", out)
+                            and re.search(
+                                r"message too long|frag needed|100% packet loss", out
+                            )
+                        ),
+                    ),
+                ),
+            ]
+        if self.lab_backend == "kathara":
+            steps.append(
+                shell(
+                    host,
+                    "vtysh -c 'show ip ospf neighbor' 2>&1 | head -20",
+                    f"List OSPF neighbors on {host}; an MTU mismatch holds an "
+                    "adjacency in ExStart/Exchange.",
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"{host}:{intf} is configured with a smaller MTU than the far end "
+                "of its link, so full-size packets across it are dropped or "
+                "need fragmentation."
+            ),
+            steps=steps,
+        )
+
     def verify_fault(self, params: MtuMismatchParams) -> dict:
-        """Verify the intermediate interface MTU was reduced."""
+        """Verify the interface MTU was lowered."""
         match self.lab_backend:
             case "kathara" | "containerlab":
                 return self._verify_mtu_mismatch(params)
@@ -144,6 +305,9 @@ class MtuMismatch(ProblemBase):
                 )
 
     def _read_mtu(self, host: str, intf: str) -> int | None:
+        ops = native_fault_ops(self, host, "interface_mtu")
+        if ops is not None:
+            return ops.interface_mtu(intf)
         output = self.runtime.exec(
             host, f"ip -o link show dev {intf} 2>/dev/null || true"
         ).strip()
@@ -161,13 +325,6 @@ class MtuMismatch(ProblemBase):
             "mtu": params.mtu,
             "observed_mtu": observed,
         }
-        peer = self._mtu_peer(params)
-        if peer is not None:
-            peer_host, peer_intf = peer
-            peer_mtu = self._read_mtu(peer_host, peer_intf)
-            details["peer"] = f"{peer_host}:{peer_intf}"
-            details["peer_mtu"] = peer_mtu
-            verified = verified and peer_mtu == int(params.mtu)
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,

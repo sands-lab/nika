@@ -1,4 +1,4 @@
-"""Bridge NIKA MCP server config to mcp-agent Settings."""
+"""Bridge the session MCP server config to mcp-agent Settings."""
 
 from __future__ import annotations
 
@@ -19,20 +19,17 @@ with warnings.catch_warnings():
         Settings,
     )
 
-from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.mcp_servers import mcp_read_timeout_seconds
-from agent.utils.provider_env import (
-    require_provider,
-    CUSTOM_UNAUTHENTICATED_API_KEY,
-    DEEPSEEK_OPENAI_BASE_URL,
+from agent.llm.endpoints import (
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_BASE_URL,
-    ENV_DEEPSEEK_API_KEY,
     ENV_OPENAI_API_KEY,
     ENV_OPENAI_BASE_URL,
-    resolve_custom_api_key,
-    resolve_custom_base_url,
+    UNAUTHENTICATED_API_KEY,
+    openai_api_key,
+    openai_base_url,
+    require_provider,
 )
+from agent.utils.mcp_client import mcp_read_timeout_seconds, session_mcp_config
 from agent.utils.reasoning_effort import anthropic_output_config
 
 
@@ -84,27 +81,18 @@ def _openai_settings_for_provider(
     # DeepSeek OpenAI-compat does not take reasoning_effort.
     apply_effort = effort is not None and prov != "deepseek"
     if prov == "deepseek":
-        api_key = os.environ.get(ENV_DEEPSEEK_API_KEY) or os.environ.get(
-            ENV_OPENAI_API_KEY
-        )
         return OpenAISettings(
             default_model=model,
-            api_key=api_key,
-            base_url=os.environ.get(ENV_OPENAI_BASE_URL) or DEEPSEEK_OPENAI_BASE_URL,
+            api_key=openai_api_key(prov),
+            base_url=openai_base_url(prov),
         )
     if prov == "custom":
-        base = resolve_custom_base_url() or os.environ.get(ENV_OPENAI_BASE_URL) or None
         # Match langgraph/autogen: unauthenticated OpenAI-compat servers need a
         # non-empty key string for the client library.
-        key = (
-            resolve_custom_api_key()
-            or os.environ.get(ENV_OPENAI_API_KEY)
-            or CUSTOM_UNAUTHENTICATED_API_KEY
-        )
         kwargs: dict = {
             "default_model": model,
-            "api_key": key,
-            "base_url": base,
+            "api_key": openai_api_key(prov) or UNAUTHENTICATED_API_KEY,
+            "base_url": openai_base_url(prov),
         }
         if apply_effort:
             kwargs["reasoning_effort"] = effort
@@ -136,12 +124,15 @@ def build_mcp_request_params(
     reasoning_effort: str | None = None,
     max_tokens: int | None = None,
     provider: str,
+    sampling: dict[str, float | int] | None = None,
 ):
     """Build mcp-agent ``RequestParams`` with provider-appropriate effort wiring.
 
     OpenAI/custom: ``reasoning_effort`` field.
     Anthropic: ``metadata.output_config.effort`` (merged into messages.create).
     DeepSeek: omit.
+    *sampling* (temperature, top_p, seed) is sent as set; Anthropic and
+    DeepSeek take no seed.
     """
     from mcp_agent.workflows.llm.augmented_llm import RequestParams
 
@@ -149,32 +140,36 @@ def build_mcp_request_params(
     kwargs: dict = {
         "model": model,
         "max_iterations": max_steps,
-        "temperature": 0,
         "use_history": False,
     }
     if max_tokens is not None:
         kwargs["maxTokens"] = max_tokens
     prov = require_provider(provider)
+    # mcp-agent merges ``metadata`` into the request, so unset sampling values
+    # stay out of it and the server applies its own defaults.
+    sampling = dict(sampling or {})
+    if prov in ("anthropic", "deepseek"):
+        sampling.pop("seed", None)
+    if sampling:
+        kwargs["metadata"] = sampling
     if effort is not None and prov == "anthropic":
         # Anthropic rejects "none"; omit output_config in that case.
         meta = anthropic_output_config(effort)
         if meta is not None:
-            kwargs["metadata"] = meta
+            kwargs["metadata"] = {**kwargs.get("metadata", {}), **meta}
     elif effort is not None and prov != "deepseek":
         kwargs["reasoning_effort"] = effort
     return RequestParams(**kwargs)
 
 
 def build_mcp_agent_settings(
-    session_id: str,
-    scenario_name: str,
     model: str,
     *,
     provider: str,
     reasoning_effort: str | None = None,
 ) -> Settings:
-    """Build mcp-agent Settings for a NIKA troubleshooting session."""
-    servers = load_session_mcp_config(session_id, scenario_name)
+    """Build mcp-agent Settings for the task's troubleshooting session."""
+    servers = session_mcp_config()
     prov = require_provider(provider)
     common = dict(
         execution_engine="asyncio",
@@ -193,9 +188,3 @@ def build_mcp_agent_settings(
             model, provider, reasoning_effort=reasoning_effort
         ),
     )
-
-
-def session_server_names(scenario_name: str) -> list[str]:
-    from agent.utils.mcp_servers import select_session_servers
-
-    return select_session_servers(scenario_name)

@@ -12,9 +12,13 @@ MGMT_USER = "vrnetlab"
 MGMT_PASSWORD = "VR-netlab9"
 MGMT_ADDR = "172.31.255.30"
 
+# A busy single-vCPU VM can be slow to accept SSH, so allow time to connect
+# and retry transport failures (ssh exit 255); RouterOS's own replies pass through.
 CLI_COMMAND = (
+    "for _try in 1 2 3; do "
     f"sshpass -p {MGMT_PASSWORD} ssh -q -oStrictHostKeyChecking=no "
-    f"-oConnectTimeout=1 {MGMT_USER}@{MGMT_ADDR} '{{command}}'"
+    f"-oConnectTimeout=5 {MGMT_USER}@{MGMT_ADDR} '{{command}}'; "
+    "_rc=$?; [ $_rc -ne 255 ] && break; sleep 1; done; exit $_rc"
 )
 
 
@@ -26,9 +30,8 @@ class RouterOSAPIMixin:
         return "yes" in output
 
     def routeros_exec(self: SupportsExec, device_name: str, command: str) -> str:
-        # RouterOS CLI values needed here (IPs, interface names, AS numbers)
-        # never contain spaces, so commands stay free of embedded double
-        # quotes — nika's exec wrapping mis-escapes those.
+        # The command is single-quoted for ssh, so it must not contain single
+        # quotes; double quotes reach RouterOS unchanged.
         return self.exec_cmd(device_name, CLI_COMMAND.format(command=command))
 
     def routeros_show_interfaces(self: SupportsExec, device_name: str) -> str:

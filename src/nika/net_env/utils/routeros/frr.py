@@ -1,0 +1,174 @@
+"""Translate Kathara FRR router sketches to RouterOS configuration.
+
+The translation keeps each router's design: interface addresses, static
+routes, OSPF network-to-area bindings with interface costs, BGP sessions with
+network origins, FRR's open eBGP default and per-neighbor route maps over
+exact-prefix lists (the form solved routing parameters take), Linux bridged
+gateways and their DHCP relay. Linux egress shaping (netem) stays on the
+container links. RouterOS installs one best BGP path, so FRR's eBGP multipath
+has no equivalent; unsupported statements are rejected rather than deployed
+with changed meaning.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from ipaddress import IPv4Interface
+
+from nika.net_env.native_routers import NativeConversion
+from nika.net_env.utils.frr_sketch import parse_frr, parse_startup
+from nika.net_env.utils.routeros.common import bridged_interface
+from nika.net_env.utils.routeros.render import (
+    render_base,
+    render_bridge,
+    render_dhcp_relay,
+    render_ebgp,
+    render_ospf,
+    render_script,
+)
+
+
+@dataclass(frozen=True)
+class RouterOsRouter:
+    """A translated router: its script, data interfaces and link shaping."""
+
+    config: str
+    interfaces: tuple[str, ...]
+    link_commands: tuple[str, ...] = ()
+
+
+def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> RouterOsRouter:
+    """Translate one router; raise ``ValueError`` for unmapped statements."""
+    parsed = parse_startup(startup)
+    bgp, ospf, policy = parse_frr(frr_conf, hostname)
+    routed = [(name, cidr) for name, cidr in parsed.interfaces if name != "br0"]
+    bridged = [cidr for name, cidr in parsed.interfaces if name == "br0"]
+    data = [name for name, _ in routed] + list(parsed.bridge_ports or ())
+    if not data:
+        raise ValueError(f"Router {hostname!r} has no data interfaces")
+    if (
+        bgp is not None
+        and bgp.requires_policy
+        and any(asn != bgp.asn for asn in bgp.neighbors.values())
+    ):
+        raise ValueError("RouterOS translation needs FRR's open eBGP policy")
+    sections = [render_base(hostname, [(bridged_interface(n), c) for n, c in routed])]
+    if parsed.bridge_ports is not None:
+        sections.append(
+            render_bridge([bridged_interface(n) for n in parsed.bridge_ports], bridged)
+        )
+    sections.append(
+        [
+            f"/ip route add dst-address={prefix} gateway={hop}"
+            for prefix, hop in parsed.static_routes
+        ]
+    )
+    first_address = parsed.interfaces[0][1].split("/")[0] if parsed.interfaces else ""
+    if ospf is not None:
+        sections.append(
+            render_ospf(
+                ospf.router_id or first_address,
+                {str(network): area for network, area in ospf.networks},
+                costs=_template_costs(ospf, parsed.interfaces, policy.ospf_costs),
+            )
+        )
+    elif policy.ospf_costs:
+        raise ValueError("OSPF costs need an OSPF instance")
+    if bgp is not None:
+        sections.append(
+            render_ebgp(
+                bgp.asn,
+                bgp.router_id or first_address,
+                bgp.neighbors.items(),
+                networks=bgp.networks,
+                filters=bgp.route_maps,
+                chains=_route_map_chains(policy, set(bgp.route_maps.values())),
+            )
+        )
+    elif policy.route_maps:
+        raise ValueError("Route maps need a BGP instance")
+    if parsed.dhcp_relay is not None:
+        if not bridged:
+            raise ValueError("A DHCP relay needs the bridged gateway address")
+        sections.append(render_dhcp_relay(parsed.dhcp_relay[1], bridged[0]))
+    return RouterOsRouter(render_script(*sections), tuple(data), tuple(parsed.shaping))
+
+
+def _template_costs(ospf, interfaces, costs) -> dict[str, int]:
+    """Map interface costs to the OSPF template of the interface's network.
+
+    RouterOS sets cost per interface template. A cost translates only when its
+    interface is the sole interface in exactly one ``network`` statement.
+    """
+    result = {}
+    for name, cost in costs.items():
+        cidr = dict(interfaces).get(name)
+        if cidr is None:
+            raise ValueError("OSPF costs must name addressed OSPF interfaces")
+        subnet = IPv4Interface(cidr).network
+        if [network for network, _ in ospf.networks if subnet.subnet_of(network)] != [
+            subnet
+        ]:
+            raise ValueError(
+                "RouterOS OSPF costs need one network statement per costed interface"
+            )
+        result[str(subnet)] = cost
+    return result
+
+
+def _route_map_chains(policy, used) -> dict[str, list[tuple[str, bool]]]:
+    """Flatten route maps over exact prefix lists into ordered prefix actions."""
+    chains = {}
+    for name in sorted(used):
+        sequences = [seq for seq, _, _ in policy.route_maps[name]]
+        if len(set(sequences)) != len(sequences):
+            # FRR merges repeated entries; the sketch keeps one per sequence.
+            raise ValueError(f"Route map {name} repeats a sequence number")
+        chains[name] = [
+            (prefix, permit)
+            for _, permit, plist in sorted(policy.route_maps[name])
+            for prefix in policy.prefix_lists[plist]
+        ]
+    return chains
+
+
+def convert_frr_routers(env, names) -> NativeConversion:
+    """Redeploy the named routers of a built Kathara FRR environment on RouterOS.
+
+    Links, container interface names, addressing and every other node are
+    unchanged. An environment may render a router itself through
+    ``native_router_config(profile, name)``; otherwise its FRR sketch is
+    translated.
+    """
+    from nika.net_env.utils.routeros.common import configure_routeros_router
+    from nika.runtime.spec import MachineInventory
+
+    configs = {}
+    custom = getattr(env, "native_router_config", None)
+    for name in names:
+        machine = env.lab.machines[name]
+        router = custom("routeros", name) if custom else None
+        if router is None:
+            router = translate_frr_router(
+                name,
+                machine.fs.readtext("etc/frr/frr.conf"),
+                env.lab.fs.readtext(f"{name}.startup"),
+            )
+        configure_routeros_router(
+            env.lab,
+            machine,
+            router.config,
+            router.interfaces,
+            link_commands=router.link_commands,
+        )
+        identity = env.machine_identities[name]
+        capabilities = {*identity.capabilities, "routeros"} - {"frr"}
+        env.machine_identities[name] = replace(
+            identity, capabilities=tuple(sorted(capabilities))
+        )
+        configs[name] = router.config
+    env.metadata["machine_identities"] = MachineInventory(
+        env.machine_identities
+    ).to_dict()
+    env.load_machines()
+    return NativeConversion(configs, {})

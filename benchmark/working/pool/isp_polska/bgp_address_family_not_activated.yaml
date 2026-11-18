@@ -1,0 +1,53 @@
+scenario:
+  name: isp_polska
+failure:
+  fault_type: bgp_address_family_not_activated
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: szczecin
+    root_causes:
+    - resource:
+        kind: node
+        node: szczecin
+      fault_type: bgp_address_family_not_activated
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: warsaw
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: bgp_address_family_not_activated
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: wroclaw
+    root_causes:
+    - resource:
+        kind: node
+        node: wroclaw
+      fault_type: bgp_address_family_not_activated

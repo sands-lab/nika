@@ -72,7 +72,7 @@ def test_export_run_config_env_sets_absolute(monkeypatch, tmp_path: Path) -> Non
     assert Path(os.environ[ENV_RUN_CONFIG]).resolve() == exported_default
 
 
-def test_static_validation_yaml_has_only_enabled_flag() -> None:
+def test_static_validation_yaml_rejects_unknown_keys() -> None:
     cfg = RunConfig.model_validate({"nika": {"static_validation": {"enabled": True}}})
     assert cfg.nika.static_validation.enabled is True
     with pytest.raises(ValidationError, match="verifiers"):
@@ -408,6 +408,25 @@ def test_profile_yaml_loads(
     assert cfg.agent.base_url == expected["base_url"]
 
 
+def test_saved_config_with_observability_still_loads() -> None:
+    """Configs saved with the removed Langfuse settings remain loadable."""
+    saved = {"langfuse_enabled": False, "langfuse_host": "https://cloud.langfuse.com"}
+    cfg = RunConfig.model_validate({"nika": {"observability": saved}})
+    assert "observability" not in cfg.model_dump()["nika"]
+    with pytest.warns(UserWarning, match="nika.observability is ignored"):
+        RunConfig.model_validate(
+            {"nika": {"observability": {**saved, "langfuse_enabled": True}}}
+        )
+
+
+def test_saved_config_with_tool_output_limit_still_loads() -> None:
+    """Configs copied from the old example keep loading; a changed limit warns."""
+    cfg = RunConfig.model_validate({"nika": {"mcp": {"tool_output_max_chars": 10000}}})
+    assert "tool_output_max_chars" not in cfg.model_dump()["nika"]["mcp"]
+    with pytest.warns(UserWarning, match="tool_output_max_chars is ignored"):
+        RunConfig.model_validate({"nika": {"mcp": {"tool_output_max_chars": 0}}})
+
+
 def test_profile_cli_config_show_accepts_run_config(tmp_path: Path) -> None:
     path = tmp_path / "codex-gptmini.yaml"
     path.write_text(
@@ -468,3 +487,13 @@ def test_profile_config_set_on_profile(tmp_path: Path) -> None:
     assert cfg.agent.provider == "openai"
     assert cfg.agent.model == "gpt-5-mini"
     assert cfg.agent.reasoning_effort == "medium"
+
+
+def test_agent_sampling_defaults_unset_and_bounds() -> None:
+    assert RunConfig().agent.sampling_params() == {}
+    cfg = RunConfig.model_validate({"agent": {"temperature": 0, "seed": 1}})
+    assert cfg.agent.sampling_params() == {"temperature": 0, "seed": 1}
+    with pytest.raises(ValidationError, match="agent.top_p"):
+        RunConfig.model_validate({"agent": {"top_p": 0}})
+    with pytest.raises(ValidationError, match="agent.temperature"):
+        RunConfig.model_validate({"agent": {"temperature": -1}})

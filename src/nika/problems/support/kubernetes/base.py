@@ -136,15 +136,3 @@ class K8sProblemBase(ProblemBase):
                 "waited_sec": round(time.monotonic() - started, 1),
             },
         )
-
-    def get_task_description(self) -> str:
-        base = super().get_task_description()
-        nodes = ", ".join(self.cluster_nodes())
-        control = self.control_node()
-        return (
-            f"{base}\n\n"
-            f"Kubernetes: this lab runs a k3s cluster on devices [{nodes}]. "
-            f"`kubectl` works only on {control} (the k3s server); worker devices ship the "
-            "binary but have no kubeconfig. Report faulty devices using lab device names, "
-            "not Kubernetes object names."
-        )

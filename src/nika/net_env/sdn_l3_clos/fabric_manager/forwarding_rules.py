@@ -29,24 +29,33 @@ def build_forwarding_rules(model: ClosFabricModel) -> dict[str, Any]:
         host_ports = [p for p in leaf_ports if p.role == "host"]
         spine_ports = [p for p in leaf_ports if p.role == "spine"]
 
+        # Like a routed interface, accept IPv4 only when it is addressed to this
+        # leaf's own MAC on the ingress side: the anycast gateway MAC from host
+        # ports, the leaf's spine-facing port MAC from spines. Frames addressed
+        # elsewhere (e.g. a host with a stale or forged gateway ARP entry) miss
+        # every routed flow and are dropped.
+        ingress_macs = [VIRTUAL_ROUTER_MAC, *(p.mac for p in spine_ports)]
+
         # Local delivery: dest host IP → host port + rewrite
         for ep, hport in zip(model.endpoints_on_leaf(leaf_id), host_ports, strict=True):
-            flows.append(
-                {
-                    "switch": leaf,
-                    "device_id": device_id(dpid_for_leaf(leaf_id)),
-                    "table": 0,
-                    "priority": 40000,
-                    "match": f"ip,nw_dst={ep.ip}",
-                    "actions": (
-                        f"dec_ttl,"
-                        f"mod_dl_src:{VIRTUAL_ROUTER_MAC},"
-                        f"mod_dl_dst:{ep.mac},"
-                        f"output:{hport.name}"
-                    ),
-                    "cookie": f"0x2{leaf_id:03x}{ep.host_index:02x}",
-                }
-            )
+            # Same-rack peers address the frame to the destination's own MAC.
+            for variant, ingress_mac in enumerate([*ingress_macs, ep.mac]):
+                flows.append(
+                    {
+                        "switch": leaf,
+                        "device_id": device_id(dpid_for_leaf(leaf_id)),
+                        "table": 0,
+                        "priority": 40000,
+                        "match": f"ip,dl_dst={ingress_mac},nw_dst={ep.ip}",
+                        "actions": (
+                            f"dec_ttl,"
+                            f"mod_dl_src:{VIRTUAL_ROUTER_MAC},"
+                            f"mod_dl_dst:{ep.mac},"
+                            f"output:{hport.name}"
+                        ),
+                        "cookie": (f"0x2{leaf_id:03x}{ep.host_index:02x}{variant:02x}"),
+                    }
+                )
 
         # Remote rack prefixes → SELECT ECMP over spines
         for dst_leaf_id in range(1, model.leaf_count + 1):
@@ -90,7 +99,7 @@ def build_forwarding_rules(model: ClosFabricModel) -> dict[str, Any]:
                     "device_id": device_id(dpid_for_leaf(leaf_id)),
                     "table": 0,
                     "priority": 30000,
-                    "match": f"ip,nw_dst={prefix}",
+                    "match": f"ip,dl_dst={VIRTUAL_ROUTER_MAC},nw_dst={prefix}",
                     "actions": f"dec_ttl,group:{gid}",
                     "cookie": f"0x3{leaf_id:03x}{dst_leaf_id:03x}",
                 }

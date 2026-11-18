@@ -1,7 +1,8 @@
 """Leaderboard submission: template and pack+validate+submit."""
 
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import typer
 
@@ -14,21 +15,112 @@ leaderboard_app = typer.Typer(
 )
 
 
+_RELEASE_SOURCE_HELP = (
+    "Release files to check against: 'official' reads the published release reference "
+    "on GitHub; 'local' reads this checkout, for offline checks only."
+)
+
+
 @leaderboard_app.command("validate")
 def leaderboard_validate(
     package: Path = typer.Argument(..., help="Scores package directory to validate."),
+    trajectories: Optional[Path] = typer.Option(
+        None,
+        "--trajectories",
+        help="Paired trajectories directory; otherwise use an existing sibling.",
+    ),
+    audit_out: Optional[Path] = typer.Option(
+        None, "--audit-out", help="Write the recomputed trajectory audit JSON."
+    ),
+    audit_repo: Optional[Path] = typer.Option(
+        None, "--audit-repo", help="NIKA checkout for source-backed audit checks."
+    ),
+    fetch_trajectories: bool = typer.Option(
+        False,
+        "--fetch-trajectories",
+        help="Download paired trajectories at an immutable Hub revision before validation.",
+    ),
+    traj_repo: str = typer.Option(
+        DEFAULT_TRAJECTORIES_REPO,
+        "--traj-repo",
+        help="Trajectories dataset repository.",
+    ),
+    release_source: Literal["official", "local"] = typer.Option(
+        "official", "--release-source", help=_RELEASE_SOURCE_HELP
+    ),
+    output_format: Literal["text", "json", "markdown"] = typer.Option(
+        "text",
+        "--format",
+        help="Report format: 'json' and 'markdown' print the full report to stdout.",
+    ),
 ) -> None:
-    """Validate a scores package locally or in leaderboard GitHub CI."""
+    """Validate a scores package locally or in leaderboard GitHub CI.
+
+    Exits with status 1 when the package has errors, in every format.
+    """
     from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 
-    report = validate_leaderboard_submission(package)
-    for warning in report.warnings:
-        typer.secho(warning, fg=typer.colors.YELLOW, err=True)
+    import tempfile
+    from contextlib import ExitStack
+
+    if fetch_trajectories and trajectories is not None:
+        raise typer.BadParameter("Choose --trajectories or --fetch-trajectories.")
+    with ExitStack() as cleanup:
+        source = None
+        if fetch_trajectories:
+            import yaml
+            from nika.audit.fetch import TrajectoryFetchError
+            from nika.audit.fetch import fetch_trajectories as fetch
+            from nika.workflows.leaderboard.schema import PackageIdentity
+
+            identity = PackageIdentity.model_validate(
+                yaml.safe_load((package / "results" / "identity.yaml").read_text())
+            )
+            downloaded = Path(
+                cleanup.enter_context(tempfile.TemporaryDirectory(prefix="nika-audit-"))
+            )
+            try:
+                trajectories = fetch(
+                    package.name, identity.benchmark.version, downloaded, repo=traj_repo
+                )
+            except TrajectoryFetchError as exc:
+                typer.secho(
+                    f"Trajectory audit not run: {exc}", fg=typer.colors.RED, err=True
+                )
+                raise typer.Exit(code=1) from exc
+            source = json.loads((downloaded / "fetch-source.json").read_text())
+        report = validate_leaderboard_submission(
+            package,
+            release_source=release_source,
+            trajectories_dir=trajectories,
+            audit_repo=audit_repo,
+        )
+        if report.audit is not None and source is not None:
+            report.audit["trajectory_source"] = source
+    if audit_out is not None and report.audit is not None:
+        from nika.audit.runner import write_report
+
+        write_report(report.audit, audit_out)
+    if output_format == "json":
+        typer.echo(json.dumps(report.to_dict(package=str(package)), indent=2))
+    elif output_format == "markdown":
+        typer.echo(report.render_markdown(package=str(package)), nl=False)
+    else:
+        if report.audit is not None:
+            from nika.audit.runner import render_markdown
+
+            typer.echo(render_markdown(report.audit))
+        for issue in sorted(report.issues, key=lambda i: i.severity == "error"):
+            color = (
+                typer.colors.RED if issue.severity == "error" else typer.colors.YELLOW
+            )
+            typer.secho(issue.render_text(), fg=color, err=True)
+        if report.reference is not None:
+            typer.echo(f"Validated against {report.reference.describe()}", err=True)
+        if report.ok:
+            typer.echo(f"Validated scores package: {package}")
     if not report.ok:
-        for error in report.errors:
-            typer.secho(error, fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
-    typer.echo(f"Validated scores package: {package}")
 
 
 @leaderboard_app.command("template")
@@ -78,6 +170,24 @@ def leaderboard_submit(
         "--dry-run",
         help="Pack and validate locally without creating remote PRs.",
     ),
+    hf_model: Optional[str] = typer.Option(
+        None,
+        "--hf-model",
+        help="Hugging Face repo (org/name) of the open-weight model the run served. "
+        "Default: the run's model when it is a Hugging Face ID.",
+    ),
+    hf_revision: Optional[str] = typer.Option(
+        None,
+        "--hf-revision",
+        help="Commit, branch, or tag of --hf-model that the run served; "
+        "recorded as a commit SHA. Default: the latest revision at submit time.",
+    ),
+    proprietary: bool = typer.Option(
+        False,
+        "--proprietary",
+        help="The run's custom endpoint served a proprietary model; "
+        "record no Hugging Face repo.",
+    ),
     out: Optional[Path] = typer.Option(
         None,
         "--out",
@@ -126,6 +236,9 @@ def leaderboard_submit(
         "--body",
         help="GitHub pull request body (default: short auto-generated summary).",
     ),
+    release_source: Literal["official", "local"] = typer.Option(
+        "official", "--release-source", help=_RELEASE_SOURCE_HELP
+    ),
 ) -> None:
     """Pack, validate, and open GitHub (scores) + HF (trajectories) PRs.
 
@@ -154,6 +267,9 @@ def leaderboard_submit(
             name=name,
             authors=authors,
             dry_run=dry_run,
+            hf_model=hf_model,
+            hf_revision=hf_revision,
+            proprietary=proprietary,
             out_dir=out,
             repo=repo,
             draft=draft,
@@ -163,12 +279,15 @@ def leaderboard_submit(
             skip_github=skip_github,
             skip_trajectories=skip_trajectories,
             traj_repo=traj_repo,
+            release_source=release_source,
         )
     except (LeaderboardSubmitError, LeaderboardValidateError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
     typer.echo(f"Packed scores package: {result.package_dir}")
+    if result.hf_model:
+        typer.echo(f"Hugging Face model: {result.hf_model}")
     if result.trajectories_dir is not None:
         typer.echo(f"Packed trajectories package: {result.trajectories_dir}")
     if dry_run:

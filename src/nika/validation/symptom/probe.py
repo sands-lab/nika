@@ -34,16 +34,10 @@ from nika.validation.symptom.types import (
 # Scenario endpoint cross-subnet peers for host-local faults.
 _CROSS_SUBNET_PEER: dict[str, dict[str, str]] = {
     "simple_bgp": {"pc1": "200.1.1.2", "pc2": "195.11.14.2"},
-    "dc_clos": {
-        "client_0": "10.0.1.2",
-    },
 }
 
 _SCENARIO_PEER_HOST: dict[str, dict[str, str]] = {
     "simple_bgp": {"pc1": "pc2", "pc2": "pc1"},
-    "dc_clos": {
-        "client_0": "webserver0_pod0",
-    },
     "campus_lan": {
         "pc_1_1_1_1": "pc_2_1_1_1",
         "pc_2_1_1_1": "pc_1_1_1_1",
@@ -56,14 +50,6 @@ _SCENARIO_PEER_HOST: dict[str, dict[str, str]] = {
         "br2_guest_pc": "br2_edge",
         "br1_iot_pc": "br1_edge",
         "br2_iot_pc": "br2_edge",
-    },
-    "sdn_l3_clos": {
-        "client_1_1": "client_2_1",
-        "client_2_1": "client_1_1",
-    },
-    "p4_dc_fabric": {
-        "client_1_1": "client_2_1",
-        "client_2_1": "client_1_1",
     },
     "p4_dc_gateway": {
         "client_1": "client_2",
@@ -82,7 +68,6 @@ _SCENARIO_PEER_HOST: dict[str, dict[str, str]] = {
 }
 
 _SCENARIO_NAME_URL: dict[str, str] = {
-    "dc_clos": "http://web0.pod0/",
     "campus_lan": "http://web0.local/",
 }
 
@@ -115,11 +100,22 @@ def _resolve_path(
     params: Any,
     *,
     topo_size: str = "s",
+    net_env: Any = None,
 ) -> ProbePath | None:
-    path = get_probe_path(scenario or "", topo_size=topo_size)
+    inject_host = _params_get(params, "host_name")
+    observer = (
+        _params_get(params, "observer_device")
+        or _params_get(params, "symptom_host")
+        or inject_host
+    )
+    path = get_probe_path(
+        scenario or "",
+        topo_size=topo_size,
+        deploy_overrides={"probe_source": observer},
+        net_env=net_env,
+    )
     if path is None:
         return None
-    inject_host = _params_get(params, "host_name")
     explicit_observer = _params_get(params, "observer_device")
     src_host = explicit_observer or _params_get(params, "symptom_host") or path.src_host
     if not explicit_observer and inject_host and _is_endpoint_host(inject_host):

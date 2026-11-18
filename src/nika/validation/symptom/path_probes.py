@@ -11,10 +11,11 @@ import re
 import time
 from typing import Any
 
-from nika.net_env.verify import exec_or_empty
+from nika.net_env.verify import exec_or_empty, srl_bgp_established_peers
 from nika.problems.base import build_verify_result
 from nika.problems.rca.inventory import (
     iter_link_termination_points,
+    kernel_data_interface,
     parse_endpoint,
     resolve_default_intf,
 )
@@ -24,6 +25,8 @@ from nika.validation.symptom.addressing_probes import (
     _HOST_PREFIXES,
     address_baseline,
     address_unreachable,
+    healthy_read,
+    iface_ipv4,
     lab_addresses,
 )
 from nika.validation.symptom.probe import _is_endpoint_host, _resolve_path
@@ -54,7 +57,7 @@ def echo(
     output = exec_or_empty(
         runtime,
         src,
-        f"ping -n -c {count} -i {interval_sec} -W 1{size_arg}{df_arg} {dst}",
+        f"ping -n -c {count} -i {interval_sec} -W 2{size_arg}{df_arg} {dst}",
         timeout=count * interval_sec + 10.0,
     )
     replies = dict(re.findall(r"icmp_seq=(\d+) ttl=(\d+)", output))
@@ -72,7 +75,13 @@ def echo(
 def _is_end_host(problem: Any, node: str) -> bool:
     identity = problem.net_env.machine_identities.get(node)
     if identity is not None:
-        return identity.role in {NodeRole.HOST, NodeRole.SERVICE}
+        # Infrastructure servers, such as a public web server or an RPKI
+        # validator, are endpoints too: they terminate traffic, not forward it.
+        return identity.role in {
+            NodeRole.HOST,
+            NodeRole.SERVICE,
+            NodeRole.INFRASTRUCTURE,
+        }
     return _is_endpoint_host(node)
 
 
@@ -88,14 +97,19 @@ def link_path_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
     """
     host = params.host_name
     if _is_end_host(problem, host):
-        intf = resolve_default_intf(params.intf_name, problem.net_env)
+        intf = resolve_default_intf(params.intf_name, problem.net_env, host)
         problem._audit_link_path = {"mode": "end_host"}
         ok, evidence = address_baseline(problem, host, intf)
         return ok, {"mode": "end_host", **evidence}
-    path = _resolve_path(problem.scenario_name, params, topo_size=_topo_size(problem))
+    path = _resolve_path(
+        problem.scenario_name,
+        params,
+        topo_size=_topo_size(problem),
+        net_env=problem.net_env,
+    )
     if path is None or not path.dst_ip:
         return False, {"error": "no_probe_path"}
-    before = echo(problem.runtime, path.src_host, path.dst_ip)
+    before = _clean_echo(problem.runtime, path.src_host, path.dst_ip)
     problem._audit_link_path = {"mode": "transit", "before": before}
     return before["loss_percent"] == 0.0, {"mode": "transit", **before}
 
@@ -183,30 +197,23 @@ def largest_df_packet(runtime: LabRuntime, src: str, dst: str) -> int | None:
     return low + 28
 
 
+def _link_ipv4(problem: Any, node: str, intf: str) -> str:
+    """Data-plane IPv4 on ``node``'s topology interface ``intf``."""
+    return iface_ipv4(
+        problem.runtime, node, kernel_data_interface(problem.net_env, node, intf)
+    )
+
+
 def _mtu_ends(problem: Any, params: Any) -> dict[str, str] | None:
     """Endpoints whose traffic must cross the shrunk interface, and the probe.
 
-    On a point-to-point link, a host on the scenario path sends don't-fragment
-    echoes to the far end of the link: a connected route that only this link
-    reaches, so a meshed lab cannot route around the low-MTU hop. On a shared
-    segment, an end host on that segment pings the node's address there, and
-    the replies leave through the shrunk interface.
+    On a point-to-point link, the node sends don't-fragment echoes out of the
+    shrunk interface to the far end's address on the directly connected link.
+    On a shared segment, an end host on that segment pings the node's address
+    there, and the replies leave through the shrunk interface.
     """
-    runtime = problem.runtime
-    host, intf = params.host_name, params.intf_name
-    peer = problem._peer_endpoint(host, intf)
-    if peer is not None:
-        path = _resolve_path(
-            problem.scenario_name, params, topo_size=_topo_size(problem)
-        )
-        address = runtime.get_host_ip(peer[0], peer[1], with_prefix=True)
-        if path is None or not address:
-            return None
-        return {
-            "src": path.src_host,
-            "dst": address.split("/")[0],
-            "probe": "forward_df",
-        }
+    host = params.host_name
+    intf = resolve_default_intf(params.intf_name, problem.net_env, host)
     endpoint = f"{host}:{intf}"
     members = next(
         (
@@ -216,6 +223,12 @@ def _mtu_ends(problem: Any, params: Any) -> dict[str, str] | None:
         ),
         [],
     )
+    if len(members) == 2:
+        peer, peer_intf = parse_endpoint(next(m for m in members if m != endpoint))
+        address = _link_ipv4(problem, peer, peer_intf) if peer else ""
+        if not address:
+            return None
+        return {"src": host, "dst": address, "probe": "forward_df"}
     src = next(
         (
             node
@@ -224,10 +237,10 @@ def _mtu_ends(problem: Any, params: Any) -> dict[str, str] | None:
         ),
         None,
     )
-    address = runtime.get_host_ip(host, intf, with_prefix=True)
+    address = _link_ipv4(problem, host, intf)
     if src is None or not address:
         return None
-    return {"src": src, "dst": address.split("/")[0], "probe": "reply_size"}
+    return {"src": src, "dst": address, "probe": "reply_size"}
 
 
 def _largest_packet(runtime: LabRuntime, ends: dict[str, str]) -> int | None:
@@ -282,9 +295,11 @@ def _blackhole_ends(problem: Any, params: Any) -> dict[str, Any]:
             (inside if ip in network else outside).append((node, str(ip)))
 
     def first_reachable(src: str, candidates: list[tuple[str, str]]) -> str | None:
+        # One reply shows the address is live and routed from ``src``; whether
+        # the path is clean is the baseline's read, which retries lossy reads.
         ordered = sorted(candidates, key=lambda c: not c[0].startswith(_HOST_PREFIXES))
         for node, ip in ordered[:12]:
-            if node != src and echo(runtime, src, ip, count=3)["received"] == 3:
+            if node != src and echo(runtime, src, ip, count=3)["received"] > 0:
                 return ip
         return None
 
@@ -302,14 +317,43 @@ def _blackhole_ends(problem: Any, params: Any) -> dict[str, Any]:
                 for node, ip in outside
                 if not any(ipaddress.ip_address(ip) in net for net in local)
             ]
+            control = first_reachable(src, remote)
+            if control is None and problem.lab_backend == "containerlab":
+                # SR Linux data-plane addresses do not appear in Linux `ip addr`.
+                # An established BGP peer is a live router beyond the injected
+                # router and provides a control path outside the dropped prefix.
+                peers = srl_bgp_established_peers(
+                    exec_or_empty(
+                        runtime,
+                        router,
+                        'sr_cli "show network-instance default protocols bgp neighbor"',
+                    )
+                )
+                control = first_reachable(
+                    src,
+                    [
+                        (router, ip)
+                        for ip in sorted(peers)
+                        if ipaddress.ip_address(ip) not in network
+                        and not any(ipaddress.ip_address(ip) in net for net in local)
+                    ],
+                )
             return {
                 "router": router,
                 "network": str(network),
                 "src": src,
                 "dst": dst,
-                "control_dst": first_reachable(src, remote),
+                "control_dst": control,
             }
     return {"router": router, "network": str(network), "sources": sources[:6]}
+
+
+def _clean_echo(runtime: LabRuntime, src: str, dst: str) -> dict[str, Any]:
+    """Echoes to a destination that should answer every one (see ``healthy_read``)."""
+    read, reads = healthy_read(
+        lambda: echo(runtime, src, dst), lambda r: r["loss_percent"]
+    )
+    return {**read, "reads": reads}
 
 
 def blackhole_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -317,8 +361,8 @@ def blackhole_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
     problem._audit_blackhole = ends
     if not ends.get("dst") or not ends.get("control_dst"):
         return False, {**ends, "error": ends.get("error") or "no_live_destination"}
-    target = echo(problem.runtime, ends["src"], ends["dst"])
-    control = echo(problem.runtime, ends["src"], ends["control_dst"])
+    target = _clean_echo(problem.runtime, ends["src"], ends["dst"])
+    control = _clean_echo(problem.runtime, ends["src"], ends["control_dst"])
     ok = target["loss_percent"] == 0.0 and control["loss_percent"] == 0.0
     return ok, {**ends, "target": target, "control": control}
 
@@ -329,7 +373,7 @@ def blackhole_dropped(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     if not ends.get("dst") or not ends.get("control_dst"):
         return False, {"error": "no_baseline_path"}
     target = echo(problem.runtime, ends["src"], ends["dst"])
-    control = echo(problem.runtime, ends["src"], ends["control_dst"])
+    control = _clean_echo(problem.runtime, ends["src"], ends["control_dst"])
     control_ok = control["loss_percent"] == 0.0
     verified = target["received"] == 0 and control_ok
     return verified, build_verify_result(

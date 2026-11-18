@@ -8,6 +8,7 @@ from nika.service.pingmesh.endpoints import (
     is_endpoint_node_name,
     is_excluded_node_name,
 )
+from nika.runtime.spec import MachineInventory, NodeIdentity, NodeRole
 
 pytestmark = pytest.mark.unit
 
@@ -31,6 +32,20 @@ class EndpointNameHeuristicsTest:
 
 
 class DiscoverEndpointsTest:
+    def test_declared_infrastructure_endpoints(self) -> None:
+        api = MagicMock()
+        api.hosts = ["client"]
+        api.servers = {}
+        api.machine_inventory = MachineInventory(
+            {
+                "worker1": NodeIdentity(
+                    role=NodeRole.INFRASTRUCTURE, reachability_target=True
+                ),
+                "router": NodeIdentity(role=NodeRole.ROUTER),
+            }
+        )
+        assert discover_endpoints(api) == ["client", "worker1"]
+
     def test_kathara_hosts_and_servers(self) -> None:
         api = MagicMock()
         api.hosts = ["pc1", "pc2"]

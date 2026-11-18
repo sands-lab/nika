@@ -8,7 +8,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from nika.runtime.base import LabRuntime
+from nika.net_env.utils.sonic.common import container_iface
+from nika.service.containerlab.sonic_api import uses_sonic_router
+from nika.service.containerlab.srl_api import srl_linux_intf
 from nika.service.packet_capture.models import CaptureBackendKind, CaptureLimits
+
+_SONIC_PORT = re.compile(r"Ethernet\d+")
 
 
 @dataclass
@@ -43,9 +48,39 @@ def detect_capture_backend(runtime: LabRuntime, device: str) -> CaptureBackendKi
 
 
 def remote_paths(capture_id: str) -> tuple[str, str]:
-    remote_path = f"/tmp/nika-capture-{capture_id}.pcapng"
-    pid_path = f"/tmp/nika-capture-{capture_id}.pid"
+    remote_path = f"/tmp/capture-{capture_id}.pcapng"
+    pid_path = f"/tmp/capture-{capture_id}.pid"
     return remote_path, pid_path
+
+
+def capture_device(runtime: LabRuntime, device: str, interface: str) -> str:
+    """Return the Linux device to capture on for the requested *interface*.
+
+    SR Linux nodes keep their data ports as ``e1-N`` in the container's
+    default netns; names such as ``ethernet-1/N`` or plan ``ethN`` map there
+    (the srbase-default ``e1-N.0`` subinterfaces only see CPU traffic).
+    SONiC ports ``EthernetN`` map to the container data interface ``ethK``
+    that carries them. A missing device raises instead of producing an empty
+    capture.
+    """
+    name = interface.strip()
+    if getattr(runtime, "backend", None) == "containerlab":
+        if runtime.uses_srl_router(device):
+            name = srl_linux_intf(name)
+        elif _SONIC_PORT.fullmatch(name) and uses_sonic_router(runtime, device):
+            name = container_iface(name)
+    if name == "any":
+        return name
+    quoted = _shell_quote(f"/sys/class/net/{name}")
+    missing = runtime.exec(device, f"[ -e {quoted} ] || echo missing", timeout=5)
+    if "missing" in missing:
+        available = runtime.exec(device, "ls /sys/class/net 2>/dev/null", timeout=5)
+        names = ", ".join(available.split()) or "unknown"
+        raise ValueError(
+            f"Interface {interface!r} does not exist on {device!r}. "
+            f"Available interfaces: {names}."
+        )
+    return name
 
 
 def start_capture(
@@ -57,6 +92,7 @@ def start_capture(
     capture_filter: str | None,
     limits: CaptureLimits,
 ) -> RunningCapture:
+    interface = capture_device(runtime, device, interface)
     backend = detect_capture_backend(runtime, device)
     remote_path, pid_path = remote_paths(capture_id)
     quoted_iface = _shell_quote(interface)
@@ -101,7 +137,7 @@ def start_capture(
     # SIGTERM would leave the writer running.
     launch = (
         f"nohup sh -c {shlex.quote('exec ' + capture_cmd)} "
-        f">/tmp/nika-capture-{capture_id}.log "
+        f">/tmp/capture-{capture_id}.log "
         f"2>&1 & echo $! > {quoted_pid}"
     )
     runtime.exec(device, launch, timeout=15)
@@ -109,7 +145,7 @@ def start_capture(
     if not pid.isdigit():
         log_tail = runtime.exec(
             device,
-            f"tail -n 20 /tmp/nika-capture-{capture_id}.log 2>/dev/null || true",
+            f"tail -n 20 /tmp/capture-{capture_id}.log 2>/dev/null || true",
             timeout=5,
         )
         raise RuntimeError(f"Failed to start capture on {device}: {log_tail.strip()}")
@@ -162,10 +198,16 @@ def stop_capture(
 
     size_raw = runtime.exec(
         device,
-        f"wc -c < {quoted_remote} 2>/dev/null || echo 0",
+        f"if [ -f {quoted_remote} ]; then wc -c < {quoted_remote}; else echo missing; fi",
         timeout=10,
     )
-    captured_bytes = _parse_int(size_raw) or 0
+    captured_bytes = _parse_int(size_raw)
+    if captured_bytes is None or captured_bytes == 0:
+        log_path = _shell_quote(re.sub(r"\.pid$", ".log", pid_path))
+        log = runtime.exec(device, f"tail -n 20 {log_path} 2>/dev/null", timeout=5)
+        raise FileNotFoundError(
+            f"Capture produced no file on {device!r}: {remote_path}. {log.strip()}"
+        )
 
     packet_count = 0
     count_output = runtime.exec(

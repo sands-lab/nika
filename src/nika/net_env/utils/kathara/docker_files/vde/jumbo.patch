@@ -1,0 +1,37 @@
+From ce8237290814cb90551180fe838a1357e735075b Mon Sep 17 00:00:00 2001
+From: Samuel Gauthier <samuel.gauthier@6wind.com>
+Date: Tue, 27 Oct 2020 17:41:59 +0100
+Subject: [PATCH] add support for jumbo
+
+Signed-off-by: Samuel Gauthier <samuel.gauthier@6wind.com>
+---
+ src/vde_switch/port.h | 2 +-
+ src/vde_vxlan/vxlan.h | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/vde_switch/port.h b/src/vde_switch/port.h
+index 46c81dffff86..2e572511b9d1 100644
+--- a/src/vde_switch/port.h
++++ b/src/vde_switch/port.h
+@@ -20,7 +20,7 @@ struct ethheader {
+ 
+ struct packet {
+ 	struct ethheader header;
+-  unsigned char data[1504]; /*including trailer, IF ANY */
++	unsigned char data[16384]; /*including trailer, IF ANY */
+ };
+ 
+ struct bipacket {
+diff --git a/src/vde_vxlan/vxlan.h b/src/vde_vxlan/vxlan.h
+index 510108c7172c..f9e7c87e5c3d 100644
+--- a/src/vde_vxlan/vxlan.h
++++ b/src/vde_vxlan/vxlan.h
+@@ -33,7 +33,7 @@ struct eth_hdr {
+ 
+ struct eth_pkt {
+ 	struct eth_hdr header;
+-	unsigned char data[1504]; /*including trailer, IF ANY */
++	unsigned char data[16384]; /*including trailer, IF ANY */
+ };
+ 
+ struct vxlan_pkt {

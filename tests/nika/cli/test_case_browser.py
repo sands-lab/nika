@@ -44,6 +44,26 @@ def test_choice_cancel() -> None:
                 choose("Choose", [("a", "First preset")])
 
 
+def test_task_id_lookup_skips_uncovered_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from nika.workflows.benchmark.trials import task_id_for_row
+    from nika.workflows.case import load_example_cases
+
+    catalog = BENCHMARK_DIR / "working" / "pool" / "dc_clos" / "host_missing_ip.yaml"
+    task_id = task_id_for_row(load_example_cases(catalog)[0])
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("uncovered-case generation should not run")
+
+    monkeypatch.setattr("nika.workflows.benchmark.generate.build_failure_cases", fail)
+    monkeypatch.setattr(
+        "nika.workflows.benchmark.generate.iter_failure_case_specs", fail
+    )
+    found = load_example_cases(task_id=task_id)
+    assert [task_id_for_row(row) for row in found] == [task_id]
+
+
 def test_case_export_preserves_task_identity_and_ground_truth(tmp_path: Path) -> None:
     runner = CliRunner()
     catalog = BENCHMARK_DIR / "working" / "pool" / "dc_clos" / "host_missing_ip.yaml"
@@ -63,7 +83,13 @@ def test_case_export_preserves_task_identity_and_ground_truth(tmp_path: Path) ->
     )
     assert listing.exit_code == 0, listing.output
     entries = json.loads(listing.output)
-    assert [row["topo_size"] for row in entries] == ["s", "m", "l"]
+    assert {(row["topo_size"], row.get("device_profile")) for row in entries} == {
+        ("s", None),
+        ("s", "iosxr"),
+        ("s", "routeros"),
+        ("m", None),
+        ("l", None),
+    }
     assert all(row["e2e_verification"] == "not_recorded" for row in entries)
     row = entries[0]
     output = tmp_path / "case with spaces.yaml"
@@ -101,7 +127,7 @@ def test_noninteractive_browse_requires_selection() -> None:
 def test_incompatible_case_is_not_offered(tmp_path: Path) -> None:
     catalog = tmp_path / "cases.yaml"
     catalog.write_text(
-        "cases:\n- scenario: dc_clos\n  topo_size: s\n  problem: k8s_coredns_isolated\n  inject:\n    host_name: client_0\n"
+        "cases:\n- scenario: dc_clos\n  topo_size: s\n  problem: k8s_coredns_isolated\n  inject:\n    host_name: client_1_1\n"
     )
     result = CliRunner().invoke(
         app, ["case", "browse", "--catalog", str(catalog), "--json"]

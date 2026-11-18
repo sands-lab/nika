@@ -12,6 +12,13 @@ NO_RTT_OUTPUT = "\n--- 10.0.0.2 ping statistics ---\n4 packets transmitted, 4 re
 
 
 class ParsePingOutputTest:
+    def test_busybox_rtt_without_standard_deviation(self) -> None:
+        stats = parse_ping_output(
+            "1 packets transmitted, 1 packets received, 0% packet loss\nround-trip min/avg/max = 2.1/2.3/2.5 ms\n"
+        )
+        assert stats["rtt_avg_ms"] == 2.3
+        assert stats["rtt_mdev_ms"] is None
+
     def test_ok_output(self) -> None:
         stats = parse_ping_output(OK_OUTPUT)
         assert stats["tx"] == 4

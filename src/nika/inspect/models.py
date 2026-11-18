@@ -49,6 +49,14 @@ class CanonicalTraceEvent(BaseModel):
     truncated: bool = False
 
 
+class RcaMatch(BaseModel):
+    """Submitted vs ground-truth ``(resource, fault_type)`` pairs, as RCA F1 matches them."""
+
+    found: int
+    expected: int
+    wrong: int
+
+
 class ArtifactFlags(BaseModel):
     run: bool = False
     messages: bool = False
@@ -97,6 +105,7 @@ class SessionSummary(BaseModel):
     outcome: str | None = None
     detection_score: float | None = None
     rca_f1: float | None = None
+    rca_match: RcaMatch | None = None
     localization_f1: float | None = None
     in_tokens: int | None = None
     out_tokens: int | None = None
@@ -174,9 +183,39 @@ class LlmStatsResponse(BaseModel):
     stats: dict[str, LlmRequestStats] = Field(default_factory=dict)
 
 
+class ScheduleOccurrence(BaseModel):
+    event_index: int
+    occurrence_index: int
+    occurrence_count: int
+    label: str
+    kind: Literal["failure", "traffic"] = "failure"
+    state: str = "pending"
+    planned_start: float
+    planned_stop: float | None = None
+    actual_start: float | None = None
+    verified_at: float | None = None
+    actual_stop: float | None = None
+
+
+class ScheduleProgress(BaseModel):
+    state: str
+    started_at: str | None = None
+    elapsed_sec: float = 0
+    completed_operations: int
+    total_operations: int
+    active_occurrences: int
+    agent_start: float | None = None
+    agent_actual_start: float | None = None
+    next_label: str | None = None
+    next_at: float | None = None
+    error: str | None = None
+    occurrences: list[ScheduleOccurrence] = Field(default_factory=list)
+
+
 class SessionDetail(SessionSummary):
     run: dict[str, Any] = Field(default_factory=dict)
     task_description: str | None = None
+    schedule: ScheduleProgress | None = None
 
 
 class SessionFacets(BaseModel):

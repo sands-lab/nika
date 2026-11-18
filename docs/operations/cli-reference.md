@@ -6,7 +6,7 @@ Implementation: [`main.py`](../../src/nika/cli/main.py) registers the command gr
 
 Entry point: `nika` (see `[project.scripts]` in `pyproject.toml`). During development use `uv run nika …`.
 
-Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository root (derived from the installed `nika` package location). Credentials load from the repository-root `.env`; operational settings load from `config/nika.yaml`. See the [run configuration reference](configuration.md).
+Sessions (`runtime/`) and caches (`.nika_cache/`) live in the main Git checkout and are shared by all its worktrees (see [State directory](configuration.md#state-directory)). Everything else stays in the checkout the `nika` package is installed from: results default to its `results/`, benchmark data comes from its `benchmark/`, credentials load from its `.env`, and operational settings load from its `config/nika.yaml`. For example, a worktree at `/srv/nika-feature` of `/srv/nika` keeps sessions in `/srv/nika/runtime/` but writes results to `/srv/nika-feature/results/`. See the [run configuration reference](configuration.md).
 
 ## Command tree
 
@@ -23,8 +23,10 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika eval` | Metrics, LLM judge, and offline summary CSV for closed sessions |
 | `nika leaderboard` | Write a submission template, then pack, validate, and submit scores (GitHub PR) and trajectories (HF PR) from an official release run |
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
+| `nika observability` | Turn monitoring of benchmark progress and lab CPU and memory `on` / `off`, viewed in Grafana; see [monitor benchmarks and lab resources](resource-monitoring.md) |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
-| `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`, `burst`) against the running lab |
+| `nika engine` | Build the benchmark engine image of a published release; see [benchmark engine](#nika-engine) |
+| `nika traffic` | Synthetic traffic (`od`, `web`, `matrix-replay`, `burst`) against the running lab |
 | `nika tui` | Interactive shell with slash commands and guided forms over this CLI (bare `nika` in a terminal opens it too); see [interactive shell](tui.md) |
 
 Use `nika <group> --help` and `nika <group> <command> --help` for generated option text.
@@ -37,37 +39,17 @@ Run the browser in an interactive terminal:
 uv run nika case browse
 ```
 
-Select an environment, failure, deployment profile, and injection preset. Type to
-search, use Up/Down to move, and press Enter to select. Escape returns to the
-previous choice; Ctrl+C exits. The browser skips steps with one option and lists
-smaller topology sizes first. You can preselect fields:
+Select an environment, failure, deployment profile, and injection preset. Type to search, use Up/Down to move, and press Enter to select. Escape returns to the previous choice; Ctrl+C exits. The browser skips steps with one option and lists smaller topology sizes first. You can preselect fields:
 
 ```shell
 uv run nika case browse --env dc_clos --failure host_missing_ip
 ```
 
-Review the task ID and injection parameters, then choose to start the lab,
-export a single-case YAML file, or show a reproduction command. Starting creates
-an isolated session and injects the selected failure. It leaves the lab running
-for manual diagnosis and prints the session ID and cleanup command. It does not
-start an agent. Starting requires the scenario's lab backend and Docker images,
-just as `nika env run` does.
+Review the task ID and injection parameters, then choose to start the lab, export a single-case YAML file, or show a reproduction command. Starting creates an isolated session and injects the selected failure. It leaves the lab running for manual diagnosis and prints the session ID and cleanup command. It does not start an agent. Starting requires the scenario's lab backend and Docker images, just as `nika env run` does.
 
-The default browser combines `benchmark/working/pool` with compatible registered
-failure/scenario/size combinations missing from that pool. This includes labs
-excluded from benchmark generation, such as `iosxr_simple_bgp`. NIKA generates
-missing injection presets with the existing target enumerator and checks their
-parameters and ground truth offline. It reports combinations with no legal
-target rather than offering them as runnable. The browser does not change the
-working pool or published benchmarks. Use `--catalog PATH` to restrict discovery
-to a particular pool directory, candidate YAML, or flat cases YAML.
+The default browser combines `benchmark/working/pool` with compatible registered failure/scenario/size combinations missing from that pool. This includes labs excluded from benchmark generation, such as `iosxr_simple_bgp`. NIKA generates missing injection presets with the existing target enumerator and checks their parameters and ground truth offline. It reports combinations with no legal target rather than offering them as runnable. The browser does not change the working pool or published benchmarks. Use `--catalog PATH` to restrict discovery to a particular pool directory, candidate YAML, or flat cases YAML.
 
-The menus, preview, and JSON output label cases as `experimental` when NIKA has
-no recorded E2E validation for them. Catalog membership alone does not establish
-runtime validation, so current catalog presets also carry this label. The
-`case_source` JSON field distinguishes catalog presets from generated presets.
-Deployment profiles and injection presets remain complete records throughout
-selection. Launching checks injection parameters against the topology again.
+The menus, preview, and JSON output label cases as `experimental` when NIKA has no recorded E2E validation for them. Catalog membership alone does not establish runtime validation, so current catalog presets also carry this label. The `case_source` JSON field distinguishes catalog presets from generated presets. Deployment profiles and injection presets remain complete records throughout selection. Launching checks injection parameters against the topology again.
 
 For scripts, list presets as JSON and select a returned task ID:
 
@@ -78,26 +60,15 @@ uv run nika case browse --task-id TASK_ID --output my-case.yaml
 uv run nika case run TASK_ID
 ```
 
-Replace `TASK_ID` with an ID from the listing. Pass the same `--catalog` to
-subsequent commands when using a custom source. Export refuses to overwrite an
-existing file and preserves the case's task ID, injection parameters, and ground
-truth. Use `nika benchmark run --config my-case.yaml` to run the exported case
-with an agent. In a noninteractive shell, browsing requires `--json` or a filter
-that identifies exactly one preset. Both browse and run accept `--result-dir`
-for sessions they start.
+Replace `TASK_ID` with an ID from the listing. Pass the same `--catalog` to subsequent commands when using a custom source. Export refuses to overwrite an existing file and preserves the case's task ID, injection parameters, and ground truth. Use `nika benchmark run --config my-case.yaml` to run the exported case with an agent. In a noninteractive shell, browsing requires `--json` or a filter that identifies exactly one preset. Both browse and run accept `--result-dir` for sessions they start.
 
-The preview and JSON also include the task label accepted by
-`nika agent run --problem LABEL`. That command uses the agent workflow's default
-deployment and injection settings; use `--set key=value` to override injection
-parameters. To run an agent on the exact profile and target selected in the
-browser, start the case, then use the printed session command:
+The preview and JSON also include the task label accepted by `nika agent run --problem LABEL`. That command uses the agent workflow's default deployment and injection settings; use `--set key=value` to override injection parameters. To run an agent on the exact profile and target selected in the browser, start the case, then use the printed session command:
 
 ```shell
 uv run nika agent run --session_id SESSION_ID
 ```
 
-Replace `SESSION_ID` with the ID printed by `nika case run`. IOS-XR execution
-requires the licensed XRd image even though case discovery and export do not.
+Replace `SESSION_ID` with the ID printed by `nika case run`. IOS-XR execution requires the licensed XRd image even though case discovery and export do not.
 
 ## Global conventions
 
@@ -147,11 +118,11 @@ Batch resume only looks at this directory. See [`--resume`](#batch-run-options).
 
 Aligned with `nika agent run`:
 
-- **`-a` / `--agent`**: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk`.
+- **`-a` / `--agent`**: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `cli.opencode`, `cli.dsh`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk`.
 - **`-p` / `--provider`**: LLM provider for all agents (`openai`, `anthropic`, `deepseek`, `custom`; capabilities differ by agent).
 - **`-m` / `--model`**: model id.
 - **`-n` / `--max-steps`**: max LLM turns per phase (every agent).
-- **`-e` / `--reasoning-effort`**: Reasoning effort for BYO agents (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`), `cli.codex`, and `sdk.codex_sdk`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. `byo.mcp_agent` accepts `none` / `low` / `medium` / `high` only.
+- **`-e` / `--reasoning-effort`**: Reasoning effort for BYO agents (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`), Codex agents (`cli.codex`, `sdk.codex_sdk`), Claude agents (`cli.claude`, `sdk.claude_sdk`), OpenCode (`cli.opencode`), and DeepSeek Harness (`cli.dsh`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. `byo.mcp_agent` accepts `none` / `low` / `medium` / `high` only. Defaults to `medium` for these agents.
 - **`--base-url`**: inference endpoint (`agent.base_url`), the OpenAI-style API root ending in `/v1` (for example `http://localhost:8000/v1`). Used only with `provider=custom`, where it is required.
 
 `nika eval judge` uses **`-p`** and **`-m`** for the judge only (no agent in that command).
@@ -164,9 +135,8 @@ Aligned with `nika agent run`:
 - **`nika session inspect [--session_id ID] [-c]`**: print the session document as JSON plus a table of `failure_injections`. Pass **`-c` / `--containers`** to also list running lab containers (docker-ps style). Auto-selects when only one session is running.
 - **`nika session containers [--session_id ID]`**: list containers in the session lab (CONTAINER ID, NAME, IMAGE, STATUS, NAMES). Auto-selects when only one session is running.
 - **`nika session close [--session_id ID] [-y]`**: undeploy the lab, mark failure records ended, and remove the runtime session file. If you omit `--session_id` with one running session, NIKA selects it. **`-y`** skips the confirmation prompt.
-- **`nika session wipe [-y]`**: close every running session and wipe all leftover Kathara, Containerlab, and runtime working files.
+- **`nika session wipe [-y]`**: close every running session, stop host flap workers, remove labeled helper containers, and wipe leftover Kathara, Containerlab, and runtime working files.
 
----
 ---
 
 ## `nika inspect`
@@ -183,7 +153,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 | --- | --- | --- |
 | `--result-dir` | `nika.result_dir` / `results/` | Results root to scan (session dirs with `run.json`) |
 | `--host` | `127.0.0.1` | `127.0.0.1`, `localhost`, `::1`, `0.0.0.0`, or `::` (not a specific NIC IP) |
-| `--port` | `7580` | If busy, NIKA picks a free port and prints it |
+| `--port` | `7580` | Port to serve on (`0` = OS-assigned). Only one dashboard may use `7580`; pass another port to run a second one alongside it. A busy port is an error |
 | `--no-open` | off | Skip opening a browser (always skipped under SSH or WSL) |
 
 ---
@@ -191,7 +161,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 ## `nika env`
 
 - **`nika env list`**: print registered scenario ids.
-- **`nika env run NAME [-s s|m|l] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG] [--result_dir PATH]`**: deploy one instance, run configured runtime verification, create a session, and print `session_id=…`. Batfish follows `nika.static_validation.enabled` (CLI flags override it for one run). Runtime depth follows `nika.runtime_validation.depth` (default `light`).
+- **`nika env run NAME [-s s|m|l] [--telemetry KIND] [--traffic PATTERN[,KEY=VALUE...]] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG] [--result_dir PATH]`**: deploy one instance, run configured runtime verification, create a session, and print `session_id=…`. Repeat `--telemetry` for `netflow`, `prometheus`, and `syslog`; see [Telemetry](network-scenarios.md#telemetry). `--traffic` adds a background traffic profile, such as `--traffic gravity,load_mbps=4`; see [Background traffic profiles](network-scenarios.md#background-traffic-profiles). Batfish follows `nika.static_validation.enabled` (CLI flags override it for one run). Runtime depth follows `nika.runtime_validation.depth` (default `light`).
 
   Deploy options for ISP and multi-backend scenarios:
 
@@ -203,10 +173,9 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
   | `--bgp-mode none\|ibgp_rr\|ebgp` | BGP preset for ISP topology scenarios (default `none`) |
   | `--rpki` / `--no-rpki` | Deprecated for base ISP scenarios. Use the named scenarios `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` |
   | `--backend kathara\|containerlab` | Lab backend. Required when a scenario supports both; ISP defaults to `kathara` |
-  | `--device-profile frr\|iosxr\|nokia_srlinux` | ISP device profile. `frr` and `iosxr` run on Kathara, `nokia_srlinux` on Containerlab. The default follows `--backend`. For IOS-XR, use the `iosxr_simple_bgp` scenario |
+  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux\|sonic` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` and `sonic` on Containerlab; the default follows `--backend`. `min3clos` accepts `nokia_srlinux` (default) and `sonic`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros`. RouterOS supports only size `s` in these three environments. IOS XR supports only size `s` for `dc_clos`, and all sizes for `campus_lan` and `enterprise_branch`. See [SONiC routers](network-scenarios.md#sonic-routers-on-containerlab), [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
----
 ---
 
 ## `nika failure`
@@ -216,7 +185,6 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 - **`nika failure inject PROBLEM [PROBLEM …] [--session_id ID] [--set key=value …]`**: inject for a selected running session and write ground truth. Repeat **`--set`** to override injection parameters (see `describe` for valid keys).
 - **`nika failure ps [--session_id ID]`**: list persisted failure injection records for one session.
 
----
 ---
 
 ## `nika exec`
@@ -236,7 +204,6 @@ Example: `nika exec --timeout 30 pc1 ping -c 3 10.0.0.2`
 Put options before `HOST`. `nika exec` passes every argument after `HOST` to the container command, so a trailing `--timeout 30` becomes a `ping` argument and the timeout stays at 10 seconds.
 
 ---
----
 
 ## `nika config`
 
@@ -248,12 +215,11 @@ The tracked template is `config/nika.example.yaml` (preferred for new setups). P
 Lab deployment and verification timings live under `nika.lab`. MCP client and gateway settings live under `nika.mcp`. The `byo.langgraph` LLM client reads timeout and retry settings from `agent.llm`. See the [run configuration reference](configuration.md) for defaults and constraints.
 
 ---
----
 
 ## `nika agent`
 
-- **`nika agent list`**: built-in harnesses (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`) and added agents, with their providers and sandbox support, plus LLM providers and reasoning-effort levels.
-- **`nika agent add PATH`** / **`nika agent remove ID`**: register an agent project developed outside NIKA from its `nika-agent.yaml`, or unregister it. NIKA imports the project from its directory and installs nothing. See [Integrate a custom agent](../agents/custom-agents.md#3-register-it).
+- **`nika agent list`**: built-in harnesses (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `cli.opencode`, `cli.dsh`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`), custom agents from `src/agent/custom/`, and added agents, with their providers and sandbox support, plus LLM providers and reasoning-effort levels.
+- **`nika agent add PATH`** / **`nika agent remove ID`**: register an agent project developed outside NIKA from its `nika-agent.yaml`, or unregister it. NIKA copies the project into the agent's sandbox on every run and installs its dependencies there. See [Custom agent registration](../agents/agent-reference.md#custom-agent-registration); an agent in `src/agent/custom/` needs no registration ([Integrate a custom agent](../agents/custom-agents.md)).
 - **`nika agent check`**: lists models at the configured LLM endpoint and reports whether it is reachable, accepts the credentials, and serves `agent.model`. Takes `--run-config`, `-p`, `-m`, `--base-url`, and `--json`; exits non-zero when the endpoint is not usable. No tokens are spent.
 - **`nika agent run`**: two modes:
 
@@ -266,25 +232,26 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
   | Scenario type | Label | Example |
   |---------------|--------|---------|
-  | Non-scalable | `{scenario}_{problem}` | `simple_bgp_link_down` |
+  | Non-scalable | `{scenario}_{problem}` | `min3clos_link_down` |
   | Scalable | `{scenario}_{size}_{problem}` with size `s`, `m`, or `l` | `dc_clos_s_link_down` |
 
   Discover pieces with `nika env list` and `nika failure list`.
 
   | Flag | Mode | Meaning |
   |------|------|---------|
-  | `-a` / `--agent` | both | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk` |
+  | `-a` / `--agent` | both | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `cli.opencode`, `cli.dsh`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk` |
   | `-p` / `--provider` | both | Shared: `openai`, `anthropic`, `deepseek`, or `custom` |
   | `-m` / `--model` | both | model id |
   | `-n` / `--max-steps` | both | Max LLM turns per phase (every agent) |
-  | `-e` / `--reasoning-effort` | both | Reasoning effort (BYO agents, `cli.codex`, `sdk.codex_sdk`) |
+  | `-e` / `--reasoning-effort` | both | Reasoning effort (BYO, Codex, Claude, OpenCode, and DeepSeek Harness agents; default `medium`) |
   | `--base-url` | both | Inference endpoint (`agent.base_url`) |
   | `--role` | both | Diagnosis access role (default `agent.access.role`) |
   | `--run-config PATH` | both | Run config file (default `config/nika.yaml`; also `NIKA_RUN_CONFIG`) |
-  | `--sandbox-keep-container` | both | Keep the `sbx` sandbox after the agent exits (debugging) |
+  | `--sandbox-backend sbx\|e2b` | both | Sandbox runtime for this run (`nika.sandbox.backend`) |
+  | `--sandbox-keep-container` | both | Keep the sandbox after the agent exits (debugging) |
   | `--sandbox-cpus N` | both | CPU limit for the sandbox (`nika.sandbox.cpus`) |
   | `--sandbox-memory SIZE` | both | Memory limit for the sandbox, such as `8g` (`nika.sandbox.memory`) |
-  | `--sandbox-offline-sdk-wheels` / `--no-sandbox-offline-sdk-wheels` | both | Stage host-cached SDK wheels into the sandbox so SDK and SADE agents skip re-downloading dependencies. Defaults to `nika.sandbox.offline_sdk_wheels` (`true`) |
+  | `--sandbox-offline-sdk-wheels` / `--no-sandbox-offline-sdk-wheels` | both | sbx: stage host-cached SDK wheels into the sandbox so SDK and SADE agents skip re-downloading dependencies. Defaults to `nika.sandbox.offline_sdk_wheels` (`true`) |
   | `--sandbox-proxy URL` | both | Upstream proxy for the `sbx` daemon (`nika.sandbox.upstream_proxy`) |
   | `--problem` | task | task label (see above) |
   | `--set key=value` | task | override inject parameters (repeatable) |
@@ -298,18 +265,17 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
     --problem dc_clos_s_link_down
   nika agent run -a byo.langgraph -p openai -m gpt-5-mini -n 20 \
-    --problem dc_clos_s_link_down --set host_name=pc_0_0 --set intf_name=eth0
+    --problem dc_clos_s_link_down --set host_name=client_1_1 --set intf_name=eth0
 
   # Session mode (manual lab control)
   nika env run dc_clos -s s
-  nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
+  nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
   nika agent run -a cli.codex -m gpt-5-mini -e medium
   nika session close -y
   ```
 
   Manual lab/session commands are documented under **`nika env`**, **`nika failure`**, and **`nika session`** below.
 
----
 ---
 
 ## `nika benchmark`
@@ -352,8 +318,10 @@ nika benchmark run --release 0.2.0 --split test \
 | Command | What it does |
 |---------|----------------|
 | `nika benchmark list` | Without `--release` or `--config`, prints one row per frozen release: version, default split, case count per split, `n_trials`, and status. It reads only the `RELEASE.yaml` manifests and skips preflight. With `--release` (optionally `--split`) or `--config`, prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for each case. Add `--json` for scripts. |
-| `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. |
-| `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before the run starts. |
+| `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. `--oracle` also prints the task's reference diagnosis, the oracle's playbook steps (see [Oracle solver](../benchmarks/oracle-solver.md)). |
+| `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before any trial starts; with `--release`, NIKA checks them against the task list of the release's benchmark engine after starting it. |
+| `nika benchmark run --skip-licensed` | `--config` batch mode only. Leaves out rows that need licensed vendor images: IOS XR and RouterOS `device_profile` rows, `iosxr_simple_bgp`, `routeros_simple_bgp`. Without it, a run that needs a missing licensed image stops before any lab starts and lists the affected rows. |
+| `nika benchmark run --device-profile NAME` | `--config` batch mode only. Repeatable. Runs only rows of these router platforms (`frr`, `nokia_srlinux`, `sonic`, `iosxr`, `routeros`); an explicit `device_profile` takes precedence. Otherwise Containerlab rows count as `nokia_srlinux`, and other rows use the environment's uniquely declared native platform, with `frr` as the fallback. For example, `routeros_simple_bgp` rows count as `routeros` without the field. |
 
 ### Run layout and artifacts
 
@@ -361,9 +329,9 @@ Release runs expand each case to `defaults.n_trials` trials under `{result_dir}/
 
 For batch `--config` or `--release`, `--result_dir` is the run root (see [Results directory](#results-directory---result_dir)). Resume and skip inspect only that directory.
 
-Release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`. Ad-hoc `--config` runs write `run.json` only. NIKA writes these files after you confirm the plan. Each trial `run.json` is stamped with `benchmark_id` / `benchmark_version` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live release progress is under `runtime/benchmark_runs/{run_id}.json`.
+Release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`. Ad-hoc `--config` runs write `run.json` only. NIKA writes these files after you confirm the plan. Each trial `run.json` is stamped with `benchmark_id` / `benchmark_version` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live progress of release and ad-hoc runs is under `runtime/benchmark_runs/{run_id}.json`.
 
-The result-dir `run.json` records the run identity: `agent_type`, `model`, `llm_provider`, `max_steps`, `max_tokens`, `reasoning_effort`, `agent_timeout_sec`, `access_role`, `n_trials`, `case_timeout_sec`, `official`, and the release `benchmark_id` / `version` / `split`. A resume with a different value for any of these fails before the plan prints; use a new `--result_dir` instead. Each resume from a different git commit appends an entry to `nika_git_history`.
+The result-dir `run.json` records the run identity: `agent_type`, `model`, `llm_provider`, `max_steps`, `max_tokens`, `reasoning_effort`, `agent_timeout_sec`, `access_role`, `n_trials`, `case_timeout_sec`, `official`, and the release `benchmark_id` / `version` / `split`. A resume with a different value for any of these fails before the plan prints; use a new `--result_dir` instead. Each resume from a different git commit appends an entry to `nika_git_history`. The file also records `schema_version` and a `provenance` block (NIKA version, benchmark engine and its API version, and host Docker and kernel versions); a resume with different provenance appends an entry to `provenance_history`.
 
 ### Console output
 
@@ -419,7 +387,7 @@ A failure after ground truth is written, but before the agent demonstrably start
 
 **`--session-tag TAG`** (`benchmark.session_tag`): embed `TAG` in each session id (`YYYYMMDD-HHMMSS-TAG-{hex}`).
 
-**`--role ROLE`**, **`--run-config PATH`**: same as on `nika agent run`. `--run-config` also sets the config that spawned trial workers load.
+**`--role ROLE`**, **`--run-config PATH`**: same as on `nika agent run`. `--run-config` also sets the config that spawned trial workers load. A release run uses the release's access policy and stops if the role selects a different one.
 
 ```bash
 nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-passes 2 --result_dir results/my-run
@@ -428,6 +396,8 @@ nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-
 ### Generate and select candidate cases
 
 - **`nika benchmark generate [--output DIR]`**: write the executable candidate pool (default `benchmark/working/pool`) and print how many candidate files and inject options it produced.
+- **`nika benchmark generate --validated-only`**: keep IOS XR and RouterOS cases only for cells that `validate-profiles` recorded as validated.
+- **`nika benchmark validate-profiles [--list] [--native-only] [--environment ENV] [--device-profile P] [--failure F] [--limit N] [--rerun]`**: run one case per (environment, device profile, failure) cell end to end and record the result in `benchmark/working/validation/device_profiles.yaml`. Heavy: cells run one at a time under `/tmp/nika-heavy-lab.lock`.
 - **`nika benchmark select [--pool DIR] [--output PATH] [--seed N] [--skip-audit]`**: pick a compact case subset from the audited pool (default output `benchmark/working/cases.yaml`, seed `42`). `--skip-audit` bypasses the pool audit gate; avoid it for release candidates.
 
 ### Freeze a release
@@ -456,7 +426,7 @@ Pass **`SCENARIO`** as the first positional argument (like `nika env run NAME`),
 
 ```shell
 nika benchmark run dc_clos --problem bgp_asn_misconfig -s s \
-  --set host_name=spine_router_0_0 \
+  --set host_name=spine_1 \
   -a byo.langgraph -p openai -m gpt-5-mini -n 20
 nika eval judge -p openai -m gpt-5-mini --result_dir results/
 nika eval summary --result_dir results/
@@ -467,13 +437,12 @@ nika eval summary --result_dir results/
 - LLM judge and CSV summary are separate `nika eval` steps, not part of `benchmark run`.
 
 ---
----
 
 ## `nika eval`
 
 Eval commands operate on **closed** sessions only. After a benchmark run (or a manual `nika session close`), use eval for post-hoc scoring:
 
-- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: write rule-based metrics to `eval_metrics.json`. Scoring contract: [Score a submission](../benchmarks/root-cause-evaluation.md#score-a-submission). With `--result_dir` and no `--session_id`, processes every closed session under that directory. Benchmark writes metrics when each case closes.
+- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: write rule-based metrics to `eval_metrics.json`. Scoring contract: [Score a submission](../benchmarks/root-cause-evaluation.md#score-a-submission). With `--result_dir` and no `--session_id`, processes every closed session under that directory. Benchmark writes metrics when each case closes; for a release run, the release's engine computes them. This command regrades with the installed NIKA's scoring code and overwrites them.
 - **`nika eval judge -p PROVIDER -m MODEL [--session_id ID] [--result_dir PATH]`**: LLM judge → `llm_judge.json`. With `--result_dir` and no `--session_id`, judges every closed session under that directory.
 - **`nika eval summary [filters] [-o PATH] [--result_dir PATH]`**: scan finished sessions, write one CSV, and print a visual summary to the terminal. See [report output](#nika-eval-summary-report-output).
 - **`nika eval clean [-y] [--force]`**: delete historical artifacts under `results/`, runtime session JSON files, and the SQLite index at `runtime/sessions.db`. Refuses when running sessions exist unless **`--force`** is passed.
@@ -527,7 +496,6 @@ When you compare against the raw CSV:
 The same report prints automatically when `nika benchmark run` finishes.
 
 ---
----
 
 ## `nika leaderboard`
 
@@ -540,18 +508,36 @@ nika leaderboard submit --result_dir results/my-run \
   --submission results/my-run/submission
 ```
 
-`submit` packs `{result_dir}/{YYYYMMDD}_{slug}/` plus sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens PRs. Pack or validate failures exit before any remote submit. Requires authenticated [`gh`](https://cli.github.com/) and `HF_TOKEN`. Scores PR target: `sands-lab/nika-leaderboard` (`--repo`). Trajectories dataset PR: `Zhihao98/nika-trajectories` (`--traj-repo`). Use `--skip-github` / `--skip-trajectories` to submit only one side.
+`submit` packs `{result_dir}/{YYYYMMDD}_{slug}/` plus sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens PRs. Pack or validate failures exit before any remote submit. Requires authenticated [`gh`](https://cli.github.com/) and `HF_TOKEN`. Scores PR target: `sands-lab/nika-leaderboard` (`--repo`). Trajectories dataset PR: `nika-bench/nika-trajectories` (`--traj-repo`). Use `--skip-github` / `--skip-trajectories` to submit only one side.
 
 | Flag | Meaning |
 |------|---------|
-| `--submission DIR` | Required. Directory with the edited `metadata.yaml` and `README.md` from `template` |
+| `--submission DIR` | Directory with the edited `metadata.yaml` and `README.md` from `template` |
+| `--name TEXT`, `--authors TEXT` | Instead of `--submission`: entry name and authors, from which `submit` generates the metadata and README |
 | `--out DIR` | Scores package directory (default `{result_dir}/{YYYYMMDD}_{slug}/`); trajectories go to a sibling `{name}_trajectories/` |
 | `--draft` | Open the GitHub PR as a draft |
 | `--title TEXT` | GitHub PR title (default `Add submission <package>`) |
 | `--body TEXT` | GitHub PR body (default: a short generated summary) |
+| `--release-source local` | Check against this checkout's release files instead of the official release; for offline checks only |
+
+`nika leaderboard validate PACKAGE` checks a packed scores package, as leaderboard CI does, and exits with status 1 when it finds errors. `--format json` or `--format markdown` prints the full report, with an error code, cause, and fix for each finding, to stdout. See [validation errors](../benchmarks/leaderboard-submission.md#validation-errors).
 
 ---
----
+
+## `nika observability`
+
+Record benchmark progress and lab CPU and memory per session, and view them in Grafana. While monitoring is on, every deployed environment and benchmark run is recorded. How-to and queries: [Monitor benchmarks and lab resources](resource-monitoring.md).
+
+```shell
+nika observability on              # start Grafana (127.0.0.1:3000), Prometheus, cAdvisor, node exporter
+nika observability status          # services, settings, live run links
+nika observability links [--result-dir DIR]   # dashboard links of benchmark runs
+nika observability share --result-dir DIR    # open a new link for an existing run
+nika observability unshare RUN_ID  # revoke a run's dashboard link
+nika observability off [--purge]   # stop, close run links; --purge also deletes history
+```
+
+With `nika.metrics.share.enabled`, every benchmark run gets a public dashboard link; see [share a run's dashboard](resource-monitoring.md#share-a-runs-dashboard).
 
 ## `nika remote`
 
@@ -562,14 +548,19 @@ Optional control plane for splitting the agent host from the lab host. See [remo
 
 When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` on the agent host, `env` / `failure` / `agent` / `session` lab ops forward to the daemon transparently.
 
----
+## `nika engine`
+
+A release whose manifest pins a benchmark engine runs on a container selected by its `engine` block. NIKA builds `engine.tag` from a Git tag or commit unless the manifest supplies an available `engine.image`. `nika benchmark run --release` resolves the image, builds it when needed, and starts the container itself; see [benchmark release contracts](../development/benchmark-contracts.md#b-lifecycle-protocol).
+
+- **`nika engine build <ref>`**: build the benchmark engine image of a Git tag or commit ahead of a run. NIKA prints the local image name.
+
 ---
 
 ## `nika traffic`
 
-Requires a deployed lab. By default the **current session** supplies the deployed lab name and size; override with **`--lab`** (and **`-s`** when the scenario needs a size).
+Requires a deployed lab. By default the **current session** supplies the deployed lab name and size. Select a session with **`--session_id`** when several are running, or override with **`--lab`** (and **`-s`** when the scenario needs a size).
 
-- **`nika traffic list`**: supported **`TYPE`** values for `run` (`burst`, `od`, `sndlib`, `web`).
+- **`nika traffic list`**: supported **`TYPE`** values for `run` (`burst`, `matrix-replay`, `od`, `web`).
 - **`nika traffic fetch sndlib --topo NAME [--force]`**: fetch dynamic SNDlib traffic.
 - **`nika traffic run TYPE …`**: start traffic; options depend on **`TYPE`**.
 
@@ -578,7 +569,7 @@ Requires a deployed lab. By default the **current session** supplies the deploye
 | TYPE | `--no-background` (default) | `--background` |
 |------|------------------------------|------------------|
 | `od` | Run iperf3 clients synchronously; print JSON summaries to stdout | Start iperf3 in the background inside the lab; print a short JSON list of flow labels |
-| `sndlib` | Replay each SNDlib interval synchronously | Start each interval in the background, wait `duration_sec`, then next |
+| `matrix-replay` | Replay each traffic-matrix interval synchronously | Start each interval in the background, wait `duration_sec`, then next |
 | `web` | Block until interrupted or finished (`--no-loop`) | Not supported: web load blocks this CLI |
 | `burst` | Run the synchronized flows, then print a JSON event | Ignored: `burst` always runs in the foreground |
 
@@ -607,9 +598,9 @@ Shared iperf tuning:
 - **`--udp` / `--no-udp`**
 - **`--server-args`**, **`--client-args`**: extra iperf3 arguments.
 
-### `nika traffic run sndlib`
+### `nika traffic run matrix-replay`
 
-Replay SNDlib demands/dynamic series on ISP stub hosts (`pc_<router>`). Deploy any `isp_<topology>` or named ISP special (`nika env run isp_abilene`, …); those labs attach stubs. Choose the matrix with **`--mode demands|dynamic`** (default `demands`) and optional **`--scale`**. Intervals play **in order**. Use **`--max-intervals N`** for smoke tests.
+Replay an ISP PoP-to-PoP traffic matrix (SNDlib static demands or a measured dynamic series) on ISP stub hosts (`pc_<router>`). Deploy an SNDlib `isp_<topology>` or named ISP special (`nika env run isp_abilene`, …); those labs attach stubs. Choose the matrix with **`--mode demands|dynamic`** (default `demands`) and optional **`--scale`**. Intervals play **in order**. Use **`--max-intervals N`** for smoke tests.
 
 ### `nika traffic run burst`
 
@@ -640,7 +631,6 @@ Options:
 - **`--pages-min`**, **`--pages-max`**
 - **`--no-loop`**: one browsing session per client host then exit
 
----
 ---
 
 ## Helpful paths

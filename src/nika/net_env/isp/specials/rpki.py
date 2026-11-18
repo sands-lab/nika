@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from nika.net_env.isp.bgp.rpki_profile import rpki_design_note
 from nika.net_env.isp.kathara.lab import Isp
 
 
@@ -33,6 +34,7 @@ class IspAbileneEbgpRpki(Isp):
             "Abilene ISP topology with OSPF inside each AS, eBGP between "
             "three AS regions, and offline RPKI/ROV (FRR)."
         )
+        self.desc += rpki_design_note(self.inventory["bgp"]) + self.design_note
 
 
 class IspGeantEbgpRpki(Isp):
@@ -63,3 +65,4 @@ class IspGeantEbgpRpki(Isp):
             "GEANT ISP topology with OSPF inside each AS, eBGP between "
             "three AS regions, and offline RPKI/ROV (FRR)."
         )
+        self.desc += rpki_design_note(self.inventory["bgp"]) + self.design_note

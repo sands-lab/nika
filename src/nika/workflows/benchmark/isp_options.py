@@ -32,7 +32,7 @@ from nika.net_env.isp.profiles import (
     normalize_device_profile,
     validate_backend_profile,
 )
-from nika.topology.sndlib.catalog import topology_size_for_name
+from nika.topology.catalog import isp_topology_size
 
 
 __all__ = [
@@ -139,10 +139,18 @@ def _resolve_stack(
 
 
 def isp_options_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
-    """Return ISP kwargs from a normalized case row, or ``None`` when not ISP."""
+    """Return ISP kwargs, or a non-ISP lab's router platform, from a normalized row."""
     scenario = str(row.get("scenario") or "")
     if not is_isp_scenario(scenario):
-        return None
+        return _native_profile_option(
+            scenario,
+            {
+                "topo": None,
+                **{key: None for key in ISP_PROTOCOL_KEYS},
+                "backend": row.get("backend") or None,
+                "device_profile": row.get("device_profile") or None,
+            },
+        )
     stack = _resolve_stack(
         scenario=scenario,
         backend=row.get("backend"),
@@ -156,6 +164,40 @@ def isp_options_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
         "rpki": bool(row.get("rpki", False)),
         **stack,
     }
+
+
+def _native_profile_option(
+    scenario: str, provided: dict[str, Any]
+) -> dict[str, str] | None:
+    """Return ``{"device_profile": ...}`` for a router platform of a non-ISP lab.
+
+    Environments that declare ``device_profiles`` accept one of them (on
+    Kathara), and Containerlab-only environments one of their
+    ``containerlab_device_profiles``, as their only deployment option.
+    Returns ``None`` otherwise.
+    """
+    from nika.net_env.net_env_pool import (
+        scenario_containerlab_device_profiles,
+        scenario_device_profiles,
+    )
+
+    profile = provided["device_profile"]
+    if profile is None or provided["topo"] is not None:
+        return None
+    if any(provided[key] is not None for key in ISP_PROTOCOL_KEYS):
+        return None
+    profile = profile.strip().lower()
+    if profile in scenario_containerlab_device_profiles(scenario):
+        if provided["backend"] not in (None, "containerlab"):
+            raise ValueError(
+                f"device_profile={profile!r} requires backend containerlab."
+            )
+        return {"device_profile": profile}
+    if profile not in scenario_device_profiles(scenario):
+        return None
+    if provided["backend"] not in (None, "kathara"):
+        raise ValueError(f"device_profile={profile!r} requires backend kathara.")
+    return {"device_profile": profile}
 
 
 def validate_and_resolve_isp_options(
@@ -191,6 +233,9 @@ def validate_and_resolve_isp_options(
     topo_provided = provided["topo"] is not None
 
     if not is_isp_scenario(scenario):
+        native = _native_profile_option(scenario, provided)
+        if native is not None:
+            return native
         if any_protocol or topo_provided or any_stack:
             raise ValueError(
                 f"Scenario {scenario!r} does not accept topo/igp/bgp_mode/rpki/"
@@ -209,7 +254,7 @@ def validate_and_resolve_isp_options(
         )
 
     baked_topo = isp_topo_from_scenario(scenario)
-    expected_size = topology_size_for_name(baked_topo)
+    expected_size = isp_topology_size(baked_topo)
     if topo_size and topo_size != expected_size:
         raise ValueError(
             f"Scenario {scenario!r} has fixed topo_size {expected_size!r}; "

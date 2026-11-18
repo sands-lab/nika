@@ -1,0 +1,21 @@
+id: HARNESS-UNKNOWN-MCP-SESSION
+title: Unknown MCP session returned an empty tool list
+class: harness_defect
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: A request with an unknown or expired MCP session got an empty tool list, which reads as 'this
+  lab has no tools'. The gateway now answers with a JSON-RPC error and HTTP 403.
+guideline: An init with NIKA MCP servers connected but no NIKA tools listed, or tool calls failing with
+  session errors, points here.
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: (?i)unknown (?:mcp )?session|session (?:not found|expired)
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

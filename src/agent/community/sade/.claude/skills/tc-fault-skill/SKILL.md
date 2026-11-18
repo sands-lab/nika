@@ -21,7 +21,7 @@ description: Identify generic traffic-control faults — link bandwidth throttli
 - Quiet throughput degradation
 - Extreme jitter with little or no packet loss
 - Suspected qdisc or shaping on a server or router interface
-- If ownership is still unclear, run `tc_snapshot.py` from `diagnosis-methodology-skill/scripts` to find non-default qdisc stacks before targeted tc checks.
+- If ownership is still unclear, use `exec_shell` with `tc -s qdisc show` to find non-default qdisc stacks before targeted tc checks.
 
 ## Exact Calls
 

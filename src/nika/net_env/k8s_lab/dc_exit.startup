@@ -5,9 +5,9 @@ ip address add 10.0.2.1/30 dev eth2
 
 # Set routes to enter the DC
 ip route add 201.0.0.0/8 via 10.0.1.2 dev eth1
-ip route append 201.0.0.0/8 via 10.0.2.1 dev eth2
+ip route append 201.0.0.0/8 via 10.0.2.2 dev eth2
 ip route add 101.0.0.0/8 via 10.0.1.2 dev eth1
-ip route append 101.0.0.0/8 via 10.0.2.1 dev eth2
+ip route append 101.0.0.0/8 via 10.0.2.2 dev eth2
 
 # Set default route towards as1r1
 ip route add default via 10.0.3.2 dev eth0

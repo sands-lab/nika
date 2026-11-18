@@ -4,6 +4,9 @@ failure:
   fault_type: p4_table_entry_misconfig
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_1
       observer_device: client_1_1
@@ -14,6 +17,9 @@ failure:
         node: leaf_1
       fault_type: p4_table_entry_misconfig
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_1
       observer_device: client_1_1
@@ -24,6 +30,9 @@ failure:
         node: leaf_1
       fault_type: p4_table_entry_misconfig
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_1
       observer_device: client_1_1

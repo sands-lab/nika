@@ -74,7 +74,9 @@ def _format_host_inventory(hosts):
         return tuple(int(part) for part in prefix.split("."))
 
     for prefix in sorted(prefix_groups.keys(), key=sort_prefix):
-        entries = sorted(prefix_groups[prefix], key=lambda item: (item["last_octet"], item["host"]))
+        entries = sorted(
+            prefix_groups[prefix], key=lambda item: (item["last_octet"], item["host"])
+        )
         suffixes = [entry["last_octet"] for entry in entries]
 
         if len(entries) <= 8:
@@ -105,13 +107,17 @@ def _format_host_inventory(hosts):
 
             if max_gap >= 16:
                 if len(left) == 1 and len(right) >= 2 and cluster_span(right) <= 8:
-                    peer_suffixes = ", ".join(str(entry["last_octet"]) for entry in right)
+                    peer_suffixes = ", ".join(
+                        str(entry["last_octet"]) for entry in right
+                    )
                     outlier_candidates.append(
                         f"  {left[0]['host']}={left[0]['ip']} is isolated from same-/24 peers "
                         f"in {prefix}.* (peer last octets: {peer_suffixes})"
                     )
                 elif len(right) == 1 and len(left) >= 2 and cluster_span(left) <= 8:
-                    peer_suffixes = ", ".join(str(entry["last_octet"]) for entry in left)
+                    peer_suffixes = ", ".join(
+                        str(entry["last_octet"]) for entry in left
+                    )
                     outlier_candidates.append(
                         f"  {right[0]['host']}={right[0]['ip']} is isolated from same-/24 peers "
                         f"in {prefix}.* (peer last octets: {peer_suffixes})"
@@ -137,7 +143,10 @@ def _format_full_host_inventory(hosts):
             return (1, str(host_ip), host_name)
         return (0, *octets, host_name)
 
-    return [f"  {host_name}={host_ip}" for host_name, host_ip in sorted(hosts.items(), key=host_sort_key)]
+    return [
+        f"  {host_name}={host_ip}"
+        for host_name, host_ip in sorted(hosts.items(), key=host_sort_key)
+    ]
 
 
 # Parse the too large reachability output: extract failures, anomalies, and a compact host inventory summary.
@@ -194,7 +203,9 @@ def parse_reachability(file_path: str) -> str:
         if status and status != "ok":
             suspicious.append(r)
             continue
-        if any(r.get(field) is None for field in ("tx", "rx", "loss_percent", "rtt_avg_ms")):
+        if any(
+            r.get(field) is None for field in ("tx", "rx", "loss_percent", "rtt_avg_ms")
+        ):
             suspicious.append(r)
             continue
 
@@ -227,11 +238,15 @@ def parse_reachability(file_path: str) -> str:
         f"Anomalies (partial loss or high RTT): {len(anomalies)} | "
         f"No-response rows (status!=ok or missing tx/rx/loss/rtt — these ARE evidence of intermittent loss / link flap, NOT measurement artifacts): {len(suspicious)}"
     )
-    lines.append(f"Potential duplicate IP groups in host inventory: {len(duplicate_host_ips)}")
+    lines.append(
+        f"Potential duplicate IP groups in host inventory: {len(duplicate_host_ips)}"
+    )
     lines.append("")
 
     if duplicate_host_ips:
-        lines.append("--- POTENTIAL HOST-IP CONFLICTS (inventory-level identity clash) ---")
+        lines.append(
+            "--- POTENTIAL HOST-IP CONFLICTS (inventory-level identity clash) ---"
+        )
         for host_ip, host_names in sorted(duplicate_host_ips.items()):
             lines.append(f"  {host_ip} is claimed by: {', '.join(host_names)}")
             overlap_notes = []
@@ -245,7 +260,9 @@ def parse_reachability(file_path: str) -> str:
                     )
             for note in overlap_notes:
                 lines.append(f"    {note}")
-        lines.append("  NEXT STEP: run get_host_net_config() on the hosts sharing the same IP and L2 inventory to check for IP conflicts, ARP anomalies, or other identity issues.")
+        lines.append(
+            "  NEXT STEP: run get_host_net_config() on the hosts sharing the same IP and L2 inventory to check for IP conflicts, ARP anomalies, or other identity issues."
+        )
         lines.append("")
 
     clustered_suspicious_sources = sorted(
@@ -306,37 +323,55 @@ def parse_reachability(file_path: str) -> str:
     if failures:
         lines.append("--- FAILURES (100% packet loss) ---")
         for r in failures:
-            lines.append(f"  {r['src']} -> {r['dst']} ({r.get('dst_ip','?')}) | loss={r['loss_percent']}% status={r.get('status','?')}")
+            lines.append(
+                f"  {r['src']} -> {r['dst']} ({r.get('dst_ip', '?')}) | loss={r['loss_percent']}% status={r.get('status', '?')}"
+            )
         lines.append("")
 
     if anomalies:
         lines.append("--- ANOMALIES (partial loss or RTT > 100ms) ---")
         for r in anomalies:
-            lines.append(f"  {r['src']} -> {r['dst']} ({r.get('dst_ip','?')}) | loss={r['loss_percent']}% rtt_avg={r.get('rtt_avg_ms','?')}ms")
+            lines.append(
+                f"  {r['src']} -> {r['dst']} ({r.get('dst_ip', '?')}) | loss={r['loss_percent']}% rtt_avg={r.get('rtt_avg_ms', '?')}ms"
+            )
         lines.append("")
 
     if suspicious:
         lines.append("--- SUSPICIOUS (non-ok status or incomplete measurements) ---")
         for r in suspicious:
             lines.append(
-                f"  {r['src']} -> {r['dst']} ({r.get('dst_ip','?')}) | "
-                f"status={r.get('status','?')} tx={r.get('tx','?')} rx={r.get('rx','?')} "
-                f"loss={r.get('loss_percent','?')} rtt_avg={r.get('rtt_avg_ms','?')}"
+                f"  {r['src']} -> {r['dst']} ({r.get('dst_ip', '?')}) | "
+                f"status={r.get('status', '?')} tx={r.get('tx', '?')} rx={r.get('rx', '?')} "
+                f"loss={r.get('loss_percent', '?')} rtt_avg={r.get('rtt_avg_ms', '?')}"
             )
         lines.append("")
 
     if not failures and not anomalies and not suspicious:
-        lines.append("ALL TESTS PASSED - no reachability issues were surfaced in the sampled ping matrix.")
-        lines.append("Do NOT treat this as proof that the network is healthy; quiet L2/L3 or qdisc faults can still be present.")
+        lines.append(
+            "ALL TESTS PASSED - no reachability issues were surfaced in the sampled ping matrix."
+        )
+        lines.append(
+            "Do NOT treat this as proof that the network is healthy; quiet L2/L3 or qdisc faults can still be present."
+        )
         lines.append("")
     elif suspicious and not failures and not anomalies:
-        lines.append("No classic ping failures detected, but suspicious/incomplete reachability rows are present.")
-        lines.append("Treat the affected source/destination devices as investigation targets instead of assuming the network is healthy.")
-        lines.append("Do NOT call this result 'mostly clean' and do NOT replace suspect-host local checks with broad HTTP or service sweeps yet.")
+        lines.append(
+            "No classic ping failures detected, but suspicious/incomplete reachability rows are present."
+        )
+        lines.append(
+            "Treat the affected source/destination devices as investigation targets instead of assuming the network is healthy."
+        )
+        lines.append(
+            "Do NOT call this result 'mostly clean' and do NOT replace suspect-host local checks with broad HTTP or service sweeps yet."
+        )
         lines.append("")
     if duplicate_host_ips:
-        lines.append("Duplicate IP ownership in the reachability host inventory is NOT a sampling artifact.")
-        lines.append("This pattern strongly suggests host_ip_conflict or another identity/addressing fault.")
+        lines.append(
+            "Duplicate IP ownership in the reachability host inventory is NOT a sampling artifact."
+        )
+        lines.append(
+            "This pattern strongly suggests host_ip_conflict or another identity/addressing fault."
+        )
         lines.append("")
 
     if addressing_outliers:
@@ -357,7 +392,9 @@ def parse_reachability(file_path: str) -> str:
     preview_limit = min(len(subnet_lines), 20)
     lines.extend(subnet_lines[:preview_limit])
     if len(subnet_lines) > preview_limit:
-        lines.append(f"  ... ({len(subnet_lines) - preview_limit} more subnet groups omitted)")
+        lines.append(
+            f"  ... ({len(subnet_lines) - preview_limit} more subnet groups omitted)"
+        )
 
     return "\n".join(lines)
 
@@ -366,9 +403,7 @@ def _looks_like_reachability(file_path: str) -> bool:
     """Return True if the saved file is a reachability-shaped payload.
 
     Detection is structural: the inner object carries both a `hosts` mapping
-    and a `results` list. `safe_reachability --json` and the MCP
-    `get_reachability` tool share this shape, so either overflow lands in the
-    reachability formatter.
+    and a `results` list, as returned by the MCP `get_reachability` tool.
     """
     try:
         with open(file_path, "r", encoding="utf-8-sig") as f:
@@ -388,157 +423,6 @@ def _looks_like_reachability(file_path: str) -> bool:
         and isinstance(inner.get("hosts"), dict)
         and isinstance(inner.get("results"), list)
     )
-
-
-def _read_inner_text(file_path: str) -> str | None:
-    """Return the inner string payload from a saved tool-output file, or None."""
-    try:
-        with open(file_path, "r", encoding="utf-8-sig") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        try:
-            with open(file_path, "r", encoding="utf-8-sig") as f:
-                return f.read()
-        except OSError:
-            return None
-    inner = data.get("result", data) if isinstance(data, dict) else data
-    if isinstance(inner, str):
-        return inner
-    return None
-
-
-def _summarize_flags_line(flags_line: str) -> str:
-    """Compress a `Flags: ...` line to per-type counts.
-
-    The per-client Flags line lists every flagged hostname/URL (e.g.
-    `Flags: dns_problem:web0.pod0, dns_problem:web1.pod0, http_non_ok:...`),
-    which duplicates the DNS/HTTP outcome groups already emitted earlier.
-    Replace it with one count per flag type so the per-client summary scales
-    with topology size instead of with hostname count.
-    """
-    body = flags_line.split(":", 1)[1].strip() if ":" in flags_line else ""
-    if not body or body.lower() == "none":
-        return "Flags: none"
-    counts: dict[str, int] = defaultdict(int)
-    for token in body.split(","):
-        flag = token.strip().split(":", 1)[0]
-        if flag:
-            counts[flag] += 1
-    if not counts:
-        return "Flags: none"
-    parts = ", ".join(f"{count} {flag}" for flag, count in sorted(counts.items()))
-    return f"Flags: {parts}"
-
-
-def _looks_like_service_snapshot(file_path: str) -> bool:
-    """Return True if the saved file is a service_snapshot text payload.
-
-    The helper's text output (the default mode) starts with the
-    `=== SERVICE SNAPSHOT ===` banner, regardless of lab. JSON output of the
-    same helper falls through to the generic parser.
-    """
-    text = _read_inner_text(file_path)
-    if not isinstance(text, str):
-        return False
-    return text.lstrip().startswith("=== SERVICE SNAPSHOT ===")
-
-
-def parse_service_snapshot(file_path: str) -> str:
-    """Parse oversized service_snapshot text output.
-
-    The bulk of the size comes from per-client blocks: each client emits one
-    DNS row + one HTTP row per published hostname, so on a 4-pod x 7-web lab
-    the per-client section alone is ~25–30 kB. The header already aggregates
-    the same outcomes through the resolver/DNS/HTTP outcome groups, which is
-    the section that actually reveals per-zone failure patterns (e.g. one
-    pod's DNS resolves while peers return `no_addresses`, fingerprinting a
-    server-side `dns_record_error`). The per-service-device blocks are small
-    and carry the named/listener/process evidence used by `dns-fault-skill`.
-
-    Strategy: emit the header (through the `Suspect clients:` line) plus all
-    per-service-device blocks in full, then condense each per-client block to
-    a single line listing its nameservers and aggregate flags. The agent can
-    rerun `service_snapshot --client <name>` to see raw per-row addresses for
-    a specific client when the GROUPS view is not enough.
-    """
-    text = _read_inner_text(file_path)
-    if not isinstance(text, str):
-        raise ValueError("service_snapshot payload not found in saved file")
-
-    lines = text.splitlines()
-
-    suspect_idx: int | None = None
-    for idx, line in enumerate(lines):
-        if line.startswith("Suspect clients:"):
-            suspect_idx = idx
-            break
-    if suspect_idx is None:
-        # Missing the marker - unknown variant. Fall back to emitting the
-        # whole text; the caller will still see more than the 3 kB generic cap.
-        return "\n".join(lines)
-
-    output: list[str] = list(lines[: suspect_idx + 1])
-
-    body = lines[suspect_idx + 1 :]
-    blocks: list[list[str]] = []
-    current: list[str] = []
-    for line in body:
-        if not line.strip():
-            if current:
-                blocks.append(current)
-                current = []
-            continue
-        if not line.startswith((" ", "\t")):
-            if current:
-                blocks.append(current)
-            current = [line]
-        else:
-            if current:
-                current.append(line)
-    if current:
-        blocks.append(current)
-
-    client_blocks: list[list[str]] = []
-    service_blocks: list[list[str]] = []
-    for block in blocks:
-        is_service = any(
-            "Localhost HTTP:" in row or "Processes visible:" in row for row in block
-        )
-        is_client = any(
-            row.lstrip().startswith(("DNS ", "HTTP ", "Nameservers:")) for row in block
-        )
-        if is_service and not is_client:
-            service_blocks.append(block)
-        elif is_client:
-            client_blocks.append(block)
-
-    if client_blocks:
-        output.append("")
-        output.append(
-            f"Per-client blocks ({len(client_blocks)} clients) condensed - the "
-            "DNS/HTTP outcome groups above already aggregate the same per-host/per-URL "
-            "results across clients. To see raw per-row addresses for one client, "
-            "rerun `python h.py service_snapshot --client <name>`."
-        )
-        for block in client_blocks:
-            device = block[0].strip()
-            ns_line = next(
-                (row.strip() for row in block if row.lstrip().startswith("Nameservers:")),
-                "Nameservers: (none)",
-            )
-            flags_line = next(
-                (row.strip() for row in block if row.lstrip().startswith("Flags:")),
-                "Flags: none",
-            )
-            output.append(f"- {device}: {ns_line}; {_summarize_flags_line(flags_line)}")
-
-    if service_blocks:
-        output.append("")
-        for block in service_blocks:
-            output.extend(block)
-            output.append("")
-
-    return "\n".join(output).rstrip() + "\n"
 
 
 def parse_generic(file_path: str) -> str:
@@ -561,7 +445,9 @@ def parse_generic(file_path: str) -> str:
         lines = [f"JSON object with keys: {list(result.keys())}"]
         for k, v in result.items():
             if isinstance(v, list):
-                lines.append(f"  {k}: list[{len(v)}] — first entry: {json.dumps(v[0], default=str)[:200] if v else 'empty'}")
+                lines.append(
+                    f"  {k}: list[{len(v)}] — first entry: {json.dumps(v[0], default=str)[:200] if v else 'empty'}"
+                )
             elif isinstance(v, dict):
                 lines.append(f"  {k}: dict with keys {list(v.keys())[:10]}")
             else:
@@ -584,14 +470,12 @@ def main():
     parser.add_argument("file_path", help="Path to the saved .txt file")
     parser.add_argument(
         "--type",
-        choices=["reachability", "service_snapshot", "generic", "auto"],
+        choices=["reachability", "generic", "auto"],
         default="auto",
         help=(
             "Output type for specialized parsing. Default `auto` picks "
             "`reachability` when the payload carries `hosts` + `results` "
-            "(covers both get_reachability and safe_reachability --json), "
-            "`service_snapshot` when the text starts with the "
-            "`=== SERVICE SNAPSHOT ===` banner, and falls back to `generic` "
+            "and falls back to `generic` "
             "otherwise."
         ),
     )
@@ -601,16 +485,12 @@ def main():
     if mode == "auto":
         if _looks_like_reachability(args.file_path):
             mode = "reachability"
-        elif _looks_like_service_snapshot(args.file_path):
-            mode = "service_snapshot"
         else:
             mode = "generic"
 
     try:
         if mode == "reachability":
             print(parse_reachability(args.file_path))
-        elif mode == "service_snapshot":
-            print(parse_service_snapshot(args.file_path))
         else:
             print(parse_generic(args.file_path))
     except Exception as e:

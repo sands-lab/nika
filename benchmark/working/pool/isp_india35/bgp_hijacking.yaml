@@ -7,14 +7,1437 @@ failure:
     igp: isis
     bgp_mode: ibgp_rr
     rpki: false
-    backend: kathara
-    device_profile: frr
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_0
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_4
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_0
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_0
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_0
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_0
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_0
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_1
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_1
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_1
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_11
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_11
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
       symptom_host: n_1
-      target_network: 198.18.0.0/24
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_11
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_12
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_12
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_13
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_13
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_14
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_14
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_14
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_14
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_14
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_14
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_15
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_15
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_16
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_16
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_16
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_16
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_17
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_17
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_17
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_17
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_17
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_5
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_17
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_18
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_18
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_18
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_18
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_18
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_18
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_19
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_19
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_2
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_20
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_20
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_20
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_20
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_21
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_21
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_21
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_21
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_21
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_21
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_22
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_22
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_22
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_22
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_22
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_22
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_23
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_23
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_23
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_23
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_24
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_24
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_24
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_24
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_24
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_25
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_25
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_25
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_25
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_26
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_26
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_26
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_26
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_26
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_5
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_26
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_27
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_27
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_27
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_27
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_28
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_28
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_28
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_28
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_28
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_28
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_29
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_29
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_29
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_29
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_3
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_3
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_3
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_30
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_30
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_30
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_30
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_32
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_32
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_32
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_32
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_32
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_32
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_33
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_33
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_34
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_34
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_34
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_34
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_4
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_4
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_4
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_4
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_6
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_6
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_6
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_7
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_8
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_8
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_9
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_9
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_0
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_4
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -26,12 +1449,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_0
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_0
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_0
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_0
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -43,16 +1509,19 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
-      host_name: n_10
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      host_name: n_1
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
-        node: n_10
+        node: n_1
       fault_type: bgp_hijacking
   - topo_size: l
     igp: isis
@@ -60,12 +1529,35 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_1
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -77,12 +1569,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_11
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_11
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_12
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -94,12 +1629,15 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_13
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -111,12 +1649,15 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_14
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -128,12 +1669,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_14
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_14
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_14
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_14
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_15
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -145,12 +1729,15 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_16
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -162,12 +1749,35 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_16
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_16
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_17
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -179,12 +1789,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_17
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_17
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_17
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_5
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_17
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_18
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -196,12 +1849,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_18
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_18
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_18
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_18
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_19
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -213,12 +1909,15 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -230,12 +1929,15 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_20
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -247,12 +1949,35 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_20
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_20
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_21
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -264,12 +1989,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_21
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_21
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_21
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_21
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_22
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -281,12 +2049,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_22
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_22
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_22
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_22
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_23
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -298,12 +2109,35 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_23
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_23
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_24
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -315,12 +2149,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_24
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_24
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_24
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_24
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_25
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -332,12 +2209,35 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_25
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_25
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_26
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -349,12 +2249,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_26
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_26
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_26
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_5
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_26
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_27
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -366,12 +2309,35 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_27
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_27
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_28
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -383,12 +2349,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_28
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_28
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_28
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_28
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_29
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -400,12 +2409,35 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_29
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_29
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_3
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -417,12 +2449,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_3
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_3
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_30
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -434,16 +2509,19 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
-      host_name: n_31
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      host_name: n_30
+      observer_host: pc_n_5
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_5
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
-        node: n_31
+        node: n_30
       fault_type: bgp_hijacking
   - topo_size: l
     igp: isis
@@ -451,12 +2529,15 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_32
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -468,12 +2549,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_32
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_32
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_32
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_32
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_33
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -485,12 +2609,15 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_34
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -502,12 +2629,35 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_34
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_34
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -519,16 +2669,19 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
-      host_name: n_5
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
+      host_name: n_4
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
       symptom_host: n_1
-      target_network: 198.18.0.0/24
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
-        node: n_5
+        node: n_4
       fault_type: bgp_hijacking
   - topo_size: l
     igp: isis
@@ -536,12 +2689,15 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_6
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -553,12 +2709,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_6
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n_1
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_6
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_1
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_7
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
       symptom_host: n_1
-      target_network: 198.18.0.0/24
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -570,12 +2769,15 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_8
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n_1
-      target_network: 198.18.0.0/24
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -587,12 +2789,55 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_8
+      observer_host: pc_n_4
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n_4
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_9
-      peer_host: pc_n_0
-      probe_dst_ip: 198.18.0.1
+      observer_host: pc_n_0
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n_0
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: n_9
+      observer_host: pc_n_1
+      probe_dst_ip: 203.0.114.1
       symptom_host: n_1
-      target_network: 198.18.0.0/24
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node

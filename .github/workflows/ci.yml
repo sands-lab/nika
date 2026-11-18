@@ -3,29 +3,7 @@ name: CI
 on:
   push:
     branches: [main, master]
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "benchmark/**"
-      - "config/**"
-      - "scripts/**"
-      - "install.sh"
-      - ".python-version"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/**"
   pull_request:
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "benchmark/**"
-      - "config/**"
-      - "scripts/**"
-      - "install.sh"
-      - ".python-version"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/**"
   workflow_dispatch:
 
 # Jobs only read the repository; a poisoned Actions cache must not gain write access.
@@ -39,15 +17,62 @@ concurrency:
 env:
   UV_VERSION: "0.8.22"
   GNMIC_VERSION: "0.48.0"
+  # Every run records its slowest tests, so CI time can be traced to them.
+  PYTEST_ADDOPTS: --durations=10
 
 # Shared setup notes:
 # - ubuntu-24.04-arm needs amd64 binfmt for nika/onos (COPY --from amd64 upstream).
-# - No per-job path filters: any matching push runs the full PR job set.
-# - Full evaluate_scenario and broad failure inject live in nightly.yml.
+# - The changes job gates jobs by changed paths; pushes and manual runs run all.
+# - ci-ok is the single required check; jobs skipped by the gate count as passing.
+# - Broad startup and failure artifact checks live in nightly.yml.
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      unit: ${{ steps.filter.outputs.unit }}
+      heavy: ${{ steps.filter.outputs.heavy }}
+      install: ${{ steps.filter.outputs.install }}
+    steps:
+      - name: Classify changed paths
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          core=false unit=false heavy=false install=false
+          if [ -z "$PR" ]; then
+            core=true
+          else
+            files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
+            # The files API stops at 3000 entries; treat a truncated list as all.
+            [ "$(printf '%s\n' "$files" | wc -l)" -ge 3000 ] && core=true
+            while IFS= read -r f; do
+              case "$f" in
+                src/*|scripts/download-release.sh|benchmark/*|config/*|pyproject.toml|uv.lock|.python-version|.github/workflows/ci.yml|.github/workflows/nightly.yml|.github/workflows/release-engine-verify.yml)
+                  core=true ;;
+                tests/ci/*|tests/support/*|tests/benchmark/*|tests/nika/workflows/integration/*|tests/conftest.py)
+                  heavy=true unit=true ;;
+                tests/*)
+                  unit=true ;;
+                scripts/install.sh|.env.example)
+                  install=true ;;
+              esac
+            done <<< "$files"
+          fi
+          if [ "$core" = true ]; then unit=true heavy=true install=true; fi
+          [ "$heavy" = true ] && install=true
+          printf 'unit=%s\nheavy=%s\ninstall=%s\n' "$unit" "$heavy" "$install" | tee -a "$GITHUB_OUTPUT"
+
   install-benchmark-e2e:
     name: install to benchmark e2e (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.install == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -84,6 +109,8 @@ jobs:
 
   unit-contract:
     name: unit+contract
+    needs: changes
+    if: needs.changes.outputs.unit == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -109,6 +136,8 @@ jobs:
 
   images:
     name: image ${{ matrix.image }} (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -125,6 +154,7 @@ jobs:
           - nika/fabric-controller
           - nika/tc-bpf
           - nika/skopeo
+          - nika/vde-switch
           - nika/routinator
     steps:
       - uses: actions/checkout@v5
@@ -147,6 +177,8 @@ jobs:
 
   scenario-startup:
     name: startup ${{ matrix.scenario }} (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -192,6 +224,8 @@ jobs:
 
   failure-inject:
     name: failure ${{ matrix.case }} (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -221,6 +255,8 @@ jobs:
 
   clab-failure-inject:
     name: clab failure ${{ matrix.case }} (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -241,10 +277,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
-      - name: Install containerlab
-        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
-      - name: Install gnmic
-        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+      - name: Install NIKA tools
+        run: |
+          if ! sudo modprobe -n vrf; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          fi
+          ./scripts/install.sh --skip-images
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: Clab failure inject smoke
@@ -254,6 +293,8 @@ jobs:
 
   pipeline:
     name: pipeline kathara dc_clos (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -275,10 +316,12 @@ jobs:
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: Mock-agent pipeline smoke
-        run: uv run pytest tests/ci/test_pipeline_smoke.py -q
+        run: uv run pytest tests/ci/test_pipeline_smoke.py tests/nika/workflows/test_schedule_live.py -q
 
   clab-startup:
     name: clab min3clos (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -297,10 +340,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
-      - name: Install containerlab
-        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
-      - name: Install gnmic
-        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+      - name: Install NIKA tools
+        run: |
+          if ! sudo modprobe -n vrf; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          fi
+          ./scripts/install.sh --skip-images
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: min3clos light startup
@@ -308,6 +354,8 @@ jobs:
 
   clab-pipeline:
     name: pipeline containerlab min3clos (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 75
     strategy:
@@ -326,11 +374,248 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
-      - name: Install containerlab
-        run: bash -c "$(curl -fsSL https://get.containerlab.dev)"
-      - name: Install gnmic
-        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+      - name: Install NIKA tools
+        run: |
+          if ! sudo modprobe -n vrf; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          fi
+          ./scripts/install.sh --skip-images
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: Containerlab mock-agent pipeline
         run: uv run pytest tests/nika/workflows/integration/test_pipeline_clab.py -q
+
+  engine-build:
+    name: build benchmark engine (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Build engine once for this architecture
+        run: |
+          commit=$(git rev-parse --short=12 HEAD)
+          uv run nika engine build "$commit"
+          docker image save "nika/benchmark-engine:$commit" -o "$RUNNER_TEMP/engine.tar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-engine-${{ matrix.os }}
+          path: ${{ runner.temp }}/engine.tar
+          compression-level: 0
+          retention-days: 1
+
+  engine:
+    name: pinned engine ${{ matrix.runtime }} (${{ matrix.os }})
+    needs: [changes, engine-build]
+    if: needs.changes.outputs.heavy == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        runtime: [kathara, containerlab, p4, sdn]
+        exclude:
+          # ONOS is emulated on arm64; keep its engine contract on amd64.
+          - os: ubuntu-24.04-arm
+            runtime: sdn
+        include:
+          - runtime: kathara
+            split: test
+            task: dc_clos__link_detach__m__h240c6b1dc30f
+          - runtime: containerlab
+            split: dev
+            task: min3clos__link_capacity_bott__he7ee68fb5990
+          - runtime: p4
+            split: test
+            task: p4_dc_gateway__p4_tcam_entry__hfd952409a6c1
+          - runtime: sdn
+            split: test
+            task: sdn_l3_clos__flow_rule_shado__he6582a3b1d4e
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable amd64 binfmt (ONOS foreign stage)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - uses: actions/download-artifact@v4
+        with:
+          name: benchmark-engine-${{ matrix.os }}
+          path: ${{ runner.temp }}/benchmark-engine
+      - name: Load this architecture's engine
+        run: |
+          docker image load -i "$RUNNER_TEMP/benchmark-engine/engine.tar"
+          echo "NIKA_CI_ENGINE_IMAGE=nika/benchmark-engine:$(git rev-parse --short=12 HEAD)" >> "$GITHUB_ENV"
+      - name: Oracle trial through the engine
+        env:
+          NIKA_CI_ENGINE_TASK_ID: ${{ matrix.task }}
+          NIKA_CI_ENGINE_SPLIT: ${{ matrix.split }}
+        run: uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
+
+  published-engines:
+    name: discover published engines
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.releases.outputs.matrix }}
+      count: ${{ steps.releases.outputs.count }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Select one task from each tagged release with an engine
+        id: releases
+        run: |
+          uv run python - <<'PYTHON'
+          import json
+          import os
+          import subprocess
+          from nika.workflows.benchmark.release import list_releases, load_release
+          from nika.workflows.benchmark.trials import task_id_for_row
+
+          entries = []
+          for version in list_releases():
+              tagged = subprocess.run(
+                  ["git", "rev-parse", "--verify", f"refs/tags/v{version}"],
+                  capture_output=True,
+              ).returncode == 0
+              if not tagged:
+                  continue
+              release = load_release(version, split="test")
+              if not release.manifest.get("engine"):
+                  continue
+              candidates = [row for row in release.cases
+                            if row["scenario"] == "dc_clos"
+                            and row.get("topo_size") in {"s", "m"}
+                            and row.get("backend", "kathara") == "kathara"]
+              if not candidates:
+                  raise ValueError(f"No Kathara compatibility task for {version}")
+              entries.append({"release": version, "task": task_id_for_row(candidates[0])})
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"matrix={json.dumps({'include': entries})}\n")
+              output.write(f"count={len(entries)}\n")
+          PYTHON
+
+  published-engine:
+    name: published engine ${{ matrix.release }} (amd64)
+    needs: published-engines
+    if: needs.published-engines.outputs.count != '' && needs.published-engines.outputs.count != '0'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.published-engines.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Current frontend on the release's actual pinned engine
+        env:
+          NIKA_CI_ENGINE_RELEASE: ${{ matrix.release }}
+          NIKA_CI_ENGINE_PINNED: "1"
+          NIKA_CI_ENGINE_SPLIT: test
+          NIKA_CI_ENGINE_TASK_ID: ${{ matrix.task }}
+        run: uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs:
+      - changes
+      - install-benchmark-e2e
+      - unit-contract
+      - images
+      - scenario-startup
+      - failure-inject
+      - clab-failure-inject
+      - pipeline
+      - clab-startup
+      - clab-pipeline
+      - engine-build
+      - engine
+      - published-engines
+      - published-engine
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    steps:
+      # Failed jobs never stop the others; this lists each one with the step that
+      # failed and a log link. A summary error leaves the verdict below unchanged.
+      - name: Summarize failed jobs
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = (await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+              ...context.repo, run_id: context.runId, attempt_number: Number(process.env.GITHUB_RUN_ATTEMPT),
+            })).filter(j => j.status === 'completed');
+            const failed = jobs.filter(j => ['failure', 'cancelled', 'timed_out'].includes(j.conclusion));
+            if (failed.length === 0) {
+              await core.summary.addRaw('All gated jobs passed or were skipped.').write();
+              return;
+            }
+            const rows = failed.map(j => {
+              const step = (j.steps || []).find(s => ['failure', 'cancelled', 'timed_out'].includes(s.conclusion));
+              core.error(`${j.name}: ${j.conclusion}${step ? ` at "${step.name}"` : ''}`);
+              return [j.name, j.conclusion, step ? step.name : '', `<a href="${j.html_url}">log</a>`];
+            });
+            await core.summary
+              .addHeading(`${failed.length} of ${jobs.length} jobs failed`, 3)
+              .addTable([[{data: 'Job', header: true}, {data: 'Result', header: true},
+                          {data: 'Failed step', header: true}, {data: 'Log', header: true}], ...rows])
+              .write();
+      - name: Require every gated job to pass or be skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

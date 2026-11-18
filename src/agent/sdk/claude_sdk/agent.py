@@ -1,19 +1,17 @@
 """Claude Agent SDK troubleshooting agent.
 
 Two-phase pipeline via native ``ClaudeSDKClient`` sessions (no LangGraph).
-Select with ``nika agent run -a sdk.claude_sdk``.
 """
 
 from __future__ import annotations
 
-from agent.sandbox.sdk_context import resolve_sdk_session_fields
 from agent.sdk.claude_sdk.config import resolve_claude_sdk_model
 from agent.sdk.claude_sdk.phases.diagnosis import ClaudeSdkDiagnosisPhase
 from agent.sdk.claude_sdk.phases.submission import ClaudeSdkSubmissionPhase
-from agent.utils.two_phase import TwoPhaseAgent
+from agent.base import DiagnosisAgent
 
 
-class ClaudeSdkAgent(TwoPhaseAgent):
+class ClaudeSdkAgent(DiagnosisAgent):
     """Two-phase troubleshooting agent backed by claude-agent-sdk."""
 
     def __init__(
@@ -24,16 +22,19 @@ class ClaudeSdkAgent(TwoPhaseAgent):
         *,
         llm_provider: str,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
         stream_output: bool = True,
     ) -> None:
-        self.session_id = session_id
-        self.llm_provider = llm_provider
-        self.model = resolve_claude_sdk_model(model)
-        self.max_steps = max_steps
-        self.stream_output = stream_output
-
-        self.session_dir, scenario_name = resolve_sdk_session_fields(session_id)
-        self.trace_dir = self.session_dir
+        super().__init__(
+            session_id,
+            model=resolve_claude_sdk_model(model),
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
+            stream_output=stream_output,
+        )
+        scenario_name = self.scenario_name
 
         self._diagnosis_phase = ClaudeSdkDiagnosisPhase(
             session_id=session_id,
@@ -42,6 +43,7 @@ class ClaudeSdkAgent(TwoPhaseAgent):
             llm_provider=llm_provider,
             max_steps=max_steps,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
             scenario_name=scenario_name,
         )
         self._submission_phase = ClaudeSdkSubmissionPhase(
@@ -51,6 +53,7 @@ class ClaudeSdkAgent(TwoPhaseAgent):
             llm_provider=llm_provider,
             max_steps=max_steps,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
         )
 
     async def diagnose(self, task_description: str) -> str:

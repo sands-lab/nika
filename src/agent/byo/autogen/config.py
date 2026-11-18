@@ -1,4 +1,4 @@
-"""Bridge NIKA MCP server config to AutoGen MCP server params."""
+"""Bridge the session MCP server config to AutoGen MCP server params."""
 
 from __future__ import annotations
 
@@ -7,8 +7,7 @@ from autogen_ext.tools.mcp import (
     StreamableHttpServerParams,
 )
 
-from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.mcp_servers import mcp_read_timeout_seconds
+from agent.utils.mcp_client import mcp_read_timeout_seconds
 
 
 def to_mcp_params(server: dict) -> StdioServerParams | StreamableHttpServerParams:
@@ -32,7 +31,3 @@ def to_mcp_params(server: dict) -> StdioServerParams | StreamableHttpServerParam
     if read_timeout is not None:
         kwargs["read_timeout_seconds"] = float(read_timeout)
     return StdioServerParams(**kwargs)
-
-
-def session_server_configs(session_id: str, scenario_name: str, phase: str) -> dict:
-    return load_session_mcp_config(session_id, scenario_name, phase=phase)

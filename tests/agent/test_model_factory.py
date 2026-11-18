@@ -12,6 +12,11 @@ from agent.llm.model_factory import load_model
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _task(agent_task) -> None:
+    agent_task()
+
+
 def test_provider_chat_classes_are_lazily_imported() -> None:
     assert not hasattr(model_factory, "ChatAnthropic")
     assert not hasattr(model_factory, "ChatDeepSeek")
@@ -50,8 +55,6 @@ def test_load_model_anthropic_omits_empty_base_url() -> None:
             {
                 "ANTHROPIC_API_KEY": "sk-ant",
                 "ANTHROPIC_BASE_URL": "",
-                "NIKA_CUSTOM_BASE_URL": "",
-                "CUSTOM_API_BASE": "",
             },
             clear=False,
         ),
@@ -78,9 +81,9 @@ def test_load_model_openai_passes_reasoning_effort() -> None:
     kwargs = ctor.call_args.kwargs
     assert kwargs["model_name"] == "gpt-5.6"
     assert kwargs["reasoning_effort"] == "medium"
-    # Client-side retries off; NIKA logs each attempt via ``llm_retry``.
+    # Client-side retries off; the factory logs each attempt via ``llm_retry``.
     assert kwargs["max_retries"] == 0
-    assert fake._nika_max_retries == 2
+    assert fake._attempt_retries == 2
 
 
 def test_load_model_openai_omits_reasoning_effort_when_unset() -> None:
@@ -102,38 +105,42 @@ def test_load_model_openai_passes_max_tokens() -> None:
     assert ctor.call_args.kwargs["max_tokens"] == 8192
 
 
-def test_load_model_custom_enables_thinking_extra_body() -> None:
+@pytest.mark.parametrize(
+    ("effort", "body_effort"), [("low", {"reasoning_effort": "low"}), ("xhigh", {})]
+)
+def test_load_model_custom_enables_thinking_extra_body(
+    effort: str, body_effort: dict
+) -> None:
     fake = MagicMock(name="ReasoningChatOpenAI")
     with (
-        patch(
-            "agent.llm.model_factory.resolve_custom_base_url",
-            return_value="http://example:8000/v1",
+        patch.dict(
+            "os.environ", {"OPENAI_BASE_URL": "http://example:8000/v1"}, clear=False
         ),
-        patch("agent.llm.model_factory.resolve_custom_api_key", return_value=None),
         patch("agent.llm.model_factory.ReasoningChatOpenAI", return_value=fake) as ctor,
     ):
         load_model(
             llm_provider="custom",
             model="qwen",
-            reasoning_effort="low",
+            reasoning_effort=effort,
             max_retries=3,
         )
 
     kwargs = ctor.call_args.kwargs
-    assert kwargs["extra_body"] == {"chat_template_kwargs": {"enable_thinking": True}}
+    assert kwargs["extra_body"] == {
+        "chat_template_kwargs": {"enable_thinking": True},
+        **body_effort,
+    }
     assert "reasoning_effort" not in kwargs
     assert kwargs["max_retries"] == 0
-    assert fake._nika_max_retries == 3
+    assert fake._attempt_retries == 3
 
 
 def test_load_model_custom_skips_thinking_extra_body_when_none() -> None:
     fake = MagicMock(name="ReasoningChatOpenAI")
     with (
-        patch(
-            "agent.llm.model_factory.resolve_custom_base_url",
-            return_value="http://example:8000/v1",
+        patch.dict(
+            "os.environ", {"OPENAI_BASE_URL": "http://example:8000/v1"}, clear=False
         ),
-        patch("agent.llm.model_factory.resolve_custom_api_key", return_value=None),
         patch("agent.llm.model_factory.ReasoningChatOpenAI", return_value=fake) as ctor,
     ):
         load_model(
@@ -147,11 +154,9 @@ def test_load_model_custom_skips_thinking_extra_body_when_none() -> None:
 
 def test_load_model_custom_sends_max_tokens_in_body() -> None:
     with (
-        patch(
-            "agent.llm.model_factory.resolve_custom_base_url",
-            return_value="http://example:8000/v1",
+        patch.dict(
+            "os.environ", {"OPENAI_BASE_URL": "http://example:8000/v1"}, clear=False
         ),
-        patch("agent.llm.model_factory.resolve_custom_api_key", return_value=None),
         patch("agent.llm.model_factory.ReasoningChatOpenAI") as ctor,
     ):
         load_model(
@@ -164,6 +169,7 @@ def test_load_model_custom_sends_max_tokens_in_body() -> None:
     kwargs = ctor.call_args.kwargs
     assert kwargs["extra_body"] == {
         "chat_template_kwargs": {"enable_thinking": True},
+        "reasoning_effort": "low",
         "max_tokens": 8192,
     }
     assert "max_tokens" not in kwargs
@@ -216,6 +222,27 @@ def test_load_model_deepseek_ignores_reasoning_effort() -> None:
     assert "reasoning_effort" not in ctor.call_args.kwargs
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint_source", ["argument", "environment"])
+async def test_deepseek_clients_use_model_proxy(
+    monkeypatch: pytest.MonkeyPatch, endpoint_source: str
+) -> None:
+    proxy_url = "http://127.0.0.1:54321/"
+    monkeypatch.setenv("OPENAI_BASE_URL", proxy_url)
+    model = load_model(
+        llm_provider="deepseek",
+        model="deepseek-flash",
+        api_key="proxy-token",
+        base_url=proxy_url if endpoint_source == "argument" else None,
+    )
+    try:
+        assert str(model.root_client.base_url) == proxy_url
+        assert str(model.root_async_client.base_url) == proxy_url
+    finally:
+        model.root_client.close()
+        await model.root_async_client.close()
+
+
 def test_load_model_rejects_unknown_provider() -> None:
     with pytest.raises(ValueError, match="Unsupported llm provider"):
         load_model(llm_provider="nope", model="x")
@@ -235,3 +262,64 @@ def test_streamed_reasoning_chunks_keep_whitespace() -> None:
         merged = chunk if merged is None else merged + chunk
 
     assert merged.message.additional_kwargs["reasoning_content"] == "Check the "
+
+
+@pytest.fixture
+def agent_sampling(agent_task):
+    """Write a task whose model client has the given sampling settings."""
+
+    def _set(**sampling) -> None:
+        agent_task(llm=sampling)
+
+    return _set
+
+
+def _load_custom_kwargs() -> dict:
+    with (
+        patch.dict(
+            "os.environ", {"OPENAI_BASE_URL": "http://example:8000/v1"}, clear=False
+        ),
+        patch("agent.llm.model_factory.ReasoningChatOpenAI") as ctor,
+    ):
+        load_model(llm_provider="custom", model="qwen")
+    return ctor.call_args.kwargs
+
+
+def test_load_model_custom_sends_no_sampling_by_default(agent_sampling) -> None:
+    agent_sampling()
+    kwargs = _load_custom_kwargs()
+    assert not {"temperature", "top_p", "seed"} & kwargs.keys()
+
+
+def test_load_model_custom_sends_configured_sampling(agent_sampling) -> None:
+    agent_sampling(temperature=0.6, top_p=0.95, seed=7)
+    kwargs = _load_custom_kwargs()
+    assert (kwargs["temperature"], kwargs["top_p"], kwargs["seed"]) == (0.6, 0.95, 7)
+
+
+def test_mcp_agent_request_params_sampling() -> None:
+    from agent.byo.mcp_agent.config import build_mcp_request_params
+
+    params = build_mcp_request_params(model="m", max_steps=3, provider="custom")
+    assert params.metadata is None
+
+    sampling = {"temperature": 0.6, "seed": 7}
+    params = build_mcp_request_params(
+        model="m", max_steps=3, provider="custom", sampling=sampling
+    )
+    assert params.metadata == {"temperature": 0.6, "seed": 7}
+    params = build_mcp_request_params(
+        model="m", max_steps=3, provider="anthropic", sampling=sampling
+    )
+    assert params.metadata == {"temperature": 0.6}
+
+
+def test_resolve_sampling_records_effective_settings() -> None:
+    from nika.run_config.schema import RunConfig
+    from nika.utils.agent_config import resolve_sampling
+
+    default = RunConfig()
+    assert resolve_sampling("byo.langgraph", config=default) == "server default"
+    assert resolve_sampling("cli.claude", config=default) is None
+    tuned = RunConfig.model_validate({"agent": {"top_p": 0.9}})
+    assert resolve_sampling("byo.mcp_agent", config=tuned) == {"top_p": 0.9}

@@ -9,6 +9,16 @@ from typing import Any
 
 import yaml
 
+
+def reject_package_symlinks(root: Path) -> None:
+    """Reject symbolic links before opening untrusted package files."""
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise ValueError(
+                f"symbolic links are not allowed: {path.relative_to(root).as_posix()}"
+            )
+
+
 _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "openai_sk",
@@ -34,7 +44,7 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         # still counts even when its value is one of these ordinary words.
         re.compile(
             r"(?i)\b(?:authorization\s*:\s*bearer\s+|"
-            r"bearer\s+(?!(?:tokens?|authentication|scheme)(?![A-Za-z0-9\-._~+/=])))"
+            r"bearer\s+(?!(?:tokens?|authentication|scheme|headers?)(?![A-Za-z0-9\-._~+/=])))"
             r"[A-Za-z0-9\-._~+/]+=*"
         ),
     ),
@@ -48,9 +58,24 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
 )
 
-_ABS_PATH_RE = re.compile(
-    r"(?:^|[\s\"'=])(/home/|/Users/|/tmp/|/var/|/etc/|[A-Za-z]:\\)"
+# Host-local paths: user home trees and Windows drive paths. System paths such
+# as /etc, /var and /tmp are lab-container state the agent inspects, not host
+# leakage. Text may hold JSON-escaped strings, so a path may follow a literal
+# ``\n``/``\r``/``\t`` escape, and ``x:\n`` (``Summary:\nBGP``) is not a drive.
+# Past the drive, ``C:\\Users\\nina`` (escaped) stops only at a lone ``\``,
+# and ``C:\Users\nina`` (raw) keeps every ``\`` that joins path characters.
+# Each branch starts with a literal (``/`` or ``X:``) and checks what precedes
+# it with a lookbehind, so the scan stays fast on large JSONL files.
+PATH_START = r"/(?:(?<=\\[nrt]/)|(?<![\w.~-]/))"
+_DRIVE = r"[A-Za-z]:(?:(?<=\\[nrt][A-Za-z]:)|(?<![\w\\][A-Za-z]:))"
+_NOT_ESCAPE_AFTER = r"(?![nrt\s\"'\\]|u[0-9a-fA-F]{4})"
+_PATH_CHAR = r"[^\s\"'\\]"
+HOST_PATH_PATTERN = (
+    rf"{PATH_START}(?:home|Users)/{_PATH_CHAR}*"
+    rf"|{_DRIVE}(?:\\\\{_NOT_ESCAPE_AFTER}(?:{_PATH_CHAR}|\\\\)*"
+    rf"|\\{_NOT_ESCAPE_AFTER}(?:{_PATH_CHAR}|\\(?={_PATH_CHAR}))*)"
 )
+_ABS_PATH_RE = re.compile(HOST_PATH_PATTERN)
 
 
 def _walk_strings(value: Any, *, path: str = "") -> list[tuple[str, str]]:
@@ -169,7 +194,12 @@ def scan_trajectory_package_dir(trajectories_dir: Path) -> list[str]:
                 issues.extend(scan_value_for_issues(data, label=rel))
             continue
         if path.suffix == ".jsonl":
-            for line_number, line in enumerate(raw.splitlines(), start=1):
+            # JSONL records end at "\n" only; splitlines() also breaks on
+            # U+0085/U+2028 etc. that tool output can carry inside a string.
+            lines = raw.split("\n")
+            if lines and not lines[-1]:
+                lines.pop()
+            for line_number, line in enumerate(lines, start=1):
                 label = f"{rel}:{line_number}"
                 try:
                     data = json.loads(line)

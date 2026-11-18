@@ -1,6 +1,7 @@
 """Start a network lab for one scenario and persist a new session."""
 
 import time
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -11,6 +12,7 @@ from nika.net_env.contract import (
     VALIDATION_RESULTS_FILENAME,
     ValidationReport,
 )
+from nika.net_env.probe_intent import PROBE_INTENT_METADATA_KEY
 from nika.net_env.isp.bgp.config import (
     DEFAULT_BGP_MODE,
     ISP_BGP_MODES,
@@ -39,11 +41,28 @@ from nika.net_env.net_env_pool import (
     get_net_env_instance,
     resolve_scenario_backend,
     resolve_scenario_id,
+    scenario_containerlab_device_profiles,
+    scenario_device_profiles,
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
 )
 from nika.net_env.verify import LabVerifyTimeoutError, verify_lab_with_retry
+from nika.problems.support.polling import wait_until
 from nika.run_config.loader import get_run_config
+from nika.traffic.profiles import (
+    TrafficProfile,
+    normalize_traffic,
+    start_background_traffic,
+    stop_background_traffic,
+)
+from nika.telemetry import (
+    apply_telemetry,
+    configure_telemetry,
+    normalize_telemetry,
+    require_telemetry_backend,
+    telemetry_ready_timeout,
+    telemetry_running,
+)
 from nika.utils.logger import (
     bind_session_dir,
     elapsed_ms,
@@ -95,7 +114,6 @@ def _resolve_isp_kwargs(
         "rpki": rpki,
         "device_profile": device_profile,
     }
-    any_provided = any(value is not None for value in provided.values())
 
     if is_isp_named_special(scenario):
         # Case YAML / release rows often still carry device_profile=frr (and
@@ -125,13 +143,42 @@ def _resolve_isp_kwargs(
         return {}
 
     if not is_isp_base_topology(scenario):
-        if any_provided:
+        profile = (
+            None
+            if device_profile in (None, "", "-")
+            else normalize_device_profile(device_profile)
+        )
+        native = scenario_device_profiles(scenario)
+        containerlab = scenario_containerlab_device_profiles(scenario)
+        protocol_flags = any(
+            value is not None
+            for key, value in provided.items()
+            if key != "device_profile"
+        )
+        if protocol_flags:
             raise ValueError(
                 f"Scenario '{scenario}' does not accept --topo/--igp/"
-                "--metric-strategy/--constant-metric/--bgp-mode/--rpki/"
-                "--device-profile; those flags are only valid for "
-                "ISP topology scenarios (e.g. isp_abilene)."
+                "--metric-strategy/--constant-metric/--bgp-mode/--rpki; those "
+                "flags are only valid for ISP topology scenarios (e.g. isp_abilene)."
             )
+        if containerlab:
+            if profile not in (None, *containerlab):
+                raise ValueError(
+                    f"Scenario '{scenario}' does not support device_profile="
+                    f"{profile!r}; supported: {', '.join(containerlab)}."
+                )
+            return {} if profile is None else {"device_profile": profile}
+        if profile not in (None, "frr", *native):
+            raise ValueError(
+                f"Scenario '{scenario}' does not support device_profile="
+                f"{profile!r}; supported: {', '.join(('frr', *native))}."
+            )
+        # Native profiles deploy on Kathara; frr keeps the scenario default.
+        if profile in native:
+            resolve_scenario_backend(scenario, backend=backend or "kathara")
+            if (backend or "kathara") != "kathara":
+                raise ValueError(f"device_profile={profile!r} requires Kathara")
+            return {"device_profile": profile}
         return {}
 
     if topo is not None:
@@ -199,6 +246,56 @@ def _resolve_isp_kwargs(
     }
 
 
+def _start_resource_monitoring(session: Session, session_id: str) -> None:
+    """Attribute this lab's containers in Prometheus when observability is on.
+
+    Monitoring is best effort: a failing exporter must not fail the deploy.
+    """
+    from nika.metrics.stack import start_monitoring
+
+    try:
+        if not start_monitoring():
+            return
+    except Exception as exc:  # noqa: BLE001 - monitoring is optional
+        log_error_event(
+            "observability_failed",
+            f"Resource monitoring unavailable for {session_id}: {exc}",
+            session_id=session_id,
+            error=str(exc),
+        )
+        return
+    session.update_session("resource_metrics", True)
+
+
+def _configure_telemetry(net_env: Any, session: Session, *, scenario: str) -> None:
+    """Configure wired telemetry on the devices that support it, then wait for it.
+
+    Runs once the lab passes its checks. Devices without support stay
+    unconfigured; only a configured probe or collector that does not start fails.
+    """
+    runtime = net_env._build_runtime()
+    plan = configure_telemetry(runtime, net_env.metadata["telemetry"])
+    net_env.metadata["telemetry"] = plan
+    session.update_session("metadata", dict(net_env.metadata))
+    for kind, info in plan["kinds"].items():
+        log_event(
+            "telemetry_configured",
+            f"Telemetry {kind} configured on {len(info['versions'])} of "
+            f"{len(plan['devices'])} devices ({net_env.name})",
+            scenario=scenario,
+            lab_name=net_env.name,
+            kind=kind,
+            versions=info["versions"],
+            unconfigured=sorted(set(plan["devices"]) - set(info["versions"])),
+        )
+    timeout = telemetry_ready_timeout(plan)
+    if not wait_until(lambda: telemetry_running(runtime, plan), timeout, interval_s=5):
+        raise RuntimeError(
+            f"Telemetry {sorted(plan['kinds'])} collectors or exporters are not running "
+            f"after {timeout:.0f}s."
+        )
+
+
 def start_net_env(
     scenario: str,
     topo_size: str | None,
@@ -217,12 +314,26 @@ def start_net_env(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    release: str | None = None,
     static_validation: bool | None = None,
+    routing_parameters: dict | None = None,
+    routing_model: str | None = None,
+    routing_configs: dict[str, str] | None = None,
+    telemetry: Iterable[str] | None = None,
+    traffic: TrafficProfile | dict | str | None = None,
+    defer_background_traffic: bool = False,
+    defer_business_traffic: bool = False,
 ) -> str:
-    """Deploy the lab for ``scenario`` and create a new runtime session."""
+    """Deploy the lab for ``scenario`` and create a new runtime session.
+
+    ``traffic`` adds a background traffic profile (:mod:`nika.traffic.profiles`)
+    on top of the scenario's business workload.
+    """
     from nika.remote.config import is_remote_enabled
 
     canonical = resolve_scenario_id(scenario)
+    telemetry_kinds = normalize_telemetry(telemetry)
+    traffic_profile = normalize_traffic(traffic)
     static_validation_enabled = (
         static_validation
         if static_validation is not None
@@ -230,6 +341,14 @@ def start_net_env(
     )
 
     if is_remote_enabled():
+        if (
+            routing_parameters is not None
+            or routing_model is not None
+            or routing_configs is not None
+        ):
+            raise ValueError(
+                "Routing-specification deployment currently requires a local session."
+            )
         from nika.remote.workflows import remote_start_net_env
 
         return remote_start_net_env(
@@ -249,7 +368,12 @@ def start_net_env(
             rpki=rpki,
             backend=backend,
             device_profile=device_profile,
+            release=release,
             static_validation=static_validation_enabled,
+            telemetry=list(telemetry_kinds),
+            traffic=traffic_profile.case_value() if traffic_profile else None,
+            defer_background_traffic=defer_background_traffic,
+            defer_business_traffic=defer_business_traffic,
         )
 
     size = _normalize_topo_size(topo_size)
@@ -282,6 +406,21 @@ def start_net_env(
         backend=backend,
         default_when_ambiguous=default_backend,
     )
+    if routing_parameters is not None:
+        from nika.net_env.synthesis.parameters import RoutingParameters
+
+        if resolved_backend not in {"kathara", "containerlab"}:
+            raise ValueError(
+                "Solved routing parameters require a supported local backend"
+            )
+        isp_kwargs["routing_parameters"] = RoutingParameters.model_validate(
+            routing_parameters
+        ).model_dump(mode="json")
+    if routing_model is not None:
+        isp_kwargs["routing_model"] = routing_model
+    if routing_configs is not None:
+        isp_kwargs["routing_configs"] = routing_configs
+    require_telemetry_backend(telemetry_kinds, resolved_backend)
 
     refresh_logger()
     suffix = uuid4().hex[:6]
@@ -295,12 +434,22 @@ def start_net_env(
         session_tag=session_tag, suffix=suffix
     )
     net_env_kwargs: dict = {"lab_name": lab_name, **isp_kwargs}
+    if release is not None:
+        net_env_kwargs["environment_release"] = release
     # Do not pass topo_size into ISP labs (topology is baked into scenario ID).
     if size is not None and not is_isp_scenario(canonical):
         net_env_kwargs["topo_size"] = size
     net_env = get_net_env_instance(
         canonical, backend=resolved_backend, **net_env_kwargs
     )
+    if routing_model is not None and routing_model not in net_env.ROUTING_MODELS:
+        raise ValueError("Routing model does not match scenario capabilities")
+    if routing_parameters is not None:
+        supplied = {
+            name for name, values in isp_kwargs["routing_parameters"].items() if values
+        }
+        if not supplied <= net_env.ROUTING_PARAMETER_KINDS:
+            raise ValueError("Solved parameters do not match scenario capabilities")
     if resolved_backend == "kathara":
         net_env.load_machines()
         # k8s_lab / llmd_lab create runtime/kathara/<lab>/ before deploy so the
@@ -310,6 +459,17 @@ def start_net_env(
             prepare_runtime()
     if resolved_backend == "containerlab":
         net_env._ensure_runtime_files()
+    spec = net_env.get_lab_spec()
+    net_env.metadata["topology_counts"] = {
+        "node_count": len(spec.nodes)
+        if spec is not None
+        else len(net_env.lab.machines),
+        "link_count": len(net_env.get_topology()),
+    }
+    if telemetry_kinds:
+        # Wire the telemetry network before deploy; the lab check phase later
+        # configures only the devices that support it.
+        net_env.metadata["telemetry"] = apply_telemetry(net_env, telemetry_kinds)
 
     session = Session()
     scenario_params: dict = {"lab_name": net_env.name, "backend": resolved_backend}
@@ -318,6 +478,17 @@ def start_net_env(
     if is_isp_scenario(canonical):
         scenario_params["topo"] = getattr(net_env, "topo", None)
     scenario_params.update(isp_kwargs)
+    if release is not None:
+        scenario_params["environment_release"] = release
+    probe_intent = net_env.probe_intent()
+    if probe_intent is not None:
+        net_env.metadata[PROBE_INTENT_METADATA_KEY] = probe_intent.model_dump(
+            mode="json"
+        )
+    if telemetry_kinds:
+        scenario_params["telemetry"] = list(telemetry_kinds)
+    if traffic_profile:
+        scenario_params["traffic"] = traffic_profile.case_value()
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     metadata = getattr(net_env, "metadata", None)
@@ -340,6 +511,7 @@ def start_net_env(
         metadata=metadata,
     )
     bind_session_dir(session.session_dir)
+    _start_resource_monitoring(session, resolved_session_id)
 
     contract = net_env.get_validation_contract()
     if contract is not None:
@@ -387,18 +559,31 @@ def start_net_env(
                     )
 
         lab_exists = net_env.lab_exists()
+        lab_reused = lab_exists and not redeploy
         from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
 
         if canonical in K8S_SCENARIOS:
             cache_scenario(canonical)
         if redeploy or not lab_exists:
-            # When run config selects a sandbox agent, preload its sbx
-            # template alongside lab images (not at per-case agent start).
-            from agent.sandbox.sbx.images import (
-                ensure_configured_sbx_template_images,
+            # When run config selects a sandbox agent, prepare its sandbox
+            # template alongside lab images (not at per-case agent start). A
+            # lab-host daemon and a benchmark engine container have no agents:
+            # they run on the frontend's host, which prepared the template.
+            from nika.agents.sandbox.backend import prepare_configured_sandbox_templates
+            from nika.benchmark_engine import is_engine_server
+            from nika.remote.config import is_remote_server
+
+            images = (
+                []
+                if is_remote_server() or is_engine_server()
+                else prepare_configured_sandbox_templates()
+            )
+            from nika.net_env.utils.kathara.docker_files.docker_images import (
+                ensure_nika_docker_images,
             )
 
-            ensure_configured_sbx_template_images()
+            ensure_nika_docker_images(images)
+
             if lab_exists:
                 net_env.undeploy()
             net_env.deploy()
@@ -476,6 +661,9 @@ def start_net_env(
                 duration_ms=verify_duration_ms,
             )
 
+        if telemetry_kinds:
+            _configure_telemetry(net_env, session, scenario=scenario)
+
         try:
             net_env.post_deploy()
             # post_deploy may enrich metadata (e.g. kubeconfig_path); persist it.
@@ -488,6 +676,48 @@ def start_net_env(
                 session_id=resolved_session_id,
                 error=str(post_deploy_exc),
                 error_type=type(post_deploy_exc).__name__,
+            )
+
+        net_env.seal_baseline()
+
+        # Every case of a scenario carries the same traffic, so a workload
+        # that does not start fails the session start.
+        workload_started = time.perf_counter()
+        workload = (
+            net_env.start_business_workload(services_only=True)
+            if defer_business_traffic
+            else net_env.start_business_workload()
+        )
+        if workload is not None:
+            log_event(
+                "env_workload",
+                f"Started business workload for {scenario} ({resolved_session_id}): "
+                f"{len(workload.processes)} processes on {len(workload.nodes)} nodes",
+                scenario=scenario,
+                session_id=resolved_session_id,
+                process_count=len(workload.processes),
+                node_count=len(workload.nodes),
+                duration_ms=elapsed_ms(workload_started),
+            )
+        if lab_reused:
+            # The reused lab may still run an earlier session's profile.
+            stop_background_traffic(net_env)
+        if traffic_profile and not defer_background_traffic:
+            traffic_started = time.perf_counter()
+            effective, background = start_background_traffic(net_env, traffic_profile)
+            log_event(
+                "env_traffic",
+                f"Started {traffic_profile.pattern} background traffic for "
+                f"{scenario} ({resolved_session_id}): "
+                f"{len(background.processes)} processes on "
+                f"{len(background.nodes)} hosts",
+                scenario=scenario,
+                session_id=resolved_session_id,
+                traffic=traffic_profile.case_value(),
+                traffic_effective=effective.case_value(),
+                process_count=len(background.processes),
+                node_count=len(background.nodes),
+                duration_ms=elapsed_ms(traffic_started),
             )
     except BaseException as exc:
         # Session is registered before deploy; clean up so interrupted starts

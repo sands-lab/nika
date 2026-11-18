@@ -1,0 +1,18 @@
+{
+  "digest": "2dccb8604a30b296cae9ac0f3ff1057f947120d0d054182f72afc1cc49a8d3a5",
+  "netlab": "26.10",
+  "routers": [
+    "atlam5",
+    "atlang",
+    "chinng",
+    "dnvrng",
+    "hstnng",
+    "iplsng",
+    "kscyng",
+    "losang",
+    "nycmng",
+    "snvang",
+    "sttlng",
+    "washng"
+  ]
+}

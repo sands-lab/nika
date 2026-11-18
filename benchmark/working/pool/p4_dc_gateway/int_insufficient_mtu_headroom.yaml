@@ -4,6 +4,9 @@ failure:
   fault_type: int_insufficient_mtu_headroom
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_1
@@ -16,6 +19,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_2
@@ -28,6 +34,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_1
@@ -40,6 +49,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_2
@@ -52,6 +64,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_1
@@ -64,6 +79,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_2
@@ -76,6 +94,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_3
@@ -88,6 +109,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_4
@@ -100,6 +124,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_1
@@ -112,6 +139,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_2
@@ -124,6 +154,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_3
@@ -136,6 +169,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_4
@@ -148,6 +184,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_1
@@ -160,6 +199,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_2
@@ -172,6 +214,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_3
@@ -184,6 +229,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_4
@@ -196,6 +244,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_1
@@ -208,6 +259,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_2
@@ -220,6 +274,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_3
@@ -232,6 +289,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_4
@@ -244,6 +304,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_1
@@ -256,6 +319,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_2
@@ -268,6 +334,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_3
@@ -280,6 +349,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_4
@@ -292,6 +364,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_5
@@ -304,6 +379,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_6
@@ -316,6 +394,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_7
@@ -328,6 +409,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_8
@@ -340,6 +424,9 @@ failure:
         name: eth1
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_1
@@ -352,6 +439,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_2
@@ -364,6 +454,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_3
@@ -376,6 +469,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_4
@@ -388,6 +484,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_5
@@ -400,6 +499,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_6
@@ -412,6 +514,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_7
@@ -424,6 +529,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_8
@@ -436,6 +544,9 @@ failure:
         name: eth2
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_1
@@ -448,6 +559,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_2
@@ -460,6 +574,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_3
@@ -472,6 +589,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_4
@@ -484,6 +604,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_5
@@ -496,6 +619,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_6
@@ -508,6 +634,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_7
@@ -520,6 +649,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_8
@@ -532,6 +664,9 @@ failure:
         name: eth3
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_1
@@ -544,6 +679,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_2
@@ -556,6 +694,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_3
@@ -568,6 +709,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_4
@@ -580,6 +724,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_5
@@ -592,6 +739,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_6
@@ -604,6 +754,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_7
@@ -616,6 +769,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_8
@@ -628,6 +784,9 @@ failure:
         name: eth4
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_1
@@ -640,6 +799,9 @@ failure:
         name: eth5
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_2
@@ -652,6 +814,9 @@ failure:
         name: eth5
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_3
@@ -664,6 +829,9 @@ failure:
         name: eth5
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_4
@@ -676,6 +844,9 @@ failure:
         name: eth5
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_5
@@ -688,6 +859,9 @@ failure:
         name: eth5
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_6
@@ -700,6 +874,9 @@ failure:
         name: eth5
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_7
@@ -712,6 +889,9 @@ failure:
         name: eth5
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_8
@@ -724,6 +904,9 @@ failure:
         name: eth5
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_1
@@ -736,6 +919,9 @@ failure:
         name: eth6
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_2
@@ -748,6 +934,9 @@ failure:
         name: eth6
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_3
@@ -760,6 +949,9 @@ failure:
         name: eth6
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_4
@@ -772,6 +964,9 @@ failure:
         name: eth6
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_5
@@ -784,6 +979,9 @@ failure:
         name: eth6
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_6
@@ -796,6 +994,9 @@ failure:
         name: eth6
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_7
@@ -808,6 +1009,9 @@ failure:
         name: eth6
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_8
@@ -820,6 +1024,9 @@ failure:
         name: eth6
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_1
@@ -832,6 +1039,9 @@ failure:
         name: eth7
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_2
@@ -844,6 +1054,9 @@ failure:
         name: eth7
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_3
@@ -856,6 +1069,9 @@ failure:
         name: eth7
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_4
@@ -868,6 +1084,9 @@ failure:
         name: eth7
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_5
@@ -880,6 +1099,9 @@ failure:
         name: eth7
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_6
@@ -892,6 +1114,9 @@ failure:
         name: eth7
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_7
@@ -904,6 +1129,9 @@ failure:
         name: eth7
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_8
@@ -916,6 +1144,9 @@ failure:
         name: eth7
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_1
@@ -928,6 +1159,9 @@ failure:
         name: eth8
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_2
@@ -940,6 +1174,9 @@ failure:
         name: eth8
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_3
@@ -952,6 +1189,9 @@ failure:
         name: eth8
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_4
@@ -964,6 +1204,9 @@ failure:
         name: eth8
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_5
@@ -976,6 +1219,9 @@ failure:
         name: eth8
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_6
@@ -988,6 +1234,9 @@ failure:
         name: eth8
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_7
@@ -1000,6 +1249,9 @@ failure:
         name: eth8
       fault_type: int_insufficient_mtu_headroom
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_8

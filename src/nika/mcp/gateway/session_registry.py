@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, field
 from threading import Lock
 from typing import Any, Literal
@@ -22,7 +23,7 @@ _transport_owners: dict[str, str] = {}
 class GatewaySession:
     """Gateway binding for one lab session.
 
-    ``agent_session_id`` is what agents send in ``NIKA-Session-Id`` (opaque when
+    ``agent_session_id`` is what agents send in ``X-Session-Id`` (opaque when
     set). ``canonical_session_id`` keys SessionStore / trial dirs. Both map to
     the same entry when they differ (dual-key register).
     """
@@ -33,10 +34,15 @@ class GatewaySession:
     phase: Phase = DIAGNOSIS
     session_dir: str = ""
     access_policy: dict[str, Any] = field(default_factory=dict)
+    tool_call_limits: dict[str, int] = field(default_factory=dict)
+    tool_call_counts: dict[str, int] = field(default_factory=dict)
     node_roles: dict[str, str] = field(default_factory=dict)
     # Diagnosis servers selected for the scenario; ``None`` allows every
     # mounted diagnosis server.
     diagnosis_servers: frozenset[str] | None = None
+    # Secret that MCP clients send in ``X-Session-Token``. The session id
+    # alone is guessable, and the gateway may be reachable from other hosts.
+    access_token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
 
     @property
     def session_id(self) -> str:
@@ -53,6 +59,7 @@ def register_session(
     access_policy: dict[str, Any] | None = None,
     node_roles: dict[str, str] | None = None,
     diagnosis_servers: list[str] | None = None,
+    tool_call_limits: dict[str, int] | None = None,
 ) -> None:
     """Register under canonical ``session_id`` and optional opaque agent id.
 
@@ -68,6 +75,7 @@ def register_session(
         phase=DIAGNOSIS,
         session_dir=session_dir,
         access_policy=dict(access_policy or {}),
+        tool_call_limits=dict(tool_call_limits or {}),
         node_roles=dict(node_roles or {}),
         diagnosis_servers=(
             None if diagnosis_servers is None else frozenset(diagnosis_servers)
@@ -121,6 +129,16 @@ def get_session(session_id: str) -> GatewaySession | None:
         return _sessions.get(session_id)
 
 
+def access_token_matches(session_id: str, token: str) -> bool:
+    """True when *token* is the access token of registered *session_id*."""
+    entry = get_session(session_id)
+    return (
+        entry is not None
+        and bool(token)
+        and secrets.compare_digest(entry.access_token, token)
+    )
+
+
 def resolve_canonical_session_id(session_id: str) -> str:
     """Map an agent or canonical handle to the SessionStore key."""
     entry = get_session(session_id)
@@ -154,3 +172,15 @@ def advance_phase(session_id: str, phase: Phase) -> None:
         if entry.phase == DIAGNOSIS and phase != SUBMISSION:
             raise ValueError("MCP phase must advance from diagnosis to submission")
         entry.phase = phase
+
+
+def reserve_tool_call(session_id: str) -> tuple[bool, int]:
+    """Atomically count a primitive call across connections and server mounts."""
+    with _lock:
+        entry = _sessions[session_id]
+        used = entry.tool_call_counts.get(entry.phase, 0)
+        limit = entry.tool_call_limits.get(entry.phase)
+        if limit is not None and used >= limit:
+            return False, used
+        entry.tool_call_counts[entry.phase] = used + 1
+        return True, used + 1

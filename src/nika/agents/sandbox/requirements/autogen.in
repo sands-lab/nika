@@ -1,0 +1,6 @@
+langchain-core
+pydantic
+autogen-agentchat
+autogen-core
+autogen-ext[mcp,openai,anthropic]
+anthropic

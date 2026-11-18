@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import shlex
 import time
 
 from nika.service.lab.protocols import SupportsExec
@@ -169,19 +171,19 @@ class FRRAPIMixin:
             )
         )
         if prefix:
-            chunks.append(
-                self.exec_cmd(
-                    device,
-                    f"vtysh -c 'show rpki prefix-table {prefix}' 2>/dev/null || "
-                    f"vtysh -c 'show rpki prefix {prefix}' 2>/dev/null || true",
+            network = ipaddress.ip_network(prefix, strict=False)
+            afi = "ipv4" if network.version == 4 else "ipv6"
+            # A bare address keeps BGP's longest-prefix match.
+            target = network if "/" in prefix else network.network_address
+            for command in (
+                f"show rpki prefix {network}",
+                f"show bgp {afi} unicast {target}",
+            ):
+                chunks.append(
+                    self.exec_cmd(
+                        device, f"vtysh -c {shlex.quote(command)} 2>/dev/null || true"
+                    )
                 )
-            )
-            chunks.append(
-                self.exec_cmd(
-                    device,
-                    f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true",
-                )
-            )
         else:
             chunks.append(
                 self.exec_cmd(

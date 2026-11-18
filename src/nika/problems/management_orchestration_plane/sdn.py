@@ -1,6 +1,9 @@
 """SDN controller / southbound failure implementations (ONOS)."""
 
+import re
 import time
+import shlex
+import json
 
 from pydantic import BaseModel, Field
 
@@ -8,8 +11,30 @@ from nika.net_env.sdn_l3_clos.fabric_manager import (
     get_openflow_listen_ports,
     set_openflow_listen_ports,
 )
+from nika.net_env.sdn_l3_clos.fabric_manager.apply import (
+    _onos_batch_resilient,
+    _onos_get,
+    onos_flow_snapshot,
+    onos_group_snapshot,
+    wait_for_onos,
+    wait_for_of_sessions,
+)
 from nika.problems.rca import node_resource
+from nika.problems.support.polling import wait_until
+from nika.problems.support.nft_recovery import NftDropRecovery
+from nika.problems.support.recovery import checked_exec
 from nika.problems.support.benchmark_targets import choice
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    nft_rule,
+    onos,
+    shell,
+)
 from nika.problems.base import (
     FailureDomain,
     ProblemBase,
@@ -85,6 +110,195 @@ def _switch_controller_state(runtime, net_env) -> dict[str, dict[str, str]]:
     return state
 
 
+def _probe_switch(net_env) -> str:
+    """Fabric switch whose controller channel the oracle inspects."""
+    model = getattr(net_env, "model", None)
+    leaves = list(getattr(model, "leaves", None) or [])
+    return leaves[0] if leaves else "leaf_1"
+
+
+def _switch_channel(
+    switch: str, purpose: str, expect, *, evidence: bool = False
+) -> OracleStep:
+    """The switch's controller target, session state, and recent rconn log."""
+    return shell(
+        switch,
+        "ovs-vsctl --columns=target,is_connected list controller; "
+        "grep -E 'rconn' /var/log/openvswitch/ovs-vswitchd.log | tail -4",
+        purpose,
+        expect,
+        evidence=evidence,
+        attempts=6,
+        interval_sec=10,
+    )
+
+
+def _disconnected(port: int):
+    return all_of(
+        contains(
+            rf"tcp:[0-9.]+:{port}\b", f"the switch targets controller port {port}"
+        ),
+        contains(r"is_connected\s*:\s*false", "the switch has no controller session"),
+    )
+
+
+def _listeners(host: str, ports: str, purpose: str, expect, **kw) -> OracleStep:
+    return shell(
+        host,
+        "if out=$(ss -ltn 2>&1); then "
+        f"echo \"$out\" | grep -E ':({ports})\\b' || echo NO_LISTENER; "
+        'else echo "ss failed: $out"; fi',
+        purpose,
+        expect,
+        **kw,
+    )
+
+
+_DEVICES_UNAVAILABLE = all_of(
+    contains(r'"available":\s*false', "ONOS lists switches as unavailable"),
+    lacks(r'"available":\s*true', "no switch is available"),
+)
+
+
+def _active_onos_apps(runtime, *, required: set[str] | None = None) -> set[str]:
+    raw = _onos_get(runtime, "/onos/v1/applications")
+    try:
+        snapshot = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Cannot read the controller application state: {raw[:500]}"
+        ) from exc
+    if not isinstance(snapshot, dict) or not isinstance(
+        snapshot.get("applications"), list
+    ):
+        raise RuntimeError(f"Cannot read the controller application state: {raw[:500]}")
+    installed = {app["name"] for app in snapshot["applications"]}
+    if required and not required.issubset(installed):
+        raise RuntimeError(
+            f"Controller application registry is missing {sorted(required - installed)}"
+        )
+    return {
+        app["name"] for app in snapshot["applications"] if app.get("state") == "ACTIVE"
+    }
+
+
+def _restore_onos_apps(runtime, saved: set[str]) -> bool:
+    current = set()
+    last_error = None
+
+    def ready():
+        nonlocal current, last_error
+        try:
+            current = _active_onos_apps(runtime, required=saved)
+        except RuntimeError as exc:
+            last_error = str(exc)
+            return False
+        return True
+
+    if not wait_until(ready, 120, interval_s=2):
+        raise RuntimeError(
+            f"Controller application state did not become ready: {last_error}"
+        )
+    operations = [
+        ("POST", f"/onos/v1/applications/{name}/active", None)
+        for name in sorted(saved - current)
+    ]
+    operations += [
+        ("DELETE", f"/onos/v1/applications/{name}/active", None)
+        for name in sorted(current - saved)
+    ]
+    if operations:
+        _onos_batch_resilient(runtime, operations, operation="recover applications")
+    return wait_for_onos(runtime, timeout_sec=120, stable_checks=2) and wait_until(
+        lambda: _active_onos_apps(runtime, required=saved) == saved, 60, interval_s=2
+    )
+
+
+def _flow_policy(flow: dict) -> dict:
+    return {
+        key: flow[key]
+        for key in (
+            "deviceId",
+            "tableId",
+            "priority",
+            "timeout",
+            "isPermanent",
+            "selector",
+            "treatment",
+        )
+        if key in flow
+    }
+
+
+def _group_policy(group: dict) -> dict:
+    raw_id = group.get("givenGroupId", group.get("groupId"))
+    if raw_id is None:
+        raw_id = group["id"]
+    group_id = int(str(raw_id), 0)
+    return {
+        "type": group["type"],
+        "appCookie": group["appCookie"],
+        "groupId": str(group_id),
+        "buckets": [
+            {
+                key: bucket[key]
+                for key in ("weight", "treatment", "watchPort", "watchGroup")
+                if key in bucket
+            }
+            for bucket in group["buckets"]
+        ],
+    }
+
+
+def _saved_rest_policy(runtime) -> tuple[list[dict], list[dict]]:
+    # ONOS rebuilds discovery rules; retain the authored REST policy.
+    flows = [
+        _flow_policy(flow)
+        for flow in onos_flow_snapshot(runtime).get("flows", [])
+        if flow.get("appId") == "org.onosproject.rest"
+    ]
+    groups = [
+        {"deviceId": group["deviceId"], **_group_policy(group)}
+        for group in onos_group_snapshot(runtime).get("groups", [])
+        if group.get("appId") == "org.onosproject.rest"
+    ]
+    return flows, groups
+
+
+def _rest_policy_present(runtime, saved) -> bool:
+    current = _saved_rest_policy(runtime)
+    return all(
+        {json.dumps(item, sort_keys=True) for item in wanted}.issubset(
+            json.dumps(item, sort_keys=True) for item in actual
+        )
+        for wanted, actual in zip(saved, current, strict=True)
+    )
+
+
+def _restore_rest_policy(runtime, saved) -> bool:
+    flows, groups = saved
+    current_flows, current_groups = _saved_rest_policy(runtime)
+    for kind, wanted, current in (
+        ("groups", groups, current_groups),
+        ("flows", flows, current_flows),
+    ):
+        present = {json.dumps(item, sort_keys=True) for item in current}
+        operations = []
+        for item in wanted:
+            if json.dumps(item, sort_keys=True) in present:
+                continue
+            body = (
+                {key: value for key, value in item.items() if key != "deviceId"}
+                if kind == "groups"
+                else item
+            )
+            operations.append(("POST", f"/onos/v1/{kind}/{item['deviceId']}", body))
+        if operations:
+            _onos_batch_resilient(runtime, operations, operation=f"recover {kind}")
+
+    return wait_until(lambda: _rest_policy_present(runtime, saved), 60, interval_s=2)
+
+
 class SDNControllerCrashParams(BaseModel):
     """Parameters for injecting an SDN controller crash fault."""
 
@@ -112,6 +326,23 @@ class SDNControllerCrash(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: SDNControllerCrashParams):
+        self._controller_switch_state = _switch_controller_state(
+            self.runtime, self.net_env
+        )
+        self._controller_was_running = not self.verify_fault(params)["verified"]
+        self._controller_policy = (
+            _saved_rest_policy(self.runtime)
+            if self._controller_was_running
+            else ([], [])
+        )
+        self._controller_apps = (
+            _active_onos_apps(self.runtime) if self._controller_was_running else set()
+        )
+        self._controller_ports = (
+            get_openflow_listen_ports(self.runtime)
+            if self._controller_was_running
+            else None
+        )
         # ONOS: JVM plus the karaf wrapper (/bin/sh .../bin/karaf server).
         # PID 1 is a keeper (sleep infinity); SIGKILL leaves exec for verify.
         # Bracket patterns avoid pkill matching the Kathara/docker exec shell
@@ -126,6 +357,171 @@ class SDNControllerCrash(ProblemBase):
             "pkill -9 -f '[k]araf server' 2>/dev/null || true; "
             "pkill -9 -f '[p]ox.py' 2>/dev/null || true; "
             "sleep 3",
+        )
+
+    def oracle_playbook(self, params: SDNControllerCrashParams) -> OraclePlaybook:
+        host = params.host_name
+        switch = _probe_switch(self.net_env)
+        return OraclePlaybook(
+            finding=(
+                f"The ONOS controller process on {host} is gone, so its "
+                "OpenFlow and REST endpoints are closed and no switch has a "
+                "controller session."
+            ),
+            steps=[
+                _switch_channel(
+                    switch,
+                    f"Check the controller session of {switch}.",
+                    _disconnected(ONOS_OF_PORT_DEFAULT),
+                ),
+                onos(
+                    "/onos/v1/devices",
+                    "Query the controller's device inventory over REST.",
+                    contains(r'"summary":\s*\{\}', "the ONOS REST API returns nothing"),
+                ),
+                shell(
+                    host,
+                    "if out=$(ps -eo pid,stat,args 2>&1); then "
+                    "echo \"$out\" | awk '$2 !~ /^Z/' "
+                    "| grep -E '[k]araf|[j]ava' || echo NO_CONTROLLER_PROCESS; "
+                    'else echo "ps failed: $out"; fi',
+                    f"Look for the ONOS (Karaf/Java) process on {host}.",
+                    contains(r"^NO_CONTROLLER_PROCESS$", "no live ONOS process"),
+                    evidence=True,
+                ),
+                _listeners(
+                    host,
+                    f"{ONOS_OF_PORT_DEFAULT}|{ONOS_OF_PORT_MISMATCH}|8181",
+                    f"Check the OpenFlow and REST listeners on {host}.",
+                    contains(r"^NO_LISTENER$", "nothing listens on 6653, 6633 or 8181"),
+                    evidence=True,
+                ),
+            ],
+        )
+
+    def recover_fault(self, params: SDNControllerCrashParams) -> dict:
+        host = params.host_name
+        was_running = getattr(self, "_controller_was_running", None)
+        if was_running is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        if not was_running:
+            return build_verify_result(
+                self.root_cause_name,
+                self.verify_fault(params)["verified"],
+                {"host": host, "original_service_running": False},
+            )
+        checked_exec(
+            self.runtime,
+            host,
+            "cd /root/onos && if ! pgrep -f '[o]rg.apache.karaf.main.Main' >/dev/null 2>&1; then setsid /root/onos/bin/onos-service server >/tmp/onos-service.log 2>&1 < /dev/null & fi",
+        )
+
+        if not wait_for_onos(self.runtime, timeout_sec=180, stable_checks=2):
+            return build_verify_result(
+                self.root_cause_name,
+                False,
+                {"host": host, "error": "controller_rest_unavailable"},
+            )
+        if not _restore_onos_apps(self.runtime, self._controller_apps):
+            return build_verify_result(
+                self.root_cause_name,
+                False,
+                {"host": host, "error": "controller_apps_not_restored"},
+            )
+        policy_restored = not any(self._controller_policy) or _rest_policy_present(
+            self.runtime, self._controller_policy
+        )
+        policy_error = None
+        if not policy_restored:
+            # Rediscover devices before replaying their policy, then restore the listener mismatch.
+            target_ports = {
+                int(info["target"].rpartition(":")[2])
+                for info in self._controller_switch_state.values()
+                if info["target"].rpartition(":")[2].isdigit()
+            }
+            try:
+                if self._controller_ports is not None:
+                    set_openflow_listen_ports(
+                        self.runtime, sorted(target_ports | set(self._controller_ports))
+                    )
+                if wait_for_of_sessions(
+                    self.runtime, getattr(self.net_env, "model", None), timeout_sec=120
+                ):
+                    policy_restored = _restore_rest_policy(
+                        self.runtime, self._controller_policy
+                    )
+                else:
+                    policy_error = "controller_devices_not_discovered"
+            except Exception as exc:  # noqa: BLE001
+                policy_error = str(exc)
+        if self._controller_ports is not None:
+            # Restore temporary listeners before any failed readback can return.
+            set_openflow_listen_ports(self.runtime, self._controller_ports)
+            refused_ports = {
+                int(previous["target"].rpartition(":")[2])
+                for previous in self._controller_switch_state.values()
+                if previous["is_connected"] == "false"
+                and previous["target"].rpartition(":")[2].isdigit()
+                and int(previous["target"].rpartition(":")[2])
+                not in self._controller_ports
+            }
+            if not wait_until(
+                lambda: (
+                    get_openflow_listen_ports(self.runtime) == self._controller_ports
+                    and all(
+                        not _tcp_listening(self.runtime, host, port)
+                        for port in refused_ports
+                    )
+                ),
+                60,
+                interval_s=2,
+            ):
+                return build_verify_result(
+                    self.root_cause_name,
+                    False,
+                    {"host": host, "error": "controller_listeners_not_restored"},
+                )
+        # A restarted ONOS can briefly accept a previously mismatched switch.
+        # Reset those sessions after restoring the original listeners.
+        current = _switch_controller_state(self.runtime, self.net_env)
+        for switch, previous in self._controller_switch_state.items():
+            if (
+                previous["is_connected"] == "false"
+                and current.get(switch, {}).get("is_connected") == "true"
+            ):
+                target = shlex.quote(previous["target"])
+                checked_exec(
+                    self.runtime,
+                    switch,
+                    f"for br in $(ovs-vsctl list-br); do ovs-vsctl set-controller $br tcp:127.0.0.1:1 && ovs-vsctl set-controller $br {target} || exit; done",
+                )
+
+        def connected():
+            state = _switch_controller_state(self.runtime, self.net_env)
+            return (
+                _tcp_listening(self.runtime, host, 8181)
+                and all(
+                    _tcp_listening(self.runtime, host, port)
+                    for port in (self._controller_ports or [])
+                )
+                and all(
+                    state.get(name, {}).get("is_connected") == previous["is_connected"]
+                    for name, previous in self._controller_switch_state.items()
+                )
+            )
+
+        channels_restored = wait_until(connected, 180, interval_s=2)
+        return build_verify_result(
+            self.root_cause_name,
+            channels_restored and policy_restored,
+            {
+                "host": host,
+                "controller_channels_restored": channels_restored,
+                "controller_policy_restored": policy_restored,
+                "policy_error": policy_error,
+            },
         )
 
     def verify_fault(self, params: SDNControllerCrashParams) -> dict:
@@ -197,10 +593,85 @@ class SouthboundPortBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: SouthboundPortBlockParams):
-        self.runtime.add_nft_drop_rule(
+        self._southbound_switch_state = _switch_controller_state(
+            self.runtime, self.net_env
+        )
+        self._southbound_recovery = NftDropRecovery()
+        self._southbound_recovery.add(
+            self.runtime,
             params.host_name,
             _southbound_drop_rule(params.southbound_port),
-            table=_DROP_TABLE,
+        )
+
+    def oracle_playbook(self, params: SouthboundPortBlockParams) -> OraclePlaybook:
+        host, port = params.host_name, int(params.southbound_port)
+        switch = _probe_switch(self.net_env)
+        return OraclePlaybook(
+            finding=(
+                f"A firewall rule on {host} drops TCP port {port}, so switches "
+                "cannot reach the running ONOS OpenFlow listener."
+            ),
+            steps=[
+                _switch_channel(
+                    switch,
+                    f"Check the controller session of {switch}.",
+                    _disconnected(port),
+                ),
+                OracleStep(
+                    "List the switches ONOS knows and their availability.",
+                    "sdn_onos_rest",
+                    {"path": "/onos/v1/devices"},
+                    _DEVICES_UNAVAILABLE,
+                    evidence=True,
+                    attempts=6,
+                    interval_sec=10,
+                ),
+                _listeners(
+                    host,
+                    str(port),
+                    f"Confirm ONOS still listens on TCP {port}.",
+                    contains(rf"LISTEN.*:{port}\b", f"ONOS listens on {port}"),
+                    evidence=True,
+                ),
+                nft_rule(
+                    host,
+                    rf"tcp dport {port} (drop|reject)",
+                    f"Inspect the packet filter on {host}.",
+                ),
+            ],
+        )
+
+    def recover_fault(self, params: SouthboundPortBlockParams) -> dict:
+        recovery = getattr(self, "_southbound_recovery", None)
+        if recovery is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        rules_removed = recovery.restore(self.runtime)
+        restored = rules_removed
+        originally_connected = {
+            name
+            for name, info in self._southbound_switch_state.items()
+            if info["is_connected"] == "true"
+        }
+        if restored and originally_connected:
+
+            def channels_restored():
+                state = _switch_controller_state(self.runtime, self.net_env)
+                return all(
+                    state.get(name, {}).get("is_connected") == "true"
+                    for name in originally_connected
+                )
+
+            restored = wait_until(channels_restored, 90, interval_s=2)
+        return build_verify_result(
+            self.root_cause_name,
+            restored,
+            {
+                "host": params.host_name,
+                "owned_rules_removed": rules_removed,
+                "controller_channels_restored": restored,
+            },
         )
 
     def verify_fault(self, params: SouthboundPortBlockParams) -> dict:
@@ -315,6 +786,9 @@ class SouthboundPortMismatch(ProblemBase):
     def inject_fault(self, params: SouthboundPortMismatchParams):
         if params.mismatched_port == params.original_port:
             raise ValueError("mismatched_port must differ from original_port")
+        self._original_switch_state = _switch_controller_state(
+            self.runtime, self.net_env
+        )
         self._original_listen_ports = get_openflow_listen_ports(self.runtime)
         set_openflow_listen_ports(self.runtime, [params.mismatched_port])
         # ONOS restarts its listeners; wait until switches drop their sessions.
@@ -326,6 +800,99 @@ class SouthboundPortMismatch(ProblemBase):
             params.host_name,
             self._original_listen_ports,
             params.mismatched_port,
+        )
+
+    def oracle_playbook(self, params: SouthboundPortMismatchParams) -> OraclePlaybook:
+        host = params.host_name
+        configured, listening = int(params.original_port), int(params.mismatched_port)
+        switch = _probe_switch(self.net_env)
+        return OraclePlaybook(
+            finding=(
+                f"ONOS on {host} listens for OpenFlow only on {listening} while "
+                f"the switches still connect to {configured}, so every switch "
+                "is refused."
+            ),
+            steps=[
+                _switch_channel(
+                    switch,
+                    f"Check which controller port {switch} targets and its session.",
+                    _disconnected(configured),
+                    evidence=True,
+                ),
+                _listeners(
+                    host,
+                    f"{configured}|{listening}",
+                    f"Compare the OpenFlow listeners on {host}.",
+                    all_of(
+                        contains(
+                            rf"LISTEN.*:{listening}\b", f"ONOS listens on {listening}"
+                        ),
+                        lacks(rf":{configured}\b", f"nothing listens on {configured}"),
+                    ),
+                    evidence=True,
+                ),
+                onos(
+                    "/onos/v1/configuration/"
+                    "org.onosproject.openflow.controller.impl.OpenFlowControllerImpl",
+                    "Read the ONOS OpenFlow controller configuration.",
+                    contains(
+                        rf'"openflowPorts":\s*"{listening}"',
+                        f"openflowPorts is set to {listening} only",
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    host,
+                    "if rules=$(nft list ruleset 2>&1); then "
+                    "echo \"$rules\" | grep -E 'dport' || echo NO_PORT_RULES; "
+                    'else echo "nft failed: $rules"; fi',
+                    f"Rule out a port filter on {host}.",
+                    all_of(
+                        contains(r"dport|^NO_PORT_RULES$", "the ruleset was read"),
+                        lacks(r"nft failed", "nft ran"),
+                        lacks(
+                            rf"dport {configured}\b.*(drop|reject)",
+                            f"no filter drops port {configured}",
+                        ),
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
+
+    def recover_fault(self, params: SouthboundPortMismatchParams) -> dict:
+        ports = getattr(self, "_original_listen_ports", None)
+        if ports is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        set_openflow_listen_ports(self.runtime, ports)
+
+        def connected():
+            state = _switch_controller_state(self.runtime, self.net_env)
+            return (
+                get_openflow_listen_ports(self.runtime) == ports
+                and all(
+                    _tcp_listening(self.runtime, params.host_name, port)
+                    for port in ports
+                )
+                and bool(state)
+                and all(
+                    state.get(name, {}).get("is_connected") == "true"
+                    for name, original in self._original_switch_state.items()
+                    if original["is_connected"] == "true"
+                )
+            )
+
+        restored = wait_until(connected, 90, interval_s=2)
+        return build_verify_result(
+            self.root_cause_name,
+            restored,
+            {
+                "host": params.host_name,
+                "openflow_ports": ports,
+                "controller_channels_restored": restored,
+            },
         )
 
     def verify_fault(self, params: SouthboundPortMismatchParams) -> dict:
@@ -359,3 +926,180 @@ class SouthboundPortMismatch(ProblemBase):
                 },
             },
         )
+
+
+class SwitchDatapathIdConflictParams(BaseModel):
+    """Parameters for giving an OpenFlow switch another switch's datapath ID."""
+
+    host_name: str = Field(description="OpenFlow switch whose datapath ID is changed.")
+
+
+def _datapath_id(runtime, switch: str) -> str:
+    raw = runtime.exec(
+        switch, f"ovs-vsctl get bridge {switch} other-config:datapath-id 2>/dev/null"
+    )
+    value = raw.strip().strip('"')
+    if not re.fullmatch(r"[0-9a-fA-F]{16}", value):
+        raise RuntimeError(f"{switch!r} has no configured datapath ID: {raw!r}")
+    return value
+
+
+class SwitchDatapathIdConflict(ProblemBase):
+    """The switch takes the OpenFlow datapath ID of another switch.
+
+    The controller keeps the channel of the switch that connected first under
+    that ID and closes every new one as a duplicate, so the target switch
+    reconnects and is dropped again while flows already in its table keep
+    forwarding. A cloned switch image or a copied bridge configuration leaves
+    the same state. See the ``other-config:datapath-id`` column in Open
+    vSwitch's ovs-vswitchd.conf.db(5):
+    https://www.openvswitch.org/support/dist-docs/ovs-vswitchd.conf.db.5.html
+    """
+
+    failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "switch_datapath_id_conflict"
+    description = "An OpenFlow switch uses the datapath ID of another switch."
+    TAGS = ["sdn"]
+    Params = SwitchDatapathIdConflictParams
+    RECORDED_ATTRS = ("duplicate_datapath_id",)
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": choice(ctx.rng, ctx.switches, ctx.host0)}
+
+    def root_cause_resources(self, params: SwitchDatapathIdConflictParams):
+        return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: SwitchDatapathIdConflictParams) -> OraclePlaybook:
+        switch = params.host_name
+        twin = self._twin(switch)
+
+        def compare_args(outputs):
+            match = re.search(
+                r'^"?([0-9a-fA-F]{16})"?$', outputs["switch_dpid"].strip(), re.M
+            )
+            if match is None:
+                raise ValueError(
+                    "The switch's operational datapath ID was not observed."
+                )
+            return {
+                "host_name": twin,
+                "command": f"echo target_dpid={match[1]}; ovs-vsctl get bridge {twin} datapath_id",
+                "timeout": 15,
+            }
+
+        def duplicated(output):
+            target = re.search(r"^target_dpid=([0-9a-fA-F]{16})$", output, re.M)
+            peer = re.search(r'^"?([0-9a-fA-F]{16})"?$', output, re.M)
+            return bool(target and peer and target[1].lower() == peer[1].lower())
+
+        return OraclePlaybook(
+            finding=f"{switch} and {twin} expose the same operational OpenFlow datapath ID, so ONOS cannot maintain independent identities for both switches.",
+            steps=[
+                shell(
+                    switch,
+                    f"ovs-vsctl get bridge {switch} datapath_id; "
+                    f"ovs-vsctl get bridge {switch} other-config:datapath-id",
+                    f"Wait for {switch}'s operational datapath ID to match its configured ID.",
+                    save_as="switch_dpid",
+                    attempts=6,
+                    expect=Check(
+                        "The operational and configured datapath IDs agree.",
+                        lambda o: (
+                            len(ids := re.findall(r'^"?([0-9a-fA-F]{16})"?$', o, re.M))
+                            == 2
+                            and ids[0].lower() == ids[1].lower()
+                        ),
+                    ),
+                ),
+                OracleStep(
+                    f"Compare the operational datapath ID on the distinct switch {twin}.",
+                    "exec_shell",
+                    compare_args,
+                    Check(
+                        "Two distinct bridges have the same operational datapath ID, distinguishing identity collision from a controller outage or southbound filter.",
+                        duplicated,
+                    ),
+                    evidence=True,
+                    attempts=6,
+                ),
+                onos(
+                    "/onos/v1/devices",
+                    "Inspect the controller's device identities and availability.",
+                ),
+                _switch_channel(
+                    switch,
+                    "Inspect the affected switch's controller connection and reconnect log.",
+                    None,
+                ),
+            ],
+        )
+
+    def _twin(self, switch: str) -> str:
+        """The first other switch of the fabric, so the choice is reproducible."""
+        model = self.net_env.model
+        switches = [*model.leaves, *model.spines]
+        if switch not in switches:
+            raise ValueError(f"{switch!r} is not an OpenFlow switch of the fabric")
+        other = next((other for other in switches if other != switch), None)
+        if other is None:
+            raise ValueError("A datapath ID conflict requires at least two switches")
+        return other
+
+    def inject_fault(self, params: SwitchDatapathIdConflictParams):
+        self._original_datapath_id = _datapath_id(self.runtime, params.host_name)
+        self.duplicate_datapath_id = _datapath_id(
+            self.runtime, self._twin(params.host_name)
+        )
+        self.runtime.exec(
+            params.host_name,
+            f"ovs-vsctl set bridge {params.host_name} "
+            f"other-config:datapath-id={self.duplicate_datapath_id}",
+        )
+        logger.info(
+            f"Set datapath ID {self.duplicate_datapath_id} on {params.host_name}."
+        )
+
+    def verify_fault(self, params: SwitchDatapathIdConflictParams) -> dict:
+        expected = getattr(self, "duplicate_datapath_id", None)
+        running = _datapath_id(self.runtime, params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(expected) and running == expected,
+            details={
+                "host": params.host_name,
+                "datapath_id": running,
+                "duplicate_datapath_id": expected,
+            },
+        )
+
+    def recover_fault(self, params: SwitchDatapathIdConflictParams) -> dict:
+        original = getattr(self, "_original_datapath_id", None)
+        if original:
+            self.runtime.exec(
+                params.host_name,
+                f"ovs-vsctl set bridge {params.host_name} "
+                f"other-config:datapath-id={original}",
+            )
+        deadline = time.monotonic() + _DISCONNECT_WAIT_SEC
+        while True:
+            running = _datapath_id(self.runtime, params.host_name)
+            state = _switch_controller_state(self.runtime, self.net_env)
+            restored = (
+                bool(original)
+                and running == original
+                and bool(state)
+                and all(item["is_connected"] == "true" for item in state.values())
+            )
+            if restored or time.monotonic() >= deadline:
+                return {
+                    "verified": restored,
+                    "details": {
+                        "host": params.host_name,
+                        "datapath_id": running,
+                        "switch_connections": state,
+                    },
+                }
+            time.sleep(2.0)

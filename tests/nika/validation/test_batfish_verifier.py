@@ -231,3 +231,132 @@ def test_rpki_flow_is_explicitly_unsupported_but_adjacency_is_modeled(
     assert by_id[flow.id].status == "unsupported"
     assert "RPKI" in (by_id[flow.id].reason or "")
     assert by_id[adjacency.id].status == "passed"
+
+
+@pytest.mark.parametrize("property_name", ["bgp_route", "route_policy"])
+def test_missing_routing_observations_cannot_satisfy_requirements(
+    tmp_path, property_name
+) -> None:
+    from nika.net_env.contract import BgpRouteExpectation, RoutePolicyExpectation
+
+    expectation = (
+        dict(
+            bgp_route=BgpRouteExpectation(
+                node="r1", prefix="198.51.100.0/24", exit_asn=65101
+            )
+        )
+        if property_name == "bgp_route"
+        else dict(
+            route_policy=RoutePolicyExpectation(
+                node="r1",
+                peer="upstream",
+                remote_address="10.0.0.1",
+                prefix="198.51.100.0/24",
+                permit=False,
+            )
+        )
+    )
+    intent = ValidationIntent(
+        id="routing.required",
+        description="An absent answer is not evidence for the required routing behavior.",
+        property=property_name,
+        expected="selected" if property_name == "bgp_route" else "policy_compliant",
+        **expectation,
+    )
+    report = BatfishVerifier(client=_FakeClient()).verify(
+        _contract(intent), _snapshot(tmp_path)
+    )
+    assert report.status == "failed"
+    assert report.results[0].status == "failed"
+
+
+@pytest.mark.parametrize(
+    "vrf,addresses,expected_status",
+    [
+        ("default", [], "failed"),
+        ("default", ["10.0.0.1"], "failed"),
+        ("other", ["10.0.0.1", "10.0.0.2"], "failed"),
+        ("default", ["10.0.0.1", "10.0.0.2"], "passed"),
+    ],
+)
+def test_route_next_hops_requires_exact_nonempty_set_in_declared_vrf(
+    tmp_path, vrf, addresses, expected_status
+):
+    from nika.net_env.contract import RouteNextHopsExpectation
+
+    intent = ValidationIntent(
+        id="route.ecmp",
+        description="Both declared next hops are required.",
+        property="route_next_hops",
+        expected="next_hops_match",
+        route_next_hops=RouteNextHopsExpectation(
+            node="r1", prefix="192.0.2.0/24", next_hops=("10.0.0.1", "10.0.0.2")
+        ),
+    )
+    rows = [
+        {"Node": "r1", "VRF": vrf, "Network": "192.0.2.0/24", "Next_Hop_IP": address}
+        for address in addresses
+    ]
+    report = BatfishVerifier(
+        client=_FakeClient(answers={"route_next_hops": rows})
+    ).verify(_contract(intent), _snapshot(tmp_path))
+    assert report.results[0].status == expected_status
+
+
+@pytest.mark.parametrize(
+    "active,shadowed,expected_status",
+    [(False, False, "failed"), (True, False, "passed"), (True, True, "failed")],
+)
+def test_runtime_ecmp_counts_selected_installed_active_next_hops(
+    active, shadowed, expected_status
+):
+    import json
+    from nika.net_env.contract import RouteNextHopsExpectation
+    from nika.net_env.isp.kathara.verify import verify_isp_contract
+    from nika.net_env.isp.verify_support import intent_command
+    from nika.net_env.verify_collection import VerifyCollection, CommandResult
+
+    intent = ValidationIntent(
+        id="route.ecmp",
+        description="Usable installed paths are required.",
+        property="route_next_hops",
+        expected="next_hops_match",
+        route_next_hops=RouteNextHopsExpectation(
+            node="r1", prefix="192.0.2.0/24", next_hops=("10.0.0.1", "10.0.0.2")
+        ),
+    )
+    request = intent_command(intent)
+    payload = {
+        "192.0.2.0/24": [
+            {
+                "selected": True,
+                "destSelected": True,
+                "installed": True,
+                "nexthops": [
+                    {"ip": "10.0.0.1", "fib": True, "active": active},
+                    {"ip": "10.0.0.2", "fib": True, "active": True},
+                ],
+            }
+        ]
+    }
+    if shadowed:
+        # Observed on FRR: an unselected OSPF route can retain active FIB
+        # next-hop flags while the selected route discards this prefix.
+        for field in ("selected", "destSelected", "installed"):
+            payload["192.0.2.0/24"][0].pop(field)
+        payload["192.0.2.0/24"].insert(
+            0,
+            {
+                "selected": True,
+                "destSelected": True,
+                "installed": True,
+                "nexthops": [{"fib": True, "active": True, "blackhole": True}],
+            },
+        )
+    observations = VerifyCollection(
+        {(request.node, request.command): CommandResult(json.dumps(payload), 0)},
+        ["r1"],
+        0,
+    )
+    report = verify_isp_contract(observations, contract=_contract(intent), plan=None)
+    assert report.results[0].status == expected_status

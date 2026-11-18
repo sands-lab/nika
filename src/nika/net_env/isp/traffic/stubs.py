@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from ipaddress import IPv4Address, IPv4Network
 
 from nika.net_env.isp.igp.frr import render_frr_conf
-from nika.net_env.isp.igp.ifaces import srl_e1_name
 from nika.net_env.isp.igp.plan import (
     IspPlan,
     PlannedInterface,
@@ -14,6 +14,7 @@ from nika.net_env.isp.igp.plan import (
     build_inventory,
     slugify,
 )
+from nika.net_env.isp.workload import BULK_OBJECT_STARTUP
 from nika.net_env.isp.traffic.models import (
     DEFAULT_EDGE_POOL_CIDR,
     TrafficMatrixSeries,
@@ -105,7 +106,8 @@ def attach_traffic_stubs(
         subnet = IPv4Network(f"{net_addr}/30")
         router_ip = subnet.network_address + 1
         host_ip = subnet.network_address + 2
-        iface_name = f"eth{len(node.interfaces) + len(edge_ifaces_by_device[device])}"
+        next_index = max((int(i.name[3:]) for i in node.interfaces), default=-1) + 1
+        iface_name = f"eth{next_index + len(edge_ifaces_by_device[device])}"
         cd = f"cd_edge_{slugify(device, kind='node')}"
         host_name = stub_host_name(device)
 
@@ -148,6 +150,7 @@ def attach_traffic_stubs(
                 startup_commands=(
                     f"ip addr add {host_ip}/30 dev {host_iface}",
                     f"ip route replace default via {router_ip}",
+                    BULK_OBJECT_STARTUP,
                 ),
             )
         )
@@ -246,16 +249,14 @@ def attach_traffic_stubs(
     )
 
 
-def remap_inventory_ifaces_to_srl(
+def remap_inventory_ifaces(
     attachment: IspTrafficAttachment,
+    map_iface: Callable[[str], str],
 ) -> IspTrafficAttachment:
-    """Rewrite inventory/edge router iface names to Containerlab ``e1-N``.
+    """Rewrite inventory/edge router iface names to Containerlab endpoint names.
 
-    Plan interface names stay as ``ethN`` so SRL YAML renderers can map them.
+    Plan interface names stay as ``ethN`` so the platform renderers can map them.
     """
-
-    def map_iface(name: str) -> str:
-        return srl_e1_name(name)
 
     edges_t = tuple(
         replace(edge, router_iface=map_iface(edge.router_iface))
@@ -324,6 +325,8 @@ def _startup_with_ifaces(
     cmds = [f"ip addr add {loopback}/32 dev lo"]
     for iface in interfaces:
         cmds.append(f"ip addr add {iface.address}/{iface.prefixlen} dev {iface.name}")
+        if iface.mtu:
+            cmds.append(f"ip link set dev {iface.name} mtu {iface.mtu}")
     cmds.extend(
         [
             "service frr start",

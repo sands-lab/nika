@@ -9,11 +9,10 @@ from nika.topology import (
     SndlibUnsupportedError,
     SndlibValidationError,
     link_preinstalled_capacity,
-    list_sndlib_topologies,
-    load_sndlib_topology,
+    load_topology,
 )
-from nika.topology.sndlib.catalog import SNDLIB_TOPOLOGY_NAMES
-from nika.topology.sndlib.parse import parse_sndlib_xml
+from nika.topology.catalog import SNDLIB_TOPOLOGY_NAMES
+from nika.topology.parse_sndlib import parse_sndlib_xml
 
 pytestmark = pytest.mark.unit
 
@@ -48,14 +47,12 @@ GOLDEN_COUNTS: dict[str, tuple[int, int, int]] = {
 
 
 def test_catalog_lists_all_expected_topologies() -> None:
-    names = list_sndlib_topologies()
-    assert names == sorted(SNDLIB_TOPOLOGY_NAMES)
-    assert set(names) == set(GOLDEN_COUNTS)
+    assert sorted(SNDLIB_TOPOLOGY_NAMES) == sorted(GOLDEN_COUNTS)
 
 
 @pytest.mark.parametrize("name", sorted(GOLDEN_COUNTS))
 def test_each_topology_converts(name: str) -> None:
-    topo = load_sndlib_topology(name)
+    topo = load_topology(name)
     nodes_n, links_n, demands_n = GOLDEN_COUNTS[name]
 
     assert topo.name == name
@@ -93,8 +90,8 @@ def test_each_topology_converts(name: str) -> None:
 
 
 def test_load_is_stable() -> None:
-    first = load_sndlib_topology("polska")
-    second = load_sndlib_topology("polska")
+    first = load_topology("polska")
+    second = load_topology("polska")
     assert first == second
     assert [n.id for n in first.nodes] == [n.id for n in second.nodes]
     assert [link.id for link in first.links] == [link.id for link in second.links]
@@ -103,9 +100,9 @@ def test_load_is_stable() -> None:
 def test_load_from_path() -> None:
     path = (
         Path(__file__).resolve().parents[3]
-        / "src/nika/net_env/isp/sndlib/atlanta/network.xml"
+        / "src/nika/net_env/isp/topologies/atlanta.xml"
     )
-    topo = load_sndlib_topology(path)
+    topo = load_topology(path)
     assert topo.name == "atlanta"
     assert len(topo.nodes) == 15
 
@@ -213,5 +210,5 @@ def test_reject_invalid_xml() -> None:
 
 
 def test_unknown_catalog_name() -> None:
-    with pytest.raises(SndlibUnsupportedError, match="unknown SNDlib topology"):
-        load_sndlib_topology("not-a-real-topo")
+    with pytest.raises(SndlibUnsupportedError, match="unknown ISP topology"):
+        load_topology("not-a-real-topo")

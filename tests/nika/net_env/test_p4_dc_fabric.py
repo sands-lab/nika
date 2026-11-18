@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from nika.net_env.p4_dc_fabric.fabric_manager import apply as p4_apply
 from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
     _COMPILE_OK,
     compile_pipeline_cmd,
@@ -16,6 +17,7 @@ from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
 from nika.net_env.p4_dc_fabric.fabric_manager.intent import (
     build_forwarding_intent,
 )
+from nika.net_env.p4_dc_gateway import apply as gateway_apply
 from nika.net_env.p4_dc_fabric.topology_model import (
     SIZE_TABLE,
     SWITCH_IMAGE,
@@ -30,9 +32,25 @@ from tests.support.prerequisites import docker_image_available
 
 @pytest.mark.unit
 def test_size_table_matches_plan() -> None:
-    assert SIZE_TABLE["s"] == (2, 4, 2)
+    assert SIZE_TABLE["s"] == (2, 4, 3)
     assert SIZE_TABLE["m"] == (4, 8, 4)
     assert SIZE_TABLE["l"] == (8, 16, 4)
+
+
+@pytest.mark.unit
+def test_wait_for_grpc_queries_every_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = build_clos_fabric_model("s")
+    seen: list[str] = []
+
+    def fake_exec(_runtime, name: str, _cmd: str, timeout: float = 10.0) -> str:
+        seen.append(name)
+        return "1"
+
+    monkeypatch.setattr(p4_apply, "_exec", fake_exec)
+    p4_apply._wait_for_grpc(object(), model, timeout_sec=5)
+    assert sorted(seen) == sorted(model.fabric_switches())
 
 
 @pytest.mark.unit
@@ -187,3 +205,41 @@ def test_blackhole_p4_compiles_with_inject_command() -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert _COMPILE_OK in result.stdout
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not docker_image_available(SWITCH_IMAGE),
+    reason=f"{SWITCH_IMAGE} image not available",
+)
+def test_gateway_pipeline_names_no_fault_hooks(tmp_path) -> None:
+    source = Path(gateway_apply.PIPELINE_SOURCE)
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{source}:/src/gateway.p4:ro",
+            "-v",
+            f"{tmp_path}:/out",
+            SWITCH_IMAGE,
+            "bash",
+            "-lc",
+            "cd /out && p4c --std p4-16 --p4runtime-files gw.p4info.txt "
+            "/src/gateway.p4 && chmod a+r /out/*",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    # Switches load this P4Info too, so GetForwardingPipelineConfig on any
+    # switch must not name a fault hook either.
+    p4info = (tmp_path / "gw.p4info.txt").read_text().lower()
+    device = (tmp_path / "gateway.json").read_text().lower()
+    assert "ipv4_lpm" in p4info and "ipv4_lpm" in device
+    for word in ("internal_fault", "_hw", "inject", "nika", "tcam", "corrupt"):
+        assert word not in p4info
+        assert word not in device

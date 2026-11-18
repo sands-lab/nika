@@ -1,0 +1,36 @@
+id: HARNESS-CURL-WEB-TEST-NO-STATUS
+title: curl_web_test printed only timings, so failed connections looked like fast measurements
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: >-
+  In release 0.2.0 curl_web_test ran 'curl -w <timings> -o /dev/null -s' with no %{http_code} and no exit
+  status. A refused or failed connection showed up only as zero timings (connect 0.000000) with a small
+  or 5 s total, which reads like a fast successful request. Every submission received such outputs. c00630bc
+  added http_code and size_download to the output.
+guideline: >-
+  connect:0.000000 in a curl_web_test result means the TCP connection was not made (or the name did not
+  resolve); an agent that reports the service as fast or healthy from it was misled. Results with a non-zero
+  connect time are real measurements.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: curl_web_test
+  exclude_authored: false
+  pattern: connect:0\.000000, appconnect:0\.000000, pretransfer:0\.000000
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-CURL-WEB-TEST-NO-STATUS)
+  date: '2026-10-28'
+  refs:
+  - p4_dc_gateway__p4_ecn_thresh__h4bf62883ca88__t03:27
+  - campus_lan__dhcp_service_dow__h46c12f643f13__t02:90
+  found_by: agentic
+evidence:
+- '20261007_react_qwen3_6_35b_a3b_fp8 p4_dc_gateway__p4_ecn_thresh__h4bf62883ca88__t03 step 27: {"host_name":
+  "leaf_1", "url": "http://10.0.1.11"} -> namelookup:0.000024, connect:0.000000, ... total:0.000152'
+- '20261007_claude_code_qwen3_6_35b_a3b_fp8 campus_lan__dhcp_service_dow__h46c12f643f13__t02 step 90:
+  namelookup:0.000000, connect:0.000000, ... total:0.051999'

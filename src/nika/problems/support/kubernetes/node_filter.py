@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 # raw PREROUTING/OUTPUT catch locally generated ClusterIP traffic before kube-proxy
@@ -90,12 +90,21 @@ class DropSpec:
 
 
 @dataclass
+class _OwnedDrop:
+    table: str
+    chain: str
+    spec: DropSpec
+    expected_remaining: int | None = None
+
+
+@dataclass
 class NodeFilter:
     """Install and inspect raw-table drops on a single lab device."""
 
     runtime: Any
     node: str
     timeout: float = FILTER_TIMEOUT_SEC
+    _owned_rules: list[_OwnedDrop] = field(default_factory=list, init=False, repr=False)
 
     def _exec(self, command: str) -> tuple[str, int]:
         raw = self.runtime.exec(
@@ -111,8 +120,10 @@ class NodeFilter:
         stdout, _, tail = raw.partition(_RC_MARK)
         try:
             returncode = int(tail.strip().splitlines()[0])
-        except (IndexError, ValueError):
-            returncode = 1
+        except (IndexError, ValueError) as exc:
+            raise NodeFilterError(
+                f"Invalid command exit-code marker on {self.node}: {tail!r}"
+            ) from exc
         return stdout.strip(), returncode
 
     def block_destination(
@@ -137,10 +148,64 @@ class NodeFilter:
         # matches the rule itself rather than a marker.
         binary = IPTABLES_BINARY
         rule = spec.iptables_args()
-        self._exec(
-            f"{binary} -t {table} -C {chain} {rule} 2>/dev/null || "
-            f"{binary} -t {table} -I {chain} 1 {rule}"
+        output, present = self._exec(
+            f"{binary} -t {table} -C {chain} {rule} 2>/dev/null"
         )
+        if present == 0:
+            return
+        if present != 1:
+            raise NodeFilterError(
+                f"Could not inspect {spec.describe()} on {self.node}: {output}"
+            )
+        # Record before insertion so a failed acknowledgement can be retried.
+        self._owned_rules.append(_OwnedDrop(table, chain, spec))
+        output, status = self._exec(f"{binary} -t {table} -I {chain} 1 {rule}")
+        if status:
+            self._owned_rules.pop()
+            raise NodeFilterError(
+                f"Could not install {spec.describe()} on {self.node}: {output}"
+            )
+
+    def _rule_count(self, owned: _OwnedDrop) -> int:
+        output, status = self._exec(
+            f"{IPTABLES_BINARY} -t {owned.table} -S {owned.chain} 2>/dev/null"
+        )
+        if status:
+            raise NodeFilterError(f"Could not inspect rules on {self.node}: {output}")
+        return sum(
+            owned.spec.matches_iptables_line(line) for line in output.splitlines()
+        )
+
+    def recover(self) -> bool:
+        """Remove one rule per insertion, preserving rules added by other owners."""
+        while self._owned_rules:
+            owned = self._owned_rules[-1]
+            rule = owned.spec.iptables_args()
+            command = f"{IPTABLES_BINARY} -t {owned.table}"
+            if owned.expected_remaining is None:
+                output, status = self._exec(
+                    f"{command} -C {owned.chain} {rule} 2>/dev/null"
+                )
+                if status == 1:
+                    self._owned_rules.pop()
+                    continue
+                if status != 0:
+                    raise NodeFilterError(
+                        f"Could not inspect {owned.spec.describe()} on {self.node}: {output}"
+                    )
+                owned.expected_remaining = self._rule_count(owned) - 1
+                # Retain the expected count before deletion. A lost acknowledgement
+                # or readback must not cause another deletion on retry.
+                output, status = self._exec(f"{command} -D {owned.chain} {rule}")
+                if status:
+                    owned.expected_remaining = None
+                    raise NodeFilterError(
+                        f"Could not remove {owned.spec.describe()} on {self.node}: {output}"
+                    )
+            if self._rule_count(owned) != owned.expected_remaining:
+                return False
+            self._owned_rules.pop()
+        return True
 
     def _block_with_iptables(self, spec: DropSpec) -> None:
         for chain in IPTABLES_CHAINS:

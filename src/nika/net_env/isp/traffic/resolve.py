@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR
 from nika.net_env.isp.traffic.cache import (
     dynamic_cache_dir,
     load_dynamic_series,
@@ -18,7 +18,7 @@ from nika.net_env.isp.traffic.models import (
     TrafficMode,
     normalize_traffic_mode,
 )
-from nika.topology import NetworkTopology, load_sndlib_topology
+from nika.topology import NetworkTopology, load_topology
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +45,16 @@ def resolve_traffic_series(
         topo = topology
         topo_name = topo.name
     else:
-        topo = load_sndlib_topology(topology)
+        topo = load_topology(topology)
         topo_name = topo.name
+    if topo.source_format == "topology-zoo-graphml":
+        raise ValueError(
+            f"Topology Zoo topology {topo_name!r} has no demand matrix; "
+            "SNDlib traffic replay is only available for SNDlib topologies."
+        )
 
     if traffic_mode == "dynamic":
-        root = cache_root if cache_root is not None else REPO_ROOT / ".nika_cache"
+        root = cache_root if cache_root is not None else CACHE_DIR
         cache_dir = dynamic_cache_dir(topo_name, cache_root=root)
         try:
             return load_dynamic_series(cache_dir, topology=topo_name)

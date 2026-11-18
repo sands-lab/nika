@@ -57,6 +57,8 @@ def resource_class_for_row(row: Mapping[str, Any]) -> ResourceClass:
         token = str(row.get(key) or "")
         if "containerlab" in token:
             return CLASS_CLAB
+    if str(row.get("device_profile") or "").lower() in {"iosxr", "routeros"}:
+        return CLASS_K8S
     if scenario in K8S_CLASS_SCENARIOS:
         return CLASS_K8S
     if _topo_size(row) == "l":
@@ -65,7 +67,16 @@ def resource_class_for_row(row: Mapping[str, Any]) -> ResourceClass:
 
 
 def resource_class(trial: Trial) -> ResourceClass:
-    """Classify a ``Trial`` (uses ``trial.row`` plus ``trial.case_key``)."""
+    """Classify a ``Trial``: a release task's class comes from its engine."""
+    from nika.firecracker import firecracker_enabled
+
+    if firecracker_enabled():
+        # Restored labs skip the deploy that makes heavy trials heavy; the
+        # runner admits them by huge-page memory instead.
+        return CLASS_LIGHT
+    if trial.task is not None:
+        return trial.task.resource_class
+    assert trial.row is not None
     row = dict(trial.row)
     row.setdefault("case_key", trial.case_key)
     return resource_class_for_row(row)

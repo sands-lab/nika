@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import shlex
 from typing import Any, ClassVar
 
 import yaml
@@ -9,6 +11,13 @@ from nika.problems.rca import k8s_resource
 from nika.net_env.verify import http_ok
 from nika.problems.support.benchmark_targets import first, k8s_control_node
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    contains,
+    kubectl,
+    lacks,
+    shell,
+)
 from nika.problems.base import (
     FailureDomain,
 )
@@ -111,6 +120,65 @@ class NetworkPolicyDeny(K8sProblemBase):
     def root_cause_resources(self, params: NetworkPolicyDenyParams):
         name = params.policy_name or DEFAULT_POLICY_NAME
         return [k8s_resource("NetworkPolicy", name, namespace=params.namespace)]
+
+    def oracle_playbook(self, params: NetworkPolicyDenyParams) -> OraclePlaybook:
+        control = self.control_node(params)
+        ns, selector = params.namespace, params.pod_selector
+        name = params.policy_name or DEFAULT_POLICY_NAME
+        labels = _match_labels(selector)
+        curl = "curl -s -o /dev/null -m 5 -w '%{{http_code}} %{{time_total}}\\n' {url} || true"
+        steps = [
+            shell(
+                params.symptom_host,
+                f"for i in 1 2 3; do {curl.format(url=shlex.quote(params.symptom_url))}; done",
+                f"Request {params.symptom_url} from {params.symptom_host}.",
+                lacks(r"^[23]\d\d ", "no request succeeds"),
+                timeout=30,
+            ),
+        ]
+        if params.control_url and params.control_url.strip():
+            steps.append(
+                shell(
+                    params.symptom_host,
+                    curl.format(url=shlex.quote(params.control_url)),
+                    f"Request the sibling route {params.control_url}.",
+                    timeout=15,
+                )
+            )
+        steps += [
+            kubectl(
+                control,
+                f"get pods -n {ns} -l {shlex.quote(selector)} -o wide --no-headers",
+                f"Check the pods behind the failing route ({selector}): they are Running.",
+                contains(r"\bRunning\b", "the selected pods are Running"),
+                evidence=True,
+            ),
+            kubectl(
+                control,
+                f"get networkpolicy -n {ns} -o jsonpath='{{range .items[*]}}"
+                "{.metadata.name} selector={.spec.podSelector.matchLabels} "
+                'types={.spec.policyTypes} ingress={.spec.ingress}{"\\n"}{end}\'',
+                f"List the NetworkPolicies in {ns} and what they allow.",
+                contains(
+                    rf"^{re.escape(name)} selector=\S*"
+                    + "".join(
+                        rf'(?=\S*"{re.escape(k)}":"{re.escape(v)}")'
+                        for k, v in labels.items()
+                    )
+                    + r"\S* types=\S*Ingress\S* ingress=\s*$",
+                    f"{name} selects {selector} for Ingress with no allow rules",
+                ),
+                evidence=True,
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"NetworkPolicy {ns}/{name} selects the {selector} pods for Ingress "
+                "with no allow rules, so all inbound traffic to them is dropped while "
+                "the pods keep running."
+            ),
+            steps=steps,
+        )
 
     def inject_fault(self, params: NetworkPolicyDenyParams) -> None:
         k8s = self.runtime.lab_api

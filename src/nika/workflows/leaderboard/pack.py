@@ -13,11 +13,13 @@ from typing import Any
 import yaml
 
 from nika.config import REPO_ROOT, resolve_results_root
+from nika.benchmark_engine.protocol import UnsupportedContractVersion
+from nika.evaluator.validity import FAULT_ABSENT_AT_CLEANUP, has_agent_trace
+from nika.workflows.benchmark.provenance import check_schema_version, schema_version_of
 from nika.workflows.benchmark.release import (
-    ReleaseError,
-    load_release,
     load_run_config,
 )
+from nika.workflows.benchmark.official_release import ReleaseSource
 from nika.workflows.benchmark.trials import (
     expand_trials,
     is_valid_trial,
@@ -28,10 +30,17 @@ from nika.workflows.leaderboard.aggregate import (
     build_rca_confusion,
 )
 from nika.workflows.leaderboard.hf_remote import remote_trajectories_relpath
+from nika.workflows.leaderboard.issues import IssueCollector, ValidationReport
 from nika.workflows.leaderboard.meta_input import (
     MetaInputError,
     load_submission_dir,
     submission_slug,
+)
+from nika.workflows.leaderboard.release_check import (
+    compare_trial_ids,
+    load_reference,
+    release_drift_issue,
+    run_commit_changes,
 )
 from nika.workflows.leaderboard.schema import (
     IDENTITY_FILENAME,
@@ -52,7 +61,11 @@ from nika.workflows.leaderboard.schema import (
     SubmissionMetadata,
     TrialResult,
 )
-from nika.workflows.leaderboard.secrets import scan_value_for_issues
+from nika.workflows.leaderboard.secrets import (
+    HOST_PATH_PATTERN,
+    PATH_START,
+    scan_value_for_issues,
+)
 from nika.workflows.leaderboard.trial_results import (
     TrialResultError,
     trial_result_from_dir,
@@ -71,10 +84,18 @@ class PackResult:
     trajectories_dir: Path
 
 
-# Machine-local absolute paths are redacted when packing trajectories.
-_ABS_PATH_REDACT = re.compile(
-    r"(?:/home/|/Users/|/tmp/|/var/|/etc/|[A-Za-z]:\\)[^\s\"']*"
-)
+def _host_path_redact(results_root: Path) -> re.Pattern[str]:
+    """Match host-local paths: the validator's rule plus this host's roots."""
+    roots = {
+        str(path)
+        for root in (REPO_ROOT, resolve_results_root(), results_root)
+        for path in (root, root.resolve())
+        if path.parent != path
+    }
+    # Roots are absolute, so each one starts with the "/" that PATH_START matches.
+    local = "|".join(re.escape(r[1:]) for r in sorted(roots, key=len, reverse=True))
+    checkout = rf"{PATH_START}(?:{local})(?![\w.-])[^\s\"'\\]*"
+    return re.compile(rf"{checkout}|{HOST_PATH_PATTERN}")
 
 
 # Agents can print private keys found on lab devices (e.g. a lab's TLS key).
@@ -89,26 +110,22 @@ _PEM_HEAD_REDACT = re.compile(
 )
 
 
-def _redact_absolute_paths(text: str) -> str:
-    return _ABS_PATH_REDACT.sub("<REDACTED_PATH>", text)
-
-
 def _redact_private_keys(text: str) -> str:
     text = _PEM_BLOCK_REDACT.sub("<REDACTED_PRIVATE_KEY>", text)
     return _PEM_HEAD_REDACT.sub("<REDACTED_PRIVATE_KEY>", text)
 
 
-def _redact_text(text: str) -> str:
-    return _redact_absolute_paths(_redact_private_keys(text))
+def _redact_text(text: str, path_re: re.Pattern[str]) -> str:
+    return path_re.sub("<REDACTED_PATH>", _redact_private_keys(text))
 
 
-def _sanitize_json_value(value: Any) -> Any:
+def _sanitize_json_value(value: Any, path_re: re.Pattern[str]) -> Any:
     if isinstance(value, str):
-        return _redact_text(value)
+        return _redact_text(value, path_re)
     if isinstance(value, dict):
-        return {k: _sanitize_json_value(v) for k, v in value.items()}
+        return {k: _sanitize_json_value(v, path_re) for k, v in value.items()}
     if isinstance(value, list):
-        return [_sanitize_json_value(v) for v in value]
+        return [_sanitize_json_value(v, path_re) for v in value]
     return value
 
 
@@ -117,13 +134,14 @@ def _write_sanitized_trajectory_file(
     dest: Path,
     *,
     trial_id: str,
+    path_re: re.Pattern[str],
 ) -> None:
     raw = src.read_text(encoding="utf-8")
     if src.name == "run.json":
         data = json.loads(raw)
         if not isinstance(data, dict):
             raise LeaderboardPackError(f"Expected JSON object at {src}")
-        data = _sanitize_json_value(data)
+        data = _sanitize_json_value(data, path_re)
         if isinstance(data, dict):
             data["session_dir"] = trial_id
         dest.write_text(
@@ -133,7 +151,7 @@ def _write_sanitized_trajectory_file(
         return
     if src.suffix == ".json":
         data = json.loads(raw)
-        data = _sanitize_json_value(data)
+        data = _sanitize_json_value(data, path_re)
         dest.write_text(
             json.dumps(data, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
@@ -141,7 +159,12 @@ def _write_sanitized_trajectory_file(
         return
     if src.suffix == ".jsonl":
         with dest.open("w", encoding="utf-8") as output:
-            for line_number, line in enumerate(raw.splitlines(), start=1):
+            # JSONL records end at "\n" only; splitlines() also breaks on
+            # U+0085/U+2028 etc. that tool output can carry inside a string.
+            lines = raw.split("\n")
+            if lines and not lines[-1]:
+                lines.pop()
+            for line_number, line in enumerate(lines, start=1):
                 try:
                     data = json.loads(line)
                 except json.JSONDecodeError as exc:
@@ -149,11 +172,12 @@ def _write_sanitized_trajectory_file(
                         f"{trial_id}/{src.name}:{line_number}: invalid JSONL: {exc}"
                     ) from exc
                 output.write(
-                    json.dumps(_sanitize_json_value(data), ensure_ascii=False) + "\n"
+                    json.dumps(_sanitize_json_value(data, path_re), ensure_ascii=False)
+                    + "\n"
                 )
         return
     # Plain text
-    dest.write_text(_redact_text(raw), encoding="utf-8")
+    dest.write_text(_redact_text(raw, path_re), encoding="utf-8")
 
 
 def _utc_now() -> datetime:
@@ -229,6 +253,7 @@ def _copy_trajectory_trial_files(
     dest_dir: Path,
     outcome: str,
     trial_id: str,
+    path_re: re.Pattern[str],
 ) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     for name in TRAJECTORY_REQUIRED_FILES:
@@ -237,7 +262,14 @@ def _copy_trajectory_trial_files(
             raise LeaderboardPackError(
                 f"Trial under {session_dir} missing required trajectory file {name}"
             )
-        _write_sanitized_trajectory_file(src, dest_dir / name, trial_id=trial_id)
+        _write_sanitized_trajectory_file(
+            src, dest_dir / name, trial_id=trial_id, path_re=path_re
+        )
+
+    if not has_agent_trace(session_dir / "messages.jsonl"):
+        raise LeaderboardPackError(
+            f"ERROR_EMPTY_TRACE: trial under {session_dir} has no agent trajectory"
+        )
 
     submission_src = session_dir / TRAJECTORY_OPTIONAL_SUCCESS_FILE
     if outcome == "success":
@@ -250,12 +282,14 @@ def _copy_trajectory_trial_files(
             submission_src,
             dest_dir / TRAJECTORY_OPTIONAL_SUCCESS_FILE,
             trial_id=trial_id,
+            path_re=path_re,
         )
     elif submission_src.is_file():
         _write_sanitized_trajectory_file(
             submission_src,
             dest_dir / TRAJECTORY_OPTIONAL_SUCCESS_FILE,
             trial_id=trial_id,
+            path_re=path_re,
         )
 
 
@@ -266,8 +300,12 @@ def pack_leaderboard_submission(
     metadata: SubmissionMetadata | dict[str, Any] | None = None,
     readme_text: str | None = None,
     out_dir: str | Path | None = None,
+    release_source: ReleaseSource = "official",
 ) -> PackResult:
     """Build scores + trajectories packages from an official release run.
+
+    Expected trials come from the official release (``v<version>`` tag);
+    a run made from other task definitions fails with ``ERROR_RELEASE_DRIFT``.
 
     Prefer ``submission_dir`` containing edited ``metadata.yaml`` + ``README.md``.
     Programmatic callers may pass ``metadata`` and optional ``readme_text``.
@@ -288,16 +326,27 @@ def pack_leaderboard_submission(
         raise LeaderboardPackError(
             "Only official release runs can be packed (run.official must be true)"
         )
+    schema_version = schema_version_of(run_cfg)
+    try:
+        check_schema_version(schema_version)
+    except UnsupportedContractVersion as exc:
+        raise LeaderboardPackError(f"run.json: {exc}") from exc
+    submission_mode = (run_cfg.get("submission") or {}).get("mode", "structured")
+    if submission_mode != "structured":
+        # Leaderboard scores assume the agent's own model submits its answer.
+        raise LeaderboardPackError(
+            f"Only structured-submission runs can be packed (got {submission_mode!r})"
+        )
 
     version = str(run_cfg.get("version") or "")
     split = str(run_cfg.get("split") or "")
     if not version or not split:
         raise LeaderboardPackError("run.json missing version/split")
 
-    try:
-        release = load_release(version, split=split)
-    except ReleaseError as exc:
-        raise LeaderboardPackError(str(exc)) from exc
+    issues = IssueCollector()
+    release, reference = load_reference(version, split, release_source, issues)
+    if release is None or reference is None:
+        raise LeaderboardPackError(ValidationReport(issues=issues.issues).render_text())
 
     for field, expected in (
         ("benchmark_id", release.id),
@@ -311,15 +360,34 @@ def pack_leaderboard_submission(
             )
 
     trials = expand_trials(release.cases, release.n_trials)
+    runs_root = results_root / TRIALS_DIRNAME
+    finished_ids = {
+        path.name
+        for path in (runs_root.iterdir() if runs_root.is_dir() else ())
+        if path.is_dir() and is_valid_trial(path)
+    }
+    # Trials left over from other task definitions do not block packing; only
+    # expected trials are packed.
+    coverage = compare_trial_ids(
+        trials,
+        finished_ids,
+        changed_tasks=run_commit_changes(
+            release, reference, run_cfg.get("nika_git_commit"), issues
+        ),
+    )
+    if coverage.drifted_tasks:
+        issues.append(release_drift_issue(release, reference, coverage.drifted_tasks))
+    issues.extend("ERROR_TRIALS_MISSING", coverage.missing)
+    if issues.has_errors:
+        raise LeaderboardPackError(
+            ValidationReport(issues=issues.issues, reference=reference).render_text()
+        )
+
     trial_results: list[TrialResult] = []
     session_by_trial_id: dict[str, Path] = {}
 
     for trial in trials:
         session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
-        if not session_dir.is_dir() or not is_valid_trial(session_dir):
-            raise LeaderboardPackError(
-                f"Incomplete or missing trial {trial.trial_id} under {session_dir}"
-            )
         try:
             result = trial_result_from_dir(
                 trial_id=trial.trial_id,
@@ -331,6 +399,12 @@ def pack_leaderboard_submission(
             )
         except TrialResultError as exc:
             raise LeaderboardPackError(str(exc)) from exc
+        if FAULT_ABSENT_AT_CLEANUP in result.validity_flags:
+            raise LeaderboardPackError(
+                f"Trial {trial.trial_id} is invalid: {FAULT_ABSENT_AT_CLEANUP}; "
+                "the injected fault disappeared before cleanup. "
+                "Check the trajectory for network changes or a self-healing fault."
+            )
         trial_results.append(result)
         session_by_trial_id[trial.trial_id] = session_dir
 
@@ -389,6 +463,7 @@ def pack_leaderboard_submission(
             model=run_cfg.get("model"),
             llm_provider=run_cfg.get("llm_provider"),
             max_steps=run_cfg.get("max_steps"),
+            reasoning_effort=run_cfg.get("reasoning_effort"),
             case_timeout_sec=int(
                 run_cfg.get("case_timeout_sec")
                 if run_cfg.get("case_timeout_sec") is not None
@@ -396,6 +471,8 @@ def pack_leaderboard_submission(
             ),
             nika_git_commit=run_cfg.get("nika_git_commit"),
             source_result_dir=_relative_result_hint(results_root),
+            schema_version=schema_version,
+            provenance=run_cfg.get("provenance"),
         ),
         trajectories_relpath=traj_relpath,
         scores_package=None,
@@ -469,6 +546,7 @@ def pack_leaderboard_submission(
     (traj_root / README_FILENAME).write_text(readme_body, encoding="utf-8")
     _write_yaml(traj_root / IDENTITY_FILENAME, traj_identity)
 
+    path_re = _host_path_redact(results_root)
     for result in trial_results:
         session_dir = session_by_trial_id[result.trial_id]
         _copy_trajectory_trial_files(
@@ -476,6 +554,7 @@ def pack_leaderboard_submission(
             dest_dir=traj_trials / result.trial_id,
             outcome=result.outcome,
             trial_id=result.trial_id,
+            path_re=path_re,
         )
 
     traj_safety = scan_value_for_issues(

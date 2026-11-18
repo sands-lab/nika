@@ -7,6 +7,8 @@ DEFAULT_LEADERBOARD_HTTPS = "https://github.com/sands-lab/nika-leaderboard.git"
 DEFAULT_LEADERBOARD_SSH = "git@github.com:sands-lab/nika-leaderboard.git"
 
 SUBMISSIONS_DIRNAME = "submissions"
+# The leaderboard repository requires this label on submission PRs.
+SUBMISSION_LABEL = "leaderboard-submit"
 
 
 def remote_submission_relpath(release_version: str, package_name: str) -> str:

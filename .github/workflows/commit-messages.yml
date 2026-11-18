@@ -1,0 +1,48 @@
+name: Commit messages
+
+# Same rules as scripts/git-hooks/commit-msg, for commits made without the hook.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: commit-messages-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  conventional-commits:
+    name: conventional commits
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check pull request title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          printf '%s\n' "$TITLE" > "$RUNNER_TEMP/title"
+          sh scripts/git-hooks/commit-msg "$RUNNER_TEMP/title"
+          if printf '%s\n' "$TITLE" | grep -Eq '\(#[0-9]+\)$'; then
+            echo "::error::Drop the PR number from the title; the merge commit adds it."
+            exit 1
+          fi
+      - name: Check commit subjects
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          status=0
+          for sha in $(git rev-list "$BASE..$HEAD"); do
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg"
+            if ! sh scripts/git-hooks/commit-msg "$RUNNER_TEMP/msg"; then
+              echo "::error::$sha does not follow Conventional Commits"
+              status=1
+            elif grep -Eq '^(fixup|squash|amend)! ' "$RUNNER_TEMP/msg"; then
+              # Merge commits keep branch history, so fixups would land on dev.
+              echo "::error::$sha is an unsquashed fixup; autosquash it before merging"
+              status=1
+            fi
+          done
+          exit $status

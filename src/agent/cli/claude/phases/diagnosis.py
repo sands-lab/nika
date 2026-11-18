@@ -17,7 +17,7 @@ class ClaudeDiagnosisPhase:
     Parameters
     ----------
     session_id:
-        NIKA session identifier.
+        Opaque session handle of the run.
     session_dir:
         Absolute path to the session results directory.
     model:
@@ -42,6 +42,7 @@ class ClaudeDiagnosisPhase:
         stream_output: bool = True,
         trace_dir: str | None = None,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self._worker = ClaudeWorker(
             session_id=session_id,
@@ -54,6 +55,7 @@ class ClaudeDiagnosisPhase:
             stream_output=stream_output,
             trace_dir=trace_dir,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
         )
         self._diagnosis_prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
 

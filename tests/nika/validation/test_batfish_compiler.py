@@ -47,7 +47,7 @@ def test_compiles_reachability_and_isolation_as_counterexample_queries() -> None
         "dstPorts": "53",
     }
     assert reach.parameters["path_constraints"] == {
-        "startLocation": "client",
+        "startLocation": '"client"',
         "endLocation": None,
     }
 
@@ -55,8 +55,8 @@ def test_compiles_reachability_and_isolation_as_counterexample_queries() -> None
 def test_compiles_waypoint_as_reachability_and_path_violation_queries() -> None:
     questions = compile_intent(_flow_intent("waypoint"))
     assert len(questions) == 3
-    assert questions[1].parameters["path_constraints"]["transitLocations"] == "r4"
-    assert questions[2].parameters["path_constraints"]["forbiddenLocations"] == "r2"
+    assert questions[1].parameters["path_constraints"]["transitLocations"] == '"r4"'
+    assert questions[2].parameters["path_constraints"]["forbiddenLocations"] == '"r2"'
 
 
 def test_prefix_without_source_location_is_explicitly_unsupported() -> None:
@@ -82,3 +82,20 @@ def test_prefix_destination_probes_the_first_usable_address() -> None:
     question = compile_intent(intent)[0]
     # Matches the runtime probe (network + 1) instead of the whole usable range.
     assert question.parameters["headers"]["dstIps"] == "192.0.2.1"
+
+
+def test_icmp_round_trip_checks_forward_failure_and_reply_failure():
+    intent = _flow_intent().model_copy(
+        update={"traffic": TrafficSelector(protocol="icmp", round_trip=True)}
+    )
+    forward, returning = compile_intent(intent)
+    assert forward.kind == "reachability" and forward.parameters["actions"] == "failure"
+    assert returning.kind == "bidirectional_reachability"
+    assert returning.parameters["return_flow_type"] == "FAILURE"
+    assert returning.parameters["headers"]["icmpTypes"] == "8"
+    isolation = intent.model_copy(
+        update={"property": "isolation", "expected": "unreachable"}
+    )
+    (success,) = compile_intent(isolation)
+    assert success.kind == "bidirectional_reachability"
+    assert success.parameters["return_flow_type"] == "SUCCESS"

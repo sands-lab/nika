@@ -1,219 +1,161 @@
-"""Controller-owned, dynamically inserted VDE fault proxies.
+"""Controller-owned VDE fault proxies spliced into a running Kathara link.
 
-Kathara VDE collision domains do not have a host veth peer.  To inject a
-link fault without placing ``tc`` configuration in a lab node, this module
-temporarily replaces one point-to-point VDE LAN with two VDE LANs joined by a
-small transparent bridge container.  The container and its networks are not
-part of the lab inventory and are removed during recovery or lab teardown.
+Kathara's VDE network plugin backs every collision domain with one
+``vde_switch`` hub; a lab interface is a TAP inside its node that the plugin
+relays to a hub port. To impair a point-to-point link without touching
+either node, a small helper container (outside the lab inventory) takes over
+the hub's two ports and bridges them through its own TAPs, where ``tc``
+applies the fault (see :mod:`nika.runtime.kathara.vde_splice`). The lab
+interfaces are never re-created: ifindex, MAC, counters, qdiscs and carrier
+stay as they were, and no protocol session or dataplane restarts. Recovery
+hands the ports back to the hub and removes the helper.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
-import logging
 import shlex
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import docker
-from docker.types import IPAMConfig
 
 from nika.runtime.base import RuntimeCapabilityError
-from nika.net_env.verify import frr_bgp_established_peers, frr_ospf_full_router_ids
-from nika.runtime.kathara.interface_snapshot import (
-    LinkAttachmentState,
-    capture_link_state,
-    link_info,
-    restart_bmv2_dataplane,
-    restore_link_state,
-)
-from nika.runtime.shared.containers import docker_client
-from nika.runtime.spec import NodeIdentity
+from nika.runtime.shared.containers import docker_client, isolated_container_pid
+from nika.runtime.shared.processes import process_command, process_source
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.runtime.shared.link_faults import corrupt_commands
 
-_logger = logging.getLogger(__name__)
+_SPLICE_SOURCE = (
+    (Path(__file__).with_name("vde_splice.py"))
+    .read_text()
+    .replace(
+        "from __future__ import annotations",
+        "from __future__ import annotations\n"
+        "_PROCESS_HELPERS = {'__name__': 'nika_controller_processes'}\n"
+        f"exec({process_source()!r}, _PROCESS_HELPERS)",
+    )
+)
+_READY = "/run/splice.ready"
+_LOG = "/run/splice.log"
+_PID = "/run/splice.pid"
+_READY_TIMEOUT_SEC = 20.0
+# Largest TAP MTU: like a cable, the splice must never drop a frame for size.
+_SPLICE_MTU = 65521
 
-# Routing adjacencies that were up before a port move should recover within
-# this window. The wait only paces fault injection and recovery; a timeout
-# logs a warning and does not fail the operation.
-_ROUTING_WAIT_SEC = 60.0
-_ROUTING_POLL_SEC = 2.0
-_ROUTING_BASELINE_LABEL = "nika.routing_baseline"
-_ROUTING_COMMANDS = {
-    "bgp": (
-        "vtysh -c 'show bgp summary' 2>/dev/null || true",
-        frr_bgp_established_peers,
-    ),
-    "ospf": (
-        "vtysh -c 'show ip ospf neighbor' 2>/dev/null || true",
-        frr_ospf_full_router_ids,
-    ),
-}
 
-# node -> protocol -> peers that were up before the proxy moved the port.
-RoutingBaseline = tuple[tuple[str, str, tuple[str, ...]], ...]
+@dataclass(frozen=True)
+class LinkEnd:
+    """One lab interface of the spliced link."""
+
+    node: str
+    intf: str
 
 
 @dataclass(frozen=True)
 class VdeFaultProxyState:
-    """Opaque controller-side reference to an inserted proxy."""
+    """Opaque controller-side reference to an inserted proxy.
+
+    ``eth1`` of the proxy transmits toward ``peer``; ``eth0`` toward
+    ``endpoint``.
+    """
 
     key: str
-    endpoint: LinkAttachmentState
-    peer: LinkAttachmentState
-    original_network_id: str
-    lan_a_id: str
-    lan_b_id: str
+    endpoint: LinkEnd
+    peer: LinkEnd
     proxy_id: str
-    routing_baseline: RoutingBaseline = ()
+
+
+def port_stays_attached(net_env, node: str) -> bool:
+    """Whether ``node`` must keep its port: re-creating a RouterOS container
+    interface detaches the VM's NIC behind it for good."""
+    identities = getattr(net_env, "machine_identities", None) or {}
+    identity = identities.get(node)
+    return identity is not None and "routeros" in identity.capabilities
+
+
+def proxy_can_attach(net_env, endpoints) -> bool:
+    """Whether a proxy can join a link: at least one endpoint's port must move."""
+    return not all(port_stays_attached(net_env, node) for node in endpoints)
 
 
 class KatharaVdeFaultProxy:
-    """Insert and remove a transparent proxy for a point-to-point VDE link."""
+    """Splice a transparent proxy into a point-to-point VDE link."""
 
     def __init__(self, runtime) -> None:
         self.runtime = runtime
         self._lab = runtime._net_env.lab
         self._client = docker_client()
-        self._bmv2_restarted: set[str] = set()
 
     def insert(self, node: str, intf: str) -> VdeFaultProxyState:
         existing = self.discover(node, intf)
         if existing is not None:
             return existing
-        endpoint, peer, original = self._endpoints(node, intf)
+        endpoint, peer = self._link_ends(node, intf)
+        hub = self._hub_ctl(endpoint)
+        container = self.runtime.get_container(endpoint.node)
+        node_pid = isolated_container_pid(container)
         key = self._key(node, intf)
-        baseline = self._routing_baseline(endpoint, peer)
-
         labels = {
             "nika.fault_proxy": key,
             "nika.lab_name": self.runtime.lab_name,
-            "nika.original_network": original.id,
             "nika.endpoint_node": endpoint.node,
+            "nika.endpoint_intf": endpoint.intf,
             "nika.peer_node": peer.node,
-            _ROUTING_BASELINE_LABEL: json.dumps(baseline),
+            "nika.peer_intf": peer.intf,
         }
-        created: list = []
+        name = f"nika-fp-{key}"
         try:
-            lan_a = self._create_lan(f"nika-fp-{key}-a", labels, original)
-            created.append(lan_a)
-            lan_b = self._create_lan(f"nika-fp-{key}-b", labels, original)
-            created.append(lan_b)
+            # Host PID namespace and privileges let the helper take over the
+            # hub's sockets; its own network namespace holds the bridge.
             proxy = self._client.containers.run(
                 nika_image("base"),
                 command=["/bin/sh", "-c", "exec sleep infinity"],
-                cap_add=["NET_ADMIN"],
+                privileged=True,
+                pid_mode="host",
+                network_mode="none",
                 detach=True,
                 labels=labels,
-                name=f"nika-fp-{key}",
+                name=name,
             )
         except Exception:
-            # Nothing is attached to the lab yet; drop only what this call
-            # made. ``containers.run`` can create the proxy and then fail to
-            # start it, so look it up by its unique name as well.
-            try:
-                self._client.containers.get(f"nika-fp-{key}").remove(force=True)
-            except docker.errors.APIError:
-                pass
-            for resource in reversed(created):
-                try:
-                    resource.remove()
-                except docker.errors.APIError:
-                    pass
+            # ``containers.run`` can create the helper and then fail to start
+            # it, so look it up by its unique name as well.
+            self._remove_container(name)
             raise
-        state = VdeFaultProxyState(
-            key=key,
-            endpoint=endpoint,
-            peer=peer,
-            original_network_id=original.id,
-            lan_a_id=lan_a.id,
-            lan_b_id=lan_b.id,
-            proxy_id=proxy.id,
-            routing_baseline=baseline,
-        )
-        self._bmv2_restarted = set()
+        state = VdeFaultProxyState(key, endpoint, peer, proxy.id)
         try:
-            # Docker's ``none`` network mode forbids connecting an additional
-            # network.  Start on the ordinary bridge, then detach it before
-            # connecting the two controller-only VDE LANs.
-            self._client.networks.get("bridge").disconnect(proxy, force=True)
-            self._connect(proxy, lan_a, 0, f"fp-{key}-a")
-            self._connect(proxy, lan_b, 1, f"fp-{key}-b")
-            self._normalise_proxy_interfaces(proxy)
-            self._bridge(proxy)
-            original.disconnect(self.runtime.get_container(endpoint.node), force=True)
-            original.disconnect(self.runtime.get_container(peer.node), force=True)
-            self._connect(
-                self.runtime.get_container(endpoint.node),
-                lan_a,
-                endpoint.number,
-                f"fp-{key}-a",
-                endpoint.mac,
-            )
-            self._restore_and_post(endpoint)
-            self._connect(
-                self.runtime.get_container(peer.node),
-                lan_b,
-                peer.number,
-                f"fp-{key}-b",
-                peer.mac,
-            )
-            self._restore_and_post(peer)
-            self._finalize_port_reconnect()
-            self._await_routing_stability(state)
-            self.verify_identity(state)
+            self._start_splice(proxy, hub, node_pid, endpoint.intf)
             return state
         except Exception:
             self.remove(state, suppress_errors=True)
             raise
 
     def set_netem_corrupt(self, state: VdeFaultProxyState, percentage: int) -> None:
-        proxy = self._client.containers.get(state.proxy_id)
-        result = proxy.exec_run(
-            [
-                "tc",
-                "qdisc",
-                "replace",
-                "dev",
-                "eth1",
-                "root",
-                "netem",
-                "corrupt",
-                f"{percentage}%",
-            ]
-        )
-        if result.exit_code:
-            raise RuntimeCapabilityError(
-                f"could not configure controller-side VDE proxy: {result.output.decode(errors='ignore')}"
-            )
+        self._set_corrupt(state, ("eth1",), percentage)
 
     def set_netem_corrupt_bidirectional(
         self, state: VdeFaultProxyState, percentage: int
     ) -> None:
         """Apply corrupt netem on both bridge ports for symmetric RTT impact."""
+        self._set_corrupt(state, ("eth0", "eth1"), percentage)
+
+    def _set_corrupt(
+        self, state: VdeFaultProxyState, devices: tuple[str, ...], percentage: int
+    ) -> None:
+        """Corrupt IP frames and drop other frames (``corrupt_commands``)."""
         proxy = self._client.containers.get(state.proxy_id)
-        for dev in ("eth0", "eth1"):
-            result = proxy.exec_run(
-                [
-                    "tc",
-                    "qdisc",
-                    "replace",
-                    "dev",
-                    dev,
-                    "root",
-                    "netem",
-                    "corrupt",
-                    f"{percentage}%",
-                ]
-            )
+        for dev in devices:
+            script = " && ".join(corrupt_commands(dev, percentage))
+            result = proxy.exec_run(["/bin/sh", "-c", script])
             if result.exit_code:
                 raise RuntimeCapabilityError(
                     f"could not configure controller-side VDE proxy on {dev}: "
                     f"{result.output.decode(errors='ignore')}"
                 )
 
-    def set_netem_loss(self, state: VdeFaultProxyState, percentage: int) -> None:
+    def set_netem_loss(self, state: VdeFaultProxyState, percentage: float) -> None:
         proxy = self._client.containers.get(state.proxy_id)
         result = proxy.exec_run(
             [
@@ -225,13 +167,19 @@ class KatharaVdeFaultProxy:
                 "root",
                 "netem",
                 "loss",
-                f"{percentage}%",
+                f"{percentage:g}%",
             ]
         )
         if result.exit_code:
             raise RuntimeCapabilityError(
                 f"could not configure controller-side VDE proxy: {result.output.decode(errors='ignore')}"
             )
+
+    def qdisc_show(self, state: VdeFaultProxyState) -> str:
+        """``tc qdisc show`` of the proxy port toward the peer."""
+        proxy = self._client.containers.get(state.proxy_id)
+        result = proxy.exec_run(["tc", "qdisc", "show", "dev", "eth1"])
+        return result.output.decode(errors="ignore") if result.exit_code == 0 else ""
 
     def netem_configured(self, state: VdeFaultProxyState) -> bool:
         proxy = self._client.containers.get(state.proxy_id)
@@ -311,8 +259,9 @@ cleanup() {{
     ip link set dev eth1 up >/dev/null 2>&1 || true
     rm -f "$PID_FILE"
 }}
-trap cleanup EXIT INT TERM
-echo $$ > "$PID_FILE"
+trap cleanup EXIT
+trap 'exit 0' INT TERM
+{shlex.join(process_command("record", pid_path))} $$ || exit 1
 while true; do
     ip link set dev eth1 down
     sleep {down_time}
@@ -335,14 +284,7 @@ done
     def link_flap_running(self, state: VdeFaultProxyState) -> bool:
         pid_path = self._flap_pid_path(state)
         proxy = self._client.containers.get(state.proxy_id)
-        result = proxy.exec_run(
-            [
-                "/bin/sh",
-                "-c",
-                f"if [ -r {shlex.quote(pid_path)} ] && "
-                f'kill -0 "$(cat {shlex.quote(pid_path)})" 2>/dev/null; then echo running; fi',
-            ]
-        )
+        result = proxy.exec_run(process_command("running", pid_path))
         return result.exit_code == 0 and result.output.strip() == b"running"
 
     def stop_link_flap(self, state: VdeFaultProxyState) -> None:
@@ -351,74 +293,28 @@ done
             proxy = self._client.containers.get(state.proxy_id)
         except docker.errors.NotFound:
             return
-        proxy.exec_run(
-            [
-                "/bin/sh",
-                "-c",
-                f"if [ -r {shlex.quote(pid_path)} ]; then "
-                f'/bin/kill -KILL -- -"$(cat {shlex.quote(pid_path)})" 2>/dev/null || '
-                f'/bin/kill -KILL "$(cat {shlex.quote(pid_path)})" 2>/dev/null || true; fi; '
-                "ip link set dev eth1 up >/dev/null 2>&1 || true; "
-                f"rm -f {shlex.quote(pid_path)}",
-            ]
-        )
-
-    def verify_identity(self, state: VdeFaultProxyState) -> None:
-        """Ensure reattachment retained the externally observable L2 identity."""
-        for endpoint in (state.endpoint, state.peer):
-            info = link_info(self.runtime, endpoint.node, endpoint.intf)
-            if (
-                info.get("ifname") != endpoint.intf
-                or info.get("address", "").lower() != endpoint.mac.lower()
-            ):
-                raise RuntimeCapabilityError(
-                    f"VDE proxy changed interface identity for {endpoint.node}:{endpoint.intf}"
-                )
+        result = proxy.exec_run(process_command("stop", pid_path))
+        if result.exit_code:
+            raise RuntimeCapabilityError(
+                "could not stop verified controller-side flap worker"
+            )
+        proxy.exec_run(["ip", "link", "set", "dev", "eth1", "up"])
 
     def remove(
         self, state: VdeFaultProxyState, *, suppress_errors: bool = False
     ) -> None:
         try:
+            proxy = self._client.containers.get(state.proxy_id)
+        except docker.errors.NotFound:
+            return
+        try:
             self.stop_link_flap(state)
-            self._bmv2_restarted = set()
-            original = self._client.networks.get(state.original_network_id)
-            for endpoint, lan_id in (
-                (state.endpoint, state.lan_a_id),
-                (state.peer, state.lan_b_id),
-            ):
-                container = self.runtime.get_container(endpoint.node)
-                try:
-                    self._client.networks.get(lan_id).disconnect(container, force=True)
-                except docker.errors.NotFound:
-                    pass
-                self._connect(
-                    container, original, endpoint.number, "restored", endpoint.mac
-                )
-                self._restore_and_post(endpoint)
-            self._finalize_port_reconnect()
-            self._await_routing_stability(state)
-            self.verify_identity(state)
+            self._stop_splice(proxy)
         except Exception:
             if not suppress_errors:
                 raise
         finally:
-            for resource_id, kind in (
-                (state.proxy_id, "container"),
-                (state.lan_a_id, "network"),
-                (state.lan_b_id, "network"),
-            ):
-                try:
-                    if kind == "container":
-                        self._client.containers.get(resource_id).remove(force=True)
-                    else:
-                        self._client.networks.get(resource_id).remove()
-                except docker.errors.NotFound:
-                    pass
-                except docker.errors.APIError:
-                    # Under load Docker can still report active endpoints;
-                    # cleanup_lab removes the labelled leftovers at teardown.
-                    if not suppress_errors:
-                        raise
+            self._remove_container(state.proxy_id)
 
     def discover(self, node: str, intf: str) -> VdeFaultProxyState | None:
         key = self._key(node, intf)
@@ -427,155 +323,139 @@ done
         )
         if not containers:
             return None
-        networks = self._client.networks.list(
-            filters={"label": f"nika.fault_proxy={key}"}
-        )
-        if len(networks) != 2:
-            return None
-        lan_a, lan_b = sorted(networks, key=lambda item: item.name)
         labels = containers[0].labels or {}
-        original_id = labels.get("nika.original_network")
-        if not original_id:
+        try:
+            endpoint = LinkEnd(
+                labels["nika.endpoint_node"], labels["nika.endpoint_intf"]
+            )
+            peer = LinkEnd(labels["nika.peer_node"], labels["nika.peer_intf"])
+        except KeyError:
             return None
-        # Snapshot link state only once a proxy is known to exist.
-        endpoint, peer = self._link_states(node, intf)
-        return VdeFaultProxyState(
-            key,
-            endpoint,
-            peer,
-            original_id,
-            lan_a.id,
-            lan_b.id,
-            containers[0].id,
-            routing_baseline=_baseline_from_label(labels.get(_ROUTING_BASELINE_LABEL)),
-        )
+        return VdeFaultProxyState(key, endpoint, peer, containers[0].id)
 
     @classmethod
     def cleanup_lab(cls, lab_name: str) -> None:
-        """Remove only proxy resources labelled for a lab being destroyed."""
+        """Remove only proxy helpers labelled for a lab being destroyed."""
         client = docker_client()
         label = f"nika.lab_name={lab_name}"
         for container in client.containers.list(all=True, filters={"label": label}):
-            container.remove(force=True)
-        for network in client.networks.list(filters={"label": label}):
             try:
-                # Detach only test/lab endpoints from the dynamic LAN.  There
-                # is no need to restore them during full lab teardown, but
-                # leaving them attached makes Kathara mistake the LAN for a
-                # declared collision domain while it inventories the lab.
-                network.reload()
-                for attached in list(network.containers):
-                    network.disconnect(attached, force=True)
-                network.remove()
-            except docker.errors.APIError:
-                # A lab endpoint may still be attached while teardown is underway.
+                cls._stop_splice(container)
+            except Exception:
+                # Kathara kills the paused hub with the lab anyway.
                 pass
+            container.remove(force=True)
 
-    def _restore_and_post(self, state: LinkAttachmentState) -> None:
-        restore_link_state(self.runtime, state)
-        self._post_restore_endpoint(state)
-
-    def _post_restore_endpoint(self, state: LinkAttachmentState) -> None:
-        identity = self._node_identity(state.node)
-        if identity is None:
-            return
-        caps = identity.capabilities
-        # Snapshot restore already replays DHCP-assigned addresses/routes.
-        # dhclient -r would release them immediately after restore.
-        if "dhcp_client" in caps and not state.addresses:
-            self.runtime.renew_dhcp_leases([state.node], state.intf)
-        if "bmv2" in caps:
-            restart_bmv2_dataplane(self.runtime, state.node)
-            self._bmv2_restarted.add(state.node)
-        if "frr" in caps or "bgp" in caps:
-            self.runtime.exec(
-                state.node,
-                "vtysh -c 'clear ip bgp * soft' 2>/dev/null || true",
-                timeout=30,
-            )
-
-    def _routing_nodes(self, *endpoints: LinkAttachmentState) -> list[str]:
-        nodes: list[str] = []
-        for state in endpoints:
-            identity = self._node_identity(state.node)
-            if identity is None:
-                continue
-            if {"frr", "bgp"} & set(identity.capabilities) and state.node not in nodes:
-                nodes.append(state.node)
-        return nodes
-
-    def _routing_peers(self, node: str, protocol: str) -> set[str]:
-        command, parse = _ROUTING_COMMANDS[protocol]
-        return parse(self.runtime.exec(node, command, timeout=15))
-
-    def _routing_baseline(
-        self, endpoint: LinkAttachmentState, peer: LinkAttachmentState
-    ) -> RoutingBaseline:
-        """Record the BGP sessions and OSPF Full adjacencies up before the move."""
-        rows: list[tuple[str, str, tuple[str, ...]]] = []
-        for node in self._routing_nodes(endpoint, peer):
-            for protocol in _ROUTING_COMMANDS:
-                peers = self._routing_peers(node, protocol)
-                if peers:
-                    rows.append((node, protocol, tuple(sorted(peers))))
-        return tuple(rows)
-
-    def _await_routing_stability(self, state: VdeFaultProxyState) -> None:
-        """Wait until routing adjacencies that were up before the move recover.
-
-        Nodes with no established BGP session or OSPF Full neighbor before the
-        port move have nothing to wait for and are skipped.
-        """
-        pending = {
-            (node, protocol): set(peers)
-            for node, protocol, peers in state.routing_baseline
-            if peers
-        }
-        deadline = time.monotonic() + _ROUTING_WAIT_SEC
-        while pending:
-            for (node, protocol), expected in list(pending.items()):
-                if expected <= self._routing_peers(node, protocol):
-                    del pending[(node, protocol)]
-            if not pending or time.monotonic() >= deadline:
-                break
-            time.sleep(_ROUTING_POLL_SEC)
-        if pending:
-            missing = {
-                f"{node}/{protocol}": sorted(
-                    expected - self._routing_peers(node, protocol)
-                )
-                for (node, protocol), expected in sorted(pending.items())
-            }
-            _logger.warning(
-                "VDE proxy port move on lab %s: routing adjacencies did not "
-                "recover within %.0fs: %s",
-                self.runtime.lab_name,
-                _ROUTING_WAIT_SEC,
-                missing,
-            )
-
-    def _finalize_port_reconnect(self) -> None:
-        if not self._bmv2_restarted:
-            return
-        self.runtime._net_env.reconcile_dataplane_after_port_reconnect(
-            self.runtime, sorted(self._bmv2_restarted)
+    def _start_splice(self, proxy, hub: str, node_pid: int, intf: str) -> None:
+        args = " ".join(
+            shlex.quote(str(item))
+            for item in (_SPLICE_SOURCE, hub, node_pid, intf, _SPLICE_MTU, _READY)
         )
+        proxy.exec_run(
+            [
+                "/bin/sh",
+                "-c",
+                f"{shlex.join(process_command('record', _PID))} $$ && exec python3 -c {args} >{_LOG} 2>&1",
+            ],
+            detach=True,
+        )
+        started = time.monotonic()
+        deadline = started + _READY_TIMEOUT_SEC
+        while time.monotonic() < deadline:
+            if proxy.exec_run(["test", "-s", _READY]).exit_code == 0:
+                return
+            alive = proxy.exec_run(process_command("running", _PID))
+            if (
+                alive.exit_code or alive.output.strip() != b"running"
+            ) and time.monotonic() > started + 2:
+                break
+            time.sleep(0.2)
+        log = proxy.exec_run(["cat", _LOG]).output.decode(errors="ignore")
+        raise RuntimeCapabilityError(f"could not splice VDE link {hub}: {log.strip()}")
 
-    def _node_identity(self, node: str) -> NodeIdentity | None:
-        return self.runtime._net_env.machine_identities.get(node)
+    @staticmethod
+    def _stop_splice(proxy) -> None:
+        """Hand the ports back to the hub and confirm it forwards again."""
+        script = (
+            process_source()
+            + f"""
+import re
+import subprocess
+import time
+path = {_READY!r}
+if not Path(path).is_file():
+    raise SystemExit(0)
+record = read_identity(path)
+if not isinstance(record, dict):
+    raise RuntimeError("Refusing unverified VDE relay and hub identities")
+# Pin the namespace while the native child still exists, so a killed relay
+# cannot leave its owned VDE socket directory behind in the plugin mount.
+namespace = None
+native = record.get("native")
+native_fd = owned_pidfd(native) if native else None
+if native_fd is not None:
+    try:
+        namespace = os.open(f"/proc/{{native[0]}}/ns/mnt", os.O_RDONLY)
+    except FileNotFoundError:
+        pass
+    finally:
+        os.close(native_fd)
+cleanup_error = None
+try:
+    stop_owned(record.get("relay"))
+    if native:
+        stop_owned(native)
+    directory = record.get("directory", "")
+    if namespace is not None and re.fullmatch(r"/tmp/nika-vde-[0-9a-f]{{32}}", directory):
+        subprocess.run(
+            ["nsenter", f"--mount=/proc/self/fd/{{namespace}}", "--", "rm", "-rf", "--", directory],
+            pass_fds=(namespace,), check=True,
+        )
+except Exception as exc:
+    cleanup_error = exc
+finally:
+    if namespace is not None:
+        os.close(namespace)
+hub = record.get("hub")
+fd = owned_pidfd(hub)
+if fd is not None:
+    try:
+        send_pidfd(fd, signal.SIGCONT)
+        for _ in range(50):
+            try:
+                state = Path(f"/proc/{{hub[0]}}/status").read_text()
+            except FileNotFoundError:
+                break
+            if not any(line.startswith("State:") and "stopped" in line for line in state.splitlines()):
+                break
+            time.sleep(0.02)
+        else:
+            raise RuntimeError("VDE hub did not resume after the splice")
+    except ProcessLookupError:
+        pass
+    finally:
+        os.close(fd)
+if cleanup_error is not None:
+    raise cleanup_error
+Path(path).unlink(missing_ok=True)
+"""
+        )
+        result = proxy.exec_run(["python3", "-c", script])
+        if result.exit_code:
+            raise RuntimeCapabilityError(
+                f"VDE hub did not resume after the splice: {result.output.decode(errors='ignore')}"
+            )
 
-    def _endpoints(self, node: str, intf: str):
-        endpoint, peer = self._link_states(node, intf)
-        original = self._network_for_interface(node, endpoint.number)
-        return endpoint, peer, original
+    def _remove_container(self, ref: str) -> None:
+        try:
+            self._client.containers.get(ref).remove(force=True)
+        except docker.errors.NotFound:
+            pass
 
-    def _link_states(
-        self, node: str, intf: str
-    ) -> tuple[LinkAttachmentState, LinkAttachmentState]:
+    def _link_ends(self, node: str, intf: str) -> tuple[LinkEnd, LinkEnd]:
         try:
             number = int(intf.removeprefix("eth"))
-            interface = self._lab.machines[node].interfaces[number]
-            link = interface.link
+            link = self._lab.machines[node].interfaces[number].link
             peers = [
                 machine.name
                 for machine in link.machines.values()
@@ -583,91 +463,32 @@ done
             ]
             if len(peers) != 1:
                 raise ValueError("link is not point-to-point")
-            peer_name = peers[0]
             peer_interface = next(
                 item
-                for item in self._lab.machines[peer_name].interfaces.values()
+                for item in self._lab.machines[peers[0]].interfaces.values()
                 if item.link is link
             )
         except (KeyError, StopIteration, ValueError) as exc:
             raise RuntimeCapabilityError(
-                f"dynamic VDE proxy requires a point-to-point link at {node}:{intf}"
+                f"VDE fault proxy requires a point-to-point link at {node}:{intf}"
             ) from exc
-        return (
-            capture_link_state(self.runtime, node, intf, number),
-            capture_link_state(
-                self.runtime, peer_name, f"eth{peer_interface.num}", peer_interface.num
-            ),
-        )
+        return LinkEnd(node, intf), LinkEnd(peers[0], f"eth{peer_interface.num}")
 
-    def _create_lan(self, name: str, labels: dict[str, str], original):
-        return self._client.networks.create(
-            name=name,
-            driver=original.attrs["Driver"],
-            ipam=IPAMConfig(driver="null"),
-            labels=labels,
-        )
-
-    def _network_for_interface(self, node: str, number: int):
-        container = self.runtime.get_container(node)
+    def _hub_ctl(self, end: LinkEnd) -> str:
+        """Control path suffix of the plugin hub serving ``end``."""
+        container = self.runtime.get_container(end.node)
         container.reload()
         networks = container.attrs.get("NetworkSettings", {}).get("Networks", {})
-        for network_name, attachment in networks.items():
+        number = end.intf.removeprefix("eth")
+        for attachment in networks.values():
             options = attachment.get("DriverOpts") or {}
-            if options.get("kathara.iface") == str(number):
-                return self._client.networks.get(
-                    attachment["NetworkID"] or network_name
-                )
+            if options.get("kathara.iface") == number:
+                # katharanp names each hub after the first 12 hex digits of
+                # its Docker network ID.
+                return f"kt-{attachment['NetworkID'][:12]}/ctl"
         raise RuntimeCapabilityError(
-            f"could not resolve deployed VDE LAN for {node}:eth{number}"
+            f"could not resolve deployed VDE LAN for {end.node}:{end.intf}"
         )
-
-    def _connect(
-        self, container, network, number: int, link_name: str, mac: str | None = None
-    ) -> None:
-        options = {"kathara.iface": str(number), "kathara.link": link_name}
-        if mac:
-            options["kathara.mac_addr"] = mac
-        network.connect(container, driver_opt=options)
-        from nika.runtime.kathara.tap import record_container_taps
-
-        record_container_taps(container, self.runtime.lab_name)
-
-    @staticmethod
-    def _bridge(proxy) -> None:
-        result = proxy.exec_run(
-            [
-                "/bin/sh",
-                "-c",
-                "ip link add br0 type bridge stp_state 0 forward_delay 0 && ip link set eth0 master br0 && ip link set eth1 master br0 && ip link set eth0 up && ip link set eth1 up && ip link set br0 up",
-            ]
-        )
-        if result.exit_code:
-            raise RuntimeCapabilityError(
-                f"could not start VDE proxy bridge: {result.output.decode(errors='ignore')}"
-            )
-
-    @staticmethod
-    def _normalise_proxy_interfaces(proxy) -> None:
-        result = proxy.exec_run(["ip", "-j", "link"])
-        if result.exit_code:
-            raise RuntimeCapabilityError("could not inspect VDE proxy interfaces")
-        interfaces = [
-            item["ifname"]
-            for item in json.loads(result.output)
-            if item["ifname"] != "lo"
-        ]
-        if len(interfaces) != 2:
-            raise RuntimeCapabilityError("VDE proxy did not receive two LAN interfaces")
-        for current, expected in zip(sorted(interfaces), ("eth0", "eth1"), strict=True):
-            if current != expected:
-                result = proxy.exec_run(
-                    ["ip", "link", "set", "dev", current, "name", expected]
-                )
-                if result.exit_code:
-                    raise RuntimeCapabilityError(
-                        "could not normalize VDE proxy interface names"
-                    )
 
     def _key(self, node: str, intf: str) -> str:
         return hashlib.blake2s(
@@ -695,17 +516,3 @@ done
             raise RuntimeCapabilityError(
                 "controller-side link flap worker did not start"
             )
-
-
-def _baseline_from_label(raw: str | None) -> RoutingBaseline:
-    """Decode the routing baseline stored on a discovered proxy container."""
-    if not raw:
-        return ()
-    try:
-        rows = json.loads(raw)
-        return tuple(
-            (str(node), str(protocol), tuple(str(peer) for peer in peers))
-            for node, protocol, peers in rows
-        )
-    except (TypeError, ValueError):
-        return ()

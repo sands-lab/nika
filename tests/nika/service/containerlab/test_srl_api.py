@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import MagicMock
 from nika.service.containerlab.adapters import LabRuntimeContainerlabAPI
-from nika.service.containerlab.srl_api import NIKA_BGP_WITHDRAW, SRLAPIMixin
+from nika.service.containerlab.srl_api import BGP_EXPORT_POLICY, SRLAPIMixin
 
 pytestmark = pytest.mark.integration
 
@@ -67,12 +67,12 @@ set / acl acl-filter cpm type ipv4 entry 75 action accept
 _CPM_INJECTED = (
     _CPM_DEFAULT
     + """\
-set / acl acl-filter cpm type ipv4 entry 185 description nika_bgp_block
+set / acl acl-filter cpm type ipv4 entry 185 description cpm-protect
 set / acl acl-filter cpm type ipv4 entry 185 match ipv4 protocol tcp
 set / acl acl-filter cpm type ipv4 entry 185 match transport destination-port operator eq
 set / acl acl-filter cpm type ipv4 entry 185 match transport destination-port value 179
 set / acl acl-filter cpm type ipv4 entry 185 action drop
-set / acl acl-filter cpm type ipv4 entry 186 description nika_bgp_block
+set / acl acl-filter cpm type ipv4 entry 186 description cpm-protect
 set / acl acl-filter cpm type ipv4 entry 186 match ipv4 protocol tcp
 set / acl acl-filter cpm type ipv4 entry 186 match transport source-port operator eq
 set / acl acl-filter cpm type ipv4 entry 186 match transport source-port value 179
@@ -175,6 +175,61 @@ class SrlApiTest:
         reset = api.exec_cmd.call_args_list[3][0][1]
         assert "neighbor 10.255.0.1 reset-peer" in reset
 
+    def test_srl_ospf_drop_precedes_accept_and_clears_neighbors(self) -> None:
+        # SR Linux 24.10 default CPM filter: entry 290 accepts protocol 89.
+        accept = (
+            _CPM_DEFAULT
+            + "set / acl acl-filter cpm type ipv4 entry 290 match ipv4 protocol 89\n"
+            "set / acl acl-filter cpm type ipv4 entry 290 action accept\n"
+        )
+        running = (
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/1.0 metric 10\n"
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/1.0 hello-interval 10\n"
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface system0.0 passive true\n"
+        )
+        api = _SRLStub()
+        api.exec_cmd = MagicMock(side_effect=[accept, "", running, ""])
+
+        assert api.srl_add_ospf_acl_drop("n1") == [245]
+        candidate = api.exec_cmd.call_args_list[1][0][1]
+        assert "entry 245 match ipv4 protocol 89" in candidate
+        assert "entry 245 action drop" in candidate
+        reset = api.exec_cmd.call_args_list[3][0][1]
+        assert (
+            "tools network-instance default protocols ospf instance default "
+            "area 0.0.0.0 interface ethernet-1/1.0 neighbors clear"
+        ) in reset
+        assert "system0.0" not in reset
+        assert reset.count("neighbors clear") == 1
+
+    def test_srl_ospf_neighbors_and_interfaces_parse_flat_output(self) -> None:
+        # ``info flat from state|running`` on isp_abilene chinng (SR Linux 24.10).
+        state = (
+            "/ network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/1.0 neighbor 10.255.0.6 adjacency-state full\n"
+            "/ network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/2.0 neighbor 10.255.0.9 adjacency-state init\n"
+        )
+        running = (
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/1.0 metric 10\n"
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface system0.0 passive true\n"
+        )
+        api = _SRLStub()
+        api.exec_cmd = MagicMock(side_effect=[state, running, running, ""])
+
+        assert api.srl_ospf_neighbor_interfaces("n1") == ["ethernet-1/1.0"]
+        assert api.srl_ospf_interfaces("n1") == ["ethernet-1/1.0"]
+        api.srl_remove_ospf_interface("n1", "ethernet-1/1.0")
+        assert (
+            "delete /network-instance default protocols ospf instance default "
+            "area 0.0.0.0 interface ethernet-1/1.0"
+        ) in api.exec_cmd.call_args_list[3][0][1]
+
     def test_srl_bgp_acl_present(self) -> None:
         runtime = MagicMock()
         runtime.backend = "containerlab"
@@ -190,6 +245,9 @@ class SrlApiTest:
 
     def test_srl_withdraw_bgp_prefix_uses_candidate(self) -> None:
         api = _SRLStub()
+        api.srl_exec_cli = lambda *args, **kwargs: (
+            '{"network-instance":[{"protocols":{"bgp":{"neighbor":[{"peer-address":"10.0.0.1","afi-safi":[{"afi-safi-name":"ipv4-unicast","export-policy":["BGP-OUT"]}]}]}}}]}'
+        )
         api.srl_withdraw_bgp_prefix("leaf1", "10.0.0.24/31")
 
         assert len(api.exec_calls) == 1
@@ -197,11 +255,15 @@ class SrlApiTest:
 
         assert "enter candidate" in script
 
-        assert NIKA_BGP_WITHDRAW in script
+        assert BGP_EXPORT_POLICY in script
 
         assert "10.0.0.24/31" in script
 
-        assert "default-action policy-result accept" in script
+        assert "default-action policy-result next-policy" in script
+        assert (
+            f"neighbor 10.0.0.1 afi-safi ipv4-unicast export-policy [{BGP_EXPORT_POLICY} BGP-OUT]"
+            in script
+        )
 
         assert "match prefix-set" in script
 
@@ -211,8 +273,8 @@ class SrlApiTest:
         runtime = MagicMock()
         runtime.backend = "containerlab"
         runtime.exec.side_effect = [
-            f"policy {NIKA_BGP_WITHDRAW} prefix 10.0.0.24/31",
-            f"group clos01 export-policy {NIKA_BGP_WITHDRAW}",
+            f"policy {BGP_EXPORT_POLICY} prefix 10.0.0.24/31",
+            f"group clos01 export-policy {BGP_EXPORT_POLICY}",
         ]
         adapter = LabRuntimeContainerlabAPI(runtime)
 

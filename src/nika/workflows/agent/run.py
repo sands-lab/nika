@@ -2,12 +2,16 @@
 
 import logging
 import time
+from contextlib import ExitStack
+from urllib.parse import urlparse
+from collections.abc import Callable
 
-from agent.registry import create_agent, get_agent_spec, run_agent
-from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
-from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
-from agent.utils.provider_env import provider_env_context
-from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+from nika.agents.registry import create_agent, get_agent_spec, run_agent
+from nika.agents.sandbox import SandboxManager
+from nika.agents.sandbox.backend import backend_class, get_backend
+from nika.agents.sandbox.config import resolve_sandbox_config
+from nika.agents.mcp_config import engine_gateway
+from nika.benchmark_engine.protocol import AgentAccess, GatewayRequest
 from nika.utils.agent_config import (
     resolve_agent_model,
     resolve_agent_timeout,
@@ -16,6 +20,8 @@ from nika.utils.agent_config import (
     resolve_max_steps,
     resolve_max_tokens,
     resolve_reasoning_effort,
+    resolve_sampling,
+    resolve_submission_settings,
 )
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
 from nika.utils.session import Session
@@ -30,6 +36,7 @@ def start_agent(
     max_steps: int | None = None,
     *,
     session_id: str | None = None,
+    task_description: str | None = None,
     reasoning_effort: str | None = None,
     stream_output: bool = True,
     check_fault_presence: bool = False,
@@ -37,8 +44,20 @@ def start_agent(
     sandbox_cpus: int | None = None,
     sandbox_memory: str | None = None,
     sandbox_offline_sdk_wheels: bool | None = None,
+    access: AgentAccess | None = None,
+    diagnosis_ready: Callable[[], None] | None = None,
 ) -> None:
-    """Load the running session, run the agent on ``task_description``, then end the session."""
+    """Load the running session, run the agent on ``task_description``, then end the session.
+
+    Every agent runs in its own sandbox; only test agents that need host state
+    (``template=None``, e.g. ``mock``) run in this process. *access* is the
+    release's access policy; without it, the run config's ``agent.access.role``
+    selects one. A benchmark trial passes the *task_description* that the
+    engine's ``begin`` returned; a hands-on session uses its own.
+    """
+    from nika.evaluator.report_mapper import ReportMapper
+    from nika.run_config.loader import get_run_config
+    from nika.run_config.schema import AgentSubmissionSettings
     from nika.utils.agent_config import apply_custom_provider_env
 
     # Benchmarks pass stream_output=False; keep MCP/httpx off the console.
@@ -52,41 +71,57 @@ def start_agent(
     agent_type = resolve_agent_type(agent_type)
     max_steps = resolve_max_steps(max_steps)
     timeout_sec = resolve_agent_timeout()
-    reasoning_effort = resolve_reasoning_effort(reasoning_effort)
+    reasoning_effort = resolve_reasoning_effort(agent_type, reasoning_effort)
     max_tokens = resolve_max_tokens(agent_type)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
     model = resolve_agent_model(agent_type, model)
+    submission = resolve_submission_settings()
+    if get_agent_spec(agent_type).template is None:
+        # Host-run agents (mock, oracle) answer from the ground truth themselves.
+        submission = AgentSubmissionSettings()
+    # Built before the agent's provider environment clears other credentials.
+    report_mapper = ReportMapper.from_settings(
+        submission, max_tokens=get_run_config().agent.max_tokens
+    )
     sandbox_config = resolve_sandbox_config(
         keep_container=sandbox_keep_container,
         cpus=sandbox_cpus,
         memory=sandbox_memory,
         offline_sdk_wheels=sandbox_offline_sdk_wheels,
     )
-    use_sandbox = agent_type in SANDBOX_SUPPORTED_AGENTS
-    if not use_sandbox and get_agent_spec(agent_type).sandbox_definition:
-        logging.getLogger(__name__).warning(
-            "Agent %s declares a sandbox; external agents run on the host until "
-            "sandbox backends support them.",
-            agent_type,
-        )
+    use_sandbox = get_agent_spec(agent_type).template is not None
     if use_sandbox:
-        from agent.sandbox.sbx.images import ensure_sbx_template_images
+        # Idempotent: a no-op when the job or env start already prepared it.
+        # Covers ``nika agent run`` without a prior env start that knew the
+        # sandbox agent.
+        images = get_backend(sandbox_config).prepare_templates([agent_type])
+        from nika.net_env.utils.kathara.docker_files.docker_images import (
+            ensure_nika_docker_images,
+        )
 
-        # Idempotent: skips pull when the template is already local (e.g. lab
-        # deploy / benchmark job preload). Covers ``nika agent run`` without
-        # a prior env start that knew the sandbox agent.
-        ensure_sbx_template_images([agent_type])
+        ensure_nika_docker_images(images)
 
     session = Session()
     session.load_running_session(session_id=session_id)
+    if task_description is None:
+        task_description = session.task_description
     session.update_session("agent_type", agent_type)
     if llm_provider is not None:
         session.update_session("llm_provider", llm_provider)
     session.update_session("model", model)
+    if use_sandbox:
+        session.update_session("sandbox_backend", sandbox_config.backend)
+        fields = backend_class(sandbox_config.backend).session_fields(sandbox_config)
+        for key, value in fields.items():
+            session.update_session(key, value)
     if reasoning_effort is not None:
         session.update_session("reasoning_effort", reasoning_effort)
     if max_tokens is not None:
         session.update_session("max_tokens", max_tokens)
+    session.update_session("submission", submission.identity())
+    sampling = resolve_sampling(agent_type)
+    if sampling is not None:
+        session.update_session("sampling", sampling)
     session.start_session()
 
     bind_session_dir(session.session_dir)
@@ -99,7 +134,7 @@ def start_agent(
     # Session lifecycle (nika.jsonl): agent_start → agent_end | agent_error.
     # Phase bookends (messages.jsonl) use agent_start → agent_done | agent_error.
     log_event(
-        "agent_start",
+        "agent_preparing" if diagnosis_ready is not None else "agent_start",
         f"Starting agent: {agent_type} (model={model}) in session {session.session_id}"
         + (" [sandbox]" if use_sandbox else ""),
         session_id=session.session_id,
@@ -108,6 +143,7 @@ def start_agent(
         sandbox=use_sandbox,
         max_steps=max_steps,
         timeout_sec=timeout_sec,
+        submission_mode=submission.mode,
     )
     from nika.validation.presence import PresenceWatch
 
@@ -118,9 +154,25 @@ def start_agent(
         if check_fault_presence
         else None
     )
-    if presence is not None:
+    if presence is not None and diagnosis_ready is None:
         presence.start()
     agent_started = time.perf_counter()
+
+    def release_diagnosis() -> None:
+        nonlocal agent_started
+        if diagnosis_ready is not None:
+            diagnosis_ready()
+            if presence is not None:
+                presence.start()
+            agent_started = time.perf_counter()
+            log_event(
+                "agent_start",
+                f"Starting scheduled diagnosis: {agent_type}",
+                session_id=session.session_id,
+                agent_type=agent_type,
+                model=model,
+            )
+
     agent_exc: BaseException | None = None
     if stream_output:
         effort_line = (
@@ -136,105 +188,76 @@ def start_agent(
     try:
         from nika.remote.config import is_remote_enabled
 
-        if is_remote_enabled():
-            from nika.remote.workflows import pull_session_artifacts, remote_mcp_gateway
+        sandbox_backend = backend_class(sandbox_config.backend)
+        with ExitStack() as stack:
+            endpoints = stack.enter_context(
+                engine_gateway(
+                    session.session_id,
+                    session.session_dir,
+                    GatewayRequest(
+                        access=access,
+                        tool_call_limits=get_run_config().agent.tool_call_limits
+                        or None,
+                        sandbox=use_sandbox,
+                        bind_host=(
+                            sandbox_backend.gateway_bind_host if use_sandbox else None
+                        ),
+                        agent_host=sandbox_backend.gateway_agent_host,
+                    ),
+                )
+            )
+            if is_remote_enabled():
+                from nika.remote.workflows import follow_remote_logs
 
-            with remote_mcp_gateway(
-                session.session_id,
-            ) as (gateway_base_url, gateway_port):
-                if use_sandbox:
-                    if not sbx_available():
-                        raise RuntimeError(
-                            "Docker Sandboxes CLI (sbx) is not available. "
-                            "Install docker-sbx and run `sbx login`."
-                        )
-                    SbxSandboxManager(sandbox_config).run(
-                        session=session,
-                        agent_type=agent_type,
-                        model=model,
-                        max_steps=max_steps,
-                        timeout_sec=timeout_sec,
-                        reasoning_effort=reasoning_effort,
-                        max_tokens=max_tokens,
-                        llm_provider=llm_provider,
-                        mcp_gateway_agent_url=gateway_base_url,
-                        gateway_port=gateway_port,
-                        stream_output=stream_output,
-                    )
-                else:
-                    with provider_env_context(
-                        agent_type=agent_type,
-                        provider=llm_provider or "openai",
-                    ):
-                        agent = create_agent(
-                            agent_type,
-                            session_id=session.session_id,
-                            llm_provider=llm_provider,
-                            model=model,
-                            max_steps=max_steps,
-                            reasoning_effort=reasoning_effort,
-                            max_tokens=max_tokens,
-                            stream_output=stream_output,
-                        )
-                        run_agent(
-                            agent,
-                            session.task_description,
-                            timeout_sec=timeout_sec,
-                        )
+                stack.enter_context(
+                    follow_remote_logs(session.session_id, session.session_dir)
+                )
+            if use_sandbox:
+                SandboxManager(sandbox_config).run(
+                    session=session,
+                    task_description=task_description,
+                    agent_type=agent_type,
+                    model=model,
+                    max_steps=max_steps,
+                    timeout_sec=timeout_sec,
+                    reasoning_effort=reasoning_effort,
+                    max_tokens=max_tokens,
+                    llm_provider=llm_provider,
+                    mcp_gateway_agent_url=endpoints.agent_url,
+                    # The port this host dials; a NIKA Remote client may map it
+                    # (e.g. a local forwarder to a lab VM).
+                    gateway_port=int(urlparse(endpoints.agent_url).port or 0),
+                    stream_output=stream_output,
+                    report_mapper=report_mapper,
+                    **(
+                        {"before_diagnosis": release_diagnosis}
+                        if diagnosis_ready is not None
+                        else {}
+                    ),
+                )
+            else:
+                agent = create_agent(
+                    agent_type,
+                    session_id=session.session_id,
+                    llm_provider=llm_provider,
+                    model=model,
+                    max_steps=max_steps,
+                    reasoning_effort=reasoning_effort,
+                    max_tokens=max_tokens,
+                    stream_output=stream_output,
+                )
+                release_diagnosis()
+                run_agent(
+                    agent,
+                    task_description,
+                    timeout_sec=timeout_sec,
+                    report_mapper=report_mapper,
+                )
+        if is_remote_enabled():
+            from nika.remote.workflows import pull_session_artifacts
+
             # Pull remote-written artifacts (e.g. submission.json) after the agent.
             pull_session_artifacts(session.session_id, session.session_dir)
-        else:
-            with mcp_gateway_for_session(
-                session.session_id,
-                scenario_name=session.scenario_name,
-                sandbox=use_sandbox,
-                sandbox_agent_host=sandbox_gateway_agent_host(),
-                backend=getattr(session, "backend", None),
-            ) as gateway_manager:
-                if use_sandbox:
-                    if not sbx_available():
-                        raise RuntimeError(
-                            "Docker Sandboxes CLI (sbx) is not available. "
-                            "Install docker-sbx and run `sbx login`."
-                        )
-                    gateway_agent_url = gateway_manager.agent_url
-                    if not gateway_agent_url:
-                        raise RuntimeError(
-                            "MCP gateway agent URL was not set for sandbox execution"
-                        )
-                    SbxSandboxManager(sandbox_config).run(
-                        session=session,
-                        agent_type=agent_type,
-                        model=model,
-                        max_steps=max_steps,
-                        timeout_sec=timeout_sec,
-                        reasoning_effort=reasoning_effort,
-                        max_tokens=max_tokens,
-                        llm_provider=llm_provider,
-                        mcp_gateway_agent_url=gateway_agent_url,
-                        gateway_port=gateway_manager.port,
-                        stream_output=stream_output,
-                    )
-                else:
-                    with provider_env_context(
-                        agent_type=agent_type,
-                        provider=llm_provider or "openai",
-                    ):
-                        agent = create_agent(
-                            agent_type,
-                            session_id=session.session_id,
-                            llm_provider=llm_provider,
-                            model=model,
-                            max_steps=max_steps,
-                            reasoning_effort=reasoning_effort,
-                            max_tokens=max_tokens,
-                            stream_output=stream_output,
-                        )
-                        run_agent(
-                            agent,
-                            session.task_description,
-                            timeout_sec=timeout_sec,
-                        )
     except BaseException as exc:
         agent_exc = exc
         if not isinstance(exc, (KeyboardInterrupt, SystemExit)):

@@ -11,6 +11,7 @@ from __future__ import annotations
 from rich.console import Console
 from rich.table import Table
 
+from nika.evaluator.validity import HARNESS_FLAGS
 from nika.workflows.eval.report import Breakdown, SummaryReport
 
 _BAR_WIDTH = 12
@@ -118,6 +119,20 @@ def _render_run_health(console: Console, report: SummaryReport) -> None:
         f"{'n/a' if report.conditional_mean_rca_f1 is None else f'{report.conditional_mean_rca_f1:.3f}'}"
         f")[/]"
     )
+    _render_validity(console, report)
+
+
+def _render_validity(console: Console, report: SummaryReport) -> None:
+    """Run-validity gates: trials whose result may reflect the harness, not the agent."""
+    if not report.validity_counts:
+        console.print("[dim]validity: no flagged trials[/]")
+        return
+    bits = []
+    for flag, count in report.validity_counts.items():
+        colour = "red" if flag in HARNESS_FLAGS else "yellow"
+        rate = report.validity_rates.get(flag, 0.0)
+        bits.append(f"[{colour}]{flag} {count} ({rate:.1%})[/]")
+    console.print("validity: " + "  ".join(bits))
 
 
 def _render_case_split(console: Console, report: SummaryReport) -> None:

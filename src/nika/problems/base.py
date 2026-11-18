@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import textwrap
+from collections.abc import Mapping
 from enum import StrEnum
 from functools import wraps
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
@@ -18,6 +19,7 @@ from nika.runtime.base import RuntimeCapabilityError
 
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
+    from nika.problems.support.oracle import OraclePlaybook
     from nika.problems.support.benchmark_targets import (
         InjectTargetContext,
         InjectValidationContext,
@@ -85,6 +87,8 @@ class ProblemBase:
     # Submission owner kind ("interface" / "link" / "node_or_k8s") when it
     # differs from the failure-domain default; must match root_cause_resources().
     root_cause_owner: ClassVar[str | None] = None
+    # A distributed fault may be localized at any of its participating resources.
+    root_cause_resource_match: ClassVar[Literal["all", "any"]] = "all"
     # Short meaning of the failure ID for agent ontology / registry.
     # Must not leak injection method, artifacts, or differential probe shortcuts.
     description: ClassVar[str] = ""
@@ -96,6 +100,10 @@ class ProblemBase:
     # ``None`` means TAGS subset matching only. Values are column ids as in
     # ``coverage_columns`` (scenario name, or ``isp_<topo>/<config>``).
     COMPATIBLE_COLUMNS: ClassVar[frozenset[str] | None] = None
+    # Router platforms (``device_profile``) that meet the premise of
+    # ``COMPATIBLE_COLUMNS`` on every scenario they deploy, so the failure also
+    # runs on those platforms outside the listed columns.
+    COMPATIBLE_PLATFORMS: ClassVar[frozenset[str]] = frozenset()
     # Scenarios whose TAGS match but whose design hides the failure effect,
     # mapped to the reason.
     INCOMPATIBLE_SCENARIOS: ClassVar[dict[str, str]] = {}
@@ -105,7 +113,25 @@ class ProblemBase:
     # ``rpki`` profile is only deployable on named RPKI scenarios.
     isp_protocol: ClassVar[dict[str, Any] | None] = None
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
+    # Backends the failure implements. ``containerlab`` means it has an SR Linux
+    # implementation. ``None``: Kathara, plus backends whose routers have a
+    # fault-operations provider (SONiC on Containerlab).
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
+    minimum_path_bdp_bytes: ClassVar[int] = 0
+    # Kbit/s the path must forward for the symptom to show, such as when the
+    # fault slows a flow only where the endpoint, not the path, limits it.
+    # Compared with the routers' declared send cap (``interface_rate_kbps``).
+    minimum_path_rate_kbps: ClassVar[int] = 0
+    # Native router failure operations (``problems/support/router_ops.py``)
+    # this failure needs when its target is a router with a fault-operations
+    # provider (IOS XR, RouterOS, SONiC).
+    # ``None``: no native implementation, so targets stay on FRR/Linux nodes.
+    # An empty set: the failure acts outside the router OS (for example on the
+    # container interface), so every native profile can host it.
+    native_router_operations: ClassVar[frozenset[str] | None] = None
+    # The failure inserts a controller-side VDE proxy on the target link, so
+    # one endpoint's port must be able to move (see ``proxy_can_attach``).
+    BENCHMARK_LINK_PROXY: ClassVar[bool] = False
     # Optional protocol whose adjacency effect this failure declares.
     effect_protocol: ClassVar[str | None] = None
     effect_property: ClassVar[str | None] = None
@@ -129,29 +155,135 @@ class ProblemBase:
     # Co-injected failures whose params ``coordinate_benchmark_inject`` adjusts
     # when a multi-fault case is exactly this failure plus these.
     BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
+    # Retain this fault before injecting the next fault, to record its history.
+    MULTI_INJECT_DWELL_SEC: ClassVar[float] = 0.0
+    # Exercise kind (``nika.traffic.workload``) of scenario business traffic the
+    # symptom needs. In a scenario that declares a workload, benchmark targets
+    # must be ones that traffic exercises (``symptom_workload_target``).
+    SYMPTOM_WORKLOAD: ClassVar[str | None] = None
+    # Background traffic profile (``nika.traffic.profiles``) that replaces the
+    # environment's ``BASELINE_TRAFFIC`` in this failure's generated cases.
+    # Any difference from the baseline hints at the failure class, so set it
+    # only when the symptom cannot show under the baseline.
+    TRAFFIC_PROFILE: ClassVar[dict[str, Any] | None] = None
 
     @classmethod
-    def is_compatible(cls, target: str) -> bool:
+    def symptom_workload_target(
+        cls, inject: Mapping[str, str]
+    ) -> tuple[str, ...] | None:
+        """Workload target of ``inject`` for ``SYMPTOM_WORKLOAD``."""
+        return None
+
+    @classmethod
+    def is_compatible(
+        cls,
+        target: str,
+        device_profile: str | None = None,
+        *,
+        backend: str | None = None,
+    ) -> bool:
         """Return whether this failure can inject usefully on ``target``.
+
+        Declared backend support and path BDP requirements must also fit the
+        deployment. Unknown path limits still require runtime calibration.
+        Without ``supported_backends`` a failure runs on Kathara, and on another
+        backend only where the routers have a fault-operations provider
+        (SONiC on Containerlab); SR Linux needs a declared ``containerlab``.
 
         Single failure/scenario compatibility predicate. ``target`` is a scenario
         id or a coverage column id (``isp_<topo>/<config>``). TAGS must be a
         subset of the target's effective tags, and when ``COMPATIBLE_COLUMNS`` is
-        set the target must be listed; a bare scenario id matches when any of
-        its columns is listed.
+        set the target must be listed, unless ``device_profile`` is one of
+        ``COMPATIBLE_PLATFORMS``; a bare scenario id matches when any of its
+        columns is listed.
+
+        A native ``device_profile`` (IOS XR, RouterOS) must also be one the
+        scenario declares. The deployment then keeps FRR/Linux nodes as
+        targets; ``runs_on_device_profile`` says whether the failure can also
+        target the profile's routers.
         """
-        from nika.net_env.net_env_pool import effective_tags, parse_column
+        from nika.net_env.net_env_pool import (
+            effective_tags,
+            parse_column,
+            scenario_device_profiles,
+            scenario_supported_backends,
+            scenario_path_bdp_limit_bytes,
+            scenario_path_rate_limit_kbps,
+        )
+        from nika.net_env.isp.profiles import SUPPORTED_BACKEND_PROFILE_PAIRS
+        from nika.problems.support.router_ops import (
+            profile_routes_with_frr,
+            router_platform_has_provider,
+        )
+
+        if device_profile not in (None, "", "frr", "nokia_srlinux", "sonic") and (
+            device_profile not in scenario_device_profiles(target.partition("/")[0])
+        ):
+            return False
+
+        backends = set(scenario_supported_backends(target.partition("/")[0]))
+        if backend is not None:
+            backends &= {backend}
+        if device_profile:
+            # A router platform deploys on its own backend.
+            backends &= {
+                b for b, p in SUPPORTED_BACKEND_PROFILE_PAIRS if p == device_profile
+            }
+        if cls.supported_backends is not None:
+            backends &= set(cls.supported_backends)
+        elif not router_platform_has_provider(device_profile):
+            # Undeclared backends mean the FRR/Linux implementation, which
+            # Kathara runs; elsewhere only a router platform provider
+            # (``native_router_operations``) can stand in for it.
+            backends &= {"kathara"}
+        if not backends:
+            return False
+
+        if cls.minimum_path_bdp_bytes:
+            ceiling = scenario_path_bdp_limit_bytes(
+                target.partition("/")[0], device_profile
+            )
+            if ceiling is not None and ceiling < cls.minimum_path_bdp_bytes:
+                return False
+
+        if cls.minimum_path_rate_kbps:
+            cap = scenario_path_rate_limit_kbps(
+                target.partition("/")[0], device_profile
+            )
+            if cap is not None and cap < cls.minimum_path_rate_kbps:
+                return False
 
         allowed = cls.COMPATIBLE_COLUMNS
         if (
             allowed is not None
             and target not in allowed
             and target not in {parse_column(column)[0] for column in allowed}
+            and device_profile not in cls.COMPATIBLE_PLATFORMS
         ):
             return False
         if target.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:
             return False
-        return frozenset(cls.TAGS).issubset(effective_tags(target))
+        # A base ISP column deploys one BGP mode; it must be the declared one.
+        bgp_mode = (cls.isp_protocol or {}).get("bgp_mode")
+        if bgp_mode and parse_column(target)[1] in {"ibgp_rr", "ebgp"} - {bgp_mode}:
+            return False
+        tags = effective_tags(target)
+        if profile_routes_with_frr(device_profile):
+            # The scenario tags name its default routers; this platform's
+            # routers run FRR.
+            tags |= {"frr"}
+        return frozenset(cls.TAGS).issubset(tags)
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile: str) -> bool:
+        """Whether this failure can target a router running native ``device_profile``.
+
+        Derived from code: the profile's ``RouterFaultOps`` provider must
+        implement every operation in ``native_router_operations``.
+        """
+        from nika.problems.support.router_ops import failure_supports_profile
+
+        return failure_supports_profile(cls, device_profile)
 
     @classmethod
     def benchmark_inject_params(cls, ctx: InjectTargetContext) -> dict[str, str]:
@@ -245,6 +377,9 @@ class ProblemBase:
                 **kwargs: Any,
             ) -> Any:
                 self.check_runtime_compatible(operation=__name)
+                self.check_native_targets(
+                    kwargs.get("params", args[0] if args else None), operation=__name
+                )
                 return __method(self, *args, **kwargs)
 
             checked._nika_capability_checked = True  # type: ignore[attr-defined]
@@ -331,6 +466,23 @@ class ProblemBase:
             f"{type(self).__name__} must implement root_cause_resources()."
         )
 
+    def recover_fault(self, params: Any = None) -> dict:
+        """Undo this instance's injection and verify the restored state."""
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement recover_fault()."
+        )
+
+    def oracle_playbook(self, params: Any = None) -> OraclePlaybook:
+        """Return the reference diagnosis path that confirms this fault.
+
+        The oracle solver runs the steps through the diagnosis MCP tools and
+        submits the root cause only when every evidence step holds. Build it
+        from the templates in ``nika.problems.support.oracle``.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not define oracle_playbook()."
+        )
+
     def get_ground_truth(self) -> ProblemGroundTruth:
         """Return detection + structured RCA ground truth."""
         params = self._resolved_params
@@ -374,6 +526,31 @@ class ProblemBase:
             """
         tmpl = textwrap.dedent(diagnostic_prompt)
         return tmpl.format(net_desc=self.net_env.get_info()).strip()
+
+    def check_native_targets(self, params: Any, *, operation: str) -> None:
+        """Refuse to act on a native router that cannot run this failure.
+
+        Without this, a failure with no native implementation would run its
+        FRR/Linux commands inside an IOS XR or RouterOS container and change
+        nothing. ``native_router_operations`` decides, as in generation.
+        """
+        from nika.problems.support.router_ops import (
+            target_nodes,
+            unsupported_native_targets,
+        )
+
+        net_env = getattr(self, "net_env", None)
+        if net_env is None:
+            return
+        unsupported = unsupported_native_targets(
+            type(self), net_env, target_nodes(params)
+        )
+        if unsupported:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__} cannot {operation}: native routers "
+                f"{unsupported} do not implement its operations "
+                f"{sorted(self.native_router_operations or ())}."
+            )
 
     def check_runtime_compatible(
         self, *, operation: Literal["init", "inject_fault", "verify_fault"] | str

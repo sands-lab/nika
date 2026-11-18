@@ -1,0 +1,28 @@
+{
+  "digest": "0065020225ed70c33308a62ba1d647504902e68bccde5b56e81857643184a7eb",
+  "netlab": "26.10",
+  "routers": [
+    "at1_at",
+    "be1_be",
+    "ch1_ch",
+    "cz1_cz",
+    "de1_de",
+    "es1_es",
+    "fr1_fr",
+    "gr1_gr",
+    "hr1_hr",
+    "hu1_hu",
+    "ie1_ie",
+    "il1_il",
+    "it1_it",
+    "lu1_lu",
+    "nl1_nl",
+    "ny1_ny",
+    "pl1_pl",
+    "pt1_pt",
+    "se1_se",
+    "si1_si",
+    "sk1_sk",
+    "uk1_uk"
+  ]
+}

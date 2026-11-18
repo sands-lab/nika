@@ -37,8 +37,3 @@ def nested_inject_map(row: dict[str, Any]) -> dict[str, dict[str, str]]:
             )
         nested[problem] = {str(k): str(v) for k, v in piece.items()}
     return nested
-
-
-def flatten_inject_overrides(row: dict[str, Any]) -> dict[str, Any]:
-    """Return inject overrides suitable for ``inject_failure``."""
-    return nested_inject_map(row)

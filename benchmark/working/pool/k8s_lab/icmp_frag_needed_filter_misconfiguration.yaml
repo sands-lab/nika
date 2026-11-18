@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: icmp_frag_needed_filter_misconfiguration
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: leaf_1_1
     root_causes:
     - resource:

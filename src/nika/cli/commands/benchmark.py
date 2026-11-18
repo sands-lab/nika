@@ -319,6 +319,11 @@ def benchmark_describe(
         envvar=ENV_RUN_CONFIG,
         help="Path to config/nika.yaml (default: config/nika.yaml).",
     ),
+    oracle: bool = typer.Option(
+        False,
+        "--oracle",
+        help="Also print the task's reference diagnosis path (the oracle playbook).",
+    ),
 ) -> None:
     """Print the decomposed fields for one task id."""
     from nika.workflows.benchmark.trials import (
@@ -334,13 +339,22 @@ def benchmark_describe(
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
-    typer.echo(
-        yaml.dump(
-            describe_task_payload(row),
-            sort_keys=False,
-            allow_unicode=True,
-        ).rstrip()
-    )
+    payload = describe_task_payload(row)
+    if oracle:
+        from nika.agents.oracle.plan import describe_plans, row_plans
+
+        ref = release
+        if ref is None and config is None:
+            ref = load_run_config(export_run_config_env(run_config)).benchmark.release
+        version = parse_release_ref(ref)[1] if ref else None
+        try:
+            payload["oracle"] = describe_plans(row_plans(row, release=version))
+        except Exception as exc:  # noqa: BLE001 - some plans need a running lab
+            payload["oracle"] = (
+                f"unavailable offline ({type(exc).__name__}: {exc}); run "
+                "`nika agent run --agent oracle` on a live session instead."
+            )
+    typer.echo(yaml.dump(payload, sort_keys=False, allow_unicode=True).rstrip())
 
 
 @benchmark_app.command("run")
@@ -380,6 +394,24 @@ def benchmark_run(
         help=(
             "Batch mode: run only these task ids. Repeatable. "
             "Accepts a case task_id or a trial dirname ({task_id}__tNN)."
+        ),
+    ),
+    skip_licensed: bool = typer.Option(
+        False,
+        "--skip-licensed",
+        help=(
+            "Batch mode: leave out rows that need licensed vendor images "
+            "(IOS XR, RouterOS device profiles; iosxr_simple_bgp, "
+            "routeros_simple_bgp)."
+        ),
+    ),
+    device_profiles: list[str] | None = typer.Option(
+        None,
+        "--device-profile",
+        help=(
+            "Batch mode: run only rows of these router platforms (frr, "
+            "nokia_srlinux, sonic, iosxr, routeros). Repeatable; rows without a "
+            "device_profile count as frr."
         ),
     ),
     problem: str | None = typer.Option(
@@ -427,9 +459,9 @@ def benchmark_run(
         "-e",
         "--reasoning-effort",
         help=(
-            "Reasoning effort for byo agents (openai/custom; anthropic on "
-            "langgraph), cli.codex, and sdk.codex_sdk: none, minimal, low, "
-            "medium, high, xhigh. byo.mcp_agent supports none/low/medium/high."
+            "Reasoning effort for byo, Codex, and Claude agents: none, minimal, "
+            "low, medium, high, xhigh (default: agent.reasoning_effort, else "
+            "medium). byo.mcp_agent supports none/low/medium/high."
         ),
     ),
     access_role: str | None = typer.Option(
@@ -595,6 +627,16 @@ def benchmark_run(
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type, config=cfg)
     model = resolve_agent_model(agent_type, model, config=cfg)
     max_steps = resolve_max_steps(max_steps, config=cfg)
+    if llm_provider:
+        from nika.agents.registry import get_agent_spec
+        from nika.agents.sandbox.model_proxy import require_agent_credentials
+
+        try:
+            # Fail before any trial deploys an environment.
+            if get_agent_spec(agent_type).template is not None:
+                require_agent_credentials(agent_type, llm_provider)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
 
     bench = cfg.benchmark
     resolved_batch_size = bench.batch_size
@@ -641,6 +683,11 @@ def benchmark_run(
         if task_ids:
             raise typer.BadParameter(
                 "--task-id applies to batch mode only; omit it for a single case."
+            )
+        if skip_licensed or device_profiles:
+            raise typer.BadParameter(
+                "--skip-licensed and --device-profile apply to --config batch "
+                "mode only; omit them for a single case."
             )
         if not problem:
             raise typer.BadParameter("--problem is required when SCENARIO is given.")
@@ -713,6 +760,8 @@ def benchmark_run(
                 yes=yes,
                 verbose=verbose,
                 output_mode=output_mode,
+                skip_licensed=skip_licensed,
+                device_profiles=device_profiles,
             )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc
@@ -761,15 +810,87 @@ def benchmark_generate(
         "--output",
         help="Pool directory (default: benchmark/working/pool).",
     ),
+    validated_only: bool = typer.Option(
+        False,
+        "--validated-only",
+        help="Keep IOS XR, RouterOS and SONiC cases only for cells that "
+        "`nika benchmark validate-profiles` recorded as validated.",
+    ),
 ) -> None:
     """Generate the executable candidate pool under ``benchmark/working/pool``."""
     from nika.workflows.benchmark.generate import generate_candidate_catalog
 
-    catalog_dir, report = generate_candidate_catalog(out_path=output)
+    catalog_dir, report = generate_candidate_catalog(
+        out_path=output, validated_only=validated_only
+    )
     typer.echo(
         f"Generated {report['summary']['candidate_files']} candidate files "
         f"({report['summary']['concrete_inject_options']} inject options) → {catalog_dir}"
     )
+
+
+@benchmark_app.command("validate-profiles")
+def benchmark_validate_profiles(
+    environment: str | None = typer.Option(
+        None, "--environment", help="Only this environment (scenario, or isp)."
+    ),
+    device_profile: str | None = typer.Option(
+        None,
+        "--device-profile",
+        help="Only this router platform (iosxr, routeros, sonic).",
+    ),
+    failure: str | None = typer.Option(None, "--failure", help="Only this failure."),
+    native_only: bool = typer.Option(
+        False,
+        "--native-only",
+        help="Only cells whose representative case targets a native router.",
+    ),
+    limit: int | None = typer.Option(None, "--limit", help="Run at most N cells."),
+    rerun: bool = typer.Option(False, "--rerun", help="Repeat recorded cells."),
+    list_only: bool = typer.Option(
+        False, "--list", help="List cells and their last result without running."
+    ),
+) -> None:
+    """Run one case per IOS XR, RouterOS or SONiC cell end to end and record it.
+
+    Writes ``benchmark/working/validation/device_profiles.yaml``. Heavy: cells
+    run one at a time under ``/tmp/nika-heavy-lab.lock``; run on demand or
+    nightly. Recorded cells are skipped, so a rerun resumes.
+    """
+    from nika.workflows.benchmark.profile_validation import (
+        declared_cells,
+        load_results,
+        prune_results,
+        validate_cells,
+    )
+
+    declared = declared_cells()
+    if not list_only:
+        for key in prune_results(declared):
+            typer.echo(f"drop {key}: no longer declared by the pool")
+    cells = [
+        cell
+        for cell in declared
+        if (environment is None or cell.environment == environment)
+        and (device_profile is None or cell.device_profile == device_profile)
+        and (failure is None or cell.failure == failure)
+        and (cell.native_target or not native_only)
+    ]
+    if list_only:
+        from nika.workflows.benchmark.trials import task_id_for_row
+
+        results = load_results()
+        for cell in cells:
+            record = results.get(cell.key, {})
+            status = (
+                record.get("status", "-")
+                if record.get("task_id") == task_id_for_row(cell.row)
+                else "-"
+            )
+            target = "native" if cell.native_target else "frr/linux"
+            typer.echo(f"{cell.key}\t{target}\t{status}")
+        return
+    validate_cells(cells, rerun=rerun, limit=limit, echo=typer.echo)
 
 
 @benchmark_app.command("select")

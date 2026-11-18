@@ -9,8 +9,9 @@ from nika.utils.logger import system_logger
 
 logger = system_logger
 
-# Legacy failure ids rewritten at load/inject time (no separate registry entry).
+# Legacy failure IDs resolve to implementations without separate registry entries.
 _PROBLEM_ALIASES: dict[str, str] = {
+    "frr_service_down": "routing_service_down",
     "host_vpn_membership_missing": "wireguard_peer_key_misconfiguration",
     "link_fragmentation_disabled": "mtu_mismatch",
     "link_high_packet_corruption": "link_packet_corruption",
@@ -20,19 +21,34 @@ _PROBLEM_ALIASES: dict[str, str] = {
 
 
 def _scenario_override(
-    problem_name: str, scenario_name: str | None
+    problem_name: str, scenario_name: str | None, release: str | None = None
 ) -> type[ProblemBase] | None:
-    """0.1.0 implementation of a failure ID on an original 0.1.0 lab."""
+    """Return a published implementation before applying current ID aliases."""
+    from nika.problems.compat import PUBLISHED_RELEASES
+
+    if problem_name == "frr_service_down" and release in PUBLISHED_RELEASES:
+        from nika.problems.compat.routing import FrrDown
+
+        return FrrDown
     if not scenario_name:
         return None
-    from nika.problems.compat.v010 import SCENARIO_FAILURE_OVERRIDES
+    from nika.problems.compat.v010 import (
+        RELEASE_FAILURE_OVERRIDES,
+        RELEASE_VERSION,
+        SCENARIO_FAILURE_OVERRIDES,
+    )
 
-    return SCENARIO_FAILURE_OVERRIDES.get((scenario_name, problem_name))
+    override = SCENARIO_FAILURE_OVERRIDES.get((scenario_name, problem_name))
+    if override is None and release == RELEASE_VERSION:
+        override = RELEASE_FAILURE_OVERRIDES.get((scenario_name, problem_name))
+    return override
 
 
-def resolve_problem_name(problem_name: str, scenario_name: str | None = None) -> str:
+def resolve_problem_name(
+    problem_name: str, scenario_name: str | None = None, release: str | None = None
+) -> str:
     """Map a legacy failure id to the registered ``root_cause_name``."""
-    if _scenario_override(problem_name, scenario_name) is not None:
+    if _scenario_override(problem_name, scenario_name, release) is not None:
         return problem_name
     return _PROBLEM_ALIASES.get(problem_name, problem_name)
 
@@ -101,15 +117,18 @@ def list_avail_problem_instances() -> dict[str, type[ProblemBase]]:
 
 
 def get_problem_class(
-    problem_name: str, scenario_name: str | None = None
+    problem_name: str,
+    scenario_name: str | None = None,
+    release: str | None = None,
 ) -> type[ProblemBase] | None:
     """Return the registered class for *problem_name*, or None.
 
     Legacy aliases (e.g. ``host_vpn_membership_missing``,
     ``link_fragmentation_disabled``) resolve to the current failure id.
-    0.1.0-only failures resolve by ID but are never listed.
+    0.1.0-only failures resolve by ID but are never listed. ``release`` is the
+    benchmark version of a release case; it selects release-scoped overrides.
     """
-    override = _scenario_override(problem_name, scenario_name)
+    override = _scenario_override(problem_name, scenario_name, release)
     if override is not None:
         return override
     resolved = resolve_problem_name(problem_name)
@@ -120,12 +139,12 @@ def get_problem_class(
     return FAILURES.get(resolved)
 
 
-def compatible(problem: str, column: str) -> bool:
+def compatible(problem: str, column: str, device_profile: str | None = None) -> bool:
     """Return whether ``problem`` can inject usefully on coverage ``column``."""
     cls = get_problem_class(problem)
     if cls is None:
         raise ValueError(f"Unknown problem {problem!r}")
-    return cls.is_compatible(column)
+    return cls.is_compatible(column, device_profile)
 
 
 def compatible_columns(problem: str) -> list[str]:
@@ -136,18 +155,26 @@ def compatible_columns(problem: str) -> list[str]:
 
 
 def get_problem_instance(
-    problem_names: list, scenario_name: str, **kwargs
+    problem_names: list,
+    scenario_name: str,
+    *,
+    release: str | None = None,
+    **kwargs,
 ) -> ProblemBase:
     """Get a problem instance for the given root cause name(s)."""
     if not isinstance(problem_names, list) or len(problem_names) == 0:
         raise ValueError("problem_names should be a list of problem_names.")
 
-    resolved = [resolve_problem_name(name, scenario_name) for name in problem_names]
-    classes = [get_problem_class(name, scenario_name) for name in resolved]
+    resolved = [
+        resolve_problem_name(name, scenario_name, release) for name in problem_names
+    ]
+    classes = [get_problem_class(name, scenario_name, release) for name in resolved]
     for name, cls in zip(resolved, classes, strict=True):
         if cls is None:
             raise KeyError(name)
 
+    if release is not None:
+        kwargs.setdefault("environment_release", release)
     if len(resolved) > 1:
         sub_faults = [cls(scenario_name=scenario_name, **kwargs) for cls in classes]
         return MultiFaultProblem(

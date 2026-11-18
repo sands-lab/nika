@@ -213,7 +213,9 @@ def case_browse(
             if interactive
             else nullcontext()
         ):
-            rows = load_example_cases(catalog, env=env, failure=failure)
+            rows = load_example_cases(
+                catalog, env=env, failure=failure, task_id=task_id
+            )
         if task_id:
             rows = [resolve_catalog_row(rows, task_id)]
         if not rows:
@@ -304,7 +306,7 @@ def case_run(
 ) -> None:
     """Start an isolated lab and inject one catalog preset, without running an agent."""
     try:
-        row = resolve_catalog_row(load_example_cases(catalog), task_id)
+        row = resolve_catalog_row(load_example_cases(catalog, task_id=task_id), task_id)
         typer.echo(_preview(row))
         _start(row, result_dir)
     except (OSError, ValueError, RuntimeError, yaml.YAMLError) as exc:

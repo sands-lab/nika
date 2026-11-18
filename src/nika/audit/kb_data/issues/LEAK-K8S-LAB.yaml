@@ -1,0 +1,34 @@
+id: LEAK-K8S-LAB
+title: Kubernetes guidance appears only in fault prompts
+class: shortcut
+severity: warn
+status: fixed
+summary: "At recorded commit 8f04c8422623f9f785fa391d7e2ead62f4bfab9c, KubernetesProblemBase.get_task_description\
+  \ appended Kubernetes device and kubectl guidance only to affected tasks. The same deployment\u2019\
+  s healthy prompts lacked that paragraph. Commit 7edc92aa moved the guidance into the shared environment\
+  \ description, removing this task-class cue."
+guideline: Require a repeated prompt contrast within matched deployment settings and commits, with no
+  matching healthy prompt. Mentioning Kubernetes alone does not establish a shortcut. This records a historical
+  cue; it does not show that an agent used it.
+detect:
+- kind: prompt_contrast
+  pattern: Kubernetes:\ this\ lab\ runs\ a\ k<n>s\ cluster\ on\ devices\ \[controller,\ worker<n>,\ worker<n>,\
+    worker<n>,\ worker<n>,\ worker<n>\]\.\ `kubectl`\ works\ only\ on\ controller\ \(the\ k<n>s\ server\);\
+    worker\ devices\ ship\ the\ binary\ but\ have\ no\ kubeconfig\.\ Report\ faulty\ devices\ using\ lab\
+    device\ names,\ not\ Kubernetes\ object\ names\.
+provenance:
+  source: submission audit of 20261012_react_gemma_4_31b_it
+  date: '2026-11-11'
+  refs:
+  - k8s_lab__k8s_clusterip_routi__he53ec359efd5__t01:0
+  - k8s_lab__healthy__t01:0
+  found_by: agentic
+scope:
+  scenarios:
+  - k8s_lab
+fixed_in: 7edc92aa194e548007a9840fccb3c38da4438737
+evidence:
+- 'src/nika/problems/support/kubernetes/base.py at 8f04c8422623f9f785fa391d7e2ead62f4bfab9c: get_task_description'
+- 'src/nika/net_env/k8s_lab/lab.py at 7edc92aa194e548007a9840fccb3c38da4438737: shared Kubernetes guidance'
+- k8s_lab__k8s_clusterip_routi__he53ec359efd5__t01:0
+- k8s_lab__healthy__t01:0

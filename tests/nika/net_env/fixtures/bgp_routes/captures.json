@@ -1,0 +1,86 @@
+{
+  "captured_utc": "2026-11-03",
+  "normalization": "LF line endings and trailing whitespace removed",
+  "captures": {
+    "routeros-ebgp-detail.txt": {
+      "session_id": "20261103-153234-test-7976b1",
+      "scenario": "routeros_simple_bgp",
+      "node": "router1",
+      "command": "/routing/route/print detail where bgp and afi=ip",
+      "image": "vrnetlab/mikrotik_routeros:7.21.5",
+      "image_id": "sha256:e83b5505ef5222edcc774e70c7bbb0ebafbe0d20c6263c9dd2f6cddd41cceee1"
+    },
+    "iosxr-table.txt": {
+      "session_id": "20261103-153423-test-116427",
+      "scenario": "iosxr_simple_bgp",
+      "node": "router1",
+      "command": "show bgp ipv4 unicast",
+      "image": "ios-xr/xrd-control-plane:26.2.1",
+      "image_id": "sha256:74c3aa6d2f275fd0daa60fb7f0aa3cb0f54695c9690d43adab22190b6d3de617"
+    },
+    "iosxr-summary.txt": {
+      "session_id": "20261103-153423-test-116427",
+      "scenario": "iosxr_simple_bgp",
+      "node": "router1",
+      "command": "show bgp summary",
+      "image": "ios-xr/xrd-control-plane:26.2.1",
+      "image_id": "sha256:74c3aa6d2f275fd0daa60fb7f0aa3cb0f54695c9690d43adab22190b6d3de617"
+    },
+    "iosxr-absent.txt": {
+      "session_id": "20261103-153423-test-116427",
+      "scenario": "iosxr_simple_bgp",
+      "node": "router1",
+      "command": "show bgp ipv4 unicast 192.168.3.0/24",
+      "image": "ios-xr/xrd-control-plane:26.2.1",
+      "image_id": "sha256:74c3aa6d2f275fd0daa60fb7f0aa3cb0f54695c9690d43adab22190b6d3de617"
+    },
+    "iosxr-invalid-command.txt": {
+      "session_id": "20261103-153423-test-116427",
+      "scenario": "iosxr_simple_bgp",
+      "node": "router1",
+      "command": "show bgp ipv4 unicast detail",
+      "image": "ios-xr/xrd-control-plane:26.2.1",
+      "image_id": "sha256:74c3aa6d2f275fd0daa60fb7f0aa3cb0f54695c9690d43adab22190b6d3de617"
+    },
+    "iosxr-ibgp-path.txt": {
+      "session_id": "20261103-164054-test-9c3d2d",
+      "scenario": "isp_dfn-bwin",
+      "node": "frankfurt",
+      "command": "show bgp ipv4 unicast 198.18.0.0/24",
+      "image": "ios-xr/xrd-control-plane:26.2.1",
+      "image_id": "sha256:74c3aa6d2f275fd0daa60fb7f0aa3cb0f54695c9690d43adab22190b6d3de617"
+    },
+    "iosxr-reflected-paths.txt": {
+      "session_id": "20261103-164054-test-9c3d2d",
+      "scenario": "isp_dfn-bwin",
+      "node": "hannover",
+      "command": "show bgp ipv4 unicast 203.0.113.0/24",
+      "image": "ios-xr/xrd-control-plane:26.2.1",
+      "image_id": "sha256:74c3aa6d2f275fd0daa60fb7f0aa3cb0f54695c9690d43adab22190b6d3de617"
+    },
+    "routeros-ibgp-path.txt": {
+      "session_id": "20261103-170057-test-4783ce",
+      "scenario": "isp_dfn-bwin",
+      "node": "frankfurt",
+      "command": "/routing/route/print detail where bgp and afi=ip and dst-address=\"198.18.0.0/24\"",
+      "image": "vrnetlab/mikrotik_routeros:7.21.5",
+      "image_id": "sha256:e83b5505ef5222edcc774e70c7bbb0ebafbe0d20c6263c9dd2f6cddd41cceee1"
+    },
+    "routeros-absent.txt": {
+      "session_id": "20261103-170057-test-4783ce",
+      "scenario": "isp_dfn-bwin",
+      "node": "frankfurt",
+      "command": "/routing/route/print detail where bgp and afi=ip and dst-address=\"198.18.0.0/24\"",
+      "image": "vrnetlab/mikrotik_routeros:7.21.5",
+      "image_id": "sha256:e83b5505ef5222edcc774e70c7bbb0ebafbe0d20c6263c9dd2f6cddd41cceee1"
+    },
+    "routeros-reflected-paths.txt": {
+      "session_id": "20261103-170057-test-4783ce",
+      "scenario": "isp_dfn-bwin",
+      "node": "hannover",
+      "command": "/routing/route/print detail where bgp and afi=ip and dst-address=\"203.0.113.0/24\"",
+      "image": "vrnetlab/mikrotik_routeros:7.21.5",
+      "image_id": "sha256:e83b5505ef5222edcc774e70c7bbb0ebafbe0d20c6263c9dd2f6cddd41cceee1"
+    }
+  }
+}

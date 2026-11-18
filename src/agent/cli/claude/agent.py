@@ -9,12 +9,8 @@ Two-phase pipeline via ``claude -p`` subprocesses (no LangGraph).
   (``claude -p`` with the task MCP server; calls ``submit()`` to record
   a structured result)
 
-Authentication uses ``agent.provider`` (``-p`` / config/nika.yaml) with
-``ANTHROPIC_API_KEY``, ``DEEPSEEK_API_KEY``, or ``NIKA_CUSTOM_*`` (mapped for
-the subprocess only), or ``claude auth login``.  See
-:mod:`agent.cli.claude.config` and ``docs/agents/agent-implementations.md``.
-
-Select with ``nika agent run -a cli.claude``.
+Authentication comes from the sandbox environment the host prepares (see
+:mod:`agent.cli.claude.config`).
 """
 
 from __future__ import annotations
@@ -22,28 +18,27 @@ from __future__ import annotations
 from agent.cli.claude.config import resolve_claude_model
 from agent.cli.claude.phases.diagnosis import ClaudeDiagnosisPhase
 from agent.cli.claude.phases.submission import ClaudeSubmissionPhase
-from agent.sandbox.session_dir import resolve_agent_session_dir, resolve_agent_trace_dir
-from agent.utils.two_phase import TwoPhaseAgent
-from nika.utils.session import Session
+from agent.base import DiagnosisAgent
 
 
-class ClaudeAgent(TwoPhaseAgent):
+class ClaudeAgent(DiagnosisAgent):
     """Two-phase troubleshooting agent backed by Claude Code CLI workers.
 
     Parameters
     ----------
     session_id:
-        NIKA session identifier.
+        Opaque session handle of the run.
     model:
-        Claude model name forwarded to ``claude --model``.  When omitted,
-        requires ``agent.model`` / ``-m`` (see
-        :func:`~agent.cli.claude.config.resolve_claude_model`).
+        Claude model name forwarded to ``claude --model`` (required).
     llm_provider:
         Active LLM provider (``anthropic``, ``deepseek``, ``custom``).
     max_steps:
         LLM-turn budget per phase (``claude --max-turns``), as for other agents.
     max_tokens:
         Output-token cap per model response (``CLAUDE_CODE_MAX_OUTPUT_TOKENS``).
+    reasoning_effort:
+        Run reasoning effort, mapped to ``claude --effort``; omitted when unset
+        or ``none``.
     """
 
     def __init__(
@@ -54,22 +49,19 @@ class ClaudeAgent(TwoPhaseAgent):
         llm_provider: str,
         max_steps: int = 20,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
         stream_output: bool = True,
     ) -> None:
-        self.session_id = session_id
-        self.llm_provider = llm_provider
-        self.model = resolve_claude_model(model)
-        self.stream_output = stream_output
-
-        session = Session()
-        session.load_running_session(session_id=session_id)
-        self.session = session
-        # The sandbox workspace holds the CLI workspace; the trace stays in the
-        # host session dir, which the sandbox cannot write.
-        self.session_dir: str = resolve_agent_session_dir(session.session_dir)
-        self.trace_dir: str = resolve_agent_trace_dir(session_id, session.session_dir)
-
-        scenario_name: str = getattr(session, "scenario_name", "")
+        super().__init__(
+            session_id,
+            model=resolve_claude_model(model),
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
+            stream_output=stream_output,
+        )
+        scenario_name = self.scenario_name
 
         self._diagnosis_phase = ClaudeDiagnosisPhase(
             session_id=session_id,
@@ -81,6 +73,7 @@ class ClaudeAgent(TwoPhaseAgent):
             stream_output=stream_output,
             trace_dir=self.trace_dir,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
         )
         self._submission_phase = ClaudeSubmissionPhase(
             session_id=session_id,
@@ -91,6 +84,7 @@ class ClaudeAgent(TwoPhaseAgent):
             stream_output=stream_output,
             trace_dir=self.trace_dir,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
         )
 
     async def diagnose(self, task_description: str) -> str:

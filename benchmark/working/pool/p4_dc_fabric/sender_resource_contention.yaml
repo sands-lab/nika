@@ -4,6 +4,9 @@ failure:
   fault_type: sender_resource_contention
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       client_host: client_2_1
       cpu_quota: '0.05'
@@ -19,6 +22,9 @@ failure:
         node: web_1
       fault_type: sender_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       client_host: client_2_1
       cpu_quota: '0.05'
@@ -34,6 +40,9 @@ failure:
         node: web_1
       fault_type: sender_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       client_host: client_2_1
       cpu_quota: '0.05'

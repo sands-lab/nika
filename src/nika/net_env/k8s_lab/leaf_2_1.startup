@@ -8,5 +8,10 @@ ip address add 10.0.1.2/30 dev eth2
 # Set default route towards dc_exit
 ip route add default via 10.0.1.1 dev eth2
 
+# Discard unused addresses in the LB and node aggregates; dc_exit routes these
+# prefixes back into the DC, so the default route would loop them.
+ip route add blackhole 101.0.0.0/8 proto static metric 1000
+ip route add blackhole 201.0.0.0/8 proto static metric 1000
+
 # Start FRR
 systemctl start frr

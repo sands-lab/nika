@@ -27,6 +27,7 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 | `tests/nika/service/` | `src/nika/service/` | Service-layer unit and live API smoke tests |
 | `tests/nika/runtime/` | `src/nika/runtime/` | Runtime/backend unit tests and session index |
 | `tests/nika/evaluator/` | `src/nika/evaluator/` | Rule-based scoring unit tests |
+| `tests/nika/metrics/` | `src/nika/metrics/` | Exporter attribution of sessions and benchmark runs; dashboard series |
 | `tests/support/` | Not applicable | Shared bases, prerequisites, and pipeline helpers |
 
 Local lab integration tests need the `labs` dependency group, which `uv sync` installs by default.
@@ -43,7 +44,7 @@ Markers are registered in `pyproject.toml`. Each test declares exactly one execu
 | `contract` | Offline registry, benchmark YAML, schema, and artifact contracts |
 | `integration` | Real backend or service interaction without a complete workflow |
 | `e2e` | Complete user, benchmark, scenario, or failure workflow |
-| `sandbox` | Docker Sandbox isolation and security |
+| `sandbox` | Agent sandbox (sbx or E2B) isolation and security |
 | `live` | Real LLM, GitHub, or Batfish service |
 | `ci_smoke` | Curated dual-arch GitHub Actions smoke (`tests/ci/`) |
 | `nightly` | Heavy suites for scheduled runners |
@@ -61,7 +62,7 @@ uv run pytest -m integration -q
 # Complete workflows that do not need live credentials
 uv run pytest -m "e2e and not live" -q
 
-# Sandbox isolation (serial; sbx + Docker)
+# Sandbox isolation (serial; sbx or an E2B service, plus Docker)
 uv run pytest -m sandbox -q
 
 # Real LLM / live services (credentials required)
@@ -74,10 +75,20 @@ Workflows live under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | When | Runners | What |
 |----------|------|---------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | PR / push (code and benchmark paths) | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines |
-| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Artifact/boot checks (`NIKA_CI_VERIFY_DEPTH=artifact`): light scenario startup, inject contract + artifact `verify_fault`, ISP light matrix, k8s/llmd startup. Deep `evaluate_scenario` / symptom / recover stay local. |
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR, push to `main`, manual | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines; seven engine oracle jobs covering Kathará, Containerlab, P4, and SDN; available published-engine checks |
+| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | dual-arch startup/artifact suites; amd64 benchmark shards | All dev and test tasks from the latest benchmark release through the current engine and in process. Existing startup/artifact suites remain. |
 
-PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. There is **no** per-job path filtering: any change under the workflow `paths` runs the full PR job set; docs-only changes skip CI. Light startup uses default `nika.runtime_validation.depth: light` inside `nika env run`. Curated cases use published net-env pool scenarios (not test-only fixtures).
+PR jobs shard one environment or image per runner. The engine matrix runs Kathará, Containerlab, and P4 on amd64 and arm64, plus SDN on amd64: seven jobs. SDN stays on amd64 because its ONOS dependency needs emulation on arm64; see the [maintainer decision](https://github.com/sands-lab/nika/issues/309#issuecomment-6624618475). On PRs, the `changes` job picks jobs from the changed paths:
+
+| Changed paths | Jobs that run |
+|---------------|---------------|
+| `src/`, `benchmark/`, `config/`, `pyproject.toml`, `uv.lock`, `.python-version`, `ci.yml`, `nightly.yml`, `release-engine-verify.yml` | all |
+| `tests/ci/`, `tests/support/`, `tests/benchmark/`, `tests/nika/workflows/integration/`, `tests/conftest.py` | all |
+| other `tests/` | `unit`+`contract` |
+| `scripts/install.sh`, `.env.example` | install through benchmark |
+| anything else (docs, other workflows, other scripts) | none |
+
+Pushes and manual runs run every job. `ci-ok` passes when every job passed or was skipped; make it the required check instead of individual jobs. Light startup uses default `nika.runtime_validation.depth: light` inside `nika env run`. Curated cases use published net-env pool scenarios (not test-only fixtures).
 
 Shard locally the same way Actions does:
 
@@ -96,6 +107,100 @@ NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,abilene,janos-us NIKA_CI_ISP
   uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
 ```
 
+### Maintain self-hosted review runners
+
+Documentation review and submission review use separate GitHub Actions runner registrations. They can share a host with enough CPU, memory, and disk space. Each registration accepts one job at a time; simultaneous jobs use separate working directories.
+
+| Instance | Repository | Routing label |
+| --- | --- | --- |
+| `docs-review` | `sands-lab/nika` | `nika-docs-fallback` |
+| `nika-audit` | `sands-lab/nika` | `nika-audit` |
+| `leaderboard-audit` | `sands-lab/nika-leaderboard` | `nika-audit` |
+
+Configure each runner in `~/.local/share/nika/github-runners/<instance>` using GitHub's runner registration instructions. Audit registrations use `--no-default-labels --labels nika-audit` so ordinary self-hosted jobs cannot select them. Keep registration credentials outside the repository. Install Git, Python 3, `uv`, GitHub CLI, and Codex CLI for the runner user. Authenticate GitHub CLI for audit proposal publication and run `codex login status` to check model access. Both audit registrations need the auditor's dependencies; the workflow installs its selected NIKA checkout. Model access and repository secrets remain separate from runner registration.
+
+Use the shared [systemd user service](../../config/systemd/nika-github-runner@.service) for all instances:
+
+```shell
+install -Dm644 config/systemd/nika-github-runner@.service \
+  ~/.config/systemd/user/nika-github-runner@.service
+systemctl --user daemon-reload
+systemctl --user enable --now nika-github-runner@docs-review.service \
+  nika-github-runner@nika-audit.service nika-github-runner@leaderboard-audit.service
+```
+
+Enable user lingering with `loginctl enable-linger <user>` if these services must survive logout. Inspect an instance with `systemctl --user status nika-github-runner@<instance>` and `journalctl --user -u nika-github-runner@<instance>`. Before moving a registration, wait for its current job to finish and stop its service. Verify the replacement with a real workflow before removing the old registration and service. A repository-scoped runner accepts jobs only from its registered repository, including jobs in a reusable workflow called by that repository.
+
+### Run leaderboard submission audits
+
+Leaderboard CI calls the shared [submission audit workflow](../../.github/workflows/submission-audit.yml) from `dev` and defaults to its latest merged auditor and knowledge base. Both stages use the same checkout version within a run. Later runs include newly merged knowledge without a manual commit update. Local `submit` and `validate` use the deterministic checks installed with NIKA.
+
+The `nika-audit` runner validates paired scores and trajectories, then reviews the same trajectory revision with its Codex login and `gpt-6-luna`. Shell tools are disabled for the model. The review keeps proposed rules in a knowledge-base copy and replays them before publishing artifacts. New candidates open deduplicated issues and a draft NIKA knowledge PR; maintainers verify their cited steps and scope before merging.
+
+To diagnose a failed review, inspect `review/scan-calls.jsonl` in its evidence artifact. It preserves completed trial-sample attempts and failed replies; `review/scan.jsonl` contains the current result for each sample. Failed CLI samples receive one failed-only retry when retries are enabled. Remaining errors or unsupported source checks keep proposal publication blocked. CI runs up to eight model calls concurrently, limited by the runner's CPU count.
+
+Configure the caller repository's `HF_TOKEN` secret for restricted trajectories. The leaderboard caller uses `pull_request_target` so fork scores can be read as data while PR-supplied tests run separately without audit credentials. Only the trusted NIKA checkout is executed. Runner authentication and service setup are described in [Maintain self-hosted review runners](#maintain-self-hosted-review-runners).
+
+### Use the documentation review fallback
+
+The required `Letta Docs Review` check passes only when a reviewer approves the PR's documentation changes. Hosted Letta reviews by default. If Letta finishes without a review report, for example because its model quota or credits ran out or Letta Code failed to start, the same workflow run hands the review to a self-hosted fallback reviewer. A Letta FAIL verdict does not trigger the fallback. Either reviewer's verdict and findings, grouped by file and marked blocking or optional, appear in one PR comment that later runs update, and in the reviewer job's summary.
+
+A fork PR's docs are reviewed only after a maintainer reads its changes and adds the `run-docs-review` label; until then the check fails and says so. Fork reviews use the default branch's copy of the workflow and need the repository's Actions settings to allow `pull_request_target`, so changes to the workflow reach fork PRs once they are on `main`. The review then covers the commit that was labeled. A new push removes the label, so the maintainer reads the new commits and adds it again:
+
+```shell
+gh pr edit <number> --add-label run-docs-review
+```
+
+Keep a GitHub Actions self-hosted runner with the `nika-docs-fallback` label online on a machine with Git, Python 3, and Codex CLI available. Run `codex login` as the runner user and confirm `codex login status` succeeds. On Linux, install `bubblewrap` and complete the [Codex sandbox prerequisites](https://developers.openai.com/codex/concepts/sandboxing#prerequisites). The fallback review uses that user's configured model and login, which must have available quota.
+
+To skip Letta and use the fallback for every run of a PR, add the label:
+
+```shell
+gh pr edit <number> --add-label docs-review-fallback
+```
+
+Remove the label to return to hosted Letta.
+
+The fallback runs Codex in read-only mode with the [NIKA documentation skill](../../.agents/skills/nika-docs/SKILL.md) on the PR's test merge and verifies commands and links against the checkout. A downloadable JSON artifact holds its report; Codex's transcript stays on the runner. Either reviewer's report is not published when it contains a credential, and the check then fails. A blocking finding or a failed review keeps the check failing.
+
+If the head, base, or test merge changes during review, the check fails. Use Actions **Re-run all jobs** to review the PR's current test merge. Moving the review to another machine does not add quota to its configured model account.
+
+## Verify benchmark engines
+
+To check the frontend/engine boundary, run [`test_engine_container_e2e.py`](../../tests/benchmark/test_engine_container_e2e.py). It runs an oracle through the normal release workflow and checks the outcome, ground truth, diagnosis score, tool-call errors, and failure presence at `post_inject`, `during_agent`, and `before_cleanup`. It also checks engine provenance and verifies removal of the session's owned containers and runtime resources. A passing process exit code alone is insufficient.
+
+PR CI builds the engine from the tested commit and runs the seven runtime jobs above. It also discovers published releases with resolvable release tags and checks their actual pinned engines.
+
+Nightly selects the latest benchmark release by version and runs every task in its dev and test splits. It builds the current engine once and reuses the release verification workflow. Eight amd64 shards run on at most eight separate runners, with one trial at a time per runner. Nightly compares each engine trial with an in-process oracle trial. The other Nightly suites retain artifact verification depth; neither suite asserts failure recovery.
+
+Run one task against the release manifest's actual engine locally:
+
+```shell
+NIKA_CI_ENGINE_PINNED=1 \
+  uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
+```
+
+The test defaults to one `dc_clos` task from release 0.2.0's test split. Set `NIKA_CI_ENGINE_RELEASE`, `NIKA_CI_ENGINE_SPLIT`, and `NIKA_CI_ENGINE_TASK_ID` to select another task. Without `NIKA_CI_ENGINE_PINNED=1`, the test prepares a release using the current commit's engine. Set `NIKA_CI_ENGINE_COMPARE=1` to run the same task in process and compare scores.
+
+For all tasks in both release splits, dispatch [Release engine verification](../../.github/workflows/release-engine-verify.yml) from the branch whose frontend you want to test:
+
+```shell
+gh workflow run release-engine-verify.yml --ref <branch> -f release=0.2.0
+```
+
+The manual workflow defaults to the latest benchmark release; set `release` to select a version. It resolves the manifest's pinned engine once and distributes it to eight shards, with at most eight runners in parallel. Each runner executes one trial at a time, compares the engine and in-process results, and uploads per-trial artifacts even on failure. It requires the WireGuard and VRF kernel modules and at least 30 GiB free on the Docker filesystem before deployment. A coverage gate requires exactly one passing result for each assigned task; missing, duplicate, skipped, failed, or unexpected results fail the workflow. Nightly uses the same gate. The scheduled workflow takes effect only on the default branch; dispatch Nightly on a PR branch to validate changes before then.
+
+To reproduce one shard locally after preparing those prerequisites:
+
+```shell
+NIKA_CI_ENGINE_PINNED=1 NIKA_CI_ENGINE_COMPARE=1 \
+NIKA_CI_ENGINE_SPLIT=dev,test NIKA_CI_ENGINE_TASK_ID=all \
+NIKA_CI_ENGINE_SHARD_INDEX=0 NIKA_CI_ENGINE_SHARD_COUNT=8 \
+  uv run pytest tests/benchmark/test_engine_container_e2e.py -v -ra
+```
+
+Workflow configuration describes intended coverage, not evidence that a release passed. Check the selected revision's completed jobs and per-trial artifacts before reporting full-release verification. A passing PR sample does not establish that every task passed. Nightly covers the selected release, including its environment and deployment-profile combinations. Newly registered failures absent from that release are outside this inventory. Derive task counts from the selected manifest rather than copying counts from an earlier audit.
+
 ## Shared support (`tests/support/`)
 
 | Module | Purpose |
@@ -109,13 +214,16 @@ NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,abilene,janos-us NIKA_CI_ISP
 
 ## Agent tests (`tests/agent/`)
 
-Run agent unit tests to check configuration, authentication mapping, and output parsing without LLM calls. Live agent E2E tests exercise the sandbox workflow on a test-only BGP environment with `link_down`.
+Run agent unit tests to check configuration, authentication mapping, and output parsing without LLM calls. Live agent E2E tests exercise the sandbox workflow on a test-only BGP environment with `link_down`, on each [sandbox runtime](../operations/agent-sandbox.md#choose-a-sandbox-runtime) you set up.
 
 | Module | Agent | Unit tests | External requirements |
 |--------|-------|------------|-------------------|
 | `test_agent_config.py` | shared config | agent model/env resolution, judge env | None |
 | `test_codex_cli.py` | `cli.codex` | Codex TOML/display/worker config | None (unit tests) |
 | `test_claude_cli.py` | `cli.claude` | Claude JSON/display/auth helpers | None (unit tests) |
+| `test_opencode_cli.py` | `cli.opencode` | OpenCode MCP/provider/max_steps helpers | None (unit tests) |
+| `test_dsh_cli.py` | `cli.dsh` | DeepSeek Harness MCP/env/max_steps helpers | None (unit tests) |
+| `test_npm_stage.py` | `cli.opencode`, `cli.dsh` | Host npm prefix staging for sandbox CLIs | None (unit tests) |
 | `test_langgraph_max_steps.py` | `byo.langgraph` | `max_steps` counts LLM turns | None |
 | `test_mcp_agent_bootstrap.py` | `byo.mcp_agent` | import hygiene regression | None |
 | `test_sade.py` | `community.sade` | SDK env + MCP adapter | None (unit tests) |
@@ -123,10 +231,17 @@ Run agent unit tests to check configuration, authentication mapping, and output 
 | `test_codex_sdk.py` | `sdk.codex_sdk` | auth/reasoning + MCP TOML | None (unit tests) |
 | `test_mcp_read_timeout.py` | shared MCP | client read-timeout configuration | None |
 | `test_sbx.py` | sandbox | sbx manager, credentials, proxy | None |
-| `test_sandbox.py` | sandbox | manifest, redaction, SDK context | None |
+| `test_sandbox.py` | sandbox | task, redaction, E2B connection settings | None |
+| `test_model_calls.py` | sandbox | model call record, LLM request budget, host-authoritative metrics | None |
+| `test_agent_isolation_contract.py` | sandbox | no file copied into a sandbox names NIKA | None |
+| `test_diagnosis_agent.py` | shared contract | phase bookends, report freeze, in-sandbox phase runner | None |
+| `test_model_proxy.py` | sandbox | model proxy request adaptation and credential swap | None |
+| `test_subscription.py` | sandbox | Host subscription logins, Codex login refresh, sandbox placeholders | None |
+| `test_sandbox_tunnel.py` | sandbox | host tunnel for E2B sandboxes | None |
 | `test_sandbox_security.py` | sandbox | microVM security probe | sbx + Docker |
 | `test_sandbox_isolation.py` | sandbox | distinct gateway ports + cross-sandbox MCP policy isolation | unit; sbx for peer-gateway probe |
-| `test_sandbox_agents.py` | sandbox | five-agent E2E (test BGP fixture / `link_down`) | See [Live agent credentials](#live-agent-credentials) |
+| `test_sandbox_e2b.py` | sandbox | an E2B sandbox reaches only its tunnel, no other host port and no internet | E2B service (`E2B_API_KEY`) |
+| `test_sandbox_agents.py` | sandbox | E2E of every built-in agent (test BGP fixture / `link_down`); `Sandbox*` classes on sbx, `E2b*` classes on E2B. Claude Code, Codex, OpenCode, and DeepSeek Harness (CLI and SDK) also require a live `skill-loading-check` invocation. With a custom endpoint, also checks that no model request, and nothing in the kept sbx sandbox, names NIKA | See [Live agent credentials](#live-agent-credentials) |
 
 ### Live agent credentials
 
@@ -134,27 +249,32 @@ Choose the agent tests that match your available credentials. Set API keys and t
 
 | Live E2E coverage | Provider and model | Required credentials |
 |-------------------|--------------------|----------------------|
-| Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` | `OPENAI_API_KEY`, or a native `openai` sbx secret containing an API key or ChatGPT OAuth login with Codex access |
+| Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` (or the OpenAI-family override below) | `OPENAI_API_KEY`; or NIKA's [Codex login](../operations/agent-sandbox.md#subscriptions) with Codex access |
+| OpenCode and DeepSeek Harness sandbox agents and sandbox benchmark | Same OpenAI-family provider/model as Codex | Selected provider's API key. Subscriptions do not authenticate these CLIs. |
+| BYO sandbox agents | `openai`, default `gpt-5-mini` (or the OpenAI-family override below) | Selected provider's API key; for `custom`, `NIKA_TEST_CUSTOM_BASE_URL` and `NIKA_CUSTOM_API_KEY` if required. Subscriptions do not authenticate BYO agents. |
 | Claude CLI/SDK and SADE sandbox agents; Claude sandbox benchmark; Kubernetes Claude agent E2E | Default `deepseek` / `deepseek-v4-flash` | `DEEPSEEK_API_KEY`; no Claude subscription required |
-| The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works), or a native `anthropic` sbx secret containing an API key or Claude subscription login with Claude Code access |
+| The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works); or a Claude subscription with Claude Code access as `CLAUDE_CODE_OAUTH_TOKEN` |
+| The same Claude-family tests with the custom override below | `custom`, explicit model served by your endpoint | `NIKA_TEST_CUSTOM_BASE_URL`, plus `NIKA_CUSTOM_API_KEY` if the endpoint requires one |
 | BYO LangGraph/MCP Agent/AutoGen pipelines in `test_agent_pipeline_contract.py`; curated release live E2E | Fixed DeepSeek configuration | `DEEPSEEK_API_KEY`; the Claude/Codex overrides below do not apply |
-| Sandbox security and isolation probes | No LLM calls | No LLM key or subscription; authenticated sbx runtime required |
+| Sandbox security and isolation probes | No LLM calls | No LLM key or subscription; authenticated sbx runtime, or an E2B service for `test_sandbox_e2b.py` |
 
-Sandbox tests require a working Docker engine and an authenticated Docker Sandboxes runtime (`sbx login`), plus the templates described in [Agent sandbox prerequisites](../operations/agent-sandbox.md#prerequisites). Docker login is separate from LLM authentication. Install the host agent CLI for CLI tests; install SDK dependencies with `uv sync --extra sdk --extra sade` for SDK and SADE tests. Kubernetes agent E2E also needs privileged Kathara/k3s support; the BYO Containerlab pipeline needs `clab` and `gnmic`.
+Sandbox tests require a working Docker engine and a [sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime). Each sandbox pipeline and benchmark test class has an sbx variant (`Sandbox*`), which runs after `sbx login`, and an E2B variant (`E2b*`), which runs when `E2B_API_KEY` is set, against the service in your run config (`nika.sandbox.url`, else `E2B_DOMAIN`, else E2B cloud). Docker login is separate from LLM authentication. Claude, Codex, and BYO Python packages come with the sandbox. OpenCode and DeepSeek Harness also need [Node.js](https://nodejs.org/) 22+ with npm on the host so NIKA can stage their CLIs. Kubernetes agent E2E also needs privileged Kathara/k3s support; the BYO Containerlab pipeline needs `clab` and `gnmic`.
 
-For **API-key mode**, NIKA syncs the selected provider's key into sbx before creating the sandbox. An API key uses the provider's API account; a ChatGPT or Claude subscription is an alternative authentication path for the corresponding sandbox agents, not an API key for BYO frameworks. See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and [Docker's Claude authentication](https://docs.docker.com/ai/sandboxes/agents/claude-code/#authentication).
+For **API-key mode**, NIKA keeps the selected provider's key on the host (see [API keys](../operations/agent-sandbox.md#api-keys)). An API key uses the provider's API account; a ChatGPT or Claude subscription is an alternative authentication path for the corresponding sandbox agents, not an API key for BYO frameworks. See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and [Docker's Claude authentication](https://docs.docker.com/ai/sandboxes/agents/claude-code/#authentication).
 
-For subscription mode, complete [sbx subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) and confirm a global service entry with `sbx secret ls`. Local CLI login and sandbox-scoped credentials do not cover newly created test sandboxes.
+For subscription mode, complete the [subscription login](../operations/agent-sandbox.md#subscriptions) on the host; it covers every runtime.
 
-Use these test-only overrides to select a model your account can access. Selecting Anthropic without a model, or an unsupported provider, stops collection with a configuration error:
+Use these test-only overrides to select a model your account can access. Selecting Anthropic or custom without a model, or an unsupported provider, stops collection with a configuration error:
 
 | Variable | Default | Applies to |
 |----------|---------|------------|
-| `NIKA_TEST_ANTHROPIC_PROVIDER` | `deepseek` | Claude CLI/SDK, SADE, Claude sandbox benchmark, Kubernetes Claude E2E; accepts `deepseek` or `anthropic` |
-| `NIKA_TEST_ANTHROPIC_MODEL` | `deepseek-v4-flash` for DeepSeek; required for Anthropic | The same Claude-family tests |
-| `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | Codex CLI/SDK sandbox agents and sandbox benchmark; provider stays `openai` |
+| `NIKA_TEST_ANTHROPIC_PROVIDER` | `deepseek` | Claude CLI/SDK, SADE, Claude sandbox benchmark, Kubernetes Claude E2E; accepts `deepseek`, `anthropic`, or `custom` |
+| `NIKA_TEST_ANTHROPIC_MODEL` | `deepseek-v4-flash` for DeepSeek; required for Anthropic and custom | The same Claude-family tests |
+| `NIKA_TEST_CUSTOM_BASE_URL` | None | Endpoint (`agent.base_url`) for the custom override; the endpoint must serve the Anthropic `/v1/messages` route |
+| `NIKA_TEST_OPENAI_PROVIDER` | `openai` | Codex CLI/SDK, OpenCode, DeepSeek Harness, and BYO sandbox agents; accepts `openai`, `deepseek`, or `custom` (with `NIKA_TEST_CUSTOM_BASE_URL`) |
+| `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | The same OpenAI-family sandbox agents, and the Codex, OpenCode, and DeepSeek Harness sandbox benchmarks |
 
-For example, with an Anthropic API key or sbx subscription login configured, replace `YOUR_CLAUDE_MODEL` with a model available to that account:
+For example, with an Anthropic API key or Claude subscription login configured, replace `YOUR_CLAUDE_MODEL` with a model available to that account:
 
 ```bash
 NIKA_TEST_ANTHROPIC_PROVIDER=anthropic \
@@ -169,7 +289,16 @@ NIKA_TEST_CODEX_MODEL=YOUR_CODEX_MODEL \
 uv run pytest tests/agent/test_sandbox_agents.py -k Codex -v
 ```
 
-These tests choose provider/model pairs independently of `config/nika.yaml`. DeepSeek or custom endpoint keys do not satisfy the OpenAI check; Anthropic or custom keys do not satisfy the DeepSeek check. The test overrides support the providers listed above. To exercise a custom endpoint, use the normal [agent workflow](../operations/agent-sandbox.md) with a compatible provider and model.
+With a self-hosted endpoint that serves the Anthropic `/v1/messages` route, replace the model and URL with yours:
+
+```bash
+NIKA_TEST_ANTHROPIC_PROVIDER=custom \
+NIKA_TEST_ANTHROPIC_MODEL=YOUR_MODEL \
+NIKA_TEST_CUSTOM_BASE_URL=http://YOUR_HOST:8000/v1 \
+uv run pytest tests/agent/test_sandbox_agents.py -k 'ClaudeCli' -v
+```
+
+These tests choose provider/model pairs independently of `config/nika.yaml`. DeepSeek or custom endpoint keys do not satisfy the OpenAI check; Anthropic or custom keys do not satisfy the DeepSeek check.
 
 ### Agent test commands
 
@@ -186,6 +315,9 @@ uv run pytest tests/agent/test_sandbox_security.py -v
 # Cross-sandbox isolation (unit + sbx peer-gateway probe)
 uv run pytest tests/agent/test_sandbox_isolation.py -v
 
+# E2B sandbox isolation (E2B_API_KEY)
+uv run pytest tests/agent/test_sandbox_e2b.py -v
+
 # Sandbox E2E (credentials and model overrides above).
 # Template images preload when a sandbox agent is configured; manual pull if needed:
 #   docker pull docker/sandbox-templates:codex-docker
@@ -193,6 +325,9 @@ uv run pytest tests/agent/test_sandbox_isolation.py -v
 #   docker pull docker/sandbox-templates:shell-docker
 # Missing images skip CLI cases.
 uv run pytest tests/agent/test_sandbox_agents.py -v
+
+# Only the E2B variants
+uv run pytest tests/agent/test_sandbox_agents.py -k E2b -v
 ```
 ## Benchmark tests (`tests/benchmark/`)
 
@@ -201,9 +336,12 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | Module | Purpose |
 |--------|---------|
 | `test_release.py` | Freeze/preflight/job metadata on mini releases |
+| `test_release_tasks.py` | Published release task IDs, admission classes, and deployed trials pinned by `tests/fixtures/benchmark/release_tasks.json`; task-ID refusals and the task-list hash check |
+| `test_score_reply.py` | The engine's `score` reply, the frontend's `eval_metrics.json` pinned by `tests/fixtures/benchmark/score_cases.json`, and engine scoring that reads only `submission.json` and `ground_truth.json` |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
-| `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`) |
+| `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), and a `byo.langgraph` trial of a release that pins a benchmark engine, on sbx and E2B |
+| `test_engine_container_e2e.py` | Oracle trials on a commit-built or manifest-pinned engine, with optional in-process comparison; see [Verify benchmark engines](#verify-benchmark-engines) |
 | `test_curated_release_contract.py` | Test-only curated rows from `0.2.0` `test` split: subset contract, mock pack/validate, timeout+continue |
 | `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |
@@ -227,7 +365,7 @@ uv run pytest tests/benchmark/test_release.py -v -k DockerSmoke   # requires Doc
 uv run pytest tests/benchmark/test_trials.py -v
 uv run pytest tests/benchmark/test_trials.py -v -k ReleaseRunE2E  # requires Docker
 uv run pytest tests/benchmark/test_batch.py -v                 # requires Docker
-uv run pytest tests/benchmark/test_sandbox_benchmark.py -v    # sbx + live agent credentials
+uv run pytest tests/benchmark/test_sandbox_benchmark.py -v    # sbx or E2B + live agent credentials
 uv run pytest tests/benchmark/test_curated_release_contract.py -v
 # Live curated path (serial; needs Docker + DEEPSEEK_API_KEY; avoid parallel k8s/llmd suites)
 uv run pytest tests/benchmark/test_curated_release_e2e.py -m live -v
@@ -272,8 +410,8 @@ MCP gateway wiring and MCP server tool delegation are **not** unit-tested in iso
 |--------------------|---------|
 | `pingmesh/test_parser.py` | Ping output parsing (`loss`, RTT, unreachable) |
 | `pingmesh/test_endpoints.py` | Endpoint discovery and Containerlab data-plane IP selection |
-| `pingmesh/test_engine.py` | Snapshot orchestration, anomaly summary, parameter bounds |
-| `pingmesh/test_integration.py` | Live PingMesh MCP: healthy mesh → inject `link_down` → faulty mesh |
+| `pingmesh/test_engine.py` | Snapshot orchestration, pair sampling, per-pair timeouts, scenario isolation intent, anomaly summary |
+| `pingmesh/test_integration.py` | Live PingMesh MCP: default mesh is healthy (designed isolation confirmed) → inject `link_down` → faulty mesh |
 | `kathara/test_kathara_*.py` | Live Kathara API smoke tests (Docker) |
 | `containerlab/test_containerlab_api.py` | Live Containerlab API smoke tests |
 | `containerlab/test_srl_api.py` | SRL API parsing/script logic (mocked runtime) |
@@ -335,7 +473,7 @@ uv run pytest tests/nika/evaluator/ -v
 
 ## Mock agent (test-only)
 
-The **mock agent** (`src/agent/mock/mock_agent.py`) is a deterministic stand-in for LLM-backed agents. It runs a fixed two-phase MCP tool sequence without API keys.
+The **mock agent** (`src/nika/agents/mock/mock_agent.py`) is a deterministic stand-in for LLM-backed agents. It runs a fixed two-phase MCP tool sequence without API keys.
 
 ```shell
 nika agent run -a mock -m mock-v1 -n 5 --session_id <id>

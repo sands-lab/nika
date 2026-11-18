@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+import functools
+import ipaddress
 import json
 import re
 import shlex
@@ -10,6 +12,71 @@ from typing import Literal
 
 from nika.service.lab.protocols import SupportsExec
 from nika.utils.parallel import bounded_parallel_map
+
+_TIMEOUT_SENTINEL = "[TIMEOUT]"
+
+
+def _loads_exec_json(output: str, *, command: str, node: str):
+    """Parse JSON from ``exec_cmd``. A timeout sentinel is not a parse error."""
+    if output.startswith(_TIMEOUT_SENTINEL):
+        raise RuntimeError(f"Timed out running `{command}` on {node}: {output.strip()}")
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Failed to parse `{command}` output on {node}: {exc}"
+        ) from exc
+
+
+# vrnetlab router images (RouterOS) bridge the VM's management port inside the
+# container. Its address is the same on every router and unreachable from the
+# lab, so it never stands for the node.
+VM_MGMT_IFACES = frozenset({"br-mgmt"})
+
+# Containerlab management bridge ranges used by NIKA labs.
+_CLAB_MGMT_PREFIXES = ("172.100.", "172.101.", "172.20.", "172.18.")
+
+
+@functools.cache
+def _docker_bridge_networks() -> tuple[ipaddress.IPv4Network, ...]:
+    """Subnets of Docker's default bridge, which Kathara ``bridged`` nodes join."""
+    try:
+        import docker
+
+        ipam = docker.from_env().networks.get("bridge").attrs["IPAM"]["Config"]
+        return tuple(
+            ipaddress.IPv4Network(entry["Subnet"])
+            for entry in ipam
+            if "." in entry.get("Subnet", "")
+        )
+    except Exception:  # noqa: BLE001 - Docker default when the daemon is unreachable
+        return (ipaddress.IPv4Network("172.17.0.0/16"),)
+
+
+def _is_management_ip(ip: str) -> bool:
+    bare = ip.split("/", 1)[0]
+    if bare.startswith(_CLAB_MGMT_PREFIXES):
+        return True
+    address = ipaddress.IPv4Address(bare)
+    return any(address in network for network in _docker_bridge_networks())
+
+
+def _ipv4_by_iface(output: str, *, node: str, with_prefix: bool) -> dict[str, str]:
+    """Map each interface to its first non-loopback IPv4 address, in link order."""
+    addresses: dict[str, str] = {}
+    for link in _loads_exec_json(output, command="ip -j addr", node=node):
+        if link.get("ifname") in VM_MGMT_IFACES:
+            continue
+        for addr in link.get("addr_info", []):
+            ip = addr.get("local")
+            if addr.get("family") != "inet" or not ip or ip.startswith("127."):
+                continue
+            prefix = addr.get("prefixlen")
+            if with_prefix and prefix is not None:
+                ip = f"{ip}/{prefix}"
+            addresses.setdefault(link.get("ifname"), ip)
+            break
+    return addresses
 
 
 class SemanticOpsMixin:
@@ -43,39 +110,10 @@ class SemanticOpsMixin:
         *,
         with_prefix: bool = False,
     ) -> str | None:
-        output = self.exec_cmd(node, "ip -j addr")
-        try:
-            ifaces = json.loads(output)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Failed to parse `ip -j addr` output on {node}: {exc}"
-            ) from exc
-
-        def format_ip(ip: str, prefix: int | None) -> str:
-            if with_prefix and prefix is not None:
-                return f"{ip}/{prefix}"
-            return ip
-
-        for link in ifaces:
-            if link.get("ifname") != iface:
-                continue
-            for addr in link.get("addr_info", []):
-                if addr.get("family") != "inet":
-                    continue
-                ip = addr.get("local")
-                prefix = addr.get("prefixlen")
-                if ip and not ip.startswith("127."):
-                    return format_ip(ip, prefix)
-
-        for link in ifaces:
-            for addr in link.get("addr_info", []):
-                if addr.get("family") != "inet":
-                    continue
-                ip = addr.get("local")
-                prefix = addr.get("prefixlen")
-                if ip and not ip.startswith("127."):
-                    return format_ip(ip, prefix)
-        return None
+        addresses = _ipv4_by_iface(
+            self.exec_cmd(node, "ip -j addr"), node=node, with_prefix=with_prefix
+        )
+        return addresses.get(iface) or next(iter(addresses.values()), None)
 
     def get_data_plane_host_ip(
         self: SupportsExec,
@@ -84,28 +122,34 @@ class SemanticOpsMixin:
         with_prefix: bool = False,
         prefer_ifaces: tuple[str, ...] = ("eth1", "eth0"),
     ) -> str | None:
-        """Prefer data-plane ifaces (eth1 on Containerlab linux) over mgmt eth0."""
+        """Prefer data-plane ifaces (eth1 on Containerlab linux) over mgmt eth0.
+
+        Only an address on the named interface counts, so interfaces created
+        inside the node (for example a k3s ``flannel.1``) never stand in for a
+        missing ``eth1``. Management addresses (Containerlab management
+        bridges, Docker's default bridge on Kathara ``bridged`` nodes) count
+        only when no preferred interface has another address. Without any
+        preferred interface, return the first non-loopback IPv4 address.
+        """
+        addresses = _ipv4_by_iface(
+            self.exec_cmd(node, "ip -j addr"), node=node, with_prefix=with_prefix
+        )
         candidates: list[str] = []
         for iface in prefer_ifaces:
-            ip = self.get_host_ip(node, iface, with_prefix=with_prefix)
+            ip = addresses.get(iface)
             if not ip:
                 continue
-            bare = ip.split("/", 1)[0]
-            # Containerlab mgmt bridge ranges used by NIKA labs.
-            if bare.startswith(("172.100.", "172.20.", "172.18.")):
+            if _is_management_ip(ip):
                 candidates.append(ip)
                 continue
             return ip
-        return candidates[0] if candidates else None
+        if candidates:
+            return candidates[0]
+        return next(iter(addresses.values()), None)
 
     def get_default_gateway(self: SupportsExec, node: str) -> str | None:
         output = self.exec_cmd(node, "ip -j route")
-        try:
-            routes = json.loads(output)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Failed to parse `ip -j route` output on {node}: {exc}"
-            ) from exc
+        routes = _loads_exec_json(output, command="ip -j route", node=node)
         for route in routes:
             if route.get("dst") == "default":
                 gateway = route.get("gateway")
@@ -117,12 +161,7 @@ class SemanticOpsMixin:
         self: SupportsExec, node: str, *, include_loopback: bool = False
     ) -> list[str]:
         output = self.exec_cmd(node, "ip -j addr")
-        try:
-            ifaces = json.loads(output)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Failed to parse `ip -j addr` output on {node}: {exc}"
-            ) from exc
+        ifaces = _loads_exec_json(output, command="ip -j addr", node=node)
         names: list[str] = []
         for link in ifaces:
             name = link.get("ifname")
@@ -224,6 +263,7 @@ class SemanticOpsMixin:
             out.append(line)
         self.write_file(dhcp_server, path, "".join(out))
         self.systemctl(dhcp_server, "isc-dhcp-server", "restart")
+        self.exec_cmd(dhcp_server, "rm -f /var/lib/dhcp/dhcpd.leases~")
         self.exec_cmd(
             dhcp_server,
             "for i in 1 2 3 4 5; do "
@@ -303,43 +343,16 @@ class SemanticOpsMixin:
         client_args: str = "",
         host_ips: dict[str, str] | None = None,
     ) -> list[str]:
-        started_server_ports: dict[str, int] = {}
-        server_port_assign: dict[str, dict[str, int]] = {}
-        labels: list[str] = []
-        start_port_id = 5201
-        ip_overrides = dict(host_ips or {})
+        from nika.traffic.od_flows import start_od_flows_background
 
-        for src_host, dests in od_dicts.items():
-            for dst_host in dests:
-                if src_host == dst_host:
-                    continue
-                labels.append(f"{src_host}_to_{dst_host}")
-                if dst_host in started_server_ports:
-                    started_server_ports[dst_host] += 1
-                    dst_port = started_server_ports[dst_host]
-                    server_port_assign[dst_host][src_host] = dst_port
-                else:
-                    dst_port = start_port_id
-                    started_server_ports[dst_host] = start_port_id
-                    server_port_assign[dst_host] = {src_host: start_port_id}
-                server_cmd = f"iperf3 -s -p {dst_port} {server_args} -J &"
-                self.exec_cmd(dst_host, server_cmd)
-
-        for src_host, dests in od_dicts.items():
-            for dst_host, volume in dests.items():
-                if src_host == dst_host:
-                    continue
-                dst_ip = ip_overrides.get(dst_host) or self.get_data_plane_host_ip(
-                    dst_host
-                )
-                if not dst_ip:
-                    raise ValueError(f"Cannot resolve IP for host {dst_host!r}")
-                dst_port = server_port_assign[dst_host][src_host]
-                client_udp = " -u" if udp else ""
-                client_cmd = (
-                    f"iperf3 -c {dst_ip} -p {dst_port} -b {volume}{unit} "
-                    f"-t {interval}{client_udp} {client_args} -l 1472 -J &"
-                )
-                self.exec_cmd(src_host, client_cmd)
-
-        return labels
+        return start_od_flows_background(
+            self.exec_cmd,
+            od_dicts,
+            resolve_ip=self.get_data_plane_host_ip,
+            interval=interval,
+            unit=unit,
+            udp=udp,
+            server_args=server_args,
+            client_args=client_args,
+            host_ips=host_ips,
+        )

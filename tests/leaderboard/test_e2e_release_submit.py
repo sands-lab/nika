@@ -38,8 +38,8 @@ def test_release_submit_packs_validates_and_opens_prs(
             trial_id=trial.trial_id,
             trial_index=trial.trial_index,
             case_key=trial.case_key,
-            scenario=str(trial.row["scenario"]),
-            problem=str(trial.row["problem"]),
+            scenario=trial.task.scenario,
+            problem="+".join(trial.task.faults),
             release_meta=kwargs.get("release_meta"),
             outcome="success",
             rca_f1=1.0,
@@ -50,7 +50,7 @@ def test_release_submit_packs_validates_and_opens_prs(
             "nika.workflows.benchmark.release.RELEASES_DIR",
             tmp_path / "releases",
         ),
-        patch("nika.workflows.benchmark.run.preflight_release"),
+        patch("nika.workflows.benchmark.release.verify_release_tasks"),
         patch(
             "nika.workflows.benchmark.run._run_trial_with_timeout",
             side_effect=fake_trial,
@@ -58,10 +58,6 @@ def test_release_submit_packs_validates_and_opens_prs(
         patch(
             "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
             runs_dir,
-        ),
-        patch(
-            "nika.workflows.leaderboard.validate.load_release",
-            return_value=release,
         ),
     ):
         run_benchmark_from_release(
@@ -136,7 +132,7 @@ def test_release_submit_packs_validates_and_opens_prs(
             return HfPullRequestResult(
                 repo_id=kwargs["repo_id"],
                 remote_path=kwargs["path_in_repo"],
-                pr_url="https://huggingface.co/datasets/Zhihao98/nika-trajectories/discussions/1",
+                pr_url="https://huggingface.co/datasets/nika-bench/nika-trajectories/discussions/1",
                 pr_num=1,
             )
 

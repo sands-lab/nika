@@ -8,7 +8,7 @@ Implementation: [`remote/server.py`](../../src/nika/remote/server.py) serves the
 
 | Side | Install | Responsibility |
 |------|---------|----------------|
-| **Local (agent host)** | `uv sync --no-group labs` (+ sdk/sade as needed); optional [`sbx`](agent-sandbox.md) | CLI entrypoint, agent process, canonical `results/` |
+| **Local (agent host)** | `uv sync --no-group labs`; a [sandbox runtime](agent-sandbox.md) (sbx or E2B) | CLI entrypoint, agent process and its sandbox, canonical `results/` |
 | **Remote (lab host)** | `./scripts/install.sh` ([options](installation.md)) | `nika remote serve`, labs, MCP gateway, runtime state |
 
 ## Set up the remote lab host
@@ -17,7 +17,7 @@ Implementation: [`remote/server.py`](../../src/nika/remote/server.py) serves the
 git clone https://github.com/sands-lab/nika.git
 cd nika
 ./scripts/install.sh
-nika remote serve --host 0.0.0.0 --port 8700
+uv run nika remote serve --host 0.0.0.0 --port 8700
 ```
 
 Ensure the local machine can reach:
@@ -31,12 +31,11 @@ Ensure the local machine can reach:
 git clone https://github.com/sands-lab/nika.git
 cd nika
 uv sync --no-group labs
-# optional: uv sync --no-group labs --extra sdk   # or --extra sade
 ```
 
 The `labs` group holds the Kathará and Docker SDK packages, which only the lab host needs.
 
-For sandboxed agents, install [`sbx`](agent-sandbox.md). Not required for `byo.*`.
+Set up a [sandbox runtime](agent-sandbox.md#choose-a-sandbox-runtime), sbx or E2B, on this host; every agent runs in a sandbox.
 
 In `config/nika.yaml`:
 
@@ -52,8 +51,8 @@ Leave `enabled: false` for local labs. Remote uses no shared token (trust the ne
 Check connectivity:
 
 ```shell
-nika remote health
-# or: nika remote health --url http://<lab-host>:8700
+uv run nika remote health
+# or: uv run nika remote health --url http://<lab-host>:8700
 ```
 
 ## Run a workflow
@@ -61,17 +60,21 @@ nika remote health
 With remote mode enabled, use the usual workflow commands:
 
 ```shell
-nika env run dc_clos -s s
-nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
-nika session containers
-nika agent run -a mock
-nika session close -y
-nika eval metrics
+uv run nika env run dc_clos -s s
+uv run nika failure inject link_down --set host_name=client_1_1 --set intf_name=eth0
+uv run nika session containers
+uv run nika agent run -a mock
+uv run nika session close -y
+uv run nika eval metrics
 ```
 
-Artifacts are copied to the local `{nika.result_dir}/{session_id}/` directory (default `results/{session_id}/`), and evaluation runs locally. Remote mode also applies to `nika benchmark run`.
+Artifacts are copied to the local `{nika.result_dir}/{session_id}/` directory (default `results/{session_id}/`), and evaluation runs locally. Remote mode also applies to `nika benchmark run`, except for a release that pins a benchmark engine, such as `0.2.0`, which remote mode cannot run yet ([#308](https://github.com/sands-lab/nika/issues/308)).
 
-Confirm that `results/<session_id>/` on the agent host contains the synced session files after the workflow. `nika session close -y` must also remove the lab from the remote host.
+While `nika failure inject` and `nika agent run` execute, the agent host follows the remote `nika.jsonl` and `messages.jsonl` and appends new lines to the local copies about once a second, so you can watch a remote trial as it runs.
+
+Rows written on the lab host carry `"origin": "remote"` and use the lab host's clock. The measured difference (agent host minus lab host) is stored as `remote_clock_offset_sec` in `run.json`.
+
+Confirm that `results/<session_id>/` on the agent host contains the synced session files after the workflow. `nika session close -y` must also remove the lab from the remote host, and the sandbox of an interrupted agent run from the agent host.
 
 ## Operational constraints
 

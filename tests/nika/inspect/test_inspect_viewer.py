@@ -837,6 +837,90 @@ class TestCatalog:
         assert summary is not None
         assert summary.status == "running"
         assert summary.is_benchmark is False
+        assert summary.rca_match is None
+
+    def test_steps_count_diagnosis_model_replies(self, tmp_path: Path) -> None:
+        def claude_reply(
+            message_id: str, *blocks: dict, phase="diagnosis", parent=None
+        ) -> dict:
+            return {
+                "timestamp": "2026-01-01T12:00:00",
+                "phase": phase,
+                "event": "assistant",
+                "claude_event": {
+                    "type": "assistant",
+                    "message": {"id": message_id, "content": list(blocks)},
+                    "parent_tool_use_id": parent,
+                },
+            }
+
+        thinking = {"type": "thinking", "thinking": ""}
+        text = {"type": "text", "text": "Checking r1."}
+        ping = {"type": "tool_use", "id": "t1", "name": "ping", "input": {}}
+        _write_json(tmp_path / "run.json", {"session_id": "s", "status": "finished"})
+        # Claude Code logs each block of a reply as its own row.
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [
+                claude_reply("m1", thinking),
+                claude_reply("m1", text),
+                claude_reply("m1", ping, {**ping, "id": "t2"}),
+                claude_reply("m2", text),
+                # A sub-agent's reply is outside the agent's step budget.
+                claude_reply("s1", ping, parent="t1"),
+                {"phase": "diagnosis", "event": "result", "claude_event": {}},
+                claude_reply("m3", text, phase="submission"),
+            ],
+        )
+        assert summarize_session_dir(tmp_path).steps == 2
+
+        # Other agents log a start and an end per model call.
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [
+                {"phase": "diagnosis", "event": "llm_start"},
+                {"phase": "diagnosis", "event": "llm_retry"},
+                {"phase": "diagnosis", "event": "llm_end"},
+                {"phase": "diagnosis", "event": "llm_start"},
+                {"phase": "diagnosis", "event": "llm_end"},
+                {"phase": "submission", "event": "llm_start"},
+                {"phase": "submission", "event": "llm_end"},
+            ],
+        )
+        assert summarize_session_dir(tmp_path).steps == 2
+
+    def test_rca_match_counts_found_expected_and_wrong_pairs(
+        self, tmp_path: Path
+    ) -> None:
+        def rc(resource_id: str, fault_type: str) -> dict:
+            return {"resource_id": resource_id, "fault_type": fault_type}
+
+        _write_json(tmp_path / "run.json", {"session_id": "s", "status": "finished"})
+        _write_json(
+            tmp_path / "ground_truth.json",
+            {
+                "root_causes": [
+                    rc("link/s1/eth1", "link_down"),
+                    rc("node/r1", "cpu_hog"),
+                ]
+            },
+        )
+        # Right resource with the wrong fault type is a wrong guess, not a match.
+        _write_json(
+            tmp_path / "submission.json",
+            {
+                "root_causes": [
+                    rc("link/s1/eth1", "link_down"),
+                    rc("node/r1", "mem_leak"),
+                    rc("node/r2", "cpu_hog"),
+                ]
+            },
+        )
+        _write_json(tmp_path / "eval_metrics.json", {"rca_f1": 0.4})
+
+        match = summarize_session_dir(tmp_path).rca_match
+
+        assert (match.found, match.expected, match.wrong) == (1, 2, 2)
 
     def test_summarize_aborted_and_error_status(self, tmp_path: Path) -> None:
         aborted = tmp_path / "aborted"
@@ -1388,8 +1472,29 @@ class TestSingletonLock:
         )
 
         with pytest.raises(ValueError, match="Another nika inspect dashboard"):
-            serve.serve_inspect(result_dir=tmp_path, port=0, open_browser=False)
+            serve.serve_inspect(
+                result_dir=tmp_path, port=serve.DEFAULT_PORT, open_browser=False
+            )
 
+        serve._release_singleton_lock(held)
+
+    def test_explicit_port_skips_lock_and_never_falls_back(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import socket
+
+        import nika.inspect.serve as serve
+
+        monkeypatch.setattr(serve, "_SINGLETON_LOCK_PATH", tmp_path / "inspect.lock")
+        held = serve._acquire_singleton_lock()
+        with socket.socket() as busy:
+            busy.bind(("127.0.0.1", 0))
+            busy.listen()
+            port = busy.getsockname()[1]
+            # The default dashboard's lock does not block another port, and a
+            # busy explicit port errors instead of moving elsewhere.
+            with pytest.raises(ValueError, match=f"Port {port} is already in use"):
+                serve.serve_inspect(result_dir=tmp_path, port=port, open_browser=False)
         serve._release_singleton_lock(held)
 
 
@@ -1807,3 +1912,44 @@ class TestLlmRequestStats:
             }
         }
         assert client.post("/api/llm-stats", json={"keys": "s1"}).status_code == 400
+
+
+def test_timeline_places_lab_host_rows_on_the_host_clock(tmp_path: Path) -> None:
+    """A lab restored from a VM snapshot runs behind; its rows must not jump back."""
+    from nika.inspect.timeline import build_session_timeline
+
+    (tmp_path / "run.json").write_text(json.dumps({"remote_clock_offset_sec": 3600}))
+    nika = [
+        {
+            "timestamp": "2026-10-14T12:00:10+00:00",
+            "event": "failure_inject_complete",
+            "origin": "remote",
+        },
+        {"timestamp": "2026-10-14T13:00:20+00:00", "event": "agent_start"},
+    ]
+    messages = [
+        {
+            "timestamp": "2026-10-14T13:00:30+00:00",
+            "phase": "diagnosis",
+            "event": "agent_start",
+        },
+        {
+            "timestamp": "2026-10-14T12:01:00+00:00",
+            "phase": "diagnosis",
+            "event": "diagnosis_frozen",
+            "origin": "remote",
+            "report": "r",
+        },
+    ]
+    for name, rows in (("nika.jsonl", nika), ("messages.jsonl", messages)):
+        (tmp_path / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+    order = [(e.source, e.event) for e in build_session_timeline(tmp_path)]
+    assert order.index(("nika", "failure_inject_complete")) < order.index(
+        ("nika", "agent_start")
+    )
+    assert order[-1][1] == "diagnosis_frozen"  # 12:01 lab = 13:01 host
+    frozen = [
+        e for e in build_session_timeline(tmp_path) if e.event == "diagnosis_frozen"
+    ]
+    assert frozen[0].raw["lab_timestamp"] == "2026-10-14T12:01:00+00:00"

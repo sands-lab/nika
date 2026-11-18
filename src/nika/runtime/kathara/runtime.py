@@ -12,13 +12,15 @@ from nika.runtime.base import LabRuntime
 from nika.runtime.kathara.tap import (
     cleanup_host_taps,
     owned_host_taps,
-    record_container_taps,
+    record_lab_taps,
 )
 from nika.runtime.shared.containers import (
+    isolated_container_pid,
     lift_cpu_cap,
     pause_container,
     unpause_container,
 )
+from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.shared.settings import lab_settings as _lab_settings
 from nika.runtime.shared.execution import (
     exec_with_timeout,
@@ -54,6 +56,7 @@ class KatharaRuntime(LabRuntime):
 
     def _exec_raw(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
         def _run() -> str:
+            isolated_container_pid(self.get_container(node))
             # stream=False returns (stdout, stderr, exit_code).
             stdout, stderr, _ = self._instance.exec(
                 machine_name=node,
@@ -131,9 +134,7 @@ class KatharaRuntime(LabRuntime):
         # Strict probe: a Docker/Kathara API error must surface here instead
         # of being mistaken for "lab exists" and silently skipping deploy.
         if self._lab_present():
-            for container in self._machine_containers():
-                if container.status == "running":
-                    record_container_taps(container, self.lab_name)
+            record_lab_taps(self._machine_containers(), self.lab_name, tx_queue_len=100)
             log_event(
                 "lab_deploy_skipped",
                 f"Lab {self.lab_name} already exists; skipping deploy",
@@ -149,8 +150,9 @@ class KatharaRuntime(LabRuntime):
             try:
                 Kathara.get_instance().deploy_lab(lab=self._net_env.lab)
                 self._wait_deploy_ready(lab.deploy_ready_timeout_sec)
-                for container in self._machine_containers():
-                    record_container_taps(container, self.lab_name)
+                record_lab_taps(
+                    self._machine_containers(), self.lab_name, tx_queue_len=100
+                )
                 return True
             except Exception as exc:  # noqa: BLE001 - includes docker APIError
                 last_error = exc
@@ -186,27 +188,29 @@ class KatharaRuntime(LabRuntime):
             )
         # undeploy_lab runs shutdown commands via an untimed docker exec in
         # each machine; under an injected CPU cap runc init starves forever.
+        running = [
+            container
+            for container in self._machine_containers()
+            if container.status == "running"
+        ]
         try:
-            for container in self._machine_containers():
-                if container.status == "running":
-                    lift_cpu_cap(container)
+            bounded_parallel_map(lift_cpu_cap, running)
         except Exception as exc:
             log_error_event(
                 "lab_undeploy_error",
                 f"Could not lift CPU caps before undeploying {self.lab_name}: {exc}",
                 lab_name=self.lab_name,
             )
+
+        def _tap_error(_container, exc: BaseException) -> None:
+            log_error_event(
+                "tap_ownership_error",
+                f"Could not record TAPs before closing {self.lab_name}: {exc}",
+                lab_name=self.lab_name,
+            )
+
         # Enroll older sessions after lifting CPU caps so Docker exec can run.
-        for container in self._machine_containers():
-            if container.status == "running":
-                try:
-                    record_container_taps(container, self.lab_name)
-                except Exception as exc:
-                    log_error_event(
-                        "tap_ownership_error",
-                        f"Could not record TAPs before closing {self.lab_name}: {exc}",
-                        lab_name=self.lab_name,
-                    )
+        record_lab_taps(running, self.lab_name, on_error=_tap_error)
         try:
             self._instance.undeploy_lab(lab_name=self.lab_name)
         except Exception as exc:
@@ -303,6 +307,24 @@ class KatharaRuntime(LabRuntime):
     def get_connected_devices(self, node: str) -> list[str]:
         links = next(self._instance.get_links_stats(lab_name=self.lab_name))
         return link_neighbors(links.values(), node)
+
+    def drop_boot_sources(self) -> None:
+        # Kathara extracts each node's lab files to /hostlab and copies them
+        # into place at boot. Nothing reads them afterwards, and the copies
+        # are the pristine baseline a fault could be diffed against.
+        def _drop(node: str) -> None:
+            try:
+                self.exec(node, "rm -rf /hostlab", timeout=30)
+            except Exception as exc:  # noqa: BLE001 - report and keep going
+                log_warning_event(
+                    "lab_boot_sources_kept",
+                    f"Could not remove /hostlab on {node}: {exc}",
+                    lab_name=self.lab_name,
+                    node=node,
+                    error=str(exc),
+                )
+
+        bounded_parallel_map(_drop, self.list_nodes())
 
     def list_dhcp_client_nodes(self) -> list[str]:
         """Return nodes explicitly declared as DHCP clients."""

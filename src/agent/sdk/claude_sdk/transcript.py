@@ -11,12 +11,15 @@ when the next response starts or the result arrives.
 
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Any
 
 from agent.utils.display import display_agent_event
 from agent.utils.loggers import MessageLogger, tool_event_payload
-from agent.utils.two_phase import ERROR_PREFIX, max_steps_report
+from agent.base import ERROR_PREFIX, max_steps_report
 from agent.utils.usage import normalize_usage
+from agent.utils.mcp_client import mcp_startup_error
 
 
 def normalize_tool_name(name: str) -> str:
@@ -153,6 +156,39 @@ def result_report(
     return message.result or transcript.last_text
 
 
+# Claude Code connects SDK-configured MCP servers without blocking the first
+# turn, which then runs without their tools when connecting is slow (the e2b
+# tunnel adds a round trip to every MCP message).
+_MCP_CONNECT_WAIT_SEC = 120
+_MCP_POLL_SEC = 0.5
+
+
+async def _wait_for_mcp_servers(
+    client: Any, logger: MessageLogger, expected: set[str]
+) -> None:
+    """Wait until no MCP server is still connecting, then log their status."""
+    deadline = time.monotonic() + _MCP_CONNECT_WAIT_SEC
+    while True:
+        servers = (await client.get_mcp_status()).get("mcpServers") or []
+        statuses = {server["name"]: server.get("status") for server in servers}
+        if (
+            mcp_startup_error(servers, expected) is None
+            or any(
+                statuses.get(name) not in {None, "pending", "connected"}
+                for name in expected
+            )
+            or time.monotonic() > deadline
+        ):
+            break
+        await asyncio.sleep(_MCP_POLL_SEC)
+    logger.log(
+        "mcp_status", {server["name"]: server.get("status") for server in servers}
+    )
+    error = mcp_startup_error(servers, expected)
+    if error:
+        raise RuntimeError(error)
+
+
 async def run_claude_sdk_query(
     options: Any,
     prompt: str,
@@ -173,6 +209,9 @@ async def run_claude_sdk_query(
         },
     )
     async with ClaudeSDKClient(options=options) as client:
+        await _wait_for_mcp_servers(
+            client, logger, set((options.mcp_servers or {}).keys())
+        )
         await client.query(prompt)
         async for message in client.receive_response():
             transcript.handle(message)

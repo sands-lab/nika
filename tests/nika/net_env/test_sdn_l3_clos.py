@@ -16,6 +16,7 @@ from nika.net_env.sdn_l3_clos.fabric_manager.forwarding_rules import (
 )
 from nika.net_env.sdn_l3_clos.topology_model import (
     SIZE_TABLE,
+    VIRTUAL_ROUTER_MAC,
     build_clos_fabric_model,
     device_id,
     dpid_for_leaf,
@@ -30,9 +31,69 @@ from tests.support.prerequisites import docker_available
 
 @pytest.mark.unit
 def test_size_table_matches_plan() -> None:
-    assert SIZE_TABLE["s"] == (2, 4, 2)
+    assert SIZE_TABLE["s"] == (2, 4, 3)
     assert SIZE_TABLE["m"] == (4, 8, 4)
     assert SIZE_TABLE["l"] == (8, 16, 4)
+
+
+@pytest.mark.unit
+def test_ofport_map_lists_all_interfaces_in_one_exec(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = build_clos_fabric_model("s")
+    switch = model.leaves[0]
+    calls: list[tuple[str, str]] = []
+
+    def fake_exec(_runtime, host: str, cmd: str, timeout: float = 60.0) -> str:
+        calls.append((host, cmd))
+        rows = [
+            f'"{port.name}",{index}'
+            for index, port in enumerate(model.ports[switch], start=1)
+        ]
+        rows.append('"ovs-system",4294967295')
+        rows.append('"missing",-1')
+        return "\n".join(rows)
+
+    monkeypatch.setattr(fabric_apply, "_exec", fake_exec)
+    mapping = fabric_apply._ofport_map(object(), switch, model)
+    assert calls == [
+        (
+            switch,
+            "ovs-vsctl -f csv --no-heading --columns=name,ofport "
+            "list Interface 2>/dev/null || true",
+        )
+    ]
+    assert mapping == {
+        port.name: str(index) for index, port in enumerate(model.ports[switch], start=1)
+    }
+
+
+@pytest.mark.unit
+def test_apply_forwarding_prepares_each_switch_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = build_clos_fabric_model("s")
+    dpids: list[str] = []
+    ofports: list[str] = []
+    monkeypatch.setattr(
+        fabric_apply,
+        "build_forwarding_rules",
+        lambda _model: {"groups": [], "flows": []},
+    )
+    monkeypatch.setattr(
+        fabric_apply, "_set_dpid", lambda _rt, switch, _dpid: dpids.append(switch)
+    )
+    monkeypatch.setattr(
+        fabric_apply,
+        "_ofport_map",
+        lambda _rt, switch, _model: ofports.append(switch) or {},
+    )
+    monkeypatch.setattr(fabric_apply, "_clear_rest_flows_groups", lambda *_args: None)
+    monkeypatch.setattr(fabric_apply, "onos_group_snapshot", lambda *_args: {})
+    apply_forwarding(object(), model)  # type: ignore[arg-type]
+    expected = list(model.leaves + model.spines)
+    assert dpids == expected
+    assert ofports == expected
 
 
 @pytest.mark.unit
@@ -69,6 +130,31 @@ def test_forwarding_rules_spine_prefixes() -> None:
     spine_flows = [f for f in rules["flows"] if f["switch"] == "spine_1"]
     assert len(spine_flows) == model.leaf_count
     assert all(f["device_id"] == device_id(dpid_for_spine(1)) for f in spine_flows)
+
+
+@pytest.mark.unit
+def test_leaf_routed_flows_only_accept_own_interface_mac() -> None:
+    """Leaf IPv4 routing matches the router's own MAC, like a real L3 switch."""
+    model = build_clos_fabric_model("s")
+    flows = [
+        f
+        for f in build_forwarding_rules(model)["flows"]
+        if f["switch"] == "leaf_1" and f["priority"] in (30000, 40000)
+    ]
+    spine_macs = {p.mac for p in model.ports["leaf_1"] if p.role == "spine"}
+    assert flows
+    for flow in flows:
+        mac = next(
+            p.split("=", 1)[1] for p in flow["match"].split(",") if "dl_dst=" in p
+        )
+        assert mac in {VIRTUAL_ROUTER_MAC, *spine_macs} or mac.endswith(":0b")
+        if flow["priority"] == 30000:
+            assert mac == VIRTUAL_ROUTER_MAC
+        ports = {p.name: str(i) for i, p in enumerate(model.ports["leaf_1"], start=1)}
+        body = fabric_apply._install_onos_flow_body(flow, ports)
+        assert {"type": "ETH_DST", "mac": mac} in body["selector"]["criteria"]
+    local = [f for f in flows if f["priority"] == 40000]
+    assert len(local) == len(model.endpoints_on_leaf(1)) * (2 + len(spine_macs))
 
 
 @pytest.mark.unit
@@ -328,6 +414,12 @@ class SDNL3ClosTopologyChangeTest(IntegrationTestCase):
         try:
             row = self._assert_session_ready(session_id, "sdn_l3_clos")
             runtime = runtime_for_session(row)
+            assert (
+                runtime.exec(
+                    "fabric_mgr", "test ! -e /tmp/onos_batch.py && echo clean"
+                ).strip()
+                == "clean"
+            )
             model = build_clos_fabric_model("s")
             src = model.client_endpoints()[0]
             same = next(w for w in model.web_endpoints() if w.leaf_id == src.leaf_id)

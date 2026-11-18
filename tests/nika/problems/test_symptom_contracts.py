@@ -32,12 +32,7 @@ def test_symptom_contract_fields() -> None:
 # Custom symptoms that the audit cannot admit without a same-metric healthy
 # baseline: BLOCKED faults whose frozen release cases cannot be made valid.
 # Do not add new entries; add a baseline instead.
-_CUSTOM_WITHOUT_BASELINE = frozenset(
-    {
-        # BLOCKED: the frozen attacker cannot reach gateway_1's connection table.
-        "lb_connection_state_exhaustion",
-    }
-)
+_CUSTOM_WITHOUT_BASELINE: frozenset[str] = frozenset()
 
 
 def test_custom_symptoms_declare_a_healthy_baseline() -> None:

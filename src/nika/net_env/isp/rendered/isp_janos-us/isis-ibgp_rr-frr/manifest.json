@@ -1,0 +1,32 @@
+{
+  "digest": "a52599923781a84f682d61e06b58acb69597db574d68b0c472e3ce5eb8cb956d",
+  "netlab": "26.10",
+  "routers": [
+    "albany",
+    "atlanta",
+    "boston",
+    "charlotte",
+    "chicago",
+    "cleveland",
+    "dallas",
+    "denver",
+    "detroit",
+    "elpaso",
+    "houston",
+    "indianapolis",
+    "kansascity",
+    "lasvegas",
+    "losangeles",
+    "miami",
+    "minneapolis",
+    "nashville",
+    "neworleans",
+    "newyork",
+    "saltlakecity",
+    "sanfrancisco",
+    "seattle",
+    "stlouis",
+    "tulsa",
+    "washingtondc"
+  ]
+}

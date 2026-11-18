@@ -7,11 +7,12 @@ import agent.byo.mcp_agent._bootstrap  # noqa: F401
 from mcp_agent.agents.agent import Agent
 
 from agent.byo.mcp_agent.config import _mcp_reasoning_effort, build_mcp_request_params
-from agent.byo.mcp_agent.llm import create_nika_augmented_llm
+from agent.byo.mcp_agent.llm import create_logged_augmented_llm
+from agent.runtime.task import current_task
 from agent.utils.loggers import MessageLogger
 from agent.protocols import DIAGNOSIS
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
-from agent.utils.two_phase import max_steps_report
+from agent.base import max_steps_report
 
 
 class McpDiagnosisPhase:
@@ -45,6 +46,7 @@ class McpDiagnosisPhase:
             reasoning_effort=self._reasoning_effort,
             max_tokens=self._max_tokens,
             provider=self._llm_provider,
+            sampling=current_task().llm.sampling(),
         )
 
         agent = Agent(
@@ -53,9 +55,9 @@ class McpDiagnosisPhase:
             server_names=self._server_names,
         )
         async with agent:
-            llm = create_nika_augmented_llm(
+            llm = create_logged_augmented_llm(
                 agent=agent,
-                nika_logger=logger,
+                trace_logger=logger,
                 default_request_params=request_params,
                 provider=self._llm_provider,
             )

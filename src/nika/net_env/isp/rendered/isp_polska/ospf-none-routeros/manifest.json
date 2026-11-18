@@ -1,0 +1,18 @@
+{
+  "digest": "42b043e2991dfb22ee3dc12194971e30416010d183ad3bbce10890452303042f",
+  "netlab": "26.10",
+  "routers": [
+    "bialystok",
+    "bydgoszcz",
+    "gdansk",
+    "katowice",
+    "kolobrzeg",
+    "krakow",
+    "lodz",
+    "poznan",
+    "rzeszow",
+    "szczecin",
+    "warsaw",
+    "wroclaw"
+  ]
+}

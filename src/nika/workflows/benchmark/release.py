@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -14,13 +15,16 @@ from typing import Any, Literal
 import yaml
 
 from nika.config import BENCHMARK_DIR, BENCHMARK_VERSION, REPO_ROOT
+from nika.evaluator.validity import DEFAULT_MAX_HARNESS_RATE
 from nika.utils.session_artifacts import write_json_atomic
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
     image_repository,
 )
 from nika.problems.compat.v010 import RELEASE_VERSION as RELEASE_010
+from nika.problems.rca.models import RootCause
 from nika.net_env.net_env_pool import (
+    deployment_needs_licensed_images,
     get_net_env_instance,
     legacy_010_specs,
     list_all_net_envs,
@@ -28,11 +32,14 @@ from nika.net_env.net_env_pool import (
     scenario_family,
     scenario_requires_topo_size,
 )
+from nika.net_env.isp.identity import is_isp_scenario, isp_topo_from_scenario
+from nika.net_env.isp.profiles import default_device_profile
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.problems.registry import (
     compatible_columns,
     get_problem_class,
     list_avail_problem_instances,
+    resolve_problem_name,
 )
 from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
@@ -40,11 +47,22 @@ from nika.mcp.registry import (
     select_diagnosis_servers,
     SUBMISSION_SERVER,
 )
+from nika.benchmark_engine.protocol import (
+    API_VERSIONS,
+    AccessPolicy,
+    AgentAccess,
+    EngineDescription,
+    TaskList,
+    UnsupportedContractVersion,
+    require_supported,
+)
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.benchmark.candidate_context import (
+    deployment_environment_key,
     normalize_topo_scale,
     selection_context_key,
 )
+from nika.workflows.benchmark.multi_fault import row_problems
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
 BENCHMARK_ID = "nika-bench"
@@ -70,6 +88,7 @@ SCORING = {
 TOOLS_V1 = {
     "allowed_mcp_servers": [
         "containerlab_srl_mcp_server",
+        "containerlab_sonic_mcp_server",
         "k8s_mcp_server",
         "kathara_base_mcp_server",
         "pingmesh_mcp_server",
@@ -87,6 +106,10 @@ RESOURCES_V1: dict[str, Any] = {}
 DEFAULTS_V1 = {
     "n_trials": 3,
 }
+
+SUBMISSION_MODES = ("structured", "unstructured")
+# The name a run records for the access policy its release fixes.
+RELEASE_ACCESS_ROLE = "release"
 
 REQUIRED_SPLIT_FAMILIES = frozenset(
     {
@@ -138,6 +161,34 @@ class BenchmarkRelease:
         if value < 1:
             raise ReleaseError(f"Release defaults.n_trials must be >= 1 (got {value})")
         return value
+
+    @property
+    def evaluation(self) -> dict[str, Any]:
+        return dict(self.manifest.get("evaluation") or {})
+
+    @property
+    def access(self) -> AgentAccess:
+        """What the agent may touch during diagnosis; unset allows everything."""
+        return AgentAccess(
+            role=RELEASE_ACCESS_ROLE,
+            policy=AccessPolicy(**(self.evaluation.get("access") or {})),
+        )
+
+    @property
+    def max_trial_sec(self) -> int | None:
+        """The longest trial for which the release's tasks stay valid."""
+        value = self.evaluation.get("max_trial_sec")
+        return None if value is None else int(value)
+
+    @property
+    def submission_modes(self) -> tuple[str, ...]:
+        return tuple(self.evaluation.get("submission_modes") or SUBMISSION_MODES)
+
+    @property
+    def max_harness_rate(self) -> float:
+        """Highest rate of each harness validity flag a valid run may have."""
+        value = (self.evaluation.get("validity") or {}).get("max_harness_rate")
+        return DEFAULT_MAX_HARNESS_RATE if value is None else float(value)
 
 
 def releases_dir() -> Path:
@@ -246,6 +297,172 @@ def _resolve_splits(manifest: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _check_engine_api(manifest: dict[str, Any], *, name: str) -> None:
+    """Refuse an engine API version this NIKA does not speak (contract A).
+
+    Only a manifest with an ``engine`` block declares one; without it, the
+    current NIKA's engine runs the release in process.
+    """
+    engine = manifest.get("engine")
+    if engine is None:
+        return
+    if not isinstance(engine, dict):
+        raise ReleaseError(f"Release {name}: 'engine' must be a mapping")
+    version = (engine.get("api") or {}).get("version")
+    if isinstance(version, bool) or not isinstance(version, int):
+        raise ReleaseError(
+            f"Release {name}: engine.api.version must be an integer, got {version!r}"
+        )
+    try:
+        require_supported("Engine API", version, API_VERSIONS)
+    except UnsupportedContractVersion as exc:
+        raise ReleaseError(f"Release {name}: {exc}") from exc
+
+
+def _check_evaluation(manifest: dict[str, Any], *, name: str) -> None:
+    """Refuse an ``evaluation`` block this NIKA cannot enforce."""
+    evaluation = manifest.get("evaluation") or {}
+    if not isinstance(evaluation, dict):
+        raise ReleaseError(f"Release {name}: 'evaluation' must be a mapping")
+    try:
+        AccessPolicy(**(evaluation.get("access") or {}))
+    except (TypeError, ValueError) as exc:
+        raise ReleaseError(f"Release {name}: invalid evaluation.access: {exc}") from exc
+    limit = evaluation.get("max_trial_sec")
+    if limit is not None and (
+        isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0
+    ):
+        raise ReleaseError(
+            f"Release {name}: evaluation.max_trial_sec must be a positive integer, "
+            f"got {limit!r}"
+        )
+    modes = evaluation.get("submission_modes")
+    if modes is not None and (
+        not isinstance(modes, list) or not modes or set(modes) - set(SUBMISSION_MODES)
+    ):
+        raise ReleaseError(
+            f"Release {name}: evaluation.submission_modes must list modes from "
+            f"{list(SUBMISSION_MODES)}, got {modes!r}"
+        )
+    validity = evaluation.get("validity") or {}
+    if not isinstance(validity, dict) or set(validity) - {"max_harness_rate"}:
+        raise ReleaseError(
+            f"Release {name}: evaluation.validity may only set max_harness_rate, "
+            f"got {validity!r}"
+        )
+    rate = validity.get("max_harness_rate")
+    if rate is not None and (
+        isinstance(rate, bool)
+        or not isinstance(rate, (int, float))
+        or not 0.0 <= rate <= 1.0
+    ):
+        raise ReleaseError(
+            f"Release {name}: evaluation.validity.max_harness_rate must be a "
+            f"number from 0 to 1, got {rate!r}"
+        )
+
+
+def _check_split_hash(meta: dict[str, Any], path: Path, *, name: str) -> None:
+    expected = meta.get("sha256")
+    if expected is None or not path.is_file():
+        return
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != str(expected):
+        raise ReleaseError(
+            f"Release {name}: {path.name} does not match the sha256 in RELEASE.yaml "
+            f"(expected {expected}, got {actual}). The task file differs from the "
+            "published release."
+        )
+
+
+def verify_engine(release: BenchmarkRelease, engine: EngineDescription) -> None:
+    """Refuse to run *release* on an engine that does not match its manifest."""
+    if not set(engine.api_versions) & API_VERSIONS:
+        raise ReleaseError(
+            f"The benchmark engine of {release.ref} speaks engine API versions "
+            f"{engine.api_versions}; this NIKA supports {sorted(API_VERSIONS)}."
+        )
+    if (engine.release_id, engine.release_version) != (release.id, release.version):
+        raise ReleaseError(
+            f"The benchmark engine serves {engine.release_id}@"
+            f"{engine.release_version}, not {release.ref}."
+        )
+    for name, meta in (release.manifest.get("splits") or {}).items():
+        expected = (meta or {}).get("sha256")
+        cases_file = str(release.splits[name]["cases_file"])
+        actual = engine.task_file_sha256.get(cases_file)
+        if expected is not None and actual != str(expected):
+            raise ReleaseError(
+                f"The benchmark engine's {cases_file} for {release.ref} does not "
+                f"match the sha256 in RELEASE.yaml (expected {expected}, got {actual})."
+            )
+
+
+def verify_task_list(release: BenchmarkRelease, tasks: TaskList) -> None:
+    """Refuse a task list that does not come from *release*'s split file."""
+    if (tasks.release, tasks.split) != (release.version, release.split):
+        raise ReleaseError(
+            f"The benchmark engine listed the tasks of {tasks.release} "
+            f"{tasks.split!r}, not {release.version} {release.split!r}."
+        )
+    meta = (release.manifest.get("splits") or {}).get(release.split) or {}
+    expected = meta.get("sha256")
+    if expected is not None and tasks.task_file_sha256 != str(expected):
+        raise ReleaseError(
+            f"The benchmark engine listed {release.ref} {release.split!r} tasks "
+            f"from a file that does not match the sha256 in RELEASE.yaml "
+            f"(expected {expected}, got {tasks.task_file_sha256})."
+        )
+    if release.case_count and len(tasks.tasks) != release.case_count:
+        raise ReleaseError(
+            f"The benchmark engine listed {len(tasks.tasks)} {release.split!r} "
+            f"tasks; RELEASE.yaml declares {release.case_count}."
+        )
+    ids = [task.task_id for task in tasks.tasks]
+    if len(set(ids)) != len(ids):
+        raise ReleaseError(f"The benchmark engine listed duplicate task ids: {ids}")
+
+
+def check_run_settings(release: BenchmarkRelease, *, agent_type: str | None) -> None:
+    """Refuse run settings that conflict with *release*'s ``evaluation``.
+
+    The access policy is part of the task, a trial may not outlast
+    ``max_trial_sec``, and only the listed submission modes are allowed.
+    """
+    from nika.agents.registry import find_agent_spec
+    from nika.mcp.gateway.access import configured_access
+    from nika.utils.agent_config import (
+        resolve_agent_timeout,
+        resolve_agent_type,
+        resolve_submission_settings,
+    )
+
+    configured = configured_access()
+    if configured.policy != release.access.policy:
+        raise ReleaseError(
+            f"Release {release.ref} fixes the agent's access policy "
+            f"({release.access.policy.model_dump()}); agent.access.role "
+            f"{configured.role!r} selects a different one. Release runs use the "
+            "release's policy."
+        )
+    timeout = resolve_agent_timeout()
+    limit = release.max_trial_sec
+    if limit is not None and timeout > limit:
+        raise ReleaseError(
+            f"agent.timeout_sec ({timeout}s) exceeds the {limit}s for which "
+            f"release {release.ref}'s tasks stay valid (evaluation.max_trial_sec)."
+        )
+    # Host-run agents (mock, oracle) answer from the ground truth themselves.
+    spec = find_agent_spec(resolve_agent_type(agent_type))
+    if spec is not None and spec.template is not None:
+        mode = resolve_submission_settings().mode
+        if mode not in release.submission_modes:
+            raise ReleaseError(
+                f"Release {release.ref} allows submission modes "
+                f"{list(release.submission_modes)}, not {mode!r}."
+            )
+
+
 def _normalize_split_meta(meta: dict[str, Any] | None, *, name: str) -> dict[str, Any]:
     meta = dict(meta or {})
     return {
@@ -274,8 +491,14 @@ def load_release_from_dir(
     root: Path,
     *,
     split: SplitName = "dev",
+    read_tasks: bool = True,
 ) -> BenchmarkRelease:
-    """Load a release from an explicit directory containing ``RELEASE.yaml``."""
+    """Load a release from an explicit directory containing ``RELEASE.yaml``.
+
+    With ``read_tasks=False``, only the manifest is read: ``cases`` stays
+    empty and ``case_count`` is the count the manifest declares. A release
+    run reads its tasks from the benchmark engine instead.
+    """
     root = Path(root)
     split = normalize_split(split, default="dev")
     manifest_path = root / "RELEASE.yaml"
@@ -284,6 +507,8 @@ def load_release_from_dir(
     manifest = _load_manifest(manifest_path)
     version = str(manifest.get("version") or root.name)
     _reject_deprecated_release(version)
+    _check_engine_api(manifest, name=version)
+    _check_evaluation(manifest, name=version)
     splits_raw = _resolve_splits(manifest)
     if split not in splits_raw:
         raise ReleaseError(
@@ -293,10 +518,10 @@ def load_release_from_dir(
     split_meta = _normalize_split_meta(splits_raw[split], name=split)
     cases_file = str(split_meta["cases_file"])
     cases_path = root / cases_file
-    if not cases_path.is_file():
+    if read_tasks and not cases_path.is_file():
         raise ReleaseError(f"Missing {split} cases file: {cases_path}")
 
-    cases = load_benchmark_yaml(cases_path)
+    cases = load_benchmark_yaml(cases_path, release=version) if read_tasks else []
     defaults = dict(manifest.get("defaults") or DEFAULTS_V1)
     defaults.pop("case_timeout_sec", None)
     scoring = dict(manifest.get("scoring") or SCORING)
@@ -310,12 +535,14 @@ def load_release_from_dir(
     for name, meta in splits_raw.items():
         entry = _normalize_split_meta(meta, name=name)
         path = root / str(entry["cases_file"])
-        if path.is_file() and not entry["case_count"]:
-            entry["case_count"] = len(load_benchmark_yaml(path))
+        if read_tasks:
+            _check_split_hash(dict(meta or {}), path, name=version)
+            if path.is_file() and not entry["case_count"]:
+                entry["case_count"] = len(load_benchmark_yaml(path, release=version))
         resolved_splits[name] = entry
 
     declared_count = int(split_meta.get("case_count") or 0)
-    if declared_count and declared_count != len(cases):
+    if read_tasks and declared_count and declared_count != len(cases):
         raise ReleaseError(
             f"{split} case_count {declared_count} does not match "
             f"{cases_path.name} ({len(cases)})"
@@ -329,7 +556,7 @@ def load_release_from_dir(
         split=split,
         cases_path=cases_path,
         cases=cases,
-        case_count=len(cases),
+        case_count=len(cases) if read_tasks else declared_count,
         splits=resolved_splits,
         defaults=defaults,
         scoring=scoring,
@@ -344,6 +571,7 @@ def load_release(
     ref: str = DEFAULT_RELEASE_VERSION,
     *,
     split: SplitName | str = "dev",
+    read_tasks: bool = True,
 ) -> BenchmarkRelease:
     """Load and resolve a frozen release by version or ``id@version``."""
     _bench_id, selector = parse_release_ref(ref)
@@ -351,6 +579,7 @@ def load_release(
     return load_release_from_dir(
         root,
         split=normalize_split(split, default="dev"),
+        read_tasks=read_tasks,
     )
 
 
@@ -373,7 +602,13 @@ def _verify_mcp_policy(cases: list[dict[str, Any]], tools: dict[str, Any]) -> No
     # without rewriting frozen RELEASE.yaml allowlists (e.g. nika-bench@0.1.0).
     platform_optional = {DIAGNOSIS_PACKET_CAPTURE_SERVER}
     for row in cases:
-        servers = set(select_diagnosis_servers(row["scenario"]))
+        servers = set(
+            select_diagnosis_servers(
+                row["scenario"],
+                telemetry=row.get("telemetry") or (),
+                device_profile=row.get("device_profile"),
+            )
+        )
         servers.add(SUBMISSION_SERVER)
         extra = servers - allowed - platform_optional
         if extra:
@@ -392,12 +627,13 @@ def verify_dev_test_isolation(
     dev_cases: list[dict[str, Any]],
     test_cases: list[dict[str, Any]],
     allow_context_overlap: bool = False,
+    require_unseen_networks: bool = True,
 ) -> None:
     """Ensure Dev/Test use the same taxonomy and disjoint deployment contexts."""
     if not dev_cases or not test_cases:
         raise ReleaseError("Both Dev and Test splits must be non-empty")
-    dev_problems = {row["problem"] for row in dev_cases}
-    test_problems = {row["problem"] for row in test_cases}
+    dev_problems = {problem for row in dev_cases for problem in row_problems(row)}
+    test_problems = {problem for row in test_cases for problem in row_problems(row)}
     if dev_problems != test_problems:
         only_dev = sorted(dev_problems - test_problems)
         only_test = sorted(test_problems - dev_problems)
@@ -409,13 +645,72 @@ def verify_dev_test_isolation(
         raise ReleaseError(
             f"Dev/Test exact isolation failed: {len(exact_overlap)} shared case(s)"
         )
-    context_overlap = {selection_context_key(row) for row in dev_cases} & {
-        selection_context_key(row) for row in test_cases
+    fixed_clusters = {"k8s_lab", "llmd_lab"} if require_unseen_networks else set()
+    context_overlap = {
+        selection_context_key(row)
+        for row in dev_cases
+        if row["scenario"] not in fixed_clusters
+    } & {
+        selection_context_key(row)
+        for row in test_cases
+        if row["scenario"] not in fixed_clusters
     }
     if context_overlap and not allow_context_overlap:
         raise ReleaseError(
             "Dev/Test semantic isolation failed: "
             f"{len(context_overlap)} shared failure-context pair(s)"
+        )
+    if not require_unseen_networks:
+        return
+
+    def networks(rows: list[dict[str, Any]]) -> set[tuple[Any, ...]]:
+        identities = set()
+        for row in rows:
+            scenario = row["scenario"]
+            if is_isp_scenario(scenario):
+                identities.add(("isp_graph", isp_topo_from_scenario(scenario)))
+            elif scenario in fixed_clusters:
+                if is_healthy_case(row["problem"]):
+                    continue
+                roots = row.get("root_causes") or []
+                if not roots:
+                    raise ReleaseError(
+                        f"{scenario} requires resolved root_causes resources "
+                        "to check Dev/Test component isolation"
+                    )
+                try:
+                    identities.update(
+                        (scenario, RootCause.model_validate(rc).resource_id)
+                        for rc in roots
+                    )
+                except ValueError as exc:
+                    raise ReleaseError(
+                        f"{scenario} requires resolved root_causes resources "
+                        "to check Dev/Test component isolation"
+                    ) from exc
+            else:
+                backend = resolve_scenario_backend(
+                    scenario,
+                    backend=row.get("backend"),
+                    default_when_ambiguous="kathara",
+                )
+                identities.add(
+                    deployment_environment_key(
+                        {
+                            **row,
+                            "backend": backend,
+                            "device_profile": row.get("device_profile")
+                            or default_device_profile(backend),
+                        }
+                    )
+                )
+        return identities
+
+    overlap = networks(dev_cases) & networks(test_cases)
+    if overlap:
+        raise ReleaseError(
+            "Dev/Test network isolation failed: "
+            f"{len(overlap)} shared variant(s), ISP graph(s), or cluster component(s)"
         )
 
 
@@ -445,12 +740,38 @@ def _validate_release_splits(
     test_cases: list[dict[str, Any]],
     *,
     expected_failures: set[str],
+    frozen: bool = False,
+    release: str | None = None,
 ) -> None:
-    verify_dev_test_isolation(dev_cases=dev_cases, test_cases=test_cases)
+    """Check split isolation and failure coverage.
+
+    A new release must cover exactly ``expected_failures``. A frozen release
+    keeps its failures while the registry grows, so it only needs every failure
+    it lists to still be registered.
+    """
+    verify_dev_test_isolation(
+        dev_cases=dev_cases,
+        test_cases=test_cases,
+        require_unseen_networks=not frozen,
+    )
     failures = {
-        str(row["problem"]) for row in dev_cases if not is_healthy_case(row["problem"])
+        problem
+        for row in dev_cases
+        for problem in row_problems(row)
+        if not is_healthy_case(problem)
     }
-    if failures != expected_failures:
+    if frozen:
+        unregistered = {
+            name
+            for name in failures
+            if (cls := get_problem_class(name, release=release)) is None
+            or resolve_problem_name(cls.root_cause_name) not in expected_failures
+        }
+        if unregistered:
+            raise ReleaseError(
+                f"Release lists unregistered failures: {sorted(unregistered)}"
+            )
+    elif failures != expected_failures:
         missing = sorted(expected_failures - failures)
         extra = sorted(failures - expected_failures)
         raise ReleaseError(
@@ -495,6 +816,42 @@ def preflight_release(
 
     Raises ``ReleaseError`` on the first failure.
     """
+    release_scenarios = verify_release_tasks(release)
+    required = list(release.images.get("required") or [])
+    if check_images and required:
+        # Frozen manifests may name images without the pin NIKA now deploys
+        # (e.g. ``nika/base``, ``kathara/p4``); ensure the pinned references.
+        current = {
+            image_repository(ref): ref
+            for ref in collect_images_for_scenarios(release_scenarios)
+        }
+        ensure_release_images(
+            release, [current.get(image_repository(ref), ref) for ref in required]
+        )
+
+
+def ensure_release_images(
+    release: BenchmarkRelease, required: list[str] | None = None
+) -> None:
+    """Build or pull the images *release*'s manifest requires (or *required*)."""
+    if required is None:
+        required = list(release.images.get("required") or [])
+    if not required:
+        return
+    try:
+        # Same ensure/build/pull path as ordinary lab deploy.
+        ensure_nika_docker_images(required)
+    except Exception as exc:
+        raise ReleaseError(f"Required Docker images unavailable: {exc}") from exc
+
+
+def verify_release_tasks(release: BenchmarkRelease) -> set[str]:
+    """Check that this NIKA can serve every task of *release*.
+
+    Checks the split's case count, the scenarios and failures the tasks use,
+    their images' licenses, Dev/Test isolation, and the MCP allowlist. Returns
+    the scenarios of all splits. Raises ``ReleaseError`` on the first failure.
+    """
     if release.case_count != len(release.cases):
         raise ReleaseError("Internal case_count mismatch")
 
@@ -515,16 +872,30 @@ def preflight_release(
             {
                 row["problem"]
                 for row in release.cases
-                if get_problem_class(row["problem"], row["scenario"]) is None
+                if get_problem_class(row["problem"], row["scenario"], release.version)
+                is None
             }
         )
     else:
+        from nika.workflows.benchmark.multi_fault import row_problems
+
         problems = {
-            row["problem"]
+            problem
             for row in release.cases
+            for problem in (
+                row_problems(row)
+                if row.get("schedule") is not None
+                else [row["problem"]]
+            )
             if not is_healthy_case(row["problem"])
         }
-        missing_problems = sorted(problems - set(list_avail_problem_instances()))
+        registered = set(list_avail_problem_instances())
+        missing_problems = sorted(
+            name
+            for name in problems
+            if (cls := get_problem_class(name, release=release.version)) is None
+            or resolve_problem_name(cls.root_cause_name) not in registered
+        )
     missing_scenarios = sorted(scenarios - known_scenarios)
     if missing_scenarios:
         raise ReleaseError(f"Missing scenarios: {missing_scenarios}")
@@ -532,7 +903,15 @@ def preflight_release(
         raise ReleaseError(f"Missing problems: {missing_problems}")
     specs = list_all_net_envs()
     licensed = sorted(
-        name for name in scenarios if name in specs and specs[name].licensed_images
+        {
+            row["scenario"]
+            + (f" ({row['device_profile']})" if row.get("device_profile") else "")
+            for row in release.cases
+            if row["scenario"] in specs
+            and deployment_needs_licensed_images(
+                row["scenario"], row.get("device_profile")
+            )
+        }
     )
     if licensed:
         raise ReleaseError(
@@ -550,31 +929,22 @@ def preflight_release(
         if is_010:
             # 0.1.0 predates the distinct deployment-context split rule.
             verify_dev_test_isolation(
-                dev_cases=dev, test_cases=test, allow_context_overlap=True
+                dev_cases=dev,
+                test_cases=test,
+                allow_context_overlap=True,
+                require_unseen_networks=False,
             )
         else:
             _validate_release_splits(
                 dev,
                 test,
                 expected_failures=_benchmark_failures(),
+                frozen=True,
+                release=release.version,
             )
 
     _verify_mcp_policy(release.cases, release.tools)
-
-    required = list(release.images.get("required") or [])
-    if check_images and required:
-        # Frozen manifests may name images without the pin NIKA now deploys
-        # (e.g. ``nika/base``, ``kathara/p4``); ensure the pinned references.
-        current = {
-            image_repository(ref): ref
-            for ref in collect_images_for_scenarios(release_scenarios)
-        }
-        required = [current.get(image_repository(ref), ref) for ref in required]
-        try:
-            # Same ensure/build/pull path as ordinary lab deploy.
-            ensure_nika_docker_images(required)
-        except Exception as exc:
-            raise ReleaseError(f"Required Docker images unavailable: {exc}") from exc
+    return release_scenarios
 
 
 def read_git_commit() -> tuple[str | None, bool]:
@@ -611,13 +981,22 @@ def build_run_identity(
     llm_provider: str | None = None,
     max_steps: int | None = None,
     n_trials: int = 1,
+    engine: EngineDescription | None = None,
+    pinned_engine: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Agent/run fields shared by release and ad-hoc ``--config`` run configs."""
+    """Agent/run fields shared by release and ad-hoc ``--config`` run configs.
+
+    *engine* is the benchmark engine's ``describe`` result for a release run,
+    and *pinned_engine* the ``tag`` and ``image`` of its container, if any;
+    both go into the run's provenance.
+    """
     from nika.run_config.loader import get_run_config
+    from nika.workflows.benchmark.provenance import run_results_fields
     from nika.utils.agent_config import (
         resolve_agent_timeout,
         resolve_max_tokens,
         resolve_reasoning_effort,
+        resolve_sampling,
     )
 
     commit, dirty = read_git_commit()
@@ -633,11 +1012,14 @@ def build_run_identity(
         "model": model,
         "max_steps": max_steps,
         "max_tokens": resolve_max_tokens(agent_type) if agent_type else None,
+        "sampling": resolve_sampling(agent_type) if agent_type else None,
         "agent_timeout_sec": resolve_agent_timeout(),
-        "reasoning_effort": resolve_reasoning_effort(),
+        "reasoning_effort": resolve_reasoning_effort(agent_type),
         "access_role": get_run_config().agent.access.role,
+        "submission": get_run_config().agent.submission.identity(),
         "n_trials": int(n_trials),
         "official": official,
+        **run_results_fields(engine, pinned=pinned_engine, commit=commit, dirty=dirty),
     }
 
 
@@ -652,6 +1034,8 @@ def build_job_metadata(
     llm_provider: str | None = None,
     max_steps: int | None = None,
     n_trials: int = 1,
+    engine: EngineDescription | None = None,
+    pinned_engine: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "benchmark_id": release.id,
@@ -674,6 +1058,8 @@ def build_job_metadata(
             llm_provider=llm_provider,
             max_steps=max_steps,
             n_trials=n_trials,
+            engine=engine,
+            pinned_engine=pinned_engine,
         ),
     }
 
@@ -737,6 +1123,7 @@ def release_fields_for_session(job: dict[str, Any]) -> dict[str, Any]:
         "benchmark_n_trials": job.get("n_trials"),
         "scoring_id": (job.get("scoring") or {}).get("id"),
         "nika_git_commit": job.get("nika_git_commit"),
+        "nika_git_dirty": job.get("nika_git_dirty"),
     }
 
 
@@ -796,7 +1183,7 @@ def freeze_release(
     cases = materialize_cases(list(raw.get("cases") or []))
     cases_path = dest / "dev.yaml"
     write_cases_yaml(cases_path, seed=raw.get("seed"), cases=cases)
-    loaded = load_benchmark_yaml(cases_path)
+    loaded = load_benchmark_yaml(cases_path, release=version)
 
     scenarios = {row["scenario"] for row in loaded}
     images = {"required": collect_images_for_scenarios(scenarios)}
@@ -833,8 +1220,8 @@ def freeze_split_release(
     missing = [name for name in required if not (source_dir / name).is_file()]
     if missing:
         raise ReleaseError(f"Release candidate is missing files: {missing}")
-    dev = load_benchmark_yaml(source_dir / "dev.yaml")
-    test = load_benchmark_yaml(source_dir / "test.yaml")
+    dev = load_benchmark_yaml(source_dir / "dev.yaml", release=version)
+    test = load_benchmark_yaml(source_dir / "test.yaml", release=version)
     _validate_release_splits(
         dev,
         test,

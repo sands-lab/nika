@@ -6,6 +6,9 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlam5
       intf_name: eth0
@@ -14,10 +17,5 @@ failure:
     - resource:
         kind: interface
         node: atlam5
-        name: eth0
-      fault_type: mtu_mismatch
-    - resource:
-        kind: interface
-        node: atlang
         name: eth0
       fault_type: mtu_mismatch

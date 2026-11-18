@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+import shlex
+
 from pydantic import BaseModel, Field
 
 from nika.problems.base import (
@@ -11,10 +14,12 @@ from nika.problems.base import (
 )
 from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import first
+from nika.problems.support.oracle import Check, OraclePlaybook, ping, shell
 from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
     DEFAULT_BDP_DIVISOR,
     DEFAULT_BUFFER_CEIL_BYTES,
     DEFAULT_BUFFER_FLOOR_BYTES,
+    MIN_BDP_BYTES,
     SYSCTL_MODERATE,
     SYSCTL_RMEM_MAX,
     SYSCTL_TCP_RMEM,
@@ -26,7 +31,31 @@ from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
     sysctl_get,
     write_sysctl_snapshot,
 )
+from nika.net_env.verify import tcp_socket_stats
+from nika.traffic.workload import BULK_DOWNLOAD
 from nika.utils.logger import system_logger
+
+
+# Kernel default: tcp_rmem max 6 MiB with receive-buffer autotuning on.
+_SMALL_RMEM_BYTES = 512 * 1024
+
+
+def _receive_buffer_capped(output: str) -> bool:
+    """tcp_rmem max is small and receive-buffer autotuning is off."""
+    rmem = re.search(r"tcp_rmem\s*=\s*(\d+)\s+(\d+)\s+(\d+)", output)
+    moderate = re.search(r"tcp_moderate_rcvbuf\s*=\s*(\d+)", output)
+    return (
+        rmem is not None
+        and moderate is not None
+        and int(rmem.group(3)) <= _SMALL_RMEM_BYTES
+        and moderate.group(1) == "0"
+    )
+
+
+def _slow_download(output: str) -> bool:
+    """curl reports a completed 200 download below 20 Mbit/s."""
+    match = re.search(r"code=200 speed=([0-9.]+)", output)
+    return match is not None and float(match.group(1)) * 8 < 20e6
 
 
 class TcpReceiveWindowLimitedParams(BaseModel):
@@ -82,7 +111,13 @@ class TcpReceiveWindowLimited(ProblemBase):
     TAGS: list[str] = ["http"]
     # Temporary: needs privileged hosts + enough path BDP (WAN RTT).
     COMPATIBLE_COLUMNS = frozenset({"enterprise_branch"})
+    minimum_path_bdp_bytes = MIN_BDP_BYTES
     Params = TcpReceiveWindowLimitedParams
+    SYMPTOM_WORKLOAD = BULK_DOWNLOAD
+
+    @classmethod
+    def symptom_workload_target(cls, inject):
+        return (inject.get("host_name") or "",)
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -112,6 +147,7 @@ class TcpReceiveWindowLimited(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self._original: SysctlSnapshot | None = None
+        self._original_connections: set[str] = set()
         self._injected: SysctlSnapshot | None = None
         self._rmem_max_applied: bool = False
         self._baseline_bdp_bytes: float | None = None
@@ -142,12 +178,19 @@ class TcpReceiveWindowLimited(ProblemBase):
 
         # Restore state stays in memory; a file on the receiver would expose it.
         self._original = read_sysctl_snapshot(self.runtime, params.host_name)
+        self._original_connections = {
+            sock.cookie for sock in tcp_socket_stats(self.runtime, params.host_name)
+        }
 
         rmem = format_tcp_rmem(baseline.target_buffer_bytes)
         injected = SysctlSnapshot(
             moderate_rcvbuf="0",
             tcp_rmem=rmem,
-            rmem_max=str(baseline.target_buffer_bytes),
+            rmem_max=(
+                str(baseline.target_buffer_bytes)
+                if self._original.rmem_max is not None
+                else None
+            ),
         )
         self._rmem_max_applied = write_sysctl_snapshot(
             self.runtime, params.host_name, injected, require_rmem_max=False
@@ -167,7 +210,7 @@ class TcpReceiveWindowLimited(ProblemBase):
     def verify_fault(self, params: TcpReceiveWindowLimitedParams) -> dict:
         moderate = sysctl_get(self.runtime, params.host_name, SYSCTL_MODERATE)
         tcp_rmem = sysctl_get(self.runtime, params.host_name, SYSCTL_TCP_RMEM)
-        rmem_max = sysctl_get(self.runtime, params.host_name, SYSCTL_RMEM_MAX)
+        rmem_max = sysctl_get(self.runtime, params.host_name, SYSCTL_RMEM_MAX) or None
         iface_up = interface_is_up(self.runtime, params.host_name, "eth0")
 
         expected = self._injected
@@ -226,6 +269,61 @@ class TcpReceiveWindowLimited(ProblemBase):
             },
         )
 
+    def oracle_playbook(self, params: TcpReceiveWindowLimitedParams) -> OraclePlaybook:
+        receiver = params.host_name
+        curl = (
+            "curl -s -o /dev/null --max-time 60 -w 'code=%{{http_code}} "
+            "speed=%{{speed_download}} time=%{{time_total}}\\n' {url}"
+        )
+        steps = [
+            ping(
+                receiver,
+                params.sender_ip,
+                f"Ping the sender {params.sender_host} from {receiver}: the path "
+                "has no loss.",
+                count=5,
+            ),
+            shell(
+                receiver,
+                curl.format(url=params.small_url),
+                "Fetch the small object: short requests complete normally.",
+                timeout=70,
+            ),
+            shell(
+                receiver,
+                curl.format(url=params.large_url),
+                "Fetch the large object: bulk TCP download throughput.",
+                Check("the bulk download runs below 20 Mbit/s", _slow_download),
+                timeout=70,
+            ),
+            shell(
+                receiver,
+                "ps -eo stat,pcpu,comm --sort=-pcpu | head -8",
+                f"Check that {receiver} is not CPU-starved.",
+                timeout=20,
+            ),
+            shell(
+                receiver,
+                "sysctl net.ipv4.tcp_rmem net.ipv4.tcp_moderate_rcvbuf "
+                "net.core.rmem_max",
+                f"Read the TCP receive-buffer settings on {receiver}.",
+                Check(
+                    "tcp_rmem caps the receive buffer at 512 KiB or less and "
+                    "receive-buffer autotuning (tcp_moderate_rcvbuf) is off",
+                    _receive_buffer_capped,
+                ),
+                evidence=True,
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"{receiver} caps its TCP receive buffer far below the path's "
+                "bandwidth-delay product, so its advertised window limits bulk "
+                "downloads while the path itself is healthy."
+            ),
+            steps=steps,
+        )
+
     def recover_fault(self, params: TcpReceiveWindowLimitedParams) -> dict:
         original = self._original
         if original is None:
@@ -244,8 +342,36 @@ class TcpReceiveWindowLimited(ProblemBase):
             restored.moderate_rcvbuf == original.moderate_rcvbuf
             and " ".join(restored.tcp_rmem.split())
             == " ".join(original.tcp_rmem.split())
-            and restored.rmem_max.strip() == original.rmem_max.strip()
+            and restored.rmem_max == original.rmem_max
         )
+        # Existing sockets retain their receive buffers. Reconnect only sockets
+        # created under this fault whose buffers are still capped. Healthy
+        # pre-injection connections and sockets that already grew stay intact.
+        reconnect = []
+        remaining = set()
+        if ok and self._target_buffer_bytes is not None:
+            reconnect = [
+                sock
+                for sock in tcp_socket_stats(self.runtime, params.host_name)
+                if sock.cookie not in self._original_connections
+                and sock.receive_buffer <= self._target_buffer_bytes
+            ]
+            for sock in reconnect:
+                local_ip, local_port = sock.local.rsplit(":", 1)
+                peer_ip, peer_port = sock.peer.rsplit(":", 1)
+                selector = (
+                    f"src {local_ip.strip('[]')} sport = :{local_port} "
+                    f"dst {peer_ip.strip('[]')} dport = :{peer_port}"
+                )
+                self.runtime.exec(
+                    params.host_name,
+                    f"ss -KtH state established {shlex.quote(selector)}",
+                    timeout=10,
+                )
+            remaining = {
+                sock.cookie for sock in tcp_socket_stats(self.runtime, params.host_name)
+            }
+            ok = not any(sock.cookie in remaining for sock in reconnect)
         system_logger.info(
             "recover_fault tcp_receive_window_limited on %s: ok=%s",
             params.host_name,
@@ -255,6 +381,16 @@ class TcpReceiveWindowLimited(ProblemBase):
             "verified": ok,
             "details": {
                 "receiver": params.host_name,
+                "reconnected": [
+                    {"local": sock.local, "peer": sock.peer, "cookie": sock.cookie}
+                    for sock in reconnect
+                    if sock.cookie not in remaining
+                ],
+                "remaining_connections": [
+                    {"local": sock.local, "peer": sock.peer, "cookie": sock.cookie}
+                    for sock in reconnect
+                    if sock.cookie in remaining
+                ],
                 "restored": {
                     "tcp_moderate_rcvbuf": restored.moderate_rcvbuf,
                     "tcp_rmem": restored.tcp_rmem,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from itertools import groupby
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -521,6 +521,8 @@ def _agent_kind_and_title(entry: dict[str, Any]) -> tuple[EventKind, str, str]:
         return "phase", label, _truncate(entry.get("message"))
     if event == "diagnosis_frozen":
         return "submission", "diagnosis frozen", _truncate(entry.get("report"))
+    if event in {"submission_sample", "submission_vote", "submission_agreement"}:
+        return "submission", event.replace("_", " "), _truncate(entry.get("message"))
     if event == "result":
         claude = _claude_event(entry) or {}
         return (
@@ -592,6 +594,13 @@ def adapt_nika_event(
     except (TypeError, ValueError):
         duration_val = None
 
+    from nika.inspect.schedule import format_schedule_event
+
+    schedule_summary = (
+        format_schedule_event(data)
+        if event == "schedule_event" and isinstance(data, dict)
+        else None
+    )
     raw, truncated = _raw_payload(entry, slim=slim)
     return CanonicalTraceEvent(
         id=f"nika-{index}",
@@ -600,8 +609,10 @@ def adapt_nika_event(
         kind=kind,
         # Same text as the CLI line (nika.utils.logger.format_event_line);
         # ``data`` stays in ``raw`` for the detail view.
-        title=event,
-        summary=event_summary(entry),
+        title=f"schedule: {data.get('status', 'event')}"
+        if event == "schedule_event" and isinstance(data, dict)
+        else event,
+        summary=schedule_summary or event_summary(entry),
         event=event,
         duration_ms=duration_val,
         raw=raw,
@@ -624,6 +635,44 @@ def iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
                 continue
             if isinstance(row, dict):
                 yield row
+
+
+def _remote_clock_offset(session_dir: Path) -> float:
+    try:
+        run = json.loads((session_dir / "run.json").read_text(encoding="utf-8"))
+        return float(run.get("remote_clock_offset_sec") or 0.0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0.0
+
+
+def host_clock_entries(session_dir: Path, name: str) -> list[dict[str, Any]]:
+    """Rows of a session log, all on the agent host's clock.
+
+    Rows a lab host wrote (``"origin": "remote"``) carry its clock, which lags
+    when the lab was restored from a VM snapshot. Shift them by the session's
+    ``remote_clock_offset_sec`` so the timeline orders events as they happened;
+    the lab host's own time stays in ``lab_timestamp``.
+    """
+    entries = list(iter_jsonl(session_dir / name))
+    offset = _remote_clock_offset(session_dir)
+    if not offset:
+        return entries
+    shifted = []
+    for entry in entries:
+        stamp = entry.get("timestamp")
+        if entry.get("origin") == "remote" and isinstance(stamp, str):
+            try:
+                moved = datetime.fromisoformat(stamp) + timedelta(seconds=offset)
+            except ValueError:
+                pass
+            else:
+                entry = {
+                    **entry,
+                    "lab_timestamp": stamp,
+                    "timestamp": moved.isoformat(),
+                }
+        shifted.append(entry)
+    return shifted
 
 
 def _annotate_claude_request_durations(
@@ -691,8 +740,7 @@ def _attach_phase_prompts(
 def load_agent_events(
     session_dir: Path, *, slim: bool = True
 ) -> list[CanonicalTraceEvent]:
-    path = session_dir / "messages.jsonl"
-    entries = list(iter_jsonl(path))
+    entries = host_clock_entries(session_dir, "messages.jsonl")
     events = [
         adapt_agent_event(entry, index=i, slim=slim) for i, entry in enumerate(entries)
     ]
@@ -808,6 +856,36 @@ def llm_request_durations(events: list[CanonicalTraceEvent]) -> list[float]:
     return durations
 
 
+def _claude_message_id(ev: CanonicalTraceEvent) -> str | None:
+    message = (_claude_event(ev.raw) or {}).get("message")
+    message_id = message.get("id") if isinstance(message, dict) else None
+    return message_id if isinstance(message_id, str) and message_id else None
+
+
+def model_reply_count(events: list[CanonicalTraceEvent], *, phase: str) -> int:
+    """Main-agent model replies in ``phase``: the unit of the step budget.
+
+    Turns as the overview's dashed lines mark them (``startsTurn`` in
+    roles.ts). A Claude reply counts once however many thinking, text, and
+    tool-call blocks it has (they share ``message.id``); sub-agent replies are
+    left out, as ``claude --max-turns`` leaves them out of the budget.
+    Otherwise each request counts once: its start, or an end logged without
+    one. HTTP retries stay inside their request.
+    """
+    agent = [ev for ev in events if ev.source == "agent" and ev.phase == phase]
+    paired_ends = set(_pair_llm_ends(agent).values())
+    claude_replies: set[str] = set()
+    requests = 0
+    for i, ev in enumerate(agent):
+        message_id = _claude_message_id(ev)
+        if message_id:
+            if not (_claude_event(ev.raw) or {}).get("parent_tool_use_id"):
+                claude_replies.add(message_id)
+        elif _is_llm_start(ev) or (_is_llm_end(ev) and i not in paired_ends):
+            requests += 1
+    return requests + len(claude_replies)
+
+
 def _span_ms(start: Any, end: Any) -> float | None:
     try:
         first = datetime.fromisoformat(str(_timestamp(start)))
@@ -846,7 +924,7 @@ def _fold_progress(entries: list[dict[str, Any]]) -> list[tuple[int, dict[str, A
 def load_nika_events(
     session_dir: Path, *, slim: bool = True
 ) -> list[CanonicalTraceEvent]:
-    entries = list(iter_jsonl(session_dir / "nika.jsonl"))
+    entries = host_clock_entries(session_dir, "nika.jsonl")
     return [
         adapt_nika_event(entry, index=i, slim=slim)
         for i, entry in _fold_progress(entries)

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import re
+import json
 
 import pytest
+from tests.support.net_env import stub_verify_collection  # noqa: F401
 from nika.net_env.dc_clos.lab import DCClos
 from nika.net_env.dc_clos.verify import verify_dc_clos_lab, verify_dc_clos_lab_startup
 from nika.net_env.enterprise_branch.verify import (
@@ -104,9 +106,15 @@ ALL_NODES = {
     "br2_guest_pc",
     "br2_edge",
     "isp1_core",
+    "internet_web",
     "isp2_core",
     "leaf_1_1",
 }
+_CLOS_MODEL = build_clos_fabric_model("s")
+ALL_NODES.update(
+    _CLOS_MODEL.spines + _CLOS_MODEL.leaves + [e.name for e in _CLOS_MODEL.endpoints]
+)
+
 HOST_ADDRS = {
     "pc1": ("195.11.14.2", "10.0.0.1", "10.1.1.2", "10.0.0.2"),
     "pc2": ("200.1.1.2", "10.0.0.2", "10.7.2.2", "10.0.1.2"),
@@ -138,8 +146,24 @@ HOST_ADDRS = {
 }
 
 
-def _bgp_summary(established: list[str], idle: tuple[str, ...] = ()) -> str:
+def _bgp_summary(
+    established: list[str], idle: tuple[str, ...] = (), *, json_output=False
+) -> str:
     """Render FRR ``show bgp summary`` with Established and Idle neighbors."""
+    if json_output:
+        return json.dumps(
+            {
+                "ipv4Unicast": {
+                    "peers": {
+                        **{
+                            p: {"state": "Established", "hostname": "router"}
+                            for p in established
+                        },
+                        **{p: {"state": "Idle"} for p in idle},
+                    }
+                }
+            }
+        )
     rows = [f"{peer} 4 65000 25 9 6 0 0 00:00:30 5 1 N/A" for peer in established]
     rows += [f"{peer} 4 65000 0 0 0 0 0 never Idle 0 N/A" for peer in idle]
     return (
@@ -160,11 +184,19 @@ def _dc_clos_lab(
     lab = instantiate_with_mocked_kathara(
         "nika.net_env.dc_clos.lab.Kathara.get_instance", lambda: DCClos("s")
     )
-    summaries = {}
+    summaries = {
+        (
+            host,
+            "ip -4 -o addr show dev eth0",
+        ): f"2: eth0 inet {address}/24 scope global eth0"
+        for host, address in lab.client_addresses.items()
+    }
     for router, peers in lab.bgp_neighbors.items():
         down = tuple(p for p in peers if idle == (router, p))
         up = [p for p in peers if p not in down]
-        summaries[router, "vtysh -c 'show bgp summary'"] = _bgp_summary(up, down)
+        summaries[router, "vtysh -c 'show bgp summary json'"] = _bgp_summary(
+            up, down, json_output=True
+        )
     return lab, summaries
 
 
@@ -184,6 +216,10 @@ class FakeRuntime:
     def exec(self, host: str, command: str, timeout: float = 10.0) -> str:
         if (host, command) in self.overrides:
             return self.overrides[host, command]
+        if command.startswith("dig +short"):
+            return re.search(r"@(\S+)", command)[1]
+        if command.startswith("ping -c 3 -i"):
+            return "3 packets transmitted, 3 received, 0% packet loss"
         if command.startswith("sh -c "):
             # Batched probes: every ping, dig, and curl in the script succeeds.
             lines = [
@@ -257,13 +293,16 @@ class FakeRuntime:
             return '{"hosts":[]}'
         if command.startswith("ip neigh show"):
             return "10.0.1.1 lladdr 02:00:00:00:00:01 REACHABLE"
-        if command == "vtysh -c 'show bgp summary'":
+        if command in {
+            "vtysh -c 'show bgp summary'",
+            "vtysh -c 'show bgp summary json'",
+        }:
             # Established numbered peers (enterprise_branch /30 tunnels),
             # unnumbered k8s_lab fabric peers, and the k8s_lab AS1-AS2 link.
             peers = [f"172.30.0.{i}" for i in range(1, 40)]
             peers += [f"peer({iface})" for iface in ("eth0", "eth1", "eth2", "eth3")]
             peers += ["10.0.4.1", "10.0.4.2"]
-            return _bgp_summary(peers)
+            return _bgp_summary(peers, json_output="json" in command)
         if command == "vtysh -c 'show ip bgp'":
             return (
                 "*> 10.0.10.0/24\n*> 10.0.20.0/24\n"
@@ -338,6 +377,7 @@ class FakeRuntime:
 
 
 @pytest.mark.unit
+@pytest.mark.usefixtures("stub_verify_collection")
 class KatharaVerifyUnitTest:
     def assert_verified(self, result: dict) -> None:
         assert_verify_success(result)
@@ -374,8 +414,8 @@ class KatharaVerifyUnitTest:
     def test_dc_clos_startup_one_idle_session_fails(self) -> None:
         # "Total number of neighbors N" and "BGP table version N" must not
         # count as Established sessions.
-        lab, summaries = _dc_clos_lab(idle=("leaf_router_0_1", "172.16.0.6"))
-        assert "172.16.0.6" in lab.bgp_neighbors["leaf_router_0_1"]
+        lab, summaries = _dc_clos_lab(idle=("leaf_2", "172.16.0.5"))
+        assert "172.16.0.5" in lab.bgp_neighbors["leaf_2"]
         result = verify_dc_clos_lab_startup(
             FakeRuntime(overrides=summaries),
             scenario_name="dc_clos",
@@ -386,7 +426,7 @@ class KatharaVerifyUnitTest:
         assert not result["verified"]
         assert not result["checks"]["bgp_sessions_established"]
         assert result["details"]["failures"]["bgp_not_established"] == {
-            "leaf_router_0_1": ["172.16.0.6"]
+            "leaf_2": ["172.16.0.5"]
         }
 
     def test_sdn_l3_clos_startup_verify_passes(self) -> None:
@@ -562,3 +602,22 @@ class KatharaScenarioVerifyIntegrationTest(IntegrationTestCase):
             assert ok is True, result
         finally:
             self._close_session(session_id)
+
+
+@pytest.mark.unit
+def test_bgp_summary_json_preserves_peer_ip_when_hostnames_are_enabled():
+    import json
+
+    from nika.net_env.verify import frr_bgp_established_peers
+
+    summary = json.dumps(
+        {
+            "ipv4Unicast": {
+                "peers": {
+                    "10.255.0.2": {"hostname": "ucla", "state": "Established"},
+                    "10.255.0.3": {"hostname": "uscb", "state": "Idle"},
+                }
+            }
+        }
+    )
+    assert frr_bgp_established_peers(summary) == {"10.255.0.2"}

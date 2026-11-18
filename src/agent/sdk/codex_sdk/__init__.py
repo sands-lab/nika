@@ -1,7 +1,4 @@
-"""OpenAI Codex SDK troubleshooting agent.
-
-Select with ``nika agent run -a sdk.codex_sdk``.
-"""
+"""OpenAI Codex SDK troubleshooting agent."""
 
 from agent.sdk.codex_sdk.agent import CodexSdkAgent
 

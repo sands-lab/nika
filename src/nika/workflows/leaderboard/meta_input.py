@@ -198,6 +198,8 @@ def submission_slug(metadata: SubmissionMetadata) -> str:
         "cli.claude": "Claude Code",
         "claudecode": "Claude Code",
         "cli.codex": "Codex",
+        "cli.opencode": "OpenCode",
+        "cli.dsh": "DeepSeek Harness",
         "byo.langgraph": "ReAct",
         "langgraph": "ReAct",
     }.get(framework.lower(), framework)

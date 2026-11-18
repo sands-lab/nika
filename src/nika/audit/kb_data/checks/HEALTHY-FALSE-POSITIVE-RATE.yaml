@@ -1,0 +1,19 @@
+id: HEALTHY-FALSE-POSITIVE-RATE
+title: Most trials call a healthy scenario faulty
+class: healthy_lure
+role: lead
+severity: warn
+status: open
+summary: Healthy cases of one scenario are reported as anomalous in at least half of the trials.
+guideline: Read what the agents point at. If several models point at the same by-design behaviour the
+  brief does not state, it is a lure (fix the description or probe intent).
+detect:
+- kind: metric
+  metric: healthy_fp_rate
+  threshold: 0.5
+  min_trials: 3
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

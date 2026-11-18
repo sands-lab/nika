@@ -1,0 +1,15 @@
+[Unit]
+Description=NIKA GitHub Actions runner (%i)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/.local/share/nika/github-runners/%i
+ExecStart=%h/.local/share/nika/github-runners/%i/run.sh
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Restart=on-failure
+RestartSec=10
+Nice=10
+UMask=0077
+
+[Install]
+WantedBy=default.target

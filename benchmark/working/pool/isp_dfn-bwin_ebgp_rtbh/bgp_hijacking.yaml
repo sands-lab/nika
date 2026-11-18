@@ -6,12 +6,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
+      observer_host: pc_karlsruhe
+      probe_dst_ip: 198.51.100.1
+      symptom_host: karlsruhe
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
@@ -20,40 +23,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
-    inject:
-      host_name: frankfurt
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: frankfurt
-      fault_type: bgp_hijacking
-  - topo_size: s
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: hamburg
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: hamburg
-      fault_type: bgp_hijacking
-  - topo_size: s
-    backend: kathara
-    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
+      observer_host: pc_karlsruhe
+      probe_dst_ip: 198.51.100.1
+      symptom_host: karlsruhe
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
@@ -62,12 +40,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: karlsruhe
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
+      observer_host: pc_koeln
+      probe_dst_ip: 198.51.100.1
+      symptom_host: koeln
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
@@ -76,12 +57,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
+      observer_host: pc_karlsruhe
+      probe_dst_ip: 198.51.100.1
+      symptom_host: karlsruhe
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
@@ -90,12 +74,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
+      observer_host: pc_karlsruhe
+      probe_dst_ip: 198.51.100.1
+      symptom_host: karlsruhe
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
@@ -104,12 +91,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
+      observer_host: pc_karlsruhe
+      probe_dst_ip: 198.51.100.1
+      symptom_host: karlsruhe
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
@@ -118,28 +108,17 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nuernberg
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
+      observer_host: pc_karlsruhe
+      probe_dst_ip: 198.51.100.1
+      symptom_host: karlsruhe
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
         node: nuernberg
-      fault_type: bgp_hijacking
-  - topo_size: s
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: stuttgart
-      peer_host: pc_berlin
-      probe_dst_ip: 198.18.0.1
-      symptom_host: frankfurt
-      target_network: 198.18.0.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: stuttgart
       fault_type: bgp_hijacking

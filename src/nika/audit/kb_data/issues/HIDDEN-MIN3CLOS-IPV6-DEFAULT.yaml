@@ -1,0 +1,19 @@
+id: HIDDEN-MIN3CLOS-IPV6-DEFAULT
+title: min3clos IPv6 default route via management
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: Clients' IPv6 default route pointed at the management network (H4).
+scope:
+  scenarios:
+  - min3clos
+  healthy: true
+guideline: 'A hidden fault in the fault-free lab: agents that report it on a healthy task are right. Confirm
+  it with references/live-confirm.md (hidden fault or lure) before counting the trial as a false positive.'
+provenance:
+  source: healthy-hunter paper_cases
+  date: '2026-10-12'
+  refs:
+  - healthy-hunter
+  found_by: live_audit

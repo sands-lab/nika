@@ -1,0 +1,29 @@
+id: LEAK-BRIEF-NIKA-CLI
+title: SNDlib ISP scenario briefs name the benchmark CLI
+class: shortcut
+severity: warn
+status: fixed
+fixed_in: b4a23a22
+summary: >-
+  The 0.2.0 ISP brief builder wrote 'traffic matrix chosen at `nika traffic run sndlib`' into the brief
+  of every SNDlib ISP scenario (isp_abilene, isp_dfn-bwin_ebgp_rtbh, isp_di-yuan, isp_geant_ebgp_rpki,
+  isp_germany50, isp_pdh). It names the benchmark and its tooling. b4a23a22 removed it.
+guideline: >-
+  Benchmark identity only: it reveals no fault type or location, and it appears in every isp_* trial,
+  healthy ones included. A hit on a commit after the fix is a regression.
+scope: {}
+detect:
+- kind: text
+  where:
+  - prompt
+  pattern: nika traffic run sndlib
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-BRIEF-NIKA-CLI)
+  date: '2026-10-28'
+  refs:
+  - isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01:1
+  found_by: agentic
+evidence:
+- '20261016_claude_code_claude_opus_5_5 isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01 step 1: Edge
+  stubs: 11 (traffic matrix chosen at `nika traffic run sndlib`)'

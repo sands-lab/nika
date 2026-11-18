@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: link_down
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: controller
       intf_name: eth0
     root_causes:

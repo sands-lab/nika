@@ -85,8 +85,19 @@ export interface OverviewSpan {
   startMs: number;
   endMs: number;
   error?: boolean;
+  nikaTone?: "failure" | "traffic" | "lifecycle";
   /** ``false`` for later blocks of one Claude response (not a new LLM request). */
   turnStart?: boolean;
+  schedule?: {
+    caption: string;
+    kind: "failure" | "traffic" | "agent";
+    state: string;
+    plannedStartMs: number;
+    plannedEndMs: number;
+    actualStartMs: number | null;
+    actualEndMs: number | null;
+    recovered: boolean;
+  };
 }
 
 const DEFAULT_MARK_MS = 250;
@@ -276,6 +287,8 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
   const pairedLlmEnds = new Set([...llmPairs.values()].map((p) => p.end.id));
   const seenClaudeMessages = new Set<string>();
   const startsTurn = (ev: CanonicalTraceEvent): boolean => {
+    // Phase summaries (Claude ``result``) close a phase; they are not replies.
+    if (ev.kind === "phase") return false;
     const id = claudeMessageId(ev);
     if (!id) return true;
     if (seenClaudeMessages.has(id)) return false;
@@ -456,7 +469,7 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
       role,
       label:
         role === "nika"
-          ? ev.event?.replaceAll("_", " ") || "nika"
+          ? ev.event === "schedule_event" ? ev.summary : ev.event?.replaceAll("_", " ") || "nika"
           : role === "assistant"
             ? ev.event || "model"
             : roleLabel(role),

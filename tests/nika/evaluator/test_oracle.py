@@ -42,7 +42,7 @@ class OracleSolver:
 
 @cache
 def _catalog_ids(scenario: str, topo_size: str, env_items: tuple) -> frozenset[str]:
-    env = load_offline_net_env(scenario, topo_size, **dict(env_items))
+    env = load_offline_net_env(scenario, topo_size, **dict(env_items), release=_RELEASE)
     return frozenset(item.id for item in catalog_resources(env))
 
 
@@ -57,7 +57,9 @@ def _cases() -> list[Any]:
 
 @pytest.mark.parametrize("row", _cases())
 def test_oracle_submission_scores_one(row: dict) -> None:
-    root_causes = materialize_case(row, env_cache=_ENV_CACHE)["root_causes"]
+    root_causes = materialize_case(row, env_cache=_ENV_CACHE, release=_RELEASE)[
+        "root_causes"
+    ]
     assert root_causes == canonical_root_causes(row.get("root_causes") or [])
     gt = {"is_anomaly": bool(root_causes), "root_causes": root_causes}
 
@@ -77,7 +79,9 @@ def test_oracle_submission_scores_one(row: dict) -> None:
             c["resource_id"] for c in causes if c["resource_id"].startswith("k8s/")
         }
         _, errors = validate_root_cause_choices(
-            causes, catalog_ids=set(catalog), fault_types=set(fault_candidates())
+            causes,
+            catalog_ids=set(catalog),
+            fault_types=set(fault_candidates(_RELEASE)),
         )
         assert not errors, errors
 

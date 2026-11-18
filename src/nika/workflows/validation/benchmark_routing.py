@@ -1,0 +1,1663 @@
+"""Compile benchmark-selected ISP profiles into the shared routing workflow.
+
+Original topology, protocol and prefix ownership define link-state paths. The shared
+NetComplete workflow completes link metrics and supported AS-local import policies.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import replace
+from pathlib import Path
+
+from nika.net_env.isp.igp.frr import ISIS_PROCESS
+from nika.net_env.isp.igp.ifaces import clab_eth_name, srl_e1_name
+from ipaddress import IPv4Address, IPv4Network
+
+
+from nika.net_env.contract import (
+    AdjacencyExpectation,
+    BgpRouteExpectation,
+    NetworkEntity,
+    TrafficSelector,
+    ValidationContract,
+    ValidationIntent,
+)
+from nika.net_env.synthesis.completion import (
+    OspfAreaCompletion,
+    IsisLevelCompletion,
+    BgpAsImportCompletion,
+)
+from nika.net_env.synthesis.requirements import (
+    OspfPathsRequirement,
+    IsisPathsRequirement,
+    link_state_paths_intents,
+    BgpAsSelectionRequirement,
+    default_as_selections,
+)
+from nika.net_env.isp.contract import bgp_adjacency_intents
+from nika.net_env.isp.identity import is_isp_scenario
+from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
+from nika.net_env.isp.igp.config import DEFAULT_IGP
+from nika.net_env.isp.profiles import default_device_profile
+from nika.net_env.isp.bgp.hijack import best_origin
+from nika.net_env.isp.igp.plan import (
+    active_igp_links,
+    igp_components,
+    shortest_distances,
+    shortest_paths,
+)
+from nika.net_env.net_env_pool import list_all_net_envs, resolve_scenario_backend
+from nika.net_env.synthesis.changes import DesignChange
+from nika.problems.rca.inventory import load_offline_net_env
+from nika.problems.routing_control_plane.bgp import (
+    ASN_MISCONFIG_OFFSET,
+    RTBH_PREFIX_LIST,
+)
+from nika.problems.routing_control_plane.ospf import ospf_networks
+from nika.workflows.benchmark.load_config import load_benchmark_input
+from nika.workflows.validation.netlab import analysis_device
+from nika.workflows.validation.scenario_spec import (
+    ScenarioDeployment,
+    ScenarioExperiment,
+    ScenarioIncident,
+    RoutingFailureCheck,
+    RoutingMutation,
+    RoutingRuntimeMutation,
+)
+
+
+_NATIVE_FAULT_LIMITATION = (
+    "Native ISP vendor profiles have native fault bindings only for link_down"
+)
+
+
+def _profile_limitations(deployment, features):
+    reasons = []
+    if (deployment["backend"], deployment["device_profile"]) not in {
+        ("kathara", "frr"),
+        ("kathara", "iosxr"),
+        ("kathara", "routeros"),
+        ("containerlab", "nokia_srlinux"),
+        ("containerlab", "sonic"),
+    }:
+        reasons.append(
+            "Native ISP vendor observation and configuration analysis remain required"
+        )
+    native_igps = {"iosxr": {"ospf", "isis"}, "routeros": {"ospf", "isis"}}
+    if deployment["device_profile"] in native_igps and (
+        deployment["igp"] not in native_igps[deployment["device_profile"]]
+        or deployment["bgp_mode"] not in {"none", "ibgp_rr", "ebgp"}
+    ):
+        reasons.append(
+            "Native ISP vendor profiles require a supported IGP (OSPF or IS-IS) "
+            "and BGP mode"
+        )
+    if features and (
+        not set(features) <= {"rpki", "rtbh"}
+        or deployment["device_profile"] != "frr"
+        or deployment["backend"] != "kathara"
+    ):
+        reasons.append("Policy semantics require separate coverage")
+    return reasons
+
+
+def _profile_key(scenario, deployment):
+    parts = [scenario, deployment["igp"], deployment["bgp_mode"], deployment["backend"]]
+    # Preserve existing default-profile keys and distinguish native variants.
+    if deployment["device_profile"] != default_device_profile(deployment["backend"]):
+        parts.append(deployment["device_profile"])
+    return "--".join(parts)
+
+
+def isp_catalog_profiles():
+    """Inventory actual registered defaults, independently of benchmark selection."""
+    from nika.net_env.isp.identity import is_isp_named_special
+
+    profiles = {}
+    for scenario, registration in sorted(list_all_net_envs().items()):
+        if not is_isp_scenario(scenario):
+            continue
+        defaults = dict(registration.deploy_defaults or {})
+        backend = resolve_scenario_backend(
+            scenario, backend=defaults.get("backend"), default_when_ambiguous="kathara"
+        )
+        deployment = dict(
+            igp=defaults.get("igp", DEFAULT_IGP),
+            bgp_mode=defaults.get("bgp_mode", "none"),
+            backend=backend,
+            device_profile=defaults.get(
+                "device_profile", default_device_profile(backend)
+            ),
+            rpki=False,
+        )
+        features = set()
+        if is_isp_named_special(scenario):
+            fixed = load_offline_net_env(
+                scenario, backend=backend, device_profile=deployment["device_profile"]
+            )
+            deployment.update(igp=fixed.igp, bgp_mode=fixed.bgp_mode, rpki=fixed.rpki)
+            if fixed.rpki:
+                features.add("rpki")
+            if fixed.rtbh:
+                features.add("rtbh")
+        limitations = _profile_limitations(deployment, features)
+        key = _profile_key(scenario, deployment)
+        profiles[key] = dict(
+            scenario=scenario,
+            deployment=deployment,
+            features=sorted(features),
+            supported=not limitations,
+            limitations=limitations,
+            benchmark_cases=[],
+            source="registered-default",
+        )
+    return profiles
+
+
+def benchmark_isp_profiles(manifests: list[Path]):
+    """Deduplicate actual deployment profiles; keep their benchmark provenance."""
+    registered = list_all_net_envs()
+    profiles = {}
+    fixed_profiles = {}
+    for manifest in manifests:
+        for row in load_benchmark_input(manifest):
+            scenario = row["scenario"]
+            if not is_isp_scenario(scenario):
+                continue
+            defaults = dict(registered[scenario].deploy_defaults or {})
+            deployment = {
+                key: row.get(key, defaults.get(key))
+                for key in ("igp", "bgp_mode", "backend", "device_profile", "rpki")
+            }
+            deployment["igp"] = deployment["igp"] or DEFAULT_IGP
+            deployment["bgp_mode"] = deployment["bgp_mode"] or "none"
+            deployment["backend"] = resolve_scenario_backend(
+                scenario,
+                backend=deployment["backend"],
+                default_when_ambiguous="kathara",
+            )
+            deployment["device_profile"] = deployment[
+                "device_profile"
+            ] or default_device_profile(deployment["backend"])
+            deployment["rpki"] = bool(deployment["rpki"])
+            features = set()
+            if row.get("igp") is None or row.get("bgp_mode") is None:
+                # Fixed scenario constructors can bake a protocol overlay that
+                # is absent from the row and registry deployment defaults.
+                binding = scenario, deployment["backend"], deployment["device_profile"]
+                if binding not in fixed_profiles:
+                    fixed_profiles[binding] = load_offline_net_env(
+                        scenario,
+                        backend=deployment["backend"],
+                        device_profile=deployment["device_profile"],
+                    )
+                fixed = fixed_profiles[binding]
+                deployment.update(
+                    igp=fixed.igp, bgp_mode=fixed.bgp_mode, rpki=fixed.rpki
+                )
+                if getattr(fixed, "rtbh", False):
+                    features.add("rtbh")
+            if deployment["rpki"]:
+                features.add("rpki")
+            key = _profile_key(scenario, deployment)
+            if key not in profiles:
+                reasons = _profile_limitations(deployment, features)
+                profiles[key] = {
+                    "scenario": scenario,
+                    "deployment": deployment,
+                    "features": sorted(features),
+                    "supported": not reasons,
+                    "limitations": reasons,
+                    "benchmark_cases": [],
+                }
+            elif profiles[key]["deployment"] != deployment:
+                raise ValueError(
+                    f"Conflicting device or policy variants for benchmark profile {key}"
+                )
+            provenance = {
+                "manifest": str(manifest),
+                "problem": row["problem"],
+                "inject": row["inject"],
+            }
+            if provenance not in profiles[key]["benchmark_cases"]:
+                profiles[key]["benchmark_cases"].append(provenance)
+            reason = _NATIVE_FAULT_LIMITATION
+            if (
+                deployment["device_profile"] in {"iosxr", "routeros"}
+                and row["problem"] != "link_down"
+                and reason not in profiles[key]["limitations"]
+            ):
+                profiles[key]["limitations"].append(reason)
+                profiles[key]["supported"] = False
+    return dict(sorted(profiles.items()))
+
+
+def _transit_impact(healthy, graph, target, excluded):
+    """Split business flows by whether every or some IGP path transits ``target``.
+
+    ``graph`` carries the original metrics, whose shortest paths completion
+    preserves. Returns ``(always, sometimes)`` intent IDs among business flows
+    not in ``excluded``; a flow is checked in both directions.
+    """
+    always, sometimes = set(), set()
+    for intent in healthy.intents:
+        if not intent.id.startswith("business.") or intent.id in excluded:
+            continue
+        hits = []
+        for source, destination in (
+            (intent.source.name, intent.destination.name),
+            (intent.destination.name, intent.source.name),
+        ):
+            paths = (
+                shortest_paths(graph, source, destination)
+                if source in graph and destination in graph
+                else ()
+            )
+            hits.append([target in p[1:-1] for p in paths])
+        if any(h and all(h) for h in hits):
+            always.add(intent.id)
+        elif any(any(h) for h in hits):
+            sometimes.add(intent.id)
+    return always, sometimes
+
+
+def _iosxr_static_controls(env, plan, healthy, bgp_announcement):
+    """Return announcement and RR-role mutations in netlab's IOS XR syntax."""
+    from nika.net_env.isp.iosxr import iosxr_interface
+
+    old, replacement = bgp_announcement, ""
+    if not env.bgp_plan:
+        old = (
+            " interface Loopback0\n  passive\n  address-family ipv4 unicast\n  !\n !\n"
+            if plan.igp == "isis"
+            else "  interface Loopback0\n   passive enable\n  !\n"
+        )
+    role_static = []
+    if env.bgp_mode == "ibgp_rr":
+        role = next(
+            i
+            for i in healthy.intents
+            if i.adjacency and i.adjacency.route_reflector_client
+        )
+        local, peer = role.adjacency.local_node, role.adjacency.remote_address
+        session = next(
+            s
+            for s in env.bgp_plan.sessions
+            if s.local_device == local and s.remote_ip == peer
+        )
+        original = (
+            f" neighbor {peer}\n  remote-as {session.remote_asn}\n"
+            + (
+                f"  update-source {iosxr_interface(session.update_source)}\n"
+                if session.update_source
+                else ""
+            )
+            + "  address-family ipv4 unicast\n   route-reflector-client\n"
+        )
+        role_static.append(
+            RoutingMutation(
+                name="missing-rr-client-role",
+                node=local,
+                old=original,
+                new=original.replace("   route-reflector-client\n", ""),
+                changes=(DesignChange(kind="rr_client", node=local, peer=peer),),
+                expected_failed_ids=(role.id,),
+            )
+        )
+    return old, replacement, role_static
+
+
+def build_benchmark_isp_experiment(
+    profile, *, bgp_selections: tuple[BgpAsSelectionRequirement, ...] | None = None
+) -> ScenarioExperiment:
+    """Resolve healthy and link-loss expectations from the fixed original graph."""
+    if not profile["supported"]:
+        raise ValueError(
+            "Unsupported benchmark profile: " + "; ".join(profile["limitations"])
+        )
+    scenario = profile["scenario"]
+    deployment = ScenarioDeployment.model_validate(profile["deployment"])
+    vendor = deployment.device_profile in {"iosxr", "routeros"}
+    if vendor:
+        limitations = _profile_limitations(
+            deployment.model_dump(), profile.get("features", ())
+        )
+        if limitations:
+            raise ValueError("Unsupported benchmark profile: " + "; ".join(limitations))
+        unsupported_faults = {
+            case["problem"]
+            for case in profile["benchmark_cases"]
+            if case["problem"] != "link_down"
+        }
+        if unsupported_faults:
+            raise ValueError(
+                "Native ISP experiment needs native fault bindings for: "
+                + ", ".join(sorted(unsupported_faults))
+            )
+    # Controls are authored on NIKA's rendering and bound to netlab output later.
+    env = load_offline_net_env(
+        scenario, **deployment.model_dump(exclude_none=True), rendered=False
+    )
+    plan = env.plan
+    srl = env.device_profile == "nokia_srlinux"
+    # SONiC routers render the FRR design, so FRR configuration edits apply.
+    sonic = env.device_profile == "sonic"
+    if bgp_selections is None:
+        bgp_selections = default_as_selections(env.bgp_plan)
+    if bgp_selections and env.bgp_mode != "ebgp":
+        raise ValueError("AS import completion requires a fixed eBGP sketch")
+    from nika.net_env.isp.bgp.policy import fixed_policy_prefixes
+
+    if bgp_selections and any(
+        r.prefix in fixed_policy_prefixes(env.bgp_plan) for r in bgp_selections
+    ):
+        raise ValueError(
+            "AS import completion cannot replace fixed security prefix policies"
+        )
+    if (
+        plan.igp not in {"ospf", "isis"}
+        or (env.backend != "kathara" and not (srl or sonic))
+        or env.bgp_mode not in {"none", "ebgp", "ibgp_rr"}
+    ):
+        raise ValueError(
+            "Benchmark routing adapter requires a supported ISP protocol/backend combination"
+        )
+    links = sorted(active_igp_links(plan), key=lambda link: link.link_id)
+    nodes = {n.device_name: n for n in plan.nodes}
+    anchor = min(nodes)
+    components = igp_components(plan)
+    anchor_for = {node: component[0] for component in components for node in component}
+    component_for = {
+        node: set(component) for component in components for node in component
+    }
+    # Prefer a declared benchmark outage attachment over an arbitrary link.
+    declared_down = next(
+        (c for c in profile["benchmark_cases"] if c["problem"] == "link_down"), None
+    )
+    if declared_down:
+        target = declared_down["inject"]
+        matching = [
+            edge
+            for edge in links
+            if (
+                target["host_name"],
+                ("eth" + str(int(target["intf_name"][3:]) - 1))
+                if env.backend == "containerlab"
+                else target["intf_name"],
+            )
+            in {(edge.endpoint_a, edge.iface_a), (edge.endpoint_b, edge.iface_b)}
+        ]
+        if len(matching) != 1:
+            raise ValueError(
+                "Benchmark link-down target must resolve to one active IGP link"
+            )
+        links.remove(matching[0])
+        links.insert(0, matching[0])
+    if env.bgp_plan:
+        # Keep iBGP transport connected in this declared link experiment. BGP
+        # session failures are exercised separately through registered failures.
+        link = next(
+            (
+                edge
+                for edge in (links[:1] if declared_down else links)
+                if igp_components(
+                    replace(
+                        plan,
+                        links=tuple(
+                            other
+                            for other in plan.links
+                            if other.link_id != edge.link_id
+                        ),
+                    )
+                )
+                == components
+            ),
+            None,
+        )
+        if link is None:
+            raise ValueError(
+                "BGP overlay experiment requires a redundant intra-AS IGP link"
+            )
+        links.remove(link)
+        links.insert(0, link)
+    origin = {
+        "basis": (
+            "RFC 1195 single-level IS-IS SPF and RFC 5305 wide metrics"
+            if plan.igp == "isis"
+            else "RFC 2328 OSPF adjacency and graph reachability"
+        )
+        + "; existing benchmark protocol profile and prefix ownership",
+        "benchmark_cases": profile["benchmark_cases"],
+        "scope": f"Directed physical {plan.igp.upper()} adjacencies, bidirectional anchor-to-router loopback connectivity and exact ECMP paths in healthy and declared failure states; no all-pairs claim",
+        "synthesis": f"NetComplete completes active {plan.igp.upper()} interface metrics; AS boundaries, RR roles and existing BGP policies remain fixed sketch inputs",
+    }
+
+    def customer_intents(site, origins, removed):
+        """The partner AS alone reaches the customer, over the provider session."""
+        asn = {n.device_name: n.asn for n in env.bgp_plan.nodes}
+        customer = NetworkEntity(kind="node", name=site.provider, address=site.gateway)
+        cut = any(
+            {link.address_a, link.address_b} == {site.provider_ip, site.partner_ip}
+            for link in plan.links
+            if link.link_id in removed
+        )
+        result = []
+        for origin in origins:
+            partner = origin.ping_address == site.service_address
+            if not partner and asn[origin.device] in {
+                asn[site.provider],
+                asn[site.partner],
+            }:
+                continue
+            reachable = partner and not cut
+            result.append(
+                ValidationIntent(
+                    id=f"customer.{origin.device}.{site.provider}",
+                    description="Only the partner AS reaches the customer, over its session with the provider."
+                    if partner
+                    else "Only the partner AS learns the customer prefix.",
+                    property="reachability" if reachable else "isolation",
+                    expected="reachable" if reachable else "unreachable",
+                    source=NetworkEntity(
+                        kind="node", name=origin.device, address=origin.ping_address
+                    ),
+                    destination=customer,
+                    traffic=TrafficSelector(protocol="icmp", round_trip=True),
+                )
+            )
+        return result
+
+    def contract(removed=()):
+        remaining = tuple(link for link in plan.links if link.link_id not in removed)
+        components = igp_components(replace(plan, links=remaining))
+        component = {n: index for index, c in enumerate(components) for n in c}
+        intents = []
+        for link in links:
+            if link.link_id in removed:
+                continue
+            for left, right, local, remote in [
+                (link.endpoint_a, link.endpoint_b, link.address_a, link.address_b),
+                (link.endpoint_b, link.endpoint_a, link.address_b, link.address_a),
+            ]:
+                intents.append(
+                    ValidationIntent(
+                        id=f"adj.{left}.{right}.{local.replace('.', '-')}",
+                        description="The declared OSPF adjacency must be Full."
+                        if plan.igp == "ospf"
+                        else "The declared Level-2 IS-IS adjacency must be Up.",
+                        property="adjacency",
+                        expected="established",
+                        adjacency=AdjacencyExpectation(
+                            protocol=plan.igp,
+                            isis_level=2 if plan.igp == "isis" else None,
+                            local_node=left,
+                            remote_node=right,
+                            local_address=local,
+                            remote_address=remote,
+                            ospf_area="0.0.0.0" if plan.igp == "ospf" else None,
+                            local_interface=(
+                                link.iface_a
+                                if left == link.endpoint_a
+                                else link.iface_b
+                            )
+                            if plan.igp == "isis"
+                            else None,
+                            remote_interface=(
+                                link.iface_b
+                                if left == link.endpoint_a
+                                else link.iface_a
+                            )
+                            if plan.igp == "isis"
+                            else None,
+                            local_router_id=nodes[left].router_id,
+                            remote_router_id=nodes[right].router_id,
+                        ),
+                    )
+                )
+        pairs = {(anchor, other) for other in set(nodes) - {anchor}}
+        pairs.update(
+            (anchor_for[node], node) for node in nodes if anchor_for[node] != node
+        )
+        for left, right in sorted(pairs):
+            connected = component[left] == component[right]
+            for source, target in [(left, right), (right, left)]:
+                intents.append(
+                    ValidationIntent(
+                        id=f"reach.{source}.{target}",
+                        description="Original loopback connectivity follows the declared surviving topology.",
+                        property="reachability" if connected else "isolation",
+                        expected="reachable" if connected else "unreachable",
+                        source=NetworkEntity(
+                            kind="node", name=source, address=nodes[source].loopback
+                        ),
+                        destination=NetworkEntity(
+                            kind="node", name=target, address=nodes[target].loopback
+                        ),
+                        traffic=TrafficSelector(protocol="icmp", round_trip=True),
+                    )
+                )
+        if env.bgp_plan:
+            intents.extend(bgp_adjacency_intents(env.bgp_plan, verify_rr_roles=True))
+            excluded = (
+                set(env.bgp_plan.inventory.get("leak_prefixes", ()))
+                if env.rpki
+                else set()
+            )
+            origins = [o for o in env.bgp_plan.originated if o.prefix not in excluded]
+            for source in origins:
+                for target in origins:
+                    if source == target:
+                        continue
+                    intents.append(
+                        ValidationIntent(
+                            id=f"business.{source.device}.{target.device}",
+                            description="Originally announced business endpoints must communicate through the original BGP overlay.",
+                            property="reachability",
+                            expected="reachable",
+                            source=NetworkEntity(
+                                kind="node",
+                                name=source.device,
+                                address=source.ping_address,
+                            ),
+                            destination=NetworkEntity(
+                                kind="node",
+                                name=target.device,
+                                address=target.ping_address,
+                            ),
+                            traffic=TrafficSelector(protocol="icmp", round_trip=True),
+                        )
+                    )
+            if site := env.bgp_plan.customer_site:
+                intents.extend(customer_intents(site, origins, removed))
+        if env.bgp_plan and (env.rpki or getattr(env, "rtbh", False)):
+            info = env.bgp_plan.inventory
+
+            def policy_flow(identifier, node, return_asn, prefix, reachable):
+                (origin,) = [o for o in env.bgp_plan.originated if o.prefix == prefix]
+                # An addressed inter-AS attachment supplies a return path through
+                # that AS's original passive IGP subnet announcement.
+                address = min(
+                    s.local_ip
+                    for s in env.bgp_plan.sessions
+                    if s.local_device == node
+                    and s.remote_asn == return_asn
+                    and s.session_type == "ebgp"
+                )
+                return ValidationIntent(
+                    id=identifier,
+                    description="Original policy-defined forwarding behavior.",
+                    property="reachability" if reachable else "isolation",
+                    expected="reachable" if reachable else "unreachable",
+                    source=NetworkEntity(kind="node", name=node, address=address),
+                    destination=NetworkEntity(
+                        kind="node", name=origin.device, address=origin.ping_address
+                    ),
+                    traffic=TrafficSelector(protocol="icmp", round_trip=True),
+                )
+
+            if env.rpki:
+                for role in ("rov_observer", "non_rov_observer"):
+                    for prefix in info["leak_prefixes"]:
+                        intents.append(
+                            ValidationIntent(
+                                id=f"rpki.{role}.{prefix.replace('/', '-')}",
+                                description="The router must accept no route from the original dormant unauthorized origin.",
+                                property="bgp_route",
+                                expected="absent",
+                                bgp_route=BgpRouteExpectation(
+                                    node=info[role],
+                                    prefix=prefix,
+                                    origin_asn=info["leaker_asn"],
+                                    present=False,
+                                    selected=False,
+                                ),
+                            )
+                        )
+            if getattr(env, "rtbh", False):
+                prefix = info["target_prefix"]
+                intents.append(
+                    policy_flow(
+                        "rtbh.provider." + prefix.replace("/", "-"),
+                        info["rtbh_provider_device"],
+                        info["legitimate_origin_asn"],
+                        prefix,
+                        True,
+                    )
+                )
+        unauthorized = set()
+        for case in profile["benchmark_cases"]:
+            if case["problem"] != "bgp_hijacking":
+                continue
+            prefix = str(IPv4Network(case["inject"]["target_network"]))
+            observer = case["inject"]["symptom_host"]
+            owner = next(
+                (o for o in env.bgp_plan.originated if o.prefix == prefix), None
+            )
+            if owner is not None:
+                # The hijacker answers the whole prefix itself, so only replies
+                # addressed into the prefix show whether the owner still gets them.
+                if (observer, prefix) not in unauthorized:
+                    unauthorized.add((observer, prefix))
+                    intents.append(
+                        ValidationIntent(
+                            id=f"origin.{observer}.{prefix.replace('/', '-')}",
+                            description="Replies to an owned business prefix must return to its original origin.",
+                            property="reachability",
+                            expected="reachable",
+                            source=NetworkEntity(
+                                kind="node",
+                                name=owner.device,
+                                address=owner.ping_address,
+                            ),
+                            destination=NetworkEntity(
+                                kind="node",
+                                name=observer,
+                                address=nodes[observer].loopback,
+                            ),
+                            traffic=TrafficSelector(protocol="icmp", round_trip=True),
+                        )
+                    )
+                continue
+            observers = {observer}
+            if observer == case["inject"]["host_name"]:
+                # A local connected route alone cannot demonstrate propagation.
+                observers.add(
+                    min(
+                        o.device
+                        for o in env.bgp_plan.originated
+                        if o.device != observer
+                    )
+                )
+            for observer in sorted(observers):
+                if (observer, prefix) in unauthorized:
+                    continue
+                unauthorized.add((observer, prefix))
+                intents.append(
+                    ValidationIntent(
+                        id=f"isolate.unauthorized.{observer}.{prefix.replace('/', '-')}",
+                        description="The original unowned prefix must remain unreachable.",
+                        property="isolation",
+                        expected="unreachable",
+                        source=NetworkEntity(
+                            kind="node", name=observer, address=nodes[observer].loopback
+                        ),
+                        destination=NetworkEntity(
+                            kind="prefix", name=prefix, address=prefix
+                        ),
+                        traffic=TrafficSelector(protocol="icmp", round_trip=True),
+                    )
+                )
+        return ValidationContract(
+            contract_id=f"benchmark.{scenario}.{plan.igp}",
+            scenario=scenario,
+            design_source=origin,
+            intents=tuple(sorted(intents, key=lambda i: i.id)),
+        )
+
+    sources_by_destination = {}
+
+    def paths_to(destination, removed=()):
+        graph = {node: [] for node in nodes}
+        pairs = {}
+        for edge in links:
+            if edge.link_id in removed:
+                continue
+            a, b = edge.endpoint_a, edge.endpoint_b
+            key = tuple(sorted((a, b)))
+            if key in pairs and pairs[key] != edge.metric:
+                raise ValueError(
+                    "Equal-cost parallel synthesis requires equal original metrics"
+                )
+            pairs[key] = edge.metric
+        for (a, b), metric in pairs.items():
+            graph[a].append((b, metric))
+            graph[b].append((a, metric))
+        sources = sources_by_destination.get(
+            destination,
+            sorted(component_for[destination] - {destination})
+            if destination == anchor_for[destination]
+            else [anchor_for[destination]],
+        )
+        if env.bgp_plan and any(
+            case["problem"] == "bgp_acl_block" for case in profile["benchmark_cases"]
+        ):
+            # A transit TCP ACL depends on session transport, not just peer
+            # endpoints. Preserve those original paths before solving metrics.
+            sources = sorted(
+                set(sources)
+                | {
+                    session.local_device
+                    for session in env.bgp_plan.sessions
+                    if session.session_type == "ibgp"
+                    and session.remote_device == destination
+                }
+            )
+        return tuple(
+            path
+            for source in sources
+            for path in shortest_paths(graph, source, destination)
+        )
+
+    original_paths = {
+        destination: paths_to(destination) for destination in sorted(nodes)
+    }
+    # Every generated per-hop predicate is an independent destination-route
+    # requirement, even if the original anchor becomes isolated in a fault.
+    sources_by_destination = {
+        destination: sorted({node for path in paths for node in path[:-1]})
+        for destination, paths in original_paths.items()
+    }
+    behavior = tuple(
+        (IsisPathsRequirement if plan.igp == "isis" else OspfPathsRequirement)(
+            kind="isis_paths" if plan.igp == "isis" else "ospf_paths",
+            id=f"path.{destination}",
+            **({"level": 2} if plan.igp == "isis" else {"area": 0}),
+            prefix=nodes[destination].loopback + "/32",
+            paths=original_paths[destination],
+            state_paths={
+                "backbone-link-down": paths_to(destination, {links[0].link_id})
+            },
+        )
+        for destination in sorted(nodes)
+        if original_paths[destination]
+    )
+
+    def with_paths(original, removed=()):
+        adjacencies = [i.adjacency for i in original.intents if i.adjacency]
+        generated = [
+            intent
+            for r in behavior
+            for intent in link_state_paths_intents(
+                r, paths_to(r.paths[0][-1], removed), adjacencies
+            )
+        ]
+        return ValidationContract.model_validate(
+            {
+                **original.model_dump(),
+                "intents": sorted([*original.intents, *generated], key=lambda i: i.id),
+            }
+        )
+
+    healthy = contract()
+    link = links[0]
+    fault_checks = []
+    for case in profile["benchmark_cases"]:
+        if case["problem"] in {
+            "bgp_rpki_invalid_route_leak",
+            "bgp_blackhole_community_leak",
+        }:
+            if any(
+                f.problem == case["problem"] and f.params == case["inject"]
+                for f in fault_checks
+            ):
+                continue
+            info = env.bgp_plan.inventory
+            unconstrained = ()
+            if case["problem"] == "bgp_rpki_invalid_route_leak":
+                failed = tuple(
+                    i.id
+                    for i in healthy.intents
+                    if i.id.startswith("rpki.non_rov_observer.")
+                )
+                edits = {
+                    node: ("route-map BGP-OUT deny 5", "route-map BGP-OUT permit 5")
+                    for node in info["leaker_as_devices"]
+                }
+                restore_nodes = tuple(info["leaker_as_devices"])
+                positive_intents = tuple(
+                    i.model_copy(
+                        update={
+                            "expected": "selected",
+                            "bgp_route": i.bgp_route.model_copy(
+                                update={
+                                    "present": True,
+                                    "origin_asn": info["leaker_asn"],
+                                }
+                            ),
+                        }
+                    )
+                    if i.id in failed
+                    else i
+                    for i in healthy.intents
+                )
+                name = "benchmark-rpki-leak"
+            else:
+                route_map, prefix, community = (
+                    info["leaker_outbound_route_map"],
+                    info["target_prefix"],
+                    info["blackhole_community"],
+                )
+                old = f"route-map {route_map} permit 10"
+                new = (
+                    f"ip prefix-list {RTBH_PREFIX_LIST} seq 5 permit {prefix} le 24\nroute-map {route_map} permit 5\n match ip address prefix-list {RTBH_PREFIX_LIST}\n set community {community} additive\n!\n"
+                    + old
+                )
+                edits = {info["leaker_device"]: (old, new)}
+                failed = tuple(
+                    i.id for i in healthy.intents if i.id.startswith("rtbh.provider.")
+                )
+                restore_nodes = (info["leaker_device"],)
+                # Flows into the blackholed prefix fail only on paths through
+                # the provider that discards it.
+                unconstrained = tuple(
+                    i.id
+                    for i in healthy.intents
+                    if i.id.startswith("business.")
+                    and any(
+                        IPv4Network(e.address).subnet_of(IPv4Network(prefix))
+                        for e in (i.source, i.destination)
+                    )
+                )
+                positive_intents = tuple(
+                    i.model_copy(
+                        update={"property": "isolation", "expected": "unreachable"}
+                    )
+                    if i.id in failed
+                    else i
+                    for i in healthy.intents
+                    if i.id not in unconstrained
+                )
+                name = "benchmark-rtbh-community"
+            fault_checks.append(
+                RoutingFailureCheck(
+                    name=name,
+                    problem=case["problem"],
+                    params=case["inject"],
+                    restore_nodes=restore_nodes,
+                    expected_failed_ids=failed,
+                    unconstrained_ids=unconstrained,
+                    requirements=healthy.model_copy(
+                        update={"intents": positive_intents}
+                    ),
+                    static_edits=edits,
+                )
+            )
+            continue
+        if env.bgp_mode == "ibgp_rr" and case["problem"] in {
+            "bgp_asn_misconfig",
+            "bgp_acl_block",
+            "bgp_missing_route_advertisement",
+            "bgp_hijacking",
+        }:
+            params, problem = case["inject"], case["problem"]
+            target = params["host_name"]
+            uncertain = set()
+            name = "benchmark-" + problem.replace("_", "-")
+            same_problem = [f for f in fault_checks if f.problem == problem]
+            if any(f.params == params for f in same_problem):
+                continue
+            if same_problem:
+                name = f"benchmark-{problem.split('_')[1]}-{len(same_problem) + 1}"
+            recovery_commands = {}
+            nft_nodes = ()
+            static_edits = {}
+            static_changes = ()
+            if problem == "bgp_asn_misconfig":
+                asn = next(n.asn for n in env.bgp_plan.nodes if n.device_name == target)
+                # FRR and IOS XR, the analyzed syntaxes, share this header.
+                old = f"router bgp {asn}\n"
+                new = f"router bgp {asn + ASN_MISCONFIG_OFFSET}\n"
+                static_edits = {target: (old, new)}
+                static_changes = (
+                    DesignChange(
+                        kind="local_asn", node=target, asn=asn + ASN_MISCONFIG_OFFSET
+                    ),
+                )
+            if problem in {"bgp_asn_misconfig", "bgp_acl_block"}:
+                failed = tuple(
+                    sorted(
+                        i.id
+                        for i in healthy.intents
+                        if (
+                            i.adjacency
+                            and i.adjacency.protocol == "bgp"
+                            and target
+                            in (i.adjacency.local_node, i.adjacency.remote_node)
+                        )
+                        or (
+                            i.id.startswith("business.")
+                            and target in (i.source.name, i.destination.name)
+                        )
+                    )
+                )
+                # The target loses its BGP routes, so it drops business traffic
+                # it would forward hop by hop on the original IGP paths.
+                graph = {node: [] for node in nodes}
+                for edge in links:
+                    graph[edge.endpoint_a].append((edge.endpoint_b, edge.metric))
+                    graph[edge.endpoint_b].append((edge.endpoint_a, edge.metric))
+                transit, uncertain = _transit_impact(
+                    healthy, graph, target, set(failed)
+                )
+                failed = tuple(sorted({*failed, *transit}))
+                if problem == "bgp_acl_block" and not srl:
+                    nft_nodes = (target,)
+                    blocked = set()
+                    for intent in healthy.intents:
+                        adjacency = intent.adjacency
+                        if not adjacency or adjacency.protocol != "bgp":
+                            continue
+                        paths = [
+                            path
+                            for path in original_paths[adjacency.remote_node]
+                            if path[0] == adjacency.local_node
+                        ]
+                        if not paths:
+                            raise ValueError(
+                                "BGP ACL requires declared session transport paths"
+                            )
+                        hits = [target in path for path in paths]
+                        if any(hits) != all(hits):
+                            raise ValueError(
+                                "BGP ACL with mixed filtered/unfiltered ECMP paths requires flow-hash semantics"
+                            )
+                        if all(hits):
+                            blocked.add(intent.id)
+                    failed = tuple(
+                        sorted(
+                            blocked | {i for i in failed if not i.startswith("adj.")}
+                        )
+                    )
+            elif problem == "bgp_missing_route_advertisement":
+                if not any(
+                    o.device == target and o.prefix == params["prefix"]
+                    for o in env.bgp_plan.originated
+                ):
+                    raise ValueError(
+                        "Benchmark withdrawal must name an original owned prefix"
+                    )
+                failed = tuple(
+                    sorted(
+                        i.id
+                        for i in healthy.intents
+                        if i.id.startswith("business.")
+                        and target in (i.source.name, i.destination.name)
+                    )
+                )
+            else:
+                prefix = str(IPv4Network(params["target_network"]))
+                owner = next(
+                    (o.device for o in env.bgp_plan.originated if o.prefix == prefix),
+                    None,
+                )
+                failed = tuple(
+                    sorted(
+                        i.id
+                        for i in healthy.intents
+                        if i.id.startswith("isolate.unauthorized.")
+                        and i.destination.address == prefix
+                    )
+                )
+                if owner is not None:
+                    # Each router forwards on its own best origin (original IGP
+                    # cost, then router ID), so a packet into the prefix reaches
+                    # the owner only if no router on its way selects the hijacker.
+                    graph = {node: [] for node in nodes}
+                    for edge in links:
+                        graph[edge.endpoint_a].append((edge.endpoint_b, edge.metric))
+                        graph[edge.endpoint_b].append((edge.endpoint_a, edge.metric))
+                    cost = {node: shortest_distances(graph, node) for node in nodes}
+                    asn = {n.device_name: n.asn for n in env.bgp_plan.nodes}
+                    router_id = {n.device_name: n.router_id for n in env.bgp_plan.nodes}
+                    reflectors = [
+                        n.device_name
+                        for n in env.bgp_plan.nodes
+                        if "rr" in n.roles and n.asn == asn[owner]
+                    ]
+
+                    def delivered(node, seen=()):
+                        if node in (owner, target):
+                            return {node}
+                        if node in seen:
+                            return {None}
+                        origin = best_origin(
+                            node, [owner, target], reflectors, cost, router_id
+                        )
+                        return set().union(
+                            *(
+                                delivered(hop, (*seen, node))
+                                for hop in {
+                                    path[1]
+                                    for path in shortest_paths(graph, node, origin)
+                                }
+                            )
+                        )
+
+                    def endpoint(node):
+                        ends = delivered(node)
+                        if len(ends) != 1:
+                            raise ValueError(
+                                "Hijack diversion with mixed ECMP outcomes requires flow-hash semantics"
+                            )
+                        return ends.pop()
+
+                    def inside(entity):
+                        return bool(entity.address) and IPv4Address(
+                            entity.address.split("/")[0]
+                        ) in IPv4Network(prefix)
+
+                    # Replies into the prefix are lost unless they reach the
+                    # owner; requests into it are answered by either origin.
+                    failed = tuple(
+                        sorted(
+                            i.id
+                            for i in healthy.intents
+                            if i.property == "reachability"
+                            and (
+                                (
+                                    inside(i.source)
+                                    and endpoint(i.destination.name) != owner
+                                )
+                                or (
+                                    inside(i.destination)
+                                    and endpoint(i.source.name) is None
+                                )
+                            )
+                        )
+                    )
+                    observer = (
+                        f"origin.{params['symptom_host']}.{prefix.replace('/', '-')}"
+                    )
+                    if observer not in failed:
+                        raise ValueError(
+                            "Benchmark hijack of an owned prefix must divert its observer"
+                        )
+                    # Completed metrics keep paths but not each router's owner
+                    # versus hijacker cost order, so only the declared observer
+                    # is a guaranteed violation; other flows into the prefix
+                    # are left unconstrained in the fault state.
+                    uncertain = {
+                        i.id
+                        for i in healthy.intents
+                        if i.property == "reachability"
+                        and (inside(i.source) or inside(i.destination))
+                    } - {observer}
+                    failed = (observer,)
+                recovery_commands = {
+                    target: (
+                        f"vtysh -c 'configure terminal' -c 'interface {BGP_ORIGIN_IFACE}' -c 'no ip address {prefix}' -c 'end'",
+                        f"ip route del local {prefix} dev {BGP_ORIGIN_IFACE} table local 2>/dev/null || true",
+                        f"ip addr del {prefix} dev {BGP_ORIGIN_IFACE} 2>/dev/null || true",
+                    )
+                }
+            positive = healthy.model_copy(
+                update={
+                    "intents": tuple(
+                        i
+                        for i in healthy.intents
+                        if i.id not in failed and i.id not in uncertain
+                    )
+                }
+            )
+            if problem == "bgp_hijacking":
+                positive = healthy.model_copy(
+                    update={
+                        "intents": tuple(
+                            i.model_copy(
+                                update={
+                                    "property": "reachability",
+                                    "expected": "reachable",
+                                }
+                                if i.property == "isolation"
+                                else {
+                                    "property": "isolation",
+                                    "expected": "unreachable",
+                                }
+                            )
+                            if i.id in failed
+                            else i
+                            for i in healthy.intents
+                            if i.id not in uncertain
+                        )
+                    }
+                )
+            fault_checks.append(
+                RoutingFailureCheck(
+                    name=name,
+                    problem=problem,
+                    params=params,
+                    restore_nodes=(target,),
+                    requirements=positive,
+                    expected_failed_ids=failed,
+                    unconstrained_ids=tuple(sorted(uncertain)),
+                    recovery_commands=recovery_commands,
+                    restore_nft_nodes=nft_nodes,
+                    static_edits=static_edits,
+                    changes=static_changes,
+                )
+            )
+            continue
+        if case["problem"] == "bgp_max_prefix_exceeded":
+            receiver, peer = (
+                case["inject"]["receiver_name"],
+                case["inject"]["peer_name"],
+            )
+            session = next(
+                s
+                for s in env.bgp_plan.sessions
+                if s.local_device == receiver
+                and s.remote_device == peer
+                and s.remote_ip == case["inject"]["neighbor_ip"]
+            )
+            paired = [
+                i
+                for i in healthy.intents
+                if i.adjacency
+                and i.adjacency.protocol == "bgp"
+                and (
+                    (
+                        i.adjacency.local_node,
+                        i.adjacency.remote_node,
+                        i.adjacency.remote_address,
+                    )
+                    == (receiver, peer, session.remote_ip)
+                    or (
+                        i.adjacency.local_node,
+                        i.adjacency.remote_node,
+                        i.adjacency.local_address,
+                    )
+                    == (peer, receiver, session.remote_ip)
+                )
+            ]
+            name = f"benchmark-max-prefix-{receiver}"
+            # Losing the last session between two ASes makes their original
+            # direct exit choices impossible, even when transit preserves service.
+            alternatives = [
+                s
+                for s in env.bgp_plan.sessions
+                if s.session_type == "ebgp"
+                and (s.local_asn, s.remote_asn)
+                == (session.local_asn, session.remote_asn)
+                and (s.local_device, s.remote_device, s.local_ip, s.remote_ip)
+                != (receiver, peer, session.local_ip, session.remote_ip)
+            ]
+            lost_exits = (
+                tuple(
+                    f"{r.id}.{n.device_name}"
+                    for r in bgp_selections
+                    if (r.asn, r.candidates[0])
+                    in {
+                        (session.local_asn, session.remote_asn),
+                        (session.remote_asn, session.local_asn),
+                    }
+                    for n in env.bgp_plan.nodes
+                    if n.asn == r.asn
+                )
+                if session.session_type == "ebgp" and not alternatives
+                else ()
+            )
+            site = env.bgp_plan.customer_site
+            if site and {receiver, peer} == {site.provider, site.partner}:
+                (service,) = [
+                    o
+                    for o in env.bgp_plan.originated
+                    if o.ping_address == site.service_address
+                ]
+                lost_exits += (f"customer.{service.device}.{site.provider}",)
+            if not any(f.name == name for f in fault_checks):
+                fault_checks.append(
+                    RoutingFailureCheck(
+                        name=name,
+                        problem=case["problem"],
+                        params=case["inject"],
+                        restore_nodes=(receiver, peer),
+                        expected_failed_ids=tuple(
+                            sorted({i.id for i in paired} | set(lost_exits))
+                        ),
+                    )
+                )
+            continue
+        if case["problem"] != "ospf_area_misconfiguration":
+            continue
+        target = case["inject"]["host_name"]
+        removed = {
+            link.link_id
+            for link in links
+            if target in (link.endpoint_a, link.endpoint_b)
+        }
+        affected = with_paths(contract(removed), removed)
+        by_id = {i.id: i for i in affected.intents}
+        failed = sorted(
+            i.id
+            for i in with_paths(healthy).intents
+            if i.id not in by_id
+            or by_id[i.id].property == "isolation"
+            or i.route_next_hops != by_id[i.id].route_next_hops
+        )
+        name = "benchmark-area-" + target
+
+        config = nodes[target].frr_conf
+        old = (
+            "router ospf\n"
+            + config.split("router ospf\n", 1)[1].split("\n!", 1)[0]
+            + "\n"
+        )
+        statements = ospf_networks(old)
+        correct_area = statements[0][1]
+        wrong_area = "66" if correct_area != "66" else "99"
+        new = old
+        for prefix, area in statements:
+            if area == correct_area:
+                new = new.replace(
+                    f"network {prefix} area {area}\n",
+                    f"network {prefix} area {wrong_area}\n",
+                )
+        behavior = tuple(
+            r.model_copy(
+                update={
+                    "state_paths": {
+                        **r.state_paths,
+                        name: paths_to(r.paths[0][-1], removed),
+                    }
+                }
+            )
+            for r in behavior
+        )
+        if not any(f.name == name for f in fault_checks):
+            fault_checks.append(
+                RoutingFailureCheck(
+                    name=name,
+                    problem=case["problem"],
+                    params=case["inject"],
+                    restore_nodes=(target,),
+                    requirements=contract(removed),
+                    expected_failed_ids=tuple(failed),
+                    static_edits={target: (old, new)},
+                    changes=tuple(
+                        DesignChange(
+                            kind="interface_area",
+                            node=target,
+                            prefix=str(IPv4Network(prefix, strict=False)),
+                            area=wrong_area,
+                        )
+                        for prefix, area in statements
+                        if area == correct_area
+                    ),
+                )
+            )
+    # Removing one original loopback announcement isolates the return path while
+    # preserving link sessions. The expected failures come from prefix ownership.
+    withdrawal_anchor = min(node for node in nodes if len(component_for[node]) > 1)
+    target = min(component_for[withdrawal_anchor] - {withdrawal_anchor})
+    prefix = nodes[target].loopback + "/32"
+    destination_id = f"reach.{withdrawal_anchor}.{target}"
+    withdrawn_ids = tuple(
+        i.id
+        for i in with_paths(healthy).intents
+        if i.route_next_hops and i.route_next_hops.prefix == prefix
+    )
+    static_name, runtime_name = "missing-loopback-announcement", "loopback-withdrawal"
+    announcement = f"network {prefix} area 0.0.0.0"
+    old_announcement = " " + announcement
+    context = ("router ospf",)
+    # Both oracles evaluate echo request and reply from the same specification.
+    failed_ids = tuple(
+        sorted((destination_id, f"reach.{target}.{withdrawal_anchor}", *withdrawn_ids))
+    )
+    if env.bgp_plan:
+        # Withdrawing an iBGP transport loopback also destroys the sessions.
+        # Exercise business-prefix provenance independently of that transport.
+        originated = env.bgp_plan.originated[0]
+        target, prefix = originated.device, originated.prefix
+        static_name, runtime_name = (
+            "missing-business-announcement",
+            "business-withdrawal",
+        )
+        announcement = f"network {prefix}"
+        old_announcement = "  " + announcement
+        asn = next(
+            node.asn for node in env.bgp_plan.nodes if node.device_name == target
+        )
+        context = (f"router bgp {asn}", "address-family ipv4 unicast")
+
+        def uses_origin(entity):
+            return (
+                entity is not None
+                and entity.address is not None
+                and IPv4Network(entity.address, strict=False).subnet_of(
+                    IPv4Network(prefix)
+                )
+            )
+
+        failed_ids = tuple(
+            sorted(
+                i.id
+                for i in healthy.intents
+                if i.property == "reachability"
+                and (
+                    (i.source.name != target and uses_origin(i.destination))
+                    or uses_origin(i.source)
+                )
+            )
+        )
+    static_replacement = ""
+    withdrawal = ("no " + announcement,)
+    recovery = (announcement,)
+    if plan.igp == "isis" and not env.bgp_plan:
+        context = ("interface lo",)
+        old_announcement = f"interface lo\n ip address {prefix}\n ip router isis {ISIS_PROCESS}\n isis passive"
+        static_replacement = f"interface lo\n ip address {prefix}"
+        if sonic:
+            # SONiC keeps the loopback address in CONFIG_DB, not in FRR.
+            old_announcement = (
+                f"interface Loopback0\n ip router isis {ISIS_PROCESS}\n isis passive"
+            )
+            static_replacement = "interface Loopback0"
+        withdrawal = (f"no ip router isis {ISIS_PROCESS}",)
+        recovery = (f"ip router isis {ISIS_PROCESS}", "isis passive")
+    role_static, role_runtime = [], []
+    if env.bgp_mode == "ibgp_rr":
+        role = next(
+            i
+            for i in healthy.intents
+            if i.adjacency and i.adjacency.route_reflector_client
+        )
+        adjacency = role.adjacency
+        role_node, peer = adjacency.local_node, adjacency.remote_address
+        asn = adjacency.local_asn
+        role_static.append(
+            RoutingMutation(
+                name="missing-rr-client-role",
+                node=role_node,
+                old=f"  neighbor {peer} route-reflector-client",
+                new="",
+                changes=(DesignChange(kind="rr_client", node=role_node, peer=peer),),
+                expected_failed_ids=(role.id,),
+            )
+        )
+        role_runtime.append(
+            RoutingRuntimeMutation(
+                name="rr-client-role-withdrawal",
+                node=role_node,
+                commands=(
+                    "configure terminal",
+                    f"router bgp {asn}",
+                    "address-family ipv4 unicast",
+                    f"no neighbor {peer} route-reflector-client",
+                    "end",
+                ),
+                recovery=(
+                    "configure terminal",
+                    f"router bgp {asn}",
+                    "address-family ipv4 unicast",
+                    f"neighbor {peer} route-reflector-client",
+                    "end",
+                ),
+                expected_failed_ids=(role.id,),
+            )
+        )
+    frr_static = (old_announcement, static_replacement, list(role_static))
+    if srl:
+        # Mutate concrete native documents, retaining the original requirement IDs.
+        document = env.routing_documents[target]
+        if env.bgp_plan:
+            path = f"/routing-policy prefix-set BUSINESS prefix {prefix} mask-length-range {IPv4Network(prefix).prefixlen}..{IPv4Network(prefix).prefixlen}"
+            withdraw_native = ("enter candidate", f"delete {path}", "commit now")
+            recover_native = (
+                "enter candidate",
+                path,
+                "commit now",
+            )
+        else:
+            instance = document["srl_nokia-network-instance:network-instance"][0]
+            igp = instance["protocols"][f"srl_nokia-{plan.igp}:{plan.igp}"]["instance"][
+                0
+            ]
+            path = (
+                f"/network-instance default protocols {plan.igp} instance {igp['name']}"
+            )
+            if plan.igp == "ospf":
+                path += " area " + igp["area"][0]["area-id"]
+            path += " interface system0.0"
+            withdraw_native = ("enter candidate", f"delete {path}", "commit now")
+            recover_native = ("enter candidate", f"{path} passive true", "commit now")
+        role_runtime = []
+        if env.bgp_mode == "ibgp_rr":
+            role = next(
+                i
+                for i in healthy.intents
+                if i.adjacency and i.adjacency.route_reflector_client
+            )
+            local, peer = role.adjacency.local_node, role.adjacency.remote_address
+            path = f"/network-instance default protocols bgp neighbor {peer} route-reflector client"
+            role_runtime.append(
+                RoutingRuntimeMutation(
+                    name="rr-client-role-withdrawal",
+                    node=local,
+                    commands=("enter candidate", path + " false", "commit now"),
+                    recovery=("enter candidate", path + " true", "commit now"),
+                    expected_failed_ids=(role.id,),
+                )
+            )
+    elif vendor:
+        if env.device_profile == "iosxr":
+            if env.bgp_plan:
+                withdraw_native = (
+                    "configure terminal",
+                    *context,
+                    *withdrawal,
+                    "commit",
+                    "end",
+                )
+                recover_native = (
+                    "configure terminal",
+                    *context,
+                    *recovery,
+                    "commit",
+                    "end",
+                )
+            elif plan.igp == "isis":
+                context = (f"router isis {ISIS_PROCESS}",)
+                withdraw_native = (
+                    "configure terminal",
+                    *context,
+                    "no interface Loopback0",
+                    "commit",
+                    "end",
+                )
+                recover_native = (
+                    "configure terminal",
+                    *context,
+                    "interface Loopback0",
+                    "passive",
+                    "address-family ipv4 unicast",
+                    "commit",
+                    "end",
+                )
+            else:
+                context = ("router ospf CORE", "area 0")
+                withdraw_native = (
+                    "configure terminal",
+                    *context,
+                    "no interface Loopback0",
+                    "commit",
+                    "end",
+                )
+                recover_native = (
+                    "configure terminal",
+                    *context,
+                    "interface Loopback0",
+                    "passive enable",
+                    "commit",
+                    "end",
+                )
+        else:
+            config = env.deployment_configs[target]
+            if env.bgp_plan:
+                # NIKA's and netlab's renderings name the origin list differently.
+                origins = (
+                    "BGP-ORIGINS" if "list=BGP-ORIGINS " in config else "bgp-networks"
+                )
+                origin_entry = (
+                    f"/ip firewall address-list add list={origins} address={prefix}"
+                )
+                withdraw_native = (
+                    "/ip firewall address-list remove "
+                    f"[find where list={origins} and address={prefix}]",
+                )
+                recover_native = (origin_entry,)
+            else:
+                from nika.net_env.utils.routeros.common import routeros_interface
+
+                loopback = routeros_interface("lo")
+                template = next(
+                    line
+                    for line in config.splitlines()
+                    if re.match(
+                        rf"/routing[ /]{plan.igp}[ /]interface-template add ", line
+                    )
+                    and re.search(rf" interfaces?={loopback}(?: |$)", line)
+                )
+                withdraw_native = (
+                    f"/routing {plan.igp} interface-template remove "
+                    f"[find where interfaces={loopback}]",
+                )
+                # The loopback keeps its address; only its IGP circuit goes.
+                recover_native = (template,)
+        role_runtime = []
+        if env.bgp_mode == "ibgp_rr":
+            role = next(
+                i
+                for i in healthy.intents
+                if i.adjacency and i.adjacency.route_reflector_client
+            )
+            adjacency = role.adjacency
+            local, peer = adjacency.local_node, adjacency.remote_address
+            if env.device_profile == "iosxr":
+                context = (
+                    f"router bgp {adjacency.local_asn}",
+                    f"neighbor {peer}",
+                    "address-family ipv4 unicast",
+                )
+                remove_role = (
+                    "configure terminal",
+                    *context,
+                    "no route-reflector-client",
+                    "commit",
+                    "end",
+                )
+                restore_role = (
+                    "configure terminal",
+                    *context,
+                    "route-reflector-client",
+                    "commit",
+                    "end",
+                )
+            else:
+                command = (
+                    "/routing bgp connection set "
+                    f"[find where remote.address={peer}] local.role="
+                )
+                remove_role, restore_role = (command + "ibgp",), (command + "ibgp-rr",)
+            role_runtime.append(
+                RoutingRuntimeMutation(
+                    name="rr-client-role-withdrawal",
+                    node=local,
+                    commands=remove_role,
+                    recovery=restore_role,
+                    expected_failed_ids=(role.id,),
+                )
+            )
+    else:
+        withdraw_native = ("configure terminal", *context, *withdrawal, "end")
+        recover_native = ("configure terminal", *context, *recovery, "end")
+    # Static controls mutate the configuration Batfish analyzes: the deployed
+    # FRR or IOS XR text, or the design rendered by netlab for other platforms.
+    if analysis_device(env.device_profile, plan.igp) == "iosxr":
+        old_announcement, static_replacement, role_static = _iosxr_static_controls(
+            env, plan, healthy, frr_static[0]
+        )
+    else:
+        old_announcement, static_replacement, role_static = frr_static
+    completion = (IsisLevelCompletion if plan.igp == "isis" else OspfAreaCompletion)(
+        kind="isis_level" if plan.igp == "isis" else "ospf_area",
+        **({"level": 2} if plan.igp == "isis" else {"area": 0}),
+        routers=tuple(sorted(nodes)),
+        requirements=tuple(r.id for r in behavior),
+        parallel_links="equal_cost",
+    )
+    if bgp_selections:
+        # Selection requirements precede synthesis and remain the independent
+        # oracles for both concrete-config analysis and native execution.
+        behavior = (*behavior, *bgp_selections)
+        completion = (
+            completion,
+            BgpAsImportCompletion(
+                kind="bgp_as_imports",
+                requirements=tuple(r.id for r in bgp_selections),
+            ),
+        )
+        withdrawn_selections = tuple(
+            f"{r.id}.{n.device_name}"
+            for r in bgp_selections
+            if r.prefix == prefix
+            for n in env.bgp_plan.nodes
+            if n.asn == r.asn
+        )
+        failed_ids = tuple(sorted((*failed_ids, *withdrawn_selections)))
+    return ScenarioExperiment(
+        scenario=scenario,
+        routing_model=(
+            f"{env.device_profile}-isp"
+            if vendor
+            else "srl-isp"
+            if srl
+            else "sonic"
+            if sonic
+            else "frr-isis"
+            if plan.igp == "isis"
+            else "frr"
+        ),
+        solver_timeout_sec=900,
+        deployment=deployment,
+        healthy=healthy,
+        behavior=behavior,
+        completion=completion,
+        incidents=(
+            ScenarioIncident(
+                name="backbone-link-down",
+                host_name=declared_down["inject"]["host_name"]
+                if declared_down
+                else link.endpoint_a,
+                intf_name=declared_down["inject"]["intf_name"]
+                if declared_down
+                else (
+                    srl_e1_name(link.iface_a)
+                    if srl
+                    else clab_eth_name(link.iface_a)
+                    if sonic
+                    else link.iface_a
+                ),
+                requirements=contract({link.link_id}),
+            ),
+        ),
+        failure_checks=tuple(fault_checks),
+        counterexamples=(
+            RoutingMutation(
+                name=static_name,
+                node=target,
+                old=old_announcement,
+                new=static_replacement,
+                changes=(
+                    DesignChange(kind="withdraw_origin", node=target, prefix=prefix)
+                    if env.bgp_plan
+                    else DesignChange(
+                        kind="interface_area", node=target, prefix=prefix
+                    ),
+                ),
+                expected_failed_ids=failed_ids,
+            ),
+            *role_static,
+        ),
+        runtime_counterexamples=(
+            RoutingRuntimeMutation(
+                name=runtime_name,
+                node=target,
+                commands=withdraw_native,
+                recovery=recover_native,
+                expected_failed_ids=failed_ids,
+            ),
+            *role_runtime,
+        ),
+    )

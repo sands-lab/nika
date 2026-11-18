@@ -1,0 +1,21 @@
+#!/bin/sh
+# Reject commit subjects that are not Conventional Commits: type(scope): summary.
+# Enable once per clone: git config core.hooksPath scripts/git-hooks
+# CI runs the same check on pull request commits and titles.
+subject="$(grep -v '^#' "$1" | grep -m1 -v '^[[:space:]]*$')"
+
+types='feat|fix|docs|refactor|perf|test|chore|ci|build|revert'
+echo "$subject" | grep -Eq "^($types)(\([a-z0-9][a-z0-9_./-]*\))?!?: [^[:space:]]" && exit 0
+# Subjects git writes for local merges and autosquash fixups.
+echo "$subject" | grep -Eq "^Merge (branch|branches|remote-tracking branch|tag|commit) '" && exit 0
+echo "$subject" | grep -Eq '^(fixup|squash|amend)! ' && exit 0
+
+cat >&2 <<EOF
+commit-msg: subject is not a Conventional Commit:
+  $subject
+
+Use: type(scope): imperative summary
+  type is one of: $(echo "$types" | sed 's/|/, /g')
+  scope is optional, lowercase, e.g. fix(benchmark): resolve serial batching race
+EOF
+exit 1

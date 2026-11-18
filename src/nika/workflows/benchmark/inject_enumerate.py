@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from nika.problems.support.benchmark_targets import unique as _unique
+from nika.problems.support.benchmark_targets import (
+    unique as _unique,
+    workload_exercises,
+)
 from nika.workflows.benchmark.inject_resolve import (
     DEFAULT_SEED,
     _benchmark_problem_class,
@@ -35,4 +38,8 @@ def enumerate_inject_params(
         net_env=net_env,
     )
     problem_cls = _benchmark_problem_class(problem)
-    return _unique(problem_cls.benchmark_inject_options(ctx, base))
+    return [
+        option
+        for option in _unique(problem_cls.benchmark_inject_options(ctx, base))
+        if workload_exercises(problem_cls, net_env, option)
+    ]

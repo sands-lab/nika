@@ -15,6 +15,8 @@ cur_path = os.path.dirname(os.path.abspath(__file__))
 
 class P4BloomFilter(NetworkEnvBase):
     LAB_NAME = "p4_bloom_filter"
+    # Keep the published 0.1.0 lab state; its faults re-run /hostlab startups.
+    SEAL_BASELINE = False
     TOPO_LEVEL = "easy"
     TOPO_SIZE = None
     TAGS = ["link", "pc", "p4", "mac", "arp", "icmp", "bloom_filter"]

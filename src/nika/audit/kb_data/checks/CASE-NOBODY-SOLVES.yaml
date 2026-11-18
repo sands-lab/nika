@@ -1,0 +1,24 @@
+id: CASE-NOBODY-SOLVES
+title: No configuration solves a case
+class: fault_not_realized
+role: lead
+severity: warn
+status: open
+summary: Every trial of a fault case scores 0 across this submission and earlier ones.
+guideline: 'Triage into B (no symptom during the run), C (symptom hidden from tools), D (label indistinguishable),
+  or A (genuinely hard). Use the case''s audit record (docs/benchmarks/benchmark-audit.md) and the trials''
+  tool outputs: did any output show the symptom? A case near 0 for every model is a benchmark lead, not
+  a capability result. For B, check that always-on business traffic crosses the fault (the same traffic
+  in healthy and faulted cases) and that the fault has a real victim: a hijack must take a prefix someone
+  announces, max-prefix must strand a site, a capacity limit must sit on a loaded link, incast needs fan-in
+  traffic.'
+detect:
+- kind: metric
+  metric: case_fail_rate
+  threshold: 1.0
+  min_trials: 6
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

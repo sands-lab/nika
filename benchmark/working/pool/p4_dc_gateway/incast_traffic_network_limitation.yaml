@@ -4,8 +4,10 @@ failure:
   fault_type: incast_traffic_network_limitation
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      duration: '3600'
       host_name: service_1_1
       observer_device: client_1
       probe_dst_ip: 10.0.1.11
@@ -16,8 +18,10 @@ failure:
         name: eth2
       fault_type: incast_traffic_network_limitation
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      duration: '3600'
       host_name: service_1_1
       observer_device: client_1
       probe_dst_ip: 10.0.1.11
@@ -28,8 +32,10 @@ failure:
         name: eth4
       fault_type: incast_traffic_network_limitation
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      duration: '3600'
       host_name: service_1_1
       observer_device: client_1
       probe_dst_ip: 10.0.1.11

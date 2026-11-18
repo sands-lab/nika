@@ -1,0 +1,20 @@
+scenario:
+  name: isp_geant_ebgp_rpki
+failure:
+  fault_type: ospf_network_type_mismatch
+  cases:
+  - topo_size: m
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: fr1_fr
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: fr1_fr
+        name: eth3
+      fault_type: ospf_network_type_mismatch

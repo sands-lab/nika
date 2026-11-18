@@ -31,10 +31,10 @@ struct headers {
     ipv4_t     ipv4;
 }
 
-parser BlackholeParser(packet_in packet,
-                       out headers hdr,
-                       inout metadata meta,
-                       inout standard_metadata_t standard_metadata) {
+parser MyParser(packet_in packet,
+                out headers hdr,
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
     state start {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
@@ -48,46 +48,57 @@ parser BlackholeParser(packet_in packet,
     }
 }
 
-control BlackholeVerifyChecksum(inout headers hdr, inout metadata meta) {
+control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
     apply { }
 }
 
-control BlackholeIngress(inout headers hdr,
-                         inout metadata meta,
-                         inout standard_metadata_t standard_metadata) {
-    @name("drop")
+control MyIngress(inout headers hdr,
+                  inout metadata meta,
+                  inout standard_metadata_t standard_metadata) {
     action drop() {
         mark_to_drop(standard_metadata);
     }
 
-    @name("drop_all")
-    table drop_all {
+    action ipv4_forward(bit<48> dstAddr, bit<9> port) {
+        standard_metadata.egress_spec = port;
+        hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
+        hdr.ethernet.dstAddr = dstAddr;
+        hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+    }
+
+    table ipv4_lpm {
         key = {
             hdr.ipv4.dstAddr: lpm;
         }
         actions = {
+            ipv4_forward;
             drop;
+            NoAction;
         }
-        size = 8;
+        size = 1024;
         default_action = drop();
     }
 
     apply {
-        drop_all.apply();
+        if (hdr.ipv4.isValid()) {
+            ipv4_lpm.apply();
+        } else {
+            drop();
+        }
     }
 }
 
-control BlackholeEgress(inout headers hdr,
-                        inout metadata meta,
-                        inout standard_metadata_t standard_metadata) {
+control MyEgress(inout headers hdr,
+                 inout metadata meta,
+                 inout standard_metadata_t standard_metadata) {
     apply { }
 }
 
-control BlackholeComputeChecksum(inout headers hdr, inout metadata meta) {
+control MyComputeChecksum(inout headers hdr, inout metadata meta) {
     apply { }
 }
 
-control BlackholeDeparser(packet_out packet, in headers hdr) {
+control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4);
@@ -95,10 +106,10 @@ control BlackholeDeparser(packet_out packet, in headers hdr) {
 }
 
 V1Switch(
-    BlackholeParser(),
-    BlackholeVerifyChecksum(),
-    BlackholeIngress(),
-    BlackholeEgress(),
-    BlackholeComputeChecksum(),
-    BlackholeDeparser()
+    MyParser(),
+    MyVerifyChecksum(),
+    MyIngress(),
+    MyEgress(),
+    MyComputeChecksum(),
+    MyDeparser()
 ) main;

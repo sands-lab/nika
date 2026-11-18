@@ -7,6 +7,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from agent.runtime.contract import MESSAGES_FILENAME
 from nika.config import RESULTS_DIR
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.problems.registry import get_problem_class
@@ -18,7 +19,6 @@ EVAL_METRICS_FILENAME = "eval_metrics.json"
 GROUND_TRUTH_FILENAME = "ground_truth.json"
 SUBMISSION_FILENAME = "submission.json"
 LLM_JUDGE_FILENAME = "llm_judge.json"
-MESSAGES_FILENAME = "messages.jsonl"
 
 SUMMARY_REQUIRED_ARTIFACTS = (
     RUN_FILENAME,

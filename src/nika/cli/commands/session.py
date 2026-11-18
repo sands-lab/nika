@@ -233,10 +233,14 @@ def session_close(
 
     The Kathará lab is undeployed, all failure records are marked ended,
     the runtime workdir is removed when present, and the runtime session
-    file is removed. Use ``nika session wipe`` to close every running session
-    and remove leftover Kathara, Containerlab, and runtime resources.
+    file is removed. A trial of a release that pins a benchmark engine is
+    torn down by that engine, started again from the image its run recorded.
+    Use ``nika session wipe`` to close every running session and remove
+    leftover Kathara, Containerlab, and runtime resources.
     """
-    from nika.workflows.session.close import close_session
+    from nika.benchmark_engine import stop_recorded_trial
+    from nika.utils.session_store import SessionStore
+    from nika.workflows.session.close import close_session, load_session_meta_for_close
 
     label = session_id if session_id else "the active session"
     if not yes:
@@ -248,7 +252,18 @@ def session_close(
             raise typer.Abort()
 
     try:
-        close_session(session_id=session_id)
+        store = SessionStore()
+        if session_id is None and store.list_running_sessions():
+            session_id = store.get_unique_running_session()["session_id"]
+        trial_dir = None
+        if session_id is not None:
+            try:
+                meta = load_session_meta_for_close(session_id, store=store)
+                trial_dir = meta.get("session_dir")
+            except FileNotFoundError:
+                pass  # close_session reports the unknown session.
+        if session_id is None or not stop_recorded_trial(session_id, trial_dir):
+            close_session(session_id=session_id)
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
 
@@ -264,10 +279,12 @@ def session_wipe(
     """Close all running sessions and wipe leftover lab resources.
 
     Every running session is closed (lab undeployed, failure records ended,
-    runtime workdir removed, runtime session file removed). Also runs
-    ``kathara wipe``, ``clab destroy --all``, and removes leftover files
-    under ``runtime/`` when session files are missing.
+    runtime workdir removed, runtime session file removed); trials of a
+    release that pins a benchmark engine close through that engine first.
+    Also runs ``kathara wipe``, ``clab destroy --all``, and removes leftover
+    files under ``runtime/`` when session files are missing.
     """
+    from nika.benchmark_engine import stop_recorded_trial
     from nika.utils.session_store import SessionStore
     from nika.workflows.session.close import close_session
 
@@ -283,6 +300,11 @@ def session_wipe(
         )
         if not confirmed:
             raise typer.Abort()
+    for row in running:
+        try:
+            stop_recorded_trial(str(row["session_id"]), row.get("session_dir"))
+        except Exception as exc:  # noqa: BLE001 - the wipe below still runs
+            typer.echo(f"WARNING: could not close {row['session_id']}: {exc}")
     try:
         close_session(stop_all=True)
     except ValueError as exc:

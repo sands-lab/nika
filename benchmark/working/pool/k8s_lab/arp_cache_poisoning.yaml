@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: arp_cache_poisoning
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: client
     root_causes:
     - resource:

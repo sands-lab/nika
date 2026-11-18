@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from starlette.testclient import TestClient
@@ -17,12 +17,90 @@ from nika.remote.config import (
     RemoteConfig,
     is_remote_enabled,
 )
-from nika.remote.handlers import handle_env_start
-from nika.remote.protocol import EnvStartRequest, EnvStartResponse
+from nika.remote.handlers import handle_env_start, handle_failure_inject
+from nika.remote.protocol import (
+    EnvStartRequest,
+    EnvStartResponse,
+    FailureInjectRequest,
+)
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize(
+    ("restore", "bound", "history"),
+    [
+        (True, False, False),
+        (False, True, True),
+        (True, True, False),
+        (True, False, True),
+    ],
+)
+def test_rebind_recovers_protocols_and_preserves_injected_snapshots(
+    tmp_path, restore, bound, history
+):
+    from nika.remote import handlers
+    from nika.remote.protocol import SessionRebindRequest
+    from nika.utils.session_store import SessionStore
+
+    store = SessionStore(tmp_path / "sessions", tmp_path / "sessions.db")
+    original = tmp_path / "image"
+    original.mkdir()
+    store.create_session(
+        {
+            "session_id": "image",
+            "session_dir": str(original),
+            "failure_injections": [{"fault": "injected"}] if history else [],
+        }
+    )
+    env = MagicMock()
+    env.post_restore.return_value = True
+    binding = (object(), object()) if bound else None
+    with (
+        patch.object(handlers, "SessionStore", return_value=store),
+        patch.object(handlers, "Session"),
+        patch.object(handlers, "bound_injected_problem", return_value=binding),
+        patch.object(handlers, "bind_injected_problem"),
+        patch.object(handlers, "clear_injected_problem"),
+        patch.object(handlers, "bind_session_dir"),
+        patch.object(handlers, "log_event"),
+        patch("nika.workflows.session.close.session_net_env", return_value=env),
+    ):
+        request = SessionRebindRequest(session_id="trial", restore_runtime=restore)
+        result = handlers.handle_session_rebind("image", request)
+        assert result.session_id == "trial"
+        assert result.session["runtime_restored"] is restore
+        assert (tmp_path / "trial").is_dir()
+        assert not original.exists()
+        assert store.get_session("trial")["failure_injections"] == (
+            [{"fault": "injected"}] if history else []
+        )
+        with pytest.raises(FileNotFoundError):
+            store.get_session("image")
+    assert env.post_restore.call_count == int(restore)
+
+
+@pytest.mark.parametrize("restored", [False, True])
+def test_recovered_protocols_require_complete_verification(restored):
+    from nika.remote import handlers
+
+    env = object()
+    with (
+        patch.object(handlers, "SessionStore") as store,
+        patch.object(handlers, "bind_session_dir"),
+        patch.object(handlers, "log_event"),
+        patch("nika.workflows.session.close.session_net_env", return_value=env),
+        patch("nika.net_env.verify.verify_lab_with_retry", return_value={}) as verify,
+    ):
+        store.return_value.get_session.return_value = {
+            "status": "running",
+            "session_dir": "/owned",
+            "runtime_restored": restored,
+        }
+        handlers.handle_session_verify("owned")
+    verify.assert_called_once_with(env, full=restored)
 
 
 @pytest.fixture(autouse=True)
@@ -78,6 +156,45 @@ def test_pack_unpack_session_dir(tmp_path: Path) -> None:
     assert (dest / "nested" / "gt.json").is_file()
 
 
+def test_unpack_keeps_local_log_lines(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "nika.jsonl").write_text('{"e":"env_start"}\n{"e":"inject"}\n')
+    (src / "run.json").write_text('{"v":2}')
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    # The agent host already pulled env_start and logged its own agent_start.
+    (dest / "nika.jsonl").write_text('{"e":"env_start"}\n{"e":"agent_start"}\n')
+    (dest / "run.json").write_text('{"v":1}')
+
+    unpack_session_dir(pack_session_dir(src), dest)
+
+    assert (dest / "nika.jsonl").read_text().splitlines() == [
+        '{"e":"env_start"}',
+        '{"e":"agent_start"}',
+        '{"e":"inject"}',
+    ]
+    assert (dest / "run.json").read_text() == '{"v":2}'
+
+
+def test_mcp_attach_serves_the_session_backend() -> None:
+    from nika.remote import handlers
+    from nika.remote.protocol import McpAttachRequest
+
+    meta = {"status": "running", "scenario_name": "isp_pdh", "backend": "containerlab"}
+    state = handlers.RemoteHandlerState()
+    with (
+        patch.object(handlers, "SessionStore") as store,
+        patch.object(handlers, "get_handler_state", return_value=state),
+        patch.object(state, "attach_gateway") as attach,
+    ):
+        store.return_value.get_session.return_value = meta
+        handlers.handle_mcp_attach("s1", McpAttachRequest())
+    # Without the backend, a multi-backend scenario falls back to Kathara's
+    # MCP servers and the agent's Containerlab tools are missing.
+    assert attach.call_args.kwargs["backend"] == "containerlab"
+
+
 def test_handle_env_start_logs(caplog: pytest.LogCaptureFixture) -> None:
     with (
         caplog.at_level(logging.INFO, logger="nika.remote"),
@@ -110,6 +227,59 @@ def test_handle_env_start_forwards_static_validation() -> None:
             EnvStartRequest(scenario="isp_abilene", static_validation=True)
         )
     assert start.call_args.kwargs["static_validation"] is True
+
+
+def test_remote_inject_checks_benchmark_root_causes() -> None:
+    """A remote lab enforces the benchmark root causes as a local inject does."""
+    expected = [{"resource": {"kind": "node", "node": "r1"}, "fault_type": "x"}]
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=True),
+        patch("nika.remote.workflows.remote_inject_failure") as remote,
+    ):
+        from nika.workflows.failure.inject import inject_failure
+
+        inject_failure(["x"], session_id="s1", expected_root_causes=expected)
+    assert remote.call_args.kwargs["expected_root_causes"] == expected
+    with (
+        patch("nika.remote.handlers.inject_failure") as inject,
+        patch(
+            "nika.remote.handlers.session_public_dict",
+            return_value={"session_id": "s1"},
+        ),
+    ):
+        handle_failure_inject(
+            FailureInjectRequest(
+                session_id="s1", problem_names=["x"], expected_root_causes=expected
+            )
+        )
+    assert inject.call_args.kwargs["expected_root_causes"] == expected
+
+
+def test_remote_failure_inject_accepts_multi_fault_overrides() -> None:
+    overrides = {
+        "wireguard_peer_key_misconfiguration": {
+            "host_name": "br1_edge",
+            "intf_name": "wg_hq_b",
+        },
+        "link_down": {"host_name": "isp1_core", "intf_name": "eth2"},
+    }
+    with (
+        patch("nika.remote.handlers.inject_failure") as inject,
+        patch(
+            "nika.remote.handlers.session_public_dict",
+            return_value={"session_id": "s1"},
+        ),
+    ):
+        handle_failure_inject(
+            FailureInjectRequest.model_validate(
+                {
+                    "session_id": "s1",
+                    "problem_names": list(overrides),
+                    "param_overrides": overrides,
+                }
+            )
+        )
+    assert inject.call_args.kwargs["param_overrides"] == overrides
 
 
 def test_remote_app_health_no_auth() -> None:
@@ -176,12 +346,29 @@ def test_remote_client_rewrites_gateway_host(
             "session_id": "s1",
             "gateway_port": 9555,
             "gateway_base_url": "http://0.0.0.0:9555",
+            "phase_token": "phase-secret",
+            "session_token": "session-secret",
         }
 
     monkeypatch.setattr(client, "_request", fake_request)
     attach = client.mcp_attach("s1", public_host="lab.example")
     assert attach.gateway_base_url == "http://lab.example:9555"
     assert attach.gateway_port == 9555
+    # The remote gateway rejects phase advances and MCP calls without these.
+    assert attach.phase_token == "phase-secret"
+    assert attach.session_token == "session-secret"
+
+
+def test_remote_gateway_token_reaches_mcp_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from nika.agents.mcp_config import session_http_headers
+
+    # The remote server's gateway holds the session; its attach response
+    # token is exported for local MCP clients.
+    monkeypatch.setenv("NIKA_MCP_GATEWAY_SESSION_TOKEN", "remote-token")
+    headers = session_http_headers("remote-sess")
+    assert headers["X-Session-Token"] == "remote-token"
 
 
 def test_start_net_env_remote_branch() -> None:
@@ -198,6 +385,100 @@ def test_start_net_env_remote_branch() -> None:
 
 
 def test_mcp_policy_resource_from_url() -> None:
-    from agent.sandbox.sbx.policy import mcp_policy_resource_from_url
+    from nika.agents.sandbox.sbx.policy import mcp_policy_resource_from_url
 
     assert mcp_policy_resource_from_url("http://10.1.2.3:9444/mcp") == "10.1.2.3:9444"
+
+
+def test_session_log_reads_complete_lines_from_offset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.remote import handlers
+
+    log = tmp_path / "nika.jsonl"
+    log.write_text('{"e":1}\n{"e":2}\n{"e":3', encoding="utf-8")
+
+    monkeypatch.setattr(handlers, "_session_dir", lambda session_id: str(tmp_path))
+    first = handlers.handle_session_log("s1", "nika.jsonl", 0)
+    # The partially written third line is held back.
+    assert first.data == '{"e":1}\n{"e":2}\n'
+    assert handlers.handle_session_log("s1", "nika.jsonl", first.offset).data == ""
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write("}\n")
+    assert handlers.handle_session_log("s1", "nika.jsonl", first.offset).data == (
+        '{"e":3}\n'
+    )
+    # An offset past the end means the file was replaced: read it again.
+    assert (
+        handlers.handle_session_log("s1", "nika.jsonl", 10**6).offset
+        == log.stat().st_size
+    )
+    with pytest.raises(ValueError):
+        handlers.handle_session_log("s1", "../run.json", 0)
+
+
+def test_log_follower_appends_each_remote_line_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.remote import workflows
+    from nika.remote.protocol import SessionLogResponse
+
+    remote = {"nika.jsonl": '{"e":"env_start"}\n{"e":"inject"}\n', "messages.jsonl": ""}
+
+    class Client:
+        def read_log(self, session_id, name, offset):
+            data = remote[name][offset:]
+            return SessionLogResponse(
+                data=data, offset=offset + len(data), server_time=0.0
+            )
+
+    # The local mirror already holds a pulled line and a local agent event.
+    (tmp_path / "nika.jsonl").write_text('{"e":"env_start"}\n{"e":"agent_start"}\n')
+    follower = workflows.RemoteLogFollower(Client(), "s1", tmp_path)
+    follower.poll()
+    follower.poll()
+    remote["messages.jsonl"] += '{"event":"diagnosis_frozen","origin":"remote"}\n'
+    follower.poll()
+
+    assert (tmp_path / "nika.jsonl").read_text().splitlines() == [
+        '{"e":"env_start"}',
+        '{"e":"agent_start"}',
+        '{"e":"inject"}',
+    ]
+    assert "diagnosis_frozen" in (tmp_path / "messages.jsonl").read_text()
+    assert follower.clock_offset_sec is not None
+
+
+def test_attach_preserves_controller_policy_and_budget():
+    from nika.remote.protocol import McpAttachRequest
+    from nika.remote import handlers
+    from nika.benchmark_engine.protocol import AgentAccess
+
+    policy = AgentAccess.model_validate(
+        {
+            "role": "observer",
+            "policy": {"tools": ["run_pingmesh_snapshot"]},
+        }
+    )
+    request = McpAttachRequest(
+        access=policy, tool_call_limits={"diagnosis": 1, "submission": 2}
+    )
+    state = handlers.RemoteHandlerState()
+    with (
+        patch.object(handlers, "SessionStore") as store,
+        patch.object(handlers, "get_handler_state", return_value=state),
+        patch.object(state, "attach_gateway") as attach,
+    ):
+        store.return_value.get_session.return_value = {
+            "status": "running",
+            "scenario_name": "dc_clos",
+            "backend": "kathara",
+        }
+        handlers.handle_mcp_attach("session", request)
+    assert attach.call_args.kwargs["access"] == policy
+    assert attach.call_args.kwargs["tool_call_limits"] == {
+        "diagnosis": 1,
+        "submission": 2,
+    }
+    with pytest.raises(ValueError):
+        McpAttachRequest(tool_call_limits={"diagnosis": -1})

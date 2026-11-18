@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+# IS-IS process tag of ISP routers; neutral, since agents read device configs.
+ISIS_PROCESS = "CORE"
+
 if TYPE_CHECKING:
     from nika.net_env.isp.igp.plan import PlannedInterface, PlannedNode
 
@@ -45,34 +48,30 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
         "!",
         "interface lo",
         f" ip address {node.loopback}/32",
-        " ip router isis NIKA",
+        f" ip router isis {ISIS_PROCESS}",
+        " isis passive",
         "!",
     ]
+    # isisd has no ``passive-interface`` router command (it silently drops
+    # it), so passive edge and inter-AS links use ``isis passive``.
     for iface in interfaces:
         lines.extend(
             [
                 f"interface {iface.name}",
                 f" ip address {iface.address}/{iface.prefixlen}",
-                " ip router isis NIKA",
+                f" ip router isis {ISIS_PROCESS}",
                 " isis circuit-type level-2-only",
                 f" isis metric {iface.metric}",
+                *([" isis passive"] if iface.passive else []),
                 "!",
             ]
         )
     lines.extend(
         [
-            "router isis NIKA",
+            f"router isis {ISIS_PROCESS}",
             f" net {net}",
             " is-type level-2-only",
             " metric-style wide",
-            " passive-interface lo",
-        ]
-    )
-    for iface in interfaces:
-        if iface.passive:
-            lines.append(f" passive-interface {iface.name}")
-    lines.extend(
-        [
             "!",
             "log file /var/log/frr/frr.log",
             "!",

@@ -13,12 +13,18 @@ from Kathara.manager.Kathara import Kathara, Lab
 from Kathara.model.Machine import Machine
 
 from nika.runtime.shared.execution import merge_exec_output
+from nika.runtime.shared.containers import isolated_container_pid
 from nika.runtime.spec import MachineInventory, NodeRole
 from nika.service.kathara.docker_utils import link_members, link_neighbors
 from nika.service.lab.reachability import PingReachabilityMixin
-from nika.service.lab.semantic_mixin import SemanticOpsMixin
+from nika.service.lab.semantic_mixin import VM_MGMT_IFACES, SemanticOpsMixin
 from nika.service.lab.tc_api import TCMixin
-from nika.service.shell import ShellResolver, iperf_server_commands, ping_exec_timeout
+from nika.service.shell import (
+    ShellResolver,
+    curl_web_test_command,
+    iperf_server_commands,
+    ping_exec_timeout,
+)
 
 # systemctl start/stop/restart return once the job is queued or done; poll
 # the unit state for up to this long instead of sleeping a fixed 5 s.
@@ -60,6 +66,17 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
 
     def __init__(self, lab_name: str, *, session_meta: dict | None = None):
         self.instance = Kathara.get_instance()
+        if session_meta is None:
+            from nika.utils.session_store import SessionStore
+
+            store = SessionStore()
+            matches = [
+                row
+                for row in store.list_running_sessions()
+                if row.get("lab_name") == lab_name
+            ]
+            if len(matches) == 1:
+                session_meta = store.get_session(str(matches[0]["session_id"]))
         try:
             self.lab = self.instance.get_lab_from_api(lab_name=lab_name)
         except KeyError:
@@ -72,17 +89,6 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
         if self.lab is None:
             raise ValueError(f"Lab {lab_name} not found.")
         self._shell = ShellResolver()
-        if session_meta is None:
-            from nika.utils.session_store import SessionStore
-
-            store = SessionStore()
-            matches = [
-                row
-                for row in store.list_running_sessions()
-                if row.get("lab_name") == lab_name
-            ]
-            if len(matches) == 1:
-                session_meta = store.get_session(str(matches[0]["session_id"]))
         raw_identities = ((session_meta or {}).get("metadata") or {}).get(
             "machine_identities"
         )
@@ -212,12 +218,13 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
         cmd = "ip -j addr"
         # checked: a slow container right after deploy must retry, not hand a
         # "[TIMEOUT] ..." string to json.loads below.
-        result = self.exec_cmd_checked(host_name, cmd)
-
-        if isinstance(result, list):
-            output = "\n".join(result)
-        else:
-            output = result
+        # A successful address read is JSON even when no address is assigned.
+        # Retry one empty exec response before treating it as a parsing failure.
+        for _ in range(2):
+            result = self.exec_cmd_checked(host_name, cmd)
+            output = "\n".join(result) if isinstance(result, list) else result
+            if output.strip():
+                break
 
         try:
             ifaces = json.loads(output)
@@ -245,6 +252,8 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
                     return format_ip(ip, prefix)
 
         for link in ifaces:
+            if link.get("ifname") in VM_MGMT_IFACES:
+                continue
             for addr in link.get("addr_info", []):
                 if addr.get("family") != "inet":
                     continue
@@ -282,6 +291,11 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
         (``nika.mcp.tool_output_*``), not here.
         """
         try:
+            isolated_container_pid(
+                self.instance.get_machine_api_object(
+                    machine_name=host_name, lab_name=self.lab.name
+                )
+            )
             # stream=False returns (stdout, stderr, exit_code).
             stdout, stderr, _ = self.instance.exec(
                 machine_name=host_name,
@@ -434,16 +448,7 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
         """
         Perform a curl web test to a URL for several times and return timing statistics.
         """
-        command = (
-            f"curl --connect-timeout 5 --max-time 10 "
-            f"-w 'namelookup:%{{time_namelookup}}, "
-            f"connect:%{{time_connect}}, "
-            f"appconnect:%{{time_appconnect}}, "
-            f"pretransfer:%{{time_pretransfer}}, "
-            f"starttransfer:%{{time_starttransfer}}, "
-            f"total:%{{time_total}}\\n' "
-            f"-o /dev/null -s {url}"
-        )
+        command = curl_web_test_command(url)
         res = ""
         for _ in range(times):
             res += self.exec_cmd(host_name, command) + "\n"
