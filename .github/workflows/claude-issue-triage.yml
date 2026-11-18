@@ -1,23 +1,35 @@
 name: Claude Issue Triage
 
 # The agent has a shell and reads the issue as untrusted input. It runs when a
-# repository admin opens an issue or edits its body; other issues run only after
-# an admin adds the `triage` label, and again each time it is re-added.
+# repository admin opens an issue or edits its title or body; other issues run
+# only after an admin adds the `triage` label, and again each time it is re-added.
+# An approval covers the issue as it stands then, comments included; the agent
+# sees only that version.
 on:
   issues:
     types: [opened, edited, labeled]
+
+env:
+  # Changes to the issue text: creation, the last body edit, and the last rename.
+  # Title edits do not update lastEditedAt, so renames are read separately.
+  ISSUE_CHANGES: >-
+    def changes: [{at: .createdAt, by: (.author.login // "ghost")}]
+    + (if .lastEditedAt then [{at: .lastEditedAt, by: (.editor.login // "ghost")}] else [] end)
+    + [.timelineItems.nodes[] | {at: .createdAt, by: (.actor.login // "ghost")}];
 
 jobs:
   gate:
     if: >-
       github.event.action == 'opened' ||
-      (github.event.action == 'edited' && github.event.changes.body) ||
+      (github.event.action == 'edited' && (github.event.changes.body || github.event.changes.title)) ||
       (github.event.action == 'labeled' && github.event.label.name == 'triage')
     runs-on: ubuntu-latest
     permissions:
       issues: write
     outputs:
       run: ${{ steps.check.outputs.run }}
+      # Edits up to this time are approved; the triage job rechecks it.
+      approved_at: ${{ steps.check.outputs.approved_at }}
     steps:
       - id: check
         env:
@@ -34,26 +46,37 @@ jobs:
             if [ "$ACTION" = labeled ]; then
               gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label triage
             fi
-            run=false
-          elif [ "$ACTION" = labeled ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The latest change to the title or body, and everyone who made a change then.
+          latest=$(gh api graphql -F n="$ISSUE" -f o="${GITHUB_REPOSITORY%/*}" -f r="${GITHUB_REPOSITORY#*/}" \
+            -f query='query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { issue(number: $n) { createdAt author { login } lastEditedAt editor { login } timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 1) { nodes { ... on RenamedTitleEvent { createdAt actor { login } } } } } } }' \
+            --jq "$ISSUE_CHANGES"' .data.repository.issue | changes | (map(.at) | max) as $t | "\($t) \([.[] | select(.at == $t) | .by] | unique | join(","))"')
+          read -r changed_at changed_by <<<"$latest"
+          if [ "$ACTION" = labeled ]; then
             # The author may have changed the text after approval; ask for a fresh
             # approval in that case.
-            labeled_at=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE/events" \
+            approved_at=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE/events" \
               --jq '.[] | select(.event == "labeled" and .label.name == "triage") | .created_at' | tail -n 1)
-            edited_at=$(gh api graphql -F n="$ISSUE" -f o="${GITHUB_REPOSITORY%/*}" -f r="${GITHUB_REPOSITORY#*/}" \
-              -f query='query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { issue(number: $n) { lastEditedAt } } }' \
-              --jq '.data.repository.issue.lastEditedAt // ""')
-            if [[ -n "$edited_at" && "$edited_at" > "$labeled_at" ]]; then
-              echo "::notice::Issue edited at $edited_at, after the triage label; re-add the label to approve the new text."
+            if [[ "$changed_at" > "$approved_at" ]]; then
+              echo "::notice::Issue changed at $changed_at, after the triage label; re-add the label to approve the new text."
               gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label triage
               run=false
             else
               run=true
             fi
-          else
+          elif [ "$changed_by" = "$SENDER" ]; then
+            # The admin wrote the current text, opening or editing it.
+            approved_at=$changed_at
             run=true
+          else
+            # Someone else changed the text after this event; that change runs its own gate.
+            echo "::notice::$changed_by changed the issue after $SENDER; the triage does not run on text an admin did not write or approve."
+            run=false
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "approved_at=${approved_at:-}" >> "$GITHUB_OUTPUT"
 
   triage:
     name: Claude Issue Triage
@@ -95,7 +118,48 @@ jobs:
       # The prompt invokes this plugin's skill; fail here rather than triage without it.
       - name: Check triage skill
         run: test -f .github/claude/nika-issue-triage/skills/issue-triage/SKILL.md
-      - uses: anthropics/claude-code-action@v1
+      # The issue can change after the gate approved it, during the install above or
+      # between a failed attempt and its rerun. Read the text, its comments, and their
+      # change times in one query, and give the agent this snapshot rather than the
+      # live issue: only comments written and last edited by the approval are kept.
+      - name: Snapshot approved issue
+        id: snapshot
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          APPROVED_AT: ${{ needs.gate.outputs.approved_at }}
+          # Untracked file in the checkout, which the agent can read.
+          SNAPSHOT: approved-issue.json
+          FILTER: >-
+            .data.repository.issue as $i
+            | ($i | changes | map(.at) | max) as $changed
+            | if $changed > $ENV.APPROVED_AT then "stale \($changed)"
+              else [$i.comments.nodes[]
+                    | select(.createdAt <= $ENV.APPROVED_AT and (.lastEditedAt // .createdAt) <= $ENV.APPROVED_AT)
+                    | {author: (.author.login // "ghost"), createdAt, body}] as $comments
+              | {number: $i.number, title: $i.title, author: ($i.author.login // "ghost"), body: $i.body,
+                 comments: $comments, unapproved_comments: ($i.comments.totalCount - ($comments | length))}
+              | tojson end
+        run: |
+          if [ -z "$APPROVED_AT" ]; then
+            echo "::error::The gate recorded no approval time."
+            exit 1
+          fi
+          snapshot=$(gh api graphql -F n="$ISSUE" -f o="${GITHUB_REPOSITORY%/*}" -f r="${GITHUB_REPOSITORY#*/}" \
+            -f query='query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { issue(number: $n) { number title body createdAt author { login } lastEditedAt editor { login } timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 1) { nodes { ... on RenamedTitleEvent { createdAt actor { login } } } } comments(first: 100) { totalCount nodes { author { login } body createdAt lastEditedAt } } } } }' \
+            --jq "$ISSUE_CHANGES $FILTER")
+          if [[ "$snapshot" == stale* ]]; then
+            echo "::notice::Issue changed at ${snapshot#stale }, after its approval at $APPROVED_AT; the new text needs a fresh approval."
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s\n' "$snapshot" > "$SNAPSHOT"
+          # The agent updates this comment, so it never lists the live comments.
+          comment=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- nika-issue-triage -->"))) | .id' | tail -n 1)
+          echo "triage_comment=$comment" >> "$GITHUB_OUTPUT"
+          echo "current=true" >> "$GITHUB_OUTPUT"
+      - if: steps.snapshot.outputs.current == 'true'
+        uses: anthropics/claude-code-action@v1
         with:
           # Claude subscription token from `claude setup-token`.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -112,9 +176,12 @@ jobs:
           # The leading slash command loads the triage skill for the whole run.
           prompt: |
             /nika-issue-triage:issue-triage
-            Triage issue #${{ github.event.issue.number }}. Read it with
-            `gh issue view ${{ github.event.issue.number }} --comments`, and follow
-            the skill for the judgment and the comment's structure and voice.
+            Triage issue #${{ github.event.issue.number }}, and follow the skill for
+            the judgment and the comment's structure and voice. Read the issue from
+            `approved-issue.json` in the checkout: the title, body, and comments an
+            admin approved. `unapproved_comments` counts later comments, which are
+            left out. Do not read this issue or its comments from GitHub, which may
+            show edits and comments nobody approved.
 
             The reporter's association with the repository is
             `${{ github.event.issue.author_association }}`. The checkout is `main`,
@@ -145,18 +212,21 @@ jobs:
             3. Agent-readiness: inspect the relevant code (and test if useful) to
                judge the scope, then add exactly one of `agent-ready` or `needs-human`
                and remove the other if an earlier triage added it. The issue may
-               have been edited since an earlier triage: judge its current text.
+               have been edited since an earlier triage: judge the approved text.
 
-            4. Post ONE triage comment. Retries must not create duplicate triage
-               comments. Before posting, look for a comment by `github-actions[bot]`
-               containing `<!-- nika-issue-triage -->`. Update that comment if it
-               exists (`gh api -X PATCH repos/${{ github.repository }}/issues/comments/<id>`);
-               otherwise create one with `gh issue comment`. Do not edit comments by
-               other authors.
+            4. Post ONE triage comment, starting with `<!-- nika-issue-triage -->`.
+               The existing triage comment is `${{ steps.snapshot.outputs.triage_comment || 'none' }}`.
+               If it is an ID, update that comment
+               (`gh api -X PATCH repos/${{ github.repository }}/issues/comments/<id>`);
+               if it is `none`, create one with `gh issue comment`. Do not edit
+               other comments. If you are unsure whether a write succeeded, list
+               triage comment IDs only, then update rather than post again:
+               `gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- nika-issue-triage -->"))) | .id'`.
       # The agent can exit 0 without commenting, or duplicate a comment after an
       # uncertain write; fail visibly in both cases. Only github-actions[bot]
       # comments count, so issue authors cannot satisfy the check with the marker.
       - name: Verify triage comment
+        if: steps.snapshot.outputs.current == 'true'
         env:
           ISSUE: ${{ github.event.issue.number }}
           FILTER: >-
