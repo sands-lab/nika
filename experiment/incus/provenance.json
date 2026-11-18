@@ -1,0 +1,13 @@
+{
+  "upstream": "https://github.com/sands-lab/nika/pull/197",
+  "commit": "e0a176d92f3ab861365309ead90a8e1899309e00",
+  "original_paths": ["src/nika/snapshot", "scripts/snapshot-base.sh"],
+  "purpose": "Compare healthy scenario snapshots using the current NIKA runtime.",
+  "adaptations": [
+    "Use current deployment parameters, including traffic, telemetry and deferred starts.",
+    "Use current Firecracker code identity, lab settings and VM resource sizing.",
+    "Include the installed base snapshot metadata in the golden key.",
+    "Use current remote session runtime restoration and startup verification.",
+    "Separate experiment resource names and propagate cleanup failures."
+  ]
+}

@@ -20,8 +20,10 @@ import argparse
 import asyncio
 import base64
 import gzip
+import hashlib
 import json
 import socket
+import subprocess
 import time
 import traceback
 from contextlib import contextmanager
@@ -32,6 +34,21 @@ SCRIPT = (Path(__file__).with_name("node_dump.sh")).read_text()
 CHUNK = 3000  # stay under per-command output limits of every backend
 UPLOAD_CHUNK = 60000  # bytes of script per upload command
 DELAYS = (0, 60)  # default dump times, in seconds after the lab is ready
+
+
+def _require_idle_host() -> None:
+    output = subprocess.check_output(
+        ["docker", "ps", "--format", "{{json .}}"], text=True
+    )
+    busy = []
+    for line in output.splitlines():
+        row = json.loads(line)
+        labels = {part.split("=", 1)[0] for part in row.get("Labels", "").split(",")}
+        name = row["Names"]
+        if "containerlab" in labels or name.startswith("kathara_"):
+            busy.append(name)
+    if busy:
+        raise RuntimeError(f"Host has running network environments: {busy}")
 
 
 def _text(result: Any) -> str:
@@ -172,7 +189,9 @@ async def _probe_nodes(
     await asyncio.gather(*(one(n) for n in list(nodes)))
 
 
-async def _dump_session(session_id: str, scenario: str, probe: bool = False) -> dict:
+async def _dump_session(
+    session_id: str, scenario: str, probe: bool = False, tools_path: Path | None = None
+) -> dict:
     from langchain_mcp_adapters.client import MultiServerMCPClient
 
     from agent.protocols import DIAGNOSIS
@@ -198,6 +217,49 @@ async def _dump_session(session_id: str, scenario: str, probe: bool = False) -> 
     results = dict(await asyncio.gather(*(one(n) for n in nodes)))
     if probe:
         await _probe_nodes(tool, results, sem)
+    if tools_path is not None:
+        from experiment.convergence.parse import sections
+
+        clock_node = next(
+            node
+            for node, value in results.items()
+            if "raw" in value and sections(value["raw"]).get("clock")
+        )
+        before = time.time()
+        guest_epoch = float(
+            _text(
+                await tool.ainvoke(
+                    {"host_name": clock_node, "command": "date +%s", "timeout": 10}
+                )
+            ).strip()
+        )
+        after = time.time()
+        checks = {
+            "guest_epoch": guest_epoch,
+            "host_epoch": (before + after) / 2,
+            "clock_round_trip_sec": after - before,
+            "queries": {},
+        }
+        for name in ("prometheus_query", "syslog_query", "netflow_query"):
+            if name not in tools:
+                continue
+            calls = {}
+            for kind, start in (
+                ("relative", "-60"),
+                ("absolute", str(guest_epoch - 60)),
+            ):
+                params = {"start_time": start, "end_time": str(guest_epoch), "limit": 3}
+                if name == "prometheus_query":
+                    params["query"] = "up"
+                text = _text(await tools[name].ainvoke(params))
+                calls[kind] = {"params": params, "result": text}
+                (tools_path).write_text(
+                    json.dumps(checks | {"pending": calls}, indent=2)
+                )
+                if text.startswith("Error"):
+                    raise RuntimeError(f"{name} {kind} window failed: {text}")
+            checks["queries"][name] = calls
+        tools_path.write_text(json.dumps(checks, indent=2))
     return results
 
 
@@ -208,7 +270,16 @@ def _dump_series(session_id, scenario, delays, run_dir, t_ready) -> None:
             time.sleep(wait)
         started = time.monotonic()
         last = delay == delays[-1]
-        nodes = asyncio.run(_dump_session(session_id, scenario, probe=last))
+        nodes = asyncio.run(
+            _dump_session(
+                session_id,
+                scenario,
+                probe=last,
+                tools_path=run_dir / f"tool_windows_{delay}.json",
+            )
+        )
+        if not nodes:
+            raise RuntimeError("State export returned no nodes")
         doc = {
             "session_id": session_id,
             "delay_sec": delay,
@@ -217,15 +288,27 @@ def _dump_series(session_id, scenario, delays, run_dir, t_ready) -> None:
             "nodes": nodes,
         }
         (run_dir / f"dump_{delay}.json").write_text(json.dumps(doc))
-        errors = [n for n, v in nodes.items() if "error" in v]
+        errors = [
+            n
+            for n, v in nodes.items()
+            if "error" in v or str(v.get("probes", "")).startswith("error:")
+        ]
         print(
             f"  dump t+{delay}s: {len(nodes)} nodes, {len(errors)} errors"
             + (f" {errors[:5]}" if errors else ""),
             flush=True,
         )
+        if errors:
+            raise RuntimeError(f"State export failed for nodes: {errors}")
 
 
 def _isp_keys(args) -> dict[str, Any]:
+    if getattr(args, "variant_params", None) is not None:
+        return {
+            k: v
+            for k, v in args.variant_params.items()
+            if k not in {"scenario", "topo_size"}
+        }
     keys = {"igp": args.igp, "bgp_mode": args.bgp_mode, "backend": args.backend}
     return {k: v for k, v in keys.items() if v}
 
@@ -233,6 +316,7 @@ def _isp_keys(args) -> dict[str, Any]:
 @contextmanager
 def _native_lab(args, run_dir: Path):
     from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+    from nika.remote.handlers import handle_session_verify
     from nika.utils.session import Session
     from nika.workflows.env.start import start_net_env
     from nika.workflows.session.close import close_session
@@ -246,41 +330,83 @@ def _native_lab(args, run_dir: Path):
         session_tag="conv",
         **_isp_keys(args),
     )
-    ready = time.monotonic()
-    session = Session()
-    session.load_running_session(session_id=sid)
     try:
+        deployed = time.monotonic()
+        verification = handle_session_verify(sid, initial_baseline=True)
+        ready = time.monotonic()
+        session = Session()
+        session.load_running_session(session_id=sid)
         # Mount the servers of the session's backend (ISP scenarios support two),
         # as an agent run does.
         with mcp_gateway_for_session(
             sid, scenario_name=args.scenario, backend=getattr(session, "backend", None)
         ):
-            yield sid, {"deploy_sec": round(ready - started, 1)}, ready
+            yield (
+                sid,
+                {
+                    "deploy_sec": round(ready - started, 1),
+                    "deployment_before_full_verify_sec": round(deployed - started, 1),
+                    "healthy_baseline_verification_sec": round(ready - deployed, 1),
+                    "healthy_baseline_verification": verification,
+                },
+                ready,
+            )
     finally:
         close_session(session_id=sid)
 
 
 @contextmanager
 def _firecracker_lab(args, run_dir: Path, index: int):
-    from nika.firecracker.image import variant
-    from nika.firecracker.trial import TrialLab
-    from nika.remote.workflows import remote_mcp_gateway
+    from nika.agents.mcp_config import engine_gateway
+    from nika.benchmark_engine.protocol import GatewayRequest
+    from nika.firecracker.image import META, variant
+    from nika.remote.workflows import follow_remote_logs
     from nika.workflows.session.close import close_session
+
+    if args.mode == "incus":
+        from experiment.incus.config import configure
+        from experiment.incus.trial import TrialLab
+
+        configure(args.incus_base)
+    else:
+        from nika.firecracker.trial import TrialLab
 
     key = f"conv-{args.scenario}-{args.size or 'na'}-{run_dir.parent.parent.name}-{index:02d}"
     started = time.monotonic()
     with TrialLab(
-        variant(scenario=args.scenario, topo_size=args.size, **_isp_keys(args)),
+        args.variant_params
+        if getattr(args, "variant_params", None) is not None
+        else variant(scenario=args.scenario, topo_size=args.size, **_isp_keys(args)),
         trial_key=key,
         owner=str(run_dir.parent.resolve()),
     ) as lab:
+        if args.mode == "incus":
+            from experiment.incus.incus import incus
+
+            identity = {
+                "golden": lab.golden.name,
+                "snapshot": json.loads(
+                    incus("query", f"/1.0/instances/{lab.golden.name}/snapshots/golden")
+                ),
+                "base": args.incus_base,
+            }
+        else:
+            identity = {
+                "key": lab.image.key,
+                "created": lab.image.created,
+                "metadata": json.loads((lab.image.path / META).read_text()),
+            }
+        (run_dir / "image_identity.json").write_text(json.dumps(identity, indent=2))
         sid = lab.attach(session_id=key, session_dir=str(run_dir / "session"))
         ready = time.monotonic()
         try:
-            with remote_mcp_gateway(sid):
+            with (
+                engine_gateway(sid, run_dir / "session", GatewayRequest()),
+                follow_remote_logs(sid, run_dir / "session"),
+            ):
                 yield (
                     sid,
-                    {"restore_sec": round(ready - started, 1), **lab.timings},
+                    {"prepare_sec": round(ready - started, 1), **lab.timings},
                     ready,
                 )
         finally:
@@ -289,8 +415,16 @@ def _firecracker_lab(args, run_dir: Path, index: int):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=["native", "firecracker"], required=True)
-    parser.add_argument("--scenario", required=True)
+    parser.add_argument(
+        "--mode", choices=["native", "firecracker", "incus"], required=True
+    )
+    parser.add_argument(
+        "--incus-base", help="Incus instance/snapshot containing installed NIKA"
+    )
+    parser.add_argument("--scenario")
+    parser.add_argument(
+        "--variant-json", type=Path, help="JSON deployment parameters from the manifest"
+    )
     parser.add_argument("-s", "--size", default=None)
     parser.add_argument("--igp", default=None, help="ISP topologies: isis or ospf")
     parser.add_argument(
@@ -310,10 +444,22 @@ def main() -> None:
     )
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
+    args.variant_params = None
+    if args.variant_json:
+        if any((args.scenario, args.size, args.igp, args.bgp_mode, args.backend)):
+            parser.error("Use --variant-json or deployment flags")
+        args.variant_params = json.loads(args.variant_json.read_text())
+        args.scenario = args.variant_params["scenario"]
+        args.size = args.variant_params.get("topo_size")
+    if not args.scenario:
+        parser.error("Specify --scenario or --variant-json")
+    if args.mode == "incus" and not args.incus_base:
+        parser.error("Incus collection requires --incus-base")
 
     # Probes go into the last dump, which the analyses read.
     delays = sorted({int(x) for x in args.delays.split(",")})
     base = Path(args.out) / args.mode
+    failed = False
     for index in range(args.start, args.start + args.runs):
         run_dir = base / f"run_{index:02d}"
         if (run_dir / "meta.json").exists():
@@ -330,23 +476,38 @@ def main() -> None:
             "mode": args.mode,
             "scenario": args.scenario,
             "size": args.size,
+            "deployment_params": {
+                "scenario": args.scenario,
+                "topo_size": args.size,
+                **_isp_keys(args),
+            },
             "index": index,
             "started_at": time.time(),
+            "collector_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "node_dump_sha256": hashlib.sha256(SCRIPT.encode()).hexdigest(),
             # Linux's ECMP hash key is per kernel boot: compare flows per host.
             "host": socket.gethostname(),
             "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
         }
         try:
+            _require_idle_host()
             with lab as (sid, timings, ready):
                 meta.update(session_id=sid, timings=timings)
                 _dump_series(sid, args.scenario, delays, run_dir, ready)
+                teardown_started = time.monotonic()
+            meta["timings"]["teardown_sec"] = round(
+                time.monotonic() - teardown_started, 3
+            )
         except Exception:  # noqa: BLE001 - one failed run must not stop the series
+            failed = True
             meta["error"] = traceback.format_exc()
             print(meta["error"], flush=True)
             (run_dir / "error.json").write_text(json.dumps(meta, indent=1))
             continue
         (run_dir / "error.json").unlink(missing_ok=True)  # from an earlier attempt
         (run_dir / "meta.json").write_text(json.dumps(meta, indent=1))
+    if failed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
