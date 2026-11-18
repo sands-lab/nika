@@ -336,6 +336,8 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | Module | Purpose |
 |--------|---------|
 | `test_release.py` | Freeze/preflight/job metadata on mini releases |
+| `test_release_tasks.py` | Published release task IDs, admission classes, and deployed trials pinned by `tests/fixtures/benchmark/release_tasks.json`; task-ID refusals and the task-list hash check |
+| `test_score_reply.py` | The engine's `score` reply, the frontend's `eval_metrics.json` pinned by `tests/fixtures/benchmark/score_cases.json`, and engine scoring that reads only `submission.json` and `ground_truth.json` |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
 | `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), and a `byo.langgraph` trial of a release that pins a benchmark engine, on sbx and E2B |

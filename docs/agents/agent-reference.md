@@ -32,7 +32,7 @@ Every agent runs the same pipeline:
 | Mode | Who answers | Use it for |
 | --- | --- | --- |
 | `structured` (default) | The agent's own model, with only the `submit` tool. Built-in harnesses use their own submission worker; other agents get NIKA's default, the `byo.langgraph` submission agent. | Leaderboard and comparable runs: the score includes how well the agent's model fills the answer. |
-| `unstructured` | A separate model set in `agent.submission`, the same for every agent type. It returns a JSON answer for each of `samples` calls; NIKA submits the majority answer once. | Comparing diagnosis reports when agents use different models or none, independent of each model's tool calling. |
+| `unstructured` | One or more separate models set in `agent.submission`, the same for every agent type. Each model returns a JSON answer for each of its `samples` calls and keeps its most frequent one; with several models, the models then vote. NIKA submits the chosen answer once. | Comparing diagnosis reports when agents use different models or none, independent of each model's tool calling. |
 
 Unstructured runs record the submission model in the run identity and cannot be packed for the leaderboard.
 
@@ -123,7 +123,7 @@ Use [Run configuration](../operations/configuration.md) for every setting, [CLI]
 
 ## Trace event contract
 
-`DiagnosisAgent` writes each phase's lifecycle events. The submission `agent_start` event records `submission_mode`, plus the mapping `provider`, `model`, `samples`, and `temperature` in `unstructured` mode. Unstructured runs also record each mapping attempt as `submission_sample` (`sample`, `attempt`, raw `text`, parsed `answer` or `error`) and the outcome as `submission_vote` (per-sample `answers`, `votes` with counts, and the `chosen` answer). Workers can record model and tool events using `MessageLogger` (or `AgentCallbackLogger` for LangChain) to display the investigation transcript. For evaluation, NIKA uses diagnosis-phase host records when available; trace-based counts are the fallback when the corresponding host record is absent. See [Step limit](#step-limit) for model-request accounting.
+`DiagnosisAgent` writes each phase's lifecycle events; in `unstructured` mode, NIKA writes the submission phase's events itself. The submission `agent_start` event records `submission_mode`, plus the mapping `provider`, `model`, `samples`, and `temperature` in `unstructured` mode, or `mappers` and `min_agreement` with several models. Unstructured runs also record each mapping attempt as `submission_sample` (`sample`, `attempt`, raw `text`, parsed `answer` or `error`) and each model's outcome as `submission_vote` (per-sample `answers`, `votes` with counts, and the `chosen` answer). With several models, `submission_sample` and `submission_vote` also carry the `mapper` index, `provider`, and `model`, and `submission_agreement` records the vote across models (each model's answer, `votes` with counts and model indices, `min_agreement`, and the `chosen` answer). Workers can record model and tool events using `MessageLogger` (or `AgentCallbackLogger` for LangChain) to display the investigation transcript. For evaluation, NIKA uses diagnosis-phase host records when available; trace-based counts are the fallback when the corresponding host record is absent. See [Step limit](#step-limit) for model-request accounting.
 
 | Event | Worker payload | Meaning |
 | --- | --- | --- |

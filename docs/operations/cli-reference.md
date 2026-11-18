@@ -319,7 +319,7 @@ nika benchmark run --release 0.2.0 --split test \
 |---------|----------------|
 | `nika benchmark list` | Without `--release` or `--config`, prints one row per frozen release: version, default split, case count per split, `n_trials`, and status. It reads only the `RELEASE.yaml` manifests and skips preflight. With `--release` (optionally `--split`) or `--config`, prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for each case. Add `--json` for scripts. |
 | `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. `--oracle` also prints the task's reference diagnosis, the oracle's playbook steps (see [Oracle solver](../benchmarks/oracle-solver.md)). |
-| `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before the run starts. |
+| `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before any trial starts; with `--release`, NIKA checks them against the task list of the release's benchmark engine after starting it. |
 | `nika benchmark run --skip-licensed` | `--config` batch mode only. Leaves out rows that need licensed vendor images: IOS XR and RouterOS `device_profile` rows, `iosxr_simple_bgp`, `routeros_simple_bgp`. Without it, a run that needs a missing licensed image stops before any lab starts and lists the affected rows. |
 | `nika benchmark run --device-profile NAME` | `--config` batch mode only. Repeatable. Runs only rows of these router platforms (`frr`, `nokia_srlinux`, `sonic`, `iosxr`, `routeros`); an explicit `device_profile` takes precedence. Otherwise Containerlab rows count as `nokia_srlinux`, and other rows use the environment's uniquely declared native platform, with `frr` as the fallback. For example, `routeros_simple_bgp` rows count as `routeros` without the field. |
 
@@ -442,7 +442,7 @@ nika eval summary --result_dir results/
 
 Eval commands operate on **closed** sessions only. After a benchmark run (or a manual `nika session close`), use eval for post-hoc scoring:
 
-- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: write rule-based metrics to `eval_metrics.json`. Scoring contract: [Score a submission](../benchmarks/root-cause-evaluation.md#score-a-submission). With `--result_dir` and no `--session_id`, processes every closed session under that directory. Benchmark writes metrics when each case closes.
+- **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: write rule-based metrics to `eval_metrics.json`. Scoring contract: [Score a submission](../benchmarks/root-cause-evaluation.md#score-a-submission). With `--result_dir` and no `--session_id`, processes every closed session under that directory. Benchmark writes metrics when each case closes; for a release run, the release's engine computes them. This command regrades with the installed NIKA's scoring code and overwrites them.
 - **`nika eval judge -p PROVIDER -m MODEL [--session_id ID] [--result_dir PATH]`**: LLM judge → `llm_judge.json`. With `--result_dir` and no `--session_id`, judges every closed session under that directory.
 - **`nika eval summary [filters] [-o PATH] [--result_dir PATH]`**: scan finished sessions, write one CSV, and print a visual summary to the terminal. See [report output](#nika-eval-summary-report-output).
 - **`nika eval clean [-y] [--force]`**: delete historical artifacts under `results/`, runtime session JSON files, and the SQLite index at `runtime/sessions.db`. Refuses when running sessions exist unless **`--force`** is passed.
@@ -512,7 +512,8 @@ nika leaderboard submit --result_dir results/my-run \
 
 | Flag | Meaning |
 |------|---------|
-| `--submission DIR` | Required. Directory with the edited `metadata.yaml` and `README.md` from `template` |
+| `--submission DIR` | Directory with the edited `metadata.yaml` and `README.md` from `template` |
+| `--name TEXT`, `--authors TEXT` | Instead of `--submission`: entry name and authors, from which `submit` generates the metadata and README |
 | `--out DIR` | Scores package directory (default `{result_dir}/{YYYYMMDD}_{slug}/`); trajectories go to a sibling `{name}_trajectories/` |
 | `--draft` | Open the GitHub PR as a draft |
 | `--title TEXT` | GitHub PR title (default `Add submission <package>`) |

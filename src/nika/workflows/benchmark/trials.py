@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from nika.benchmark_engine.protocol import TaskInfo
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.traffic.profiles import normalize_traffic
 from nika.utils.session_artifacts import update_run_json
@@ -93,6 +94,11 @@ def _inject_label_parts(inject: Any) -> list[str]:
 
 def format_trial_label(row: dict[str, Any], *, trial_index: int) -> str:
     """Human-facing trial id: scenario/problem, size, inject, tNN."""
+    return f"{task_label(row)} t{trial_index:02d}"
+
+
+def task_label(row: dict[str, Any]) -> str:
+    """Human-facing task label: scenario/problem, size, inject."""
     scenario = str(row.get("scenario") or "?")
     problem = str(row.get("problem") or "?")
     bits = [f"{scenario}/{problem}"]
@@ -102,7 +108,6 @@ def format_trial_label(row: dict[str, Any], *, trial_index: int) -> str:
     bits.extend(_inject_label_parts(row.get("inject")))
     if row.get("schedule") is not None:
         bits.append(f"schedule={case_key_for_row(row).rsplit('__h', 1)[-1]}")
-    bits.append(f"t{trial_index:02d}")
     return " ".join(bits)
 
 
@@ -279,16 +284,25 @@ def trial_dir(result_dir: Path, case_key: str, trial_index: int) -> Path:
 
 @dataclass(frozen=True)
 class Trial:
-    """One deterministic (case, trial_index) execution unit."""
+    """One deterministic (case, trial_index) execution unit.
+
+    A release trial carries its benchmark engine's ``task`` and no ``row``,
+    except with Firecracker execution, which needs the row for lab images.
+    Other trials carry the task row they send to the engine.
+    """
 
     case_index: int
     trial_index: int
-    row: dict[str, Any]
+    row: dict[str, Any] | None
     case_key: str
     trial_id: str
+    task: TaskInfo | None = None
 
     @property
     def label(self) -> str:
+        if self.task is not None:
+            return f"{self.task.label} t{self.trial_index:02d}"
+        assert self.row is not None
         return format_trial_label(self.row, trial_index=self.trial_index)
 
 
@@ -301,23 +315,44 @@ def expand_trials(
     The benchmark runner schedules from this list, so round 1 finishes across
     cases before round 2 starts (subject to ``batch_size`` / admission).
     """
+    return _expand(
+        [(case_key_for_row(row), row, None) for row in rows], n_trials=n_trials
+    )
+
+
+def expand_task_trials(
+    tasks: list[TaskInfo],
+    n_trials: int,
+    *,
+    rows: dict[str, dict[str, Any]] | None = None,
+) -> list[Trial]:
+    """Expand a release's tasks × trials in the order of ``expand_trials``.
+
+    *rows* maps task IDs to rows when the trials need them.
+    """
+    return _expand(
+        [(task.task_id, (rows or {}).get(task.task_id), task) for task in tasks],
+        n_trials=n_trials,
+    )
+
+
+def _expand(
+    cases: list[tuple[str, dict[str, Any] | None, TaskInfo | None]], *, n_trials: int
+) -> list[Trial]:
     if n_trials < 1:
         raise ValueError("n_trials must be >= 1")
-    trials: list[Trial] = []
-    for trial_index in range(1, n_trials + 1):
-        for case_index, row in enumerate(rows):
-            case_key = case_key_for_row(row)
-            trial_id = trial_dirname(case_key, trial_index)
-            trials.append(
-                Trial(
-                    case_index=case_index,
-                    trial_index=trial_index,
-                    row=row,
-                    case_key=case_key,
-                    trial_id=trial_id,
-                )
-            )
-    return trials
+    return [
+        Trial(
+            case_index=case_index,
+            trial_index=trial_index,
+            row=row,
+            case_key=case_key,
+            trial_id=trial_dirname(case_key, trial_index),
+            task=task,
+        )
+        for trial_index in range(1, n_trials + 1)
+        for case_index, (case_key, row, task) in enumerate(cases)
+    ]
 
 
 def select_trials(trials: list[Trial], selectors: list[str]) -> list[Trial]:
@@ -444,10 +479,11 @@ def is_finalized_failure(session_dir: str | Path) -> bool:
 def _restore_success_eval_metrics(path: Path) -> bool:
     """Score a solved trial interrupted before its metrics were written.
 
-    The run's benchmark engine scores it, as it scores every trial.
+    The run's benchmark engine grades it, as it grades every trial.
     """
     from nika.benchmark_engine import benchmark_engine
     from nika.benchmark_engine.protocol import TrialHandle
+    from nika.workflows.eval.session import score_trial
 
     metrics_path = path / "eval_metrics.json"
     if metrics_path.is_file():
@@ -461,8 +497,9 @@ def _restore_success_eval_metrics(path: Path) -> bool:
     ):
         return False
     try:
-        benchmark_engine().score(
-            TrialHandle(session_id=str(session_id), trial_dir=str(path))
+        score_trial(
+            benchmark_engine(),
+            TrialHandle(session_id=str(session_id), trial_dir=str(path)),
         )
     except Exception:  # noqa: BLE001 - the slot stays incomplete and reruns
         return False

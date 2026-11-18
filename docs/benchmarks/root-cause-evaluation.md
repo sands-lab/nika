@@ -146,7 +146,7 @@ A failure can declare `root_cause_resource_match = "any"` when its listed resour
 
 Special case: when both `P` and `T` are empty, precision, recall, and F1 are all `1.0` only if the submission also says `is_anomaly: false`. That is the correct score for a healthy case. A healthy case submitted as `is_anomaly: true` with an empty `root_causes` list scores `0.0`. An agent that never submits must not reach this path (see `score_status` below).
 
-Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable `is_anomaly` also scores `0.0`. Trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, `tool_errors`) are recorded separately. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. Traces go through `agent.utils.usage.normalize_usage`.
+Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable `is_anomaly` also scores `0.0`. Trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, `tool_errors`) are recorded separately. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. NIKA normalizes token counts with [`usage.py`](../../src/nika/evaluator/usage.py).
 
 Score columns are only values in `[0, 1]` or `null`. They never store `-1`.
 
@@ -202,12 +202,14 @@ Example: three trials with primary scores `[1.0, no_submission, no_submission]` 
 
 ### Run offline eval
 
+Benchmark runs already write metrics when each case closes; a release run uses its engine's scoring code. `nika eval metrics` regrades with the installed NIKA's scoring code and overwrites those metrics. NIKA has no command that regrades with a release engine's scoring code, so keep the engine's metrics to reproduce a release's official scores.
+
 ```shell
 nika eval metrics --result_dir results/my_run
 nika eval summary --result_dir results/my_run
 ```
 
-`nika eval metrics` with `--result_dir` and no `--session_id` processes every closed session under that directory. Benchmark runs already write metrics when each case closes. `nika eval summary` uses the same aggregation as `nika leaderboard pack`. CLI options: [nika eval](../operations/cli-reference.md#nika-eval).
+`nika eval metrics` with `--result_dir` and no `--session_id` processes every closed session under that directory. `nika eval summary` uses the same aggregation as `nika leaderboard pack`. CLI options: [nika eval](../operations/cli-reference.md#nika-eval).
 
 ## Materialize labels on a case matrix
 

@@ -76,10 +76,10 @@ Release settings that differ at the recorded producer commit produce `ERROR_BENC
 | `no_submission` | No readable `submission.json` with a `root_causes` list | `WARNING_RUN_VALIDITY` |
 | `empty_report` | Frozen diagnosis report is empty or only opening narration before the first tool call | `WARNING_RUN_VALIDITY` |
 | `empty_trace` | No model or tool interaction in `messages.jsonl` | `ERROR_EMPTY_TRACE` at any rate (blocks pack and validate) |
-| `truncated_final_turn` | Last LLM turn of a phase hit the output limit (`finish_reason: length`, `stop_reason: max_tokens`, or output tokens equal to `max_tokens` with no text) | `ERROR_RUN_VALIDITY` above `--max-harness-rate` |
+| `truncated_final_turn` | Last LLM turn of a phase hit the output limit (`finish_reason: length`, `stop_reason: max_tokens`, or output tokens equal to `max_tokens` with no text) | `ERROR_RUN_VALIDITY` above the release's `max_harness_rate` |
 | `max_steps_exhausted` | Diagnosis hit `max_steps`; details record whether a wrap-up report exists | `WARNING_RUN_VALIDITY` |
 | `fault_absent_at_cleanup` | A `fault_presence_recheck` before cleanup read `absent`: the agent likely mutated the network, or the fault self-healed | `ERROR_FAULT_ABSENT` at any rate (blocks pack and validate) |
-| `infra_error` | Trial failed to start, lacks ground truth, or has `score_status=infra_error` | `ERROR_RUN_VALIDITY` above `--max-harness-rate` |
+| `infra_error` | Trial failed to start, lacks ground truth, or has `score_status=infra_error` | `ERROR_RUN_VALIDITY` above the release's `max_harness_rate` |
 
 `HARNESS_FLAGS = (truncated_final_turn, infra_error)`; `DEFAULT_MAX_HARNESS_RATE = 0.05`. The `infra_error` flag is distinct from the `infra_error` score status: a trial can carry the flag without that status. Design intent: harness flags indicate a broken harness rather than agent skill, so a small rate is tolerated; warning flags reflect agent behavior and must stay in the scored package.
 

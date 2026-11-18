@@ -69,8 +69,8 @@ def test_curated_freeze_pack_validate(tmp_path: Path) -> None:
             trial_id=trial.trial_id,
             trial_index=trial.trial_index,
             case_key=trial.case_key,
-            scenario=str(trial.row["scenario"]),
-            problem=str(trial.row["problem"]),
+            scenario=trial.task.scenario,
+            problem="+".join(trial.task.faults),
             release_meta=kwargs.get("release_meta"),
             outcome="success",
             rca_f1=1.0,
@@ -78,7 +78,7 @@ def test_curated_freeze_pack_validate(tmp_path: Path) -> None:
 
     with (
         patch("nika.workflows.benchmark.release.RELEASES_DIR", releases_root),
-        patch("nika.workflows.benchmark.run.preflight_release"),
+        patch("nika.workflows.benchmark.release.verify_release_tasks"),
         patch(
             "nika.workflows.benchmark.run._run_trial_with_timeout",
             side_effect=fake_trial,
@@ -175,7 +175,7 @@ def test_curated_timeout_continues_remaining(tmp_path: Path) -> None:
             with (
                 patch("nika.benchmark_engine.engine.close_session"),
                 patch(
-                    "nika.benchmark_engine.engine.run_eval_metrics",
+                    "nika.benchmark_engine.engine.grade_trial",
                     side_effect=RuntimeError("no closed session"),
                 ),
                 patch(
@@ -193,15 +193,15 @@ def test_curated_timeout_continues_remaining(tmp_path: Path) -> None:
             trial_id=trial.trial_id,
             trial_index=trial.trial_index,
             case_key=trial.case_key,
-            scenario=str(trial.row["scenario"]),
-            problem=str(trial.row["problem"]),
+            scenario=trial.task.scenario,
+            problem="+".join(trial.task.faults),
             release_meta=kwargs.get("release_meta"),
             outcome="success",
         )
 
     with (
         patch("nika.workflows.benchmark.release.RELEASES_DIR", releases_root),
-        patch("nika.workflows.benchmark.run.preflight_release"),
+        patch("nika.workflows.benchmark.release.verify_release_tasks"),
         patch(
             "nika.workflows.benchmark.run._run_trial_with_timeout",
             side_effect=flaky_trial,

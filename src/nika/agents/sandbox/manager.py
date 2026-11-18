@@ -27,12 +27,12 @@ from typing import TYPE_CHECKING
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from agent.runtime.contract import (
     ENV_WORKSPACE,
+    MESSAGES_FILENAME,
     REPORT_FILENAME,
     TASK_FILENAME,
     SUBMISSION_CONTEXT_FILENAME,
 )
 from agent.runtime.task import LlmClientSettings, Task
-from agent.utils.loggers import MESSAGES_FILENAME, MessageLogger
 from nika.agents.registry import AgentSpec, get_agent_spec
 from nika.agents.sandbox.backend import SandboxBackend, get_backend
 from nika.agents.sandbox.config import SandboxConfig
@@ -40,6 +40,7 @@ from nika.agents.sandbox.env import format_env_for_log
 from nika.agents.sandbox.mcp_manifest import build_sandbox_mcp_servers
 from nika.agents.sandbox.model_calls import MODEL_CALLS_FILENAME, ModelCallLog
 from nika.agents.sandbox.wheels import runner_path_prefix
+from nika.evaluator.traces import TraceLogger
 from nika.agents.sandbox.workspace import (
     TraceMirror,
     cleanup_workspace,
@@ -60,7 +61,7 @@ from nika.utils.logger import elapsed_ms, log_event
 from nika.utils.session import Session
 
 if TYPE_CHECKING:
-    from nika.agents.submission import ReportMapper
+    from nika.evaluator.report_mapper import ReportMapper
 
 logger = logging.getLogger(__name__)
 
@@ -617,11 +618,11 @@ class SandboxManager:
     @staticmethod
     def _log_budget_stop(
         sandbox_session: SandboxSession, phase: str, session_dir: str
-    ) -> MessageLogger:
+    ) -> TraceLogger:
         """Record in the host trace that the host stopped *phase* at its budget."""
         if sandbox_session.trace_mirror is not None:
             sandbox_session.trace_mirror.close_phase_on_host(phase)
-        logger = MessageLogger(phase=phase, session_dir=session_dir)
+        logger = TraceLogger(phase, session_dir)
         call_log = sandbox_session.call_log
         logger.log(
             "max_steps_reached",
@@ -668,24 +669,19 @@ class SandboxManager:
     ) -> None:
         import asyncio
 
-        from agent.base import run_submission_phase
         from nika.agents.registry import AgentTimeoutError
 
         async def _run() -> bool:
             """Return ``False`` when the run budget expired."""
             try:
                 async with asyncio.timeout(timeout_sec) as budget:
-                    await run_submission_phase(
-                        lambda: report_mapper.submit(
-                            report,
-                            context,
-                            session_id=agent_session_id,
-                            scenario_name=session.scenario_name,
-                            trace_dir=session.session_dir,
-                        ),
+                    await report_mapper.run(
+                        report,
+                        context,
+                        session_id=agent_session_id,
+                        scenario_name=session.scenario_name,
                         trace_dir=session.session_dir,
                         stream_output=stream_output,
-                        **report_mapper.trace_fields(),
                     )
             except TimeoutError:
                 # An LLM request timeout is not a budget expiry.

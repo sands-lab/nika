@@ -430,12 +430,43 @@ class AgentAccessSettings(BaseModel):
         return self
 
 
+class SubmissionMapperSettings(BaseModel):
+    """One model that maps the frozen report in ``mode: unstructured``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["openai", "anthropic", "deepseek", "custom"]
+    model: str
+    # OpenAI-style API root for provider=custom; defaults to agent.base_url.
+    base_url: str | None = None
+    # Independent mappings of the report; this model votes for its majority.
+    samples: int = 1
+    # Sampling temperature; null sends none, so the endpoint's default applies.
+    # Use a value above 0 when samples > 1.
+    temperature: float | None = None
+    # Priority when models tie in the vote across models; higher wins.
+    weight: float = 1.0
+
+    @model_validator(mode="after")
+    def _valid(self) -> "SubmissionMapperSettings":
+        if not self.model.strip():
+            raise ValueError("agent.submission mapper model must not be empty")
+        if self.samples < 1:
+            raise ValueError("agent.submission.samples must be >= 1")
+        if self.temperature is not None and self.temperature < 0:
+            raise ValueError("agent.submission.temperature must be >= 0")
+        if self.weight < 0:
+            raise ValueError("agent.submission mapper weight must be >= 0")
+        return self
+
+
 class AgentSubmissionSettings(BaseModel):
     """How the frozen diagnosis report becomes the scored submission.
 
     ``structured``: the agent's own model picks the answer, through the
     agent's ``submit()`` or NIKA's default one. ``unstructured``: NIKA maps
-    the report with the model below, the same way for every agent type.
+    the report the same way for every agent type, with one model (``provider``,
+    ``model`` ...) or several (``mappers``).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -447,34 +478,78 @@ class AgentSubmissionSettings(BaseModel):
     base_url: str | None = None
     # Independent mappings of the report; the majority answer is submitted.
     samples: int = 1
-    # Sampling temperature of the mapping model; null keeps the provider
-    # default (0 for custom). Use a value above 0 when samples > 1.
+    # Sampling temperature of the mapping model; null sends none, so the
+    # endpoint's default applies. Use a value above 0 when samples > 1.
     temperature: float | None = None
+    # Several mapping models instead of the single one above. Each model
+    # settles on its own majority answer, then the models vote.
+    mappers: list[SubmissionMapperSettings] | None = None
+    # Models that must vote for the winning answer; otherwise nothing is
+    # submitted.
+    min_agreement: int = 1
 
     @model_validator(mode="after")
     def _mode_fields(self) -> "AgentSubmissionSettings":
-        mapper_fields = (self.provider, self.model, self.base_url, self.temperature)
+        single_fields = (self.provider, self.model, self.base_url, self.temperature)
+        single = any(value is not None for value in single_fields) or self.samples != 1
         if self.mode == "structured":
-            if any(value is not None for value in mapper_fields) or self.samples != 1:
+            if single or self.mappers is not None or self.min_agreement != 1:
                 raise ValueError(
-                    "agent.submission provider/model/base_url/samples/temperature "
-                    "apply only to mode: unstructured"
+                    "agent.submission provider/model/base_url/samples/temperature/"
+                    "mappers/min_agreement apply only to mode: unstructured"
                 )
+            return self
+        if self.mappers is not None:
+            if single:
+                raise ValueError(
+                    "agent.submission: set either provider/model/base_url/samples/"
+                    "temperature or mappers, not both"
+                )
+            if not self.mappers:
+                raise ValueError("agent.submission.mappers must not be empty")
         elif not self.provider or not (self.model or "").strip():
             raise ValueError(
                 "agent.submission.mode unstructured requires provider and model"
             )
-        if self.samples < 1:
-            raise ValueError("agent.submission.samples must be >= 1")
-        if self.temperature is not None and self.temperature < 0:
-            raise ValueError("agent.submission.temperature must be >= 0")
+        else:
+            # Validates samples and temperature like a mappers entry.
+            self.mapper_settings()
+        if not 1 <= self.min_agreement <= len(self.mapper_settings()):
+            raise ValueError(
+                "agent.submission.min_agreement must be between 1 and the "
+                "number of mappers"
+            )
         return self
+
+    def mapper_settings(self) -> list[SubmissionMapperSettings]:
+        """The mapping models of ``mode: unstructured``, in configured order."""
+        if self.mode != "unstructured":
+            return []
+        if self.mappers is not None:
+            return list(self.mappers)
+        return [
+            SubmissionMapperSettings(
+                provider=self.provider,
+                model=str(self.model),
+                base_url=self.base_url,
+                samples=self.samples,
+                temperature=self.temperature,
+            )
+        ]
 
     def identity(self) -> dict[str, Any]:
         """Settings that define the submission, as recorded with a run."""
         if self.mode == "structured":
             return {"mode": self.mode}
-        return self.model_dump(exclude_none=True)
+        if self.mappers is None:
+            return self.model_dump(
+                exclude_none=True, exclude={"mappers", "min_agreement"}
+            )
+        return {
+            "mode": self.mode,
+            "mappers": [m.model_dump(exclude_none=True) for m in self.mappers],
+            "min_agreement": self.min_agreement,
+        }
 
 
 class AgentSettings(BaseModel):

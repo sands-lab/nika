@@ -28,11 +28,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.runtime.contract import ERROR_PREFIX
 from agent.runtime.task import current_task, workspace_dir
 from agent.utils.display import agent_output
 from agent.utils.loggers import MessageLogger
-
-ERROR_PREFIX = "ERROR:"
 
 
 def max_steps_report(logger: MessageLogger, *, max_steps: int, latest_text: str) -> str:
@@ -68,11 +67,7 @@ async def run_submission_phase(
     stream_output: bool,
     **start_fields: Any,
 ) -> str:
-    """Run one submission attempt between the phase bookends.
-
-    Shared by :meth:`DiagnosisAgent.run_submission` and the host, which maps
-    the report itself for unstructured submission.
-    """
+    """Run one submission attempt between the phase bookends."""
     logger = MessageLogger(phase=SUBMISSION, session_dir=trace_dir)
     print_phase(stream_output, SUBMISSION, "recording structured result")
     logger.log_agent_start(**start_fields)

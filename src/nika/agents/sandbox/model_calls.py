@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.protocols import DIAGNOSIS
-from agent.utils.usage import normalize_usage
+from nika.evaluator.usage import normalize_usage
 
 MODEL_CALLS_FILENAME = "model_calls.jsonl"
 

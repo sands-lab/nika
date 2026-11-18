@@ -220,8 +220,8 @@ class TestReleaseRunToLeaderboardPackE2E:
                 trial_id=trial.trial_id,
                 trial_index=trial.trial_index,
                 case_key=trial.case_key,
-                scenario=str(trial.row["scenario"]),
-                problem=str(trial.row["problem"]),
+                scenario=trial.task.scenario,
+                problem="+".join(trial.task.faults),
                 release_meta=kwargs.get("release_meta"),
                 outcome="success" if trial.trial_index == 1 else "agent_failed",
                 rca_f1=1.0,
@@ -232,7 +232,7 @@ class TestReleaseRunToLeaderboardPackE2E:
                 "nika.workflows.benchmark.release.RELEASES_DIR",
                 tmp_path / "releases",
             ),
-            patch("nika.workflows.benchmark.run.preflight_release"),
+            patch("nika.workflows.benchmark.release.verify_release_tasks"),
             patch(
                 "nika.workflows.benchmark.run._run_trial_with_timeout",
                 side_effect=fake_trial,
@@ -383,13 +383,13 @@ class TestReleaseRunToLeaderboardPackE2E:
                 trial_id=trial.trial_id,
                 trial_index=trial.trial_index,
                 case_key=trial.case_key,
-                scenario=str(trial.row["scenario"]),
-                problem=str(trial.row["problem"]),
+                scenario=trial.task.scenario,
+                problem="+".join(trial.task.faults),
                 release_meta=kwargs.get("release_meta"),
             )
 
         with (
-            patch("nika.workflows.benchmark.run.preflight_release"),
+            patch("nika.workflows.benchmark.release.verify_release_tasks"),
             patch(
                 "nika.workflows.benchmark.run._run_trial_with_timeout",
                 side_effect=fake_trial,

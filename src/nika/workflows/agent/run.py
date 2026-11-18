@@ -55,7 +55,7 @@ def start_agent(
     selects one. A benchmark trial passes the *task_description* that the
     engine's ``begin`` returned; a hands-on session uses its own.
     """
-    from nika.agents.submission import ReportMapper
+    from nika.evaluator.report_mapper import ReportMapper
     from nika.run_config.loader import get_run_config
     from nika.run_config.schema import AgentSubmissionSettings
     from nika.utils.agent_config import apply_custom_provider_env

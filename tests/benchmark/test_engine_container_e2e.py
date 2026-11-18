@@ -15,7 +15,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from nika.benchmark_engine.container import RUN_LABEL, _git_commit, image_id
+from nika.benchmark_engine.container import (
+    COMMIT_LABEL,
+    RUN_LABEL,
+    _image_label,
+    image_id,
+)
 from nika.config import SESSIONS_DIR
 from nika.problems.rca.materialize import assert_root_causes_match
 from nika.runtime.factory import runtime_for_session
@@ -178,7 +183,10 @@ def test_pinned_release_runs_on_engine_container(
                     ]
                     assert provenance["engine"]["tag"] == tag
                     assert provenance["engine"]["image"] == image_id(image)
-                    assert provenance["engine"]["commit"] == _git_commit(tag)
+                    # A supplied image may come from another branch, so compare its own label.
+                    assert provenance["engine"]["commit"] == _image_label(
+                        image, COMMIT_LABEL
+                    )
                     assert provenance["engine"]["dirty"] is False
                     assert provenance["engine"]["api"] == 1
                     engine_log = (result_dir / "benchmark_engine.log").read_text()
@@ -248,59 +256,6 @@ def test_legacy_release_keeps_its_published_topology(tmp_path: Path) -> None:
     assert {"client_0", "webserver0_pod0", "super_spine_router_0"} <= nodes
 
 
-def test_engine_container_executes_and_recovers_scheduled_fault(tmp_path, monkeypatch):
-    from nika.benchmark_engine import use_engine
-    from nika.benchmark_engine.client import EngineClient
-    from nika.benchmark_engine.container import engine_container
-    from nika.workflows.benchmark.run import run_single_case
-    from tests.support.schedule_assertions import assert_schedule_timing
-
-    from nika.net_env.net_env_pool import get_net_env_instance
-
-    env = get_net_env_instance("dc_clos", topo_size="s", rendered=False)
-    client = env.model.client_endpoints()[0].name
-    results = tmp_path / "scheduled"
-    results.mkdir()
-    with pinned_engine_release(tmp_path, monkeypatch) as (_, image):
-        with engine_container(
-            image, run_id="scheduled", results_root=results
-        ) as service:
-            with use_engine(EngineClient(service.base_url, token=service.token)):
-                _, trial = run_single_case(
-                    "link_down",
-                    "dc_clos",
-                    "s",
-                    "mock",
-                    None,
-                    None,
-                    None,
-                    inject_params={},
-                    result_dir=str(results),
-                    schedule={
-                        "agent_start": 0,
-                        "events": [
-                            {
-                                "problem": "link_down",
-                                "at": 2,
-                                "duration": 8,
-                                "inject": {
-                                    "host_name": client,
-                                    "intf_name": "eth0",
-                                },
-                            }
-                        ],
-                    },
-                )
-                assert_schedule_timing(trial, agent=True)
-                metrics = json.loads((trial / "eval_metrics.json").read_text())
-                assert metrics["rca_f1"] == 1
-                assert metrics["tool_errors"] == 0
-                run = json.loads((trial / "run.json").read_text())
-                runtime = runtime_for_session(run)
-                assert not runtime.exists() and not runtime.has_leftover_resources()
-                assert not (trial / "schedule-owner.json").exists()
-
-
 def test_engine_container_preserves_sdn_rest_results_and_errors(tmp_path, monkeypatch):
     selected = os.environ.get("NIKA_CI_ENGINE_TASK_ID", "")
     if selected and selected != "all" and not selected.startswith("sdn_l3_clos__"):
@@ -335,13 +290,9 @@ def test_engine_container_preserves_sdn_rest_results_and_errors(tmp_path, monkey
             try:
                 handle = engine.start_trial(
                     TrialRequest(
-                        task={
-                            "scenario": "sdn_l3_clos",
-                            "topo_size": "s",
-                            "problem": "healthy",
-                        },
-                        failures=[],
-                        healthy=True,
+                        task_id="sdn_l3_clos__healthy__m",
+                        release="0.2.0",
+                        split="test",
                         session_id=handle.session_id,
                         trial_dir=handle.trial_dir,
                         result_dir=str(results),

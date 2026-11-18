@@ -96,6 +96,12 @@ class _Trials:
 
     def start(self, args: dict[str, Any]) -> TrialStatus:
         request = TrialRequest(**args["request"])
+        if request.task is not None:
+            # A pinned engine runs only its release's own tasks.
+            raise EngineError(
+                "This benchmark engine starts release tasks by task_id; it does "
+                "not accept task rows."
+            )
         session_id = request.session_id
         if not session_id:
             raise EngineError("start_trial needs the session_id the frontend chose")
@@ -200,6 +206,7 @@ def engine_operations(engine: LifecycleProtocol) -> dict[str, _Operation]:
     trials = _Trials(engine)
     return {
         "describe": lambda a: engine.describe(a.get("release")),
+        "list_tasks": lambda a: engine.list_tasks(a["release"], a["split"]),
         "start_trial": trials.start,
         "begin": trials.begin,
         "trial_status": trials.status,
@@ -215,7 +222,6 @@ def engine_operations(engine: LifecycleProtocol) -> dict[str, _Operation]:
         "fault_check": lambda a: engine.fault_check(TrialHandle(**a["handle"])),
         "score": lambda a: engine.score(
             TrialHandle(**a["handle"]),
-            result_dir=a.get("result_dir"),
             infra_evidence=bool(a.get("infra_evidence")),
         ),
         "stop_trial": trials.stop,

@@ -116,12 +116,16 @@ class TestSelectTrials:
 
 
 class TestReleaseTaskIdGate:
-    def test_unknown_task_id_fails_before_preflight(self, tmp_path: Path) -> None:
+    def test_unknown_task_id_fails_before_any_trial(self, tmp_path: Path) -> None:
         release = load_release("0.2.0", split="test")
         result_dir = tmp_path / "run"
         with (
-            patch("nika.workflows.benchmark.run.release_engine") as engine,
-            patch("nika.workflows.benchmark.run.preflight_release") as preflight,
+            # The engine lists the tasks; run it in process, not 0.2.0's container.
+            patch(
+                "nika.workflows.benchmark.run.release_engine",
+                lambda *args, **kwargs: nullcontext(),
+            ),
+            patch("nika.workflows.benchmark.run.ensure_release_images") as images,
             patch("nika.workflows.benchmark.run.run_benchmark_trials") as runner,
         ):
             with pytest.raises(ValueError, match="Unknown task id"):
@@ -133,13 +137,11 @@ class TestReleaseTaskIdGate:
                     max_steps=None,
                     split="test",
                     result_dir=str(result_dir),
-                    check_images=False,
+                    check_images=True,
                     release=release,
                     task_ids=["missing-task"],
                 )
-        # 0.2.0 pins a benchmark engine; a bad selector must not start it.
-        engine.assert_not_called()
-        preflight.assert_not_called()
+        images.assert_not_called()
         runner.assert_not_called()
         assert not (result_dir / "run.json").exists()
 
@@ -155,7 +157,7 @@ class TestReleaseTaskIdGate:
                 "nika.workflows.benchmark.run.release_engine",
                 lambda *args, **kwargs: nullcontext(),
             ),
-            patch("nika.workflows.benchmark.run.preflight_release"),
+            patch("nika.workflows.benchmark.release.verify_release_tasks"),
             patch(
                 "nika.workflows.benchmark.run._run_trials_batch", return_value=[]
             ) as runner,

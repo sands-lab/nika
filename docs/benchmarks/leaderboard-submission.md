@@ -198,7 +198,7 @@ Newly proposed audit rules require maintainer review before adoption. For review
 
 [Root-cause ground truth and scoring](root-cause-evaluation.md#score-a-submission) describes per-trial metrics and aggregation.
 
-An `empty_trace` or `fault_absent_at_cleanup` flag rejects the submission regardless of its rate. Packing and trajectory validation check the original trial artifacts; scores validation checks the packaged flags. Inspect the trajectory for network changes or a self-healing fault before rerunning an absent-fault trial. NIKA preserves the raw scores for analysis. The `truncated_final_turn` and `infra_error` validity flags reject validation when either flag's rate exceeds `--max-harness-rate` (default 5%). The `no_submission`, `empty_report`, and `max_steps_exhausted` flags only warn.
+An `empty_trace` or `fault_absent_at_cleanup` flag rejects the submission regardless of its rate. Packing and trajectory validation check the original trial artifacts; scores validation checks the packaged flags. Inspect the trajectory for network changes or a self-healing fault before rerunning an absent-fault trial. NIKA preserves the raw scores for analysis. The `truncated_final_turn` and `infra_error` validity flags reject validation when either flag's rate exceeds the release's harness limit, `evaluation.validity.max_harness_rate` in its manifest (5% when the release declares none). The `no_submission`, `empty_report`, and `max_steps_exhausted` flags only warn.
 
 ## Validation errors
 
@@ -249,7 +249,10 @@ The package metrics differ from the aggregate NIKA recomputes from the per-trial
 
 ### `ERROR_GRADING_ERROR`
 
-Some trials have `score_status=grading_error`. Repair the grading inputs and [regrade the saved submissions](root-cause-evaluation.md#run-offline-eval), then pack again. Keep the recorded agent answers:
+Some trials have `score_status=grading_error`. Repair the grading inputs and [regrade the saved submissions](root-cause-evaluation.md#run-offline-eval), then pack again. Keep the recorded agent answers.
+
+> [!WARNING]
+> This command regrades every closed trial under the directory with the installed NIKA's scoring code and overwrites their metrics, including trials that were graded correctly. A release that runs on a pinned benchmark engine is scored by that engine's code, which can differ from the installed NIKA's, and NIKA has no command that regrades with the engine's code. Run it on such a release only if the installed NIKA scores the same way as the release's engine.
 
 ```shell
 uv run nika eval metrics --result_dir results/my-run
@@ -261,7 +264,7 @@ Some trials still have `score_status=infra_error` after the run's retries. Resum
 
 ### `ERROR_RUN_VALIDITY`
 
-The rate of at least one harness flag (`truncated_final_turn` or `infra_error`) exceeds `--max-harness-rate`. NIKA evaluates each flag's rate separately. Rates at or below the limit produce warnings; residual `score_status=infra_error` is independently rejected by [`ERROR_INFRA_ERROR`](#error_infra_error). Fix the reported harness problem, such as the output token limit, and rerun the affected trials.
+The rate of at least one harness flag (`truncated_final_turn` or `infra_error`) exceeds the release's harness limit (`evaluation.validity.max_harness_rate`, 5% by default). NIKA evaluates each flag's rate separately. Rates at or below the limit produce warnings; residual `score_status=infra_error` is independently rejected by [`ERROR_INFRA_ERROR`](#error_infra_error). Fix the reported harness problem, such as the output token limit, and rerun the affected trials.
 
 ### `ERROR_UNOFFICIAL_RUN`
 

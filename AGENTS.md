@@ -16,6 +16,7 @@ Start from the [documentation index](docs/README.md). It maps each contract to i
 * Write human-facing documentation with the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md), and use the terms in the [glossary](GLOSSARY.md).
 * In documentation and config comments, state what each option does in one or two plain sentences, without defensive or reassuring narration. Do not hard-wrap Markdown paragraphs; let Markdown wrap them.
 * Prefer decisions NIKA can make itself over new configuration options or environment variables.
+* Do not add a CLI command, subcommand, or second entry point when an existing command or interface already does the job. Add one only when it is necessary or clearly more convenient, because each one is another interface to version, document, and test.
 * When the user repeatedly asks for the same reusable coding or workflow practice, add it to the matching section of this file. Do not record task-specific decisions.
 
 ## Research experiments

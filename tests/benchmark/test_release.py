@@ -104,6 +104,7 @@ class TestManifestContracts:
             "max_trial_sec": 2400,
             "access": {"tools": ["*"], "node_roles": ["host"]},
             "submission_modes": ["structured"],
+            "validity": {"max_harness_rate": 0.1},
         }
         (root / "RELEASE.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
 
@@ -112,6 +113,13 @@ class TestManifestContracts:
         assert release.access.policy.node_roles == ["host"]
         assert release.max_trial_sec == 2400
         assert release.submission_modes == ("structured",)
+        assert release.max_harness_rate == 0.1
+
+    def test_undeclared_harness_rate_uses_default(self, tmp_path: Path) -> None:
+        from nika.evaluator.validity import DEFAULT_MAX_HARNESS_RATE
+
+        release = load_release_from_dir(self._release_dir(tmp_path), split="dev")
+        assert release.max_harness_rate == DEFAULT_MAX_HARNESS_RATE
 
     @pytest.mark.parametrize(
         ("fields", "message"),
@@ -124,6 +132,11 @@ class TestManifestContracts:
             ({"evaluation": {"access": {"hosts": ["*"]}}}, "evaluation.access"),
             ({"evaluation": {"max_trial_sec": 0}}, "evaluation.max_trial_sec"),
             ({"evaluation": {"submission_modes": ["free"]}}, "submission_modes"),
+            (
+                {"evaluation": {"validity": {"max_harness_rate": 1.5}}},
+                "max_harness_rate",
+            ),
+            ({"evaluation": {"validity": {"min_steps": 1}}}, "evaluation.validity"),
         ],
     )
     def test_unsupported_contract_version_is_refused(
@@ -487,7 +500,7 @@ class TestReleaseRunMetadata:
                 "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
             ),
             patch(
-                "nika.workflows.benchmark.run.preflight_release",
+                "nika.workflows.benchmark.release.verify_release_tasks",
                 return_value=None,
             ),
             patch(
@@ -550,7 +563,7 @@ class TestReleaseRunMetadata:
             patch(
                 "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
             ),
-            patch("nika.workflows.benchmark.run.preflight_release"),
+            patch("nika.workflows.benchmark.release.verify_release_tasks"),
             patch(
                 "nika.workflows.benchmark.run._run_trials_batch", return_value=[]
             ) as run_trials,
