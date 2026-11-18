@@ -34,6 +34,10 @@ Commit subjects and pull request titles follow Conventional Commits: `type(scope
 * The pull request title is the Conventional Commit line without a PR number. The merge commit subject is that line followed by `(#<PR number>)`.
 * The body is a short summary followed by `Fixes #<issue>` (or `Closes` or `Resolves`) so the merge closes the issue. Use one keyword per issue. When the work only contributes to an issue, write `Refs #<issue>` instead; it links the issue without closing it. Omit both when there is no issue.
 
+## Writing issues
+
+When you open an issue, including through the CLI or API, follow the matching form in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/) and use its section headings. Omit empty optional sections.
+
 ## Leaderboard submissions
 
 Submit with the [leaderboard submission skill](.agents/skills/nika-leaderboard-submit/SKILL.md). Name package directories `YYYYMMDD_<framework>_<model>`, with normalized public harness names, for both scores and Hugging Face trajectories. Do not add model release dates or prices; the leaderboard repository resolves them after merge. Confirm that the `model-metadata` and `validate` checks pass.
