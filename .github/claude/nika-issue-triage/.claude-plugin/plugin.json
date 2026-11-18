@@ -1,0 +1,5 @@
+{
+  "name": "nika-issue-triage",
+  "description": "Triage NIKA GitHub issues in the maintainers' voice; loaded by the Claude Issue Triage workflow.",
+  "version": "1.0.0"
+}
