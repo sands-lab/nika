@@ -5,7 +5,7 @@ name: Retry failed workflows
 # issue triage updates its marked comment instead of posting a new one.
 on:
   workflow_run:
-    workflows: [Letta Issue Triage]
+    workflows: [Claude Issue Triage]
     types: [completed]
 
 jobs:

@@ -1,8 +1,11 @@
 name: Letta Issue Triage
 
+# Disabled: claude-issue-triage.yml triages issues. Both workflows write the same
+# marked comment, so re-enable this trigger only after disabling that one.
 on:
-  issues:
-    types: [opened]
+  # issues:
+  #   types: [opened]
+  workflow_dispatch:
 
 jobs:
   triage:
