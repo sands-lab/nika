@@ -28,6 +28,10 @@ on:
       - ".github/workflows/**"
   workflow_dispatch:
 
+# Jobs only read the repository; a poisoned Actions cache must not gain write access.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
