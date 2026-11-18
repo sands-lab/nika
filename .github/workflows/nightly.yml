@@ -6,6 +6,10 @@ on:
     - cron: "15 5 * * *"
   workflow_dispatch:
 
+# Jobs only read the repository; a poisoned Actions cache must not gain write access.
+permissions:
+  contents: read
+
 concurrency:
   group: nightly-${{ github.workflow }}
   cancel-in-progress: false
