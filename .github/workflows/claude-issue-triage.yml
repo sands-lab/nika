@@ -26,9 +26,18 @@ jobs:
           ISSUE: ${{ github.event.issue.number }}
           SENDER: ${{ github.event.sender.login }}
         run: |
-          if [ "$ACTION" = labeled ]; then
-            # Only maintainers can add labels, but the author may have changed the
-            # text after approval; ask for a fresh approval in that case.
+          # Every path requires admin access: users with triage or maintain access
+          # can add labels too, and must not approve issue text for the agent.
+          permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$SENDER/permission" --jq .permission)
+          if [ "$permission" != admin ]; then
+            echo "::notice::$SENDER does not have admin access; an admin must add the triage label to run the triage."
+            if [ "$ACTION" = labeled ]; then
+              gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label triage
+            fi
+            run=false
+          elif [ "$ACTION" = labeled ]; then
+            # The author may have changed the text after approval; ask for a fresh
+            # approval in that case.
             labeled_at=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE/events" \
               --jq '.[] | select(.event == "labeled" and .label.name == "triage") | .created_at' | tail -n 1)
             edited_at=$(gh api graphql -F n="$ISSUE" -f o="${GITHUB_REPOSITORY%/*}" -f r="${GITHUB_REPOSITORY#*/}" \
@@ -42,13 +51,7 @@ jobs:
               run=true
             fi
           else
-            permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$SENDER/permission" --jq .permission)
-            if [ "$permission" = admin ]; then
-              run=true
-            else
-              echo "::notice::$SENDER does not have admin access; add the triage label to run the triage."
-              run=false
-            fi
+            run=true
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"
 
@@ -89,6 +92,9 @@ jobs:
           gh label create agent-ready --color 0E8A16 --description "Well-scoped; an agent can implement it" --force
           gh label create needs-human --color D93F0B --description "Needs human design or architectural decisions" --force
           gh label create triage --color FBCA04 --description "Run Claude issue triage on this issue" --force
+      # The prompt invokes this plugin's skill; fail here rather than triage without it.
+      - name: Check triage skill
+        run: test -f .github/claude/nika-issue-triage/skills/issue-triage/SKILL.md
       - uses: anthropics/claude-code-action@v1
         with:
           # Claude subscription token from `claude setup-token`.
@@ -99,14 +105,16 @@ jobs:
           allowed_non_write_users: "*"
           claude_args: >-
             --model claude-sonnet-5-5
+            --plugin-dir .github/claude/nika-issue-triage
             --max-turns 120
             --allowedTools "Agent,Bash,Read,Grep,Glob"
             --disallowedTools "Edit,Write,NotebookEdit,WebFetch,WebSearch"
+          # The leading slash command loads the triage skill for the whole run.
           prompt: |
+            /nika-issue-triage:issue-triage
             Triage issue #${{ github.event.issue.number }}. Read it with
-            `gh issue view ${{ github.event.issue.number }} --comments`, then read
-            `.agents/skills/nika-issue-triage/SKILL.md` and follow it for the
-            judgment and the comment's structure and voice.
+            `gh issue view ${{ github.event.issue.number }} --comments`, and follow
+            the skill for the judgment and the comment's structure and voice.
 
             The reporter's association with the repository is
             `${{ github.event.issue.author_association }}`. The checkout is `main`,
