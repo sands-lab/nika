@@ -1,0 +1,36 @@
+name: Sync main into dev
+
+# Open a main -> dev pull request after each push to main and auto-merge it
+# with a merge commit once dev's required checks pass, so main stays an
+# ancestor of dev. A conflict or failing check leaves the pull request open.
+# The pull request comes from main itself, so later pushes update it.
+# PR_SYNC_MAIN2DEV_TOKEN is a fine-grained token (contents, pull requests and
+# workflows: write); pull requests opened with GITHUB_TOKEN do not start CI.
+on:
+  push:
+    branches: [main]
+
+concurrency: sync-main-to-dev
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open and auto-merge the sync pull request
+        env:
+          GH_TOKEN: ${{ secrets.PR_SYNC_MAIN2DEV_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ahead=$(gh api "repos/$GH_REPO/compare/dev...main" --jq .ahead_by)
+          if [ "$ahead" -eq 0 ]; then
+            echo "dev already contains main"
+            exit 0
+          fi
+          pr=$(gh pr list --base dev --head main --state open --json url --jq '.[0].url')
+          if [ -z "$pr" ]; then
+            pr=$(gh pr create --base dev --head main \
+              --title "chore: merge main into dev" \
+              --body "Brings the commits on \`main\` that \`dev\` lacks. Merge with a merge commit so \`main\` stays an ancestor of \`dev\`.")
+          fi
+          echo "Sync pull request: $pr"
+          gh pr merge "$pr" --merge --auto
