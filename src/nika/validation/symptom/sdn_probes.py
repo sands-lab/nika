@@ -5,8 +5,10 @@ the probes send many cross-rack UDP flows with distinct source ports and count
 how many arrive. The loss threshold is half of that expected share, and every
 predicate is also evaluated on the healthy lab (baseline and sham).
 
-Shadowing: a drop-all rule on the switch. Same-rack traffic on a leaf other
-than the target never crosses a spine and is the control path.
+Shadowing: a drop rule for one rack prefix on the switch. Flows to that
+prefix are lost (all of them through a leaf, the ECMP share through a spine)
+and the rule's counter matches the lost packets, while flows from the same
+source to another rack through the same switch are the control path.
 
 Controller loss (crash, blocked or mismatched southbound port): the fabric is
 programmed proactively and the switches fail secure, so installed flows keep
@@ -31,6 +33,8 @@ from nika.net_env.sdn_l3_clos.fabric_manager.apply import onos_flow_snapshot
 from nika.net_env.sdn_l3_clos.topology_model import ONOS_OOB_IP, ONOS_REST_PORT
 from nika.net_env.verify import ping_stats
 from nika.problems.base import build_verify_result
+from nika.traffic.profiles import endpoint_names
+from nika.traffic.workload import paused_workload
 from nika.problems.forwarding_encapsulation_policy.flow_rules import (
     _device_id_for_switch,
     _onos_post_flow,
@@ -39,13 +43,16 @@ from nika.problems.management_orchestration_plane.sdn import _switch_controller_
 
 _PORT = 19611
 _FLOWS = 256
-_LOG = "/tmp/nika-audit-shadow.log"
+_LOG = "/tmp/probe-shadow.log"
 
 
 # A healthy sweep may lose this many flows to host noise.
 _HEALTHY_LOSS_PERCENT = 1.0
 # Loop evidence: packets the faulted link carries per offered flow.
 _LOOP_PACKETS_PER_FLOW = 5.0
+
+# Seconds for transfers already handed to the kernel to drain before counting.
+_QUIET_SETTLE_SEC = 8.0
 
 
 def _min_loss_percent(model: Any, switch: str) -> float:
@@ -54,38 +61,39 @@ def _min_loss_percent(model: Any, switch: str) -> float:
     return 50.0 * share
 
 
-def _ends(model: Any, switch: str) -> dict[str, Any]:
+def _ends(problem: Any, params: Any) -> dict[str, Any]:
+    """Source, a web server in the shadowed rack, and a control web server."""
+    model = problem.net_env.model
+    switch = params.host_name
     leaf = model.leaf_id(switch) if switch in model.leaves else None
-    clients = model.client_endpoints()
-    source = next((e for e in clients if leaf in (None, e.leaf_id)), None)
-    if source is None:
-        return {}
-    target = next(
-        (e for e in model.web_endpoints() if e.leaf_id != source.leaf_id), None
-    )
-    control = next(
+    shadowed = int(problem.shadowed_prefix(params).split(".")[2])
+    source = next(
         (
-            (a, b)
-            for a in model.endpoints
-            for b in model.endpoints
-            if a.leaf_id == b.leaf_id and a.name < b.name and a.leaf_id != leaf
+            e
+            for e in model.client_endpoints()
+            if e.leaf_id != shadowed and leaf in (None, e.leaf_id)
         ),
         None,
     )
-    if target is None or control is None:
+    target = next((e for e in model.web_endpoints() if e.leaf_id == shadowed), None)
+    control = next(
+        (
+            e
+            for e in model.web_endpoints()
+            if source is not None and e.leaf_id not in (shadowed, source.leaf_id)
+        ),
+        None,
+    )
+    if source is None or target is None or control is None:
         return {}
     return {"source": source, "target": target, "control": control}
 
 
-def _drop_packets(problem: Any, switch: str) -> int | None:
-    flows = problem.runtime.exec(
-        switch, f"ovs-ofctl -O OpenFlow13 dump-flows {switch} 2>/dev/null"
-    )
-    for line in flows.splitlines():
-        if f"priority={problem._SHADOW_PRIORITY} " in line and "drop" in line:
-            match = re.search(r"\bn_packets=(\d+)", line)
-            if match:
-                return int(match.group(1))
+def _drop_packets(problem: Any, params: Any) -> int | None:
+    for line in problem._shadow_lines(params):
+        match = re.search(r"\bn_packets=(\d+)", line)
+        if match:
+            return int(match.group(1))
     return None
 
 
@@ -136,18 +144,18 @@ def _flows(problem: Any, source: Any, target: Any) -> dict[str, Any]:
 
 
 def _sample(problem: Any, params: Any) -> dict[str, Any] | None:
-    ends = _ends(problem.net_env.model, params.host_name)
+    ends = _ends(problem, params)
     if not ends:
         return None
-    before = _drop_packets(problem, params.host_name)
+    before = _drop_packets(problem, params)
     path = _flows(problem, ends["source"], ends["target"])
-    after = _drop_packets(problem, params.host_name)
-    control = _flows(problem, *ends["control"])
+    after = _drop_packets(problem, params)
+    control = _flows(problem, ends["source"], ends["control"])
     return {
         "path": path,
         "control": control,
         "min_loss_percent": _min_loss_percent(problem.net_env.model, params.host_name),
-        # Diagnostic only: the rule's own counter is part of the artifact.
+        "lost_packets": path["sent"] - path["received"],
         "drop_packets_before": before,
         "drop_packets_after": after,
     }
@@ -165,18 +173,27 @@ def flow_shadow_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any
 
 
 def flow_shadow(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Cross-rack flows hashed onto the shadowed switch stop arriving."""
+    """Flows to the shadowed prefix stop arriving; other prefixes still do."""
     sample = _sample(problem, params)
     if sample is None:
         return False, {"error": "no_cross_rack_probe_path"}
     control_ok = sample["control"]["loss_percent"] <= _HEALTHY_LOSS_PERCENT
+    before, after = sample["drop_packets_before"], sample["drop_packets_after"]
+    # Unlike a loop, each lost packet is counted once by the rule and nowhere else.
+    counted = (
+        before is not None
+        and after is not None
+        and after - before >= 0.9 * sample["lost_packets"]
+    )
     verified = (
-        sample["path"]["loss_percent"] >= sample["min_loss_percent"] and control_ok
+        sample["path"]["loss_percent"] >= sample["min_loss_percent"]
+        and control_ok
+        and counted
     )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
-        details={**sample, "control_ok": control_ok},
+        details={**sample, "control_ok": control_ok, "counted": counted},
     )
 
 
@@ -213,9 +230,16 @@ def _loop_sample(problem: Any, params: Any) -> dict[str, Any] | None:
     )
     if not targets or source is None or control is None:
         return None
-    before = _link_packets(problem, spine, ports[spine])
-    path = _flows(problem, source, targets[0])
-    after = _link_packets(problem, spine, ports[spine])
+    # Port counters count every packet, so the lab's traffic holds still.
+    with paused_workload(
+        problem.runtime,
+        problem.net_env.business_workload(),
+        _QUIET_SETTLE_SEC,
+        hosts=endpoint_names(problem.net_env),
+    ):
+        before = _link_packets(problem, spine, ports[spine])
+        path = _flows(problem, source, targets[0])
+        after = _link_packets(problem, spine, ports[spine])
     link_packets = after - before if before is not None and after is not None else None
     return {
         "path": path,
@@ -286,9 +310,11 @@ def _switch_connections(problem: Any) -> tuple[dict[str, bool], dict[str, str]]:
     """
     states: dict[str, bool] = {}
     errors: dict[str, str] = {}
-    for switch, item in _switch_controller_state(
-        problem.runtime, problem.net_env
-    ).items():
+    try:
+        observations = _switch_controller_state(problem.runtime, problem.net_env)
+    except Exception as exc:  # noqa: BLE001 - runtime transports use different errors
+        return {}, {"controller_state": str(exc)}
+    for switch, item in observations.items():
         value = item["is_connected"].strip('"').lower()
         if value in {"true", "false"}:
             states[switch] = value == "true"
@@ -405,5 +431,48 @@ def controller_lost(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             "program": program,
             "forwarding": forwarding,
             "control_ok": control_ok,
+        },
+    )
+
+
+_CONFLICT_SAMPLES = 10
+_CONFLICT_SAMPLE_SEC = 3.0
+
+
+def switch_controller_conflict(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    """The target switch keeps losing its controller; the other switches stay on.
+
+    The controller closes each new channel from the target soon after it
+    opens, so most samples read disconnected. Installed flows keep forwarding.
+    """
+    target = params.host_name
+    samples: list[dict[str, bool]] = []
+    for _ in range(_CONFLICT_SAMPLES):
+        states, errors = _switch_connections(problem)
+        if errors:
+            return False, {"error": "switch_controller_query_failed", "details": errors}
+        samples.append(states)
+        time.sleep(_CONFLICT_SAMPLE_SEC)
+    down = sum(1 for states in samples if states.get(target) is False)
+    others_up = all(
+        up for states in samples for name, up in states.items() if name != target
+    )
+    forwarding = _forwarding(problem)
+    verified = (
+        down >= _CONFLICT_SAMPLES * 0.8
+        and others_up
+        and forwarding["loss_percent"] == 0.0
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "switch": target,
+            "disconnected_samples": down,
+            "samples": _CONFLICT_SAMPLES,
+            "other_switches_connected": others_up,
+            "forwarding": forwarding,
         },
     )

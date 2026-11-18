@@ -47,7 +47,7 @@ def _mini_cases_yaml(path: Path) -> Path:
                 "scenario": "dc_clos",
                 "topo_size": "s",
                 "problem": "link_down",
-                "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
             }
         ],
     }
@@ -220,8 +220,8 @@ class TestReleaseRunToLeaderboardPackE2E:
                 trial_id=trial.trial_id,
                 trial_index=trial.trial_index,
                 case_key=trial.case_key,
-                scenario=str(trial.row["scenario"]),
-                problem=str(trial.row["problem"]),
+                scenario=trial.task.scenario,
+                problem="+".join(trial.task.faults),
                 release_meta=kwargs.get("release_meta"),
                 outcome="success" if trial.trial_index == 1 else "agent_failed",
                 rca_f1=1.0,
@@ -232,7 +232,7 @@ class TestReleaseRunToLeaderboardPackE2E:
                 "nika.workflows.benchmark.release.RELEASES_DIR",
                 tmp_path / "releases",
             ),
-            patch("nika.workflows.benchmark.run.preflight_release"),
+            patch("nika.workflows.benchmark.release.verify_release_tasks"),
             patch(
                 "nika.workflows.benchmark.run._run_trial_with_timeout",
                 side_effect=fake_trial,
@@ -373,10 +373,6 @@ class TestReleaseRunToLeaderboardPackE2E:
             "nika.workflows.benchmark.release.RELEASES_DIR",
             tmp_path / "releases",
         )
-        monkeypatch.setattr(
-            "nika.workflows.leaderboard.validate.load_release",
-            lambda *a, **k: release,
-        )
 
         def fake_trial(trial, **kwargs):
             path = trial_dir(
@@ -387,13 +383,13 @@ class TestReleaseRunToLeaderboardPackE2E:
                 trial_id=trial.trial_id,
                 trial_index=trial.trial_index,
                 case_key=trial.case_key,
-                scenario=str(trial.row["scenario"]),
-                problem=str(trial.row["problem"]),
+                scenario=trial.task.scenario,
+                problem="+".join(trial.task.faults),
                 release_meta=kwargs.get("release_meta"),
             )
 
         with (
-            patch("nika.workflows.benchmark.run.preflight_release"),
+            patch("nika.workflows.benchmark.release.verify_release_tasks"),
             patch(
                 "nika.workflows.benchmark.run._run_trial_with_timeout",
                 side_effect=fake_trial,
@@ -490,7 +486,7 @@ class TestReleaseRunToLeaderboardPackE2E:
             return HfPullRequestResult(
                 repo_id=kwargs["repo_id"],
                 remote_path=kwargs["path_in_repo"],
-                pr_url="https://huggingface.co/datasets/Zhihao98/nika-trajectories/discussions/1",
+                pr_url="https://huggingface.co/datasets/nika-bench/nika-trajectories/discussions/1",
                 pr_num=1,
             )
 

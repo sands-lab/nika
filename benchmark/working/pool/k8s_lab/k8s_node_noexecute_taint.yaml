@@ -1,0 +1,27 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: k8s_node_noexecute_taint
+  cases:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker1
+    root_causes:
+    - resource:
+        kind: node
+        node: worker1
+      fault_type: k8s_node_noexecute_taint
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      control_node: controller
+      node_name: worker4
+    root_causes:
+    - resource:
+        kind: node
+        node: worker4
+      fault_type: k8s_node_noexecute_taint

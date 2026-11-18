@@ -22,6 +22,62 @@ def env_list() -> None:
     typer.echo(fmt_table(headers, rows))
 
 
+@env_app.command("render")
+def env_render(
+    scenario: list[str] = typer.Option(
+        ...,
+        "--scenario",
+        help="Scenario whose router configurations netlab generates; repeatable.",
+    ),
+    check: bool = typer.Option(
+        False,
+        "--check",
+        help="Only check that the stored configurations match the current design.",
+    ),
+) -> None:
+    """Generate and store the netlab router configurations a scenario deploys."""
+    from importlib import import_module
+
+    from nika.net_env.net_env_pool import get_net_env_instance, list_all_net_envs
+    from nika.net_env.synthesis.rendered import (
+        StaleRenderedConfigs,
+        render,
+        renderable,
+        rendered_variants,
+        stored_configs,
+        stores_configs,
+        variant,
+    )
+
+    stale = []
+    for name in scenario:
+        if not stores_configs(name):
+            raise typer.BadParameter(
+                f"{name} does not deploy stored configurations", param_hint="--scenario"
+            )
+        spec = list_all_net_envs()[name]
+        env_cls = getattr(import_module(spec.module), spec.class_name)
+        for options in rendered_variants(env_cls, name):
+            env = get_net_env_instance(name, rendered=False, **options)
+            if not renderable(env):
+                typer.echo(
+                    f"{name} {options}: netlab cannot generate it; NIKA renders it"
+                )
+                continue
+            if check:
+                try:
+                    stored_configs(env)
+                except StaleRenderedConfigs as exc:
+                    stale.append(str(exc))
+                    continue
+                typer.echo(f"{name} {variant(env)}: current")
+            else:
+                typer.echo(f"{name} {variant(env)}: {render(env)}")
+    if stale:
+        typer.echo("\n".join(stale), err=True)
+        raise typer.Exit(1)
+
+
 @env_app.command("run")
 def env_run(
     name: str = typer.Argument(
@@ -85,8 +141,10 @@ def env_run(
         None,
         "--device-profile",
         help=(
-            "ISP device profile: frr or iosxr (kathara), nokia_srlinux (containerlab). "
-            "Defaults from --backend. ISP+iosxr is rejected at lab construct; use iosxr_simple_bgp."
+            "Router platform. ISP: frr, iosxr or routeros (kathara), "
+            "nokia_srlinux or sonic (containerlab); defaults from --backend. "
+            "dc_clos, campus_lan, enterprise_branch: frr (default), iosxr or "
+            "routeros (size s for routeros)."
         ),
     ),
     no_redeploy: bool = typer.Option(
@@ -102,6 +160,23 @@ def env_run(
             "Defaults to nika.static_validation.enabled."
         ),
     ),
+    telemetry: list[str] | None = typer.Option(
+        None,
+        "--telemetry",
+        help=(
+            "Telemetry to attach, repeatable (supported: netflow, prometheus, syslog). "
+            "Devices without support stay unconfigured."
+        ),
+    ),
+    traffic: str | None = typer.Option(
+        None,
+        "--traffic",
+        help=(
+            "Background traffic on top of the business workload: PATTERN[,KEY=VALUE...], "
+            "e.g. gravity,load_mbps=4,flow_sizes=hadoop. Patterns: uniform, gravity, "
+            "demand, permutation, hotspot, incast."
+        ),
+    ),
     instance_tag: str | None = typer.Option(
         None,
         "--instance-tag",
@@ -115,6 +190,7 @@ def env_run(
     ),
 ) -> None:
     """Deploy one scenario and start a new session."""
+    from nika.traffic.profiles import parse_traffic_option
     from nika.workflows.env.start import start_net_env
 
     session_id = start_net_env(
@@ -131,6 +207,8 @@ def env_run(
         backend=backend,
         device_profile=device_profile,
         static_validation=static_validation,
+        telemetry=telemetry,
+        traffic=parse_traffic_option(traffic),
     )
     typer.echo(f"session_id={session_id}")
 

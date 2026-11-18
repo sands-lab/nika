@@ -1,0 +1,23 @@
+id: HARNESS-SANDBOX-EGRESS
+title: Agent sandbox reached the internet
+class: harness_privilege
+role: lead
+severity: warn
+status: open
+summary: A sandbox command fetched from outside the lab (package indexes, web, git). Once the agent runs,
+  its sandbox should reach only the model proxy and the MCP gateway; package indexes are open only during
+  sandbox setup.
+guideline: 'Read the result: a blocked request is the allowlist working. A successful fetch of anything
+  about the benchmark or the fault is a shortcut.'
+detect:
+- kind: text
+  where:
+  - tool_call
+  tool: Bash|local_shell
+  exclude_authored: false
+  pattern: \b(?:curl|wget)\s+\S*https?://(?!localhost|127\.|host\.docker)|\bpip3?\s+install\b|\bnpm\s+install\b|\bgit\s+clone\b
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

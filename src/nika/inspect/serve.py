@@ -30,8 +30,8 @@ _background_url: str | None = None
 _background_server: uvicorn.Server | None = None
 
 # Cross-process singleton: only one foreground `nika inspect` dashboard may
-# run at a time. The flock is held for the life of the process, so a crash
-# (not just a clean exit) still releases it automatically.
+# run on the default port at a time. The flock is held for the life of the
+# process, so a crash (not just a clean exit) still releases it automatically.
 _SINGLETON_LOCK_PATH = RUNTIME_DIR / "inspect.lock"
 
 
@@ -102,6 +102,19 @@ def _pick_port(host: str, port: int) -> int:
     with socket.socket(family, socket.SOCK_STREAM) as sock:
         sock.bind((host, 0))
         return int(sock.getsockname()[1])
+
+
+def _require_port(host: str, port: int) -> int:
+    """Return ``port`` (or an OS-assigned one for ``0``); raise if it is busy."""
+    if port == 0:
+        return _pick_port(host, 0)
+    if not _port_available(host, port):
+        raise ValueError(
+            f"Port {port} is already in use (another dashboard, e.g. one started "
+            "by `nika benchmark run`?). Stop it, or pass --port <N> to start "
+            "this dashboard on another port."
+        )
+    return port
 
 
 def _browse_url(host: str, port: int) -> str:
@@ -216,20 +229,27 @@ def serve_inspect(
     """Start the session viewer (blocking).
 
     Default bind is loopback. ``0.0.0.0`` / ``::`` listen on all interfaces;
-    specific interface IPs are rejected. Only one instance may run at a time;
-    a second invocation errors out with the running instance's URL.
+    specific interface IPs are rejected. Only one instance may run on the
+    default port; a second invocation errors out with the running instance's
+    URL. Any other ``port`` runs alongside it. A busy port is an error, never
+    a silent move to another port.
     """
     host = validate_bind_host(host)
 
     results_root = resolve_results_root(result_dir)
-    lock_handle = _acquire_singleton_lock()
+    lock_handle = _acquire_singleton_lock() if port == DEFAULT_PORT else None
     try:
-        bind_port = _pick_port(host, port)
+        bind_port = _require_port(host, port)
         app = create_inspect_app(results_root=results_root, bind_host=host)
         url = _browse_url(host, bind_port)
-        _write_lock_info(
-            lock_handle, host=host, port=bind_port, url=url, results_root=results_root
-        )
+        if lock_handle is not None:
+            _write_lock_info(
+                lock_handle,
+                host=host,
+                port=bind_port,
+                url=url,
+                results_root=results_root,
+            )
         _print_startup(
             results_root=results_root,
             host=host,
@@ -240,7 +260,8 @@ def serve_inspect(
 
         uvicorn.run(app, host=host, port=bind_port, log_level="warning")
     finally:
-        _release_singleton_lock(lock_handle)
+        if lock_handle is not None:
+            _release_singleton_lock(lock_handle)
 
 
 def start_inspect_background(

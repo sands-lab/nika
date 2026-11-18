@@ -54,7 +54,7 @@ def fault_label(problem: Any) -> str:
     return type(problem).__name__
 
 
-def _anomaly_expected(session_dir: Path) -> bool:
+def anomaly_expected(session_dir: Path) -> bool:
     path = session_dir / "ground_truth.json"
     if not path.is_file():
         return False
@@ -65,7 +65,7 @@ def _anomaly_expected(session_dir: Path) -> bool:
     return bool(isinstance(payload, dict) and payload.get("is_anomaly"))
 
 
-def _remote_lab() -> bool:
+def remote_lab() -> bool:
     try:
         from nika.remote.config import is_remote_enabled
 
@@ -112,8 +112,12 @@ def record_injection_verify(*, fault: str, verify_result: dict[str, Any]) -> Non
 
 def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
     """Read artifacts on the bound instance. Never constructs a new problem."""
+    from nika.workflows.schedule import scheduler_for
+
+    scheduler = scheduler_for(session_id)
+    scheduled = scheduler is not None and not scheduler.plan.static
     bound = bound_injected_problem(session_id)
-    if bound is None:
+    if bound is None and not scheduled:
         return {
             "present": False,
             "fault": None,
@@ -123,10 +127,14 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
             "error": "injected problem instance is not bound in this process",
             "unbound": True,
         }
-    problem, params = bound
-    fault = fault_label(problem)
+    problem, params = bound if bound is not None else (None, None)
+    fault = fault_label(problem) if problem is not None else "scheduled"
     try:
-        raw = recheck_artifact_with_retry(problem, params)
+        raw = (
+            scheduler.recheck_artifact()
+            if scheduled
+            else recheck_artifact_with_retry(problem, params)
+        )
     except Exception as exc:  # noqa: BLE001 - the trial records the read error
         return {
             "present": False,
@@ -147,13 +155,14 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
         }
     present = bool(raw.get("present"))
     error = raw.get("error")
-    if not present and not error:
+    if not present and not error and not raw.get("not_applicable"):
         error = "fault artifact absent"
     evidence = raw.get("evidence") if isinstance(raw.get("evidence"), dict) else {}
     if getattr(problem, "dynamic_artifact", False):
         evidence = {**evidence, "dynamic_artifact": True}
     return {
         "present": present,
+        "not_applicable": bool(raw.get("not_applicable")),
         "fault": raw.get("fault") or fault,
         "scope": "artifact",
         "check": "recheck_artifact",
@@ -163,13 +172,21 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
 
 
 def recheck_artifact_with_retry(problem: Any, params: Any) -> dict[str, Any]:
-    """Read the artifact again once after an absent read; never replay injection.
+    """Read the artifact again once after an absent or failed read; never replay injection.
 
     Many checks reduce a timed-out command to a boolean, so a busy container
-    can read as absent once.
+    can read as absent once. A parser that raises on a ``[TIMEOUT]`` sentinel
+    is retried the same way.
     """
+    raw: Any = None
     for attempt in range(2):
-        raw = problem.recheck_artifact(params)
+        try:
+            raw = problem.recheck_artifact(params)
+        except Exception:  # noqa: BLE001 - retry a transient timeout once
+            if attempt == 0:
+                time.sleep(1.0)
+                continue
+            raise
         if not isinstance(raw, dict) or raw.get("present"):
             return raw
         if attempt == 0:
@@ -177,52 +194,28 @@ def recheck_artifact_with_retry(problem: Any, params: Any) -> dict[str, Any]:
     return raw
 
 
-def _check_record(session_id: str, session_dir: Path, phase: str) -> dict[str, Any]:
-    anomaly = _anomaly_expected(session_dir)
-    bound = bound_injected_problem(session_id)
-    timestamp = datetime.now(UTC).isoformat()
-    if bound is None and not anomaly:
-        return {
-            "phase": phase,
-            "timestamp": timestamp,
-            "fault": "healthy",
-            "result": "not_applicable",
-            "scope": "artifact",
-            "check": "recheck_artifact",
-            "evidence": {"reason": "no fault injected"},
-            "error": None,
-        }
-    if bound is None and anomaly and _remote_lab():
-        try:
-            from nika.remote.client import RemoteClient
-
-            raw = RemoteClient().fault_artifact(session_id)
-        except Exception as exc:  # noqa: BLE001 - record a failed bounded read
-            raw = {
-                "present": False,
-                "fault": None,
-                "evidence": {},
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-    else:
-        raw = recheck_bound_artifact(session_id)
-    error = str(raw.get("error") or "")
-    if raw.get("present"):
-        result = "present"
-    elif raw.get("unbound") or (error and error != "fault artifact absent"):
-        result = "error"
-    else:
-        result = "absent"
+def presence_record(check: Any, phase: str) -> dict[str, Any]:
+    """The ``fault_presence_recheck`` record of a ``fault_check`` result."""
     return {
         "phase": phase,
-        "timestamp": timestamp,
-        "fault": raw.get("fault"),
-        "result": result,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "fault": check.fault,
+        "result": check.result,
         "scope": "artifact",
         "check": "recheck_artifact",
-        "evidence": raw.get("evidence") or {},
-        "error": raw.get("error"),
+        "evidence": check.evidence,
+        "error": check.error,
     }
+
+
+def _check_record(session_id: str, session_dir: Path, phase: str) -> dict[str, Any]:
+    from nika.benchmark_engine import benchmark_engine
+    from nika.benchmark_engine.protocol import TrialHandle
+
+    check = benchmark_engine().fault_check(
+        TrialHandle(session_id=session_id, trial_dir=str(session_dir))
+    )
+    return presence_record(check, phase)
 
 
 class PresenceWatch:
@@ -230,7 +223,8 @@ class PresenceWatch:
 
     The during-agent read waits ``delay_sec``, then runs once. If the agent
     returns first, ``finish`` performs that read before cleanup. Reads are
-    only logged; they do not change the trial outcome.
+    only logged; they do not change the trial outcome. The engine's ``begin``
+    logs the post-inject read.
     """
 
     def __init__(
@@ -252,8 +246,6 @@ class PresenceWatch:
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
-        if bound_injected_problem(self.session_id) is None:
-            self._run_phase("post_inject")
         self._thread = threading.Thread(
             target=self._during,
             name=f"fault-presence-{self.session_id}",

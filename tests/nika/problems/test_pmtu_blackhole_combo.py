@@ -6,7 +6,7 @@ import pytest
 
 from nika.workflows.benchmark.inject_resolve import resolve_multi_inject_params
 from nika.net_env.net_env_pool import get_probe_path
-from nika.problems.registry import get_problem_class
+from nika.validation.presence import bound_injected_problem
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 
@@ -32,15 +32,9 @@ class TestPmtuBlackholeComboDcClos(IntegrationTestCase):
             self._inject_multi_failure(self.PROBLEMS, params, session_id=session_id)
             self._assert_multi_failure_injected(self.PROBLEMS, session_id=session_id)
 
-            mtu_cls = get_problem_class(self.PROBLEMS[0])
-            filter_cls = get_problem_class(self.PROBLEMS[1])
-            assert mtu_cls is not None and filter_cls is not None
-            mtu_problem = self._problem(mtu_cls, session_id=session_id)
-            mtu_parsed = mtu_problem.parse_params(params[self.PROBLEMS[0]])
-            filter_parsed = self._problem(
-                filter_cls, session_id=session_id
-            ).parse_params(params[self.PROBLEMS[1]])
-            runtime = mtu_problem.runtime
+            bound = bound_injected_problem(session_id)
+            assert bound is not None
+            runtime = bound[0].runtime
 
             path = get_probe_path(self.SCENARIO, topo_size="s")
             assert path is not None and path.dst_ip
@@ -54,15 +48,10 @@ class TestPmtuBlackholeComboDcClos(IntegrationTestCase):
             assert saw_frag is False
             assert ping_mtu_blackhole(runtime, src, dst) is True
 
-            for problem, parsed in (
-                (filter_cls, filter_parsed),
-                (mtu_cls, mtu_parsed),
-            ):
-                instance = self._problem(problem, session_id=session_id)
-                try:
-                    instance.recover_fault(parsed)
-                except Exception:  # noqa: BLE001
-                    pass
+            recovered = bound[0].recover_fault(bound[1])
+            assert recovered["verified"], recovered
+            assert bound[0].recover_fault(bound[1])["verified"]
+            assert ping_df_probe(runtime, src, dst, packet_size=1400)[0]
         finally:
             if session_id is not None:
                 self._close_session(session_id)

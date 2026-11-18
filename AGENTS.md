@@ -1,110 +1,95 @@
 # NIKA
 
-NIKA is a platform for generating and running executable benchmarks for network troubleshooting agents. Python dependencies and commands use `uv`.
+NIKA is a platform for generating and running executable benchmarks for network troubleshooting agents. A benchmark is a set of tasks; each task combines a network environment, a network incident, and a network traffic pattern. Python dependencies and commands use `uv`.
+
+Start from the [documentation index](docs/README.md). It maps each contract to its implementation and lists the registry commands (`uv run nika env list`, `failure list`, `agent list`) to check before you change a catalog or count.
 
 ## Development rules
 
-* Read relevant code before modifying behavior and make the smallest change needed.
-* For human-facing documentation, use the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md): establish purpose before instructions, keep essential contracts visible, and lead with the shortest useful path.
-* Reuse existing NIKA abstractions instead of creating parallel implementations.
+* Read the relevant code before you change behavior, and make the smallest change that works.
+* Reuse existing NIKA abstractions instead of building parallel implementations. Add helpers, wrappers, or abstractions only when they have clear reuse value.
+* Drive synthesis and verification by declared capabilities and specifications, without scenario-name branches. Cover all applicable deployment profiles in the selected benchmark inventory and report unsupported capabilities explicitly.
+* Prefer established deterministic synthesis and verification tools for configuration decisions; keep authored requirements independent of generated outputs.
 * Preserve benchmark reproducibility, ground truth, telemetry semantics, and backend neutrality.
-* Do not weaken tests to make changes pass.
-* Avoid introducing feature-specific helpers, wrappers, mocks, or abstractions unless they have clear reuse value.
-* When the user repeatedly emphasizes a reusable coding or workflow preference, add it to the matching section of this file. Do not record task-specific or one-off decisions.
+* Do not weaken tests to make a change pass.
+* Keep scenarios and failures decoupled: scenario- or failure-specific adapters, helpers, and compatibility branches live in that scenario's or failure's own files, not in shared framework code.
+* Write human-facing documentation with the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md), and use the terms in the [glossary](GLOSSARY.md).
+* In documentation and config comments, state what each option does in one or two plain sentences, without defensive or reassuring narration. Do not hard-wrap Markdown paragraphs; let Markdown wrap them.
+* Prefer decisions NIKA can make itself over new configuration options or environment variables.
+* Do not add a CLI command, subcommand, or second entry point when an existing command or interface already does the job. Add one only when it is necessary or clearly more convenient, because each one is another interface to version, document, and test.
+* When the user repeatedly asks for the same reusable coding or workflow practice, add it to the matching section of this file. Do not record task-specific decisions.
 
-## Git and pull requests
+## Research experiments
 
-1. Before starting new work, run `git fetch origin dev` and create the branch from the freshly fetched `origin/dev`, not a potentially stale local `dev`. Preserve uncommitted work and do not reset or overwrite diverged local branches. If fetching fails, report it rather than silently proceeding from a stale base.
-2. Name the branch `feat/<slug>` or `fix/<slug>`. When tracking a GitHub issue, prefer `feat/<issue>-<slug>` / `fix/<issue>-<slug>` (e.g. `fix/54-onos-rest-group-install`). Do not invent placeholders such as `noissue`.
-3. Develop on that branch. Before starting each task on an existing branch, sync it with its upstream to catch conflicts early: on a `feat/` or `fix/` branch, fetch and merge `origin/dev`; on `dev`, fetch and merge `origin/main`. Merge rather than rebase once the branch is pushed: squash merge flattens the history anyway, and rebasing a shared branch requires a force-push.
-4. Before merging or resolving conflicts, run `git status`. If the worktree is clean, merge in place and use `git merge --abort` to back out; use a scratch worktree only when uncommitted work must be protected.
-5. PR into `dev`, **squash merge only** (no merge commit, no rebase-merge). Delete the branch after.
+* Keep research scripts, ablations, experimental configurations, and results on `experiment` in a separate worktree.
+* Do not merge the experiment branch into `dev` or `main`.
+* Keep reusable runtime features, release validation tools, and durable regression tests in the development workflow.
+* Develop framework fixes on a development branch and bring them into the experiment branch when needed.
+* Keep regression fixtures under `tests/fixtures/`. Development tests must run independently of the experiment worktree.
 
-`dev` -> `main` (opening/merging that PR, testing off `dev` meanwhile) is human-only — the agent never touches it.
+## Commit and pull request messages
 
-### Writing issues
+Commit subjects and pull request titles follow Conventional Commits: `type(scope): imperative summary`, where the type is one of `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, or `revert`. The [`commit-msg` hook](scripts/git-hooks/commit-msg) rejects other subjects, except the ones Git writes for local merges and `fixup!`/`squash!`/`amend!` commits (`./scripts/install.sh` enables it). The `Commit messages` CI check applies the same rule to every pull request commit and title, and also rejects fixup commits, so squash them before merging.
 
-When opening an issue, follow the applicable form in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/), using its section headings and guidance. This also applies to issues created through the CLI or API. Omit empty optional sections.
+* The pull request title is the Conventional Commit line without a PR number. The merge commit subject is that line followed by `(#<PR number>)`.
+* The body is a short summary followed by `Fixes #<issue>` (or `Closes` or `Resolves`) so the merge closes the issue. Use one keyword per issue. When the work only contributes to an issue, write `Refs #<issue>` instead; it links the issue without closing it. Omit both when there is no issue.
 
-### Leaderboard submissions
+## Writing issues
 
-* Use `YYYYMMDD_<framework>_<model>` package directories, with normalized public harness names, for scores and Hugging Face trajectories.
-* Before merging a leaderboard entry, register sourced model release dates and reference prices in the leaderboard catalogs and confirm both required checks (`model-metadata` and `validate`) pass. Existing reviewed model entries may be reused.
+When you open an issue, including through the CLI or API, follow the matching form in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/) and use its section headings. Omit empty optional sections.
 
-### Commit message
+## Leaderboard submissions
 
-Conventional Commits + GitHub auto-close, e.g.:
-`fix(benchmark): resolve serial batching race in run scheduler`
+Submit with the [leaderboard submission skill](.agents/skills/nika-leaderboard-submit/SKILL.md). Name package directories `YYYYMMDD_<framework>_<model>`, with normalized public harness names, for both scores and Hugging Face trajectories. Do not add model release dates or prices; the leaderboard repository resolves them after merge. Confirm that the `model-metadata` and `validate` checks pass.
 
-- `type(scope): imperative summary` — type: `feat/fix/docs/refactor/perf/test/chore/ci/build/revert`.
-- Keep the PR title as the Conventional Commit line without a PR number. The squash commit subject should end with `(#<PR number>)`. In the GitHub UI, check the proposed subject and add the suffix if missing. With `gh pr merge --squash --subject`, include the suffix explicitly; the supplied subject is used as written. Verify the merged commit on `dev`.
-- Body: short summary plus `Fixes #<issue>` (or `Closes`/`Resolves`) so merging auto-closes it. Skip the keyword if there is no issue. Multiple issues: one keyword each.
+## Tasks and failures
 
-`gh pr merge --squash` must pass both `--subject` and `--body`. Subject is the Conventional Commit line followed by `(#<PR number>)`. Body is the summary above, not the PR's commit list. `--subject` alone still uses GitHub's default squash body, which concatenates every PR commit and repeats `Co-authored-by: Cursor` once per commit. Do not amend+force-push `dev` to clean that up.
-
-Never merge into `dev` via manual local `git merge --squash` + push — bypasses review and the required PR number in the squash subject.
-
-## Scenarios and failures
-
-* Prefer failures and scenarios grounded in real network incidents, standards, vendor practice, or established failure modes.
-* Failures should represent root causes rather than symptoms.
-* Keep scenarios minimal while preserving realistic reproduction and diagnosis.
-* Avoid telemetry, metadata, or interfaces that leak ground truth.
-* New failures follow the existing `ProblemBase` model, failure taxonomy, registry, and RCA conventions.
-* Cross-domain reusable failure logic belongs in shared support code rather than concrete registered failures.
+* Ground environments and failures in real network incidents, standards, vendor practice, or established failure modes.
+* Model a failure as a root cause, not a symptom.
+* Keep environments minimal while preserving realistic reproduction and diagnosis.
+* Do not add telemetry, metadata, or interfaces that leak ground truth.
+* Follow the `ProblemBase` model, failure taxonomy, registry, and RCA conventions in [Create benchmark tasks](docs/development/creating-benchmark-tasks.md).
+* Put failure logic shared across domains in `src/nika/problems/support/`, not in a concrete registered failure.
+* Keep environment synthesis and formal-validation experiments opt-in during development, and leave the normal benchmark startup path unchanged unless asked.
+* Use established synthesis and verification tools within their supported semantics. Document the original requirements, the responsibilities NIKA keeps, and the verification limits, and keep the workflow capability-based across environments.
 
 ## Benchmark contracts
 
-Treat changes to scenario/failure compatibility, taxonomy, root-cause identity, ground truth, registries, or benchmark cases as benchmark contract changes.
+Changes to environment/failure compatibility, taxonomy, root-cause identity, ground truth, registries, or benchmark tasks are benchmark contract changes. After such a change, regenerate the derived artifacts (`uv run nika benchmark generate`) and review the diff. Do not edit generated benchmark data by hand unless explicitly required. Published benchmark releases do not change.
 
-Regenerate and review derived benchmark artifacts after such changes. Do not manually modify generated benchmark data unless explicitly required. Treat published benchmark releases as immutable.
+Classify every change by its effect on evaluation as an edition, revision, or patch under the [versioning policy](VERSIONING.md). A change that alters what the agent encounters or how its answer is scored needs a new benchmark revision, even when it lives entirely in the orchestrator.
 
 ## Testing
 
-Prefer **real Docker-backed NIKA E2E tests** over unit tests for executable network behavior.
-
-For changes involving scenarios, failures, traffic, telemetry, runtime, or backends:
+Executable network behavior needs real Docker-backed NIKA end-to-end runs; unit tests alone do not show that an incident, traffic pattern, or recovery works. For changes to environments, failures, traffic, telemetry, runtime, or backends:
 
 * Start a real NIKA session and exercise the normal workflow.
-* Use `nika exec` to run commands inside containers and inspect actual network state.
-* Validate observable behavior such as connectivity, routes, protocol sessions, counters, traffic, telemetry, failure symptoms, and recovery.
-* Prefer real protocol and runtime behavior over mocks or synthetic substitutes.
+* Use `nika exec` to inspect network state inside containers.
+* Check observable behavior: connectivity, routes, protocol sessions, counters, traffic, telemetry, failure symptoms, and recovery.
+* Prefer real protocol and runtime behavior to mocks or synthetic substitutes.
 
-Run independent E2E tests in parallel when safe to reduce test time. The benchmark runner defaults to `heavy_batch_size: 1` so Containerlab, k8s/llmd/XRd, and topo_size `l` run exclusively (no peer sessions); still avoid stacking multiple heavy labs manually in ad-hoc scripts.
+Run independent end-to-end tests in parallel when it is safe. The benchmark runner already runs heavy environments (Containerlab, k8s/llmd/XRd, and topology size `l`) one at a time through `heavy_batch_size: 1`; do not stack several heavy environments by hand in ad-hoc scripts.
 
-Use unit tests mainly for stable isolated logic such as parsing, schemas, deterministic transformations, compatibility rules, and pure algorithms.
+Use unit tests for stable, isolated logic such as parsing, schemas, deterministic transformations, compatibility rules, and pure algorithms. [Testing](docs/development/testing.md) describes the suite layout, the required pytest tier markers, and the CI jobs.
 
-Do not add permanent unit tests merely to mirror implementation details or increase coverage.
+Share acceptance assertions across specification-driven experiments. Keep environment differences in declared specifications and deployment parameters, not in separate test workflows.
 
-During feature development, temporary focused tests and helpers are acceptable. After completing each feature, proactively remove all development-only test functions, fixtures, mocks, scripts, and helper functions introduced for that work. Retain only durable tests and reusable helpers that directly exercise or support NIKA’s primary workflows, user-visible behavior, benchmark contracts, or reusable core logic.
+Keep a small durable regression set that covers user-visible behavior, important failure modes, benchmark contracts, and reusable core logic. Do not add permanent tests that only mirror implementation details or raise coverage. Temporary tests and helpers are fine during development; remove them when the feature is done.
 
-Keep a small durable regression set focused on:
+A test that creates external resources must clean up only what it owns, including on failure. Use NIKA lifecycle commands such as `nika session close` instead of manual Docker or emulator cleanup.
 
-* user-visible behavior;
-* important failure modes;
-* benchmark contracts;
-* reusable core logic.
+## Before you finish
 
-Any test that creates external resources must clean up only the resources it owns, including on failure. Prefer NIKA lifecycle commands/APIs over manual Docker or emulator cleanup.
+* For executable network changes, verify the intended behavior in a running NIKA session.
+* Confirm that the retained regression tests pass and that test-created resources are gone.
+* Remove temporary or overly specific test code.
+* Review the diff for unintended changes.
+* Run `uv run ruff format` and `uv run ruff check`.
+* If you are about to push a commit on a PR, and if `README.md` or `docs/` changed, apply the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md) to sanitize the doc and make it consistent with changes and user's expectations.
 
-## Verification
-
-For executable network changes, completion normally requires a real E2E run rather than only unit tests.
-
-Before finishing:
-
-* verify the intended behavior in a running NIKA environment;
-* inspect containers with `nika exec` when relevant;
-* confirm retained regression tests pass;
-* confirm test-created resources are removed;
-* remove temporary or overly specific test code;
-* review the repository diff for unintended changes;
-* run formatting and lint checks.
-
-A test is not complete if assertions pass but its resources remain or it does not validate the intended runtime behavior.
+A test is not complete if its assertions pass but its resources remain, or if it does not exercise the intended runtime behavior.
 
 ## Operational safety
 
-* Never delete unrelated runtime, Docker, emulator, Kubernetes, or experiment resources.
-* Prefer NIKA lifecycle operations for session cleanup.
-* Preserve scenario data, topology files, startup configs, P4 programs, manifests, and traffic datasets unless the task explicitly changes them.
+* Never delete unrelated runtime, Docker, emulator, Kubernetes, or experiment resources. Close your own sessions with `nika session close --session_id <id>`; reserve `nika session wipe` for when the user asks for it, because it closes every session.
+* Preserve environment data, topology files, startup configs, P4 programs, manifests, and traffic datasets unless the task changes them.

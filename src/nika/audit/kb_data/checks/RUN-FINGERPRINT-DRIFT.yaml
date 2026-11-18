@@ -1,0 +1,16 @@
+id: RUN-FINGERPRINT-DRIFT
+title: Harness fingerprint differs across trials
+class: run_validity
+role: lead
+severity: warn
+status: open
+summary: Trials of one submission ran with different NIKA commits, models, token limits, tool lists, or
+  skills.
+guideline: A changing tool list means stray user-level skills or connectors on the runner.
+detect:
+- kind: fingerprint_drift
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

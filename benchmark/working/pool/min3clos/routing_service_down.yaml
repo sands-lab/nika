@@ -1,0 +1,38 @@
+scenario:
+  name: min3clos
+failure:
+  fault_type: routing_service_down
+  cases:
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf1
+      fault_type: routing_service_down
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf2
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf2
+      fault_type: routing_service_down
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: spine
+    root_causes:
+    - resource:
+        kind: node
+        node: spine
+      fault_type: routing_service_down

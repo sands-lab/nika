@@ -3,14 +3,20 @@ scenario:
 failure:
   fault_type: icmp_acl_block
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: pc1
     root_causes:
     - resource:
         kind: node
         node: pc1
       fault_type: icmp_acl_block
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: pc2
     root_causes:
     - resource:

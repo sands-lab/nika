@@ -1,0 +1,40 @@
+id: HARNESS-SRLINUX-CAPTURE-NAME-EMPTY
+title: packet_capture on SR Linux nodes silently captures 0 packets when given the SR Linux interface name (ethernet-1/N)
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: In release 0.2.0 packet_capture_start passed the interface name straight to dumpcap without mapping it or
+  checking that it exists. On SR Linux nodes (isp_pdh, min3clos) the native name ethernet-1/N or ethernet-1/N.0 is
+  not a Linux interface, so all 41 completed captures that used it returned 0 packets and 0 bytes instead of an
+  error, while captures on the Linux name e1-N saw traffic (36 packets on e1-5 against 0 on ethernet-1/5 in the
+  same case). Agents read the empty capture as missing traffic. c00630bc maps SR Linux names
+  (src/nika/service/packet_capture/capture_backend.py).
+guideline: Counts when packet_capture_start names an SR Linux interface (ethernet-1/N) on a release-0.2.0 commit
+  and the matching packet_capture_stop reports packet_count 0 with captured_bytes 0. On a commit with c00630bc the
+  name is mapped, so a hit is a regression only if that capture also comes back empty while traffic flows. Captures
+  on e1-N names with 0 packets are a real observation, not this issue.
+scope:
+  scenarios:
+  - isp_pdh
+  - min3clos
+detect:
+- kind: text
+  where:
+  - tool_call
+  tool: packet_capture_start
+  pattern: '"interface":\s*"ethernet-\d+/\d+'
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-SRLINUX-CAPTURE-NAME-EMPTY)
+  date: '2026-10-28'
+  refs:
+  - isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01:38
+  - isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01:39
+  - isp_pdh__bgp_acl_block__s__i__hbe4170621772__t02:43
+  found_by: agentic
+evidence:
+- 'isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01 (20261012_react_gemma_4_31b_it) step 38: "packet_count": 0,
+  "captured_bytes": 0, "duration_sec": 75.293793'
+- 'isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01 step 39: Wait, the `packet_capture_start` on `n1` interface
+  `ethernet-1/5` returned `packet_count: 0`. This is very strange because `pc_n1` is connected to `n1:e1-5`.'
+- 'isp_pdh__bgp_acl_block__s__i__hbe4170621772__t02 step 43: "packet_count": 36, "captured_bytes": 4864'

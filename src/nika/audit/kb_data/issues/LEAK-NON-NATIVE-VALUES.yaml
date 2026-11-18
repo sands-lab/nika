@@ -1,0 +1,22 @@
+id: LEAK-NON-NATIVE-VALUES
+title: Injected values that do not come from the network itself
+class: shortcut
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: 'Injections used values a real network would not produce: a placeholder MAC 00:11:22:33:44:55,
+  flood prefixes allocated as sequential /24s, nft and ONOS rule priorities far from the baseline''s.'
+guideline: Ask whether the value is derived from this network and looks like the baseline's values. A
+  conspicuous constant on one device points at the injection. Injected addresses and priorities are now
+  derived from the network and floods use scattered prefixes.
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: 00:11:22:33:44:55
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

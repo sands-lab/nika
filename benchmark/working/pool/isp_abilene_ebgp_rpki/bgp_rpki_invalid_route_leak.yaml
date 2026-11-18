@@ -6,26 +6,13 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kscyng
     root_causes:
     - resource:
         kind: node
-        node: dnvrng
-      fault_type: bgp_rpki_invalid_route_leak
-    - resource:
-        kind: node
         node: kscyng
-      fault_type: bgp_rpki_invalid_route_leak
-    - resource:
-        kind: node
-        node: losang
-      fault_type: bgp_rpki_invalid_route_leak
-    - resource:
-        kind: node
-        node: snvang
-      fault_type: bgp_rpki_invalid_route_leak
-    - resource:
-        kind: node
-        node: sttlng
       fault_type: bgp_rpki_invalid_route_leak

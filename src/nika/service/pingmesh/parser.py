@@ -15,8 +15,8 @@ PING_STATS_RE = re.compile(
 )
 
 RTT_RE = re.compile(
-    r"(?:rtt|round-trip)\s+min/avg/max/(?:mdev|stddev)\s*=\s*"
-    r"([\d\.]+)/([\d\.]+)/([\d\.]+)/([\d\.]+)\s*ms",
+    r"(?:rtt|round-trip)\s+min/avg/max(?:/(?:mdev|stddev))?\s*=\s*"
+    r"([\d\.]+)/([\d\.]+)/([\d\.]+)(?:/([\d\.]+))?\s*ms",
     re.MULTILINE,
 )
 
@@ -60,7 +60,9 @@ def parse_ping_output(output: str) -> PingStats:
 
     rtt_match = RTT_RE.search(output)
     if rtt_match:
-        rtt_min, rtt_avg, rtt_max, rtt_mdev = map(float, rtt_match.groups())
+        rtt_min, rtt_avg, rtt_max, rtt_mdev = (
+            float(value) if value is not None else None for value in rtt_match.groups()
+        )
 
     status = _derive_status(tx, rx, loss)
     return {

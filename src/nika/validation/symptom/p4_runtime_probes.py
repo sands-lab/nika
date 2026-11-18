@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import ipaddress
-import json
 import shlex
 import time
 from typing import Any
 
-from nika.net_env.p4_dc_fabric.fabric_manager.apply import INTENT_PATH, P4INFO_PATH
 from nika.net_env.verify import http_ok, ping_stats
+from nika.traffic.profiles import endpoint_names
+from nika.traffic.workload import paused_workload
 from nika.problems.base import build_verify_result
 from nika.net_env.net_env_pool import get_probe_path
 from nika.problems.forwarding_encapsulation_policy.p4_runtime import (
@@ -21,6 +21,8 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     load_intent,
     lpm_capacity,
     run_manager,
+    probe_table_capacity,
+    table_capacity_rejected,
 )
 
 
@@ -28,9 +30,12 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
 # group. The CRC16 selector is linear, so the ports are spread over the range.
 _SWEEP_SOURCES = [10007 + 211 * index for index in range(256)]
 _SWEEP_PORT = 19411
-_SWEEP_LOG = "/tmp/nika-audit-sweep.log"
-_SWEEP_PID = "/tmp/nika-audit-sweep.pid"
+_SWEEP_LOG = "/tmp/probe-sweep.log"
+_SWEEP_PID = "/tmp/probe-sweep.pid"
 _SWEEP_MIN_DELIVERED = 0.98
+# BMv2 paths carry about 5 Mbit/s, so a 2 MB transfer the kernel already holds
+# drains within a few seconds of its program stopping.
+_QUIET_SETTLE_SEC = 8.0
 _SWEEP_LISTEN = r"""
 import socket, sys
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -120,7 +125,21 @@ def _sweep(
     """Send every flow once; return delivered flows and per-port packet deltas.
 
     With ``next_hops`` the deltas are also read on each member's next hop.
+    Port counters count every packet, so the scenario workload holds still
+    while the sweep runs.
     """
+    with paused_workload(
+        problem.runtime,
+        problem.net_env.business_workload(),
+        _QUIET_SETTLE_SEC,
+        hosts=endpoint_names(problem.net_env),
+    ):
+        return _sweep_counted(problem, ends, next_hops=next_hops)
+
+
+def _sweep_counted(
+    problem: Any, ends: dict[str, Any], *, next_hops: bool
+) -> dict[str, Any]:
     runtime = problem.runtime
     started = runtime.exec(
         ends["target"],
@@ -266,63 +285,6 @@ def selector_member_blackhole(problem: Any, params: Any) -> tuple[bool, dict[str
     )
 
 
-# TEST-NET-3 host route that no P4 scenario addresses or fills.
-_PROBE_PREFIX = "203.0.113.77/32"
-# BMv2 reports a full table as a target add error rather than RESOURCE_EXHAUSTED.
-_TABLE_FULL_CODES = {"RESOURCE_EXHAUSTED"}
-_TABLE_FULL_MESSAGE = "Error when adding match entry to target"
-_TRY_INSERT = r"""
-import json, sys
-sys.path.insert(0, "/opt/nika")
-import grpc
-import p4rt_manager as m
-from google.rpc import code_pb2, status_pb2
-name, prefix, intent_path, p4info_path = sys.argv[1:5]
-switch = m.load_json(intent_path)["switches"][name]
-index = m.P4InfoIndex(m.load_p4info(p4info_path))
-entry = {"prefix": prefix, "group_id": int(switch["ipv4_lpm"][0]["group_id"])}
-mode = m.p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR
-client = m.connect(switch)
-out = {"prefix": prefix, "inserted": False, "codes": [], "messages": []}
-try:
-    try:
-        client.write([m.lpm_entity(index, entry, insert=True)], mode)
-        out["inserted"] = True
-    except grpc.RpcError as exc:
-        out["codes"].append(exc.code().name)
-        for key, value in exc.trailing_metadata() or []:
-            if key != "grpc-status-details-bin":
-                continue
-            status = status_pb2.Status.FromString(value)
-            for detail in status.details:
-                error = m.p4runtime_pb2.Error()
-                detail.Unpack(error)
-                out["codes"].append(code_pb2.Code.Name(error.canonical_code))
-                out["messages"].append(error.message)
-    if out["inserted"]:
-        client.write([m.lpm_entity(index, entry, insert=False)], mode)
-    lpm = m.observed_switch(client, index)["ipv4_lpm"]
-    out["occupancy"] = len(lpm)
-    out["present_after"] = any(e.get("prefix") == prefix for e in lpm)
-finally:
-    client.close()
-print(json.dumps(out))
-"""
-
-
-def _try_insert(problem: Any, switch: str) -> dict[str, Any]:
-    """Insert and remove one unused LPM entry through the P4Runtime manager."""
-    cmd = (
-        f"python3 -c {shlex.quote(_TRY_INSERT)} {switch} {_PROBE_PREFIX} "
-        f"{INTENT_PATH} {P4INFO_PATH}"
-    )
-    try:
-        out = problem.runtime.exec("fabric_mgr", cmd, timeout=60)
-        return json.loads(out.strip().splitlines()[-1])
-    except Exception as exc:  # noqa: BLE001 - timeouts and bad output are errors
-        return {"error": f"try_insert_failed: {exc}"}
-
-
 def _transit_ping(problem: Any, intent: dict[str, Any], switch: str) -> dict:
     """Ping from a host on ``switch`` to a remote endpoint it routes by LPM."""
     endpoints = {e["name"]: e["ip"] for e in intent["endpoints"]}
@@ -345,7 +307,7 @@ def _transit_ping(problem: Any, intent: dict[str, Any], switch: str) -> dict:
 
 def _table_write(problem: Any, params: Any) -> dict[str, Any]:
     intent = load_intent(problem.runtime)
-    write = _try_insert(problem, params.host_name)
+    write = probe_table_capacity(problem.runtime, params.host_name)
     return {
         "switch": params.host_name,
         "capacity": lpm_capacity(intent),
@@ -371,15 +333,7 @@ def table_exhaustion(problem: Any, params: Any) -> tuple[bool, dict]:
     """The full LPM table rejects a new entry; installed routes still forward."""
     details = _table_write(problem, params)
     write = details["write"]
-    rejected = (
-        "error" not in write
-        and not write["inserted"]
-        and not write["present_after"]
-        and (
-            bool(_TABLE_FULL_CODES & set(write["codes"]))
-            or _TABLE_FULL_MESSAGE in write["messages"]
-        )
-    )
+    rejected = table_capacity_rejected(write)
     at_capacity = "error" not in write and write["occupancy"] >= details["capacity"]
     verified = rejected and at_capacity and details["forwarding"]["ok"]
     return verified, build_verify_result(
@@ -395,18 +349,38 @@ def table_exhaustion(problem: Any, params: Any) -> tuple[bool, dict]:
 # captures inbound only: a backend legitimately sends to the victim address.
 _CROSS_PINGS = 10
 _CROSS_HTTP_TRIES = 4
-_CROSS_LOG = "/tmp/nika-audit-cross.log"
-_CROSS_PID = "/tmp/nika-audit-cross.pid"
+_CROSS_LOG = "/tmp/probe-cross.log"
+_CROSS_PID = "/tmp/probe-cross.pid"
 _CROSS_MAX_LOSS = 10.0
 _CROSS_MIN_LOSS = 90.0
 
 
 def _crossed_reading(problem: Any, params: Any) -> dict[str, Any]:
-    """Probe both routes and an untouched one; capture victim traffic on the host."""
+    """Probe both routes and an untouched one; capture victim traffic on the host.
+
+    Under the fault, the scenario workload's own traffic to the host loops
+    too and can load the shared switch, so it holds still during the reading.
+    """
+    with paused_workload(
+        problem.runtime,
+        problem.net_env.business_workload(),
+        _QUIET_SETTLE_SEC,
+        hosts=endpoint_names(problem.net_env),
+    ):
+        return _crossed_reading_quiet(problem, params)
+
+
+def _crossed_reading_quiet(problem: Any, params: Any) -> dict[str, Any]:
     runtime = problem.runtime
-    pair = partial_write_routes(load_intent(runtime), params.host_name)
+    # After injection the stored intent carries the re-derived group IDs;
+    # probe the routes the fault picked from the original intent.
+    pair = getattr(problem, "_pair", None) or partial_write_routes(
+        load_intent(runtime), params.host_name
+    )
     path = get_probe_path(
-        problem.scenario_name or "", topo_size=problem.net_env.model.topo_size
+        problem.scenario_name or "",
+        topo_size=problem.net_env.model.topo_size,
+        net_env=problem.net_env,
     )
     if path is None or not path.http_url:
         return {**pair, "error": "no_probe_path"}

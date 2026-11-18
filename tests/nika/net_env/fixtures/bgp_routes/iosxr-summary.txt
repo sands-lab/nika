@@ -1,0 +1,19 @@
+------------------------------ show bgp summary -------------------------------
+BGP router identifier 193.10.11.1, local AS number 1
+BGP generic scan interval 60 secs
+Non-stop routing is enabled
+BGP table state: Active
+Table ID: 0xe0000000   RD version: 6
+BGP main routing table version 6
+BGP NSR Initial initsync version 4 (Not Reached)
+BGP NSR/ISSU Sync-Group versions 0/0
+BGP scan interval 60 secs
+
+BGP is operating in STANDALONE mode.
+
+
+Process    RcvTblVer     bRIB/RIB     LabelVer    ImportVer    SendTblVer   StandbyVer
+Speaker            6             6             6             6             6             0
+
+Neighbor        Spk    AS MsgRcvd MsgSent       TblVer  InQ OutQ  Up/Down  St/PfxRcd
+193.10.11.2       0     2       5       5            5    0    0 00:01:10          1

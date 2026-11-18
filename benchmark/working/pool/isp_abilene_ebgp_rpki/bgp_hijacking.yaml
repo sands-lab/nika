@@ -6,12 +6,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlam5
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
+      observer_host: pc_atlang
+      probe_dst_ip: 198.51.100.1
       symptom_host: atlang
-      target_network: 198.18.0.0/24
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
@@ -20,12 +23,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: atlang
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_atlam5
+      probe_dst_ip: 198.51.100.1
+      symptom_host: atlam5
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
@@ -34,12 +40,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: chinng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_iplsng
+      probe_dst_ip: 198.51.102.1
+      symptom_host: iplsng
+      target_network: 198.51.102.0/24
     root_causes:
     - resource:
         kind: node
@@ -48,12 +57,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: dnvrng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_snvang
+      probe_dst_ip: 198.51.101.1
+      symptom_host: snvang
+      target_network: 198.51.101.0/24
     root_causes:
     - resource:
         kind: node
@@ -62,12 +74,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hstnng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_atlam5
+      probe_dst_ip: 198.51.100.1
+      symptom_host: atlam5
+      target_network: 198.51.100.0/24
     root_causes:
     - resource:
         kind: node
@@ -76,12 +91,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: iplsng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_chinng
+      probe_dst_ip: 198.51.102.1
+      symptom_host: chinng
+      target_network: 198.51.102.0/24
     root_causes:
     - resource:
         kind: node
@@ -90,12 +108,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: kscyng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_dnvrng
+      probe_dst_ip: 198.51.101.1
+      symptom_host: dnvrng
+      target_network: 198.51.101.0/24
     root_causes:
     - resource:
         kind: node
@@ -104,40 +125,15 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
-    inject:
-      host_name: losang
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: losang
-      fault_type: bgp_hijacking
-  - topo_size: s
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: nycmng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: nycmng
-      fault_type: bgp_hijacking
-  - topo_size: s
-    backend: kathara
-    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: snvang
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_dnvrng
+      probe_dst_ip: 198.51.101.1
+      symptom_host: dnvrng
+      target_network: 198.51.101.0/24
     root_causes:
     - resource:
         kind: node
@@ -146,28 +142,17 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: sttlng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_dnvrng
+      probe_dst_ip: 198.51.101.1
+      symptom_host: dnvrng
+      target_network: 198.51.101.0/24
     root_causes:
     - resource:
         kind: node
         node: sttlng
-      fault_type: bgp_hijacking
-  - topo_size: s
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: washng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: washng
       fault_type: bgp_hijacking

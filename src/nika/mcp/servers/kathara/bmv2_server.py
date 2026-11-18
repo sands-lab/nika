@@ -12,8 +12,10 @@ mcp = FastMCP("kathara_bmv2_mcp_server")
 
 @mcp.tool()
 def p4rt_exec(args: str) -> str:
-    """Run p4rt_manager.py on fabric_mgr with the given CLI arguments.
+    """Query live P4Runtime state through the fabric controller (read-only).
 
+    Commands: ``read [--switch NAME]``, ``read-table --switch NAME --table T``,
+    ``counters [--switch NAME]``; ``--help`` lists them.
     Example args: ``read``, ``read --switch leaf_1``.
     """
     return KatharaBMv2API(lab_name=get_lab_name()).p4rt_exec(args)

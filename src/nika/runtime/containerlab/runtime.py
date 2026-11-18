@@ -6,6 +6,7 @@ import json
 import subprocess
 import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from nika.runtime.base import LabRuntime
 from nika.runtime.containerlab.parse import parse_clab_topology
 from nika.runtime.shared.containers import (
     docker_client,
+    isolated_container_pid,
     pause_container,
     unpause_container,
 )
@@ -52,6 +54,7 @@ class ContainerlabRuntime(LabRuntime):
         self._node_containers: dict[str, docker.models.containers.Container] = {}
         self._node_map_lock = threading.Lock()
         self._topology_neighbors: dict[str, list[str]] | None = None
+        self._netns_links: dict[Path, tuple[str, Path, int]] = {}
 
     @property
     def backend(self) -> str:
@@ -138,8 +141,8 @@ class ContainerlabRuntime(LabRuntime):
     ) -> dict[str, docker.models.containers.Container] | None:
         result = self._run_clab(
             "inspect",
-            "-t",
-            str(self._topology_file),
+            "--name",
+            self._lab_name,
             "--format",
             "json",
         )
@@ -168,23 +171,43 @@ class ContainerlabRuntime(LabRuntime):
 
     def deploy(self) -> bool:
         """Deploy via ``clab``; return False when the lab already exists."""
+        from nika.runtime.containerlab.wires import (
+            join_wires,
+            load_wired_pairs,
+            wired_topology_path,
+            write_wired_topology,
+        )
+
         if self.exists():
             print(f"Lab {self._lab_name} exists")
+            # Host wires sit outside Containerlab's inventory. Re-join them
+            # from the wired topology next to this file when the lab is reused.
+            wired = wired_topology_path(self._topology_file)
+            if wired.is_file():
+                wires = load_wired_pairs(self._topology_file)
+            else:
+                _, wires = write_wired_topology(self._topology_file, self._lab_name)
+            print(f"Rejoining host wires for {self._lab_name} ({len(wires)} pairs)")
+            join_wires(wires)
+            self._refresh_node_map()
             return False
         last_error = ""
         max_workers = str(_lab_settings().containerlab_max_workers)
+        # Node-to-node links run through host-side wires (see wires.py).
+        wired_file, wires = write_wired_topology(self._topology_file, self._lab_name)
         for attempt in range(1, 3):
             # Cap concurrent create/wire workers so many SRL nodes do not
             # spike host RAM during deploy (steady-state use is usually lower).
             result = self._run_clab(
                 "deploy",
                 "-t",
-                str(self._topology_file),
+                str(wired_file),
                 "--reconfigure",
                 "--max-workers",
                 max_workers,
             )
             if result.returncode == 0:
+                join_wires(wires)
                 self._refresh_node_map()
                 return True
             err = (result.stderr or result.stdout or "").strip()
@@ -216,12 +239,7 @@ class ContainerlabRuntime(LabRuntime):
             # SRL mgmt gRPC can reject keepalives under parallel post-deploy load.
             if attempt < 2 and ("too_many_pings" in low or "enhance_your_calm" in low):
                 try:
-                    self._run_clab(
-                        "destroy",
-                        "-t",
-                        str(self._topology_file),
-                        "--cleanup",
-                    )
+                    self.destroy()
                 except Exception:  # noqa: BLE001 - best-effort before retry
                     pass
                 time.sleep(5)
@@ -233,21 +251,97 @@ class ContainerlabRuntime(LabRuntime):
         # Host-side flap workers are outside containerlab's inventory.
         # Remove only workers carrying this lab's opaque identifier before
         # destroying their veth endpoints.
+        from nika.runtime.containerlab.wires import (
+            remove_leftover_wire_ends,
+            wire_ends_for_topology,
+        )
+        from nika.runtime.shared.containers import remove_lab_helpers
         from nika.service.containerlab.host_tc import HostTcController
 
+        self._remember_netns(
+            self._docker.containers.list(
+                all=True, filters={"label": f"containerlab={self._lab_name}"}
+            )
+        )
         HostTcController.cleanup_lab(self._lab_name)
+        # Containers holding a detached interface (link_detach) are labelled.
+        remove_lab_helpers(self._lab_name)
         result = self._run_clab(
             "destroy",
-            "-t",
-            str(self._topology_file),
+            "--name",
+            self._lab_name,
             "--cleanup",
         )
         if result.returncode != 0:
             print(
                 f"Error destroying containerlab lab {self._lab_name}: {result.stderr or result.stdout}"
             )
+        # A successful clab destroy can leave stopped nodes behind. The
+        # topology may also be gone after an interrupted session close.
+        remaining = self._docker.containers.list(
+            all=True, filters={"label": f"containerlab={self._lab_name}"}
+        )
+        self._remember_netns(remaining)
+        for container in remaining:
+            try:
+                container.remove(force=True, v=True)
+            except docker.errors.NotFound:
+                pass
+        for path in self._owned_netns():
+            subprocess.run(
+                ["sudo", "-n", "unlink", "--", str(path)],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
         with self._node_map_lock:
             self._node_containers = {}
+        if result.returncode != 0 and self.exists():
+            # The nodes still run, so their host wires are live links.
+            return
+        ends = wire_ends_for_topology(self._topology_file, self._lab_name)
+        removed = remove_leftover_wire_ends(ends)
+        if removed:
+            print(
+                f"Removed leftover host wires for {self._lab_name}: {', '.join(removed)}"
+            )
+
+    def has_leftover_resources(self) -> bool:
+        containers = self._docker.containers.list(
+            all=True, filters={"label": f"containerlab={self._lab_name}"}
+        )
+        self._remember_netns(containers)
+        return bool(containers) or any(self._owned_netns())
+
+    def _remember_netns(self, containers: list) -> None:
+        # Names alone cannot separate labs such as "lab" and "lab-extra".
+        # Remember only exact container names supplied by this lab's label.
+        for container in containers:
+            path = Path("/var/run/netns") / container.name
+            previous = self._netns_links.get(path)
+            if previous is not None and previous[0] == container.id:
+                continue
+            try:
+                if path.is_symlink():
+                    self._netns_links[path] = (
+                        container.id,
+                        path.readlink(),
+                        path.lstat().st_ino,
+                    )
+            except FileNotFoundError:
+                pass
+
+    def _owned_netns(self) -> Iterator[Path]:
+        for path, (_container_id, target, inode) in self._netns_links.items():
+            try:
+                if (
+                    path.is_symlink()
+                    and path.lstat().st_ino == inode
+                    and path.readlink() == target
+                ):
+                    yield path
+            except FileNotFoundError:
+                pass
 
     def exists(self) -> bool:
         return self._refresh_node_map() and bool(self._node_containers)
@@ -278,9 +372,17 @@ class ContainerlabRuntime(LabRuntime):
         return rows
 
     def list_nodes(self) -> list[str]:
+        from nika.telemetry.sonic import FLOW_PROBE_PREFIX
+
         if not self._refresh_node_map():
             return []
-        return sorted(self._node_containers.keys())
+        # Flow probes share a router's network namespace; listing them would
+        # show that router's addresses twice. They stay reachable by name.
+        return sorted(
+            name
+            for name in self._node_containers
+            if not name.startswith(FLOW_PROBE_PREFIX)
+        )
 
     def _cached_container(self, node: str) -> docker.models.containers.Container:
         """Return the mapped container, running ``clab inspect`` only on a miss."""
@@ -320,13 +422,16 @@ class ContainerlabRuntime(LabRuntime):
 
         def _run() -> str:
             try:
+                isolated_container_pid(container)
                 _, (stdout, stderr) = container.exec_run(
                     ["/bin/sh", "-c", shell_cmd], demux=True
                 )
             except docker.errors.NotFound:
                 # The lab was redeployed under the same name; look it up again.
                 self._forget_container(node, container)
-                _, (stdout, stderr) = self._cached_container(node).exec_run(
+                replacement = self.get_container(node)
+                isolated_container_pid(replacement)
+                _, (stdout, stderr) = replacement.exec_run(
                     ["/bin/sh", "-c", shell_cmd], demux=True
                 )
             return merge_exec_output(stdout, stderr)

@@ -1,0 +1,18 @@
+id: LEAK-INTERFACE-RECREATED
+title: Link fault proxy re-created node interfaces
+class: shortcut
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: 'Inserting the VDE link-fault proxy re-created the node''s interface: its ifindex jumped, its
+  counters reset, and BMv2 cold-restarted, which marks the faulted link. The proxy now splices the existing
+  hub ports (runtime/kathara/vde_splice.py).'
+guideline: Compare ifindex, interface counters, and process or switch uptime of the suspected link's endpoints
+  with their peers and with a pre-inject snapshot.
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

@@ -4,6 +4,9 @@ failure:
   fault_type: silent_egress_packet_loss
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_1
@@ -17,6 +20,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_2
@@ -30,6 +36,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_1
@@ -43,6 +52,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_2
@@ -56,6 +68,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: spine_1
@@ -69,6 +84,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: spine_2
@@ -82,6 +100,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: spine_1
@@ -95,6 +116,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: spine_2
@@ -108,6 +132,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_1
@@ -121,6 +148,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_2
@@ -134,6 +164,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_3
@@ -147,6 +180,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_4
@@ -160,6 +196,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_1
@@ -173,6 +212,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_2
@@ -186,6 +228,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_3
@@ -199,6 +244,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_4
@@ -212,6 +260,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_1
@@ -225,6 +276,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_2
@@ -238,6 +292,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_3
@@ -251,6 +308,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_4
@@ -264,6 +324,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_1
@@ -277,6 +340,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_2
@@ -290,6 +356,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_3
@@ -303,6 +372,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_4
@@ -316,6 +388,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: spine_1
@@ -329,6 +404,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: spine_2
@@ -342,6 +420,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: spine_3
@@ -355,6 +436,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: spine_4
@@ -368,6 +452,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: spine_1
@@ -381,6 +468,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: spine_2
@@ -394,6 +484,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: spine_3
@@ -407,6 +500,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: spine_4
@@ -420,6 +516,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: spine_1
@@ -433,6 +532,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: spine_2
@@ -446,6 +548,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: spine_3
@@ -459,6 +564,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: spine_4
@@ -472,6 +580,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: spine_1
@@ -485,6 +596,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: spine_2
@@ -498,6 +612,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: spine_3
@@ -511,6 +628,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: spine_4
@@ -524,6 +644,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '10'
       host_name: spine_1
@@ -537,6 +660,9 @@ failure:
         name: eth9
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '10'
       host_name: spine_2
@@ -550,6 +676,9 @@ failure:
         name: eth9
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '10'
       host_name: spine_3
@@ -563,6 +692,9 @@ failure:
         name: eth9
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '10'
       host_name: spine_4
@@ -576,6 +708,9 @@ failure:
         name: eth9
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '10'
       host_name: spine_5
@@ -589,6 +724,9 @@ failure:
         name: eth9
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '10'
       host_name: spine_6
@@ -602,6 +740,9 @@ failure:
         name: eth9
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '10'
       host_name: spine_7
@@ -615,6 +756,9 @@ failure:
         name: eth9
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '10'
       host_name: spine_8
@@ -628,6 +772,9 @@ failure:
         name: eth9
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '11'
       host_name: spine_1
@@ -641,6 +788,9 @@ failure:
         name: eth10
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '11'
       host_name: spine_2
@@ -654,6 +804,9 @@ failure:
         name: eth10
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '11'
       host_name: spine_3
@@ -667,6 +820,9 @@ failure:
         name: eth10
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '11'
       host_name: spine_4
@@ -680,6 +836,9 @@ failure:
         name: eth10
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '11'
       host_name: spine_5
@@ -693,6 +852,9 @@ failure:
         name: eth10
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '11'
       host_name: spine_6
@@ -706,6 +868,9 @@ failure:
         name: eth10
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '11'
       host_name: spine_7
@@ -719,6 +884,9 @@ failure:
         name: eth10
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '11'
       host_name: spine_8
@@ -732,6 +900,9 @@ failure:
         name: eth10
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '12'
       host_name: spine_1
@@ -745,6 +916,9 @@ failure:
         name: eth11
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '12'
       host_name: spine_2
@@ -758,6 +932,9 @@ failure:
         name: eth11
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '12'
       host_name: spine_3
@@ -771,6 +948,9 @@ failure:
         name: eth11
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '12'
       host_name: spine_4
@@ -784,6 +964,9 @@ failure:
         name: eth11
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '12'
       host_name: spine_5
@@ -797,6 +980,9 @@ failure:
         name: eth11
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '12'
       host_name: spine_6
@@ -810,6 +996,9 @@ failure:
         name: eth11
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '12'
       host_name: spine_7
@@ -823,6 +1012,9 @@ failure:
         name: eth11
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '12'
       host_name: spine_8
@@ -836,6 +1028,9 @@ failure:
         name: eth11
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '13'
       host_name: spine_1
@@ -849,6 +1044,9 @@ failure:
         name: eth12
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '13'
       host_name: spine_2
@@ -862,6 +1060,9 @@ failure:
         name: eth12
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '13'
       host_name: spine_3
@@ -875,6 +1076,9 @@ failure:
         name: eth12
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '13'
       host_name: spine_4
@@ -888,6 +1092,9 @@ failure:
         name: eth12
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '13'
       host_name: spine_5
@@ -901,6 +1108,9 @@ failure:
         name: eth12
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '13'
       host_name: spine_6
@@ -914,6 +1124,9 @@ failure:
         name: eth12
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '13'
       host_name: spine_7
@@ -927,6 +1140,9 @@ failure:
         name: eth12
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '13'
       host_name: spine_8
@@ -940,6 +1156,9 @@ failure:
         name: eth12
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '14'
       host_name: spine_1
@@ -953,6 +1172,9 @@ failure:
         name: eth13
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '14'
       host_name: spine_2
@@ -966,6 +1188,9 @@ failure:
         name: eth13
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '14'
       host_name: spine_3
@@ -979,6 +1204,9 @@ failure:
         name: eth13
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '14'
       host_name: spine_4
@@ -992,6 +1220,9 @@ failure:
         name: eth13
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '14'
       host_name: spine_5
@@ -1005,6 +1236,9 @@ failure:
         name: eth13
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '14'
       host_name: spine_6
@@ -1018,6 +1252,9 @@ failure:
         name: eth13
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '14'
       host_name: spine_7
@@ -1031,6 +1268,9 @@ failure:
         name: eth13
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '14'
       host_name: spine_8
@@ -1044,6 +1284,9 @@ failure:
         name: eth13
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '15'
       host_name: spine_1
@@ -1057,6 +1300,9 @@ failure:
         name: eth14
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '15'
       host_name: spine_2
@@ -1070,6 +1316,9 @@ failure:
         name: eth14
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '15'
       host_name: spine_3
@@ -1083,6 +1332,9 @@ failure:
         name: eth14
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '15'
       host_name: spine_4
@@ -1096,6 +1348,9 @@ failure:
         name: eth14
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '15'
       host_name: spine_5
@@ -1109,6 +1364,9 @@ failure:
         name: eth14
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '15'
       host_name: spine_6
@@ -1122,6 +1380,9 @@ failure:
         name: eth14
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '15'
       host_name: spine_7
@@ -1135,6 +1396,9 @@ failure:
         name: eth14
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '15'
       host_name: spine_8
@@ -1148,6 +1412,9 @@ failure:
         name: eth14
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '16'
       host_name: spine_1
@@ -1161,6 +1428,9 @@ failure:
         name: eth15
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '16'
       host_name: spine_2
@@ -1174,6 +1444,9 @@ failure:
         name: eth15
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '16'
       host_name: spine_3
@@ -1187,6 +1460,9 @@ failure:
         name: eth15
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '16'
       host_name: spine_4
@@ -1200,6 +1476,9 @@ failure:
         name: eth15
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '16'
       host_name: spine_5
@@ -1213,6 +1492,9 @@ failure:
         name: eth15
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '16'
       host_name: spine_6
@@ -1226,6 +1508,9 @@ failure:
         name: eth15
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '16'
       host_name: spine_7
@@ -1239,6 +1524,9 @@ failure:
         name: eth15
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '16'
       host_name: spine_8
@@ -1252,6 +1540,9 @@ failure:
         name: eth15
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_1
@@ -1265,6 +1556,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_2
@@ -1278,6 +1572,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_3
@@ -1291,6 +1588,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_4
@@ -1304,6 +1604,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_5
@@ -1317,6 +1620,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_6
@@ -1330,6 +1636,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_7
@@ -1343,6 +1652,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '2'
       host_name: gateway_8
@@ -1356,6 +1668,9 @@ failure:
         name: eth1
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_1
@@ -1369,6 +1684,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_2
@@ -1382,6 +1700,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_3
@@ -1395,6 +1716,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_4
@@ -1408,6 +1732,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_5
@@ -1421,6 +1748,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_6
@@ -1434,6 +1764,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_7
@@ -1447,6 +1780,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '3'
       host_name: gateway_8
@@ -1460,6 +1796,9 @@ failure:
         name: eth2
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_1
@@ -1473,6 +1812,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_2
@@ -1486,6 +1828,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_3
@@ -1499,6 +1844,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_4
@@ -1512,6 +1860,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_5
@@ -1525,6 +1876,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_6
@@ -1538,6 +1892,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_7
@@ -1551,6 +1908,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '4'
       host_name: gateway_8
@@ -1564,6 +1924,9 @@ failure:
         name: eth3
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_1
@@ -1577,6 +1940,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_2
@@ -1590,6 +1956,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_3
@@ -1603,6 +1972,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_4
@@ -1616,6 +1988,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_5
@@ -1629,6 +2004,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_6
@@ -1642,6 +2020,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_7
@@ -1655,6 +2036,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '5'
       host_name: gateway_8
@@ -1668,6 +2052,9 @@ failure:
         name: eth4
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_1
@@ -1681,6 +2068,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_2
@@ -1694,6 +2084,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_3
@@ -1707,6 +2100,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_4
@@ -1720,6 +2116,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_5
@@ -1733,6 +2132,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_6
@@ -1746,6 +2148,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_7
@@ -1759,6 +2164,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '6'
       host_name: gateway_8
@@ -1772,6 +2180,9 @@ failure:
         name: eth5
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_1
@@ -1785,6 +2196,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_2
@@ -1798,6 +2212,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_3
@@ -1811,6 +2228,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_4
@@ -1824,6 +2244,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_5
@@ -1837,6 +2260,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_6
@@ -1850,6 +2276,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_7
@@ -1863,6 +2292,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '7'
       host_name: gateway_8
@@ -1876,6 +2308,9 @@ failure:
         name: eth6
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_1
@@ -1889,6 +2324,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_2
@@ -1902,6 +2340,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_3
@@ -1915,6 +2356,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_4
@@ -1928,6 +2372,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_5
@@ -1941,6 +2388,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_6
@@ -1954,6 +2404,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_7
@@ -1967,6 +2420,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '8'
       host_name: gateway_8
@@ -1980,6 +2436,9 @@ failure:
         name: eth7
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_1
@@ -1993,6 +2452,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_2
@@ -2006,6 +2468,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_3
@@ -2019,6 +2484,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_4
@@ -2032,6 +2500,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_5
@@ -2045,6 +2516,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_6
@@ -2058,6 +2532,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_7
@@ -2071,6 +2548,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: gateway_8
@@ -2084,6 +2564,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: spine_1
@@ -2097,6 +2580,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: spine_2
@@ -2110,6 +2596,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: spine_3
@@ -2123,6 +2612,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: spine_4
@@ -2136,6 +2628,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: spine_5
@@ -2149,6 +2644,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: spine_6
@@ -2162,6 +2660,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: spine_7
@@ -2175,6 +2676,9 @@ failure:
         name: eth8
       fault_type: silent_egress_packet_loss
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       bmv2_port: '9'
       host_name: spine_8

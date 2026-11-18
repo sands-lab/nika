@@ -9,9 +9,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from nika.net_env.base import NetworkEnvBase, ProbePath
-from nika.topology.sndlib.catalog import (
+from nika.net_env.enterprise_branch.topology import UNDERLAY_ONE_WAY_DELAY_MS
+from nika.topology.catalog import (
     SNDLIB_TOPOLOGY_NAMES,
-    topology_size_for_name,
+    ZOO_TOPOLOGY_NAMES,
+    isp_topology_size,
 )
 from nika.utils.dependencies import raise_missing_extra, require_backend_extra
 from nika.utils.logger import system_logger
@@ -52,6 +54,15 @@ class NetEnvSpec:
     licensed_images: bool = False
     # Kubernetes lab whose workload images are host-cached and sideloaded into k3s.
     k8s_image_cache: bool = False
+    # Native router profiles selected with ``device_profile`` on Kathara. Each
+    # binding names the class that deploys the same scenario on that platform;
+    # the scenario default remains the class bound above.
+    device_profiles: Mapping[str, BackendEnvBinding] | None = None
+    # Router platforms a Containerlab-only scenario runs with ``device_profile``;
+    # the first is the default.
+    containerlab_device_profiles: tuple[str, ...] = ()
+    # Designed unloaded RTT of the benchmark WAN flow, when specified.
+    nominal_path_rtt_ms: float | None = None
 
     @property
     def LAB_NAME(self) -> str:
@@ -94,6 +105,14 @@ _ISP_BASE_TAGS: tuple[str, ...] = (
     "containerlab",
 )
 
+_ISP_NATIVE_BINDING = BackendEnvBinding(
+    module="nika.net_env.isp.kathara.vendor", class_name="IspVendor"
+)
+_ISP_DEVICE_PROFILES: dict[str, BackendEnvBinding] = {
+    "iosxr": _ISP_NATIVE_BINDING,
+    "routeros": _ISP_NATIVE_BINDING,
+}
+
 _ISP_BACKEND_BINDINGS: dict[str, BackendEnvBinding] = {
     "kathara": BackendEnvBinding(
         module="nika.net_env.isp.kathara.lab",
@@ -114,6 +133,12 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         module="nika.net_env.dc_clos.lab",
         class_name="DCClos",
         coverage_major=True,
+        device_profiles={
+            profile: BackendEnvBinding(
+                module="nika.net_env.dc_clos.lab", class_name="DCClos"
+            )
+            for profile in ("iosxr", "routeros")
+        },
         tags=(
             "arp",
             "link",
@@ -136,6 +161,12 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         class_name="CampusLan",
         family="campus",
         coverage_major=True,
+        device_profiles={
+            profile: BackendEnvBinding(
+                module="nika.net_env.campus_lan.lab", class_name="CampusLan"
+            )
+            for profile in ("iosxr", "routeros")
+        },
         tags=(
             "arp",
             "link",
@@ -155,10 +186,18 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         topo_size=["s", "m", "l"],
     ),
     "enterprise_branch": NetEnvSpec(
+        nominal_path_rtt_ms=4 * UNDERLAY_ONE_WAY_DELAY_MS,
         lab_name="enterprise_branch",
         module="nika.net_env.enterprise_branch.lab",
         class_name="EnterpriseBranch",
         coverage_major=True,
+        device_profiles={
+            profile: BackendEnvBinding(
+                module="nika.net_env.enterprise_branch.lab",
+                class_name="EnterpriseBranch",
+            )
+            for profile in ("iosxr", "routeros")
+        },
         tags=(
             "arp",
             "link",
@@ -333,8 +372,18 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         class_name="ContainerlabMin3Clos",
         family="srl_clos",
         coverage_major=True,
-        tags=("clos", "srl", "bgp", "link", "containerlab", "fabric"),
+        tags=(
+            "clos",
+            "srl",
+            "bgp",
+            "link",
+            "containerlab",
+            "fabric",
+            "forwarding_device",
+            "arp",
+        ),
         supported_backends=("containerlab",),
+        containerlab_device_profiles=("nokia_srlinux", "sonic"),
         topo_size=5,
     ),
     "k8s_lab": NetEnvSpec(
@@ -415,11 +464,40 @@ for _topo_name in SNDLIB_TOPOLOGY_NAMES:
         class_name="Isp",
         tags=_ISP_BASE_TAGS,
         supported_backends=("kathara", "containerlab"),
-        topo_size=topology_size_for_name(_topo_name),
+        topo_size=isp_topology_size(_topo_name),
         backend_bindings=_ISP_BACKEND_BINDINGS,
+        device_profiles=_ISP_DEVICE_PROFILES,
         deploy_defaults={"topo": _topo_name, "scenario_id": _scenario_id},
         family="isp",
         coverage_major=_scenario_id in _ISP_COVERAGE_SCENARIOS,
+    )
+
+# Topology Zoo ISP topologies share the Isp class but run on Kathara/FRR only
+# and stay out of benchmark generation (no demand matrix).
+_ISP_ZOO_TAGS: tuple[str, ...] = (
+    "isp",
+    "topology_zoo",
+    "frr",
+    "isis",
+    "ospf",
+    "bgp",
+    "igp",
+    "link",
+    "icmp",
+)
+for _topo_name in ZOO_TOPOLOGY_NAMES:
+    _scenario_id = f"isp_{_topo_name}"
+    _NET_ENV_SPECS[_scenario_id] = NetEnvSpec(
+        lab_name=_scenario_id,
+        module="nika.net_env.isp.kathara.lab",
+        class_name="Isp",
+        tags=_ISP_ZOO_TAGS,
+        supported_backends=("kathara",),
+        topo_size=isp_topology_size(_topo_name),
+        device_profiles=_ISP_DEVICE_PROFILES,
+        deploy_defaults={"topo": _topo_name, "scenario_id": _scenario_id},
+        family="isp",
+        benchmark_excluded=True,
     )
 del _topo_name, _scenario_id
 
@@ -541,6 +619,113 @@ def effective_tags(column: str) -> frozenset[str]:
     return frozenset(scenario_tags(scenario))
 
 
+def scenario_path_bdp_limit_bytes(
+    scenario_name: str, device_profile: str | None = None
+) -> float | None:
+    """Nominal path BDP ceiling for profiles with a known forwarding limit.
+
+    The shipped CHR image uses the free license (1 Mbps upload per interface):
+    https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud+Hosted+Router+CHR
+    Unknown RTTs or unrestricted profiles have no declared ceiling. Runtime
+    calibration must still check the actual flow before changing TCP buffers.
+    """
+    from nika.net_env.native_routers import platform_rate_limit_kbps
+
+    rate_kbps = platform_rate_limit_kbps(device_profile)
+    rtt_ms = _require_scenario(scenario_name).nominal_path_rtt_ms
+    if rate_kbps is None or rtt_ms is None:
+        return None
+    return rate_kbps * 1000 * rtt_ms / 8000
+
+
+def scenario_path_rate_limit_kbps(
+    scenario_name: str, device_profile: str | None = None
+) -> int | None:
+    """Kbit/s the scenario's paths carry at most under ``device_profile``, or None.
+
+    See ``NetworkEnvBase.path_rate_limit_kbps``.
+    """
+    spec = _require_scenario(scenario_name)
+    binding = (spec.device_profiles or {}).get(device_profile or "")
+    if binding is None:
+        binding = spec.binding_for(spec.supported_backends[0])
+    cls = getattr(import_module(binding.module), binding.class_name)
+    return cls.path_rate_limit_kbps(device_profile)
+
+
+def scenario_baseline_traffic(
+    scenario_name: str, device_profile: str | None = None
+) -> dict:
+    """Background traffic profile every generated case of the scenario runs.
+
+    See ``NetworkEnvBase.BASELINE_TRAFFIC``.
+    """
+    spec = _require_scenario(scenario_name)
+    binding = (spec.device_profiles or {}).get(device_profile or "")
+    if binding is None:
+        binding = spec.binding_for(spec.supported_backends[0])
+    return dict(
+        getattr(import_module(binding.module), binding.class_name).BASELINE_TRAFFIC
+    )
+
+
+def scenario_device_profiles(scenario_name: str) -> tuple[str, ...]:
+    """Return native router profiles selectable for ``scenario_name`` on Kathara."""
+    return tuple(sorted(_require_scenario(scenario_name).device_profiles or {}))
+
+
+def scenario_containerlab_device_profiles(scenario_name: str) -> tuple[str, ...]:
+    """Return router platforms selectable for a Containerlab-only scenario."""
+    return _require_scenario(scenario_name).containerlab_device_profiles
+
+
+def scenario_device_profile_sizes(
+    scenario_name: str, profile: str
+) -> tuple[str, ...] | None:
+    """Return the topology sizes ``profile`` supports, or ``None`` for all sizes."""
+    binding = (_require_scenario(scenario_name).device_profiles or {})[profile]
+    cls = getattr(import_module(binding.module), binding.class_name)
+    sizes = getattr(cls, "NATIVE_PROFILE_SIZES", {}).get(profile)
+    return None if sizes is None else tuple(sizes)
+
+
+def deployment_needs_licensed_images(
+    scenario_name: str, device_profile: str | None = None
+) -> bool:
+    """Whether a deployment needs a licensed vendor image download.
+
+    Native router profiles (``device_profiles``) run vendor images, so a row
+    with one needs them even when the scenario's default deployment does not.
+    """
+    spec = _require_scenario(scenario_name)
+    return spec.licensed_images or device_profile in (spec.device_profiles or {})
+
+
+def deployment_licensed_images(
+    scenario_name: str, device_profile: str | None = None
+) -> tuple[str, ...]:
+    """Licensed vendor images a deployment needs (empty for open images).
+
+    A native ``device_profile`` needs its vendor image; a licensed scenario
+    (``iosxr_simple_bgp``, ``routeros_simple_bgp``) needs the image of the
+    native profile its tags name.
+    """
+    from nika.net_env.native_routers import native_profiles
+
+    spec = _require_scenario(scenario_name)
+    profiles = set()
+    if device_profile in (spec.device_profiles or {}):
+        profiles.add(device_profile)
+    if spec.licensed_images:
+        profiles.update(set(spec.tags) & native_profiles())
+    return tuple(
+        sorted(
+            import_module(f"nika.net_env.utils.{profile}.common").IMAGE
+            for profile in profiles
+        )
+    )
+
+
 def scenario_supported_backends(scenario_name: str) -> list[str]:
     """Return backends supported by ``scenario_name``."""
     return list(_require_scenario(scenario_name).supported_backends)
@@ -578,7 +763,11 @@ def resolve_scenario_backend(
 
 
 def get_net_env_instance(
-    scenario_name: str, *, backend: str | None = None, **kwargs
+    scenario_name: str,
+    *,
+    backend: str | None = None,
+    environment_release: str | None = None,
+    **kwargs,
 ) -> NetworkEnvBase:
     """Get an instance of the specified network environment.
 
@@ -603,9 +792,16 @@ def get_net_env_instance(
     cls = _load_net_env_class(canonical, backend=resolved)
     spec = _require_scenario(canonical)
     merged: dict[str, Any] = {**(spec.deploy_defaults or {}), **kwargs}
+    native = (spec.device_profiles or {}).get(merged.get("device_profile"))
+    if resolved == "kathara" and native is not None:
+        cls = getattr(import_module(native.module), native.class_name)
+    from nika.net_env.compat import release_environment_class
+
+    cls = release_environment_class(canonical, environment_release, cls)
     lab_name = merged.pop("lab_name", None)
     topology_file = merged.pop("topology_file", None)
     runtime_workdir = merged.pop("runtime_workdir", None)
+    routing_configs = merged.pop("routing_configs", None)
     # Many Kathara lab ``__init__`` signatures omit ``backend`` (and ``**kwargs``).
     # Pass it only when accepted; always assign afterward so ``instance.backend``
     # matches the resolved runtime backend.
@@ -615,6 +811,10 @@ def get_net_env_instance(
     )
     instance = cls(backend=resolved, **merged) if accepts_backend else cls(**merged)
     instance.backend = resolved
+    if routing_configs is not None:
+        from nika.net_env.synthesis.configuration import apply_routing_configs
+
+        apply_routing_configs(instance, routing_configs)
     if lab_name:
         instance.name = lab_name
         if instance.lab is not None:
@@ -651,8 +851,18 @@ def scenario_fixed_topo_size(scenario_name: str) -> str | None:
     return None
 
 
-def get_probe_path(scenario_name: str, *, topo_size: str = "s") -> ProbePath | None:
-    """Default probe path declared by the scenario's lab class, if any."""
+def get_probe_path(
+    scenario_name: str,
+    *,
+    topo_size: str = "s",
+    deploy_overrides: Mapping[str, Any] | None = None,
+    net_env: NetworkEnvBase | None = None,
+) -> ProbePath | None:
+    """Default probe path declared by the scenario's lab class, if any.
+
+    ``deploy_overrides`` are deploy arguments of the running case (e.g. the ISP
+    ``bgp_mode``) layered over the scenario's deploy defaults.
+    """
     try:
         spec = _require_scenario(scenario_name)
     except (KeyError, ValueError):
@@ -661,10 +871,20 @@ def get_probe_path(scenario_name: str, *, topo_size: str = "s") -> ProbePath | N
         backend = resolve_scenario_backend(
             scenario_name, default_when_ambiguous="kathara"
         )
-        cls = _load_net_env_class(scenario_name, backend=backend)
-        return cls.default_probe_path(
-            topo_size=topo_size, **(spec.deploy_defaults or {})
+        cls = (
+            type(net_env)
+            if net_env is not None
+            else _load_net_env_class(scenario_name, backend=backend)
         )
+        deployment = dict(spec.deploy_defaults or {})
+        if net_env is not None:
+            topo_size = getattr(net_env, "topo_size", None) or topo_size
+            for key in ("topo", "igp", "bgp_mode", "rpki", "device_profile"):
+                value = getattr(net_env, key, None)
+                if value is not None:
+                    deployment[key] = value
+        deployment.update(deploy_overrides or {})
+        return cls.default_probe_path(topo_size=topo_size, **deployment)
     except Exception as exc:  # noqa: BLE001
         system_logger.warning(f"No default probe path for {scenario_name!r}: {exc}")
         return None

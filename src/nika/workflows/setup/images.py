@@ -8,7 +8,7 @@ from pathlib import Path
 
 from docker.errors import APIError
 
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     IMAGE_LABEL,
     LEGACY_NIKA_IMAGE_NAMES,
@@ -30,6 +30,7 @@ NIKA_ONLY_REPOS = frozenset(
         "nlnetlabs/routinator",
         "batfish/batfish",
         "ghcr.io/nokia/srlinux",
+        "docker-sonic-vs",
         "vrnetlab/mikrotik_routeros",
         "ios-xr/xrd-control-plane",
         "onosproject/onos",
@@ -117,8 +118,9 @@ def build_parent_images() -> list[str]:
 
 def owned_images() -> list[str]:
     """Every Docker image the current NIKA release may create or pull."""
-    from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
+    from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
     from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
+    from nika.net_env.utils.sonic.common import IMAGE as SONIC_IMAGE
     from nika.validation.batfish.service import BATFISH_IMAGE
 
     images = set(runtime_images()) | set(build_parent_images())
@@ -127,6 +129,7 @@ def owned_images() -> list[str]:
             ROUTEROS_IMAGE,
             f"{ROUTEROS_IMAGE}-{host_machine_arch()}",
             XRD_IMAGE,
+            SONIC_IMAGE,
             VRNETLAB_BASE_IMAGE,
             BATFISH_IMAGE,
         }
@@ -217,7 +220,7 @@ def prune_stale_caches() -> list[str]:
         _HELM_CHART_SPECS,
         _HELM_VERSION,
     )
-    from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
+    from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
     from nika.net_env.utils.k8s_workload_cache import cache_root, cache_tar_path
 
     actions: list[str] = []
@@ -235,7 +238,7 @@ def prune_stale_caches() -> list[str]:
         {cache_tar_path(image).name for image in _k8s_workload_images()},
         "k8s image archive",
     )
-    helm_root = REPO_ROOT / ".nika_cache" / "helm"
+    helm_root = CACHE_DIR / "helm"
     prune(helm_root, {_HELM_VERSION, "charts"}, "Helm cache")
     prune(
         helm_root / "charts",
@@ -244,9 +247,7 @@ def prune_stale_caches() -> list[str]:
     )
 
     routeros_version = ROUTEROS_IMAGE.rsplit(":", 1)[1]
-    vendor = Path(
-        os.environ.get("NIKA_VENDOR_CACHE") or REPO_ROOT / ".nika_cache" / "vendor"
-    )
+    vendor = Path(os.environ.get("NIKA_VENDOR_CACHE") or CACHE_DIR / "vendor")
     if vendor.is_dir():
         for entry in sorted(vendor.glob("chr-*")):
             current = entry.name.startswith(
@@ -261,16 +262,20 @@ def prune_stale_caches() -> list[str]:
 def prepare_all_images(*, force_rebuild: bool = False) -> None:
     """Reconcile, then build, pull, and cache everything benchmarks deploy."""
     from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
-    from agent.sandbox.sbx.images import ensure_configured_sbx_template_images
+    from nika.net_env.utils.sonic.common import ensure_sonic_image
+    from nika.agents.sandbox.backend import prepare_configured_sandbox_templates
 
     # Images are pruned only after ensure: it retags identical builds from
     # other NIKA versions (e.g. nika/base:latest) instead of rebuilding them.
     for action in prune_stale_caches():
         print(action)
     ensure_nika_docker_images(runtime_images(), force_rebuild=force_rebuild)
+    # The SONiC build pipeline publishes the virtual switch as a download only.
+    ensure_sonic_image()
     for scenario in sorted(K8S_SCENARIOS):
         cache_scenario(scenario)
-    ensure_configured_sbx_template_images()
+    images = prepare_configured_sandbox_templates()
+    ensure_nika_docker_images(images)
     actions = prune_stale_images()
     for action in actions:
         print(action)

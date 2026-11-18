@@ -43,13 +43,14 @@ class _LegacyP4SourceFault(ProblemBase):
     def inject_fault(self, params: LegacyP4SourceParams):
         host = params.host_name
         source = self._source_name(host)
-        backup = f"/tmp/nika-010-{self.root_cause_name}.p4"
+        # Keep the original program in injector memory: a backup copy on the
+        # switch would diff straight to the fault.
+        self._orig_source_b64 = self.runtime.exec(host, f"base64 -w0 {source}").strip()
         old = (self.old_pattern or self.old_text).replace("'", "'\\''")
         new = self.new_text.replace("'", "'\\''")
         changed = self.runtime.exec(
             host,
-            f"cp {source} {backup} && sed -i 's/{old}/{new}/g' {source} && "
-            "echo CHANGED",
+            f"sed -i 's/{old}/{new}/g' {source} && echo CHANGED",
         )
         if "CHANGED" not in changed or not self._is_edited(host, source):
             raise RuntimeError(f"P4 source edit failed on {host}: {changed}")
@@ -60,8 +61,10 @@ class _LegacyP4SourceFault(ProblemBase):
             # A failed compiler invocation during rollout leaves this switch down.
             result = self.runtime.exec(
                 host,
-                f"p4c {source} -o /tmp/nika-010-invalid.json "
-                "2>&1 && echo COMPILED || echo COMPILE_FAILED",
+                "out=$(mktemp -d); "
+                f"p4c {source} -o $out/out.json "
+                "2>&1 && echo COMPILED || echo COMPILE_FAILED; "
+                'rm -rf "$out"',
                 timeout=60,
             )
             if "COMPILE_FAILED" not in result:
@@ -87,10 +90,10 @@ class _LegacyP4SourceFault(ProblemBase):
     def recover_fault(self, params: LegacyP4SourceParams) -> dict:
         host = params.host_name
         source = self._source_name(host)
-        backup = f"/tmp/nika-010-{self.root_cause_name}.p4"
         self.runtime.exec(
             host,
-            f"pkill -x simple_switch || true; cp {backup} {source} && "
+            f"pkill -x simple_switch || true; "
+            f"echo {self._orig_source_b64} | base64 -d > {source} && "
             f"cd / && bash /hostlab/{host}.startup",
             timeout=90,
         )

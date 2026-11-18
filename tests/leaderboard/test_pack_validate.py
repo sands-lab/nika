@@ -18,6 +18,7 @@ from nika.workflows.benchmark.release import (
     load_release_from_dir,
     write_release_manifest,
 )
+from nika.config import REPO_ROOT
 from nika.workflows.benchmark.trials import expand_trials, trial_dir
 from nika.workflows.leaderboard.meta_input import (
     MetaInputError,
@@ -51,7 +52,7 @@ def _mini_cases_yaml(path: Path) -> Path:
                 "scenario": "dc_clos",
                 "topo_size": "s",
                 "problem": "link_down",
-                "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
             }
         ],
     }
@@ -294,6 +295,58 @@ def _pack(
 
 def _identity_path(package: Path) -> Path:
     return package / RESULTS_DIRNAME / IDENTITY_FILENAME
+
+
+def test_absent_fault_rejects_pack_and_trajectory_validation(mini_release_env) -> None:
+    from nika.workflows.leaderboard.validate_trajectories import (
+        validate_trajectory_package,
+    )
+
+    _release, result_dir = mini_release_env
+    packed = pack_leaderboard_submission(
+        result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+    )
+    assert validate_leaderboard_submission(packed.scores_dir).ok
+    assert validate_trajectory_package(packed.trajectories_dir).ok
+    session = next((result_dir / "trials").iterdir())
+    event = (
+        json.dumps(
+            {
+                "event": "fault_presence_recheck",
+                "data": {
+                    "phase": "before_cleanup",
+                    "fault": "link_down",
+                    "result": "absent",
+                },
+            }
+        )
+        + "\n"
+    )
+    with (session / "nika.jsonl").open("a") as handle:
+        handle.write(event)
+    original_metrics = (session / "eval_metrics.json").read_bytes()
+    with pytest.raises(LeaderboardPackError, match="fault_absent_at_cleanup"):
+        _pack(result_dir)
+    assert (session / "eval_metrics.json").read_bytes() == original_metrics
+
+    # Independent trajectory validation must catch an absent fault even when
+    # the scores package still contains clean flags.
+    trajectory = packed.trajectories_dir / "trials" / session.name / "nika.jsonl"
+    with trajectory.open("a") as handle:
+        handle.write(event)
+    report = validate_trajectory_package(packed.trajectories_dir)
+    assert not report.ok
+    assert any("fault_absent_at_cleanup" in error for error in report.errors)
+
+    result_path = (
+        packed.scores_dir / RESULTS_DIRNAME / "trials" / session.name / "result.json"
+    )
+    result = json.loads(result_path.read_text())
+    result["validity_flags"] = ["fault_absent_at_cleanup"]
+    _write_json(result_path, result)
+    report = validate_leaderboard_submission(packed.scores_dir, max_harness_rate=1.0)
+    assert not report.ok
+    assert any("fault_absent_at_cleanup" in error for error in report.errors)
 
 
 def test_cli_submit_generates_metadata_and_validates_offline(
@@ -587,6 +640,27 @@ class TestLeaderboardPackValidate:
         assert validate_leaderboard_submission(result.scores_dir).ok
         assert (session / "messages.jsonl").read_text(encoding="utf-8") == original
 
+    def test_pack_keeps_jsonl_records_with_unicode_line_separators(
+        self, mini_release_env
+    ) -> None:
+        _release, result_dir = mini_release_env
+        session = next(p for p in (result_dir / "trials").iterdir() if p.is_dir())
+        # Binary tool output can decode to NEL/LS/PS inside a JSON string.
+        records = [
+            {"event": "user", "output": "a\x85b\u2028c\u2029d\x1ce"},
+            {"event": "tool_end", "output": "ok"},
+        ]
+        original = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
+        (session / "messages.jsonl").write_text(original, encoding="utf-8")
+
+        result = pack_leaderboard_submission(
+            result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+        )
+        packed = result.trajectories_dir / "trials" / session.name / "messages.jsonl"
+        raw = packed.read_text(encoding="utf-8")
+        assert [json.loads(line) for line in raw.split("\n")[:-1]] == records
+        assert validate_leaderboard_submission(result.scores_dir).ok
+
     def test_submit_preserves_jsonl_and_scans_decoded_records(
         self, mini_release_env
     ) -> None:
@@ -604,6 +678,7 @@ class TestLeaderboardPackValidate:
                 },
             },
             {"role": "assistant", "content": "Bearer authentication required."},
+            {"role": "assistant", "content": "OAuth/Bearer headers carry tokens."},
         ]
         original = "".join(json.dumps(record) + "\n" for record in records)
         for name in ("messages.jsonl", "nika.jsonl"):
@@ -618,15 +693,61 @@ class TestLeaderboardPackValidate:
             assert lines == [
                 {
                     "role": "tool",
-                    "content": 'cat <REDACTED_PATH> echo "done"\ncount D:\n0',
+                    "content": 'cat /tmp/state; echo "done"\ncount D:\n0',
                     "output": {
                         "path": "<REDACTED_PATH>",
-                        "result": ['read <REDACTED_PATH> "next"', "bearer tokens"],
+                        "result": ['read /etc/hosts; "next"', "bearer tokens"],
                     },
                 },
                 records[1],
+                records[2],
             ]
             assert (session / name).read_text() == original
+
+    @pytest.mark.parametrize(
+        "text, expected",
+        [
+            # JSON-escaped line breaks after a colon are not Windows drives.
+            (r"requirements:\n- Use", r"requirements:\n- Use"),
+            (r"Summary:\\nBGP router", r"Summary:\\nBGP router"),
+            (r"Q:\nA", r"Q:\nA"),
+            # Lab-container paths are audit evidence.
+            ("cat /etc/frr/frr.conf", "cat /etc/frr/frr.conf"),
+            (
+                "ls /var/lib/named /tmp/catalog.txt",
+                "ls /var/lib/named /tmp/catalog.txt",
+            ),
+            # Host-local paths are redacted.
+            ("open /home/alice/x now", "open <REDACTED_PATH> now"),
+            (r"out\n/Users/bob/a\nnext", r"out\n<REDACTED_PATH>\nnext"),
+            (r"C:\Users\nina\f.txt ok", "<REDACTED_PATH> ok"),
+            (r"C:\\Users\\nina\nnext", r"<REDACTED_PATH>\nnext"),
+            ("see file:///home/alice/x", "see file://<REDACTED_PATH>"),
+            (f"{REPO_ROOT}/results/run/a ok", "<REDACTED_PATH> ok"),
+        ],
+    )
+    def test_pack_redacts_only_host_local_paths(
+        self, mini_release_env, text, expected
+    ) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        session = next((result_dir / "trials").iterdir())
+        # Tool output that is itself JSON keeps escapes such as ``\n`` literal.
+        record = {"role": "tool", "content": text}
+        (session / "messages.jsonl").write_text(json.dumps(record) + "\n")
+        result = pack_leaderboard_submission(
+            result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+        )
+        packed = result.trajectories_dir / "trials" / session.name / "messages.jsonl"
+        assert json.loads(packed.read_text(encoding="utf-8"))["content"] == expected
+        # The validator accepts what pack keeps, so lab paths do not fail it.
+        report = validate_trajectory_package(
+            result.trajectories_dir, scores_dir=result.scores_dir
+        )
+        assert report.ok, report.errors
 
     @pytest.mark.parametrize("name", ["messages.jsonl", "nika.jsonl"])
     def test_invalid_jsonl_stops_pack_and_validation(
@@ -654,6 +775,7 @@ class TestLeaderboardPackValidate:
         [
             ("Authorization: Bearer short", "bearer_token"),
             ("Authorization: Bearer tokens", "bearer_token"),
+            ("Authorization: Bearer headers", "bearer_token"),
             ("Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature", "bearer_token"),
             ("Bearer token.secret", "bearer_token"),
             ({"Authorization: Bearer short": "header"}, "bearer_token"),
@@ -778,7 +900,10 @@ class TestLeaderboardPackValidate:
         shutil.rmtree(trial_dirs[0])
         report = validate_leaderboard_submission(package)
         assert not report.ok
-        assert any("missing trials" in e for e in report.errors)
+        codes = [issue.code for issue in report.issues]
+        # One trial of a task still present is missing work, not release drift.
+        assert "ERROR_TRIALS_MISSING" in codes
+        assert "ERROR_RELEASE_DRIFT" not in codes
 
     def test_duplicate_trial_fails(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
@@ -794,7 +919,7 @@ class TestLeaderboardPackValidate:
         assert any(
             "duplicate trial_id" in e
             or "trial directory name" in e
-            or "missing trials" in e
+            or "ERROR_TRIALS_MISSING" in e
             for e in report.errors
         )
 
@@ -861,9 +986,415 @@ class TestLeaderboardPackValidate:
         with pytest.raises(LeaderboardPackError, match="official"):
             _pack(result_dir)
 
+    def test_schema_version_and_provenance(self, mini_release_env) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            sibling_trajectories_dir,
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        run_path = result_dir / "run.json"
+        data = json.loads(run_path.read_text(encoding="utf-8"))
+        data["schema_version"] = 1
+        data["provenance"] = {
+            "frontend": {"version": "1.0.0", "commit": "abc", "dirty": False},
+            "engine": {"release": "lb-mini", "api": 1, "commit": "abc", "dirty": False},
+            "host": {"docker": "28.3.2", "kernel": "6.8.0"},
+        }
+        _write_json(run_path, data)
+        package = _pack(result_dir)
+        identity = yaml.safe_load(_identity_path(package).read_text(encoding="utf-8"))
+        assert identity["run"]["schema_version"] == 1
+        assert identity["run"]["provenance"]["host"]["docker"] == "28.3.2"
+        trajectories = sibling_trajectories_dir(package)
+
+        for identity_path in (
+            _identity_path(package),
+            trajectories / IDENTITY_FILENAME,
+        ):
+            identity = yaml.safe_load(identity_path.read_text(encoding="utf-8"))
+            identity["run"]["schema_version"] = 99
+            identity_path.write_text(yaml.safe_dump(identity), encoding="utf-8")
+        for report in (
+            validate_leaderboard_submission(package),
+            validate_trajectory_package(trajectories),
+        ):
+            assert not report.ok
+            assert any("run-record schema version 99" in e for e in report.errors)
+
+        _write_json(run_path, {**data, "schema_version": 99})
+        with pytest.raises(LeaderboardPackError, match="run-record schema version 99"):
+            _pack(result_dir)
+
     def test_pack_rejects_incomplete_trials(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
         trial = next((result_dir / "trials").iterdir())
         (trial / "eval_metrics.json").unlink()
         with pytest.raises(LeaderboardPackError, match="Incomplete|missing"):
             _pack(result_dir)
+
+    @pytest.mark.parametrize("trace", ["", "{}\n", '{"event":"phase_start"}\n'])
+    def test_pack_and_validate_reject_empty_agent_trace(
+        self, mini_release_env, trace
+    ) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            sibling_trajectories_dir,
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        package = _pack(result_dir)
+        trajectories = sibling_trajectories_dir(package)
+        packed_trial = next((trajectories / "trials").iterdir())
+        (packed_trial / "messages.jsonl").write_text(trace)
+        report = validate_trajectory_package(trajectories)
+        assert not report.ok
+        assert any("no agent trajectory" in error for error in report.errors)
+        assert "ERROR_EMPTY_TRACE" in [issue.code for issue in report.issues]
+        trial = next((result_dir / "trials").iterdir())
+        (trial / "messages.jsonl").write_text(trace)
+        with pytest.raises(LeaderboardPackError, match="no agent trajectory"):
+            _pack(result_dir)
+
+
+@pytest.mark.parametrize("defect", ["paired_metrics", "regrade", "tool_policy"])
+def test_validation_audits_paired_trajectory_evidence(mini_release_env, defect):
+    from nika.workflows.leaderboard.validate_trajectories import (
+        sibling_trajectories_dir,
+    )
+
+    _, result_dir = mini_release_env
+    scores = _pack(result_dir)
+    trajectories = sibling_trajectories_dir(scores)
+    trial = next((trajectories / "trials").iterdir())
+    if defect == "paired_metrics":
+        path = trial / "eval_metrics.json"
+        metrics = json.loads(path.read_text())
+        metrics["rca_f1"] = 0
+        _write_json(path, metrics)
+    elif defect == "regrade":
+        _write_json(trial / "submission.json", {"is_anomaly": False, "root_causes": []})
+    else:
+        with (trial / "messages.jsonl").open("a") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "phase": "diagnosis",
+                        "event": "tool_start",
+                        "tool": {"name": "WebSearch"},
+                        "input": {"query": "network fault"},
+                    }
+                )
+                + "\n"
+            )
+    report = validate_leaderboard_submission(scores)
+    assert not report.ok
+    if defect == "paired_metrics":
+        assert any(
+            "metrics differ from paired trajectories" in error
+            for error in report.errors
+        )
+    else:
+        assert report.audit is not None and report.audit["verdict"] == "block"
+        assert report.audit["trials"]
+        from nika.workflows.leaderboard.submit import _submit_packed_package
+        from nika.workflows.leaderboard.validate import LeaderboardValidateError
+
+        with pytest.raises(LeaderboardValidateError):
+            _submit_packed_package(scores, dry_run=True)
+        saved = json.loads((scores / "audit.json").read_text())
+        assert saved["verdict"] == "block" and saved["trials"]
+
+
+@pytest.mark.parametrize(
+    ("package_kind", "relative"),
+    [
+        ("scores", "metadata.yaml"),
+        ("scores", "results/identity.yaml"),
+        ("scores", "results/trials"),
+        ("trajectories", "metadata.yaml"),
+        ("trajectories", "trials"),
+    ],
+)
+def test_validation_rejects_symbolic_links_before_reading_package_data(
+    mini_release_env, tmp_path, package_kind, relative
+):
+    _, result_dir = mini_release_env
+    scores = _pack(result_dir)
+    paired = scores.parent / f"{scores.name}_trajectories"
+    root = scores if package_kind == "scores" else paired
+    path = root / relative
+    outside = tmp_path / "outside-package"
+    path.rename(outside)
+    if outside.is_file():
+        outside.write_text("info: [OUTSIDE_PACKAGE_SENTINEL\n")
+    path.symlink_to(outside, target_is_directory=outside.is_dir())
+
+    report = validate_leaderboard_submission(scores)
+
+    assert not report.ok
+    assert any("ERROR_PACKAGE_INCOMPLETE" in error for error in report.errors)
+    assert any("symbolic links are not allowed" in error for error in report.errors)
+    assert "OUTSIDE_PACKAGE_SENTINEL" not in "\n".join(report.errors)
+    assert report.audit is None
+
+
+def test_ci_rejects_symbolic_links_before_reading_identity_or_fetching(
+    mini_release_env, tmp_path, monkeypatch
+):
+    from nika.audit import ci
+
+    _, result_dir = mini_release_env
+    package = _pack(result_dir)
+    identity = package / "results/identity.yaml"
+    outside = tmp_path / "outside.yaml"
+    outside.write_text("info: [OUTSIDE_PACKAGE_SENTINEL\n")
+    identity.unlink()
+    identity.symlink_to(outside)
+    monkeypatch.setattr(
+        ci,
+        "fetch_trajectories",
+        lambda *args, **kwargs: pytest.fail("Must reject before fetching"),
+    )
+
+    with pytest.raises(ValueError, match="symbolic links are not allowed"):
+        ci.audit_package(
+            package,
+            tmp_path / "audit",
+            REPO_ROOT,
+            trajectories_repo="test/trajectories",
+        )
+
+
+def test_ci_keeps_blocking_evidence_reviewable_at_the_same_revision(
+    mini_release_env, tmp_path, monkeypatch
+):
+    from nika.audit import ci
+
+    _, result_dir = mini_release_env
+    package = _pack(result_dir)
+    paired = package.parent / f"{package.name}_trajectories"
+    trial = next((paired / "trials").iterdir())
+    path = trial / "messages.jsonl"
+    path.write_text(
+        path.read_text()
+        + json.dumps(
+            {
+                "phase": "diagnosis",
+                "event": "tool_start",
+                "tool": {"name": "WebSearch"},
+                "input": {"query": "network"},
+            }
+        )
+        + "\n"
+    )
+    original = path.read_bytes()
+    downloads = []
+
+    def fetch(slug, release, destination, *, repo, revision):
+        downloads.append(destination)
+        shutil.copytree(paired, destination / "trajectories")
+        (destination / "fetch-source.json").write_text(
+            json.dumps({"repo": repo, "revision": "a" * 40, "path": slug})
+        )
+        return destination / "trajectories"
+
+    monkeypatch.setattr(ci, "fetch_trajectories", fetch)
+    output = tmp_path / "outputs"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    out = tmp_path / "audit"
+    assert not ci.audit_package(
+        package, out, REPO_ROOT, trajectories_repo="test/trajectories"
+    )
+    assert "reviewable=true" in output.read_text()
+    assert "revision=" + "a" * 40 in output.read_text()
+    assert json.loads((out / "audit.json").read_text())["verdict"] == "block"
+    assert all(not path.exists() for path in downloads)
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("errors", [0, 1])
+def test_review_workflow_preserves_kb_and_reports_failures(
+    mini_release_env, tmp_path, monkeypatch, errors
+):
+    from nika.workflows.leaderboard import review
+
+    _, result_dir = mini_release_env
+    seed = tmp_path / "kb"
+    shutil.copytree(review.KB_DIR, seed)
+    out = tmp_path / "review"
+
+    def propose(path, kb, workdir, *, scan, adjudicate, **kwargs):
+        assert scan.command == adjudicate.command == ("reviewer",)
+        text = (
+            (kb / "issues/LEAK-VTYSH-HISTORY.yaml")
+            .read_text()
+            .replace("LEAK-VTYSH-HISTORY", "LEAK-TEST-CANDIDATE")
+        )
+        (kb / "issues/LEAK-TEST-CANDIDATE.yaml").write_text(text)
+        return {"errors": [errors, 0], "written": ["LEAK-TEST-CANDIDATE"]}
+
+    monkeypatch.setattr(review, "review_submission", propose)
+    summary = review.review_trajectories(result_dir, out, kb=seed, command="reviewer")
+    assert summary["complete"] == (not errors)
+    assert not (seed / "issues/LEAK-TEST-CANDIDATE.yaml").exists()
+    assert (out / "audit-candidate.json").is_file()
+    with pytest.raises(FileExistsError):
+        review.review_trajectories(result_dir, out, command="reviewer")
+
+
+def test_ci_publication_deduplicates_issues_and_preserves_git_history(
+    tmp_path, monkeypatch
+):
+    import subprocess
+    import sys
+    import os
+    from nika.audit.ci import publish_proposals
+    from nika.audit.kb import KB_DIR
+
+    origin = tmp_path / "origin"
+    subprocess.run(
+        ["git", "init", "--initial-branch=dev", str(origin)],
+        check=True,
+        capture_output=True,
+    )
+
+    def git(*args):
+        return subprocess.check_output(
+            ["git", "-C", str(origin), *args], text=True
+        ).strip()
+
+    git("config", "user.name", "Zhihao Wang")
+    git("config", "user.email", "zhihao.wang@kaust.edu.sa")
+    folder = origin / "src/nika/audit/kb_data/issues"
+    folder.mkdir(parents=True)
+    (folder / ".gitkeep").touch()
+    git("add", ".")
+    git(
+        "commit",
+        "-m",
+        "test(audit): create publication fixture",
+        "-m",
+        "Co-authored-by: Codex <codex@openai.com>",
+    )
+    config = tmp_path / "gitconfig"
+    config.write_text(
+        f'[url "{origin}"]\n    insteadOf = https://github.com/sands-lab/nika.git\n'
+    )
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    state = tmp_path / "state.json"
+    state.write_text(
+        json.dumps({"issues": [], "prs": [], "created_issues": 0, "created_prs": 0})
+    )
+    executable = tmp_path / "bin/gh"
+    executable.parent.mkdir()
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        + """import json,os,sys
+from pathlib import Path
+p=Path(os.environ['AUDIT_TEST_STATE']); s=json.loads(p.read_text()); a=sys.argv[1:]
+if a[:2]==['pr','list']: print(json.dumps(s['prs']))
+elif a[:2]==['issue','list']: print(json.dumps(s['issues']))
+elif a[:2]==['issue','create']:
+    s['created_issues']+=1; url='https://github.com/sands-lab/nika/issues/999'
+    s['issues'].append({'url':url,'body':Path(a[a.index('--body-file')+1]).read_text()}); print(url)
+elif a[:2]==['pr','create']:
+    s['created_prs']+=1; url='https://github.com/sands-lab/nika/pull/1000'; s['prs'].append({'state':'OPEN','url':url}); print(url)
+elif a[0]=='api': print('{}')
+else: raise SystemExit(1)
+p.write_text(json.dumps(s))
+"""
+    )
+    executable.chmod(0o755)
+    monkeypatch.setenv("PATH", str(executable.parent) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("AUDIT_TEST_STATE", str(state))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "test/leaderboard")
+    monkeypatch.setenv("GITHUB_RUN_ID", "1")
+    review = tmp_path / "review"
+    (review / "kb/issues").mkdir(parents=True)
+    shutil.copy2(KB_DIR / "issues/LEAK-VTYSH-HISTORY.yaml", review / "kb/issues")
+    (review / "summary.json").write_text(
+        json.dumps({"complete": True, "written": ["LEAK-VTYSH-HISTORY"]})
+    )
+    source = {
+        "repo": "test/trajectories",
+        "revision": "a" * 40,
+        "path": "trajectories/0.2.0/example",
+    }
+    trajectories = tmp_path / "trajectories"
+    trajectories.mkdir()
+    for _ in range(2):
+        publish_proposals(Path("example"), source, review, trajectories)
+    result = json.loads(state.read_text())
+    assert result["created_issues"] == result["created_prs"] == 1
+    branch = "bot/audit/0.2.0/example-" + "a" * 12
+    assert git("rev-list", "--count", branch) == "2"
+    assert git(
+        "show", f"{branch}:src/nika/audit/kb_data/issues/LEAK-VTYSH-HISTORY.yaml"
+    )
+
+
+def test_ci_bounds_waiting_for_a_pending_trajectory_upload(
+    mini_release_env, tmp_path, monkeypatch
+):
+    from nika.audit import ci
+
+    _, result_dir = mini_release_env
+    package = _pack(result_dir)
+    clock = [0]
+    calls = []
+    monkeypatch.setattr(ci.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        ci.time, "sleep", lambda delay: clock.__setitem__(0, clock[0] + delay)
+    )
+
+    def pending(*args, **kwargs):
+        calls.append(clock[0])
+        raise ci.TrajectoryPendingError("upload pending")
+
+    monkeypatch.setattr(ci, "fetch_trajectories", pending)
+    with pytest.raises(ci.TrajectoryPendingError):
+        ci.audit_package(
+            package,
+            tmp_path / "audit",
+            REPO_ROOT,
+            trajectories_repo="test/trajectories",
+        )
+    assert calls[0] == 0 and calls[-1] == 600
+
+
+def test_missing_trajectories_reports_audit_not_run(mini_release_env):
+    _, result_dir = mini_release_env
+    packed = pack_leaderboard_submission(
+        result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+    )
+    shutil.rmtree(packed.trajectories_dir)
+    report = validate_leaderboard_submission(packed.scores_dir)
+    assert report.ok and report.audit is None
+    codes = [issue.code for issue in report.issues]
+    assert "WARNING_TRAJECTORY_AUDIT_NOT_RUN" in codes
+    assert "WARNING_TRAJECTORY_AUDIT" not in codes
+    serialized = report.to_dict(package=str(packed.scores_dir))
+    assert any(
+        issue["code"] == "WARNING_TRAJECTORY_AUDIT_NOT_RUN"
+        for issue in serialized["warnings"]
+    )
+
+
+def test_validate_reads_harness_limit_from_release(mini_release_env) -> None:
+    release, result_dir = mini_release_env
+    package = _pack(result_dir)
+    result_path = next((package / RESULTS_DIRNAME / "trials").glob("*/result.json"))
+    result = json.loads(result_path.read_text())
+    result["validity_flags"] = ["truncated_final_turn"]
+    _write_json(result_path, result)
+
+    report = validate_leaderboard_submission(package)
+    assert any("exceeds harness limit 5.0%" in error for error in report.errors)
+
+    manifest_path = release.root / "RELEASE.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    manifest["evaluation"] = {"validity": {"max_harness_rate": 1.0}}
+    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False))
+    report = validate_leaderboard_submission(package)
+    assert not any("exceeds harness limit" in error for error in report.errors)

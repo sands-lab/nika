@@ -13,6 +13,10 @@ import yaml
 from nika.config import BENCHMARK_DIR
 from nika.net_env.net_env_pool import (
     list_all_net_envs,
+    scenario_baseline_traffic,
+    scenario_device_profile_sizes,
+    scenario_containerlab_device_profiles,
+    scenario_device_profiles,
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
     scenario_supported_backends,
@@ -21,17 +25,26 @@ from nika.problems.rca import UnresolvedRootCauseError
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.rca.materialize import ground_truth_for_case
 from nika.problems.rca.models import FaultResource
-from nika.problems.registry import list_avail_problem_instances
+from nika.problems.registry import get_problem_class, list_avail_problem_instances
+from nika.traffic.profiles import traffic_field
+from nika.problems.support.router_ops import unsupported_native_targets
 from nika.workflows.benchmark.e2e_validation import containerlab_isp_supported
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
+from nika.problems.support.benchmark_targets import NoValidTargetError
 from nika.workflows.benchmark.inject_enumerate import enumerate_inject_params
-from nika.workflows.benchmark.inject_resolve import validate_benchmark_case
+from nika.workflows.benchmark.inject_resolve import (
+    UnsupportedNativeTargetError,
+    validate_benchmark_case,
+)
+from nika.topology.catalog import isp_topology_size
 from nika.workflows.benchmark.isp_options import (
     is_isp_base_topology,
     is_isp_named_special,
     isp_config_for_problem,
     isp_stack_for_backend,
+    isp_topo_from_scenario,
 )
+from nika.workflows.benchmark.load_config import CASE_PROFILE_FIELDS
 from nika.workflows.benchmark.resume import benchmark_option_id
 
 WORKING_DIRNAME = "working"
@@ -50,7 +63,17 @@ _PROFILE_FIELDS = (
     "backend",
     "device_profile",
 )
-_ISP_DEPLOY_KEYS = ("igp", "bgp_mode", "rpki", "backend", "device_profile")
+# Deployment options a case row may carry besides ``topo_size``. ISP rows use
+# all of them; other environments with native router profiles carry only
+# ``device_profile``, and their default (FRR) rows carry none.
+_DEPLOY_OPTION_KEYS = ("igp", "bgp_mode", "rpki", "backend", "device_profile")
+# Native router profiles boot licensed vendor images, one heavy lab at a time.
+# The pool carries them only at the topology size their native runs cover
+# (Ethernet ``topo_size`` or ISP topology tier), within the sizes the
+# environment declares, so no candidate needs a large native lab.
+NATIVE_PROFILE_BENCHMARK_SIZE = "s"
+# Containerlab ISP rows run on SR Linux (the backend default) and on these.
+CONTAINERLAB_ALTERNATE_PROFILES = ("sonic",)
 
 
 def _topo_sizes_for_scenario(scenario: str) -> list[str]:
@@ -81,6 +104,7 @@ def _variant_sort_key(variant: dict[str, Any]) -> tuple[str, ...]:
         str(bool(variant.get("rpki", False))),
         str(variant.get("backend") or ""),
         str(variant.get("device_profile") or ""),
+        json.dumps(variant.get("traffic") or {}, sort_keys=True),
     )
 
 
@@ -94,6 +118,27 @@ def _problem_catalog_backends(problem_cls: type) -> tuple[str, ...]:
     if supported is None:
         return ("kathara",)
     return tuple(str(item) for item in supported)
+
+
+def native_benchmark_profiles(scenario: str, topo_size: str = "") -> list[str]:
+    """Native router profiles the pool carries for one deployment size.
+
+    ``topo_size`` is the Ethernet size; ISP base scenarios use their
+    topology tier. Named ISP specials keep FRR (their overlays have no
+    native rendering).
+    """
+    if is_isp_named_special(scenario):
+        return []
+    if is_isp_base_topology(scenario):
+        topo_size = isp_topology_size(isp_topo_from_scenario(scenario))
+    if topo_size != NATIVE_PROFILE_BENCHMARK_SIZE:
+        return []
+    return [
+        profile
+        for profile in scenario_device_profiles(scenario)
+        if topo_size
+        in (scenario_device_profile_sizes(scenario, profile) or (topo_size,))
+    ]
 
 
 def _isp_stack_variants(
@@ -113,17 +158,59 @@ def _isp_stack_variants(
     variants: list[dict[str, str]] = []
     if "kathara" in allowed:
         variants.append(isp_stack_for_backend("kathara"))
-    if "containerlab" in allowed and containerlab_isp_supported(scenario):
-        variants.append(isp_stack_for_backend("containerlab"))
+        variants.extend(
+            {"backend": "kathara", "device_profile": profile}
+            for profile in native_benchmark_profiles(scenario)
+        )
+    if "containerlab" in scenario_backends:
+        # A failure without declared backends still runs on Containerlab
+        # platforms whose fault-operations provider implements it. Each
+        # platform takes the graphs whose routers fit a host's memory.
+        stacks = [
+            isp_stack_for_backend("containerlab"),
+            *(
+                {"backend": "containerlab", "device_profile": profile}
+                for profile in CONTAINERLAB_ALTERNATE_PROFILES
+            ),
+        ]
+        variants.extend(
+            stack
+            for stack in stacks
+            if containerlab_isp_supported(scenario, stack["device_profile"])
+            and (
+                "containerlab" in allowed
+                or (
+                    problem_cls is not None
+                    and problem_cls.is_compatible(
+                        scenario, stack["device_profile"], backend="containerlab"
+                    )
+                )
+            )
+        )
     if not variants and "kathara" in scenario_backends:
         variants.append(isp_stack_for_backend("kathara"))
     return variants
 
 
+def _profile_variants(scenario: str, topo_size: str) -> list[dict[str, str] | None]:
+    """Default deployment (``None``) plus each other router platform of a lab.
+
+    Kathara labs add their native profiles; Containerlab-only labs add the
+    platforms after their default one.
+    """
+    return [None] + [
+        {"device_profile": profile}
+        for profile in (
+            *native_benchmark_profiles(scenario, topo_size),
+            *scenario_containerlab_device_profiles(scenario)[1:],
+        )
+    ]
+
+
 def _offline_kwargs(isp_options: dict[str, Any] | None) -> dict[str, Any]:
     if not isp_options:
         return {}
-    return {key: isp_options[key] for key in _ISP_DEPLOY_KEYS if key in isp_options}
+    return {key: isp_options[key] for key in _DEPLOY_OPTION_KEYS if key in isp_options}
 
 
 def _document_sort_key(document: dict[str, Any]) -> tuple[str, ...]:
@@ -176,6 +263,26 @@ def _catalog_root_causes(
     return catalog
 
 
+def _compatible_with_any_deployment(problem_cls: type, scenario: str) -> bool:
+    """Whether the failure runs on any declared deployment platform.
+
+    Each deployment is checked again when its rows are expanded.
+    """
+    if problem_cls.is_compatible(scenario):
+        return True
+    platforms = scenario_containerlab_device_profiles(scenario)
+    if is_isp_base_topology(scenario):
+        platforms = tuple(
+            profile
+            for profile in CONTAINERLAB_ALTERNATE_PROFILES
+            if containerlab_isp_supported(scenario, profile)
+        )
+    return any(
+        problem_cls.is_compatible(scenario, profile)
+        for profile in (*scenario_device_profiles(scenario), *platforms)
+    )
+
+
 def iter_failure_case_specs(
     *, include_benchmark_excluded: bool = False
 ) -> Iterable[tuple[str, str, str, dict[str, Any] | None]]:
@@ -186,7 +293,7 @@ def iter_failure_case_specs(
         for scenario, scenario_spec in sorted(net_envs.items()):
             if scenario_spec.benchmark_excluded and not include_benchmark_excluded:
                 continue
-            if not problem_cls.is_compatible(scenario):
+            if not _compatible_with_any_deployment(problem_cls, scenario):
                 continue
             if is_isp_named_special(scenario):
                 for stack in _isp_stack_variants(scenario, problem_cls):
@@ -203,6 +310,8 @@ def iter_failure_case_specs(
                 if protocol["rpki"]:
                     continue
                 for stack in _isp_stack_variants(scenario, problem_cls):
+                    if not problem_cls.is_compatible(scenario, stack["device_profile"]):
+                        continue
                     yield (
                         problem,
                         scenario,
@@ -211,7 +320,23 @@ def iter_failure_case_specs(
                     )
                 continue
             for topo_size in _topo_sizes_for_scenario(scenario):
-                yield problem, scenario, topo_size, None
+                for options in _profile_variants(scenario, topo_size):
+                    profile = (options or {}).get("device_profile")
+                    if problem_cls.is_compatible(scenario, profile):
+                        yield problem, scenario, topo_size, options
+
+
+def _root_cause_nodes(root_causes: list[dict[str, Any]]) -> list[str]:
+    """Nodes whose own state a root cause names (node and interface resources).
+
+    Link resources name a cable: the failure acts on the injected endpoint,
+    which ``validate_benchmark_case`` already checks.
+    """
+    return [
+        root_cause["resource"]["node"]
+        for root_cause in root_causes
+        if root_cause["resource"].get("node")
+    ]
 
 
 def _rejection(
@@ -248,6 +373,9 @@ def build_failure_cases(
     collected: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     net_env = load_offline_net_env(scenario, topo_size, **_offline_kwargs(isp_options))
+    traffic = traffic_field(
+        get_problem_class(problem, scenario).TRAFFIC_PROFILE or net_env.BASELINE_TRAFFIC
+    )
     try:
         enumerated = enumerate_inject_params(
             problem,
@@ -256,6 +384,18 @@ def build_failure_cases(
             isp_options=isp_options,
             net_env=net_env,
         )
+    except NoValidTargetError as exc:
+        return [], [
+            _rejection(
+                reason="case_validation_failed",
+                problem=problem,
+                scenario=scenario,
+                topo_size=topo_size,
+                inject=None,
+                error=exc,
+                isp_options=isp_options,
+            )
+        ]
     except Exception as exc:
         raise RuntimeError(
             f"Cannot enumerate targets for {problem}/{scenario}/{topo_size or '-'}"
@@ -292,7 +432,11 @@ def build_failure_cases(
         except ValueError as exc:
             rejected.append(
                 _rejection(
-                    reason="case_validation_failed",
+                    reason=(
+                        "unsupported_device_profile"
+                        if isinstance(exc, UnsupportedNativeTargetError)
+                        else "case_validation_failed"
+                    ),
                     problem=problem,
                     scenario=scenario,
                     topo_size=topo_size,
@@ -339,6 +483,24 @@ def build_failure_cases(
                 )
             )
             continue
+        unsupported = unsupported_native_targets(
+            get_problem_class(problem, scenario),
+            net_env,
+            _root_cause_nodes(catalog_root_causes),
+        )
+        if unsupported:
+            rejected.append(
+                _rejection(
+                    reason="unsupported_device_profile",
+                    problem=problem,
+                    scenario=scenario,
+                    topo_size=topo_size,
+                    inject=inject,
+                    error=f"root cause on native routers {unsupported}",
+                    isp_options=isp_options,
+                )
+            )
+            continue
         option_id = _option_id(
             scenario=scenario,
             topo_size=topo_size,
@@ -354,6 +516,7 @@ def build_failure_cases(
         collected.append(
             {
                 **_profile_fields(topo_size, isp_options),
+                **traffic,
                 "inject": inject,
                 "root_causes": catalog_root_causes,
             }
@@ -387,7 +550,15 @@ def _healthy_specs(
         topo_size: str,
         isp_options: dict[str, Any] | None,
     ) -> tuple[str, str, dict[str, Any] | None] | None:
-        opts = isp_options or {}
+        opts = dict(isp_options or {})
+        # Healthy cases run the environment baseline, as failure cases do.
+        opts.setdefault(
+            "traffic",
+            traffic_field(
+                scenario_baseline_traffic(scenario, opts.get("device_profile"))
+            )["traffic"],
+        )
+        isp_options = opts
         key = (
             scenario,
             topo_size,
@@ -396,6 +567,7 @@ def _healthy_specs(
             bool(opts.get("rpki", False)),
             str(opts.get("backend") or ""),
             str(opts.get("device_profile") or ""),
+            json.dumps(opts.get("traffic") or {}, sort_keys=True),
         )
         if key in seen:
             return None
@@ -423,16 +595,20 @@ def _healthy_specs(
                     yield spec
             continue
         for topo_size in _topo_sizes_for_scenario(scenario):
-            spec = _emit(scenario, topo_size, None)
-            if spec is not None:
-                yield spec
+            for options in _profile_variants(scenario, topo_size):
+                spec = _emit(scenario, topo_size, options)
+                if spec is not None:
+                    yield spec
 
     for document in sorted(failure_documents, key=_document_sort_key):
         scenario = str(document["scenario"]["name"])
         for case in document["failure"]["cases"]:
             topo_size = str(case.get("topo_size") or "")
+            # A healthy variant per traffic profile the failures run with.
             isp_options = {
-                key: case[key] for key in _ISP_DEPLOY_KEYS if key in case
+                key: case[key]
+                for key in (*_DEPLOY_OPTION_KEYS, "traffic")
+                if key in case
             } or None
             spec = _emit(scenario, topo_size, isp_options)
             if spec is not None:
@@ -447,7 +623,7 @@ def _document_option_ids(document: dict[str, Any]) -> list[str]:
                 "scenario": document["scenario"]["name"],
                 "problem": document["failure"]["fault_type"],
                 "inject": case["inject"],
-                **{key: case[key] for key in _PROFILE_FIELDS if key in case},
+                **{key: case[key] for key in CASE_PROFILE_FIELDS if key in case},
             }
             ids.append(benchmark_option_id(row))
         return ids
@@ -457,7 +633,7 @@ def _document_option_ids(document: dict[str, Any]) -> list[str]:
             "scenario": document["scenario"]["name"],
             "problem": HEALTHY_PROBLEM,
             "inject": {},
-            **{key: variant[key] for key in _PROFILE_FIELDS if key in variant},
+            **{key: variant[key] for key in CASE_PROFILE_FIELDS if key in variant},
         }
         ids.append(benchmark_option_id(row))
     return ids
@@ -473,12 +649,27 @@ def _document_path(document: dict[str, Any]) -> Path:
     return Path(scenario) / leaf
 
 
-def build_candidate_catalog() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def build_candidate_catalog(
+    *, validated_only: bool = False
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     failure_docs: dict[tuple[str, str], dict[str, Any]] = {}
     rejected: list[dict[str, Any]] = []
     all_ids: set[str] = set()
+    validated = None
+    if validated_only:
+        from nika.problems.support.router_ops import router_platform_has_provider
+        from nika.workflows.benchmark.profile_validation import validated_cells
+
+        validated = validated_cells()
 
     for problem, scenario, topo_size, isp_options in iter_failure_case_specs():
+        profile = (isp_options or {}).get("device_profile")
+        if (
+            validated is not None
+            and router_platform_has_provider(profile)
+            and _cell_key(scenario, profile, problem) not in validated
+        ):
+            continue
         cases, case_rejected = build_failure_cases(
             problem=problem,
             scenario=scenario,
@@ -588,18 +779,36 @@ def _print_report(report: dict[str, Any]) -> None:
             print(f"  {reason}: {count}")
 
 
+class _PlainDumper(yaml.Dumper):
+    """Write a value shared by several cases in full at each case.
+
+    Without it, YAML anchors (``&id001``) tie a case to the first case that
+    holds the same object, and a reader of one case cannot see its values.
+    """
+
+    def ignore_aliases(self, data: Any) -> bool:
+        return True
+
+
 def _write_yaml_atomic(path: Path, payload: dict[str, Any]) -> None:
     tmp_path = path.with_name(f".{path.name}.tmp")
     tmp_path.write_text(
-        yaml.dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8"
+        yaml.dump(payload, Dumper=_PlainDumper, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
     )
     tmp_path.replace(path)
 
 
+def _cell_key(scenario: str, profile: str, problem: str) -> str:
+    from nika.workflows.benchmark.profile_validation import cell_environment, cell_key
+
+    return cell_key(cell_environment(scenario), profile, problem)
+
+
 def generate_candidate_catalog(
-    *, out_path: Path | None = None
+    *, out_path: Path | None = None, validated_only: bool = False
 ) -> tuple[Path, dict[str, Any]]:
-    documents, report = build_candidate_catalog()
+    documents, report = build_candidate_catalog(validated_only=validated_only)
     catalog_dir = out_path or default_pool_dir()
     catalog_dir.mkdir(parents=True, exist_ok=True)
     expected_paths: set[Path] = set()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 import re
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network
@@ -14,7 +15,7 @@ from nika.topology import (
     NetworkTopology,
     TopoLink,
     link_preinstalled_capacity,
-    load_sndlib_topology,
+    load_topology,
 )
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -33,6 +34,8 @@ class PlannedInterface:
     subnet: str
     metric: int
     passive: bool = False
+    # IP MTU when the link runs below Ethernet's 1500 (tunnelled backhaul).
+    mtu: int | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +145,30 @@ def link_metric(link: TopoLink, config: IspConfig) -> int:
     raise IspConfigError(f"Unsupported metric strategy {config.metric_strategy!r}.")
 
 
+# Backbone links carried over a tunnel, by SNDlib topology. Both ends run the
+# tunnel's IP MTU, so full-size packets across them rely on Path MTU Discovery.
+# Abilene: the atlam5 PoP is backhauled to atlang over GRE (24 bytes of
+# overhead on a 1500-byte carrier MTU).
+TUNNEL_LINKS: dict[str, dict[frozenset[str], int]] = {
+    "abilene": {frozenset({"atlam5", "atlang"}): 1476},
+}
+
+
+def tunnel_links(plan: "IspPlan") -> list[tuple[str, str, int]]:
+    """``(endpoint_a, endpoint_b, mtu)`` of the plan's tunnelled links."""
+    by_link = {
+        iface.link_id: iface.mtu
+        for node in plan.nodes
+        for iface in node.interfaces
+        if iface.mtu
+    }
+    return [
+        (link.endpoint_a, link.endpoint_b, by_link[link.link_id])
+        for link in plan.links
+        if link.link_id in by_link
+    ]
+
+
 def compile_isp_plan(
     config: IspConfig | None = None,
     *,
@@ -149,7 +176,7 @@ def compile_isp_plan(
 ) -> IspPlan:
     """Compile an ISP plan from config and/or an explicit NetworkTopology."""
     cfg = (config or IspConfig()).validated()
-    topo = topology if topology is not None else load_sndlib_topology(cfg.topology)
+    topo = topology if topology is not None else load_topology(cfg.topology)
 
     nodes_sorted = tuple(sorted(topo.nodes, key=lambda n: n.id))
     links_sorted = tuple(sorted(topo.links, key=lambda link: link.id))
@@ -165,6 +192,7 @@ def compile_isp_plan(
         topology_name=topo.name,
     )
     cd_by_link = _assign_collision_domains(links_sorted, topology_name=topo.name)
+    tunnels = TUNNEL_LINKS.get(topo.name, {})
 
     # Build per-node interface lists in sorted link-id order.
     ifaces_by_device: dict[str, list[PlannedInterface]] = {
@@ -172,8 +200,35 @@ def compile_isp_plan(
     }
     planned_links: list[PlannedLink] = []
 
+    metrics = {link.id: link_metric(link, cfg) for link in links_sorted}
+    if cfg.link_metrics is not None:
+        if set(cfg.link_metrics) != set(metrics):
+            raise IspConfigError(
+                "Explicit metrics must cover exactly the topology links."
+            )
+        maximum = 65535 if cfg.igp == "ospf" else 16777215
+        if any(
+            type(cost) is not int or not 1 <= cost <= maximum
+            for cost in cfg.link_metrics.values()
+        ):
+            raise IspConfigError(
+                f"Explicit {cfg.igp} metrics must be integers in 1..{maximum}."
+            )
+        metrics = dict(cfg.link_metrics)
+    if cfg.igp == "isis":
+        # FRR IS-IS costs a neighbor by its cheapest parallel adjacency but may
+        # forward over any of them, so parallel links must share one metric.
+        bundle_metric: dict[frozenset[str], int] = {}
+        for link in links_sorted:
+            pair = frozenset((link.source, link.target))
+            bundle_metric[pair] = min(
+                bundle_metric.get(pair, metrics[link.id]), metrics[link.id]
+            )
+        for link in links_sorted:
+            metrics[link.id] = bundle_metric[frozenset((link.source, link.target))]
+
     for link in links_sorted:
-        metric = link_metric(link, cfg)
+        metric = metrics[link.id]
         a_dev = device_by_node[link.source]
         b_dev = device_by_node[link.target]
         # Stable endpoint ordering by device name (not SNDlib source/target).
@@ -184,9 +239,14 @@ def compile_isp_plan(
 
         left_addr, right_addr, subnet = link_addrs[link.id]
         cd = cd_by_link[link.id]
-        left_iface_name = f"eth{len(ifaces_by_device[left_dev])}"
-        right_iface_name = f"eth{len(ifaces_by_device[right_dev])}"
+        left_iface_name = (
+            f"eth{cfg.first_interface_index + len(ifaces_by_device[left_dev])}"
+        )
+        right_iface_name = (
+            f"eth{cfg.first_interface_index + len(ifaces_by_device[right_dev])}"
+        )
         prefixlen = subnet.prefixlen
+        mtu = tunnels.get(frozenset({left_dev, right_dev}))
 
         left_iface = PlannedInterface(
             name=left_iface_name,
@@ -198,6 +258,7 @@ def compile_isp_plan(
             prefixlen=prefixlen,
             subnet=str(subnet),
             metric=metric,
+            mtu=mtu,
         )
         right_iface = PlannedInterface(
             name=right_iface_name,
@@ -209,6 +270,7 @@ def compile_isp_plan(
             prefixlen=prefixlen,
             subnet=str(subnet),
             metric=metric,
+            mtu=mtu,
         )
         ifaces_by_device[left_dev].append(left_iface)
         ifaces_by_device[right_dev].append(right_iface)
@@ -302,6 +364,7 @@ def build_inventory(
                 "subnet": iface.subnet,
                 "metric": iface.metric,
                 "passive": iface.passive,
+                **({"mtu": iface.mtu} if iface.mtu else {}),
             }
             for iface in sorted(node.interfaces, key=lambda i: i.name)
         ]
@@ -463,6 +526,8 @@ def _startup_commands(
     cmds = [f"ip addr add {loopback}/32 dev lo"]
     for iface in interfaces:
         cmds.append(f"ip addr add {iface.address}/{iface.prefixlen} dev {iface.name}")
+        if iface.mtu:
+            cmds.append(f"ip link set dev {iface.name} mtu {iface.mtu}")
     # FRR 10.x mgmtd can apply frr.conf incompletely on first boot (IS-IS LSPs
     # missing IP reachability TLVs). Re-apply once the daemon is listening.
     cmds.extend(
@@ -475,3 +540,46 @@ def _startup_commands(
         ]
     )
     return tuple(cmds)
+
+
+def shortest_distances(
+    graph: dict[str, list[tuple[str, int]]], source: str
+) -> dict[str, int]:
+    distances = {source: 0}
+    queue = [(0, source)]
+    while queue:
+        distance, node = heapq.heappop(queue)
+        if distance != distances[node]:
+            continue
+        for peer, metric in graph[node]:
+            candidate = distance + metric
+            if candidate < distances.get(peer, candidate + 1):
+                distances[peer] = candidate
+                heapq.heappush(queue, (candidate, peer))
+    return distances
+
+
+def shortest_paths(
+    graph: dict[str, list[tuple[str, int]]], source: str, target: str
+) -> tuple[tuple[str, ...], ...]:
+    """Enumerate exact equal-cost shortest router paths with positive metrics."""
+    distances = shortest_distances(graph, source)
+    if target not in distances:
+        return ()
+    predecessors: dict[str, set[str]] = {node: set() for node in graph}
+    for node, neighbors in graph.items():
+        for peer, metric in neighbors:
+            if metric <= 0:
+                raise ValueError("Shortest routing paths require positive metrics")
+            if node in distances and distances[node] + metric == distances.get(peer):
+                predecessors[peer].add(node)
+
+    def paths(node):
+        if node == source:
+            yield (source,)
+        else:
+            for previous in sorted(predecessors[node]):
+                for path in paths(previous):
+                    yield (*path, node)
+
+    return tuple(sorted(paths(target)))

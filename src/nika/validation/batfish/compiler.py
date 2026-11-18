@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from ipaddress import IPv4Network
 from typing import Any, Literal
@@ -9,7 +10,16 @@ from nika.net_env.contract import NetworkEntity, ValidationIntent
 
 @dataclass(frozen=True)
 class BatfishQuestion:
-    kind: Literal["reachability", "bgp_adjacency", "ospf_adjacency"]
+    kind: Literal[
+        "reachability",
+        "bidirectional_reachability",
+        "bgp_adjacency",
+        "ospf_adjacency",
+        "isis_adjacency",
+        "bgp_route",
+        "route_policy",
+        "route_next_hops",
+    ]
     parameters: dict[str, Any]
     purpose: str
 
@@ -19,11 +29,24 @@ class UnsupportedIntentError(ValueError):
 
 
 def compile_intent(intent: ValidationIntent) -> tuple[BatfishQuestion, ...]:
+    if intent.property in {"bgp_route", "route_policy", "route_next_hops"}:
+        expectation = getattr(intent, intent.property)
+        return (
+            BatfishQuestion(
+                kind=intent.property,
+                parameters=expectation.model_dump(
+                    mode="json", exclude_defaults=intent.property == "bgp_route"
+                ),
+                purpose="check the declared routing behavior in the final configuration",
+            ),
+        )
     if intent.property == "adjacency":
         assert intent.adjacency is not None
-        kind = (
-            "bgp_adjacency" if intent.adjacency.protocol == "bgp" else "ospf_adjacency"
-        )
+        kind = {
+            "bgp": "bgp_adjacency",
+            "ospf": "ospf_adjacency",
+            "isis": "isis_adjacency",
+        }[intent.adjacency.protocol]
         return (
             BatfishQuestion(
                 kind=kind,
@@ -42,6 +65,32 @@ def compile_intent(intent: ValidationIntent) -> tuple[BatfishQuestion, ...]:
         "headers": _headers(intent.source, intent.destination, intent),
         "max_traces": 5,
     }
+    if (
+        intent.traffic.round_trip
+        and intent.traffic.protocol == "icmp"
+        and intent.property in {"reachability", "isolation"}
+    ):
+        base["headers"].update(icmpTypes="8", icmpCodes="0")
+        returning = BatfishQuestion(
+            kind="bidirectional_reachability",
+            parameters={
+                **base,
+                "return_flow_type": "FAILURE"
+                if intent.property == "reachability"
+                else "SUCCESS",
+            },
+            purpose="check the ICMP echo reply against the original packet endpoints",
+        )
+        if intent.property == "isolation":
+            return (returning,)
+        return (
+            BatfishQuestion(
+                kind="reachability",
+                parameters={**base, "actions": "failure"},
+                purpose="find a failed ICMP echo request",
+            ),
+            returning,
+        )
     if intent.property == "reachability":
         return (
             BatfishQuestion(
@@ -70,7 +119,7 @@ def compile_intent(intent: ValidationIntent) -> tuple[BatfishQuestion, ...]:
     ]
     if intent.path.must_avoid:
         path = dict(base["path_constraints"])
-        path["transitLocations"] = ",".join(intent.path.must_avoid)
+        path["transitLocations"] = ",".join(map(json.dumps, intent.path.must_avoid))
         questions.append(
             BatfishQuestion(
                 kind="reachability",
@@ -80,7 +129,7 @@ def compile_intent(intent: ValidationIntent) -> tuple[BatfishQuestion, ...]:
         )
     for required_node in intent.path.must_traverse:
         path = dict(base["path_constraints"])
-        path["forbiddenLocations"] = required_node
+        path["forbiddenLocations"] = json.dumps(required_node)
         questions.append(
             BatfishQuestion(
                 kind="reachability",
@@ -93,9 +142,9 @@ def compile_intent(intent: ValidationIntent) -> tuple[BatfishQuestion, ...]:
 
 def _location(entity: NetworkEntity) -> str:
     if entity.kind in {"node", "endpoint"}:
-        return entity.name
+        return json.dumps(entity.name)
     if entity.node:
-        return entity.node
+        return json.dumps(entity.node)
     raise UnsupportedIntentError(f"source {entity.name!r} has no Batfish location")
 
 
@@ -103,10 +152,10 @@ def _end_location(entity: NetworkEntity) -> str | None:
     if entity.address is not None:
         return None
     if entity.kind in {"node", "endpoint"}:
-        return entity.name
+        return json.dumps(entity.name)
     if entity.kind == "service":
-        return entity.node or entity.name
-    return entity.node
+        return json.dumps(entity.node or entity.name)
+    return json.dumps(entity.node) if entity.node else None
 
 
 def _headers(

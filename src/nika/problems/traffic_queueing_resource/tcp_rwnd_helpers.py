@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import time
+import re
+import shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -12,6 +14,7 @@ from nika.net_env.verify import (
     iperf_throughput_bps,
     median_float,
     ping_stats,
+    tcp_socket_stats,
 )
 
 if TYPE_CHECKING:
@@ -21,12 +24,12 @@ SYSCTL_MODERATE = "net.ipv4.tcp_moderate_rcvbuf"
 SYSCTL_TCP_RMEM = "net.ipv4.tcp_rmem"
 SYSCTL_RMEM_MAX = "net.core.rmem_max"
 
-# Floor/ceiling keep target buffers in the tens-of-KB range.
-DEFAULT_BUFFER_FLOOR_BYTES = 16 * 1024
+# Floor/ceiling keep target buffers between 8 and 128 KB.
+DEFAULT_BUFFER_FLOOR_BYTES = 8 * 1024
 DEFAULT_BUFFER_CEIL_BYTES = 128 * 1024
 DEFAULT_BDP_DIVISOR = 8.0
 # Reject paths where even the floor cannot sit well below BDP.
-MIN_BDP_BYTES = DEFAULT_BUFFER_FLOOR_BYTES * 4
+MIN_BDP_BYTES = DEFAULT_BUFFER_FLOOR_BYTES * 2
 RTT_READY_TIMEOUT_SEC = 60.0
 
 
@@ -34,7 +37,7 @@ RTT_READY_TIMEOUT_SEC = 60.0
 class SysctlSnapshot:
     moderate_rcvbuf: str
     tcp_rmem: str
-    rmem_max: str
+    rmem_max: str | None
 
 
 @dataclass(frozen=True)
@@ -47,11 +50,9 @@ class PathBaseline:
 
 
 def sysctl_get(runtime: "LabRuntime", host: str, key: str) -> str:
-    return exec_or_empty(runtime, host, f"sysctl -n {key}", timeout=10).strip()
-
-
-def _proc_path_for_sysctl(key: str) -> str:
-    return "/proc/sys/" + key.replace(".", "/")
+    return exec_or_empty(
+        runtime, host, f"sysctl -n {shlex.quote(key)} 2>/dev/null", timeout=10
+    ).strip()
 
 
 def sysctl_set(
@@ -68,7 +69,7 @@ def sysctl_set(
     or read-only failures return False instead of raising (Docker often keeps
     ``net.core.rmem_max`` read-only even in privileged containers).
     """
-    path = _proc_path_for_sysctl(key)
+    path = "/proc/sys/" + key.replace(".", "/")
     out = runtime.exec(
         host,
         f"printf '%s' '{value}' > {path} 2>&1; echo EXIT:$?",
@@ -87,11 +88,16 @@ def sysctl_set(
 
 
 def read_sysctl_snapshot(runtime: "LabRuntime", host: str) -> SysctlSnapshot:
-    return SysctlSnapshot(
-        moderate_rcvbuf=sysctl_get(runtime, host, SYSCTL_MODERATE),
-        tcp_rmem=sysctl_get(runtime, host, SYSCTL_TCP_RMEM),
-        rmem_max=sysctl_get(runtime, host, SYSCTL_RMEM_MAX),
-    )
+    moderate = sysctl_get(runtime, host, SYSCTL_MODERATE)
+    rmem = sysctl_get(runtime, host, SYSCTL_TCP_RMEM)
+    rmem_max = sysctl_get(runtime, host, SYSCTL_RMEM_MAX) or None
+    if (
+        moderate not in {"0", "1"}
+        or re.fullmatch(r"\d+\s+\d+\s+\d+", rmem) is None
+        or (rmem_max is not None and not rmem_max.isdigit())
+    ):
+        raise RuntimeError(f"Cannot read TCP receive-buffer settings on {host}")
+    return SysctlSnapshot(moderate, rmem, rmem_max)
 
 
 def write_sysctl_snapshot(
@@ -104,6 +110,10 @@ def write_sysctl_snapshot(
     """Apply snapshot. Returns whether rmem_max was successfully updated."""
     sysctl_set(runtime, host, SYSCTL_MODERATE, snap.moderate_rcvbuf)
     sysctl_set(runtime, host, SYSCTL_TCP_RMEM, " ".join(snap.tcp_rmem.split()))
+    if snap.rmem_max is None:
+        if require_rmem_max:
+            raise RuntimeError(f"{SYSCTL_RMEM_MAX} is unavailable on {host}")
+        return False
     return sysctl_set(
         runtime,
         host,
@@ -153,6 +163,15 @@ def primary_ipv4(runtime: "LabRuntime", host: str) -> str | None:
     return line.split("/")[0]
 
 
+def _bytes_from(runtime: "LabRuntime", host: str, peer_ip: str) -> dict[str, int]:
+    """Bytes received on established connections from ``peer_ip``."""
+    return {
+        sock.local: sock.bytes_received
+        for sock in tcp_socket_stats(runtime, host)
+        if sock.peer.rsplit(":", 1)[0].strip("[]").removeprefix("::ffff:") == peer_ip
+    }
+
+
 def measure_path_baseline(
     runtime: "LabRuntime",
     *,
@@ -167,16 +186,19 @@ def measure_path_baseline(
     buffer_floor: int = DEFAULT_BUFFER_FLOOR_BYTES,
     buffer_ceil: int = DEFAULT_BUFFER_CEIL_BYTES,
 ) -> PathBaseline:
-    """Median RTT + single-flow TCP throughput, then BDP-derived target buffer.
+    """Median RTT + path throughput into the receiver, then target buffer.
 
     Prefers iperf3 for calibration speed; falls back to large HTTP download.
     Bulk direction is sender → receiver so the injected host is the TCP receiver.
+    The path may already carry the scenario's own downloads into the receiver,
+    so each iperf3 trial adds what the receiver's other connections from the
+    sender took in meanwhile to the probe's own share.
     """
     # Right after startup the branch→HQ path may still be converging.
     deadline = time.monotonic() + RTT_READY_TIMEOUT_SEC
     while True:
         ping = ping_stats(runtime, receiver, sender_ip, count=10, interval_sec=0.2)
-        if ping.rtt_avg_ms is not None and ping.rtt_avg_ms > 0:
+        if ping.rtt_min_ms is not None and ping.rtt_min_ms > 0:
             break
         if time.monotonic() >= deadline:
             raise ValueError(f"unable to measure RTT from {receiver} to {sender_ip}")
@@ -188,6 +210,8 @@ def measure_path_baseline(
     if receiver_ip:
         for _ in range(trials):
             # Sender client pushes to receiver server (receiver is TCP RWND side).
+            rx_before = _bytes_from(runtime, receiver, sender_ip)
+            started = time.monotonic()
             bps = iperf_throughput_bps(
                 runtime,
                 sender_host,
@@ -195,7 +219,17 @@ def measure_path_baseline(
                 receiver_ip,
                 duration_sec=iperf_duration_sec,
             )
+            elapsed = time.monotonic() - started
+            rx_after = _bytes_from(runtime, receiver, sender_ip)
             if bps is not None:
+                # The probe's own connection closes before ``rx_after``.
+                other = sum(
+                    rx_after[conn] - before
+                    for conn, before in rx_before.items()
+                    if conn in rx_after
+                )
+                if elapsed > 0:
+                    bps += other * 8 / elapsed
                 throughputs.append(bps)
     if not throughputs:
         source = "http_large"
@@ -211,7 +245,14 @@ def measure_path_baseline(
         raise ValueError(
             f"unable to measure TCP throughput from {sender_host} toward {receiver}"
         )
-    bdp = estimate_bdp_bytes(throughput_bps=median_bps, rtt_ms=ping.rtt_avg_ms)
+    # Queueing from other traffic inflates the average; BDP uses the path RTT.
+    # A second sample after the trials keeps a host stall during the first
+    # from passing for path delay.
+    rtt_min_ms = ping.rtt_min_ms
+    again = ping_stats(runtime, receiver, sender_ip, count=10, interval_sec=0.2)
+    if again.rtt_min_ms is not None and again.rtt_min_ms > 0:
+        rtt_min_ms = min(rtt_min_ms, again.rtt_min_ms)
+    bdp = estimate_bdp_bytes(throughput_bps=median_bps, rtt_ms=rtt_min_ms)
     target = select_target_buffer_bytes(
         bdp, divisor=bdp_divisor, floor=buffer_floor, ceil=buffer_ceil
     )

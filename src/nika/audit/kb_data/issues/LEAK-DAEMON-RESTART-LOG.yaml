@@ -1,0 +1,27 @@
+id: LEAK-DAEMON-RESTART-LOG
+title: Daemon restart lines on one router
+class: shortcut
+severity: info
+status: open
+summary: 'Daemon and service logs record the restart or reconfiguration an injector caused: zebra ''client
+  N disconnected ... routes removed'', the dhcpd journal ''Stopping ISC DHCPv4 server'', ONOS karaf ''No
+  longer listening for OF switch connections'', an orphan watchfrr.<pid> directory on the injected router
+  only.'
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: client \d+ disconnected.*routes removed|Stopping ISC DHCPv4 server|No longer listening for
+    OF switch connections|watchfrr\.\d+
+exploit: false
+provenance:
+  source: red-team qwen38 run
+  date: '2026-10-20'
+  refs:
+  - red-team/qwen38/report.md
+  found_by: agentic
+guideline: 'Boot and routine change windows log ''says hello'' on every router, and a daemon-down fault
+  logs the disconnect as its mechanism. Count a hit only when the fault is not a daemon failure and same-role
+  peers do not log the same line. Adjudication 2026-10-25: most hits were boot lines or the fault mechanism;
+  the ''says hello'' pattern was dropped.'

@@ -119,6 +119,13 @@ def test_list_arguments_and_implicit_targets_are_checked() -> None:
         node_roles=_ROLES,
     )
     assert (implicit.allowed, implicit.targets) == (False, ("onos",))
+    syslog = decide_diagnosis_access(
+        policy=_RESTRICTED,
+        tool_name="syslog_query",
+        arguments={"start_time": "-60"},
+        node_roles=_ROLES,
+    )
+    assert (syslog.allowed, syslog.targets) == (False, ("telemetry_collector",))
 
 
 def test_ip_targets_pass_default_policy_and_fail_restricted() -> None:
@@ -130,7 +137,10 @@ def test_ip_targets_pass_default_policy_and_fail_restricted() -> None:
         policy=default, tool_name="active_tcp_probe", arguments=args, node_roles=_ROLES
     ).allowed
     denied = decide_diagnosis_access(
-        policy=_RESTRICTED, tool_name="active_tcp_probe", arguments=args, node_roles=_ROLES
+        policy=_RESTRICTED,
+        tool_name="active_tcp_probe",
+        arguments=args,
+        node_roles=_ROLES,
     )
     assert (denied.allowed, denied.reason) == (False, "unknown_target")
 

@@ -1,20 +1,13 @@
 #!/bin/bash
+set -e
 
-cat > /etc/network/interfaces << EOF
-auto eth1
-
-iface eth1 inet static
-  address 10.0.0.25
-  netmask 255.255.255.254
-
-iface eth1 inet6 static
-  address 1000:10:0:0::25
-  netmask 127
-  pre-up echo 0 > /proc/sys/net/ipv6/conf/eth1/accept_ra
-EOF
-
-ifup eth1
+echo 0 > /proc/sys/net/ipv6/conf/eth1/accept_ra
+ip addr replace 10.0.0.25/31 dev eth1
+ip -6 addr replace 1000:10:0:0::25/127 dev eth1
 # Containerlab veths default to MTU 9500, above the SR Linux port MTU (9232),
 # which drops oversized frames without ICMP and black-holes full-size TCP.
-ip link set dev eth1 mtu 1500
+ip link set dev eth1 mtu 1500 up
 ip route replace default via 10.0.0.24 dev eth1
+ip -6 route replace default via 1000:10::24 dev eth1
+# Data set the other client syncs.
+mkdir -p /var/www && truncate -s 8M /var/www/large.bin

@@ -1,0 +1,2 @@
+.id=*D
+ 0   area=backbone interfaces="" instance-id=0 networks=10.0.0.0/31,10.0.0.2/31 type=ptp retransmit-interval=5s transmit-delay=1s hello-interval=10s dead-interval=40s priority=128 cost=10

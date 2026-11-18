@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-import pytest
+import ipaddress
+import json
 from types import SimpleNamespace
 
+import pytest
+
+from tests.support.net_env import stub_verify_collection  # noqa: F401
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from nika.traffic.burst import build_burst_flows, flow_id_for_five_tuple
 from nika.net_env.p4_dc_gateway.control import build_gateway_intent
 from nika.net_env.p4_dc_gateway.topology_model import (
+    CLIENT_ACCESS_MTU,
     CONN_TABLE_CAPACITY,
     VIP_IP,
     VIP_PORT,
@@ -17,14 +22,14 @@ from nika.net_env.p4_dc_gateway.topology_model import (
 )
 from nika.net_env.p4_dc_gateway.verify import (
     _collector_telemetry,
-    _emit_int_probe,
+    int_probe_command,
     _p4runtime_consistent,
 )
 from nika.net_env.net_env_pool import list_all_net_envs
-from nika.service.kathara.bmv2_api import KatharaBMv2API
+from nika.problems.support.p4_gateway import ternary_miss_row
 from nika.service.kathara.telemetry_api import KatharaTelemetryAPI
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("stub_verify_collection")]
 
 
 @pytest.mark.parametrize("size", ["s", "m", "l"])
@@ -117,38 +122,48 @@ def test_telemetry_query_aligns_unix_second_event_times(monkeypatch) -> None:
         "flow_id": "flow-a",
         "hop_sequence": [],
     }
+    # The query reads the collector clock first, then the report lines.
+    collector_now_ns = 1_750_000_010_000_000_000
     monkeypatch.setattr(
-        api, "exec_cmd", lambda *_args, **_kwargs: __import__("json").dumps(row)
+        api,
+        "exec_cmd",
+        lambda *_args, **_kwargs: f"{collector_now_ns}\n{json.dumps(row)}",
     )
     assert api.int_query_telemetry(
         "1750000000", end_time="1750000001", flow_id="flow-a"
     ) == [row]
 
 
-def test_agent_bmv2_api_hides_private_fault_state(monkeypatch) -> None:
-    api = KatharaBMv2API.__new__(KatharaBMv2API)
-    api.lab = SimpleNamespace(name="p4_dc_gateway_a1b2c3")
-    manager_state = {
-        "switches": {
-            "gateway_1": {
-                "pipeline": {"ok": True},
-                "registers": {
-                    "queue_occupancy": {"1": 4},
-                    "internal_fault_loss_threshold": {"1": 2},
-                },
-                "runtime_config": {"ecn_config": []},
-            }
+@pytest.mark.parametrize(
+    ("prefix", "target", "others", "row"),
+    [
+        # dev and test release rows: only the target loses its route.
+        ("10.0.4.0/24", "10.0.4.11", ["10.0.4.12"], ("10.0.4.1", "255.255.255.1")),
+        ("10.0.1.0/24", "10.0.1.12", ["10.0.1.11"], ("10.0.1.4", "255.255.255.4")),
+    ],
+)
+def test_tcam_corruption_flips_one_mask_bit_that_spares_peers(
+    prefix: str, target: str, others: list[str], row: tuple[str, str]
+) -> None:
+    assert ternary_miss_row(prefix, target, others) == row
+    value, mask = (int(ipaddress.IPv4Address(item)) for item in row)
+    hit = int(ipaddress.IPv4Address(target))
+    assert hit & mask == value
+    assert all(int(ipaddress.IPv4Address(ip)) & mask != value for ip in others)
+
+
+def test_gateway_client_access_ports_have_lower_mtu() -> None:
+    model = build_gateway_fabric_model("m")
+    intent = build_gateway_intent(model)
+    for gateway in model.gateways:
+        port = model.port_to_peer(gateway, model.client_on_gateway(gateway).name)
+        assert intent["switches"][gateway]["egress_mtu"] == {
+            str(port.bmv2_port): CLIENT_ACCESS_MTU
         }
-    }
-
-    def _exec(_host: str, command: str, **_kwargs) -> str:
-        if "p4rt_manager.py" in command:
-            return __import__("json").dumps(manager_state)
-        return "1: lo: <LOOPBACK>"
-
-    monkeypatch.setattr(api, "exec_cmd", _exec)
-    state = api.p4rt_exec("read --switch gateway_1")
-    assert "internal_fault" not in state
+    assert all(
+        "egress_mtu" not in intent["switches"][name]
+        for name in model.spines + model.leaves
+    )
 
 
 def test_p4_mcp_servers_expose_only_live_interfaces() -> None:
@@ -220,18 +235,10 @@ def test_collector_verification_requires_complete_expected_trace() -> None:
 def test_int_probe_uses_service_address_instead_of_vip() -> None:
     model = build_gateway_fabric_model("s")
 
-    class Runtime:
-        def __init__(self) -> None:
-            self.command = ""
-
-        def exec(self, _host: str, command: str, timeout: float = 10.0) -> str:
-            self.command = command
-            return ""
-
-    runtime = Runtime()
-    _emit_int_probe(runtime, model)
-    assert model.services[0].ip in runtime.command
-    assert VIP_IP not in runtime.command
+    request = int_probe_command(model)
+    assert request.node == model.clients[0].name
+    assert model.services[0].ip in request.command
+    assert VIP_IP not in request.command
 
 
 def test_gateway_p4runtime_verification_checks_programmed_state() -> None:
@@ -252,3 +259,31 @@ def test_gateway_p4runtime_verification_checks_programmed_state() -> None:
     live[model.gateways[0]]["mismatches"] = ["ipv4_lpm"]
     ok, _details = _p4runtime_consistent({"ok": True, "switches": live}, model)
     assert not ok
+
+
+def test_int_pages_preserve_middle_evidence_within_tool_budget(monkeypatch):
+    from nika.mcp.servers.kathara import telemetry_server as server
+
+    records = [{"packet_id": str(i), "hop_sequence": ["x" * 300]} for i in range(100)]
+
+    class API:
+        def __init__(self, **kwargs):
+            pass
+
+        def int_query_telemetry(self, **kwargs):
+            stop = max(0, len(records) - kwargs["offset"])
+            return records[max(0, stop - kwargs["limit"]) : stop]
+
+    monkeypatch.setattr(server, "KatharaTelemetryAPI", API)
+    monkeypatch.setattr(server, "get_lab_name", lambda: "test")
+    seen = []
+    offset = 0
+    while True:
+        page = server.int_query_telemetry("0", end_time="1", offset=offset)
+        assert len(json.dumps(page, indent=2)) < 10000
+        seen.extend(row["packet_id"] for row in page["records"])
+        if page["next_offset"] is None:
+            break
+        offset = page["next_offset"]
+    assert len(seen) == len(set(seen)) == len(records)
+    assert set(seen) == {row["packet_id"] for row in records}

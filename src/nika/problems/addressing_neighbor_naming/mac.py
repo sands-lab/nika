@@ -1,4 +1,5 @@
 import random
+import re
 
 from pydantic import BaseModel, Field
 
@@ -10,19 +11,39 @@ from nika.problems.base import (
 )
 from nika.problems.support.benchmark_targets import (
     choice_distinct,
+    conflict_hosts,
     require_distinct_hosts,
+    same_segment_pairs,
+    require_same_segment,
+    require_l2_capability,
+    segment_pair_options,
+    segment_host_pairs,
+)
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    shell,
 )
 from nika.utils.logger import system_logger
 
 
+_MAC_RE = re.compile(r"link/ether ([0-9a-f]{2}(?::[0-9a-f]{2}){5})", re.IGNORECASE)
+
+
+def _mac_of(output: str) -> str:
+    match = _MAC_RE.search(output or "")
+    return match.group(1).lower() if match else ""
+
+
 def _mac_conflict_pair(net_env, rng: random.Random) -> tuple[str, str]:
-    """Prefer two distinct endpoint hosts so L2 MAC conflict is observable."""
-    hosts = list(net_env.hosts or [])
-    servers = net_env.servers or {}
-    for bucket in servers.values():
-        for name in bucket or []:
-            if name not in hosts:
-                hosts.append(name)
+    """Choose two hosts on a shared Layer-2 segment."""
+    hosts = conflict_hosts(net_env)
+    pairs = same_segment_pairs(net_env) or segment_host_pairs(net_env, hosts)
+    if pairs:
+        return rng.choice(pairs)
     if len(hosts) >= 2:
         pair = choice_distinct(rng, hosts, hosts[0])
         return pair[0], pair[1]
@@ -65,8 +86,17 @@ class MacAddressConflict(ProblemBase):
         return {"host_name": a, "host_name_2": b}
 
     @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        pairs = same_segment_pairs(ctx.net_env)
+        if pairs:
+            return [{**base, "host_name": a, "host_name_2": b} for a, b in pairs]
+        return segment_pair_options(ctx, base)
+
+    @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
         require_distinct_hosts(ctx, cls.root_cause_name, inject)
+        require_same_segment(ctx, cls.root_cause_name, inject)
+        require_l2_capability(ctx, cls.root_cause_name, "mac-learning")
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -78,10 +108,26 @@ class MacAddressConflict(ProblemBase):
     def inject_fault(self, params: MacAddressConflictParams):
         device_0 = params.host_name
         device_1 = params.host_name_2
+        self._original_mac = self.runtime.get_host_mac_address(device_0, "eth0")
+        if not self._original_mac:
+            raise RuntimeError(f"Cannot read the original MAC on {device_0}:eth0")
         target_mac = self.runtime.get_host_mac_address(device_1, "eth0")
         self.runtime.exec(device_0, f"ip link set dev eth0 address {target_mac}")
         self.logger.info(
             f"Injected MAC address conflict on {device_0} with MAC {target_mac} of {device_1}"
+        )
+
+    def recover_fault(self, params: MacAddressConflictParams) -> dict:
+        original = getattr(self, "_original_mac", None)
+        if original:
+            self.runtime.exec(
+                params.host_name, f"ip link set dev eth0 address {original}"
+            )
+        current = self.runtime.get_host_mac_address(params.host_name, "eth0")
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(original) and current.lower() == original.lower(),
+            details={"host": params.host_name, "state_available": bool(original)},
         )
 
     def verify_fault(self, params: MacAddressConflictParams) -> dict:
@@ -100,4 +146,51 @@ class MacAddressConflict(ProblemBase):
                 "mac_0": mac_0,
                 "mac_1": mac_1,
             },
+        )
+
+    def oracle_playbook(self, params: MacAddressConflictParams) -> OraclePlaybook:
+        host, peer = params.host_name, params.host_name_2
+
+        def peer_mac_on_host(outputs) -> dict:
+            mac = _mac_of(outputs.get("peer_link", ""))
+            command = (
+                f"ip -o link show dev eth0 | grep -io 'link/ether {mac}' "
+                "|| echo MAC_DIFFERS"
+                if mac
+                else "echo PEER_MAC_UNKNOWN"
+            )
+            return {"host_name": host, "command": command, "timeout": 10}
+
+        return OraclePlaybook(
+            finding=(
+                f"{host}:eth0 uses the same MAC address as {peer}:eth0, so "
+                "switches and neighbors deliver their frames to the wrong host."
+            ),
+            steps=[
+                shell(
+                    host,
+                    "ip -o link show dev eth0; ip -4 -br addr show dev eth0",
+                    f"Read the MAC and address of {host}:eth0.",
+                    contains(r"link/ether", "eth0 has a MAC address"),
+                ),
+                shell(
+                    peer,
+                    "ip -o link show dev eth0; ip -4 -br addr show dev eth0",
+                    f"Read the MAC and address of {peer}:eth0, the host that lost traffic.",
+                    contains(r"link/ether", "eth0 has a MAC address"),
+                    save_as="peer_link",
+                ),
+                OracleStep(
+                    f"Compare {host}:eth0's MAC with {peer}:eth0's MAC.",
+                    "exec_shell",
+                    peer_mac_on_host,
+                    all_of(
+                        contains(r"link/ether", f"{host}:eth0 carries {peer}'s MAC"),
+                        lacks(
+                            r"MAC_DIFFERS|PEER_MAC_UNKNOWN", "the MACs are identical"
+                        ),
+                    ),
+                    evidence=True,
+                ),
+            ],
         )

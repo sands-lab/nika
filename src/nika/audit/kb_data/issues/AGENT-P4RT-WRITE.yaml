@@ -1,0 +1,19 @@
+id: AGENT-P4RT-WRITE
+title: Agent wrote P4Runtime entries
+class: agent_integrity
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: p4rt_exec accepted writes; one agent deleted the injected entry and the recheck still said present.
+detect:
+- kind: text
+  where:
+  - tool_call
+  tool: p4rt_exec
+  exclude_authored: false
+  pattern: \b(?:insert|delete|modify|write)\b
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B5
+  date: '2026-10-14'
+  refs: []
+  found_by: manual

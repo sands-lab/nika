@@ -7,6 +7,9 @@ import re
 import shlex
 from typing import TYPE_CHECKING
 
+from nika.problems.rca.inventory import iter_link_termination_points
+from nika.problems.support.oracle import Check, OracleStep, shell
+
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
@@ -90,3 +93,94 @@ def subnet_declared(runtime: "LabRuntime", dhcp_server: str, subnet: str) -> int
         return int(raw.splitlines()[-1])
     except (IndexError, ValueError):
         return -1
+
+
+# Diagnosis helpers for the oracle playbooks of DHCP and host-address failures.
+
+# Prints whether dhclient runs and the options of the client's newest lease.
+DHCP_LEASE_CMD = (
+    "pgrep -x dhclient >/dev/null && echo dhclient=running || echo dhclient=none; "
+    "L=$(ls -t /var/lib/dhcp/dhclient*.leases 2>/dev/null | head -1); "
+    'if [ -s "$L" ]; then awk \'/^lease/{b=""} {b=b $0 "\\n"} END{printf "%s", b}\' "$L" '
+    "| grep -E 'fixed-address|subnet-mask|routers|domain-name-servers|server-identifier|expire'; "
+    "else echo lease=none; fi"
+)
+
+
+def lease_option(output: str, option: str) -> str | None:
+    """First value of ``option <option>`` in DHCP_LEASE_CMD output."""
+    m = re.search(rf"option {re.escape(option)} ([^;]+);", output)
+    return m.group(1).split(",")[0].strip() if m else None
+
+
+def default_gateway(output: str) -> str | None:
+    m = re.search(r"^default via (\S+)", output, re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def first_nameserver(output: str) -> str | None:
+    m = re.search(r"^nameserver\s+(\S+)", output, re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def host_ipv4(output: str) -> ipaddress.IPv4Interface | None:
+    m = re.search(r"inet (\d+\.\d+\.\d+\.\d+/\d+)", output)
+    return ipaddress.IPv4Interface(m.group(1)) if m else None
+
+
+def segment_router(net_env, host: str, intf: str = "eth0") -> str | None:
+    """First router reached from *host*:*intf* through layer-2 switches."""
+    routers = set(getattr(net_env, "routers", None) or [])
+    switches = set(getattr(net_env, "switches", None) or [])
+    links = [
+        [str(ep) for ep in tps] for _k, tps in iter_link_termination_points(net_env)
+    ]
+    seen, frontier = {host}, [f"{host}:{intf}"]
+    while frontier:
+        endpoint = frontier.pop(0)
+        for link in links:
+            if endpoint not in link:
+                continue
+            for other in link:
+                node = other.split(":", 1)[0]
+                if node in seen:
+                    continue
+                seen.add(node)
+                if node in routers:
+                    return node
+                if node in switches:
+                    frontier.extend(
+                        ep for lk in links for ep in lk if ep.split(":", 1)[0] == node
+                    )
+    return None
+
+
+def addresses(output: str) -> list[ipaddress.IPv4Interface]:
+    """Every ``inet a.b.c.d/n`` or ``<intf> a.b.c.d/n`` address in *output*."""
+    return [
+        ipaddress.IPv4Interface(m)
+        for m in re.findall(r"(?:inet |^\S+ )(\d+\.\d+\.\d+\.\d+/\d+)", output, re.M)
+    ]
+
+
+def dhcp_client_step(
+    host: str,
+    command: str,
+    purpose: str,
+    expect: Check | None = None,
+    *,
+    evidence: bool = False,
+    save_as: str | None = None,
+    attempts: int = 1,
+) -> OracleStep:
+    """Run *command* on a host, then print its DHCP client state and lease."""
+    return shell(
+        host,
+        f"{command}; {DHCP_LEASE_CMD}",
+        purpose,
+        expect,
+        evidence=evidence,
+        save_as=save_as,
+        attempts=attempts,
+        interval_sec=10,
+    )

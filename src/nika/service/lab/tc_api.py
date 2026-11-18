@@ -5,7 +5,7 @@ from __future__ import annotations
 from nika.service.lab.protocols import SupportsExec
 from nika.utils.network_change_log import log_network_change
 
-_TC_OK_MARKER = "__nika_tc_ok__"
+_TC_OK_MARKER = "__tc_ok__"
 
 
 def _exec_tc(api: SupportsExec, host_name: str, command: str) -> tuple[str, bool]:

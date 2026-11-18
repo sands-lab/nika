@@ -4,30 +4,35 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+import uuid
 
 from mcp.server.fastmcp import FastMCP
 
 from agent.protocols import DIAGNOSIS
+from agent.runtime.contract import SESSION_HEADER, SESSION_TOKEN_HEADER
 from nika.mcp.fastmcp_settings import ensure_fastmcp_settings_ready
 from nika.mcp.gateway.access import decide_diagnosis_access
 from nika.mcp.gateway.context import bind_session, reset_session
 from nika.mcp.gateway.policy import is_server_allowed
+from nika.mcp.gateway.tool_log import record_tool_call, tool_result
 from nika.mcp.gateway.session_registry import (
+    access_token_matches,
     bind_transport_session,
     get_session,
+    reserve_tool_call,
     transport_session_matches,
 )
 from nika.mcp.tool_output import (
     jsonrpc_method,
     rewrite_http_body,
-    tool_output_max_chars,
+    MAX_CHARS,
 )
 
-SESSION_HEADER = "NIKA-Session-Id"
 _MCP_JSON = "application/json"
 
 ensure_fastmcp_settings_ready()
-_empty_mcp = FastMCP("nika_phase_blocked")
+_empty_mcp = FastMCP("phase_blocked")
 
 
 class PhaseGateMiddleware:
@@ -44,7 +49,7 @@ class PhaseGateMiddleware:
             return
 
         headers = {name.lower(): value for name, value in scope.get("headers", [])}
-        session_id = headers.get(b"nika-session-id", b"").decode().strip()
+        session_id = headers.get(SESSION_HEADER.lower().encode(), b"").decode().strip()
 
         if not session_id:
             await _send_json(
@@ -55,6 +60,47 @@ class PhaseGateMiddleware:
                     "error": {
                         "code": -32000,
                         "message": f"Missing {SESSION_HEADER} header.",
+                    },
+                    "id": None,
+                },
+            )
+            return
+
+        entry = get_session(session_id)
+        if entry is None:
+            # An unregistered (mistyped or closed) session must fail loudly:
+            # the phase-blocked app would answer with an empty tool list,
+            # which reads as "this lab has no tools". 403 rather than 404,
+            # which Streamable HTTP clients treat as "re-initialize".
+            await _send_json(
+                send,
+                status=403,
+                payload={
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32003,
+                        "message": (
+                            f"Unknown {SESSION_HEADER}: no running session "
+                            "is registered with this gateway."
+                        ),
+                    },
+                    "id": None,
+                },
+            )
+            return
+
+        presented = (
+            headers.get(SESSION_TOKEN_HEADER.lower().encode(), b"").decode().strip()
+        )
+        if not access_token_matches(session_id, presented):
+            await _send_json(
+                send,
+                status=401,
+                payload={
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32001,
+                        "message": f"Missing or invalid {SESSION_TOKEN_HEADER} header.",
                     },
                     "id": None,
                 },
@@ -82,7 +128,6 @@ class PhaseGateMiddleware:
         if not transport_id:
             send = _TransportBindingSend(send, session_id)
 
-        entry = get_session(session_id)
         target_app = (
             self.app
             if is_server_allowed(session_id, self.server_name)
@@ -105,9 +150,6 @@ class PhaseGateMiddleware:
         if method == "tools/call":
             tool_name, arguments, request_id = _tool_call(body)
             if tool_name is not None:
-                if entry is None:
-                    await _tool_denied(send, request_id, "unknown_session")
-                    return
                 if entry.phase != DIAGNOSIS:
                     allowed = (
                         self.server_name == "task_mcp_server" and tool_name == "submit"
@@ -123,13 +165,53 @@ class PhaseGateMiddleware:
                         node_roles=entry.node_roles,
                     )
                     allowed, reason = decision.allowed, decision.reason
+                if allowed:
+                    allowed, _ = reserve_tool_call(session_id)
+                    if not allowed:
+                        reason = "primitive_tool_budget_exhausted"
                 if not allowed:
+                    record_tool_call(
+                        entry.session_dir if entry else "",
+                        phase=entry.phase if entry else "",
+                        server=self.server_name,
+                        tool=tool_name,
+                        arguments=arguments,
+                        is_error=True,
+                        output=f"Access denied: {reason}",
+                        denied=reason,
+                    )
                     await _tool_denied(send, request_id, reason)
                     return
 
         rewrite = method in {"tools/call", "tools/list"}
+        on_result = None
+        if method == "tools/call" and entry is not None:
+            call_name, call_args, _ = _tool_call(body)
+            # The phase the call started in, even if it ends after the switch.
+            call_phase = entry.phase
+            call_id, call_started = uuid.uuid4().hex, time.monotonic()
+
+            def on_result(
+                result_body: bytes, content_type: str, raw_body: bytes
+            ) -> None:
+                is_error, output = tool_result(result_body, content_type)
+                record_tool_call(
+                    entry.session_dir,
+                    phase=call_phase,
+                    server=self.server_name,
+                    tool=call_name or "",
+                    arguments=call_args,
+                    is_error=is_error,
+                    output=output,
+                    call_id=call_id,
+                    elapsed_ms=round((time.monotonic() - call_started) * 1000, 1),
+                    raw_output=raw_body.decode("utf-8", errors="replace"),
+                )
+
         outbound = (
-            _RewritingSend(send, bound_call=(method == "tools/call"))
+            _RewritingSend(
+                send, bound_call=(method == "tools/call"), on_result=on_result
+            )
             if rewrite
             else send
         )
@@ -161,9 +243,11 @@ class _TransportBindingSend:
 class _RewritingSend:
     """Buffer one HTTP response and rewrite MCP tool list/call payloads."""
 
-    def __init__(self, send, *, bound_call: bool):
+    def __init__(self, send, *, bound_call: bool, on_result=None):
         self._send = send
         self._bound_call = bound_call
+        # Called with the rewritten body: what the agent receives.
+        self._on_result = on_result
         self._status = 200
         self._headers: list[tuple[bytes, bytes]] = []
         self._chunks: list[bytes] = []
@@ -185,7 +269,7 @@ class _RewritingSend:
         new_body = rewrite_http_body(
             body,
             content_type=content_type,
-            max_chars=tool_output_max_chars(),
+            max_chars=MAX_CHARS,
             bound_call=self._bound_call,
         )
         headers = [
@@ -194,6 +278,8 @@ class _RewritingSend:
             if name.lower() not in {b"content-length", b"transfer-encoding"}
         ]
         headers.append((b"content-length", str(len(new_body)).encode()))
+        if self._on_result is not None:
+            self._on_result(new_body, content_type, body)
         await self._send(
             {
                 "type": "http.response.start",
@@ -280,7 +366,7 @@ async def _tool_denied(send, request_id: object, reason: str) -> None:
         status=200,
         payload={
             "jsonrpc": "2.0",
-            "error": {"code": -32003, "message": f"NIKA access denied: {reason}"},
+            "error": {"code": -32003, "message": f"Access denied: {reason}"},
             "id": request_id,
         },
     )

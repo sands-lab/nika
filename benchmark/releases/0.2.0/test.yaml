@@ -62,25 +62,24 @@ cases:
 - scenario: enterprise_branch
   problem: bgp_hijacking
   inject:
-    export_prefix_list: LOCAL-ADV
-    host_name: br1_edge
-    observer_host: br2_corp_pc
-    probe_dst_ip: 10.9.10.2
-    symptom_host: br2_edge
-    target_network: 10.9.10.0/24
+    host_name: hq_edge
+    observer_host: br1_corp_pc
+    probe_dst_ip: 10.2.10.2
+    symptom_host: br1_edge
+    target_network: 10.2.10.0/24
   topo_size: l
   root_causes:
   - resource:
       kind: node
-      node: br1_edge
+      node: hq_edge
     fault_type: bgp_hijacking
 - scenario: isp_abilene
   problem: bgp_max_prefix_exceeded
   inject:
     flood_count: '120'
-    neighbor_ip: 10.0.0.21
-    peer_name: losang
-    receiver_name: hstnng
+    neighbor_ip: 10.0.0.23
+    peer_name: kscyng
+    receiver_name: iplsng
   topo_size: s
   igp: ospf
   bgp_mode: ebgp
@@ -90,11 +89,11 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: hstnng
+      node: iplsng
     fault_type: bgp_max_prefix_exceeded
   - resource:
       kind: node
-      node: losang
+      node: kscyng
     fault_type: bgp_max_prefix_exceeded
 - scenario: enterprise_branch
   problem: bgp_missing_route_advertisement
@@ -116,27 +115,7 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: be1_be
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
       node: es1_es
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: fr1_fr
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: il1_il
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: lu1_lu
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: nl1_nl
     fault_type: bgp_rpki_invalid_route_leak
 - scenario: p4_dc_gateway
   problem: bmv2_switch_down
@@ -414,7 +393,6 @@ cases:
     host_name: web_2
     observer_device: client_1_1
     probe_dst_ip: 10.0.2.11
-    duration: '3600'
   root_causes:
   - resource:
       kind: interface
@@ -449,13 +427,12 @@ cases:
   problem: k8s_coredns_isolated
   inject:
     control_node: controller
+    node_name: controller
     symptom_host: worker1
   root_causes:
   - resource:
-      kind: k8s
-      name: kube-dns
-      namespace: kube-system
-      k8s_kind: Service
+      kind: node
+      node: controller
     fault_type: k8s_coredns_isolated
 - scenario: k8s_lab
   problem: k8s_networkpolicy_deny
@@ -508,14 +485,14 @@ cases:
 - scenario: isp_di-yuan
   problem: link_capacity_bottleneck
   inject:
-    burst: 64kb
-    host_name: n_10
-    intf_name: eth0
-    limit: 500kb
-    peer_host: pc_n_9
-    probe_dst_ip: 10.254.0.42
-    rate: 30kbit
-    symptom_host: pc_n_10
+    burst: 16kb
+    host_name: n_3
+    intf_name: eth4
+    limit: 32kb
+    peer_host: pc_n_10
+    probe_dst_ip: 10.254.0.6
+    rate: 512kbit
+    symptom_host: pc_n_3
   topo_size: s
   igp: isis
   bgp_mode: none
@@ -525,7 +502,7 @@ cases:
   root_causes:
   - resource:
       kind: link
-      name: n_10:eth0--n_9:eth3
+      name: n_10:eth6--n_3:eth4
     fault_type: link_capacity_bottleneck
 - scenario: dc_clos
   problem: link_detach
@@ -628,11 +605,6 @@ cases:
   - resource:
       kind: interface
       node: at1_at
-      name: eth0
-    fault_type: mtu_mismatch
-  - resource:
-      kind: interface
-      node: ch1_ch
       name: eth0
     fault_type: mtu_mismatch
 - scenario: enterprise_branch

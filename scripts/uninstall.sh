@@ -7,7 +7,11 @@
 set -euo pipefail
 
 INOTIFY_CONF=/etc/sysctl.d/99-nika-inotify.conf
+NEIGH_CONF=/etc/sysctl.d/99-nika-neigh.conf
 VRF_MODULES_CONF=/etc/modules-load.d/nika-vrf.conf
+UBLK_MODULES_CONF=/etc/modules-load.d/nika-agentenv-ublk.conf
+UBLK_MODPROBE_CONF=/etc/modprobe.d/nika-agentenv-ublk.conf
+AGENTENV_CONTAINER="${AGENTENV_CONTAINER:-nika-agentenv}"
 SUDOERS_FILE=/etc/sudoers.d/nika-host-tc
 GNMIC_BIN=/usr/local/bin/gnmic
 
@@ -20,20 +24,29 @@ usage() {
 Usage: ./scripts/uninstall.sh [options]
 
 Removes everything NIKA set up on this host:
-  - running sessions, Kathara labs, Containerlab labs, the Batfish container
+  - running sessions, Kathara labs, Containerlab labs, the Batfish container,
+    and the AgentENV container (${AGENTENV_CONTAINER}) with its sandboxes
   - Docker images NIKA built or pulled (nika/*, kathara/*, k3s, srlinux,
     vendor router images, build parents, legacy tags) unless a non-NIKA
     container still uses them, and the Kathara Docker network plugin
-  - the inotify sysctl file (original values restored), ${SUDOERS_FILE},
-    and ${VRF_MODULES_CONF}
+  - the inotify and neighbor table sysctl files (original values restored),
+    ${SUDOERS_FILE}, ${VRF_MODULES_CONF}, and the AgentENV ublk_drv module
+    files
   - Containerlab (clab_admins group, plus the package and /etc/containerlab
     from older installers) and the ${GNMIC_BIN} older installers added
   - ~/.config/kathara.conf and, in the repo, .venv (with clab and gnmic),
-    .nika_cache (with uv and its cache when the installer added them), runtime/
+    .nika_cache (with uv and its cache when the installer added them) and
+    runtime/ at the main NIKA checkout (including Firecracker
+    images, after unmounting runtime/firecracker and removing its /etc/fstab
+    entry when the host setup mounted a loop file there)
+  - the Firecracker host settings: the userfaultfd udev rule, the huge-pages
+    sysctl file (original reservation restored), and the GRUB huge-pages file
+    of older manual setups (its huge pages stay reserved until the next reboot)
 
 Keeps Docker and docker group membership, sbx and kvm group membership, a uv
-installed outside the repo, apt packages that older installers added (clang,
-skopeo), the source tree, .env, config/, and results/.
+installed outside the repo, apt packages that installers added (btrfs-progs,
+and clang and skopeo from older ones), the source tree, .env, config/, and
+results/.
 
 Options:
   -y, --yes             Do not ask for confirmation
@@ -58,9 +71,18 @@ done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+# runtime/ and .nika_cache/ live at the main checkout, shared by worktrees.
+if common="$(git -C "${ROOT}" rev-parse --git-common-dir 2>/dev/null)" && [[ -n "${common}" ]]; then
+  [[ "${common}" == /* ]] || common="${ROOT}/${common}"
+  NIKA_STATE="$(cd "$(dirname -- "${common}")" && pwd -P)"
+else
+  NIKA_STATE="${ROOT}"
+fi
+NIKA_CACHE="${NIKA_STATE}/.nika_cache"
+NIKA_RUNTIME="${NIKA_STATE}/runtime"
 VENV_DIR="${UV_PROJECT_ENVIRONMENT:-.venv}"
 [[ "${VENV_DIR}" == /* ]] || VENV_DIR="${ROOT}/${VENV_DIR}"
-export PATH="${VENV_DIR}/bin:${ROOT}/.nika_cache/bin:${HOME}/.local/bin:${PATH}"
+export PATH="${VENV_DIR}/bin:${NIKA_CACHE}/bin:${HOME}/.local/bin:${PATH}"
 
 log() { printf '+ %s\n' "$*"; }
 warn() { printf '! %s\n' "$*" >&2; }
@@ -134,6 +156,14 @@ stop_labs() {
   docker network prune -f --filter label=containerlab >/dev/null || true
 }
 
+remove_agentenv() {
+  # Its sandboxes go with it; the pulled image stays for a reinstall.
+  if docker ps -a --format '{{.Names}}' | grep -qx "${AGENTENV_CONTAINER}"; then
+    docker rm -f "${AGENTENV_CONTAINER}" >/dev/null
+    log "Removed the AgentENV container ${AGENTENV_CONTAINER}"
+  fi
+}
+
 remove_images() {
   if ! docker_usable; then
     warn "Docker not usable; skipping image removal"
@@ -204,18 +234,21 @@ remove_images() {
   fi
 }
 
-restore_inotify() {
-  [[ -f "${INOTIFY_CONF}" ]] || return 0
+restore_sysctl_conf() {
+  # Usage: restore_sysctl_conf CONF LABEL
+  local conf="$1" label="$2"
+  [[ -f "${conf}" ]] || return 0
   local key original unknown=0
   local -A originals=()
-  for key in max_user_instances max_user_watches; do
-    originals[$key]="$(sed -n "s/^# nika-original fs\.inotify\.${key}=//p" "${INOTIFY_CONF}")"
-  done
-  ${SUDO} rm -f "${INOTIFY_CONF}"
-  for key in max_user_instances max_user_watches; do
+  while IFS='=' read -r key _; do
+    [[ -n "${key}" && "${key}" != \#* ]] || continue
+    originals[$key]="$(sed -n "s/^# nika-original ${key//./\\.}=//p" "${conf}")"
+  done < "${conf}"
+  ${SUDO} rm -f "${conf}"
+  for key in "${!originals[@]}"; do
     original="${originals[$key]}"
     if [[ "${original}" =~ ^[0-9]+$ ]]; then
-      ${SUDO} sysctl -qw "fs.inotify.${key}=${original}"
+      ${SUDO} sysctl -qw "${key}=${original}"
     else
       unknown=1
     fi
@@ -223,9 +256,9 @@ restore_inotify() {
   # Re-apply any other host sysctl files that set the same keys.
   ${SUDO} sysctl --system >/dev/null
   if [[ "${unknown}" -eq 1 ]]; then
-    warn "Original inotify limits were not recorded (older installer); kernel defaults return after reboot"
+    warn "Original ${label} were not recorded (older installer); kernel defaults return after reboot"
   fi
-  log "Removed ${INOTIFY_CONF} and restored inotify limits"
+  log "Removed ${conf} and restored ${label}"
 }
 
 remove_host_tools() {
@@ -238,6 +271,13 @@ remove_host_tools() {
     ${SUDO} rm -f "${VRF_MODULES_CONF}"
     log "Removed ${VRF_MODULES_CONF}"
   fi
+  local conf
+  for conf in "${UBLK_MODULES_CONF}" "${UBLK_MODPROBE_CONF}"; do
+    if [[ -f "${conf}" ]]; then
+      ${SUDO} rm -f "${conf}"
+      log "Removed ${conf}"
+    fi
+  done
 
   if command -v dpkg >/dev/null 2>&1 && dpkg -s containerlab >/dev/null 2>&1; then
     log "Removing Containerlab package"
@@ -268,13 +308,82 @@ remove_host_tools() {
   fi
 }
 
+FIRECRACKER_ROOT="${ROOT}/runtime/firecracker"
+
+FIRECRACKER_UDEV_RULE=/etc/udev/rules.d/99-nika-userfaultfd.rules
+FIRECRACKER_GRUB_CFG=/etc/default/grub.d/99-nika-hugepages.cfg
+HUGEPAGES_CONF=/etc/sysctl.d/99-nika-hugepages.conf
+
+restore_hugepages() {
+  # install.sh --with-firecracker; the "# nika-original" line keeps the value
+  # before it.
+  [[ -f "${HUGEPAGES_CONF}" ]] || return 0
+  local original
+  original="$(sed -n 's/^# nika-original vm\.nr_hugepages=//p' "${HUGEPAGES_CONF}")"
+  ${SUDO} rm -f "${HUGEPAGES_CONF}"
+  if [[ "${original}" =~ ^[0-9]+$ ]]; then
+    ${SUDO} sysctl -qw "vm.nr_hugepages=${original}"
+  fi
+  # Re-apply any other host sysctl files that set the same key.
+  ${SUDO} sysctl --system >/dev/null
+  log "Removed ${HUGEPAGES_CONF} and released its huge pages"
+}
+
+stop_firecracker() {
+  # Host settings from install.sh --with-firecracker and older manual setups.
+  if [[ -f "${FIRECRACKER_UDEV_RULE}" ]]; then
+    ${SUDO} rm -f "${FIRECRACKER_UDEV_RULE}"
+    ${SUDO} udevadm control --reload-rules 2>/dev/null || true
+    log "Removed ${FIRECRACKER_UDEV_RULE}"
+  fi
+  if [[ -f "${FIRECRACKER_GRUB_CFG}" ]]; then
+    ${SUDO} rm -f "${FIRECRACKER_GRUB_CFG}"
+    ${SUDO} update-grub >/dev/null 2>&1 || warn "update-grub failed; run it before rebooting"
+    log "Removed ${FIRECRACKER_GRUB_CFG} (huge pages stay reserved until the next reboot)"
+  fi
+  [[ -d "${FIRECRACKER_ROOT}" ]] || return 0
+  # Firecracker VMs (image builds, trial copies) and their page servers.
+  local pid cwd pids=()
+  for pid in $(pgrep -x firecracker 2>/dev/null); do
+    cwd="$(readlink "/proc/${pid}/cwd" 2>/dev/null || true)"
+    [[ "${cwd}" == "${FIRECRACKER_ROOT}"/* ]] && pids+=("${pid}")
+  done
+  for pid in $(pgrep -f "nika.firecracker.uffd ${FIRECRACKER_ROOT}/" 2>/dev/null); do
+    pids+=("${pid}")
+  done
+  if [[ ${#pids[@]} -gt 0 ]]; then
+    kill -9 "${pids[@]}" 2>/dev/null || true
+    for _ in $(seq 50); do  # they hold files open; the unmount waits for them
+      kill -0 "${pids[@]}" 2>/dev/null || break
+      sleep 0.1
+    done
+  fi
+  # The documented host setup mounts a btrfs loop file here.
+  if mountpoint -q "${FIRECRACKER_ROOT}"; then
+    ${SUDO} umount "${FIRECRACKER_ROOT}"
+    log "Unmounted ${FIRECRACKER_ROOT}"
+  fi
+  if grep -qF " ${FIRECRACKER_ROOT} " /etc/fstab 2>/dev/null; then
+    ${SUDO} sed -i "\\| ${FIRECRACKER_ROOT} |d" /etc/fstab
+    log "Removed the ${FIRECRACKER_ROOT} entry from /etc/fstab"
+  fi
+}
+
 remove_files() {
   local kathara_conf="${HOME}/.config/kathara.conf"
   if [[ -f "${kathara_conf}" ]]; then
     rm -f "${kathara_conf}"
     log "Removed ${kathara_conf}"
   fi
-  local path paths=("${ROOT}/.nika_cache" "${ROOT}/runtime")
+  local path
+  local paths=("${NIKA_CACHE}" "${NIKA_RUNTIME}")
+  # Leftover checkout state when this tree is a worktree of another checkout.
+  if [[ "${NIKA_CACHE}" != "${ROOT}/.nika_cache" ]]; then
+    paths+=("${ROOT}/.nika_cache")
+  fi
+  if [[ "${NIKA_RUNTIME}" != "${ROOT}/runtime" ]]; then
+    paths+=("${ROOT}/runtime")
+  fi
   # Only a real virtualenv: UV_PROJECT_ENVIRONMENT may point anywhere.
   if [[ -f "${VENV_DIR}/pyvenv.cfg" ]]; then
     paths=("${VENV_DIR}" "${paths[@]}")
@@ -299,9 +408,13 @@ main() {
   fi
   confirm
   stop_labs
+  remove_agentenv
   remove_images
-  restore_inotify
+  restore_sysctl_conf "${INOTIFY_CONF}" "inotify limits"
+  restore_sysctl_conf "${NEIGH_CONF}" "neighbor table limits"
   remove_host_tools
+  stop_firecracker
+  restore_hugepages
   remove_files
   log "NIKA removed. Kept: Docker, apt packages, source tree, .env, config/, results/"
 }

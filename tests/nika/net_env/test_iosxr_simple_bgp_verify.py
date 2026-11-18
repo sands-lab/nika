@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from tests.support.net_env import stub_verify_collection  # noqa: F401
 
 from nika.net_env.iosxr_simple_bgp.verify import (
     verify_iosxr_simple_bgp_lab,
@@ -8,7 +9,7 @@ from nika.net_env.iosxr_simple_bgp.verify import (
 )
 from tests.support.net_env import assert_verify_success
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("stub_verify_collection")]
 
 NODES = {"router1", "router2", "pc1", "pc2"}
 HOST_ADDRS = {

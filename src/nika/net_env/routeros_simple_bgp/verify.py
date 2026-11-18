@@ -4,12 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from nika.net_env.routeros_simple_bgp.lab import (
-    LINK_IFACE,
-    MGMT_ADDR,
-    MGMT_PASSWORD,
-    MGMT_USER,
-)
+from nika.net_env.routeros_simple_bgp.lab import LINK_IFACE
 from nika.net_env.verify import (
     build_lab_verify_result,
     default_route_via,
@@ -20,14 +15,11 @@ from nika.net_env.verify import (
 )
 from nika.runtime.base import LabRuntime
 
-# RouterOS's mgmt IP lives on vrnetlab's internal bridge, reachable only from
-# inside the container's network namespace. Commands stay free of embedded
-# double quotes: nika's exec wrapping (ShellResolver.wrap_shell_command)
-# mis-escapes them, the same issue IOSXRAPIMixin works around with single
-# quotes only.
-CLI_COMMAND = (
-    f"sshpass -p {MGMT_PASSWORD} ssh -q -oStrictHostKeyChecking=no "
-    f"-oConnectTimeout=1 {MGMT_USER}@{MGMT_ADDR} '{{command}}'"
+from nika.service.lab.routeros_api import CLI_COMMAND
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    ping_command,
 )
 
 
@@ -63,9 +55,39 @@ def _routeros_bgp_established(
     return established >= min_neighbors
 
 
+def _collect(runtime, *, full):
+    commands = [
+        VerifyCommand(
+            "router1",
+            CLI_COMMAND.format(
+                command="/routing/bgp/session/print terse where established=yes"
+            ),
+        ),
+        VerifyCommand("pc1", ping_command("195.11.14.1"), 15),
+        VerifyCommand("pc1", ping_command("200.1.1.2"), 15),
+    ]
+    if full:
+        commands.extend(
+            VerifyCommand(
+                router,
+                CLI_COMMAND.format(
+                    command=f"/interface print terse where name={LINK_IFACE} running=yes"
+                ),
+            )
+            for router in ("router1", "router2")
+        )
+        commands.extend(
+            VerifyCommand(pc, "ip -4 -o addr show dev eth0", 10)
+            for pc in ("pc1", "pc2")
+        )
+        commands.append(VerifyCommand("pc1", "ip route show default", 10))
+    return collect_verify_commands(runtime, commands)
+
+
 def verify_routeros_simple_bgp_lab_startup(
     runtime: LabRuntime, *, scenario_name: str
 ) -> dict[str, Any]:
+    runtime = _collect(runtime, full=False)
     expected = ("router1", "router2", "pc1", "pc2")
     checks = {
         "nodes_deployed": nodes_deployed(runtime, expected),
@@ -73,16 +95,19 @@ def verify_routeros_simple_bgp_lab_startup(
         "pc1_gateway_reachable": ping_ok(runtime, "pc1", "195.11.14.1"),
         "pc1_to_pc2_reachable": ping_ok(runtime, "pc1", "200.1.1.2"),
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+        )
     )
 
 
 def verify_routeros_simple_bgp_lab(
     runtime: LabRuntime, *, scenario_name: str
 ) -> dict[str, Any]:
+    runtime = _collect(runtime, full=True)
     expected = ("router1", "router2", "pc1", "pc2")
     checks = {
         "nodes_deployed": nodes_deployed(runtime, expected),
@@ -95,8 +120,10 @@ def verify_routeros_simple_bgp_lab(
         "pc1_gateway_reachable": ping_ok(runtime, "pc1", "195.11.14.1"),
         "pc1_to_pc2_reachable": ping_ok(runtime, "pc1", "200.1.1.2"),
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+        )
     )

@@ -1,0 +1,39 @@
+id: FNR-TCAM-ROOT-CAUSE-NOT-INJECTED
+title: TCAM mask corruption was represented by link-proxy loss
+class: fault_not_realized
+severity: warn
+status: fixed
+fixed_in: 06a114a6
+summary: >-
+  Before the local repair, P4TcamEntryCorruption computed a ternary mask but
+  configured destination drops on VDE proxy ports. The switch route remained
+  unchanged. Connectivity failure established the symptom, not corruption of
+  the component named by ground truth. The repair changes the device's actual
+  ternary route mask through a separate P4Runtime client, preserving controller
+  intent. This models a mask error in a software switch, not physical TCAM damage.
+guideline: >-
+  Inspect the injector at the run's commit. Confirm the route value and mask
+  change on the named device, the original intent remains intact, a control
+  destination still forwards, and recovery restores the original match. A
+  forwarding failure or calculated row alone is insufficient. Do not infer
+  that an old trajectory exercised the proxy implementation without checking
+  its pinned engine. This record has no automatic trajectory signature.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  fault_types:
+  - p4_tcam_entry_corruption
+detect: []
+provenance:
+  source: local source review and real Docker P4 validation on nika01
+  date: '2026-11-10'
+  refs: []
+  found_by: manual
+evidence:
+- 'tests/nika/problems/test_p4_tcam_entry_corruption_e2e.py verifies the actual device mask, unchanged controller intent, a reachable same-prefix control, and recovery.'
+- 'src/nika/problems/forwarding_encapsulation_policy/p4_gateway.py writes through a separate P4Runtime client.'
+source_reads:
+- action: read
+  path: src/nika/problems/forwarding_encapsulation_policy/p4_gateway.py
+  start: 390
+  end: 530

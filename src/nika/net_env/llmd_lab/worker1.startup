@@ -8,4 +8,4 @@ done
 
 # Signal the container entrypoint to exec k3s as PID1 (see issue #38).
 mkdir -p /var/run
-touch /var/run/nika-net-ready
+touch /var/run/net-ready

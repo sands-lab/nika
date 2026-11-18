@@ -27,12 +27,6 @@ def _single_quote(value: str) -> str:
 class IOSXRAPIMixin:
     """XRd Control Plane operations via ``exec_cmd``."""
 
-    def uses_iosxr_router(self: SupportsExec, device_name: str) -> bool:
-        output = self.exec_cmd(
-            device_name, "test -x /pkg/bin/xr_cli && echo yes || true"
-        )
-        return "yes" in output
-
     def iosxr_exec(
         self: SupportsExec, device_name: str, command: str, timeout: float = 60
     ) -> str:
@@ -54,9 +48,7 @@ class IOSXRAPIMixin:
     def iosxr_apply_config(
         self: SupportsExec, device_name: str, config_lines: list[str]
     ) -> str:
-        return self._iosxr_write_apply_file(
-            device_name, "/tmp/nika_iosxr_apply.cfg", config_lines
-        )
+        return self._iosxr_write_apply_file(device_name, config_lines)
 
     def iosxr_get_bgp_asn_number(self: SupportsExec, device_name: str) -> int:
         summary = self.iosxr_exec(device_name, "show bgp summary", timeout=90)
@@ -87,26 +79,23 @@ class IOSXRAPIMixin:
             return
         conf = self.iosxr_get_bgp_conf(device_name)
         rebuilt = _rewrite_router_bgp_asn(conf, current, asn)
-        self._iosxr_write_apply_file(
-            device_name,
-            "/tmp/nika_iosxr_no_bgp.cfg",
-            [f"no router bgp {current}", "end"],
-        )
-        self._iosxr_write_apply_file(
-            device_name, "/tmp/nika_iosxr_new_bgp.cfg", [*rebuilt, "end"]
-        )
+        self._iosxr_write_apply_file(device_name, [f"no router bgp {current}", "end"])
+        self._iosxr_write_apply_file(device_name, [*rebuilt, "end"])
 
     def _iosxr_write_apply_file(
         self: SupportsExec,
         device_name: str,
-        path: str,
         config_lines: list[str],
     ) -> str:
+        # The applied file is removed right away: a leftover config file on the
+        # router would show the injected change to anyone reading its filesystem.
+        path = "/tmp/.xrapply.cfg"
         body = "\n".join(config_lines) + "\n"
         b64 = base64.b64encode(body.encode()).decode("ascii")
         inner = (
             f"echo {_single_quote(b64)} | base64 -d > {_single_quote(path)}; "
-            f"source /pkg/bin/ztp_helper.sh; xrapply {_single_quote(path)}"
+            f"source /pkg/bin/ztp_helper.sh; xrapply {_single_quote(path)}; "
+            f"rc=$?; rm -f {_single_quote(path)}; exit $rc"
         )
         command = f"/bin/bash -c {_single_quote(inner)}"
         return self.exec_cmd(device_name, command, timeout=120)
@@ -121,7 +110,6 @@ class IOSXRAPIMixin:
         asn = self.iosxr_get_bgp_asn_number(device_name)
         self._iosxr_write_apply_file(
             device_name,
-            "/tmp/nika_iosxr_withdraw.cfg",
             [
                 f"router bgp {asn}",
                 " address-family ipv4 unicast",
@@ -131,12 +119,6 @@ class IOSXRAPIMixin:
                 "end",
             ],
         )
-
-    def iosxr_bgp_prefix_withdrawn(
-        self: SupportsExec, device_name: str, prefix: str
-    ) -> bool:
-        networks = self.iosxr_list_bgp_networks(device_name)
-        return prefix not in {str(n) for n in networks}
 
 
 def _rewrite_router_bgp_asn(conf: str, old_asn: int, new_asn: int) -> list[str]:

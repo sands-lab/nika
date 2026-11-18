@@ -42,7 +42,12 @@ def docker_image_available(image: str) -> bool:
     docker = _docker_mod()
     assert docker is not None
     try:
-        return bool(docker.from_env().images.list(name=image))
+        client = docker.from_env()
+        if "@" in image:
+            # ``images.list`` does not match pinned ``repo:tag@digest`` refs.
+            client.images.get(image)
+            return True
+        return bool(client.images.list(name=image))
     except Exception:
         return False
 

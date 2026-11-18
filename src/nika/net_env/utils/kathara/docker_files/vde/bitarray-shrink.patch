@@ -1,0 +1,19 @@
+--- a/src/vde_switch/bitarray.h
++++ b/src/vde_switch/bitarray.h
+@@ -96,10 +96,12 @@
+ {
+ 	int __i;
+ 	bitarray nb=realloc(b,__WORDSIZEROUND(m)*sizeof(unsigned long)); 
+-	if(nb != NULL) 
+-		for(__i=__WORDSIZEROUND(n);__i<__WORDSIZEROUND(m);__i++) 
+-			nb[__i]=0; 
+-	nb[__WORDSIZEROUND(n)-1] &= (-1UL) >>((0U-(n))%__VDEWORDSIZE);
++	if(nb != NULL) {
++		int boundary = n < m ? n : m;
++		for(__i=__WORDSIZEROUND(n);__i<__WORDSIZEROUND(m);__i++)
++			nb[__i]=0;
++		nb[__WORDSIZEROUND(boundary)-1] &= (-1UL) >>((0U-boundary)%__VDEWORDSIZE);
++	}
+ 	return nb;
+ }
+ 

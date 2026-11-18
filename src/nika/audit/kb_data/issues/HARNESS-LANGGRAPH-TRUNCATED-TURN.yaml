@@ -1,0 +1,21 @@
+id: HARNESS-LANGGRAPH-TRUNCATED-TURN
+title: LangGraph final turn truncated at 8192 tokens
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: 2f816b9d
+summary: 'Before the re-prompt fixes (#165, #170), a final turn cut at max_tokens froze an empty report
+  that scored as is_anomaly=false; 136 of 144 LG:Qwen3.6 misses.'
+scope:
+  agent_types:
+  - byo.langgraph
+detect:
+- kind: validity
+  flag: truncated_final_turn
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B6
+  date: '2026-10-14'
+  refs:
+  - '#165'
+  - '#170'
+  found_by: manual

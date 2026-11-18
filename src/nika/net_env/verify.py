@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import shlex
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, Any, Literal
@@ -58,7 +58,9 @@ def nodes_deployed(runtime: "LabRuntime", expected: Iterable[str]) -> bool:
 
 
 def ping_ok(runtime: "LabRuntime", host: str, target: str, *, count: int = 1) -> bool:
-    output = exec_or_empty(runtime, host, f"ping -c {count} -W 2 {target}", timeout=15)
+    from nika.net_env.verify_collection import ping_command
+
+    output = exec_or_empty(runtime, host, ping_command(target, count=count), timeout=15)
     return f"{count} received" in output or f"{count} packets received" in output
 
 
@@ -70,12 +72,14 @@ class PingStats:
     rtt_avg_ms: float | None
     rtt_mdev_ms: float | None
     raw: str
+    rtt_min_ms: float | None = None
 
 
 def _parse_ping_stats(output: str, *, count: int) -> PingStats:
     transmitted = count
     received = 0
     loss_percent = 100.0
+    rtt_min_ms: float | None = None
     rtt_avg_ms: float | None = None
     rtt_mdev_ms: float | None = None
     for line in output.splitlines():
@@ -93,6 +97,7 @@ def _parse_ping_stats(output: str, *, count: int) -> PingStats:
             stats = line.split("=")[-1].strip().split()[0]
             fields = stats.split("/")
             if len(fields) >= 2:
+                rtt_min_ms = float(fields[0])
                 rtt_avg_ms = float(fields[1])
             if len(fields) >= 4:
                 rtt_mdev_ms = float(fields[3])
@@ -103,6 +108,7 @@ def _parse_ping_stats(output: str, *, count: int) -> PingStats:
         rtt_avg_ms=rtt_avg_ms,
         rtt_mdev_ms=rtt_mdev_ms,
         raw=output,
+        rtt_min_ms=rtt_min_ms,
     )
 
 
@@ -115,11 +121,13 @@ def ping_stats(
     interval_sec: float = 0.2,
     packet_size: int | None = None,
     df: bool = False,
+    tos: int | None = None,
 ) -> PingStats:
     """Run ping and parse loss and RTT statistics."""
     size_arg = f" -s {packet_size}" if packet_size is not None else ""
     interval_arg = f" -i {interval_sec}" if interval_sec > 0 else ""
     df_arg = " -M do" if df else ""
+    df_arg += f" -Q {tos}" if tos is not None else ""
     timeout = max(15.0, count * (interval_sec + 1.0) + 5.0)
     output = exec_or_empty(
         runtime,
@@ -143,24 +151,33 @@ def ping_unreachable(
     Returns the targets that did not answer all ``count`` probes. ``netns``
     runs ping in that network namespace (e.g. the SR Linux data plane).
     """
+    from nika.net_env.verify_collection import (
+        VerifyCollection,
+        VerifyCommand,
+        collect_verify_commands,
+        mesh_ping_command,
+    )
+
     wanted = sorted(set(targets))
     if not wanted:
         return []
-    ping = f"ip netns exec {netns} ping" if netns else "ping"
-    script = " ".join(
-        f"(echo {target} $({ping} -c {count} -i 0.2 -W 2 -q {target}"
-        " | grep -o '[0-9]* received')) &"
+    requests = [
+        VerifyCommand(host, mesh_ping_command(target, count=count, netns=netns), 30)
         for target in wanted
+    ]
+    observations = (
+        runtime
+        if isinstance(runtime, VerifyCollection)
+        else collect_verify_commands(runtime, requests)
     )
-    output = exec_or_empty(
-        runtime, host, f"sh -c {shlex.quote(script + ' wait')}", timeout=30
-    )
-    answered = {
-        fields[0]
-        for fields in (line.split() for line in output.splitlines())
-        if fields[1:] == [str(count), "received"]
-    }
-    return [target for target in wanted if target not in answered]
+    return [
+        target
+        for target, request in zip(wanted, requests, strict=True)
+        if _parse_ping_stats(
+            exec_or_empty(observations, host, request.command), count=count
+        ).received
+        != count
+    ]
 
 
 def _frag_needed_in_output(output: str) -> bool:
@@ -366,30 +383,87 @@ def median_throughput_bps(
 
 def _start_iperf3_server(runtime: "LabRuntime", host: str, port: int) -> str | None:
     """Start a one-shot iperf3 server and wait until it listens; return its PID."""
+    probe = (
+        f"ss -Hltnp 'sport = :{port}' 2>/dev/null || "
+        f"netstat -ltnp 2>/dev/null | grep ':{port} ' || true"
+    )
+    # Never consume a listener belonging to scenario traffic or another probe.
+    if f":{port}" in exec_or_empty(runtime, host, probe, timeout=5):
+        return None
     output = runtime.exec(
         host,
-        f"rm -f /tmp/iperf3_s_{port}.log; "
-        f"nohup iperf3 -s -p {port} -1 >/tmp/iperf3_s_{port}.log 2>&1 & echo $!",
+        f"nohup iperf3 -s -p {port} -1 >/dev/null 2>&1 & echo $!",
         timeout=10,
     )
     tokens = output.split()
     pid = tokens[-1] if tokens and tokens[-1].isdigit() else None
-    probe = (
-        f"ss -Hltn 'sport = :{port}' 2>/dev/null || "
-        f"netstat -ltn 2>/dev/null | grep ':{port} ' || true"
-    )
+    if pid is None:
+        return None
     deadline = time.monotonic() + 2.0
     while time.monotonic() < deadline:
-        if f":{port}" in exec_or_empty(runtime, host, probe, timeout=5):
-            break
+        listeners = exec_or_empty(runtime, host, probe, timeout=5)
+        if f"pid={pid}," in listeners or any(
+            item.startswith(f"{pid}/") for item in listeners.split()
+        ):
+            return pid
         time.sleep(0.1)
-    return pid
+    _stop_iperf3_server(runtime, host, pid)
+    return None
 
 
 def _stop_iperf3_server(runtime: "LabRuntime", host: str, pid: str | None) -> None:
     # Kill only the server started here; scenario background iperf3 stays up.
     if pid:
         runtime.exec(host, f"kill {pid} 2>/dev/null || true", timeout=5)
+
+
+@dataclass(frozen=True)
+class TcpSocketStats:
+    local: str
+    peer: str
+    cookie: str
+    receive_buffer: int
+    bytes_received: int
+
+
+def _parse_tcp_socket_stats(output: str) -> list[TcpSocketStats]:
+    import re
+
+    sockets = []
+    for line in output.splitlines():
+        fields = line.split()
+        if fields[:1] == ["ESTAB"]:
+            fields = fields[1:]
+        if len(fields) < 4 or not all(field.isdigit() for field in fields[:2]):
+            continue
+        cookie = re.search(r"\bsk:(\w+)", line)
+        buffer = re.search(r"\brb(\d+)", line)
+        received = re.search(r"\bbytes_received:(\d+)", line)
+        if cookie is None or buffer is None:
+            raise ValueError(f"TCP socket identity or receive buffer missing: {line}")
+        sockets.append(
+            TcpSocketStats(
+                fields[2],
+                fields[3],
+                cookie[1],
+                int(buffer[1]),
+                int(received[1]) if received else 0,
+            )
+        )
+    return sockets
+
+
+def tcp_socket_stats(runtime: "LabRuntime", host: str) -> list[TcpSocketStats]:
+    """Read established TCP socket identities, buffers, and delivered bytes."""
+    output = runtime.exec(
+        host,
+        "ss -tinemHO state established; printf '\\nstatus=%s\\n' \"$?\"",
+        timeout=10,
+    ).strip()
+    body, _, status = output.rpartition("\n")
+    if status != "status=0":
+        raise RuntimeError(f"Cannot inspect TCP sockets on {host}: {output}")
+    return _parse_tcp_socket_stats(body)
 
 
 def iperf_throughput_bps(
@@ -419,6 +493,8 @@ def iperf_tcp_metrics(
 ) -> tuple[float | None, int | None]:
     """Run iperf3 and return (bits_per_second, retransmits) or (None, None)."""
     pid = _start_iperf3_server(runtime, dst_host, port)
+    if pid is None:
+        return None, None
     try:
         # Capture JSON on stdout; file redirects are unreliable through some
         # exec shells.
@@ -442,9 +518,11 @@ def iperf_tcp_metrics(
         if data.get("error"):
             return None, None
         end = data.get("end") or {}
-        summary = end.get("sum_sent") or end.get("sum_received") or end.get("sum") or {}
+        # Delivered rate: the sender's count includes data still sitting in its
+        # socket buffer, which a short test against a slow path inflates.
+        summary = end.get("sum_received") or end.get("sum_sent") or end.get("sum") or {}
         bps = float(summary.get("bits_per_second") or 0.0)
-        retrans = summary.get("retransmits")
+        retrans = (end.get("sum_sent") or summary).get("retransmits")
         retrans_int = int(retrans) if retrans is not None else None
         return (bps if bps > 0 else None, retrans_int)
     except Exception:  # noqa: BLE001
@@ -724,10 +802,12 @@ def frr_active_or_heal(
 
 
 def http_ok(runtime: "LabRuntime", host: str, url: str) -> bool:
+    from nika.net_env.verify_collection import http_command
+
     output = exec_or_empty(
         runtime,
         host,
-        f"curl -s -o /dev/null -w '%{{http_code}}' --connect-timeout 5 {url}",
+        http_command(url),
         timeout=20,
     )
     return output.strip() == "200"
@@ -736,18 +816,34 @@ def http_ok(runtime: "LabRuntime", host: str, url: str) -> bool:
 def frr_bgp_established(
     runtime: "LabRuntime", router: str, *, min_neighbors: int = 1
 ) -> bool:
-    output = exec_or_empty(runtime, router, "vtysh -c 'show bgp summary'", timeout=20)
+    output = exec_or_empty(
+        runtime, router, "vtysh -c 'show bgp summary json'", timeout=20
+    )
     return len(frr_bgp_established_peers(output)) >= min_neighbors
 
 
 def frr_bgp_established_peers(summary: str) -> set[str]:
-    """Parse FRR ``show bgp summary`` neighbor lines for Established peers.
+    """Read established peer identities from FRR summary JSON or legacy text.
 
     FRR columns: Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down
     State/PfxRcd PfxSnt [Desc]. Established peers show a numeric PfxRcd;
     other sessions show their FSM state (Idle, Active, Connect, ...).
     Numbered and unnumbered (interface or hostname) neighbors both count.
     """
+    if summary.lstrip().startswith("{"):
+        try:
+            families = json.loads(summary)
+        except ValueError:
+            return set()
+        if not isinstance(families, dict):
+            return set()
+        return {
+            peer
+            for family in families.values()
+            if isinstance(family, dict) and isinstance(family.get("peers"), dict)
+            for peer, row in family["peers"].items()
+            if isinstance(row, dict) and row.get("state") == "Established"
+        }
     peers: set[str] = set()
     for line in summary.splitlines():
         fields = line.split()
@@ -759,6 +855,19 @@ def frr_bgp_established_peers(summary: str) -> set[str]:
         if state.isdigit() or state == "Established":
             peers.add(fields[0])
     return peers
+
+
+@dataclass(frozen=True)
+class BgpPeerQuery:
+    """A router command and parser returning its Established BGP peer addresses."""
+
+    command: str
+    established_peers: Callable[[str], set[str]]
+
+
+FRR_BGP_PEERS = BgpPeerQuery(
+    "vtysh -c 'show bgp summary json'", frr_bgp_established_peers
+)
 
 
 def srl_bgp_established_peers(output: str) -> set[str]:
@@ -843,7 +952,7 @@ def raise_for_k8s_startup_failure(
                 f"{container.logs(tail=30).decode(errors='replace')[-4000:]}"
             )
     failure = exec_or_empty(
-        runtime, "controller", "cat /var/run/nika-startup-failed 2>/dev/null || true"
+        runtime, "controller", "cat /var/run/startup-failed 2>/dev/null || true"
     ).strip()
     # A busy controller can time out the read; only the marker itself is a failure.
     if failure and not failure.startswith("[TIMEOUT]"):
@@ -878,7 +987,9 @@ class LabVerifyTimeoutError(RuntimeError):
         self.max_wait_sec = max_wait_sec
 
 
-def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
+def verify_lab_with_retry(
+    net_env: NetworkEnvBase, *, full: bool = False
+) -> dict[str, Any] | None:
     """Poll startup or full lab verification until success or timeout.
 
     With ``nika.runtime_validation.depth: light`` (default), prefer
@@ -886,11 +997,12 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     ``verify_lab``.
 
     Returns ``None`` when the scenario defines no startup verification.
+    Set ``full=True`` to verify every path after protocol recovery.
     """
     from nika.utils.logger import log_event
     from nika.utils.session_log_summaries import failed_checks_map, summarize_lab_verify
 
-    if _runtime_validation_depth() == "full":
+    if full or _runtime_validation_depth() == "full":
         verify = net_env.verify_lab
     else:
         verify = getattr(net_env, "startup_verify_lab", net_env.verify_lab)
@@ -902,6 +1014,8 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     result = verify()
     if result is None:
         return None
+    if result.get("verified", False) and not k3s_nodes:
+        return result
 
     default_wait, default_delay = _lab_ready_defaults()
     max_wait_sec = getattr(net_env, "VERIFY_MAX_WAIT_SEC", default_wait)
@@ -950,7 +1064,7 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
                 exec_or_empty(
                     runtime,
                     "controller",
-                    "test -f /var/run/nika-startup-complete && echo complete",
+                    "test -f /var/run/startup-complete && echo complete",
                 ).strip()
                 == "complete"
             )

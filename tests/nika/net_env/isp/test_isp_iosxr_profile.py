@@ -27,7 +27,8 @@ def test_containerlab_iosxr_pair_rejected() -> None:
         validate_backend_profile("containerlab", "iosxr")
 
 
-def test_isp_cli_accepts_iosxr_then_lab_rejects() -> None:
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+def test_native_isp_profiles_bind_their_igp(profile) -> None:
     kwargs = _resolve_isp_kwargs(
         "isp_abilene",
         topo=None,
@@ -36,11 +37,81 @@ def test_isp_cli_accepts_iosxr_then_lab_rejects() -> None:
         constant_metric=None,
         bgp_mode=None,
         rpki=None,
-        device_profile="iosxr",
+        device_profile=profile,
         backend="kathara",
     )
-    assert kwargs["device_profile"] == "iosxr"
+    assert kwargs["device_profile"] == profile
     from nika.net_env.net_env_pool import get_net_env_instance
 
-    with pytest.raises(ValueError, match="iosxr_simple_bgp"):
-        get_net_env_instance("isp_abilene", **kwargs)
+    env = get_net_env_instance("isp_abilene", **kwargs)
+    assert env.plan.igp == "isis"
+    isis = "router isis CORE" if profile == "iosxr" else "/routing isis instance"
+    assert all(isis in c for c in env.deployment_configs.values())
+
+    kwargs["igp"] = "ospf"
+    env = get_net_env_instance("isp_abilene", **kwargs)
+    assert env.device_profile == profile
+    assert env.plan.igp == "ospf"
+    assert env.ROUTING_MODELS == {f"{profile}-isp"}
+
+
+@pytest.mark.parametrize(("igp", "bgp_mode"), [("ospf", "ebgp"), ("isis", "ibgp_rr")])
+def test_iosxr_interfaces_precede_routing_modes(igp, bgp_mode) -> None:
+    # XR resolves an ``interface`` line in the innermost mode that accepts it.
+    # A top-level interface after an IGP block would become an IGP interface.
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    env = get_net_env_instance(
+        "isp_abilene", device_profile="iosxr", igp=igp, bgp_mode=bgp_mode
+    )
+    originating = 0
+    for config in env.deployment_configs.values():
+        lines = config.splitlines()
+        first_router = next(
+            i for i, line in enumerate(lines) if line.startswith("router ")
+        )
+        top_interfaces = [
+            i for i, line in enumerate(lines) if line.startswith("interface ")
+        ]
+        assert max(top_interfaces) < first_router
+        originating += "interface Loopback1" in lines
+    assert originating
+
+
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+def test_native_isp_attaches_the_customer_site_and_keeps_stub_workloads(
+    profile,
+) -> None:
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    env = get_net_env_instance(
+        "isp_abilene", device_profile=profile, igp="ospf", bgp_mode="ebgp"
+    )
+    assert env.bgp_plan is not None
+    site = env.bgp_plan.customer_site
+    assert site is not None
+    assert env.inventory["bgp"]["customer_site"]["prefix"] == site.prefix
+    assert site.host_name in env.lab.machines
+    assert site.gateway in env.deployment_configs[site.provider]
+    stubs = {host.host_name for host in env.traffic.hosts}
+    workload = env.business_workload()
+    assert workload.processes
+    assert set(workload.nodes) <= stubs
+    assert env.probe_intent() is not None
+
+
+def test_iosxr_isis_adjacency_table_parses() -> None:
+    from nika.net_env.isp.iosxr import parse_iosxr_isis_adjacencies
+
+    output = """
+IS-IS CORE Level-2 adjacencies:
+System Id      Interface                SNPA           State Hold Changed  NSF IPv4 IPv6
+                                                                               BFD  BFD
+ucla           Gi0/0/0/1                *PtoP*         Up    26   00:00:32 Yes None None
+utah           Gi0/0/0/2                *PtoP*         Init  25   00:00:35 Yes None None
+
+Total adjacency count: 2
+"""
+    assert parse_iosxr_isis_adjacencies(output) == {("ucla", "GigabitEthernet0/0/0/1")}
+    with pytest.raises(ValueError, match="no recognizable IS-IS"):
+        parse_iosxr_isis_adjacencies("% Invalid input detected at '^' marker.")

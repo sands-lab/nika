@@ -10,21 +10,21 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
-from agent.sandbox.sbx.client import (
+from nika.agents.sandbox.config import resolve_sandbox_config
+from nika.agents.sandbox.sbx.client import (
     ensure_sbx_ready,
     run_sbx_checked,
     run_sbx_optional,
     sbx_available,
     sbx_authenticated,
 )
-from agent.sandbox.sbx.policy import (
+from nika.agents.sandbox.sbx.policy import (
     allow_mcp_gateway,
     deny_mcp_gateway,
     sanitize_sandbox_name,
 )
-from agent.sandbox.sbx.manager import SbxSandboxManager
-from agent.sandbox.sbx.workspace import prepare_workspace
+from nika.agents.sandbox.sbx.backend import SbxBackend
+from nika.agents.sandbox.workspace import prepare_workspace
 from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     mcp_gateway_for_session,
@@ -42,19 +42,45 @@ def sandbox_runtime_available() -> bool:
     return sbx_available() and sbx_authenticated()
 
 
-def sandbox_provider_credential_available(provider: str) -> bool:
-    """Require the selected provider's key or a global native sbx service secret."""
-    from agent.utils.provider_env import has_provider_credentials
-    from agent.sandbox.sbx.client import list_sbx_secret_services
+def e2b_runtime_available() -> bool:
+    """True when the e2b backend has an SDK and an API key to reach a service."""
+    try:
+        import e2b  # noqa: F401
+    except ImportError:
+        return False
+    from nika.agents.sandbox.e2b.backend import _api_key
 
+    return bool(_api_key(resolve_sandbox_config().env_file))
+
+
+def sandbox_backend_available(backend: str) -> bool:
+    if backend == "e2b":
+        return e2b_runtime_available()
+    return sandbox_runtime_available()
+
+
+def sandbox_provider_credential_available(
+    provider: str, *, backend: str = "sbx"
+) -> bool:
+    """Require the selected provider's key, or NIKA's subscription login.
+
+    Every runtime reaches models through NIKA's model proxy, which uses the
+    host login (see ``nika.agents.sandbox.subscription``). The ``custom`` test
+    provider needs its endpoint (``NIKA_TEST_CUSTOM_BASE_URL``).
+    """
+    from nika.agents.provider_env import has_provider_credentials
+    from nika.agents.sandbox.config import load_sandbox_env_values
+    from nika.agents.sandbox.subscription import CodexLogin, claude_oauth_token
+    from tests.support.integration_pipeline import live_custom_base_url
+
+    if provider == "custom":
+        return bool(live_custom_base_url())
     if has_provider_credentials(provider):
         return True
-    if provider not in {"openai", "anthropic"} or not sbx_available():
-        return False
-    try:
-        return provider in list_sbx_secret_services(global_only=True)
-    except RuntimeError:
-        return False
+    if provider == "anthropic":
+        env_file = resolve_sandbox_config().env_file
+        return bool(claude_oauth_token(load_sandbox_env_values(env_file)))
+    return provider == "openai" and CodexLogin.load() is not None
 
 
 def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -> None:
@@ -67,7 +93,7 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
     ensure_sbx_ready()
 
     sandbox_name = sanitize_sandbox_name(session_id)
-    agent_host = sandbox_gateway_agent_host()
+    agent_host = SbxBackend.gateway_agent_host
     agent_type = "cli.codex"
     sbx_agent = "shell"
 
@@ -103,9 +129,10 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
         }
         workspace = prepare_workspace(
             session_dir=session_dir,
-            manifest=manifest,
-            runtime_env={"NIKA_AGENT_TYPE": agent_type},
+            task_json=json.dumps(manifest),
+            runtime_env={},
             agent_session_id=session_id,
+            enable_skills=False,
             workspace_dir=Path(tmp) / "agent_workspace",
         )
         probe_in_workspace = workspace.workspace_dir / "security_probe.sh"
@@ -136,14 +163,14 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
             ) as gateway_manager:
                 gateway_url = os.environ[ENV_GATEWAY_AGENT_URL]
                 manifest["mcp_gateway_agent_url"] = gateway_url
-                workspace.manifest_path.write_text(
+                workspace.task_path.write_text(
                     json.dumps(manifest, indent=2),
                     encoding="utf-8",
                 )
 
                 run_sbx_optional(["rm", "--force", sandbox_name])
                 try:
-                    create_cmd = SbxSandboxManager(
+                    create_cmd = SbxBackend(
                         resolve_sandbox_config()
                     ).build_create_command(
                         sandbox_name=sandbox_name,
@@ -200,7 +227,7 @@ def run_cross_sandbox_isolation_probe() -> None:
         raise RuntimeError("sbx is required for cross-sandbox isolation probe")
 
     ensure_sbx_ready()
-    agent_host = sandbox_gateway_agent_host()
+    agent_host = SbxBackend.gateway_agent_host
     session_id = "sandbox-iso-probe"
     sandbox_name = sanitize_sandbox_name(session_id)
 
@@ -233,24 +260,19 @@ def run_cross_sandbox_isolation_probe() -> None:
             session_dir.mkdir()
             workspace = prepare_workspace(
                 session_dir=session_dir,
-                manifest={
-                    "session_id": session_id,
-                    "session_dir": str(session_dir),
-                    "agent_type": "cli.codex",
-                    "model": "gpt-5.4-mini",
-                    "task_description": "isolation-probe",
-                    "mcp_gateway_agent_url": f"http://{agent_host}:{own_port}",
-                    "backend": "kathara",
-                },
-                runtime_env={"NIKA_AGENT_TYPE": "cli.codex"},
+                task_json=json.dumps(
+                    {"session_id": session_id, "task_description": "isolation-probe"}
+                ),
+                runtime_env={},
                 agent_session_id=session_id,
+                enable_skills=False,
                 workspace_dir=Path(tmp) / "agent_workspace",
             )
 
             run_sbx_optional(["rm", "--force", sandbox_name])
             try:
                 run_sbx_checked(
-                    SbxSandboxManager(resolve_sandbox_config()).build_create_command(
+                    SbxBackend(resolve_sandbox_config()).build_create_command(
                         sandbox_name=sandbox_name,
                         sbx_agent="shell",
                         workspace_dir=workspace.workspace_dir,

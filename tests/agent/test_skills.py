@@ -1,18 +1,20 @@
 from __future__ import annotations
 
-import os
+import shutil
 import tempfile
-import unittest.mock
 from pathlib import Path
 
 import pytest
 
+from agent.cli.opencode.opencode_worker import SKILLS_DEST as OPENCODE_SKILLS_DEST
 from agent.utils.skills import (
+    DEFAULT_SKILLS_ROOT,
     TEST_SKILL_NAME,
     claude_skills_package_dir,
     diagnosis_prompt_with_skills,
     prepare_claude_workspace,
     prepare_codex_workspace,
+    prepare_skill_workspace,
     resolve_skills_root,
     resolve_test_skill_dir,
     skills_enabled,
@@ -22,27 +24,20 @@ from agent.utils.template import (
     SKILLS_PROMPT_SUFFIX,
     TEST_SKILLS_PROMPT_SUFFIX,
 )
-from nika.run_config.loader import reset_run_config, set_run_config
-from nika.run_config.schema import RunConfig
 from tests.agent._assertions import marker_before_first_mcp_tool, skill_invoked
-from tests.support.integration_pipeline import load_test_env
 
 pytestmark = pytest.mark.unit
 
-load_test_env()
-
 
 @pytest.fixture(autouse=True)
-def _isolate_skills_config(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("NIKA_ENABLE_SKILLS", raising=False)
-    reset_run_config()
-    set_run_config(RunConfig())
-    yield
-    reset_run_config()
+def set_skills(agent_task):
+    """Write the task with skills on (the run config default) or off."""
 
+    def write(enabled: bool) -> Path:
+        return agent_task(enable_skills=enabled)
 
-def _set_skills_enabled(enabled: bool) -> None:
-    set_run_config(RunConfig.model_validate({"agent": {"enable_skills": enabled}}))
+    write(True)
+    return write
 
 
 class SkillsConfigTest:
@@ -55,30 +50,21 @@ class SkillsConfigTest:
         assert (test_dir / "SKILL.md").is_file()
         assert "tests" in test_dir.parts
 
-    def test_resolve_skills_root_sandbox_session_copy(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            session_dir = Path(tmp)
-            skills_root = session_dir / "skills"
-            skills_root.mkdir()
-            with unittest.mock.patch.dict(
-                os.environ,
-                {
-                    "NIKA_SANDBOX_EXECUTION": "1",
-                    "NIKA_SESSION_DIR": str(session_dir),
-                },
-                clear=False,
-            ):
-                assert resolve_skills_root() == skills_root.resolve()
+    def test_resolve_skills_root_workspace_copy(self, set_skills) -> None:
+        workspace = set_skills(True)
+        skills_root = workspace / "skills"
+        skills_root.mkdir()
+        assert resolve_skills_root() == skills_root.resolve()
 
     def test_skills_enabled_default(self) -> None:
         assert skills_enabled()
 
-    def test_skills_enabled_false(self) -> None:
-        _set_skills_enabled(False)
+    def test_skills_enabled_false(self, set_skills) -> None:
+        set_skills(False)
         assert not skills_enabled()
 
-    def test_claude_skills_package_dir_when_disabled(self) -> None:
-        _set_skills_enabled(False)
+    def test_claude_skills_package_dir_when_disabled(self, set_skills) -> None:
+        set_skills(False)
         assert claude_skills_package_dir() is None
 
     def test_claude_skills_package_dir_when_enabled(self) -> None:
@@ -89,7 +75,11 @@ class SkillsConfigTest:
             package / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
         ).exists()
 
-    def test_diagnosis_prompt_with_skills(self) -> None:
+    def test_diagnosis_prompt_with_skills(self, set_skills) -> None:
+        workspace = set_skills(True)
+        skill = workspace / "skills/skills/routing/SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("Routing diagnostics")
         prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
         assert SKILLS_PROMPT_SUFFIX in prompt
         assert TEST_SKILL_NAME not in prompt
@@ -97,11 +87,32 @@ class SkillsConfigTest:
             OVERALL_DIAGNOSIS_PROMPT, include_test_skill=True
         )
         assert TEST_SKILLS_PROMPT_SUFFIX in test_prompt
-        _set_skills_enabled(False)
+        set_skills(False)
         assert (
             diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
             == OVERALL_DIAGNOSIS_PROMPT
         )
+
+    def test_empty_skill_directory_keeps_base_prompt(self, set_skills):
+        workspace = set_skills(True)
+        (workspace / "skills/skills/incomplete").mkdir(parents=True)
+        assert (
+            diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
+            == OVERALL_DIAGNOSIS_PROMPT
+        )
+
+    def test_diagnosis_prompt_stays_generic_when_test_skill_is_in_the_tree(
+        self, set_skills
+    ) -> None:
+        workspace = set_skills(True)
+        src = resolve_test_skill_dir()
+        assert src is not None
+        dest = workspace / "skills" / "skills" / TEST_SKILL_NAME
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dest)
+        prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
+        assert SKILLS_PROMPT_SUFFIX in prompt
+        assert TEST_SKILLS_PROMPT_SUFFIX not in prompt
 
 
 class SkillsWorkspaceTest:
@@ -117,6 +128,26 @@ class SkillsWorkspaceTest:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             prepare_claude_workspace(workspace, include_test_skill=True)
+            assert (
+                workspace / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+            ).exists()
+
+    def test_prepare_claude_workspace_links_a_skill_already_in_the_package_tree(
+        self, set_skills
+    ) -> None:
+        host = set_skills(True)
+        src = resolve_test_skill_dir()
+        assert src is not None
+        shutil.copytree(DEFAULT_SKILLS_ROOT, host / "skills", dirs_exist_ok=True)
+        for dest in (
+            host / "skills" / "skills" / TEST_SKILL_NAME,
+            host / "skills" / ".claude" / "skills" / TEST_SKILL_NAME,
+        ):
+            if not dest.exists():
+                shutil.copytree(src, dest)
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_claude_workspace(workspace)
             assert (
                 workspace / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
             ).exists()
@@ -142,6 +173,53 @@ class SkillsWorkspaceTest:
                 encoding="utf-8"
             )
 
+    def test_prepare_codex_workspace_links_a_skill_already_in_the_package_tree(
+        self, set_skills
+    ) -> None:
+        host = set_skills(True)
+        src = resolve_test_skill_dir()
+        assert src is not None
+        dest = host / "skills" / "skills" / TEST_SKILL_NAME
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dest)
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_codex_workspace(workspace)
+            assert (
+                workspace / ".agents" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+            ).exists()
+            assert TEST_SKILL_NAME not in (workspace / "AGENTS.md").read_text(
+                encoding="utf-8"
+            )
+
+    def test_prepare_opencode_workspace_excludes_test_skill_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_skill_workspace(workspace, OPENCODE_SKILLS_DEST)
+            skills = workspace / OPENCODE_SKILLS_DEST
+            assert skills.is_dir()
+            assert not (skills / TEST_SKILL_NAME).exists()
+            assert not (workspace / "AGENTS.md").exists()
+
+    def test_prepare_opencode_workspace_includes_test_skill_when_requested(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_skill_workspace(
+                workspace, OPENCODE_SKILLS_DEST, include_test_skill=True
+            )
+            assert (
+                workspace / OPENCODE_SKILLS_DEST / TEST_SKILL_NAME / "SKILL.md"
+            ).exists()
+
+    def test_prepare_skill_workspace_noop_when_disabled(self, set_skills) -> None:
+        set_skills(False)
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_skill_workspace(workspace, OPENCODE_SKILLS_DEST)
+            assert not (workspace / OPENCODE_SKILLS_DEST).exists()
+
 
 class SkillAssertionTest:
     def test_skill_invoked_from_tool_start(self) -> None:
@@ -149,10 +227,36 @@ class SkillAssertionTest:
             {
                 "event": "tool_start",
                 "tool": {"name": "Skill"},
-                "input": "{'skill': 'nika-test-skill'}",
+                "input": "{'skill': 'skill-loading-check'}",
             }
         ]
         assert skill_invoked(messages)
+
+    def test_skill_invoked_from_opencode_skill_tool(self) -> None:
+        messages = [
+            {
+                "event": "tool_start",
+                "tool": {"name": "skill"},
+                "input": '{"name": "skill-loading-check"}',
+            }
+        ]
+        assert skill_invoked(messages)
+
+    def test_marker_ignores_lowercase_skill_tool(self) -> None:
+        messages = [
+            {
+                "event": "tool_start",
+                "tool": {"name": "skill"},
+                "input": '{"name": "skill-loading-check"}',
+            },
+            {"event": "llm_end", "text": "SKILL_LOADING_CHECK_ACTIVE"},
+            {
+                "event": "tool_start",
+                "tool": {"name": "get_reachability"},
+                "input": "{}",
+            },
+        ]
+        assert marker_before_first_mcp_tool(messages)
 
     def test_skill_invoked_from_claude_event(self) -> None:
         messages = [
@@ -165,7 +269,7 @@ class SkillAssertionTest:
                             {
                                 "type": "tool_use",
                                 "name": "Skill",
-                                "input": {"skill": "nika-test-skill"},
+                                "input": {"skill": "skill-loading-check"},
                             }
                         ]
                     },
@@ -176,7 +280,7 @@ class SkillAssertionTest:
 
     def test_marker_before_first_mcp_tool(self) -> None:
         messages = [
-            {"event": "llm_end", "text": "NIKA_TEST_SKILL_ACTIVE"},
+            {"event": "llm_end", "text": "SKILL_LOADING_CHECK_ACTIVE"},
             {
                 "event": "tool_start",
                 "tool": {"name": "get_reachability"},
@@ -192,6 +296,6 @@ class SkillAssertionTest:
                 "tool": {"name": "get_reachability"},
                 "input": "{}",
             },
-            {"event": "llm_end", "text": "NIKA_TEST_SKILL_ACTIVE"},
+            {"event": "llm_end", "text": "SKILL_LOADING_CHECK_ACTIVE"},
         ]
         assert not marker_before_first_mcp_tool(messages)

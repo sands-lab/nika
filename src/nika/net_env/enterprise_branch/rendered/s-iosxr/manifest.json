@@ -1,0 +1,26 @@
+{
+  "digest": "085bf742a35c9660bff109ccb6b7bccd19be609b8a7a3ec9ca3b0ddd3810d000",
+  "netlab": "26.10",
+  "routers": [
+    "br1_edge",
+    "br2_edge",
+    "dc2_edge",
+    "hq_edge",
+    "isp1_core",
+    "isp2_core"
+  ],
+  "scripts": {
+    "br1_edge": [
+      "tunnel.wireguard"
+    ],
+    "br2_edge": [
+      "tunnel.wireguard"
+    ],
+    "dc2_edge": [
+      "tunnel.wireguard"
+    ],
+    "hq_edge": [
+      "tunnel.wireguard"
+    ]
+  }
+}

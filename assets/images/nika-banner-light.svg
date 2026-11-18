@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
+  <defs>
+    <!-- NIKA title gradient: navy → teal → purple, 135deg diagonal -->
+    <linearGradient id="nika-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#0f172a"/>
+      <stop offset="60%"  stop-color="#0891b2"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── Background ──────────────────────────────────────────────────── -->
+  <rect width="1200" height="300" fill="#ffffff"/>
+
+  <!-- ── Network decoration — left ──────────────────────────────────── -->
+  <g stroke="#0891b2" fill="none" stroke-width="1" opacity="0.18">
+    <line x1="48"  y1="58"  x2="148" y2="100"/>
+    <line x1="148" y1="100" x2="92"  y2="182"/>
+    <line x1="48"  y1="58"  x2="185" y2="40"/>
+    <line x1="185" y1="40"  x2="148" y2="100"/>
+    <line x1="92"  y1="182" x2="36"  y2="165"/>
+    <line x1="148" y1="100" x2="224" y2="158"/>
+  </g>
+  <g fill="#0891b2" opacity="0.3">
+    <circle cx="48"  cy="58"  r="3.5"/>
+    <circle cx="148" cy="100" r="2.5"/>
+    <circle cx="92"  cy="182" r="2.5"/>
+    <circle cx="185" cy="40"  r="2"/>
+    <circle cx="36"  cy="165" r="2"/>
+    <circle cx="224" cy="158" r="1.5"/>
+  </g>
+
+  <!-- ── Network decoration — right (mirror) ────────────────────────── -->
+  <g stroke="#0891b2" fill="none" stroke-width="1" opacity="0.18">
+    <line x1="1152" y1="58"  x2="1052" y2="100"/>
+    <line x1="1052" y1="100" x2="1108" y2="182"/>
+    <line x1="1152" y1="58"  x2="1015" y2="40"/>
+    <line x1="1015" y1="40"  x2="1052" y2="100"/>
+    <line x1="1108" y1="182" x2="1164" y2="165"/>
+    <line x1="1052" y1="100" x2="976"  y2="158"/>
+  </g>
+  <g fill="#0891b2" opacity="0.3">
+    <circle cx="1152" cy="58"  r="3.5"/>
+    <circle cx="1052" cy="100" r="2.5"/>
+    <circle cx="1108" cy="182" r="2.5"/>
+    <circle cx="1015" cy="40"  r="2"/>
+    <circle cx="1164" cy="165" r="2"/>
+    <circle cx="976"  cy="158" r="1.5"/>
+  </g>
+
+  <!-- ── NIKA ─────────────────────────────────────────────────────────── -->
+  <text
+    x="600" y="158"
+    font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="118"
+    font-weight="900"
+    letter-spacing="-6"
+    text-anchor="middle"
+    fill="url(#nika-grad)"
+  >NIKA</text>
+
+  <!-- ── Break the Network. ─────────────────────────────────────────── -->
+  <text
+    x="600" y="203"
+    font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="31"
+    font-weight="700"
+    letter-spacing="-0.6"
+    text-anchor="middle"
+    fill="#0f172a"
+  >Break the Network.</text>
+
+  <!-- ── Put Your AI Agent On Call. ────────────────────────────────── -->
+  <text
+    x="600" y="245"
+    font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="31"
+    font-weight="700"
+    letter-spacing="-0.6"
+    text-anchor="middle"
+    fill="#0f172a"
+  >Put Your <tspan fill="#0891b2">AI Agent</tspan> On Call.</text>
+
+</svg>

@@ -71,9 +71,7 @@ def test_workload_images_for_supported_scenarios() -> None:
     assert cache.workload_images_for_scenario("k8s_lab") == k8s_images
     assert cache.workload_images_for_scenario("llmd_lab") == llmd_images
     assert cache.workload_images_for_scenario("dc_clos") == ()
-    assert all(
-        "@sha256:" in image for image in (*k8s_images, *llmd_images, cache.K3S_IMAGE)
-    )
+    assert all("@sha256:" in image for image in (*k8s_images, *llmd_images))
     for image in cache.K3S_SYSTEM_IMAGES:
         assert image in k8s_images
         assert image in llmd_images
@@ -260,7 +258,7 @@ def test_preload_raises_without_cached_tars() -> None:
         cache.preload_workload_images(net_env)
 
     assert not any(
-        "nika-images-preloaded" in str(call) for call in runtime.exec.call_args_list
+        "images-preloaded" in str(call) for call in runtime.exec.call_args_list
     )
 
 
@@ -274,6 +272,33 @@ def test_ensure_cached_reports_registry_failure(tmp_path: Path) -> None:
     ):
         cache.ensure_cached(image)
     assert not cache.cache_tar_exists(image)
+
+
+@pytest.mark.unit
+def test_ensure_cached_retries_transient_registry_errors(tmp_path: Path) -> None:
+    image, _ = _image_tar(tmp_path)
+    attempts = []
+
+    def fetch(*args, mount, timeout):
+        if args[0] == "inspect":
+            return (tmp_path / "source" / "manifest.json").read_bytes()
+        attempts.append(args[0])
+        if len(attempts) == 1:
+            raise RuntimeError(
+                "fetching blob: invalid status code from registry 503 "
+                "(Service Unavailable)"
+            )
+        _image_directory(Path(args[-1].removeprefix("dir:")))
+
+    with (
+        patch.object(cache, "_skopeo", side_effect=fetch),
+        patch.object(cache, "ensure_nika_docker_images"),
+        patch.object(cache.time, "sleep") as sleep,
+    ):
+        path = cache.ensure_cached(image)
+    assert attempts == ["copy", "copy"]
+    sleep.assert_called_once_with(cache._FETCH_BACKOFF_SEC[0])
+    assert cache._tar_is_complete(path, image)
 
 
 @pytest.mark.unit
@@ -320,7 +345,7 @@ def test_preload_records_stopped_node_before_failure_cleanup() -> None:
     assert event.kwargs["container_state"]["OOMKilled"] is True
     assert "k3s agent exited" in event.kwargs["container_logs_tail"]
     assert not any(
-        "nika-images-preloaded" in str(call) for call in runtime.exec.call_args_list
+        "images-preloaded" in str(call) for call in runtime.exec.call_args_list
     )
 
 
@@ -335,5 +360,5 @@ def test_import_tar_to_node_requires_exit_marker() -> None:
 @pytest.mark.unit
 def test_import_tar_to_node_accepts_success_marker() -> None:
     runtime = MagicMock()
-    runtime.exec.return_value = "imported\nNIKA_IMPORT_EXIT:0\n"
+    runtime.exec.return_value = "imported\nIMPORT_EXIT:0\n"
     cache.import_tar_to_node(runtime, "controller", Path("/tmp/x.tar"))

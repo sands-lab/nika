@@ -32,6 +32,11 @@ LAZY_COMMANDS.update(
         "eval": LazyCommandSpec(
             "nika.cli.commands.evaluation", "eval_app", "Evaluate agent runs."
         ),
+        "rollout": LazyCommandSpec(
+            "nika.cli.commands.rollout",
+            "rollout_app",
+            "Run one task attempt for an external framework.",
+        ),
         "benchmark": LazyCommandSpec(
             "nika.cli.commands.benchmark", "benchmark_app", "Run benchmark cases."
         ),
@@ -50,6 +55,16 @@ LAZY_COMMANDS.update(
             "remote_app",
             "Optional remote lab-host control plane.",
         ),
+        "engine": LazyCommandSpec(
+            "nika.cli.commands.engine",
+            "engine_app",
+            "Advanced: benchmark engines of published releases.",
+        ),
+        "firecracker": LazyCommandSpec(
+            "nika.cli.commands.firecracker",
+            "firecracker_app",
+            "Advanced: lab images for benchmark runs in Firecracker.",
+        ),
         "config": LazyCommandSpec(
             "nika.cli.commands.config_cmd",
             "config_app",
@@ -64,6 +79,11 @@ LAZY_COMMANDS.update(
             "nika.cli.commands.inspect_cmd",
             "inspect_app",
             "Browse session trajectories in a local web UI.",
+        ),
+        "observability": LazyCommandSpec(
+            "nika.cli.commands.observability",
+            "observability_app",
+            "Monitor lab resources and benchmark progress in Grafana.",
         ),
         "tui": LazyCommandSpec(
             "nika.cli.commands.tui",

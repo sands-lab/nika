@@ -4,6 +4,9 @@ failure:
   fault_type: tcp_syn_flood_attack
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_1
       duration: '3600'
@@ -18,6 +21,9 @@ failure:
         node: client_1
       fault_type: tcp_syn_flood_attack
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_2
       duration: '3600'
@@ -32,6 +38,9 @@ failure:
         node: client_2
       fault_type: tcp_syn_flood_attack
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_1
       duration: '3600'
@@ -46,6 +55,9 @@ failure:
         node: client_1
       fault_type: tcp_syn_flood_attack
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_2
       duration: '3600'
@@ -60,6 +72,9 @@ failure:
         node: client_2
       fault_type: tcp_syn_flood_attack
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_3
       duration: '3600'
@@ -74,6 +89,9 @@ failure:
         node: client_3
       fault_type: tcp_syn_flood_attack
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_4
       duration: '3600'
@@ -88,6 +106,9 @@ failure:
         node: client_4
       fault_type: tcp_syn_flood_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_1
       duration: '3600'
@@ -102,6 +123,9 @@ failure:
         node: client_1
       fault_type: tcp_syn_flood_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_2
       duration: '3600'
@@ -116,6 +140,9 @@ failure:
         node: client_2
       fault_type: tcp_syn_flood_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_3
       duration: '3600'
@@ -130,6 +157,9 @@ failure:
         node: client_3
       fault_type: tcp_syn_flood_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_4
       duration: '3600'
@@ -144,6 +174,9 @@ failure:
         node: client_4
       fault_type: tcp_syn_flood_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_5
       duration: '3600'
@@ -158,6 +191,9 @@ failure:
         node: client_5
       fault_type: tcp_syn_flood_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_6
       duration: '3600'
@@ -172,6 +208,9 @@ failure:
         node: client_6
       fault_type: tcp_syn_flood_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_7
       duration: '3600'
@@ -186,6 +225,9 @@ failure:
         node: client_7
       fault_type: tcp_syn_flood_attack
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       attacker_device: client_8
       duration: '3600'

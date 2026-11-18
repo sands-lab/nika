@@ -1,0 +1,2 @@
+cases:
+  - tasks/multi-failure.example.yaml

@@ -27,6 +27,12 @@ uv run nika inspect --result-dir results
 
 Default URL: `http://127.0.0.1:7580/`. Override the results root with `--result-dir` or `nika.result_dir` in [`config/nika.yaml`](configuration.md).
 
+Only one dashboard runs on the default port. A second `nika inspect` errors out with the running dashboard's URL. To run another one alongside it, for example over a different results root, pass a port explicitly:
+
+```shell
+uv run nika inspect --result-dir results/other --port 7581
+```
+
 `nika benchmark run` on a TTY starts this viewer automatically for the run's `--result_dir` and shows a clickable URL on the dashboard. You can still run `nika inspect` yourself for finished results.
 
 To reach the UI from another machine (or Windows from WSL), bind all interfaces and open the host IP:
@@ -88,7 +94,13 @@ Below the bars, **Tools** lists calls, errors, and total / average / max time pe
 
 ### Choose columns
 
-Right-click the table header, or click **⋯** at the end of the header row, to choose columns, including detection, localization F1, steps, tool calls, token counts, backend, and tags. Score and count columns accept numeric filters such as `>=0.5`, `<10`, or `=0`. A bare number means `=`.
+By default the table shows, among others:
+
+- **Root causes**: `found/expected +wrong`. For example, `1/2 +1` means the agent found 1 of the 2 ground-truth root causes and made 1 wrong guess. A guess counts only when both the resource and the fault type match. The column sorts and filters on the number found.
+- **Steps**: the agent's model replies during diagnosis, the unit `max_steps` limits. One reply and the tool calls it requests make one step, as marked by the dashed lines on the Timeline overview. Submission replies and replies of Claude sub-agents are not counted.
+- **Tool calls**: tool calls during diagnosis.
+
+Right-click the table header, or click **⋯** at the end of the header row, to choose columns, including detection, localization F1, token counts, backend, and tags. Score and count columns accept numeric filters such as `>=0.5`, `<10`, or `=0`. A bare number means `=`.
 
 The browser keeps the column choice in `localStorage`, so it stays local to that browser.
 

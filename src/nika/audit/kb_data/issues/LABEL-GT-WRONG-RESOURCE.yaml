@@ -1,0 +1,18 @@
+id: LABEL-GT-WRONG-RESOURCE
+title: Ground truth names a resource the agent cannot answer with
+class: label_unidentifiable
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: 'The ground-truth resource does not match what the task asks for or what the fault changes: k8s_coredns_isolated
+  named the kube-dns Service instead of the node holding the rules; max_prefix labelled the peer while
+  the label describes the receiver.'
+guideline: When agents consistently name the right component at a different granularity, check the ground
+  truth. An interface inside the faulted node or link scores only through resource containment (scoring.resource_within).
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

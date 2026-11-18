@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import shlex
 import time
 from typing import Any
 
@@ -20,6 +21,7 @@ from nika.net_env.sdn_l3_clos.topology_model import (
 )
 from nika.runtime.base import LabRuntime
 from nika.utils.logger import system_logger
+from nika.utils.parallel import bounded_parallel_map
 
 logger = system_logger
 
@@ -50,11 +52,15 @@ def _onos_url(path: str) -> str:
     return f"http://{ONOS_OOB_IP}:{ONOS_REST_PORT}{path}"
 
 
+def onos_get_command(path: str) -> str:
+    return f"curl -s -u {_ONOS_AUTH} --connect-timeout 3 '{_onos_url(path)}' || echo '{{}}'"
+
+
 def _onos_get(runtime: LabRuntime, path: str, *, timeout: float = 30.0) -> str:
     return _exec(
         runtime,
         "fabric_mgr",
-        f"curl -s -u {_ONOS_AUTH} --connect-timeout 3 '{_onos_url(path)}' || echo '{{}}'",
+        onos_get_command(path),
         timeout=timeout,
     )
 
@@ -272,13 +278,15 @@ def wait_for_of_sessions(
 
 
 def ensure_controllers_attached(runtime: LabRuntime, model: ClosFabricModel) -> None:
-    for switch in model.leaves + model.spines:
+    def attach(switch: str) -> None:
         _exec(
             runtime,
             switch,
             f"ovs-vsctl set-controller {switch} "
             f"tcp:{ONOS_OOB_IP}:{ONOS_OF_PORT} || true",
         )
+
+    bounded_parallel_map(attach, list(model.leaves + model.spines))
 
 
 def _set_dpid(runtime: LabRuntime, switch: str, dpid_hex: str) -> None:
@@ -289,18 +297,39 @@ def _set_dpid(runtime: LabRuntime, switch: str, dpid_hex: str) -> None:
     )
 
 
+def _switch_dpids(model: ClosFabricModel) -> list[tuple[str, str]]:
+    leaves = [
+        (leaf, dpid_for_leaf(leaf_id))
+        for leaf_id, leaf in enumerate(model.leaves, start=1)
+    ]
+    spines = [
+        (spine, dpid_for_spine(spine_id))
+        for spine_id, spine in enumerate(model.spines, start=1)
+    ]
+    return leaves + spines
+
+
 def _ofport_map(
     runtime: LabRuntime, switch: str, model: ClosFabricModel
 ) -> dict[str, str]:
+    wanted = {port.name for port in model.ports.get(switch, [])}
+    if not wanted:
+        return {}
+    raw = _exec(
+        runtime,
+        switch,
+        "ovs-vsctl -f csv --no-heading --columns=name,ofport "
+        "list Interface 2>/dev/null || true",
+    )
     mapping: dict[str, str] = {}
-    for port in model.ports.get(switch, []):
-        raw = _exec(
-            runtime,
-            switch,
-            f"ovs-vsctl get Interface {port.name} ofport 2>/dev/null || echo -1",
-        ).strip()
-        if raw.lstrip("-").isdigit() and int(raw) > 0:
-            mapping[port.name] = raw
+    for line in raw.splitlines():
+        name, sep, ofport = line.partition(",")
+        if not sep:
+            continue
+        name = name.strip().strip('"')
+        ofport = ofport.strip().strip('"')
+        if name in wanted and ofport.lstrip("-").isdigit() and int(ofport) > 0:
+            mapping[name] = ofport
     return mapping
 
 
@@ -327,6 +356,8 @@ def _parse_match(match: str, port_map: dict[str, str]) -> list[dict[str, Any]] |
             criteria.append({"type": "ETH_TYPE", "ethType": "0x800"})
         elif part == "arp":
             criteria.append({"type": "ETH_TYPE", "ethType": "0x806"})
+        elif part.startswith("dl_dst="):
+            criteria.append({"type": "ETH_DST", "mac": part.split("=", 1)[1]})
         elif part.startswith("nw_dst="):
             ip = part.split("=", 1)[1]
             if "/" not in ip:
@@ -478,14 +509,10 @@ for method, path, body in ops:
             transport_down = (err, code)
 print(json.dumps(out))
 """
-    b64_script = base64.b64encode(script.encode()).decode()
 
     def run(batch: list[tuple[str, str, dict[str, Any] | None]]) -> str:
         payload = base64.b64encode(json.dumps(batch).encode()).decode()
-        cmd = (
-            f"echo {b64_script} | base64 -d > /tmp/onos_batch.py && "
-            f"python3 /tmp/onos_batch.py {payload} '{_onos_url('')}'"
-        )
+        cmd = f"python3 -c {shlex.quote(script)} {payload} '{_onos_url('')}'"
         return _exec(runtime, "fabric_mgr", cmd, timeout=timeout)
 
     batches: list[list[tuple[str, str, dict[str, Any] | None]]] = []
@@ -764,15 +791,12 @@ def apply_forwarding(runtime: LabRuntime, model: ClosFabricModel) -> dict[str, A
     """Install proactive L3+ECMP rules through ONOS while OF sessions stay up."""
     rules = build_forwarding_rules(model)
 
-    for leaf_id, leaf in enumerate(model.leaves, start=1):
-        _set_dpid(runtime, leaf, dpid_for_leaf(leaf_id))
-    for spine_id, spine in enumerate(model.spines, start=1):
-        _set_dpid(runtime, spine, dpid_for_spine(spine_id))
+    def prepare(item: tuple[str, str]) -> tuple[str, dict[str, str]]:
+        switch, dpid_hex = item
+        _set_dpid(runtime, switch, dpid_hex)
+        return switch, _ofport_map(runtime, switch, model)
 
-    port_maps = {
-        switch: _ofport_map(runtime, switch, model)
-        for switch in model.leaves + model.spines
-    }
+    port_maps = dict(bounded_parallel_map(prepare, _switch_dpids(model)))
 
     device_ids = sorted(
         {
@@ -881,10 +905,12 @@ def prune_groups_for_down_link(
 
     rules = build_forwarding_rules(model)
     failed_prefix = rack_prefix(model.leaf_id(leaf))
-    port_maps = {
-        switch: _ofport_map(runtime, switch, model)
-        for switch in model.leaves + model.spines
-    }
+    port_maps = dict(
+        bounded_parallel_map(
+            lambda switch: (switch, _ofport_map(runtime, switch, model)),
+            list(model.leaves + model.spines),
+        )
+    )
     delete_ops: list[tuple[str, str, dict[str, Any] | None]] = []
     expected: set[tuple[str, str, str]] = set()
     for group in rules["groups"]:
@@ -924,23 +950,18 @@ def prune_groups_for_down_link(
     return rules
 
 
+def switch_observation_commands(switch: str) -> dict[str, str]:
+    return {
+        kind: f"ovs-ofctl -O OpenFlow13 dump-{kind} {switch} 2>/dev/null || true"
+        for kind in ("flows", "groups", "ports")
+    }
+
+
 def observed_switch_state(runtime: LabRuntime, switch: str) -> dict[str, str]:
-    flows = _exec(
-        runtime,
-        switch,
-        f"ovs-ofctl -O OpenFlow13 dump-flows {switch} 2>/dev/null || true",
-    )
-    groups = _exec(
-        runtime,
-        switch,
-        f"ovs-ofctl -O OpenFlow13 dump-groups {switch} 2>/dev/null || true",
-    )
-    ports = _exec(
-        runtime,
-        switch,
-        f"ovs-ofctl -O OpenFlow13 dump-ports {switch} 2>/dev/null || true",
-    )
-    return {"flows": flows, "groups": groups, "ports": ports}
+    return {
+        kind: _exec(runtime, switch, command)
+        for kind, command in switch_observation_commands(switch).items()
+    }
 
 
 __all__ = [

@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agent.utils.mcp_client import load_session_mcp_config
+from nika.agents.mcp_config import load_session_mcp_config
 
 pytestmark = pytest.mark.unit
 
@@ -14,6 +14,24 @@ pytestmark = pytest.mark.unit
 @pytest.fixture
 def gateway_url(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NIKA_MCP_GATEWAY_URL", "http://127.0.0.1:9")
+
+
+def test_containerlab_sonic_session_selects_sonic_server(gateway_url: None) -> None:
+    row = {
+        "session_id": "sess-sonic",
+        "scenario_name": "isp_dfn-bwin",
+        "backend": "containerlab",
+        "scenario_params": {"device_profile": "sonic"},
+    }
+    with patch(
+        "nika.utils.session_store.SessionStore.get_session",
+        return_value=row,
+    ):
+        config = load_session_mcp_config("sess-sonic", "isp_dfn-bwin")
+
+    assert "containerlab_sonic_mcp_server" in config
+    assert "containerlab_srl_mcp_server" not in config
+    assert "kathara_frr_mcp_server" not in config
 
 
 def test_containerlab_session_selects_srl_server(gateway_url: None) -> None:

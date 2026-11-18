@@ -4,8 +4,596 @@ failure:
   fault_type: host_ip_conflict
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_1
+      host_name_2: client_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_1
+      host_name_2: web_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_2
+      host_name_2: client_1_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_2
+      host_name_2: web_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_1
+      host_name_2: client_2_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_1
+      host_name_2: web_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+      host_name_2: web_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_1
+      host_name_2: client_3_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_1
+      host_name_2: web_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
+      host_name_2: client_3_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
+      host_name_2: web_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_1
+      host_name_2: client_4_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_1
+      host_name_2: web_4
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_4
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      host_name_2: client_4_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      host_name_2: web_4
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_4
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      host_name_2: client_1_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      host_name_2: client_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: web_2
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_2
+      host_name_2: client_2_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_3
+      host_name_2: client_3_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_3
+      host_name_2: client_3_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_4
+      host_name_2: client_4_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_4
+      host_name_2: client_4_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_1
+      host_name_2: client_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_1
+      host_name_2: client_1_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_1
+      host_name_2: web_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_2
+      host_name_2: client_1_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_2
+      host_name_2: client_1_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_2
+      host_name_2: web_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_3
+      host_name_2: client_1_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_3
+      host_name_2: client_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_3
+      host_name_2: web_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_1
+      host_name_2: client_2_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_1
+      host_name_2: client_2_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_1
+      host_name_2: web_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+      host_name_2: client_2_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+      host_name_2: web_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_3
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_3
+      host_name_2: client_2_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_3
+      host_name_2: web_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_1
+      host_name_2: client_3_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_1
+      host_name_2: client_3_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_1
+      host_name_2: web_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
       host_name_2: client_3_1
     root_causes:
     - resource:
@@ -14,8 +602,2390 @@ failure:
         name: eth0
       fault_type: host_ip_conflict
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
+      host_name_2: client_3_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
+      host_name_2: web_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_3
+      host_name_2: client_3_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_3
+      host_name_2: client_3_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_3
+      host_name_2: web_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_1
+      host_name_2: client_4_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_1
+      host_name_2: client_4_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_1
+      host_name_2: web_4
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_4
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      host_name_2: client_4_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      host_name_2: client_4_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      host_name_2: web_4
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_4
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_3
+      host_name_2: client_4_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_3
+      host_name_2: client_4_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_3
+      host_name_2: web_4
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_4
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_1
+      host_name_2: client_5_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_1
+      host_name_2: client_5_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_1
+      host_name_2: web_5
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_5
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_2
+      host_name_2: client_5_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_2
+      host_name_2: client_5_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_2
+      host_name_2: web_5
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_5
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_3
+      host_name_2: client_5_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_3
+      host_name_2: client_5_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_3
+      host_name_2: web_5
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_5
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_1
+      host_name_2: client_6_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_1
+      host_name_2: client_6_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_1
+      host_name_2: web_6
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_6
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_2
+      host_name_2: client_6_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_2
+      host_name_2: client_6_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_2
+      host_name_2: web_6
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_6
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_3
+      host_name_2: client_6_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_3
+      host_name_2: client_6_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_3
+      host_name_2: web_6
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_6
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_1
+      host_name_2: client_7_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_1
+      host_name_2: client_7_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_1
+      host_name_2: web_7
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_7
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_2
+      host_name_2: client_7_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_2
+      host_name_2: client_7_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_2
+      host_name_2: web_7
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_7
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_3
+      host_name_2: client_7_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_3
+      host_name_2: client_7_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_3
+      host_name_2: web_7
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_7
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_1
+      host_name_2: client_8_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_1
+      host_name_2: client_8_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_1
+      host_name_2: web_8
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_8
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_8_2
+      host_name_2: client_8_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_2
+      host_name_2: client_8_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_2
+      host_name_2: web_8
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_8
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_3
+      host_name_2: client_8_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_3
+      host_name_2: client_8_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_3
+      host_name_2: web_8
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_8
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      host_name_2: client_1_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      host_name_2: client_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      host_name_2: client_1_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_2
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_2
+      host_name_2: client_2_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_2
+      host_name_2: client_2_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_3
+      host_name_2: client_3_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_3
+      host_name_2: client_3_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_3
+      host_name_2: client_3_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_4
+      host_name_2: client_4_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_4
+      host_name_2: client_4_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_4
+      host_name_2: client_4_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_5
+      host_name_2: client_5_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_5
+      host_name_2: client_5_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_5
+      host_name_2: client_5_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_6
+      host_name_2: client_6_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_6
+      host_name_2: client_6_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_6
+      host_name_2: client_6_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_7
+      host_name_2: client_7_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_7
+      host_name_2: client_7_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_7
+      host_name_2: client_7_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_8
+      host_name_2: client_8_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_8
+      host_name_2: client_8_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_8
+      host_name_2: client_8_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_1
+      host_name_2: client_10_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_1
+      host_name_2: client_10_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_1
+      host_name_2: web_10
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_10
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_2
+      host_name_2: client_10_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_2
+      host_name_2: client_10_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_2
+      host_name_2: web_10
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_10
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_3
+      host_name_2: client_10_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_3
+      host_name_2: client_10_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_10_3
+      host_name_2: web_10
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_10
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_11_1
+      host_name_2: client_11_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_11_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_11_1
+      host_name_2: client_11_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_11_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_11_1
+      host_name_2: web_11
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_11
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_11_2
+      host_name_2: client_11_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_11_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_11_2
+      host_name_2: client_11_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_11_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_11_2
+      host_name_2: web_11
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_11
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_11_3
+      host_name_2: client_11_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_11_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_11_3
+      host_name_2: client_11_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_11_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_11_3
+      host_name_2: web_11
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_11
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_12_1
+      host_name_2: client_12_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_12_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_12_1
+      host_name_2: client_12_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_12_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_12_1
+      host_name_2: web_12
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_12
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_12_2
+      host_name_2: client_12_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_12_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_12_2
+      host_name_2: client_12_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_12_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_12_2
+      host_name_2: web_12
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_12
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_12_3
+      host_name_2: client_12_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_12_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_12_3
+      host_name_2: client_12_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_12_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_12_3
+      host_name_2: web_12
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_12
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_13_1
+      host_name_2: client_13_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_13_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_13_1
+      host_name_2: client_13_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_13_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_13_1
+      host_name_2: web_13
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_13
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_13_2
+      host_name_2: client_13_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_13_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_13_2
+      host_name_2: client_13_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_13_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_13_2
+      host_name_2: web_13
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_13
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_13_3
+      host_name_2: client_13_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_13_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_13_3
+      host_name_2: client_13_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_13_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_13_3
+      host_name_2: web_13
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_13
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_1
+      host_name_2: client_14_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_1
+      host_name_2: client_14_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_1
+      host_name_2: web_14
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_14
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_2
+      host_name_2: client_14_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_2
+      host_name_2: client_14_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_2
+      host_name_2: web_14
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_14
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_3
+      host_name_2: client_14_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_3
+      host_name_2: client_14_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_14_3
+      host_name_2: web_14
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_14
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_15_1
+      host_name_2: client_15_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_15_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_15_1
+      host_name_2: client_15_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_15_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_15_1
+      host_name_2: web_15
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_15
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_15_2
+      host_name_2: client_15_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_15_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_15_2
+      host_name_2: client_15_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_15_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_15_2
+      host_name_2: web_15
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_15
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_15_3
+      host_name_2: client_15_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_15_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_15_3
+      host_name_2: client_15_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_15_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_15_3
+      host_name_2: web_15
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_15
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_16_1
+      host_name_2: client_16_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_16_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_16_1
+      host_name_2: client_16_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_16_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_16_1
+      host_name_2: web_16
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_16
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_16_2
+      host_name_2: client_16_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_16_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_16_2
+      host_name_2: client_16_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_16_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_16_2
+      host_name_2: web_16
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_16
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_16_3
+      host_name_2: client_16_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_16_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_16_3
+      host_name_2: client_16_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_16_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_16_3
+      host_name_2: web_16
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_16
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_1
+      host_name_2: client_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_1
+      host_name_2: client_1_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_1
+      host_name_2: web_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_2
+      host_name_2: client_1_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_2
+      host_name_2: client_1_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_2
+      host_name_2: web_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_3
+      host_name_2: client_1_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_3
+      host_name_2: client_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_1_3
+      host_name_2: web_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_1
+      host_name_2: client_2_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_1
+      host_name_2: client_2_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_1
+      host_name_2: web_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+      host_name_2: client_2_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_2
+      host_name_2: web_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_3
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_3
+      host_name_2: client_2_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_2_3
+      host_name_2: web_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_1
+      host_name_2: client_3_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_1
+      host_name_2: client_3_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_1
+      host_name_2: web_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
+      host_name_2: client_3_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
+      host_name_2: client_3_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_2
+      host_name_2: web_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_3
+      host_name_2: client_3_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_3
+      host_name_2: client_3_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_3_3
+      host_name_2: web_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_1
+      host_name_2: client_4_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_1
+      host_name_2: client_4_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_1
+      host_name_2: web_4
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_4
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      host_name_2: client_4_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      host_name_2: client_4_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_2
+      host_name_2: web_4
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_4
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_3
+      host_name_2: client_4_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_3
+      host_name_2: client_4_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_4_3
+      host_name_2: web_4
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_4
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_1
+      host_name_2: client_5_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_1
+      host_name_2: client_5_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_1
+      host_name_2: web_5
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_5
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_2
+      host_name_2: client_5_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_2
+      host_name_2: client_5_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_2
+      host_name_2: web_5
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_5
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_3
+      host_name_2: client_5_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_3
+      host_name_2: client_5_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_5_3
+      host_name_2: web_5
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_5
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_1
+      host_name_2: client_6_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_1
       host_name_2: client_6_3
     root_causes:
     - resource:
@@ -24,12 +2994,1068 @@ failure:
         name: eth0
       fault_type: host_ip_conflict
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: web_15
+      host_name: client_6_1
+      host_name_2: web_6
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_6
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_2
+      host_name_2: client_6_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_2
+      host_name_2: client_6_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_2
+      host_name_2: web_6
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_6
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_3
+      host_name_2: client_6_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_3
+      host_name_2: client_6_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_6_3
+      host_name_2: web_6
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_6
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_1
+      host_name_2: client_7_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_1
+      host_name_2: client_7_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_1
+      host_name_2: web_7
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_7
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_2
+      host_name_2: client_7_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_2
+      host_name_2: client_7_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_2
+      host_name_2: web_7
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_7
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_3
+      host_name_2: client_7_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_3
+      host_name_2: client_7_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_7_3
+      host_name_2: web_7
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_7
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_1
       host_name_2: client_8_2
     root_causes:
     - resource:
         kind: interface
         node: client_8_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_1
+      host_name_2: client_8_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_1
+      host_name_2: web_8
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_8
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_2
+      host_name_2: client_8_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_2
+      host_name_2: client_8_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_2
+      host_name_2: web_8
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_8
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_3
+      host_name_2: client_8_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_3
+      host_name_2: client_8_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_8_3
+      host_name_2: web_8
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_8
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_9_1
+      host_name_2: client_9_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_9_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_9_1
+      host_name_2: client_9_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_9_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_9_1
+      host_name_2: web_9
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_9
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_9_2
+      host_name_2: client_9_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_9_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_9_2
+      host_name_2: client_9_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_9_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_9_2
+      host_name_2: web_9
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_9
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_9_3
+      host_name_2: client_9_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_9_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_9_3
+      host_name_2: client_9_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_9_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client_9_3
+      host_name_2: web_9
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_9
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      host_name_2: client_1_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      host_name_2: client_1_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_1
+      host_name_2: client_1_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_1_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_10
+      host_name_2: client_10_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_10
+      host_name_2: client_10_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_10
+      host_name_2: client_10_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_10_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_11
+      host_name_2: client_11_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_11_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_11
+      host_name_2: client_11_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_11_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_11
+      host_name_2: client_11_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_11_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_12
+      host_name_2: client_12_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_12_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_12
+      host_name_2: client_12_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_12_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_12
+      host_name_2: client_12_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_12_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_13
+      host_name_2: client_13_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_13_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_13
+      host_name_2: client_13_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_13_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_13
+      host_name_2: client_13_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_13_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_14
+      host_name_2: client_14_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_14
+      host_name_2: client_14_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_14
+      host_name_2: client_14_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_14_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_15
+      host_name_2: client_15_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_15_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_15
+      host_name_2: client_15_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_15_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_15
+      host_name_2: client_15_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_15_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_16
+      host_name_2: client_16_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_16_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_16
+      host_name_2: client_16_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_16_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_16
+      host_name_2: client_16_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_16_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_2
+      host_name_2: client_2_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_2
+      host_name_2: client_2_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_2
+      host_name_2: client_2_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_2_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_3
+      host_name_2: client_3_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_3
+      host_name_2: client_3_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_3
+      host_name_2: client_3_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_3_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_4
+      host_name_2: client_4_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_4
+      host_name_2: client_4_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_4
+      host_name_2: client_4_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_4_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_5
+      host_name_2: client_5_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_5
+      host_name_2: client_5_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_5
+      host_name_2: client_5_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_5_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_6
+      host_name_2: client_6_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_6
+      host_name_2: client_6_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_6
+      host_name_2: client_6_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_6_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_7
+      host_name_2: client_7_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_7
+      host_name_2: client_7_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_7
+      host_name_2: client_7_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_7_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_8
+      host_name_2: client_8_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_8
+      host_name_2: client_8_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_8
+      host_name_2: client_8_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_8_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_9
+      host_name_2: client_9_1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_9_1
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_9
+      host_name_2: client_9_2
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_9_2
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: web_9
+      host_name_2: client_9_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_9_3
         name: eth0
       fault_type: host_ip_conflict

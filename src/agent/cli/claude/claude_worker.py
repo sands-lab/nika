@@ -1,51 +1,41 @@
 """Claude Code CLI subprocess adapter for diagnosis/submission phases.
 
 Each ``ClaudeWorker`` instance drives one ``claude -p`` invocation inside an
-isolated, per-session workspace.  It handles:
+isolated, per-session workspace of the agent's sandbox.  It handles:
 
 * **Workspace creation** – ``{session_dir}/claude_workspace/`` (safe to call
   multiple times).
 * **MCP server config** – a per-phase ``{phase}_mcp_config.json`` JSON file is
   written in the workspace, containing only the current phase's servers
-  (:func:`~agent.utils.mcp_client.load_session_mcp_config` with ``phase``).
-* **Session ID propagation** – ``NIKA_SESSION_ID`` is injected into every MCP
-  server's ``env`` block, exactly as :class:`~agent.utils.mcp_servers.MCPServerConfig`
-  does for the LangChain path.
-* **Auth** – environment API key/token (``--bare``) or ``claude auth login``
-  OAuth; see :mod:`agent.cli.claude.config`.
+  (:func:`~agent.utils.mcp_client.session_mcp_config` with ``phase``).
+* **Auth** – environment API key/token (``--bare``) or a subscription token;
+  see :mod:`agent.cli.claude.config`.
 * **Output capture** – the final assistant message is extracted from the
-  ``{"type":"result"}`` stream-json event; all events are logged to the host
-  ``messages.jsonl`` (``trace_dir``, outside the sandbox workspace) and
-  pretty-printed via :func:`~agent.utils.display.display_agent_event`.
-* **Execution** – ``claude`` always runs inside the sbx sandbox
-  (:func:`~agent.sandbox.sbx.exec.exec_in_sandbox`); the worker stays on the host.
+  ``{"type":"result"}`` stream-json event; all events are logged to
+  ``messages.jsonl`` (``trace_dir``) and pretty-printed via
+  :func:`~agent.utils.display.display_agent_event`.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
+from agent.base import max_steps_report
 from agent.cli.claude.config import (
-    custom_model_claude_env,
-    prepare_claude_subprocess_env,
+    claude_env,
+    isolation_args,
     resolve_claude_model,
     use_bare_claude_mode,
 )
-from agent.cli.claude.vllm_shim import new_shim_token, vllm_messages_shim
 from agent.protocols import PHASES
-from agent.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE
-from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
-from agent.sandbox.sbx.policy import allow_mcp_gateway, deny_mcp_gateway
 from agent.utils.loggers import MessageLogger
-from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.provider_env import resolve_custom_api_key
+from agent.utils.mcp_client import mcp_startup_error, session_mcp_config
+from agent.utils.reasoning_effort import map_anthropic_effort
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
-from agent.utils.two_phase import max_steps_report
 
 
 def _build_mcp_json(servers: dict) -> str:
@@ -77,10 +67,9 @@ class ClaudeWorker:
     Parameters
     ----------
     session_id:
-        NIKA session identifier — resolves the session directory and is
-        propagated to MCP servers via ``NIKA_SESSION_ID``.
+        Opaque session handle of the run.
     session_dir:
-        Root of the sandbox workspace (``claude_workspace/`` is created here).
+        Root of the agent workspace (``claude_workspace/`` is created here).
     phase:
         One of :data:`~agent.protocols.PHASES` (``diagnosis`` or ``submission``).
     model:
@@ -88,20 +77,20 @@ class ClaudeWorker:
         requires ``agent.model`` / ``-m`` (see
         :func:`~agent.cli.claude.config.resolve_claude_model`).
     llm_provider:
-        Active LLM provider for credential mapping.
+        Active LLM provider.
     max_steps:
         LLM-turn budget for this phase, passed as ``claude --max-turns``
         (Claude Code counts one turn per model response).
-        The wall-clock budget is ``agent.timeout_sec``, applied to the whole
-        agent run by :func:`~agent.registry.run_agent`.
+        The wall-clock budget of the whole run is enforced by the host.
     scenario_name:
-        Used by :func:`~agent.utils.mcp_servers.select_diagnosis_servers` to pick
-        relevant servers.  Ignored for the submission phase.
+        Scenario of the session (informational).
     trace_dir:
-        Host directory for ``messages.jsonl`` (default: *session_dir*). CLI
-        agents pass the host session dir so the sandbox cannot edit the trace.
+        Directory for ``messages.jsonl`` (default: *session_dir*).
     max_tokens:
         Output-token cap per model response (``CLAUDE_CODE_MAX_OUTPUT_TOKENS``).
+    reasoning_effort:
+        Run reasoning effort, mapped to ``claude --effort``; omitted when unset
+        or ``none``.
     """
 
     def __init__(
@@ -117,6 +106,7 @@ class ClaudeWorker:
         stream_output: bool = True,
         trace_dir: str | None = None,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         if phase not in PHASES:
             raise ValueError(f"phase must be one of {PHASES}, got {phase!r}")
@@ -128,12 +118,16 @@ class ClaudeWorker:
         self.max_steps = max_steps
         self.scenario_name = scenario_name
         self.max_tokens = max_tokens
+        self.reasoning_effort = reasoning_effort
 
         self.session_dir = Path(session_dir)
         self.workspace = self.session_dir / "claude_workspace"
         self._logger = MessageLogger(phase=phase, session_dir=trace_dir or session_dir)
         self._stream_output = stream_output
         self._mcp_config_path: Path | None = None
+        self._required_mcp_servers: set[str] = set()
+        self._mcp_initialized = False
+        self._mcp_error: str | None = None
         self._last_assistant_text = ""
         self._max_turns_reached = False
 
@@ -147,12 +141,10 @@ class ClaudeWorker:
         self._write_mcp_config()
 
     def _write_mcp_config(self) -> None:
-        servers = load_session_mcp_config(
-            self.session_id,
-            self.scenario_name,
-            session_dir=self.session_dir,
-            phase=self.phase,
-        )
+        servers = session_mcp_config(self.phase)
+        self._required_mcp_servers = set(servers)
+        self._mcp_initialized = False
+        self._mcp_error = None
         self._logger.log(
             "mcp_config",
             {"phase": self.phase, "servers": list(servers.keys())},
@@ -165,36 +157,6 @@ class ClaudeWorker:
     # Subprocess invocation
     # ------------------------------------------------------------------
 
-    @contextmanager
-    def _custom_endpoint_shim(self, env: dict[str, str]) -> Iterator[None]:
-        """Route a custom endpoint through the host-side vLLM compatibility shim.
-
-        The sandbox gets a per-phase shim token as its API key; the shim checks
-        it and sends the real ``NIKA_CUSTOM_API_KEY`` (if any) upstream.
-        """
-        upstream = env.get("ANTHROPIC_BASE_URL", "").strip()
-        if self.llm_provider != "custom" or not upstream:
-            yield
-            return
-        sandbox = sandbox_name_from_env()
-        token = new_shim_token()
-        # The microVM reaches the host bridge, not host loopback; the token
-        # keeps other clients on that interface out.
-        with vllm_messages_shim(
-            upstream,
-            bind_host="0.0.0.0",
-            token=token,
-            api_key=resolve_custom_api_key(),
-        ) as port:
-            env["ANTHROPIC_BASE_URL"] = f"http://{SANDBOX_GATEWAY_HOST_BRIDGE}:{port}"
-            env["ANTHROPIC_API_KEY"] = token
-            env["ANTHROPIC_AUTH_TOKEN"] = token
-            allow_mcp_gateway(sandbox_name=sandbox, port=port)
-            try:
-                yield
-            finally:
-                deny_mcp_gateway(sandbox_name=sandbox, port=port)
-
     async def run(self, prompt: str) -> str:
         """Execute ``claude -p`` and return the final assistant message.
 
@@ -204,15 +166,11 @@ class ClaudeWorker:
         """
         self._setup_workspace()
 
-        env = prepare_claude_subprocess_env(provider=self.llm_provider)
-        if self.llm_provider == "custom":
-            env.update(custom_model_claude_env(self.model))
-        if self.max_tokens is not None:
-            env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(self.max_tokens)
+        env = {**os.environ, **claude_env(max_tokens=self.max_tokens)}
         # API-key / token mode needs --bare so Claude uses env credentials
-        # (including set-custom placeholders) instead of prompting for /login.
+        # (including credential placeholders) instead of prompting for /login.
         # Subscription / OAuth mode must not use --bare.
-        bare = use_bare_claude_mode(provider=self.llm_provider)
+        bare = use_bare_claude_mode()
 
         assert self._mcp_config_path is not None
         cmd = [
@@ -225,6 +183,7 @@ class ClaudeWorker:
             "--dangerously-skip-permissions",
             "--mcp-config",
             str(self._mcp_config_path),
+            *isolation_args(),
             "--model",
             self.model,
             "--max-turns",
@@ -233,6 +192,9 @@ class ClaudeWorker:
             "stream-json",
             "--verbose",
         ]
+        effort = map_anthropic_effort(self.reasoning_effort)
+        if effort is not None:
+            cmd += ["--effort", effort]
         if skills_enabled():
             cmd += ["--setting-sources", "project"]
         cmd.append(prompt)
@@ -243,18 +205,26 @@ class ClaudeWorker:
             {"command": " ".join(cmd[:6] + ["..."]), "phase": self.phase},
         )
 
-        with self._custom_endpoint_shim(env):
-            try:
-                proc = await exec_in_sandbox(cmd, env=env, cwd=str(self.workspace))
-                returncode, final_result, stderr_text = await self._stream_subprocess(
-                    proc
-                )
-            except FileNotFoundError:
-                self._logger.log(
-                    "subprocess_error", {"error": "sbx binary not found in PATH"}
-                )
-                return "ERROR: 'sbx' not found in PATH — is Docker Sandboxes installed?"
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                env=env,
+                cwd=str(self.workspace),
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                limit=8 * 1024 * 1024,
+            )
+            returncode, final_result, stderr_text = await self._stream_subprocess(proc)
+        except FileNotFoundError:
+            self._logger.log("subprocess_error", {"error": "claude not found in PATH"})
+            return "ERROR: 'claude' not found in PATH"
 
+        if returncode == 0 and self._required_mcp_servers and not self._mcp_initialized:
+            self._mcp_error = "Claude did not report MCP initialization status"
+        if self._mcp_error:
+            self._logger.log("mcp_connection_error", {"error": self._mcp_error})
+            return f"ERROR: {self._mcp_error}"
         if self._max_turns_reached:
             return max_steps_report(
                 self._logger,
@@ -310,7 +280,7 @@ class ClaudeWorker:
                 try:
                     line_bytes = await proc.stdout.readline()
                 except asyncio.CancelledError:
-                    # agent.timeout_sec expired: stop claude before unwinding.
+                    # The run was cancelled: stop claude before unwinding.
                     proc.kill()
                     await proc.wait()
                     raise
@@ -320,6 +290,10 @@ class ClaudeWorker:
 
                 raw = line_bytes.decode("utf-8", errors="replace").rstrip("\n")
                 result = self._handle_stdout_line(raw)
+                if self._mcp_error:
+                    if proc.returncode is None:
+                        proc.kill()
+                    break
                 if result is not None:
                     final_result = result
         finally:
@@ -351,6 +325,12 @@ class ClaudeWorker:
             self._logger.log(
                 event.get("type", "claude_event"),
                 {"claude_event": event},
+            )
+
+        if event.get("type") == "system" and event.get("subtype") == "init":
+            self._mcp_initialized = True
+            self._mcp_error = mcp_startup_error(
+                event.get("mcp_servers") or [], self._required_mcp_servers
             )
 
         if event.get("type") == "assistant":

@@ -10,13 +10,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from nika.benchmark_engine.protocol import TaskInfo
 from nika.evaluator.result_log import MESSAGES_FILENAME
-from nika.evaluator.trace_parser import AgentTraceParser
-from nika.utils.session_artifacts import (
-    update_run_json,
-    write_json_atomic,
-)
+from nika.traffic.profiles import normalize_traffic
+from nika.utils.session_artifacts import update_run_json
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
+from nika.workflows.benchmark.provenance import schema_version_of
 from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
     KNOWN_OUTCOMES,
@@ -95,6 +94,11 @@ def _inject_label_parts(inject: Any) -> list[str]:
 
 def format_trial_label(row: dict[str, Any], *, trial_index: int) -> str:
     """Human-facing trial id: scenario/problem, size, inject, tNN."""
+    return f"{task_label(row)} t{trial_index:02d}"
+
+
+def task_label(row: dict[str, Any]) -> str:
+    """Human-facing task label: scenario/problem, size, inject."""
     scenario = str(row.get("scenario") or "?")
     problem = str(row.get("problem") or "?")
     bits = [f"{scenario}/{problem}"]
@@ -102,7 +106,8 @@ def format_trial_label(row: dict[str, Any], *, trial_index: int) -> str:
     if topo != "":
         bits.append(str(topo))
     bits.extend(_inject_label_parts(row.get("inject")))
-    bits.append(f"t{trial_index:02d}")
+    if row.get("schedule") is not None:
+        bits.append(f"schedule={case_key_for_row(row).rsplit('__h', 1)[-1]}")
     return " ".join(bits)
 
 
@@ -132,12 +137,16 @@ def case_key_for_row(row: dict[str, Any]) -> str:
             parts.append(sanitize_token(str(value)))
     if identity.get("rpki"):
         parts.append("rpki")
+    parts.extend(sanitize_token(kind) for kind in identity.get("telemetry", []))
+    profile = normalize_traffic(identity.get("traffic"))
+    if profile:
+        parts.append(sanitize_token(f"traffic-{profile.label()}"))
     base = "__".join(parts)
     inject_parts = _inject_case_key_parts(identity.get("inject"))
     full = "__".join([base, *inject_parts])
     # Keep trial directory names short for nested runtime paths. Retain the
     # readable scenario/problem prefix and hash the full identity when needed.
-    if len(full) + 5 <= 48:
+    if len(full) + 5 <= 48 and row.get("schedule") is None:
         return full
     digest = hashlib.sha1(benchmark_row_fingerprint(row).encode("utf-8")).hexdigest()[
         :12
@@ -206,6 +215,12 @@ def task_catalog_entry(row: dict[str, Any]) -> dict[str, Any]:
             entry[key] = value
     if row.get("rpki"):
         entry["rpki"] = True
+    if row.get("telemetry"):
+        entry["telemetry"] = list(row["telemetry"])
+    if row.get("traffic"):
+        entry["traffic"] = dict(row["traffic"])
+    if row.get("schedule") is not None:
+        entry["schedule"] = row["schedule"]
     return entry
 
 
@@ -269,16 +284,25 @@ def trial_dir(result_dir: Path, case_key: str, trial_index: int) -> Path:
 
 @dataclass(frozen=True)
 class Trial:
-    """One deterministic (case, trial_index) execution unit."""
+    """One deterministic (case, trial_index) execution unit.
+
+    A release trial carries its benchmark engine's ``task`` and no ``row``,
+    except with Firecracker execution, which needs the row for lab images.
+    Other trials carry the task row they send to the engine.
+    """
 
     case_index: int
     trial_index: int
-    row: dict[str, Any]
+    row: dict[str, Any] | None
     case_key: str
     trial_id: str
+    task: TaskInfo | None = None
 
     @property
     def label(self) -> str:
+        if self.task is not None:
+            return f"{self.task.label} t{self.trial_index:02d}"
+        assert self.row is not None
         return format_trial_label(self.row, trial_index=self.trial_index)
 
 
@@ -291,23 +315,44 @@ def expand_trials(
     The benchmark runner schedules from this list, so round 1 finishes across
     cases before round 2 starts (subject to ``batch_size`` / admission).
     """
+    return _expand(
+        [(case_key_for_row(row), row, None) for row in rows], n_trials=n_trials
+    )
+
+
+def expand_task_trials(
+    tasks: list[TaskInfo],
+    n_trials: int,
+    *,
+    rows: dict[str, dict[str, Any]] | None = None,
+) -> list[Trial]:
+    """Expand a release's tasks × trials in the order of ``expand_trials``.
+
+    *rows* maps task IDs to rows when the trials need them.
+    """
+    return _expand(
+        [(task.task_id, (rows or {}).get(task.task_id), task) for task in tasks],
+        n_trials=n_trials,
+    )
+
+
+def _expand(
+    cases: list[tuple[str, dict[str, Any] | None, TaskInfo | None]], *, n_trials: int
+) -> list[Trial]:
     if n_trials < 1:
         raise ValueError("n_trials must be >= 1")
-    trials: list[Trial] = []
-    for trial_index in range(1, n_trials + 1):
-        for case_index, row in enumerate(rows):
-            case_key = case_key_for_row(row)
-            trial_id = trial_dirname(case_key, trial_index)
-            trials.append(
-                Trial(
-                    case_index=case_index,
-                    trial_index=trial_index,
-                    row=row,
-                    case_key=case_key,
-                    trial_id=trial_id,
-                )
-            )
-    return trials
+    return [
+        Trial(
+            case_index=case_index,
+            trial_index=trial_index,
+            row=row,
+            case_key=case_key,
+            trial_id=trial_dirname(case_key, trial_index),
+            task=task,
+        )
+        for trial_index in range(1, n_trials + 1)
+        for case_index, (case_key, row, task) in enumerate(cases)
+    ]
 
 
 def select_trials(trials: list[Trial], selectors: list[str]) -> list[Trial]:
@@ -357,6 +402,11 @@ def has_valid_submission(session_dir: str | Path) -> bool:
     ``success`` regardless of what happened afterwards (agent timeout during
     teardown, sandbox cleanup error, worker kill before metrics).
     """
+    status_path = Path(session_dir) / "schedule-status.json"
+    if status_path.exists():
+        status = _read_json(status_path)
+        if not status or not status.get("completed") or status.get("error"):
+            return False
     return _read_json(Path(session_dir) / "submission.json") is not None
 
 
@@ -406,6 +456,16 @@ def trial_outcome(session_dir: str | Path) -> str | None:
     return str(outcome) if outcome else None
 
 
+def trial_ready(session_dir: str | Path) -> bool:
+    """True once the engine's ``begin`` returned: the agent got a valid task.
+
+    The trial loop records ``ready`` in ``run.json``, so a parent process can
+    triage a worker that died without reading the engine's ground truth.
+    """
+    run_meta = _read_json(Path(session_dir) / "run.json")
+    return bool(run_meta and run_meta.get("ready") is True)
+
+
 def is_finalized_failure(session_dir: str | Path) -> bool:
     """True when the worker already stamped a known failure outcome.
 
@@ -417,33 +477,33 @@ def is_finalized_failure(session_dir: str | Path) -> bool:
 
 
 def _restore_success_eval_metrics(path: Path) -> bool:
-    """Rebuild metrics for a solved trial interrupted before evaluation finished."""
-    from nika.workflows.eval.session import build_eval_metrics_payload
+    """Score a solved trial interrupted before its metrics were written.
+
+    The run's benchmark engine grades it, as it grades every trial.
+    """
+    from nika.benchmark_engine import benchmark_engine
+    from nika.benchmark_engine.protocol import TrialHandle
+    from nika.workflows.eval.session import score_trial
 
     metrics_path = path / "eval_metrics.json"
     if metrics_path.is_file():
         return True
 
-    gt = _read_json(path / "ground_truth.json")
-    submission = _read_json(path / "submission.json")
-    trajectory_path = path / MESSAGES_FILENAME
-    if gt is None or submission is None or not trajectory_path.is_file():
+    session_id = (_read_json(path / "run.json") or {}).get("session_id")
+    if (
+        not session_id
+        or not has_valid_submission(path)
+        or not (path / MESSAGES_FILENAME).is_file()
+    ):
         return False
-
     try:
-        trace_metrics = AgentTraceParser(trace_path=str(trajectory_path)).parse_trace()
-    except (json.JSONDecodeError, OSError, TypeError, ValueError):
-        trace_metrics = {}
-    payload, _status = build_eval_metrics_payload(
-        gt=gt,
-        submission=submission,
-        trace_metrics=trace_metrics,
-    )
-    try:
-        write_json_atomic(metrics_path, payload)
-    except OSError:
+        score_trial(
+            benchmark_engine(),
+            TrialHandle(session_id=str(session_id), trial_dir=str(path)),
+        )
+    except Exception:  # noqa: BLE001 - the slot stays incomplete and reruns
         return False
-    return True
+    return metrics_path.is_file()
 
 
 def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> bool:
@@ -504,10 +564,9 @@ def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> boo
 
     from nika.evaluator.score_status import infer_score_status_from_artifacts
 
+    # The agent got a turn, so the trial was ready and has a task to score.
     score_status = infer_score_status_from_artifacts(
-        has_submission=submitted,
-        run_meta=run_meta,
-        has_ground_truth=(path / "ground_truth.json").is_file(),
+        has_submission=submitted, run_meta=run_meta
     )
 
     def _stamp(meta: dict[str, Any]) -> None:
@@ -690,10 +749,14 @@ _RUN_IDENTITY_FIELDS = (
     "case_timeout_sec",
     "official",
     "reasoning_effort",
+    "sampling",
     "agent_timeout_sec",
     "access_role",
+    "submission",
 )
 _GIT_FIELDS = ("nika_git_commit", "nika_git_dirty")
+# Identity of runs recorded before the field existed.
+_IDENTITY_DEFAULTS = {"submission": {"mode": "structured"}}
 
 
 def run_config_identity(job: dict[str, Any]) -> dict[str, Any]:
@@ -706,8 +769,11 @@ def assert_run_config_compatible(
     """Refuse resume when run identity fields diverge.
 
     Fields absent from ``existing`` (runs recorded before the field was part of
-    the identity) are not compared; ``merge_run_config`` backfills them.
+    the identity) are not compared unless ``_IDENTITY_DEFAULTS`` names the
+    behavior those runs had; ``merge_run_config`` backfills them.
     """
+    defaults = {k: v for k, v in _IDENTITY_DEFAULTS.items() if k in proposed}
+    existing = {**defaults, **existing}
     old = run_config_identity(existing)
     new = run_config_identity(proposed)
     mismatches = [
@@ -715,6 +781,13 @@ def assert_run_config_compatible(
         for key in _RUN_IDENTITY_FIELDS
         if key in existing and old.get(key) != new.get(key)
     ]
+    if "schema_version" in proposed:
+        recorded = schema_version_of(existing)
+        if recorded != proposed["schema_version"]:
+            mismatches.append(
+                f"schema_version: existing={recorded!r} "
+                f"requested={proposed['schema_version']!r}"
+            )
     if mismatches:
         raise ValueError(
             "Existing run under this --result_dir does not match the "
@@ -731,8 +804,9 @@ def merge_run_config(
 ) -> dict[str, Any]:
     """Keep stable ``run_id`` / timestamps on resume; refresh updated_at.
 
-    ``nika_git_commit`` / ``nika_git_dirty`` track the latest launch, and
-    ``nika_git_history`` keeps every distinct commit the run was resumed from.
+    Git fields track the latest launch; ``nika_git_history`` keeps each
+    distinct commit and dirty state on resume.
+    ``provenance`` and ``provenance_history`` do the same for run provenance.
     """
     now = _utc_now_iso()
     if existing is None:
@@ -743,9 +817,26 @@ def merge_run_config(
         out["updated_at"] = now
         if any(key in proposed for key in _GIT_FIELDS):
             out["nika_git_history"] = [_git_entry(proposed, now)]
+        if "provenance" in proposed:
+            out["provenance_history"] = [{**proposed["provenance"], "recorded_at": now}]
         return out
 
     assert_run_config_compatible(existing, proposed)
+    changed = [
+        key
+        for key in (*_GIT_FIELDS, "provenance")
+        if key in existing and key in proposed and existing[key] != proposed[key]
+    ]
+    if existing.get("nika_git_dirty") or proposed.get("nika_git_dirty"):
+        if "nika_git_dirty" not in changed:
+            changed.append("nika_git_dirty")
+    if changed:
+        print(
+            "WARNING: resuming this run with changed or incomplete source/runtime provenance "
+            f"({', '.join(changed)}). Completed trials are retained; new trials "
+            "use the current launch. Review nika_git_history and provenance_history "
+            "before comparing or publishing results."
+        )
     out = dict(existing)
     out["updated_at"] = now
     for key in _RUN_IDENTITY_FIELDS:
@@ -763,12 +854,26 @@ def merge_run_config(
         for key in _GIT_FIELDS:
             if key in proposed:
                 out[key] = proposed[key]
+    if "schema_version" in proposed:
+        out["schema_version"] = proposed["schema_version"]
+    if "provenance" in proposed:
+        history = list(out.get("provenance_history") or [])
+        if not history and existing.get("provenance"):
+            history.append(
+                {**existing["provenance"], "recorded_at": existing.get("created_at")}
+            )
+        last = dict(history[-1]) if history else None
+        if last is not None:
+            last.pop("recorded_at", None)
+        if last != proposed["provenance"]:
+            history.append({**proposed["provenance"], "recorded_at": now})
+        out["provenance_history"] = history
+        out["provenance"] = proposed["provenance"]
     return out
 
 
 def _git_entry(job: dict[str, Any], recorded_at: Any) -> dict[str, Any]:
     return {
-        "nika_git_commit": job.get("nika_git_commit"),
-        "nika_git_dirty": job.get("nika_git_dirty"),
+        **{key: job.get(key) for key in _GIT_FIELDS},
         "recorded_at": recorded_at,
     }

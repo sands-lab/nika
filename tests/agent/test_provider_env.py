@@ -1,20 +1,16 @@
-"""Unit tests for provider credential mapping and subprocess allowlists."""
+"""Unit tests for provider credential mapping."""
 
 from __future__ import annotations
 
-import os
 import warnings
-from unittest.mock import patch
 
 import pytest
 
-from agent.utils.provider_env import (
+from nika.agents.provider_env import (
     CUSTOM_UNAUTHENTICATED_API_KEY,
     DEEPSEEK_ANTHROPIC_BASE_URL,
     DEEPSEEK_OPENAI_BASE_URL,
-    build_agent_subprocess_env,
     map_provider_credentials,
-    provider_env_context,
     resolve_custom_base_url,
     validate_provider_for_agent,
 )
@@ -88,6 +84,61 @@ def test_deepseek_maps_to_openai_compat_for_langgraph() -> None:
     assert "ANTHROPIC_API_KEY" not in mapped
 
 
+def test_openai_maps_gateway_base_url() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.opencode",
+        provider="openai",
+        sources={
+            "OPENAI_API_KEY": "sk-test",
+            "OPENAI_BASE_URL": "http://lb.example/v1",
+        },
+    )
+    assert mapped["OPENAI_API_KEY"] == "sk-test"
+    assert mapped["OPENAI_BASE_URL"] == "http://lb.example/v1"
+
+
+def test_deepseek_honors_gateway_base_url() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.dsh",
+        provider="deepseek",
+        sources={
+            "DEEPSEEK_API_KEY": "sk-ds",
+            "DEEPSEEK_BASE_URL": "http://lb.example/v1",
+        },
+    )
+    assert mapped["DEEPSEEK_API_KEY"] == "sk-ds"
+    assert mapped["OPENAI_API_KEY"] == "sk-ds"
+    assert mapped["OPENAI_BASE_URL"] == "http://lb.example/v1"
+
+
+def test_deepseek_gateway_strips_v1_for_anthropic_family() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.claude",
+        provider="deepseek",
+        sources={
+            "DEEPSEEK_API_KEY": "sk-ds",
+            "DEEPSEEK_BASE_URL": "http://gateway.example/v1",
+        },
+    )
+    assert mapped["ANTHROPIC_BASE_URL"] == "http://gateway.example"
+
+
+def test_process_env_overlays_openai_gateway(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.agents.sandbox.config import load_credential_sources
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("OPENAI_API_KEY=from-file\n", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY", "from-proc")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://lb.example/v1")
+    sources = load_credential_sources(
+        env_file, provider="openai", agent_type="cli.opencode"
+    )
+    assert sources["OPENAI_API_KEY"] == "from-proc"
+    assert sources["OPENAI_BASE_URL"] == "http://lb.example/v1"
+
+
 def test_deepseek_maps_to_anthropic_compat_for_claude() -> None:
     mapped = map_provider_credentials(
         agent_type="cli.claude",
@@ -155,73 +206,9 @@ def test_custom_openai_compat_maps_key() -> None:
     assert mapped["OPENAI_BASE_URL"] == "https://openrouter.ai/api/v1"
 
 
-def test_subprocess_env_excludes_forbidden_and_unused_keys() -> None:
-    host = {
-        "PATH": "/usr/bin",
-        "HOME": "/tmp",
-        "OPENAI_API_KEY": "sk-openai",
-        "DEEPSEEK_API_KEY": "sk-ds",
-        "ANTHROPIC_API_KEY": "sk-ant",
-        "LANGFUSE_SECRET_KEY": "lf-secret",
-        "NIKA_REMOTE_TOKEN": "remote-tok",
-        "NIKA_SESSION_ID": "sess-1",
-    }
-    env = build_agent_subprocess_env(
-        agent_type="cli.claude",
-        provider="deepseek",
-        base=host,
-    )
-    assert env["ANTHROPIC_API_KEY"] == "sk-ds"
-    assert env["DEEPSEEK_API_KEY"] == "sk-ds"
-    assert "OPENAI_API_KEY" not in env
-    assert "LANGFUSE_SECRET_KEY" not in env
-    assert "NIKA_REMOTE_TOKEN" not in env
-    assert env["NIKA_SESSION_ID"] == "sess-1"
-
-
 def test_deprecated_custom_api_base_warns() -> None:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         url = resolve_custom_base_url({"CUSTOM_API_BASE": "http://old/v1"})
     assert url == "http://old/v1"
     assert any(issubclass(w.category, DeprecationWarning) for w in caught)
-
-
-def test_provider_env_context_restores_os_environ() -> None:
-    with patch.dict(
-        os.environ,
-        {
-            "OPENAI_API_KEY": "sk-openai",
-            "DEEPSEEK_API_KEY": "sk-ds",
-            "LANGFUSE_SECRET_KEY": "lf",
-        },
-        clear=False,
-    ):
-        before_openai = os.environ["OPENAI_API_KEY"]
-        with provider_env_context(agent_type="byo.autogen", provider="deepseek"):
-            assert os.environ["OPENAI_API_KEY"] == "sk-ds"
-            assert os.environ["OPENAI_BASE_URL"] == DEEPSEEK_OPENAI_BASE_URL
-            assert (
-                "NIKA_LLM_PROVIDER" not in os.environ
-                or os.environ.get("NIKA_LLM_PROVIDER") != "deepseek"
-            )
-        assert os.environ["OPENAI_API_KEY"] == before_openai
-
-
-def test_provider_env_context_sets_anthropic_for_byo() -> None:
-    with patch.dict(
-        os.environ,
-        {
-            "ANTHROPIC_API_KEY": "sk-ant",
-            "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
-            "OPENAI_API_KEY": "sk-openai",
-        },
-        clear=False,
-    ):
-        with provider_env_context(agent_type="byo.mcp_agent", provider="anthropic"):
-            assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant"
-            assert (
-                os.environ["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
-            )
-            assert "OPENAI_API_KEY" not in os.environ
-            assert os.environ.get("NIKA_LLM_PROVIDER") != "anthropic"

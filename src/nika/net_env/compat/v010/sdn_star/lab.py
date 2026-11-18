@@ -26,6 +26,8 @@ _CONTROLLER = {"image": nika_image("pox"), "cpus": 0.5, "mem": "256m", "bridged"
 
 class SDNStar(NetworkEnvBase):
     LAB_NAME = "sdn_star"
+    # Keep the published 0.1.0 lab state; its faults re-run /hostlab startups.
+    SEAL_BASELINE = False
     TOPO_LEVEL = "easy"
     TOPO_SIZE = ["s", "m", "l"]
     TAGS = ["link", "sdn", "pc", "mac", "arp", "icmp"]

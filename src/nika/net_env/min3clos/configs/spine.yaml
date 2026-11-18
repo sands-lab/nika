@@ -28,9 +28,11 @@ srl_nokia-interfaces:interface:
     subinterface:
       - index: 0
         ipv4:
+          admin-state: enable
           address:
             - ip-prefix: 30.0.0.3/32
         ipv6:
+          admin-state: enable
           address:
             - ip-prefix: 3000:30::3/128
 

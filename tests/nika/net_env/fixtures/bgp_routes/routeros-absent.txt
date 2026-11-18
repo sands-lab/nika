@@ -1,0 +1,3 @@
+Flags: X - disabled, F - filtered, U - unreachable, A - active;
+c - connect, s - static, r - rip, b - bgp, n - bgp-net, o - ospf, i - isis, d - dhcp, v - vpn, m - modem, a - ldp-address, l - ldp-mapping, g - slaac, y - bgp-mpls-vpn, e - evpn;
+H - hw-offloaded; + - ecmp, B - blackhole

@@ -177,7 +177,7 @@ def test_submit_hf_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
         return HfPullRequestResult(
             repo_id=kwargs["repo_id"],
             remote_path=kwargs["path_in_repo"],
-            pr_url="https://huggingface.co/datasets/Zhihao98/nika-trajectories/discussions/7",
+            pr_url="https://huggingface.co/datasets/nika-bench/nika-trajectories/discussions/7",
             pr_num=7,
         )
 
@@ -298,6 +298,7 @@ def test_submit_direct_push_opens_pr(
     assert branches == ["submission/20260101_unit_agent"]
     assert pushes == ["submission/20260101_unit_agent"]
     assert prs[0]["draft"] is True
+    assert prs[0]["labels"] == ("leaderboard-submit",)
     assert prs[0]["head"] == "submission/20260101_unit_agent"
     dest = cloned["dest"] / result.remote_path
     assert (dest / "metadata.yaml").is_file()

@@ -18,23 +18,42 @@ import yaml
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
-from nika.config import REPO_ROOT, RUNTIME_DIR
+from nika.config import CACHE_DIR, RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.utils.k8s_traffic_pods import K8sTrafficPods
 from nika.net_env.utils.k8s_workload_cache import (
-    K3S_IMAGE,
+    K3S_NODE_IMAGE,
     K3S_SYSTEM_IMAGES,
     mount_workload_cache,
 )
 from nika.runtime.spec import NodeRole
+from nika.traffic.workload import (
+    BULK_DOWNLOAD,
+    BusinessWorkload,
+    WorkloadExercise,
+    WorkloadProcess,
+)
 from nika.utils.net import pick_free_port
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
-_K3S_IMAGE = K3S_IMAGE
+_K3S_IMAGE = K3S_NODE_IMAGE
 _BASE_IMAGE = nika_image("base")
 
+# Per-node monitoring agent (``controller/k8s/uptime-agent.yaml``).
+_AGENT_IMAGE = "busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092"
+
+# Python 3 for background traffic programs on the k3s nodes.
+_TRAFFIC_IMAGE = "python:3.12-alpine@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8"
+
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
+
+INFERENCE_CHAT_URL = "http://llmd/v1/chat/completions"
+INFERENCE_CHAT_BODY = (
+    '{"model":"llm-d-sim","max_tokens":16,'
+    '"messages":[{"role":"user","content":"Summarize the weekly report."}]}'
+)
 
 _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
 _HELM_VERSION = "v3.21.3"
@@ -65,7 +84,7 @@ _HELM_CHART_SPECS = (
 
 def _ensure_helm_binary() -> Path:
     """Download Helm on the host (k3s busybox wget has no HTTPS) and stage it for Kathara."""
-    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / _HELM_VERSION
+    cache_dir = CACHE_DIR / "helm" / _HELM_VERSION
     helm_bin = cache_dir / f"helm-{_HELM_ARCHITECTURE}"
     if helm_bin.is_file() and os.access(helm_bin, os.X_OK):
         return helm_bin
@@ -99,7 +118,7 @@ def ensure_helm_charts() -> list[Path]:
     """Download AgentGateway Helm charts on the host and return cached tgz paths."""
     import subprocess
 
-    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / "charts"
+    cache_dir = CACHE_DIR / "helm" / "charts"
     cache_dir.mkdir(parents=True, exist_ok=True)
     helm_bin = _ensure_helm_binary()
     chart_paths: list[Path] = []
@@ -141,7 +160,7 @@ def ensure_helm_charts() -> list[Path]:
     return chart_paths
 
 
-class LLMDInferenceCluster(NetworkEnvBase):
+class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
     LAB_NAME = "llmd_lab"
     K8S_HOST_IMAGES = (_K3S_IMAGE, _BASE_IMAGE)
     K8S_WORKLOAD_IMAGES = (
@@ -156,7 +175,11 @@ class LLMDInferenceCluster(NetworkEnvBase):
         # with the same release tag.
         "cr.agentgateway.dev/controller:v1.1.0@sha256:0c4179780a3353a20f403ed51c764127f2806b6aa1a5ecb6da7655b5b27d7926",
         "cr.agentgateway.dev/agentgateway:v1.1.0@sha256:b5fd647604aa37eb2da372206a6681dfd613461e2445d89ba0b80e8439a4ff29",
+        _AGENT_IMAGE,
+        _TRAFFIC_IMAGE,
     )
+    # Runs background traffic programs on the k3s nodes.
+    TRAFFIC_POD_IMAGE = _TRAFFIC_IMAGE
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 2
     TOPO_LEVEL = "hard"
@@ -173,7 +196,22 @@ class LLMDInferenceCluster(NetworkEnvBase):
         self.desc = (
             "A star-topology Kubernetes (k3s) cluster running llm-d with disaggregated "
             "Prefill/Decode inference. All workload images are prepared on the host; "
-            "uses Gateway API and inference extensions."
+            "uses Gateway API and inference extensions. "
+            "The client sends inference requests to the llm-d gateway and pulls "
+            "a dataset from the web server at all times, and a monitoring agent "
+            "on every k3s node sends requests to the gateway through its "
+            "Service name. Hosts resolve lab names (client, web, controller, "
+            "workers, llmd) through static /etc/hosts entries; the lab runs no "
+            "DNS server for lab names (cluster DNS serves pods only). "
+            "The gateway address (llmd) is a MetalLB Layer 2 LoadBalancer IP "
+            "that kube-proxy serves on TCP port 80 only, so ping to it gets "
+            "no echo reply, only ICMP redirects; test it over HTTP. "
+            # kubectl is only usable on the k3s server. Resource ids use device names or Kubernetes objects.
+            "`kubectl` works only on controller (the k3s server); the worker "
+            "devices ship the binary but have no kubeconfig. Resources are lab "
+            "devices (identified by device name) or Kubernetes objects "
+            "(identified by kind, namespace and name, as listed in the "
+            "resource inventory)."
         )
         self.kubernetes_nodes = []
 
@@ -191,10 +229,12 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
         # Keepalive until device startup signals networking is ready, then exec
         # k3s as PID1 (avoids bridge/default-route race and cgroupv2 issues; #38).
-        _k3s_wait = "while [ ! -f /var/run/nika-net-ready ]; do sleep 1; done; "
+        _k3s_wait = "while [ ! -f /var/run/net-ready ]; do sleep 1; done; "
+        # Join and advertise the same lab address during agent bootstrap.
         _k3s_server = (
             "server --disable servicelb --disable traefik --write-kubeconfig-mode 644 "
-            "--disable-default-registry-endpoint"
+            "--disable-default-registry-endpoint "
+            "--advertise-address 200.0.0.1 --tls-san 200.0.0.1"
         )
         for name, (links, is_controller) in _k3s_machines.items():
             m = self.lab.new_machine(name, **{"image": _K3S_IMAGE})
@@ -205,6 +245,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
                     NodeRole.CONTROLLER if is_controller else NodeRole.INFRASTRUCTURE
                 ),
                 capabilities=("linux", "k3s"),
+                reachability_target=True,
             )
             m.add_meta("privileged", True)
             m.add_meta("bridged", True)
@@ -230,7 +271,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
                     "args",
                     f'-c "{_k3s_wait}exec /bin/k3s agent --disable-default-registry-endpoint"',
                 )
-                m.add_meta("env", "K3S_URL=https://controller:6443")
+                m.add_meta("env", "K3S_URL=https://200.0.0.1:6443")
                 m.add_meta("env", "K3S_TOKEN=secret")
             for link in links:
                 self.lab.connect_machine_to_link(name, link)
@@ -249,8 +290,8 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
         # Dedicated HTTP endpoint for application-layer faults (separate from
         # the probe client so CPU-quota injects do not starve curl itself).
-        # nika/base includes stress-ng; pin NanoCpus at create time so recover
-        # can restore a non-zero quota (Docker ignores NanoCpus:0 clears).
+        # Pin NanoCpus at create time so recover can restore a non-zero quota
+        # (Docker ignores NanoCpus:0 clears).
         web = self.lab.new_machine(
             "web", **{"image": nika_image("base"), "cpus": 1.0, "mem": "512m"}
         )
@@ -265,7 +306,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
         all_machines["controller"].create_file_from_path(
             str(Path(__file__).resolve().parent.parent / "utils" / "k8s_bootstrap.sh"),
-            "/nika-bootstrap.sh",
+            "/lab-bootstrap.sh",
         )
 
         # Load per-machine configuration directories and startup scripts
@@ -335,6 +376,57 @@ class LLMDInferenceCluster(NetworkEnvBase):
             "controllers": roles["k8s_controllers"],
             "l2_endpoints": sorted(clients, key=lambda h: h != "client"),
         }
+
+    def http_backend_request(self, url: str) -> dict[str, str]:
+        """The user-facing inference request that depends on the gateway picker."""
+        del url
+        return {
+            "method": "POST",
+            "url": INFERENCE_CHAT_URL,
+            "body": INFERENCE_CHAT_BODY,
+            "content_type": "application/json",
+            "success_contains": "choices",
+        }
+
+    def business_workload(self) -> BusinessWorkload:
+        # The client app talks to the gateway VIP and syncs a dataset from the
+        # web server; the in-cluster monitoring agents
+        # (``controller/k8s/uptime-agent.yaml``) reach the gateway through
+        # cluster DNS. The dataset transfers run from the web server to the
+        # client, so a starved sender or receiver slows them.
+        return BusinessWorkload(
+            processes=(
+                WorkloadProcess(
+                    node="client",
+                    app="api_client",
+                    command="chat-app",
+                    args=(
+                        INFERENCE_CHAT_URL,
+                        "--body",
+                        INFERENCE_CHAT_BODY,
+                        "--workers",
+                        "2",
+                        "--every",
+                        "4-10",
+                        "--seed",
+                        "1",
+                    ),  # fmt: skip
+                ),
+                WorkloadProcess(
+                    node="client",
+                    app="file_sync",
+                    command="dataset-sync",
+                    args=(
+                        "http://200.0.0.8/dataset.bin",
+                        "--pause",
+                        "5-15",
+                        "--seed",
+                        "1",
+                    ),  # fmt: skip
+                ),
+            ),
+            exercises=(WorkloadExercise(BULK_DOWNLOAD, ("client",)),),
+        )
 
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:

@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: link_detach
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: client1
       intf_name: eth1
     root_causes:
@@ -12,7 +15,10 @@ failure:
         node: client1
         name: eth1
       fault_type: link_detach
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: client2
       intf_name: eth1
     root_causes:
@@ -21,7 +27,10 @@ failure:
         node: client2
         name: eth1
       fault_type: link_detach
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: leaf1
       intf_name: e1-1
     root_causes:
@@ -30,7 +39,10 @@ failure:
         node: leaf1
         name: e1-1
       fault_type: link_detach
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: leaf2
       intf_name: e1-1
     root_causes:
@@ -38,4 +50,56 @@ failure:
         kind: interface
         node: leaf2
         name: e1-1
+      fault_type: link_detach
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client1
+        name: eth1
+      fault_type: link_detach
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: client2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: client2
+        name: eth1
+      fault_type: link_detach
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf1
+        name: eth1
+      fault_type: link_detach
+  - device_profile: sonic
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: leaf2
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf2
+        name: eth1
       fault_type: link_detach

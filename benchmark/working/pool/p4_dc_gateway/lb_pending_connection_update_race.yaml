@@ -4,6 +4,9 @@ failure:
   fault_type: lb_pending_connection_update_race
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: gateway_1
       learning_delay_ms: '8000'
@@ -14,6 +17,9 @@ failure:
         node: gateway_1
       fault_type: lb_pending_connection_update_race
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: gateway_1
       learning_delay_ms: '8000'
@@ -24,6 +30,9 @@ failure:
         node: gateway_1
       fault_type: lb_pending_connection_update_race
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: gateway_1
       learning_delay_ms: '8000'

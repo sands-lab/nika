@@ -25,7 +25,10 @@ def inspect_command(
     port: int = typer.Option(
         7580,
         "--port",
-        help="Port (0 = OS-assigned). Default 7580; falls back if busy.",
+        help=(
+            "Port (0 = OS-assigned). Errors if busy. Use a port other than "
+            "7580 to run alongside the default dashboard."
+        ),
     ),
     no_open: bool = typer.Option(
         False,

@@ -1,7 +1,8 @@
-# NIKA run-config template for byo.mcp_agent (mcp-agent Workflow, host).
-# Setup: cp config/byo.mcp_agent.example.yaml config/byo.mcp_agent.yaml
+# NIKA run-config template for byo.mcp_agent (mcp-agent Workflow, sandbox).
+# Setup: cp config/nika.yaml config/byo.mcp_agent.yaml
+# Replace the copied agent section with this example; preserve your sandbox settings.
 # Use:   uv run nika agent run --run-config config/byo.mcp_agent.yaml --problem dc_clos_s_link_down
-# Credentials stay in the repo-root .env file. Other keys use built-in defaults;
+# Credentials stay in the repo-root .env file. This template uses sbx by default;
 # see config/nika.example.yaml for the full platform / benchmark reference.
 
 agent:

@@ -1,0 +1,39 @@
+# Attribute cAdvisor container usage to NIKA sessions. Recorded series keep
+# the session labels after the session ends, so past runs stay queryable.
+# Template: `nika observability on` sets $rate_window from the scrape interval.
+groups:
+  - name: nika
+    rules:
+      - record: nika:container_cpu_cores
+        expr: |
+          sum by (name) (rate(container_cpu_usage_seconds_total{name!=""}[$rate_window]))
+          * on (name) group_left (session_id, run_id, lab_name, backend, scenario, node)
+          max by (name, session_id, run_id, lab_name, backend, scenario, node) (nika_container_info)
+      # Cumulative CPU time since the container started, deployment included.
+      - record: nika:container_cpu_seconds_total
+        expr: |
+          sum by (name) (container_cpu_usage_seconds_total{name!=""})
+          * on (name) group_left (session_id, run_id, lab_name, backend, scenario, node)
+          max by (name, session_id, run_id, lab_name, backend, scenario, node) (nika_container_info)
+      - record: nika:container_memory_working_set_bytes
+        expr: |
+          max by (name) (container_memory_working_set_bytes{name!=""})
+          * on (name) group_left (session_id, run_id, lab_name, backend, scenario, node)
+          max by (name, session_id, run_id, lab_name, backend, scenario, node) (nika_container_info)
+      - record: nika:session_cpu_cores
+        expr: sum by (session_id, run_id, lab_name, backend, scenario) (nika:container_cpu_cores)
+      - record: nika:session_cpu_seconds_total
+        expr: sum by (session_id, run_id, lab_name, backend, scenario) (nika:container_cpu_seconds_total)
+      - record: nika:session_memory_working_set_bytes
+        expr: sum by (session_id, run_id, lab_name, backend, scenario) (nika:container_memory_working_set_bytes)
+      - record: nika:session_containers
+        expr: count by (session_id, run_id, lab_name, backend, scenario) (nika_container_info)
+      # Whole host: labs, agents, and everything else.
+      - record: nika:host_cpu_cores
+        expr: sum(rate(node_cpu_seconds_total{mode!~"idle|iowait|steal"}[$rate_window]))
+      - record: nika:host_cpu_capacity_cores
+        expr: count(node_cpu_seconds_total{mode="idle"})
+      - record: nika:host_memory_used_bytes
+        expr: sum(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+      - record: nika:host_memory_capacity_bytes
+        expr: sum(node_memory_MemTotal_bytes)

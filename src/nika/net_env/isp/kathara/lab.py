@@ -1,4 +1,4 @@
-"""Kathara ISP scenario compiled from SNDlib topologies."""
+"""Kathara ISP scenario compiled from SNDlib and Topology Zoo topologies."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
+from nika.net_env.probe_intent import ProbeIntent
 from nika.net_env.isp.bgp import (
     DEFAULT_BGP_MODE,
     BgpPlan,
@@ -20,7 +21,12 @@ from nika.net_env.isp.bgp import (
     render_bgp_frr_fragment,
     scope_igp_to_bgp_as,
 )
-from nika.net_env.isp.brief import format_isp_network_info
+from nika.net_env.isp.brief import (
+    design_notes,
+    ebgp_scope_note,
+    format_isp_network_info,
+    stub_probe_intent,
+)
 from nika.net_env.isp.igp import (
     DEFAULT_CONSTANT_METRIC,
     DEFAULT_IGP,
@@ -35,12 +41,18 @@ from nika.net_env.isp.traffic import (
     TrafficMatrixSeries,
     attach_traffic_stubs,
 )
+from nika.net_env.isp.rendered import IspRendered
 from nika.net_env.isp.contract import (
     IspValidationPolicy,
     build_isp_validation_contract,
 )
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.net_env.utils.kathara.frr_origin import (
+    BGP_ORIGIN_IFACE,
+    ENSURE_BGP_ORIGIN_IFACE_CMD,
+)
+from nika.topology.catalog import is_zoo_topology
 
 IgpLiteral = Literal["isis", "ospf"]
 MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
@@ -58,7 +70,11 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
     )
 
 
-class Isp(NetworkEnvBase):
+class Isp(IspRendered, NetworkEnvBase):
+    # Synthetic WAN traffic follows a gravity model (Roughan, CCR 2005).
+    BASELINE_TRAFFIC = {"pattern": "gravity", "load_mbps": 1.0}
+
+    ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
 
@@ -74,6 +90,8 @@ class Isp(NetworkEnvBase):
         device_profile: str | None = None,
         topo_size: str | None = None,
         scenario_id: str | None = None,
+        routing_parameters: dict | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         # Ignore legacy kwargs from old sessions.
@@ -130,12 +148,10 @@ class Isp(NetworkEnvBase):
         profile_raw = device_profile or default_device_profile("kathara")
         self.device_profile = normalize_device_profile(profile_raw)
         validate_backend_profile("kathara", self.device_profile)
-        if self.device_profile == "iosxr":
+        if self.device_profile != "frr":
             raise ValueError(
-                "device_profile='iosxr' is not implemented for SNDlib ISP labs "
-                "(no XR config renderer). Use scenario 'iosxr_simple_bgp' for "
-                "XRd Control Plane. Multi-router ISP on XR is also "
-                "resource-gated (~2 GiB RAM per XR node)."
+                "The FRR ISP implementation requires device_profile='frr'; "
+                "use get_net_env_instance for native vendor profiles."
             )
 
         config = IspConfig(
@@ -149,6 +165,20 @@ class Isp(NetworkEnvBase):
             base_plan, self.bgp_mode, rpki=self.rpki, rtbh=self.rtbh
         )
         base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
+        if routing_parameters is not None:
+            from nika.net_env.synthesis.parameters import (
+                bind_isp_metrics,
+                bind_isp_imports,
+            )
+
+            base_plan = bind_isp_metrics(
+                config,
+                base_plan,
+                self.bgp_plan,
+                routing_parameters,
+                parameter_kinds=self.ROUTING_PARAMETER_KINDS,
+            )
+            self.bgp_plan = bind_isp_imports(self.bgp_plan, routing_parameters)
         # Always attach edge stub hosts so traffic CLI can choose demands/dynamic later.
         stub_series = _stub_series_all_routers(base_plan)
         self.traffic: IspTrafficAttachment = attach_traffic_stubs(
@@ -193,12 +223,18 @@ class Isp(NetworkEnvBase):
             if self.bgp_plan is not None
             else "Infrastructure loopbacks only; BGP disabled."
         )
+        bgp_desc += ebgp_scope_note(self.bgp_plan)
+        source = "Topology Zoo" if is_zoo_topology(self.topo) else "SNDlib"
         self.desc = (
-            f"ISP from SNDlib topology '{self.plan.topology_name}' "
+            f"ISP from {source} topology '{self.plan.topology_name}' "
             f"({len(self.plan.nodes)} routers, {len(self.plan.links)} links, "
             f"{host_n} edge stubs, IGP={self.plan.igp}, "
             f"metric={self.plan.metric_strategy}). {bgp_desc}"
         )
+        self.design_note = design_notes(
+            self.plan, self.bgp_plan, workload=self.business_workload()
+        )
+        self.desc += self.design_note
 
         if self.bgp_plan is not None:
             rpki = bool(self.bgp_plan.inventory.get("rpki"))
@@ -230,6 +266,7 @@ class Isp(NetworkEnvBase):
         large = len(self.plan.nodes) >= 40 or self.bgp_plan is not None
         machine_opts = {
             "image": nika_image("frr"),
+            "shell": "/bin/sh",
             "cpus": 1.0 if large else 0.5,
             "mem": "512m" if large else "256m",
         }
@@ -257,7 +294,12 @@ class Isp(NetworkEnvBase):
             self.lab.connect_machine_to_link(link.endpoint_a, link.collision_domain)
             self.lab.connect_machine_to_link(link.endpoint_b, link.collision_domain)
 
-        host_opts = {"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
+        host_opts = {
+            "shell": "/bin/sh",
+            "image": nika_image("base"),
+            "cpus": 0.5,
+            "mem": "256m",
+        }
         for host in self.traffic.hosts:
             self.lab.new_machine(host.host_name, **host_opts)
             self.declare_machine(
@@ -273,6 +315,7 @@ class Isp(NetworkEnvBase):
         for edge in self.traffic.edge_links:
             self.lab.connect_machine_to_link(edge.router_device, edge.collision_domain)
             self.lab.connect_machine_to_link(edge.host_name, edge.collision_domain)
+        customer_iface = self._attach_customer_site(host_opts)
 
         self._rpki_attachment: dict | None = None
         if self.bgp_plan is not None and self.bgp_plan.inventory.get("rpki"):
@@ -297,9 +340,19 @@ class Isp(NetworkEnvBase):
                 fragment = render_bgp_frr_fragment(bgp_node, self.bgp_plan)
                 frr_conf = merge_frr_conf(frr_conf, fragment)
                 extras = []
+                if bgp_node.originated:
+                    extras.append(ENSURE_BGP_ORIGIN_IFACE_CMD)
                 for pref in bgp_node.originated:
                     plen = pref.prefix.rsplit("/", 1)[1]
-                    extras.append(f"ip addr add {pref.ping_address}/{plen} dev lo")
+                    extras.append(
+                        f"ip addr add {pref.ping_address}/{plen} dev {BGP_ORIGIN_IFACE}"
+                    )
+                site = self.bgp_plan.customer_site
+                if site is not None and node.device_name == site.provider:
+                    plen = site.prefix.rsplit("/", 1)[1]
+                    extras.append(
+                        f"ip addr add {site.gateway}/{plen} dev {customer_iface}"
+                    )
                 if (
                     self._rpki_attachment is not None
                     and node.device_name == self._rpki_attachment["router"]
@@ -350,6 +403,15 @@ class Isp(NetworkEnvBase):
             )
 
         self.load_machines()
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import use_rendered_configs
+
+            use_rendered_configs(self, required=False)
+
+    def _attach_customer_site(self, host_opts: dict) -> str | None:
+        from nika.net_env.isp.kathara.customer import attach_customer_site
+
+        return attach_customer_site(self, host_opts)
 
     def _attach_routinator(self) -> dict:
         """Attach an offline Routinator RTR next to the ROV observer."""
@@ -421,6 +483,40 @@ class Isp(NetworkEnvBase):
             "port": port,
         }
 
+    def probe_intent(self) -> ProbeIntent | None:
+        return stub_probe_intent(self.bgp_plan, self.traffic)
+
+    def traffic_demands(self):
+        from nika.net_env.isp.workload import stub_demands
+
+        return stub_demands(self.plan, self.traffic, self.topo)
+
+    def business_workload(self):
+        from nika.net_env.isp.workload import build_isp_workload
+
+        if not hasattr(self, "_business_workload"):
+            self._business_workload = build_isp_workload(
+                self.plan,
+                self.traffic,
+                self.bgp_plan,
+                self.topo,
+                router_services=True,
+                routine_changes=self.device_profile == "frr",
+            )
+        return self._business_workload
+
+    def bgp_hijack_targets(self):
+        """Business-prefix hijacks that divert a service client's sessions."""
+        from nika.net_env.isp.bgp.hijack import lab_hijack_targets
+
+        if self.bgp_plan is None:
+            return []
+        if not hasattr(self, "_bgp_hijack_targets"):
+            self._bgp_hijack_targets = lab_hijack_targets(
+                self.plan, self.bgp_plan, self.traffic, self.business_workload()
+            )
+        return list(self._bgp_hijack_targets)
+
     def get_info(self) -> str:
         return format_isp_network_info(
             super().get_info(),
@@ -435,7 +531,7 @@ class Isp(NetworkEnvBase):
             return None
         from nika.net_env.isp.inject_targets import isp_topology_probe_path
 
-        return isp_topology_probe_path(topo)
+        return isp_topology_probe_path(topo, deploy_kwargs.get("bgp_mode"))
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.isp.kathara.verify import verify_isp_lab_startup

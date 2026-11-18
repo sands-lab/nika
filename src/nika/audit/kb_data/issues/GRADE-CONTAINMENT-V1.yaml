@@ -1,0 +1,16 @@
+id: GRADE-CONTAINMENT-V1
+title: Interface inside the ground-truth node or link scored 0
+class: grading_error
+severity: info
+status: fixed
+fixed_in: c00630bc
+summary: Scoring before the fix required the exact resource; naming an interface of the faulty node or
+  link scored 0.
+detect:
+- kind: regrade
+  explain: containment
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B3
+  date: '2026-10-14'
+  refs: []
+  found_by: manual

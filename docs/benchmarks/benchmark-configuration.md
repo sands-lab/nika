@@ -1,19 +1,27 @@
 # Benchmark configuration reference
 
-This reference is for maintainers and benchmark operators who need to choose a frozen release or a working YAML matrix and understand its artifact layout.
+This reference helps benchmark operators choose a benchmark release or a working task set and find the resulting artifacts.
 
 Implementation: [`benchmark/`](../../benchmark/) stores matrices and releases; [`workflows/benchmark/`](../../src/nika/workflows/benchmark/) loads and executes them.
 
+Use a task-level `schedule` to control failure injection, recovery, traffic activation, and agent startup. [Incident scheduling](scheduling.md) describes the YAML, timing, and completion rules.
+
+For ad-hoc runs, use a benchmark YAML whose `cases:` list contains relative paths to complete task files, or run one task file directly with `--config`. Each task file defines its scenario, failures, traffic, and schedule. Existing matrices containing only inline tasks remain supported. [Organize task files](scheduling.md#organize-task-files) shows the standard layout.
+
 ## Frozen release (`nika-bench@0.2.0`)
 
-`0.2.0` publishes public Dev and Test splits from the current failure registry. Both splits cover every registered failure that a benchmark scenario can host (`lb_connection_state_exhaustion` is held out; see the release README). Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
+`0.2.0` publishes public Dev and Test splits. Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
 
 ```shell
 nika benchmark releases
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 ```
 
+The release manifest, `RELEASE.yaml`, decides which code runs a release. When it has an `engine` block, the release runs on its [benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol), a container built from the Git reference in `engine.tag`, so its environments, failures, MCP tools, and scoring stay those of the release as NIKA changes. The first run builds the engine image; `nika engine build <tag>` builds it ahead of time. Firecracker execution and NIKA Remote cannot run these releases yet. A release without an `engine` block, and every ad-hoc run, uses the installed NIKA's code, so its results can change when you update NIKA.
+
 Release `0.1.0` still runs with `--release 0.1.0`. [Run release 0.1.0](../compat/release-0.1.0.md) covers its restored labs and known limitations.
+
+The [versioning policy](../../VERSIONING.md) explains what each component of a release version means and which changes produce a new one.
 
 Each release run treats `--result_dir` as **one run** and writes:
 
@@ -33,9 +41,13 @@ nika leaderboard template -o results/my-run/submission
 nika leaderboard submit --result_dir results/my-run --submission results/my-run/submission
 ```
 
-`defaults.n_trials` in `RELEASE.yaml` is 3 for `0.2.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed` (capability / no submission / tool-heavy or post-LLM case timeout). LLM/API endpoint failures (connection refused, provider 5xx, case-timeout killed mid-LLM after LLM-dominated wall clock, etc.) stamp `outcome=endpoint_failed` instead: they are **not** scored and `--resume` cleans and retries them. This is about the model HTTP endpoint, not the network lab under test. Failures after ground truth is written but before the agent demonstrably started (sandbox CLI missing, MCP gateway URL or bind failure, a worker killed during agent setup) stamp `outcome=infra_failed`. NIKA treats them like `endpoint_failed`: not scored, cleaned, and retried. NIKA counts a failure as `agent_failed` only when `nika.jsonl` has `agent_start` and `messages.jsonl` has at least one model or tool event. A valid `submission.json` always makes the trial `success`, even when a later step (agent timeout, sandbox teardown) fails. NIKA also cleans incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
+`defaults.n_trials` in `RELEASE.yaml` is 3 for `0.2.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed` (capability / no submission / tool-heavy or post-LLM case timeout). LLM/API endpoint failures (connection refused, provider 5xx, case-timeout killed mid-LLM after LLM-dominated wall clock, etc.) stamp `outcome=endpoint_failed` instead: they are **not** scored and `--resume` cleans and retries them. This is about the model HTTP endpoint, not the network lab under test. Failures after ground truth is written but before the agent demonstrably started (sandbox CLI missing, MCP gateway URL or bind failure, a worker killed during agent setup) stamp `outcome=infra_failed`. NIKA treats them like `endpoint_failed`: not scored, cleaned, and retried. NIKA counts a failure as `agent_failed` only when `nika.jsonl` has `agent_start` and `messages.jsonl` has at least one model or tool event. A valid `submission.json` makes the trial `success`, even when a later step (agent timeout, sandbox teardown) fails, provided its scheduler completed without errors when present. NIKA also cleans incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
 
 Official `--release` runs default to continuing past trial failures (`continue_on_error=True`) so one bad trial does not abort the job; use `--abort-on-error` to stop immediately. Ad-hoc `--config` batches still default from `benchmark.continue_on_error` in run config. The agent itself runs under `agent.timeout_sec` (default 1800s), which applies to every agent type. Per-case watchdogs use `--case-timeout` / `benchmark.case_timeout_sec` (default 2400s); a timed-out trial is finalized as counted `agent_failed` when the budget was spent on agent work, or as retryable `endpoint_failed` when the kill lands mid-LLM and LLM calls dominated the wall clock. NIKA stops a timed-out worker with SIGTERM and gives it up to 60 seconds to remove its sandbox, stop the MCP gateway, and undeploy the lab before SIGKILL.
+
+After `benchmark.endpoint_failure_threshold` consecutive `endpoint_failed` trials (default 3), NIKA pauses new trials and starts the recovery wait limit. Running trials can finish while NIKA probes the configured model, starting after `endpoint_backoff_initial_sec` (5 seconds) and doubling the interval up to `endpoint_backoff_max_sec` (60 seconds). A successful probe resumes admission. A counted `success` or `agent_failed` outcome resets the failure counter; `infra_failed` does not change it. After `endpoint_wait_timeout_sec` (900 seconds), NIKA aborts running trials and leaves incomplete trials available for `--resume`.
+
+Recovery probes use the agent's API protocol, upstream endpoint, and API key or subscription login. They request a short response and can incur provider charges. Each probe has a time limit within the remaining recovery wait.
 
 Per-trial `run.json` is stamped with the same release identity fields plus `trial_id` / `trial_index` / `outcome`.
 
@@ -53,13 +65,13 @@ nika benchmark run
 nika benchmark run --config benchmark/working/pool
 ```
 
-The runner loads each catalog case as an executable row before creating trials. It recomputes ground truth during injection and checks it against the materialized `root_causes`. `candidate_option_id` is derived at load time from the normalized row; resume and release identity use `benchmark_row_fingerprint` (canonical scenario / problem / deploy / inject fields, no content hash).
+The runner loads each catalog case as an executable row before creating trials. It recomputes ground truth during injection and checks it against the materialized `root_causes`. `candidate_option_id` is derived at load time from the normalized row; resume and release identity use `benchmark_row_fingerprint` (canonical scenario, problem, deployment, injection, traffic, and authored schedule fields).
 
 ### Pool schema
 
 Pool files live at `working/pool/{scenario}/{fault_type}.yaml` (plus `healthy.yaml`). There is no separate manifest file; loaders scan the pool directory.
 
-Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, and for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile` when applicable), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases.
+Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, optional [`telemetry`](../operations/network-scenarios.md#telemetry), optional [`traffic`](../operations/network-scenarios.md#background-traffic-profiles), for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile`, and `device_profile` for other environments with native router profiles), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases. A row without `device_profile` deploys the environment's default routers, including native routers in vendor-specific environments.
 
 ```yaml
 scenario:
@@ -97,6 +109,46 @@ healthy:
     - topo_size: s
     - topo_size: m
 ```
+
+### Router platform profiles
+
+The pool also carries cases whose routers run IOS XR (`device_profile: iosxr`) or RouterOS (`device_profile: routeros`). The generator expands each environment that declares these profiles: `dc_clos`, `campus_lan`, `enterprise_branch` and the base ISP scenarios. It adds them only at size `s` (for ISP scenarios, topology tier `s`), within the sizes the environment supports, so no case needs a large native lab. Each profile gets its own healthy variant.
+
+Containerlab environments run SR Linux by default and also carry SONiC rows (`device_profile: sonic`): `min3clos` and the base ISP scenarios within the [Containerlab ISP size cap](../operations/network-scenarios.md#sndlib-isp-scenarios) (11 SR Linux routers or 55 SONiC routers). SONiC rows include only failures supported by the deployed environment and protocol, with an eligible target and the required router operations.
+
+```yaml
+scenario:
+  name: dc_clos
+failure:
+  fault_type: bgp_asn_misconfig
+  cases:
+    - topo_size: s
+      device_profile: iosxr
+      inject:
+        host_name: spine_1
+      root_causes:
+        - resource:
+            kind: node
+            node: spine_1
+          fault_type: bgp_asn_misconfig
+```
+
+A case targets a native router only when the failure can run there. A failure declares the native router operations it needs in `native_router_operations`, and each vendor provider implements a set of operations (see [Create benchmark tasks](../development/creating-benchmark-tasks.md#add-an-injectable-failure)). Other targets stay on FRR and Linux nodes. In `dc_clos`, `campus_lan` and `enterprise_branch` only some router roles convert, so many cases of these profiles target FRR routers and hosts in a mixed-vendor lab. Ground truth names NIKA nodes and Linux interface names, as for FRR rows.
+
+Compatibility also requires a backend supported by both the failure and the environment. For failures with a minimum path bandwidth-delay product (BDP), generation checks any declared nominal RTT and profile bandwidth limit. The shipped RouterOS CHR profile uses the [free license's 1 Mbps per-interface limit](https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud%2BHosted%2BRouter%2BCHR), so the enterprise WAN's designed 80 ms RTT cannot provide the 64 KiB BDP required by `tcp_receive_window_limited`. The pool excludes that deployment; runtime calibration still checks the actual flow before changing receiver buffers.
+
+`ProblemBase.is_compatible(scenario, device_profile)` and `runs_on_device_profile` record this compatibility; the coverage matrix below shows it per environment and profile, with the last result of `nika benchmark validate-profiles` (see [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells)). `nika benchmark generate --validated-only` keeps IOS XR, RouterOS and SONiC rows only for validated cells.
+
+IOS XR and RouterOS rows need licensed vendor images (`./scripts/install.sh --with-vendor-images`). SONiC rows need no license: `uv run nika images prepare` downloads the SONiC image. Rows of all three platforms run as heavy trials, one at a time. Like `routeros_simple_bgp`, IOS XR and RouterOS rows stay in the pool, and `nika benchmark select` and releases leave out every row that needs a licensed image.
+
+Before any lab starts, `nika benchmark run --config` and `nika case run` check that the licensed images their rows need are installed. When one is missing, the run stops and lists the image and the affected rows by scenario and platform. Choose which rows a pool run includes:
+
+```shell
+nika benchmark run --config benchmark/working/pool --skip-licensed            # openly available images only
+nika benchmark run --config benchmark/working/pool --device-profile routeros  # RouterOS rows only
+```
+
+`--device-profile` is repeatable. An explicit `device_profile` takes precedence. Otherwise Containerlab rows count as `nokia_srlinux`, and other rows use the environment's uniquely declared native platform, with `frr` as the fallback. For example, `routeros_simple_bgp` rows count as `routeros` even without the field.
 
 Paths follow `working/pool/{scenario}/{fault_type}.yaml`, plus `working/pool/{scenario}/healthy.yaml`. Scenarios meant for tests only, such as `iosxr_simple_bgp`, are excluded from generation.
 
@@ -160,7 +212,7 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | `pc` | End hosts (PCs) that can be misconfigured |
 | `rpki` | RPKI origin validation (Routinator RTR and VRP-based ROV) |
 | `sdn` | SDN controller + OpenFlow switches |
-| `srl` | Nokia SR Linux NOS (Containerlab) |
+| `srl` | Nokia SR Linux NOS, the default Containerlab router platform; `device_profile: sonic` runs SONiC instead |
 | `vpn` | VPN membership / tunnels |
 | `web` | Web-tier services (alias capability for HTTP labs) |
 
@@ -185,9 +237,11 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 
 The generator prints group, concrete option, failure, scenario, healthy, and rejection counts to stdout.
 
-Release `0.2.0` uses the current IDs. Release `0.1.0` also names six original 0.1.0 labs, listed in [Where each case runs](../compat/release-0.1.0.md#where-each-case-runs).
+## Published releases
 
-Frozen releases keep their published flat `cases:` files and remain independent from candidate generation.
+Frozen releases keep their published flat `cases:` files and remain independent from candidate generation. Release `0.1.0` includes its original environments, listed in [Where each case runs](../compat/release-0.1.0.md#where-each-case-runs).
+
+Configurations and task labels accept `frr_service_down` as an alias for `routing_service_down`. Published releases `0.1.0` and `0.2.0` retain `frr_service_down` in their tasks, ground truth, and RCA candidates, with its original description.
 
 ## Coverage matrix (scenario × failure)
 
@@ -389,7 +443,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center">○</td>
 </tr>
 <tr>
@@ -467,6 +521,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </thead>
 <tbody>
 <tr>
+<td><code>bgp_address_family_not_activated</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>bgp_asn_misconfig</code></td>
 <td align="center"></td>
 <td align="center">○</td>
@@ -493,7 +577,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -557,6 +641,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
+<td><code>bgp_md5_password_mismatch</code></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>bgp_missing_route_advertisement</code></td>
 <td align="center"></td>
 <td align="center">○</td>
@@ -583,7 +697,37 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_prefix_list_length_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -617,28 +761,148 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
-<td><code>frr_service_down</code></td>
+<td><code>bgp_session_policy_missing</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_ttl_security_mismatch</code></td>
+<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>isis_authentication_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>isis_circuit_level_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>isis_metric_style_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
-<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -649,6 +913,96 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>ospf_area_misconfiguration</code></td>
 <td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>ospf_area_range_suppression</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>ospf_duplicate_router_id</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>ospf_hello_interval_mismatch</code></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -698,6 +1052,126 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>ospf_network_type_mismatch</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>ospf_stub_area_mismatch</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>routing_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>vrf_route_target_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -841,6 +1315,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
+<td><code>device_flow_blackhole</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+</tr>
+<tr>
 <td><code>device_forwarding_packet_corruption</code></td>
 <td align="center">●</td>
 <td align="center">○</td>
@@ -864,7 +1368,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1134,6 +1638,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>k8s_vxlan_neighbor_stale</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1441,6 +1975,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
+<td><code>rib_fib_inconsistency</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>vrf_dscp_remarking</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1605,6 +2169,156 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
+<td><code>k8s_ingress_class_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>k8s_ingress_rate_limit_misconfig</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>k8s_service_selector_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>k8s_service_target_port_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>lb_advertisement_missing</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>lb_connection_state_exhaustion</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1630,7 +2344,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
@@ -1799,6 +2513,126 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </thead>
 <tbody>
 <tr>
+<td><code>k8s_coredns_forward_loop</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>k8s_deployment_replicas_zero</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>k8s_node_noexecute_taint</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>k8s_readiness_probe_misconfig</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>k8s_worker_apiserver_partition</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1917,6 +2751,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center">●</td>
+</tr>
+<tr>
+<td><code>switch_datapath_id_conflict</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
 </tr>
 </tbody>
 </table>
@@ -2236,7 +3100,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>host_ip_conflict</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
+<td align="center">●</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2258,7 +3122,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center"></td>
 <td align="center">○</td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 </tr>
@@ -2324,31 +3188,31 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>mac_address_conflict</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
 <td align="center">●</td>
-<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
 </tr>
@@ -2456,6 +3320,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 </tr>
+<tr>
+<td><code>tls_certificate_expired</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
 </tbody>
 </table>
 
@@ -2502,9 +3396,9 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tbody>
 <tr>
 <td><code>incast_traffic_network_limitation</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2528,7 +3422,37 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center">●</td>
 <td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>overlay_qos_ef_undersized</code></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>p4_ecn_threshold_misconfiguration</code></td>
@@ -2658,7 +3582,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center">●</td>
 <td align="center">○</td>
-<td align="center"></td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -2688,10 +3612,10 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -2818,31 +3742,774 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>web_dos_attack</code></td>
 <td align="center">○</td>
 <td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center"></td>
 <td align="center">●</td>
+</tr>
+</tbody>
+</table>
+
+### Native router profiles
+
+IOS XR and RouterOS deployments of the environments that declare them (`isp` stands for every base ISP scenario). Blank = incompatible, `◆` = the failure also targets the profile's routers (its `native_router_operations` are all implemented by the vendor provider), `○` = it targets only the FRR/Linux nodes of the deployment, which may have none when every router converts. A suffix shows the last execution result from `benchmark/working/validation/device_profiles.yaml`: `✓` validated, `✗` failed, `–` unsupported; no suffix = not run.
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th colspan="2">enterprise</th>
+<th colspan="2">isp</th>
+</tr>
+<tr>
+<th>iosxr</th>
+<th>routeros</th>
+<th>iosxr</th>
+<th>routeros</th>
+<th>iosxr</th>
+<th>routeros</th>
+<th>iosxr</th>
+<th>routeros</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>link_capacity_bottleneck</code></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>link_detach</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>link_down</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>link_flap</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>link_packet_corruption</code></td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_address_family_not_activated</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>bgp_asn_misconfig</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>bgp_max_prefix_exceeded</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>bgp_md5_password_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>bgp_missing_route_advertisement</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>bgp_prefix_list_length_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_session_policy_missing</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>bgp_ttl_security_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>isis_authentication_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>isis_circuit_level_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>isis_metric_style_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>ospf_area_misconfiguration</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>ospf_area_range_suppression</code></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>ospf_duplicate_router_id</code></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>ospf_hello_interval_mismatch</code></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>ospf_neighbor_missing</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>ospf_network_type_mismatch</code></td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>ospf_stub_area_mismatch</code></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>routing_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>vrf_route_target_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>arp_acl_block</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_acl_block</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>device_flow_blackhole</code></td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>device_forwarding_packet_corruption</code></td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center">○✓</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_port_blocked</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_static_blackhole</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>http_acl_block</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>icmp_acl_block</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+</tr>
+<tr>
+<td><code>icmp_frag_needed_filter_misconfiguration</code></td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>mtu_mismatch</code></td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>ospf_acl_block</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>vrf_dscp_remarking</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○✓</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>wireguard_allowed_ips_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○✓</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>wireguard_peer_key_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○✓</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>load_balancer_overload</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>nat_mapping_removed_without_drain</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○✓</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>snat_port_pool_exhaustion</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○✓</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_missing_subnet</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_service_down</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_lookup_latency</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_record_error</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_service_down</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_dns</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_gateway</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_ip</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_netmask</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_ip_conflict</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_missing_ip</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>mac_address_conflict</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>receiver_resource_contention</code></td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>sender_resource_contention</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>tls_certificate_expired</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>overlay_qos_ef_undersized</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>tcp_receive_window_limited</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>arp_cache_poisoning</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_hijacking</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_dns</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_gateway</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_subnet</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>web_dos_attack</code></td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 </tr>
 </tbody>
 </table>
@@ -2864,3 +4531,15 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 ```
 
 Candidate generation does not select cases or create release splits. Frozen releases ship under `benchmark/releases/`.
+
+### Prepare Dev and Test splits
+
+Before [freezing a release](../operations/cli-reference.md#nika-benchmark), use the same failure set in Dev and Test and keep task definitions disjoint. Multi-fault tasks contribute each individual failure to the failure-set comparison. Network isolation depends on the environment:
+
+| Environment | Required separation between Dev and Test |
+| --- | --- |
+| ISP environments | Different backbone graphs. Named protocol variants of the same graph still share its identity. |
+| Fixed-size `k8s_lab` and `llmd_lab` clusters | Different faulted components, using resolved `root_causes` and canonical resource identity independently of fault type. This replaces network-variant isolation for these clusters; healthy cluster tasks are excluded from component comparison. |
+| Other environments | Different deployment variants, even when faults differ. Variant identity includes environment, scale, routing options, backend, and router profile; omitted defaults are resolved before comparison. |
+
+Published releases retain their original split rules. Passing the new candidate gate does not resample or modify an existing release.

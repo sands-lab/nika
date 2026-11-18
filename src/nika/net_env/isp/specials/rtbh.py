@@ -35,6 +35,7 @@ class _IspEbgpRtbh(Isp):
             f"{self.DESCRIPTION_NAME} ISP topology with OSPF inside each AS, "
             "eBGP between three AS regions, and an RTBH community policy (FRR)."
         )
+        self.desc += self.design_note
 
 
 class IspAbileneEbgpRtbh(_IspEbgpRtbh):

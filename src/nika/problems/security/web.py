@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import random
+import re
 import time
 from typing import Any
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field
 
+from nika.net_env.utils.download_object import DOWNLOAD_OBJECT_PATH
 from nika.net_env.verify import http_download_stats, median_float
 from nika.problems.rca import node_resource
 from nika.problems.support.ab_helpers import (
@@ -16,6 +18,12 @@ from nika.problems.support.ab_helpers import (
     stop_ab_workers,
 )
 from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    shell,
+)
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -29,12 +37,11 @@ from nika.utils.logger import system_logger
 # ==================================================================
 
 # Node-visible names stay neutral: agents can list files, processes, and the
-# victim's access log, so nothing here names the injected fault.
-_SLOW_HTTP_CLIENT = "/var/tmp/http-hold.py"
-_SLOW_HTTP_PATTERN = "[h]ttp-hold.py"
-_ATTACK_OBJECT = "download.bin"
-_ATTACK_DIR = "archive"
-_ATTACK_DIR_ITEMS = 2000
+# victim's access log, so nothing here names the injected fault. The flood
+# targets content the scenario already publishes at baseline (never content
+# created by this failure), so file existence does not itself signal inject.
+_SLOW_HTTP_CLIENT = "/var/tmp/http-client.py"
+_SLOW_HTTP_PATTERN = "[h]ttp-client.py"
 _SLOW_HTTP_SOURCE = """#!/usr/bin/env python3
 import socket
 import sys
@@ -50,7 +57,9 @@ while True:
         sock.settimeout(1.0)
         try:
             sock.connect((target, port))
-            sock.sendall(b"GET / HTTP/1.1\\r\\nHost: target\\r\\nX-Request-Id: ")
+            sock.sendall(
+                b"GET / HTTP/1.1\\r\\nHost: " + target.encode() + b"\\r\\nX-Request-Id: "
+            )
             sockets.append(sock)
         except OSError:
             sock.close()
@@ -65,6 +74,21 @@ while True:
             sock.close()
     sockets = alive
 """
+
+
+#: Connections one client must hold on the victim to count as a flood source;
+#: the attack opens hundreds, a browsing client a handful.
+_FLOOD_CONNECTIONS = 100
+
+
+def _count_at_least(label: str, minimum: int, description: str) -> Check:
+    """Output has a ``<label> N`` line with N >= *minimum*."""
+
+    def check(output: str) -> bool:
+        match = re.search(rf"^{re.escape(label)} (\d+)$", output, re.M)
+        return bool(match) and int(match.group(1)) >= minimum
+
+    return Check(description, check)
 
 
 class WebDoSParams(BaseModel):
@@ -89,7 +113,6 @@ class WebDoSParams(BaseModel):
     slow_connections: int = Field(default=400, ge=0, le=900)
     probe_samples: int = Field(default=5, ge=3, le=15)
     probe_timeout_sec: int = Field(default=5, ge=1, le=30)
-    attack_object_mb: int = Field(default=4, ge=1, le=64)
 
 
 def _pick_attacker(
@@ -120,6 +143,12 @@ class WebDoS(ProblemBase):
     COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS
     BENCHMARK_TARGETS = "canonical"
 
+    INCOMPATIBLE_SCENARIOS = {
+        # No independent control web server / erratic through the BMv2 VIP, so no verifiable symptom.
+        "enterprise_branch": "No independent control web server to isolate the victim.",
+        "p4_dc_gateway": "Flooding through the BMv2 VIP degrades the symptom erratically.",
+    }
+
     Params = WebDoSParams
 
     @classmethod
@@ -136,14 +165,6 @@ class WebDoS(ProblemBase):
                 ctx.host0,
                 pool=pools.get("attacker_pool"),
             )
-        elif scenario == "dc_clos":
-            # Keep victim, observer, and URL on one deterministic HTTP path.
-            params.update(
-                host_name="webserver0_pod0",
-                attacker_device="client_0",
-                observer_device="dns_pod0",
-                probe_url="http://10.0.1.2/small.bin",
-            )
         elif scenario == "campus_lan":
             params.update(
                 host_name="web_server_0",
@@ -151,15 +172,7 @@ class WebDoS(ProblemBase):
                 observer_device="pc_2_1_1_1",
                 probe_url="http://10.200.0.3/",
             )
-        elif scenario == "enterprise_branch":
-            params.update(
-                host_name="hq_srv",
-                attacker_device="br1_corp_pc",
-                observer_device="hq_corp_pc",
-                probe_url="http://10.0.20.2/small.bin",
-                attack_url="http://10.0.20.2/archive/",
-            )
-        elif scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
+        elif scenario in {"dc_clos", "sdn_l3_clos", "p4_dc_fabric"}:
             model = ctx.net_env.model
             observer = model.client_endpoints()[0]
             victim = next(
@@ -175,18 +188,6 @@ class WebDoS(ProblemBase):
                 attacker_device=attacker.name,
                 observer_device=observer.name,
                 probe_url=f"http://{victim.ip}/",
-            )
-        elif scenario == "p4_dc_gateway":
-            model = ctx.net_env.model
-            victim = model.backend_pool[0]
-            observer = model.clients[0]
-            attacker = model.clients[-1]
-            params.update(
-                host_name=victim.name,
-                attacker_device=attacker.name,
-                observer_device=observer.name,
-                probe_url=model.vip_url,
-                attack_url=model.vip_url,
             )
         else:
             params["host_name"] = ctx.web0
@@ -209,6 +210,31 @@ class WebDoS(ProblemBase):
 
     def _probe_url(self, params: WebDoSParams, target_ip: str) -> str:
         return params.probe_url or f"http://{target_ip}/"
+
+    def _discover_attack_target(
+        self, attacker: str, target_ip: str, params: WebDoSParams
+    ) -> str:
+        """Pick an existing server-side object to flood.
+
+        A real flood is aimed at whatever heavy object the site already
+        hosts (installers, media, bulk exports). Probe for the scenario's
+        published bulk download (release image) first; fall back to the page
+        already used for health probes when it is absent.
+        """
+        # Same origin as the health probe: a VIP-fronted service is reached
+        # through its VIP, not through the backend that happens to be the victim.
+        origin = urlsplit(self._probe_url(params, target_ip))
+        candidate = f"{origin.scheme}://{origin.netloc}/{DOWNLOAD_OBJECT_PATH}"
+        probe = http_download_stats(
+            self.runtime,
+            attacker,
+            candidate,
+            max_time_sec=params.probe_timeout_sec,
+            connect_timeout_sec=min(3, params.probe_timeout_sec),
+        )
+        if probe.ok:
+            return candidate
+        return self._probe_url(params, target_ip)
 
     def _http_samples(self, params: WebDoSParams, target_ip: str) -> dict[str, Any]:
         observer = params.observer_device or params.attacker_device
@@ -268,6 +294,70 @@ class WebDoS(ProblemBase):
     def _slow_client_running(self, params: WebDoSParams) -> bool:
         return params.slow_connections == 0 or self._slow_client_count(params) >= 1
 
+    def oracle_playbook(self, params: WebDoSParams) -> OraclePlaybook:
+        victim, attacker = params.host_name, params.attacker_device
+        observer = params.observer_device or attacker
+        url = params.attack_url or params.probe_url
+        endpoint = urlsplit(url or "")
+        port = endpoint.port or 80
+        server = endpoint.hostname
+        dst = f"dst {server} and " if server else ""
+        peers = (
+            f"ss -Htn '( sport = :{port} )' | awk '{{print $5}}' "
+            "| sed 's/:[0-9]*$//' | sort | uniq -c | sort -rn"
+        )
+        return OraclePlaybook(
+            finding=(
+                f"{attacker} floods the web service on {victim} with hundreds of "
+                "concurrent HTTP and slow, never-completed requests, exhausting the "
+                "server's connection capacity so legitimate requests slow down."
+            ),
+            steps=[
+                *(
+                    [
+                        OracleStep(
+                            f"Time requests to {params.probe_url} from {observer}.",
+                            "curl_web_test",
+                            {
+                                "host_name": observer,
+                                "url": params.probe_url,
+                                "times": 5,
+                            },
+                        )
+                    ]
+                    if params.probe_url
+                    else []
+                ),
+                shell(
+                    victim,
+                    f"{peers} | head -5 | sed 's/^ */peer /'; "
+                    f"echo top $({peers} | head -1 | awk '{{print $1}}')",
+                    f"Count the TCP connections on {victim}:{port} per client address.",
+                    _count_at_least(
+                        "top",
+                        _FLOOD_CONNECTIONS,
+                        f"one client holds at least {_FLOOD_CONNECTIONS} connections",
+                    ),
+                    evidence=True,
+                    attempts=2,
+                ),
+                shell(
+                    attacker,
+                    "ip -4 -br addr | grep -v '^lo'; echo open $(ss -Htn state "
+                    f"established '( {dst}dport = :{port} )' | wc -l); "
+                    "ps -eo comm | sort | uniq -c | sort -rn | head -5",
+                    f"On {attacker}, the top client address, count its open "
+                    "connections to the web service and its busiest processes.",
+                    _count_at_least(
+                        "open",
+                        _FLOOD_CONNECTIONS,
+                        f"{attacker} keeps at least {_FLOOD_CONNECTIONS} connections open",
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
+
     def inject_fault(self, params: WebDoSParams):
         web_server = params.host_name
         attacker = params.attacker_device
@@ -287,22 +377,13 @@ class WebDoS(ProblemBase):
                 f"web_dos_attack requires a healthy HTTP baseline: {self._baseline}"
             )
 
-        # A large object (bulk transfer) and a large directory (expensive
-        # listing) give the flood real per-request server work.
-        self.runtime.exec(
-            web_server,
-            (
-                f"mkdir -p /var/www /var/www/html /var/www/{_ATTACK_DIR}; "
-                f"dd if=/dev/zero of=/var/www/{_ATTACK_OBJECT} bs=1M "
-                f"count={params.attack_object_mb} status=none 2>/dev/null; "
-                f"cp /var/www/{_ATTACK_OBJECT} /var/www/html/{_ATTACK_OBJECT} "
-                "2>/dev/null || true; "
-                f"for i in $(seq 1 {_ATTACK_DIR_ITEMS}); do "
-                f": > /var/www/{_ATTACK_DIR}/item-$i; done"
-            ),
-            timeout=30,
+        # Flood whatever the server already publishes at baseline: either an
+        # existing bulk-download object, or (failing that) the probed page
+        # itself. Nothing is created on the victim for this attack; a real
+        # flood targets content that predates it.
+        attack_url = params.attack_url or self._discover_attack_target(
+            attacker, target_ip, params
         )
-        attack_url = params.attack_url or f"http://{target_ip}/{_ATTACK_OBJECT}"
         attack_endpoint = urlsplit(attack_url)
         attack_host = attack_endpoint.hostname or target_ip
         attack_port = attack_endpoint.port or 80

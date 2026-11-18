@@ -8,9 +8,9 @@ from __future__ import annotations
 import os
 
 from nika.run_config.loader import get_run_config
-from nika.run_config.schema import RunConfig
-from agent.registry import find_agent_spec, get_agent_spec
-from agent.utils.provider_env import validate_provider_for_agent
+from nika.run_config.schema import AgentSubmissionSettings, RunConfig
+from nika.agents.registry import find_agent_spec, get_agent_spec
+from nika.agents.provider_env import validate_provider_for_agent
 
 
 def _cfg(config: RunConfig | None) -> RunConfig:
@@ -57,12 +57,27 @@ def resolve_agent_timeout(*, config: RunConfig | None = None) -> int:
     return _cfg(config).agent.timeout_sec
 
 
+def resolve_submission_settings(
+    *, config: RunConfig | None = None
+) -> AgentSubmissionSettings:
+    return _cfg(config).agent.submission
+
+
 def resolve_reasoning_effort(
-    value: str | None = None, *, config: RunConfig | None = None
+    agent_type: str | None,
+    value: str | None = None,
+    *,
+    config: RunConfig | None = None,
 ) -> str | None:
+    """Effective reasoning effort: CLI, then ``agent.reasoning_effort``, then the
+    agent's built-in default."""
     if value is not None:
         return value
-    return _cfg(config).agent.reasoning_effort
+    configured = _cfg(config).agent.reasoning_effort
+    if configured is not None or agent_type is None:
+        return configured
+    spec = find_agent_spec(agent_type)
+    return spec.default_reasoning_effort if spec is not None else None
 
 
 def resolve_max_tokens(
@@ -73,6 +88,24 @@ def resolve_max_tokens(
     if spec is not None and not spec.supports_max_tokens:
         return None
     return _cfg(config).agent.max_tokens
+
+
+# Agents whose model clients take agent.temperature / top_p / seed.
+SAMPLING_AGENT_TYPES = frozenset({"byo.langgraph", "byo.mcp_agent"})
+SERVER_DEFAULT_SAMPLING = "server default"
+
+
+def resolve_sampling(
+    agent_type: str, *, config: RunConfig | None = None
+) -> dict[str, float | int] | str | None:
+    """Effective sampling for *agent_type*, for run metadata.
+
+    ``None`` when the agent does not apply ``agent.temperature`` and friends,
+    ``"server default"`` when none is set, else the explicit values sent.
+    """
+    if agent_type not in SAMPLING_AGENT_TYPES:
+        return None
+    return _cfg(config).agent.sampling_params() or SERVER_DEFAULT_SAMPLING
 
 
 def resolve_agent_model(
@@ -116,10 +149,10 @@ def apply_custom_provider_env(config: RunConfig | None = None) -> None:
     """Export YAML ``agent.base_url`` / ``model`` into ``NIKA_CUSTOM_*``.
 
     Only ``provider: custom`` uses ``agent.base_url``; other providers have
-    built-in endpoints, so the value is cleared for them. Codex/Claude
-    ``prepare_*_env`` helpers read ``NIKA_CUSTOM_*`` from the process
-    environment when mapping credentials. API keys stay in ``.env``. Empty
-    YAML values clear leftover process env so ops env cannot win.
+    built-in endpoints, so the value is cleared for them. The host model proxy
+    reads ``NIKA_CUSTOM_*`` from the process environment when mapping
+    credentials. API keys stay in ``.env``. Empty YAML values clear leftover
+    process env so ops env cannot win.
     """
     cfg = _cfg(config)
     is_custom = cfg.agent.provider.strip().lower() == "custom"
@@ -127,10 +160,8 @@ def apply_custom_provider_env(config: RunConfig | None = None) -> None:
     model = (cfg.agent.model or "").strip()
     if base:
         os.environ["NIKA_CUSTOM_BASE_URL"] = base
-        os.environ["CUSTOM_API_BASE"] = base
     else:
         os.environ.pop("NIKA_CUSTOM_BASE_URL", None)
-        os.environ.pop("CUSTOM_API_BASE", None)
     if model:
         os.environ["NIKA_CUSTOM_MODEL"] = model
     else:

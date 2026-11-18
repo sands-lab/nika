@@ -8,7 +8,7 @@ import time
 import pytest
 
 from nika.net_env.k8s_lab.lab import K8sFatTreeBGP
-from nika.net_env.utils.k8s_workload_cache import K3S_IMAGE
+from nika.net_env.utils.k8s_workload_cache import K3S_NODE_IMAGE
 from nika.service.kathara.base_api import KatharaBaseAPI
 from tests.support.integration_base import SharedSessionTestCase
 from tests.support.net_env import instantiate_with_mocked_kathara, ready_node_count
@@ -48,6 +48,16 @@ class K8sLabUnitTest:
 
         assert set(inst.routers) == expected_routers
 
+    def test_dc_exit_is_not_listed_as_frr(self) -> None:
+        """dc_exit only carries static routes, so the brief must not call it FRRRouting."""
+        info = self._inst().get_info()
+
+        frr_line = next(
+            line for line in info.splitlines() if line.startswith("Routers (FRR")
+        )
+        assert "dc_exit" not in frr_line
+        assert "Routers (Linux, static routes): dc_exit" in info
+
     def test_has_kubernetes_nodes(self) -> None:
         """k8s_lab must classify k3s machines into kubernetes_nodes."""
         inst = self._inst()
@@ -68,11 +78,11 @@ class K8sLabUnitTest:
 
         assert "client" in inst.hosts
 
-    def test_as2r1_is_bridged(self) -> None:
-        """as2r1 must be bridged to provide internet connectivity."""
+    def test_as2r1_has_no_internet_bridge(self) -> None:
+        """The external AS must not forward lab traffic to the internet."""
         inst = self._inst()
 
-        assert inst.lab.machines["as2r1"].is_bridged()
+        assert not inst.lab.machines["as2r1"].is_bridged()
 
     def test_controller_is_bridged(self) -> None:
         """controller is bridged so Docker can publish the API port to the host."""
@@ -87,9 +97,9 @@ class K8sLabUnitTest:
             machine = inst.lab.machines[node_name]
             args = str(machine.meta.get("args") or "")
             assert machine.meta.get("entrypoint") == "/bin/sh"
-            assert "/var/run/nika-net-ready" in args
+            assert "/var/run/net-ready" in args
             assert "exec /bin/k3s" in args
-            assert machine.get_image() == K3S_IMAGE
+            assert machine.get_image() == K3S_NODE_IMAGE
             if node_name == "controller":
                 assert "server --disable" in args
             else:

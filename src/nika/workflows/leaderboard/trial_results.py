@@ -18,6 +18,7 @@ from nika.evaluator.score_status import (
     ScoreStatus,
     infer_score_status_from_artifacts,
 )
+from nika.evaluator.validity import detect_trial_validity
 from nika.workflows.leaderboard.aggregate import extract_trial_metrics
 from nika.workflows.leaderboard.schema import TrialResult
 
@@ -115,6 +116,23 @@ def resolve_trial_score_status(
     )
 
 
+def _topology_counts(run_meta: dict[str, Any]) -> dict[str, int | None]:
+    metadata = run_meta.get("metadata") or {}
+    counts = dict(metadata.get("topology_counts") or {})
+    # Older pinned engines can predate explicit counts while retaining their deployed
+    # machine inventory. Keep isolated nodes; omit attached telemetry management.
+    inventory = metadata.get("machine_identities")
+    if counts.get("node_count") is None and isinstance(inventory, dict) and inventory:
+        telemetry = metadata.get("telemetry") or {}
+        management = (
+            {telemetry.get("collector"), telemetry.get("switch")}
+            if isinstance(telemetry, dict)
+            else set()
+        )
+        counts["node_count"] = len(set(inventory) - management)
+    return counts
+
+
 def trial_result_from_dir(
     *,
     trial_id: str,
@@ -141,16 +159,23 @@ def trial_result_from_dir(
         else {}
     )
     score_status = resolve_trial_score_status(session_dir, run_meta=run_meta)
+    validity = detect_trial_validity(
+        session_dir, run_meta=run_meta, score_status=score_status
+    )
 
+    counts = _topology_counts(run_meta)
     return TrialResult(
         trial_id=trial_id,
         case_key=case_key,
         trial_index=trial_index,
         scenario=scenario,
         problem=problem,
+        node_count=counts.get("node_count"),
+        link_count=counts.get("link_count"),
         outcome=outcome,  # type: ignore[arg-type]
         score_status=score_status,
         metrics=metrics,
         gt_fault_types=gt_fault_types(session_dir, problem=problem),
         predicted_fault_types=predicted_fault_types(session_dir),
+        validity_flags=validity.flags,
     )

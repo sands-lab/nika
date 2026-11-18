@@ -27,8 +27,10 @@ static __always_inline __u32 avalanche(__u32 value) {
     return value ^ (value >> 16);
 }
 
+/* The program and object names show in `tc filter show` and `bpftool prog`,
+ * so they read like an ordinary egress classifier. */
 SEC("classifier")
-int switch_bitflip(struct __sk_buff *skb) {
+int tc_egress(struct __sk_buff *skb) {
     __u8 ip[20], tcp[20], byte;
     __u32 flow = 2166136261u ^ SEED, ip_off = 14, tcp_off, payload_off;
     __u16 ethertype, src_port, dst_port;

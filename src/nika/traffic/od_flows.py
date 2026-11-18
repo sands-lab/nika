@@ -1,8 +1,203 @@
 import asyncio
 import json
-from typing import Literal
+import uuid
+from dataclasses import dataclass
+from typing import Callable, Literal, Protocol
 
 from nika.runtime.base import LabRuntime
+from nika.utils.parallel import bounded_parallel_map
+
+# iperf3 servers on one destination listen on consecutive ports, one per source.
+OD_START_PORT = 5201
+# Per-host scratch directory for iperf3 reports and server PID files.
+OD_WORKDIR = "/tmp/nika-od"
+_MARKER = "@@NIKA_OD"
+# Signal a recorded server only while its PID still belongs to our ``timeout``
+# wrapper, so a recycled PID never hits an unrelated process on the host.
+_KILL_OWN = (
+    'kill_own() { kp=$(cat "$1" 2>/dev/null) && '
+    '[ "$(cat /proc/$kp/comm 2>/dev/null)" = timeout ] && kill "$kp"; }; '
+)
+# iperf3 3.12 waits 30 s for a UDP setup reply lost to congestion; stop such
+# clients shortly after the transfer would have ended instead.
+_CLIENT_GRACE_SEC = 10
+# Exec budget for iperf3 setup and teardown on top of the transfer itself.
+_EXEC_MARGIN_SEC = 30
+
+
+class _ExecFn(Protocol):
+    def __call__(self, node: str, cmd: str, *, timeout: float = 10.0) -> str: ...
+
+
+@dataclass(frozen=True)
+class ODFlow:
+    src: str
+    dst: str
+    port: int
+    volume: int
+
+    @property
+    def label(self) -> str:
+        return f"{self.src}_to_{self.dst}"
+
+
+def plan_od_flows(od_dicts: dict[str, dict[str, int]]) -> list[ODFlow]:
+    """Assign each src != dst pair its own server port on the destination."""
+    next_port: dict[str, int] = {}
+    flows: list[ODFlow] = []
+    for src, dests in od_dicts.items():
+        for dst, volume in dests.items():
+            if src == dst:
+                continue
+            port = next_port.get(dst, OD_START_PORT)
+            next_port[dst] = port + 1
+            flows.append(ODFlow(src, dst, port, volume))
+    return flows
+
+
+def _group(flows: list[ODFlow], key: Callable[[ODFlow], str]) -> dict[str, list]:
+    groups: dict[str, list[ODFlow]] = {}
+    for flow in flows:
+        groups.setdefault(key(flow), []).append(flow)
+    return groups
+
+
+def _server_start_cmd(
+    ports: list[int], server_args: str, lifetime: int, run: str | None
+) -> str:
+    """Start one-shot servers in the background and wait until they listen.
+
+    ``timeout`` bounds a server whose client never connects, and a server left
+    on the same port by an earlier run is replaced, so servers never pile up.
+    Reports go to per-run files when ``run`` is set, else they are discarded.
+    """
+    d = OD_WORKDIR
+    plist = " ".join(str(p) for p in ports)
+    report = f">{d}/{run}_s_$p.json 2>/dev/null" if run else ">/dev/null 2>&1"
+    return (
+        f"{_KILL_OWN}mkdir -p {d}; k=0; for p in {plist}; do "
+        f"kill_own {d}/s_$p.pid 2>/dev/null && k=1; "
+        'done; [ "$k" = 1 ] && sleep 0.5; '
+        f"for p in {plist}; do timeout {lifetime} iperf3 -s -1 -p $p {server_args} "
+        f"-J {report} & echo $! >{d}/s_$p.pid; done; "
+        "i=0; while [ $i -lt 50 ]; do l=$(ss -ltn); ok=1; "
+        f'for p in {plist}; do case "$l" in *":$p "*) ;; *) ok=0;; esac; done; '
+        '[ "$ok" = 1 ] && break; i=$((i+1)); sleep 0.1; done'
+    )
+
+
+def _server_collect_cmd(ports: list[int], run: str) -> str:
+    """Wait briefly for servers to exit, print their reports, and clean up."""
+    d = OD_WORKDIR
+    plist = " ".join(str(p) for p in ports)
+    return (
+        f"{_KILL_OWN}i=0; while [ $i -lt 50 ]; do alive=0; "
+        f'for p in {plist}; do kill -0 "$(cat {d}/s_$p.pid 2>/dev/null)" '
+        "2>/dev/null && alive=1; done; "
+        '[ "$alive" = 0 ] && break; i=$((i+1)); sleep 0.1; done; '
+        f"for p in {plist}; do kill_own {d}/s_$p.pid 2>/dev/null; "
+        f"echo {_MARKER} $p; cat {d}/{run}_s_$p.json 2>/dev/null; echo; "
+        f"rm -f {d}/{run}_s_$p.json {d}/s_$p.pid; done"
+    )
+
+
+def _client_cmd(
+    flow: ODFlow,
+    dst_ip: str,
+    *,
+    unit: str,
+    interval: int,
+    udp: bool,
+    client_args: str,
+) -> str:
+    if udp:
+        client_args += " -u"
+    return (
+        f"timeout {interval + _CLIENT_GRACE_SEC} "
+        f"iperf3 -c {dst_ip} -p {flow.port} -b {flow.volume}{unit} "
+        f"-t {interval} {client_args} -l 1472 -J"
+    )
+
+
+def _split_marked(output: str) -> dict[str, str]:
+    sections: dict[str, list[str]] = {}
+    current: list[str] | None = None
+    for line in (output or "").splitlines():
+        if line.startswith(_MARKER + " "):
+            current = sections.setdefault(line[len(_MARKER) + 1 :].strip(), [])
+        elif current is not None:
+            current.append(line)
+    return {key: "\n".join(lines) for key, lines in sections.items()}
+
+
+def _resolve_dst_ips(
+    flows: list[ODFlow],
+    host_ips: dict[str, str] | None,
+    resolve: Callable[[str], str | None],
+) -> dict[str, str]:
+    ips: dict[str, str] = {}
+    for dst in dict.fromkeys(flow.dst for flow in flows):
+        ip = (host_ips or {}).get(dst) or resolve(dst)
+        if not ip:
+            raise ValueError(f"Cannot resolve IP for host {dst!r}")
+        ips[dst] = ip
+    return ips
+
+
+def _start_servers(
+    exec_fn: _ExecFn,
+    flows: list[ODFlow],
+    server_args: str,
+    interval: int,
+    run: str | None,
+) -> dict[str, list[ODFlow]]:
+    by_dst = _group(flows, lambda f: f.dst)
+    lifetime = interval + 2 * _EXEC_MARGIN_SEC
+
+    def start(dst: str) -> str:
+        ports = [f.port for f in by_dst[dst]]
+        cmd = _server_start_cmd(ports, server_args, lifetime, run)
+        return exec_fn(dst, cmd, timeout=_EXEC_MARGIN_SEC)
+
+    bounded_parallel_map(start, list(by_dst))
+    return by_dst
+
+
+def start_od_flows_background(
+    exec_fn: _ExecFn,
+    od_dicts: dict[str, dict[str, int]],
+    *,
+    resolve_ip: Callable[[str], str | None],
+    interval: int,
+    unit: str,
+    udp: bool,
+    server_args: str = "",
+    client_args: str = "",
+    host_ips: dict[str, str] | None = None,
+) -> list[str]:
+    """Start OD flows without waiting: one exec per host, hosts in parallel."""
+    flows = plan_od_flows(od_dicts)
+    dst_ips = _resolve_dst_ips(flows, host_ips, resolve_ip)
+    _start_servers(exec_fn, flows, server_args, interval, run=None)
+    by_src = _group(flows, lambda f: f.src)
+
+    def start_clients(src: str) -> str:
+        cmd = " ".join(
+            _client_cmd(
+                f,
+                dst_ips[f.dst],
+                unit=unit,
+                interval=interval,
+                udp=udp,
+                client_args=client_args,
+            )
+            + " >/dev/null 2>&1 &"
+            for f in by_src[src]
+        )
+        return exec_fn(src, cmd, timeout=_EXEC_MARGIN_SEC)
+
+    bounded_parallel_map(start_clients, list(by_src))
+    return [flow.label for flow in flows]
 
 
 def to_json(x):
@@ -10,10 +205,14 @@ def to_json(x):
         x = "".join(x).strip()
     if isinstance(x, str):
         x = x.strip()
-        try:
-            return json.loads(x)
-        except json.JSONDecodeError:
-            return {"raw": x}
+        # Tolerate diagnostics printed around the report (e.g. iperf3 warnings).
+        start = x.find("{")
+        if start >= 0:
+            try:
+                return json.JSONDecoder().raw_decode(x, start)[0]
+            except json.JSONDecodeError:
+                pass
+        return {"raw": x}
     return x
 
 
@@ -23,66 +222,12 @@ class ODFLowGenerator:
     def __init__(self, runtime: LabRuntime):
         self.runtime = runtime
 
-    async def _arun_server(
-        self, dst_host: str, dst_port: int, server_args: str, interval: int
-    ):
-        cmd = f"iperf3 -s -1 -p {dst_port} {server_args} -J"
-        # One-shot server returns after its client's run; it starts first, so
-        # allow a little more than the client budget below.
-        result = await asyncio.to_thread(
-            self.runtime.exec, dst_host, cmd, timeout=interval + 20
-        )
-        return to_json(result)
-
-    def _run_server(self, dst_host: str, dst_port: int, server_args: str):
-        cmd = f"iperf3 -s -1 -p {dst_port} {server_args} -J &"
-        result = self.runtime.exec(dst_host, cmd)
-        return to_json(result)
-
-    async def _arun_client(
-        self,
-        src_host: str,
-        dst_ip: str,
-        dst_port: int,
-        volume: int,
-        unit: str,
-        interval: int,
-        udp: bool,
-        client_args: str,
-        background: bool = False,
-    ):
-        if udp:
-            client_args += " -u"
-        cmd = f"iperf3 -c {dst_ip} -p {dst_port} -b {volume}{unit} -t {interval} {client_args} -l 1472 -J"
-        if background:
-            cmd += " &"
-        # A foreground run lasts ``interval`` seconds; the default exec
-        # timeout (10 s) would cut long OD intervals short.
-        result = await asyncio.to_thread(
-            self.runtime.exec, src_host, cmd, timeout=interval + 15
-        )
-        return to_json(result)
-
-    def _run_client(
-        self,
-        src_host: str,
-        dst_ip: str,
-        dst_port: int,
-        volume: int,
-        unit: str,
-        interval: int,
-        udp: bool,
-        client_args: str,
-    ):
-        if udp:
-            client_args += " -u"
-        cmd = f"iperf3 -c {dst_ip} -p {dst_port} -b {volume}{unit} -t {interval} {client_args} -l 1472 -J &"
-        result = self.runtime.exec(src_host, cmd)
-        return to_json(result)
-
     def _extract_iperf3_summary(
         self, server_result: dict, client_result: dict, unit: str
     ) -> dict:
+        for side, result in (("client", client_result), ("server", server_result)):
+            if isinstance(result, dict) and result.get("error"):
+                return {"error": f"iperf3 {side} error: {result['error']}"}
         try:
             start = server_result["start"]
             server_end = server_result["end"]
@@ -139,9 +284,12 @@ class ODFLowGenerator:
                 f"target_{unit}bits_per_sec": round(target_bits_per_sec, 2),
                 f"avg_sent_{unit}bits_per_sec": round(avg_sent_bits_per_sec, 2),
                 f"avg_recv_{unit}bits_per_sec": round(avg_recv_bits_per_sec, 2),
-                "jitter_ms": round(jitter_ms, 6),
-                "lost_percent": round(lost_percent, 2),
-                "packets": int(packets),
+                # Only UDP reports carry jitter, loss, and packet counts.
+                "jitter_ms": None if jitter_ms is None else round(jitter_ms, 6),
+                "lost_percent": (
+                    None if lost_percent is None else round(lost_percent, 2)
+                ),
+                "packets": None if packets is None else int(packets),
                 "server_cpu_usage_percent": round(server_cpu_usage, 2),
                 "client_cpu_usage_percent": round(client_cpu_usage, 2),
             }
@@ -161,85 +309,94 @@ class ODFLowGenerator:
         server_args: str = "",
         client_args: str = "",
         host_ips: dict[str, str] | None = None,
-    ) -> list[str]:
-        client_coroutines = []
-        server_coroutines = []
+    ) -> list[dict]:
+        return await asyncio.to_thread(
+            self._generate_traffic,
+            od_dicts,
+            interval=interval,
+            unit=unit,
+            udp=udp,
+            server_args=server_args,
+            client_args=client_args,
+            host_ips=host_ips,
+        )
 
-        labels = []
+    def _generate_traffic(
+        self,
+        od_dicts: dict[str, dict[str, int]],
+        *,
+        interval: int,
+        unit: Literal["K", "M"],
+        udp: bool,
+        server_args: str,
+        client_args: str,
+        host_ips: dict[str, str] | None,
+    ) -> list[dict]:
+        """Run every flow for ``interval`` seconds and summarize each one.
 
-        start_port_id = 5201
-        started_server_ports = {}
-        server_port_assign = {}
-        ip_overrides = dict(host_ips or {})
+        Each host gets one exec per phase (start servers, run clients, collect
+        server reports), so exec concurrency scales with hosts, not flows.
+        """
+        flows = plan_od_flows(od_dicts)
+        if not flows:
+            return []
+        dst_ips = _resolve_dst_ips(flows, host_ips, self.runtime.get_data_plane_host_ip)
+        # Per-run report names: a late process from another run never touches
+        # this run's files.
+        run = uuid.uuid4().hex[:8]
+        by_dst = _start_servers(
+            self.runtime.exec, flows, server_args, interval, run=run
+        )
+        by_src: dict[str, list[tuple[int, ODFlow]]] = {}
+        for index, flow in enumerate(flows):
+            by_src.setdefault(flow.src, []).append((index, flow))
 
-        for src_host, dests in od_dicts.items():
-            for dst_host, volume in dests.items():
-                if src_host == dst_host:
-                    continue
-
-                labels.append(f"{src_host}_to_{dst_host}")
-
-                if dst_host in started_server_ports.keys():
-                    started_server_ports[dst_host] = started_server_ports[dst_host] + 1
-                    dst_port = started_server_ports[dst_host]
-                    server_port_assign[dst_host][src_host] = dst_port
-                    server_task = asyncio.create_task(
-                        self._arun_server(
-                            dst_host=dst_host,
-                            dst_port=dst_port,
-                            server_args=server_args,
-                            interval=interval,
-                        )
-                    )
-
-                else:
-                    server_task = asyncio.create_task(
-                        self._arun_server(
-                            dst_host=dst_host,
-                            dst_port=start_port_id,
-                            server_args=server_args,
-                            interval=interval,
-                        )
-                    )
-                    started_server_ports[dst_host] = start_port_id
-                    server_port_assign[dst_host] = {src_host: start_port_id}
-
-                server_coroutines.append(server_task)
-
-        await asyncio.sleep(0.2)
-
-        for src_host, dests in od_dicts.items():
-            for dst_host, volume in dests.items():
-                dst_ip = ip_overrides.get(
-                    dst_host
-                ) or self.runtime.get_data_plane_host_ip(dst_host)
-                if not dst_ip:
-                    raise ValueError(f"Cannot resolve IP for host {dst_host!r}")
-                dst_port = server_port_assign[dst_host][src_host]
-
-                client_coroutines.append(
-                    self._arun_client(
-                        src_host=src_host,
-                        dst_ip=dst_ip,
-                        dst_port=dst_port,
-                        volume=volume,
-                        unit=unit,
-                        interval=interval,
-                        udp=udp,
-                        client_args=client_args,
-                    )
+        def run_clients(src: str) -> dict[str, str]:
+            d = OD_WORKDIR
+            parts = [f"mkdir -p {d};"]
+            for index, flow in by_src[src]:
+                client = _client_cmd(
+                    flow,
+                    dst_ips[flow.dst],
+                    unit=unit,
+                    interval=interval,
+                    udp=udp,
+                    client_args=client_args,
                 )
-
-        client_results = await asyncio.gather(*client_coroutines)
-        server_results = await asyncio.gather(*server_coroutines)
-        summary_results = []
-        for server_res, client_res in zip(server_results, client_results):
-            summary = self._extract_iperf3_summary(
-                server_result=server_res, client_result=client_res, unit=unit
+                # stderr stays out of the report (iperf3 warns about -l 1472).
+                parts.append(f"{client} >{d}/{run}_c_{index}.json 2>/dev/null &")
+            parts.append("wait;")
+            for index, _ in by_src[src]:
+                report = f"{d}/{run}_c_{index}.json"
+                parts.append(
+                    f"echo {_MARKER} {index}; cat {report}; echo; rm -f {report};"
+                )
+            output = self.runtime.exec(
+                src, " ".join(parts), timeout=interval + _EXEC_MARGIN_SEC
             )
-            summary_results.append(summary)
+            return _split_marked(output)
 
-        return summary_results
+        def collect_servers(dst: str) -> dict[str, str]:
+            cmd = _server_collect_cmd([flow.port for flow in by_dst[dst]], run)
+            return _split_marked(self.runtime.exec(dst, cmd, timeout=_EXEC_MARGIN_SEC))
+
+        # Every client exec must run at once: each blocks for the interval.
+        client_reports: dict[str, str] = {}
+        for reports in bounded_parallel_map(
+            run_clients, list(by_src), max_workers=len(by_src)
+        ):
+            client_reports.update(reports)
+        server_reports = dict(
+            zip(by_dst, bounded_parallel_map(collect_servers, list(by_dst)))
+        )
+        return [
+            self._extract_iperf3_summary(
+                server_result=to_json(server_reports[flow.dst].get(str(flow.port), "")),
+                client_result=to_json(client_reports.get(str(index), "")),
+                unit=unit,
+            )
+            for index, flow in enumerate(flows)
+        ]
 
     def start_traffic_background(
         self,

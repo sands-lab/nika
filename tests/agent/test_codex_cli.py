@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
-import subprocess
 import tomllib
 
 import pytest
@@ -14,8 +12,10 @@ from agent.cli.codex.codex_worker import (
     CodexWorker,
     RECONNECT_STALL_TIMEOUT_S,
     _build_mcp_toml,
+    _fatal_codex_error_message,
     _is_productive_codex_event,
     _reconnect_transport_failed,
+    write_codex_auth,
 )
 from agent.protocols import DIAGNOSIS
 from agent.protocols import SUBMISSION
@@ -41,6 +41,7 @@ class CodexMcpTomlTest:
         )
         assert 'approval_policy = "never"' in toml
         assert 'sandbox_mode = "workspace-write"' in toml
+        assert 'web_search = "disabled"' in toml
         assert "[sandbox_workspace_write]" in toml
         assert "network_access = true" in toml
         assert "experimental_use_rmcp_client" not in toml
@@ -74,16 +75,16 @@ class CodexMcpTomlTest:
     def test_registers_custom_model_provider(self, monkeypatch) -> None:
         monkeypatch.setenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
         toml = _build_mcp_toml({}, provider="custom")
-        assert 'model_provider = "nika_custom"' in toml
-        assert "[model_providers.nika_custom]" in toml
+        assert 'model_provider = "custom_llm"' in toml
+        assert "[model_providers.custom_llm]" in toml
         assert 'base_url = "https://openrouter.ai/api/v1"' in toml
         assert 'env_key = "OPENAI_API_KEY"' in toml
         assert 'wire_api = "responses"' in toml
 
     def test_registers_deepseek_model_provider(self) -> None:
         toml = _build_mcp_toml({}, provider="deepseek")
-        assert 'model_provider = "nika_deepseek"' in toml
-        assert "[model_providers.nika_deepseek]" in toml
+        assert 'model_provider = "deepseek_llm"' in toml
+        assert "[model_providers.deepseek_llm]" in toml
         assert "api.deepseek.com" in toml
 
     def test_openai_provider_skips_custom_block(self) -> None:
@@ -119,6 +120,26 @@ class CodexProgressDetectionTest:
             },
         }
         assert _reconnect_transport_failed(event)
+
+    def test_only_real_auth_errors_are_fatal(self) -> None:
+        warning = (
+            "Under-development features enabled: non_prefixed_mcp_tool_names. To "
+            "suppress this warning, set `suppress_unstable_features_warning = true` "
+            "in /ws/agent_workspaces/20261020-114015-a-17224f/.codex_home/config.toml."
+        )
+        assert _fatal_codex_error_message({"type": "error", "message": warning}) is None
+        path_401 = "stream error at /tmp/run-114015/x: unexpected EOF"
+        assert (
+            _fatal_codex_error_message({"type": "error", "message": path_401}) is None
+        )
+        auth = "unexpected status 401 Unauthorized: invalid token"
+        assert _fatal_codex_error_message({"type": "error", "message": auth}) == auth
+        missing = "404 Not Found: model 'x' does not exist"
+        assert (
+            _fatal_codex_error_message({"type": "error", "message": missing}) == missing
+        )
+        busy = "unexpected status 503 Service Unavailable: no healthy backend"
+        assert _fatal_codex_error_message({"type": "error", "message": busy}) is None
 
     def test_reconnect_failure_triggers_stall(self) -> None:
         worker = CodexWorker(
@@ -161,28 +182,23 @@ class CodexWorkerConfigTest:
     )
     @pytest.mark.parametrize("sandbox_provider", [False, True])
     def test_writes_only_phase_allowed_mcp_servers(
-        self, monkeypatch, tmp_path, phase, expected_servers, sandbox_provider
+        self,
+        monkeypatch,
+        tmp_path,
+        agent_task,
+        phase,
+        expected_servers,
+        sandbox_provider,
     ) -> None:
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.apply_codex_auth", lambda _path: None
-        )
+        agent_task()
         monkeypatch.setattr(
             "agent.cli.codex.codex_worker.prepare_codex_workspace", lambda _path: None
         )
-        monkeypatch.setattr(
-            "agent.utils.mcp_client._load_session_mcp_config",
-            lambda *_args, **_kwargs: {
-                "kathara_base_mcp_server": {"transport": "http", "url": "http://base"},
-                "task_mcp_server": {"transport": "http", "url": "http://task"},
-            },
-        )
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.sandbox_name_from_env",
-            lambda: "codex-config-test" if sandbox_provider else None,
-        )
+        native_home = tmp_path / "native_codex_home"
+        native_home.mkdir()
+        monkeypatch.setenv("CODEX_HOME", str(native_home))
         if sandbox_provider:
-            native_home = tmp_path / "native_codex_home"
-            native_home.mkdir()
+            # A sandbox runtime's own Codex config routes the subscription.
             (native_home / "config.toml").write_text(
                 'model_provider = "sandboxd"\n'
                 'forced_login_method = "api"\n'
@@ -194,13 +210,6 @@ class CodexWorkerConfigTest:
                 "[mcp_servers.native_server]\n"
                 'url = "http://native"\n'
             )
-            monkeypatch.setenv("CODEX_HOME", str(native_home))
-            monkeypatch.setattr(
-                "agent.cli.codex.codex_worker.run_sbx_checked",
-                lambda args: subprocess.run(
-                    args[2:], env=dict(os.environ), check=True, capture_output=True
-                ),
-            )
         worker = CodexWorker(
             session_id="sess-123",
             session_dir=tmp_path,
@@ -210,6 +219,10 @@ class CodexWorkerConfigTest:
         worker._setup_workspace()
         config = tomllib.loads((worker._codex_home / "config.toml").read_text())
         assert set(config["mcp_servers"]) == expected_servers
+        # Slow NIKA tools fail as tool errors before the stall timer fires.
+        assert {srv["tool_timeout_sec"] for srv in config["mcp_servers"].values()} == {
+            120.0
+        }
         if sandbox_provider:
             assert config["model_provider"] == "sandboxd"
             assert config["forced_login_method"] == "api"
@@ -219,6 +232,20 @@ class CodexWorkerConfigTest:
                 "experimental_bearer_token": "test-proxy-placeholder",
                 "requires_openai_auth": False,
             }
+        else:
+            assert "model_provider" not in config
+
+    def test_api_key_placeholder_becomes_codex_auth(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "proxy-managed")
+        write_codex_auth(tmp_path / "home")
+        auth = json.loads((tmp_path / "home" / "auth.json").read_text())
+        assert auth == {"OPENAI_API_KEY": "proxy-managed", "auth_mode": "apikey"}
+        # A subscription leaves the key unset: no auth file.
+        monkeypatch.delenv("OPENAI_API_KEY")
+        write_codex_auth(tmp_path / "other")
+        assert not (tmp_path / "other" / "auth.json").exists()
 
 
 class CodexToolLoggingTest:

@@ -11,8 +11,15 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from agent.protocols import DIAGNOSIS
 from nika.config import resolve_results_root
-from nika.inspect.adapters import iter_jsonl, llm_request_durations, load_agent_events
+from nika.evaluator.scoring import parse_root_causes
+from nika.inspect.adapters import (
+    iter_jsonl,
+    llm_request_durations,
+    load_agent_events,
+    model_reply_count,
+)
 from nika.inspect.models import (
     Annotations,
     ArtifactFlags,
@@ -20,11 +27,13 @@ from nika.inspect.models import (
     LlmRequestStats,
     RawArtifact,
     RawArtifactData,
+    RcaMatch,
     ScoresResponse,
     SessionDetail,
     SessionFacets,
     SessionSummary,
 )
+from nika.inspect.schedule import read_schedule_progress
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
     is_job_run_dir,
@@ -89,6 +98,35 @@ def _metric(metrics: dict[str, Any] | None, key: str) -> Any:
         return None
     value = metrics.get(key)
     return value if value is not None else None
+
+
+def _rca_match(session_dir: Path, metrics: dict[str, Any] | None) -> RcaMatch | None:
+    """Found / expected / wrong root causes of a scored session (RCA F1's pairs)."""
+    rca_f1 = _metric(metrics, "rca_f1")
+    # Unscored: null, or ``-1`` in sessions scored before nulls replaced it.
+    if not isinstance(rca_f1, (int, float)) or rca_f1 < 0:
+        return None
+    gt = _read_json(session_dir / ARTIFACT_FILES["ground_truth"])
+    truth = parse_root_causes(gt) if gt is not None else None
+    if truth is None:
+        return None
+    submission = _read_json(session_dir / ARTIFACT_FILES["submission"])
+    # An invalid submission scores as no guesses.
+    guesses = (parse_root_causes(submission) if submission is not None else None) or []
+    truth_pairs = {rc.pair_key() for rc in truth}
+    guess_pairs = {rc.pair_key() for rc in guesses}
+    return RcaMatch(
+        found=len(truth_pairs & guess_pairs),
+        expected=len(truth_pairs),
+        wrong=len(guess_pairs - truth_pairs),
+    )
+
+
+def _diagnosis_steps(session_dir: Path) -> int | None:
+    """Model replies during diagnosis, as the timeline marks turns."""
+    if not (session_dir / ARTIFACT_FILES["messages"]).is_file():
+        return None
+    return model_reply_count(load_agent_events(session_dir), phase=DIAGNOSIS)
 
 
 def _as_int(value: Any) -> int | None:
@@ -212,6 +250,12 @@ def _running_stage(session_dir: Path) -> str:
         reached = milestones.get(str(entry.get("event")))
         if reached and _STAGE_RANK[reached] > _STAGE_RANK[stage]:
             stage = reached
+    if stage == "inject" and (session_dir / "schedule.json").is_file():
+        prepared = any(
+            row.get("status") == "started"
+            for row in iter_jsonl(session_dir / "schedule-events.jsonl")
+        )
+        return "schedule: waiting for agent" if prepared else "agent: preparing"
     if stage != "agent":
         return stage
     last = _last_agent_entry(session_dir / "messages.jsonl")
@@ -445,10 +489,11 @@ def _build_session_summary(
         outcome=run.get("outcome"),
         detection_score=_metric(metrics, "detection_score"),
         rca_f1=_metric(metrics, "rca_f1"),
+        rca_match=_rca_match(session_dir, metrics),
         localization_f1=_metric(metrics, "localization_f1"),
         in_tokens=_metric(metrics, "in_tokens"),
         out_tokens=_metric(metrics, "out_tokens"),
-        steps=_metric(metrics, "steps"),
+        steps=_diagnosis_steps(session_dir),
         tool_calls=_metric(metrics, "tool_calls"),
         tags=load_annotations(session_dir).tags,
         artifacts=_artifact_flags(session_dir),
@@ -489,6 +534,7 @@ def detail_session_dir(
         **summary.model_dump(),
         run=run,
         task_description=run.get("task_description"),
+        schedule=read_schedule_progress(session_dir),
     )
 
 

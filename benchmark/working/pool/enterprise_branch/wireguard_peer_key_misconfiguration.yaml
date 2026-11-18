@@ -4,6 +4,9 @@ failure:
   fault_type: wireguard_peer_key_misconfiguration
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: wg_hq
@@ -24,6 +27,105 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: br2_edge
+      intf_name: wg_hq
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: br1_edge
+      intf_name: wg_hq
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: br2_edge
+      intf_name: wg_hq
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: br1_edge
+      intf_name: wg_hq
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_edge
       intf_name: wg_hq
@@ -44,6 +146,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: wg_hq
@@ -64,6 +169,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_edge
       intf_name: wg_hq
@@ -84,6 +192,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_edge
       intf_name: wg_hq
@@ -104,6 +215,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_edge
       intf_name: wg_hq
@@ -124,6 +238,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: wg_hq
@@ -144,6 +261,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_edge
       intf_name: wg_hq
@@ -164,6 +284,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_edge
       intf_name: wg_hq
@@ -184,6 +307,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_edge
       intf_name: wg_hq
@@ -204,6 +330,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_edge
       intf_name: wg_hq
@@ -224,6 +353,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_edge
       intf_name: wg_hq
@@ -244,6 +376,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_edge
       intf_name: wg_hq
@@ -264,6 +399,9 @@ failure:
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_edge
       intf_name: wg_hq

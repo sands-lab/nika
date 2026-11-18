@@ -12,7 +12,7 @@ def _resolve_python() -> str:
 
 
 def to_sdk_mcp_servers(config: dict[str, Any]) -> dict[str, Any]:
-    """Adapt NIKA MCP client config to claude-agent-sdk format."""
+    """Adapt the session MCP client config to claude-agent-sdk format."""
     servers: dict[str, Any] = {}
     for name, spec in config.items():
         transport = spec.get("transport", "stdio")

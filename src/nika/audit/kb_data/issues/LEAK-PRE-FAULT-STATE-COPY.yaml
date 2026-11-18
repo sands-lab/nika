@@ -1,0 +1,22 @@
+id: LEAK-PRE-FAULT-STATE-COPY
+title: A copy of the pre-fault state is readable
+class: shortcut
+role: known
+severity: warn
+status: open
+summary: 'Anything that keeps the state from before the injection next to the live state: backup and save
+  files (*.sav, *.bak, *.orig, *.old, *~), pristine startup copies, controller request bodies, saved rule
+  dumps. Diffing it against the live state shows the change.'
+guideline: The general class behind LEAK-FRR-CONF-SAV, LEAK-DHCP-LEASES-BACKUP, LEAK-HOSTLAB-PRISTINE-CONFIG,
+  and LEAK-CONTROLLER-HELPER-FILES. A leak only when the copy differs from the live state in the faulted
+  part; deployment-time copies identical on every device are not.
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: \S+\.(?:sav|bak|orig|old|backup|prev)\b|\S+\.leases~
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

@@ -3,17 +3,19 @@
 # CLI flags override this file. This file overrides built-in defaults.
 # Keep API keys and other credentials in the repo-root .env file.
 #
-# Per-agent templates (copy one and pass --run-config):
+# Per-agent templates (use their agent settings in a copy of config/nika.yaml):
 #   config/byo.langgraph.example.yaml
 #   config/byo.mcp_agent.example.yaml
 #   config/byo.autogen.example.yaml
 #   config/cli.codex.example.yaml
 #   config/cli.claude.example.yaml
+#   config/cli.opencode.example.yaml
+#   config/cli.dsh.example.yaml
 #   config/sdk.codex_sdk.example.yaml
 #   config/sdk.claude_sdk.example.yaml
 # List registered names with: uv run nika agent list
 
-# Default profile: LangGraph ReAct on the host.
+# Default profile: LangGraph ReAct (every agent runs in a sandbox).
 agent:
   type: byo.langgraph
   provider: deepseek
@@ -24,11 +26,42 @@ agent:
   timeout_sec: 1800
   # Load shared troubleshooting skills for Claude and Codex agents.
   enable_skills: true
-  # Optional for OpenAI, Anthropic, and supported custom models.
+  # Built-in agents default to medium; added agents get no default.
   # DeepSeek ignores this setting.
   # reasoning_effort: medium
   # Output-token cap per model response. Not applied by Codex agents or SADE.
   max_tokens: 8192
+  # Sampling for byo.langgraph and byo.mcp_agent. Unset values are omitted.
+  # temperature: 0.6
+  # top_p: 0.95
+  # seed: 0
+  # How the frozen report becomes the scored answer. structured: the agent's
+  # own model calls submit(). unstructured: the model below maps the report.
+  # submission:
+  #   mode: unstructured
+  #   provider: custom
+  #   model: Qwen/Qwen3.6-35B-A3B-FP8
+  #   base_url: http://localhost:8000/v1
+  #   samples: 3
+  #   temperature: 0.7
+  # Several mapping models: each settles on its own majority answer, then the
+  # models vote. weight breaks ties (higher wins); min_agreement is how many
+  # models must agree, otherwise nothing is submitted.
+  # submission:
+  #   mode: unstructured
+  #   min_agreement: 2
+  #   mappers:
+  #     - provider: anthropic
+  #       model: claude-opus-5-5
+  #       weight: 10
+  #     - provider: custom
+  #       model: Qwen/Qwen3.6-35B-A3B-FP8
+  #       base_url: http://localhost:8000/v1
+  #       samples: 3
+  #       temperature: 0.7
+  #       weight: 2
+  #     - provider: openai
+  #       model: gpt-5-mini
 
 # OpenAI-compatible endpoint example (OpenRouter). Uncomment and replace the
 # agent block above. Set NIKA_CUSTOM_API_KEY in .env when auth is required.
@@ -54,22 +87,55 @@ nika:
     url: null
     # Reserved for remote artifact storage. Keep null.
     artifact_root: null
+  execution:
+    # Where benchmark trials run their labs: native (this host) or firecracker
+    # (microVMs restored from lab images; docs/operations/firecracker.md).
+    mode: native
+    firecracker:
+      # btrfs or XFS directory for the base image, lab and case images and
+      # trial copies (relative to the NIKA checkout; uninstall removes it).
+      root: runtime/firecracker
+      vm_cpus: 4
+      # Scenario id or <scenario>@<device_profile> -> vCPUs. Overrides the
+      # size NIKA derives from the variant's router platform and its 12
+      # vCPUs for isp_pdh, isp_di-yuan and isp_dfn-gwin,
+      # e.g. {isp_pdh: 16, isp_pdh@sonic: 6}.
+      vm_cpus_overrides: {}
+      vm_memory: 4GiB
+      # Scenario id or <scenario>@<device_profile> -> VM memory. Overrides the
+      # size NIKA derives from the variant's router platform and its 8GiB for
+      # dc_clos, k8s_lab, llmd_lab, min3clos and iosxr_simple_bgp,
+      # e.g. {k8s_lab: 12GiB, isp_pdh@sonic: 6GiB}.
+      vm_memory_overrides: {}
+      # 2 MiB huge pages, required: reserve them on the host first (see the
+      # docs). Each running copy holds its own huge pages.
+      huge_pages: true
+      # Verify restored environments before injection; rebuilt protocols receive full checks.
+      verify_after_restore: true
+      # Also keep each failure task as a case image (snapshot right after
+      # injection, tens of MiB each): trials skip verification and injection,
+      # and all trials of a task start from the same injected state.
+      case_images: false
+      # Delete the lab and case images a run used when it ends. Keeping them
+      # (false) takes disk but makes later runs much faster.
+      clean_after_run: false
   sandbox:
+    # Sandbox runtime: sbx (Docker Sandboxes) or e2b (E2B-compatible service).
+    backend: sbx
+    # e2b: URL of a service that serves its API and sandboxes at one address.
+    # Null uses E2B_DOMAIN from .env, else E2B cloud.
+    url: null
     # Keep the sandbox after a run for debugging.
     keep: false
-    # vCPUs per sandbox. Null lets sbx use every host vCPU.
+    # vCPUs per sandbox. Null lets sbx use every host vCPU (e2b: service default).
     cpus: 2
-    # Memory per sandbox. Null lets sbx use half of host memory.
+    # Memory per sandbox. Null lets sbx use half of host memory (e2b: service
+    # default).
     memory: 4g
-    # Install SDK agents from cached wheels instead of downloading packages.
+    # sbx: install SDK agents from cached wheels instead of downloading packages.
     offline_sdk_wheels: true
-    # Route sandboxd and sbx traffic through this proxy.
+    # sbx: route sandboxd and sbx traffic through this proxy.
     upstream_proxy: null
-  observability:
-    # Send byo.langgraph traces to Langfuse.
-    langfuse_enabled: false
-    # Langfuse API base URL.
-    langfuse_host: https://cloud.langfuse.com
   judge:
     # Provider used by `nika eval judge`.
     provider: openai
@@ -80,7 +146,7 @@ nika:
     deploy_attempts: 3
     # Wait this many seconds for Kathara machines to start.
     deploy_ready_timeout_sec: 90
-    # Wait this many seconds for services after containers start.
+    # Wait this many seconds after deploy when the environment has no readiness verifier.
     deploy_settle_sec: 5
     # Wait this many seconds for Kathara containers to stop.
     undeploy_verify_timeout_sec: 30
@@ -102,17 +168,36 @@ nika:
     gateway_host: "127.0.0.1"
     # Bind the MCP gateway to this port. Set 0 to choose a free port.
     gateway_port: 0
-    # Cap MCP tool text returned to the agent. Over this size, keep the first
-    # and last halves and elide the middle (mini-swe-agent style). 0 disables.
-    tool_output_max_chars: 10000
   static_validation:
     # Run supported topology checks with Batfish before deployment.
     enabled: false
+    # Java heap for the Batfish container NIKA creates (recreate it to apply).
+    batfish_heap: 8g
   runtime_validation:
     # light checks readiness. full runs each scenario's deeper verification.
     depth: light
     # Compare healthy and faulty contract evidence after fault injection.
     failure_effect: false
+  metrics:
+    # Monitoring stack of `nika observability on`
+    # (docs/operations/resource-monitoring.md). Run `on` again to apply changes.
+    # How often to sample lab and host resources: 5s to 60s.
+    scrape_interval: 15s
+    remote_write:
+      # Also push the recorded series to a hosted Prometheus, such as Grafana
+      # Cloud. The token is NIKA_METRICS_REMOTE_WRITE_TOKEN in .env.
+      enabled: false
+      url: null
+      username: null
+    share:
+      # Give each benchmark run a public dashboard link through a Cloudflare
+      # Quick Tunnel (no Cloudflare account needed).
+      enabled: false
+      # The link stops working after this many days (1 to 30).
+      ttl_days: 7
+      # Empty: anyone with the link can view it. Otherwise viewers confirm one
+      # of these addresses (or '*@example.com') with a one-time code.
+      allowed_emails: []
 
 # Configure benchmark execution.
 benchmark:
@@ -133,6 +218,13 @@ benchmark:
   continue_on_error: false
   # Retry failed or incomplete trials with this many extra passes.
   retry_passes: 0
+  # Pause admission after this many consecutive endpoint failures.
+  endpoint_failure_threshold: 3
+  # Wait between recovery probes, doubling up to the maximum.
+  endpoint_backoff_initial_sec: 5
+  endpoint_backoff_max_sec: 60
+  # Abort with pending trials available for resume after this wait.
+  endpoint_wait_timeout_sec: 900
   # Reuse completed trial slots instead of running them again.
   resume: true
   # Add this tag to generated session IDs.

@@ -23,13 +23,7 @@ def derive_incorrect_ip(runtime: LabRuntime, host: str, intf: str = "eth0") -> s
     prefix = network.network.prefixlen
     host_int = int(network.ip)
     edges = {network.network.network_address, network.network.broadcast_address}
-    in_use: set[str] = set()
-    for node in runtime.list_nodes() or []:
-        try:
-            output = runtime.exec(node, "ip -4 -o addr show 2>/dev/null", timeout=10)
-        except RuntimeError:
-            continue
-        in_use |= set(re.findall(r"inet (\d+\.\d+\.\d+\.\d+)/", output or ""))
+    in_use = lab_ipv4_addresses(runtime)
     for offset in (1, 2, 3, -1, -2):
         candidate = ipaddress.ip_address(host_int + offset)
         if candidate.is_multicast or candidate.is_reserved or candidate.is_loopback:
@@ -46,6 +40,37 @@ def derive_incorrect_ip(runtime: LabRuntime, host: str, intf: str = "eth0") -> s
             continue
         return f"{candidate}/{prefix}"
     raise ValueError(f"Cannot derive incorrect IP for {host}:{intf}")
+
+
+def lab_ipv4_addresses(runtime: LabRuntime) -> set[str]:
+    """IPv4 addresses configured on any lab node."""
+    in_use: set[str] = set()
+    for node in runtime.list_nodes() or []:
+        try:
+            output = runtime.exec(node, "ip -4 -o addr show 2>/dev/null", timeout=10)
+        except RuntimeError:
+            continue
+        in_use |= set(re.findall(r"inet (\d+\.\d+\.\d+\.\d+)/", output or ""))
+    return in_use
+
+
+def unused_address_near(runtime: LabRuntime, address: str, prefix: int = 24) -> str:
+    """Return an address next to ``address`` that no lab node holds.
+
+    Used for a resolver or server address that is wrong the way an operator
+    gets it wrong (a stale or mistyped neighbor of the real one), instead of a
+    documentation range such as TEST-NET that reads as injected.
+    """
+    base = ipaddress.ip_address(address)
+    network = ipaddress.ip_network(f"{base}/{prefix}", strict=False)
+    edges = {network.network_address, network.broadcast_address}
+    in_use = lab_ipv4_addresses(runtime)
+    for offset in (1, 2, 3, 4, -1, -2, -3, 10, 20):
+        candidate = base + offset
+        if candidate in network and candidate not in edges:
+            if str(candidate) not in in_use:
+                return str(candidate)
+    raise ValueError(f"No unused address near {address}")
 
 
 def derive_wrong_gateway(runtime: LabRuntime, host: str) -> str:

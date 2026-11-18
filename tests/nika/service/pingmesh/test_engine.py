@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from nika.service.pingmesh.engine import run_pingmesh_snapshot
+from nika.net_env.probe_intent import ProbeIntent
+from nika.service.pingmesh.engine import (
+    _build_pairs,
+    run_pingmesh_snapshot,
+    snapshot_to_json,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -12,6 +17,12 @@ HIGH_LATENCY_OUTPUT = "\n4 packets transmitted, 4 received, 0% packet loss, time
 
 
 class RunPingmeshSnapshotTest:
+    async def test_single_endpoint_does_not_report_healthy(self) -> None:
+        api = self._make_api()
+        api.hosts = ["pc1"]
+        with pytest.raises(ValueError, match="two distinct"):
+            await run_pingmesh_snapshot(api)
+
     def _make_api(self) -> MagicMock:
         api = MagicMock()
         api.hosts = ["pc1", "pc2"]
@@ -25,13 +36,13 @@ class RunPingmeshSnapshotTest:
     async def test_healthy_snapshot(self) -> None:
         api = self._make_api()
         api.exec_cmd_async = AsyncMock(return_value=OK_OUTPUT)
-        snapshot = await run_pingmesh_snapshot(api)
+        snapshot = await run_pingmesh_snapshot(api, include_healthy=True)
 
         assert snapshot["summary"]["anomaly_count"] == 0
 
         assert snapshot["summary"]["total_pairs"] == 2
 
-        assert all((row["reachable"] for row in snapshot["results"]))
+        assert all((row["status"] == "ok" for row in snapshot["results"]))
 
     async def test_unreachable_pair(self) -> None:
         api = self._make_api()
@@ -71,9 +82,242 @@ class RunPingmeshSnapshotTest:
 
         assert snapshot["summary"]["total_pairs"] == 2
 
+    async def test_pair_count_fits_time_budget(self) -> None:
+        api = MagicMock()
+        api.hosts = [f"pc{i}" for i in range(12)]
+        api.servers = {}
+        api.get_host_ip.side_effect = lambda name: f"10.0.0.{name[2:]}"
+        api.exec_cmd_async = AsyncMock(return_value=OK_OUTPUT)
+        snapshot = await run_pingmesh_snapshot(api, count=20, max_pairs=500)
+
+        assert snapshot["summary"]["total_pairs"] == 32
+        assert snapshot["summary"]["capped"] is True
+
     async def test_no_endpoints_raises(self) -> None:
         api = MagicMock()
         api.hosts = []
         api.servers = {}
         with pytest.raises(ValueError, match="No endpoint hosts"):
             await run_pingmesh_snapshot(api)
+
+    async def test_healthy_rows_omitted_by_default(self) -> None:
+        api = self._make_api()
+        api.exec_cmd_async = AsyncMock(return_value=OK_OUTPUT)
+        snapshot = await run_pingmesh_snapshot(api)
+
+        assert "results" not in snapshot
+        assert snapshot["summary"]["total_pairs"] == 2
+        assert snapshot["summary"]["rtt_ms"]["max"] == 0.062
+        assert list(snapshot)[:3] == ["timestamp", "summary", "anomalies"]
+
+    async def test_cap_is_reported(self) -> None:
+        api = MagicMock()
+        api.hosts = ["pc1", "pc2", "pc3"]
+        api.servers = {}
+        api.get_host_ip.side_effect = lambda name: f"10.0.0.{name[-1]}"
+        api.exec_cmd_async = AsyncMock(return_value=OK_OUTPUT)
+        capped = await run_pingmesh_snapshot(api, max_pairs=2)
+        full = await run_pingmesh_snapshot(api)
+
+        assert capped["summary"]["candidate_pairs"] == 6
+        assert capped["summary"]["capped"] is True
+        assert full["summary"]["capped"] is False
+
+    async def test_single_pair_timeout_does_not_fail_snapshot(self) -> None:
+        api = self._make_api()
+
+        async def _exec(host: str, _cmd: str, **_kwargs) -> str:
+            if host == "pc1":
+                return "[TIMEOUT] Command 'ping' on 'pc1' exceeded 16s."
+            return OK_OUTPUT
+
+        api.exec_cmd_async = AsyncMock(side_effect=_exec)
+        snapshot = await run_pingmesh_snapshot(api, include_healthy=True)
+
+        rows = {(r["source"], r["target"]): r for r in snapshot["results"]}
+        assert rows[("pc1", "pc2")]["status"] == "timeout"
+        assert rows[("pc2", "pc1")]["status"] == "ok"
+        (anomaly,) = snapshot["anomalies"]
+        assert anomaly["type"] == "unknown"
+        assert "timed out" in anomaly["detail"]
+
+    async def test_exec_exception_and_unresolvable_endpoint_are_per_pair(self) -> None:
+        api = MagicMock()
+        api.hosts = ["pc1", "pc2", "pc3"]
+        api.servers = {}
+
+        def _ip(name: str) -> str:
+            if name == "pc3":
+                raise RuntimeError("exec timed out")
+            return f"10.0.0.{name[-1]}"
+
+        api.get_host_ip.side_effect = _ip
+
+        async def _exec(host: str, _cmd: str, **_kwargs) -> str:
+            if host == "pc2":
+                raise ValueError("container paused")
+            return OK_OUTPUT
+
+        api.exec_cmd_async = AsyncMock(side_effect=_exec)
+        snapshot = await run_pingmesh_snapshot(api, include_healthy=True)
+
+        status = {(r["source"], r["target"]): r["status"] for r in snapshot["results"]}
+        assert status[("pc1", "pc2")] == "ok"
+        assert status[("pc2", "pc1")] == "error"
+        assert status[("pc1", "pc3")] == "unknown"
+
+    async def test_isolated_pair_is_not_an_anomaly_until_reachable(self) -> None:
+        api = self._make_api()
+        intent = ProbeIntent.from_partitions([["pc1"], ["pc2"]])
+        api.exec_cmd_async = AsyncMock(return_value=DOWN_OUTPUT)
+        blocked = await run_pingmesh_snapshot(api, intent=intent)
+
+        assert blocked["summary"]["anomaly_count"] == 0
+        assert blocked["summary"]["isolated_confirmed"] == 2
+
+        api.exec_cmd_async = AsyncMock(return_value=OK_OUTPUT)
+        leaked = await run_pingmesh_snapshot(api, intent=intent)
+
+        assert leaked["summary"]["policy_violation"] == 2
+        assert {a["type"] for a in leaked["anomalies"]} == {"policy_violation"}
+
+    async def test_design_rtt_raises_latency_threshold(self) -> None:
+        api = self._make_api()
+        api.exec_cmd_async = AsyncMock(return_value=HIGH_LATENCY_OUTPUT)
+        intent = ProbeIntent.from_partitions(max_expected_rtt_ms=160)
+        snapshot = await run_pingmesh_snapshot(api, intent=intent)
+
+        assert snapshot["summary"]["latency_threshold_ms"] == 240
+        assert snapshot["summary"]["high_latency"] == 0
+
+    async def test_full_failure_stays_under_tool_output_limit(self) -> None:
+        names = [f"pc{i:02d}" for i in range(40)]
+        api = MagicMock()
+        api.hosts = names
+        api.servers = {}
+        api.get_host_ip.side_effect = lambda name: f"10.{name[2:]}.0.2"
+        api.exec_cmd_async = AsyncMock(return_value=DOWN_OUTPUT)
+        snapshot = await run_pingmesh_snapshot(api, include_healthy=False)
+
+        assert len(snapshot_to_json(snapshot)) < 10_000
+        assert snapshot["anomalies_omitted"] > 0
+
+    async def test_default_healthy_rows_fit_tool_output_limit(self) -> None:
+        names = [f"host_{i:02d}" for i in range(40)]
+        api = MagicMock()
+        api.hosts = names
+        api.servers = {}
+        api.get_host_ip.side_effect = lambda name: f"10.{name[-2:]}.0.2"
+        api.exec_cmd_async = AsyncMock(return_value=OK_OUTPUT)
+        snapshot = await run_pingmesh_snapshot(api, include_healthy=True)
+
+        assert snapshot["summary"]["total_pairs"] == 64
+        assert len(snapshot_to_json(snapshot)) < 10_000
+
+
+class BuildPairsTest:
+    def test_sampling_covers_every_source_before_repeating(self) -> None:
+        names = [f"h{i}" for i in range(8)]
+        pairs, candidates = _build_pairs(names, names, 8)
+
+        assert candidates == 56
+        assert sorted(src for src, _ in pairs) == sorted(names)
+        assert len({dst for _, dst in pairs}) == 8
+
+    def test_isolated_pairs_get_a_bounded_share(self) -> None:
+        names = ["a1", "a2", "b1", "b2"]
+        intent = ProbeIntent.from_partitions([["a1", "a2"], ["b1", "b2"]])
+        pairs, candidates = _build_pairs(
+            names, names, 4, is_isolated=intent.isolation_matcher()
+        )
+        isolated = [p for p in pairs if intent.isolation_matcher()(*p)]
+
+        assert candidates == 12
+        assert len(pairs) == 4
+        assert len(isolated) == 1
+
+    def test_unused_isolated_budget_flows_to_expected_pairs(self) -> None:
+        names = ["a", "b", "c"]
+        pairs, _ = _build_pairs(names, names, 6)
+
+        assert len(pairs) == 6
+
+
+@pytest.mark.parametrize("count,pairs", [(4, 64), (20, 32)])
+@pytest.mark.parametrize("expand", [False, True])
+async def test_probe_scheduling_preserves_samples_and_latency_detection(
+    monkeypatch, count, pairs, expand
+):
+    import asyncio
+    from nika.service.pingmesh import engine
+
+    monkeypatch.setattr(engine.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(engine.os, "process_cpu_count", lambda: 4, raising=False)
+    now = 0.0
+    monkeypatch.setattr(engine, "monotonic", lambda: now)
+    original_sleep = asyncio.sleep
+    active = peak = 0
+    expansion_waits = []
+
+    async def sleep(delay):
+        nonlocal now
+        expansion_waits.append(delay)
+        if expand:
+            now += delay
+            await original_sleep(0)
+        else:
+            await original_sleep(3600)
+
+    monkeypatch.setattr(engine.asyncio, "sleep", sleep)
+
+    async def execute(host, command, timeout):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await original_sleep(0.001)
+        active -= 1
+        return HIGH_LATENCY_OUTPUT if host == "pc0" else OK_OUTPUT
+
+    api = MagicMock()
+    api.hosts = [f"pc{i}" for i in range(12)]
+    api.servers = {}
+    api.get_host_ip.side_effect = lambda name: f"10.0.0.{int(name[2:]) + 1}"
+    api.exec_cmd_async = AsyncMock(side_effect=execute)
+    before = asyncio.all_tasks()
+    result = await engine.run_pingmesh_snapshot(api, count=count, max_pairs=64)
+    assert result["summary"]["total_pairs"] == pairs
+    assert result["summary"]["high_latency"] > 0
+    assert peak == (8 if expand else 2)
+    assert expansion_waits
+    if count == 20:
+        assert expansion_waits[0] == 0
+    else:
+        assert 0 < expansion_waits[0] < engine.PROBE_BUDGET_SEC
+    assert asyncio.all_tasks() == before
+
+
+async def test_snapshot_budget_returns_completed_pairs_and_cancels_stalled_probes(
+    monkeypatch,
+):
+    import asyncio
+    from nika.service.pingmesh import engine
+
+    monkeypatch.setattr(engine, "PROBE_BUDGET_SEC", 0.05)
+    blocked = asyncio.Event()
+
+    async def execute(host, command, timeout):
+        if host == "pc1":
+            return OK_OUTPUT
+        await blocked.wait()
+
+    api = MagicMock()
+    api.hosts = ["pc1", "pc2", "pc3"]
+    api.servers = {}
+    api.get_host_ip.side_effect = lambda name: f"10.0.0.{name[-1]}"
+    api.exec_cmd_async = AsyncMock(side_effect=execute)
+    before = asyncio.all_tasks()
+    result = await engine.run_pingmesh_snapshot(api, include_healthy=True)
+    assert result["summary"]["total_pairs"] == 6
+    assert result["summary"]["reachable_pairs"] == 2
+    assert result["summary"]["unknown"] == 4
+    assert asyncio.all_tasks() == before

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import warnings
 from typing import Any, Literal
 
@@ -14,7 +15,8 @@ from pydantic import (
     model_validator,
 )
 
-from agent.utils.provider_env import validate_provider_for_agent
+from nika.agents.provider_env import validate_provider_for_agent
+from nika.mcp.tool_output import MAX_CHARS
 
 
 class RemoteSettings(BaseModel):
@@ -25,22 +27,114 @@ class RemoteSettings(BaseModel):
     artifact_root: str | None = None
 
 
+# VM memory of labs that outgrow the default ``vm_memory``: k8s labs, the SR
+# Linux min3clos, Cisco XRd (whose build otherwise runs out of memory), and
+# dc_clos (size l uses more than 4 GiB in the guest). A variant whose routers
+# run a router platform is sized from the platform instead (see
+# nika.firecracker.image.vm_memory_mib); ``vm_memory_overrides`` entries take
+# precedence over both.
+DEFAULT_VM_MEMORY_OVERRIDES = {
+    "dc_clos": "8GiB",
+    "k8s_lab": "8GiB",
+    "llmd_lab": "8GiB",
+    "min3clos": "8GiB",
+    "iosxr_simple_bgp": "8GiB",
+}
+# vCPUs of labs that outgrow the default ``vm_cpus``. 11-router SR Linux labs
+# use about 10 host cores natively. A variant whose routers run a router
+# platform is sized from the platform instead (see
+# nika.firecracker.image.vm_cpus); ``vm_cpus_overrides`` entries take
+# precedence over both.
+DEFAULT_VM_CPU_OVERRIDES = {
+    "isp_pdh": 12,
+    "isp_di-yuan": 12,
+    "isp_dfn-gwin": 12,
+}
+
+
+def _gib(value: str) -> str:
+    if not value.endswith("GiB") or not value[:-3].isdigit():
+        raise ValueError(f"VM memory must look like '8GiB', got {value!r}")
+    return value
+
+
+class FirecrackerSettings(BaseModel):
+    """Firecracker execution (``nika.execution.mode: firecracker``), advanced.
+
+    Each environment variant is deployed and verified once in a microVM booted
+    from the base image in ``root`` and kept as a *lab image*; trials restore a
+    copy of it instead of deploying from scratch. See
+    docs/operations/firecracker.md.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Directory on a reflink-capable filesystem (btrfs, XFS) for the base image,
+    # lab and case images, trial copies and NIKA's Firecracker build. Relative
+    # paths are under the NIKA checkout, so uninstalling NIKA removes it.
+    root: str = "runtime/firecracker"
+    vm_cpus: int = Field(default=4, ge=1)
+    # Scenario id or <scenario>@<device_profile> -> vCPUs. Overrides the size
+    # NIKA derives from the variant's router platform and DEFAULT_VM_CPU_OVERRIDES.
+    vm_cpus_overrides: dict[str, int] = Field(default_factory=dict)
+    # Most Kathara labs use under 2 GiB; with huge pages, admission reserves all of it.
+    vm_memory: str = "4GiB"
+    # Scenario id -> VM memory, for larger labs, merged over
+    # DEFAULT_VM_MEMORY_OVERRIDES. Image builds warn when a lab leaves too
+    # little of its VM memory free.
+    vm_memory_overrides: dict[str, str] = Field(default_factory=dict)
+    # Back VM memory with 2 MiB huge pages reserved on the host (vm.nr_hugepages),
+    # which Firecracker execution requires. Without them (false), the guest runs
+    # on 4 KiB pages and concurrent case-image restores slow the lab for seconds.
+    huge_pages: bool = True
+    # Verify restored environments before injection; recovered protocols receive full checks.
+    verify_after_restore: bool = True
+    # Also keep each failure case as a case image (snapshot after injection, its
+    # memory stored as a compressed diff against the lab image): trials skip
+    # verification and injection. All trials of a case start from the same
+    # injected state. Costs disk (tens of MiB per case) and one build per case.
+    case_images: bool = False
+    # Delete the lab images a benchmark run used when it ends. Keeping them (the
+    # default) takes substantial disk (each holds its lab's memory and disk
+    # changes, often 2-8 GiB) but lets later runs skip the builds.
+    clean_after_run: bool = False
+
+    @field_validator("vm_memory")
+    @classmethod
+    def _memory_in_gib(cls, value: str) -> str:
+        return _gib(value)
+
+    @field_validator("vm_cpus_overrides")
+    @classmethod
+    def _cpus_at_least_one(cls, value: dict[str, int]) -> dict[str, int]:
+        for scenario, cpus in value.items():
+            if not isinstance(cpus, int) or isinstance(cpus, bool) or cpus < 1:
+                raise ValueError(
+                    f"VM CPUs must be an integer >= 1, got {cpus!r} for {scenario}"
+                )
+        return value
+
+    @field_validator("vm_memory_overrides")
+    @classmethod
+    def _overrides_in_gib(cls, value: dict[str, str]) -> dict[str, str]:
+        return {key: _gib(memory) for key, memory in value.items()}
+
+
 class SandboxSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    # Sandbox runtime for sandbox-supported agents:
+    # Docker Sandboxes ("sbx") or an E2B-compatible service ("e2b").
+    backend: Literal["sbx", "e2b"] = "sbx"
+    # e2b: API URL of a self-hosted E2B-compatible service such as AgentENV,
+    # also used as its sandbox URL. Null keeps the E2B SDK defaults (E2B cloud).
+    url: str | None = None
     keep: bool = False
     # Explicit null hands sizing to sbx: every host vCPU and half of host memory.
     cpus: StrictInt | None = 2
     memory: str | None = "4g"
     offline_sdk_wheels: bool = True
     upstream_proxy: str | None = None
-
-
-class ObservabilitySettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    langfuse_enabled: bool = False
-    langfuse_host: str = "https://cloud.langfuse.com"
 
 
 class JudgeSettings(BaseModel):
@@ -120,22 +214,33 @@ class McpSettings(BaseModel):
     read_timeout_sec: float = 120.0
     gateway_host: str = "127.0.0.1"
     gateway_port: int = 0
-    # Observation budget for MCP tool text (mini-swe-agent head/tail style).
-    # Over budget: keep first/last halves and elide the middle. 0 disables.
-    tool_output_max_chars: int = 10000
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_tool_output_limit(cls, data: Any) -> Any:
+        """Ignore ``tool_output_max_chars``, which configs from older NIKA set.
+
+        The tool output limit is part of what the agent observes, so the
+        release's benchmark engine fixes it.
+        """
+        if not isinstance(data, dict) or "tool_output_max_chars" not in data:
+            return data
+        data = dict(data)
+        if data.pop("tool_output_max_chars") != MAX_CHARS:
+            # A UserWarning, because Python hides DeprecationWarning by default.
+            warnings.warn(
+                "nika.mcp.tool_output_max_chars is ignored: the benchmark "
+                f"engine fixes the tool output limit at {MAX_CHARS} characters.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return data
 
     @field_validator("gateway_port")
     @classmethod
     def _gateway_port_non_negative(cls, value: int) -> int:
         if value < 0:
             raise ValueError("nika.mcp.gateway_port must be >= 0")
-        return value
-
-    @field_validator("tool_output_max_chars")
-    @classmethod
-    def _tool_output_chars_non_negative(cls, value: int) -> int:
-        if value < 0:
-            raise ValueError("nika.mcp.tool_output_max_chars must be >= 0")
         return value
 
 
@@ -145,6 +250,8 @@ class StaticValidationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
+    # Java heap for the Batfish container; applies when NIKA creates it.
+    batfish_heap: str = Field(default="8g", pattern=r"^[1-9][0-9]*[mMgG]$")
 
 
 class RuntimeValidationSettings(BaseModel):
@@ -156,13 +263,109 @@ class RuntimeValidationSettings(BaseModel):
     failure_effect: bool = False
 
 
+class RemoteWriteSettings(BaseModel):
+    """Push recorded metrics to a hosted Prometheus such as Grafana Cloud.
+
+    Off by default. The password or API token is read from
+    ``NIKA_METRICS_REMOTE_WRITE_TOKEN``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    url: str | None = None
+    username: str | None = None
+
+    @model_validator(mode="after")
+    def _url_when_enabled(self) -> RemoteWriteSettings:
+        if self.enabled and not self.url:
+            raise ValueError("nika.metrics.remote_write.enabled requires url")
+        return self
+
+
+class ShareSettings(BaseModel):
+    """Public dashboard link for each benchmark run, through a Cloudflare tunnel.
+
+    Off by default. Without ``allowed_emails``, anyone with the link can view
+    the dashboard; with it, viewers confirm one of these addresses by a
+    one-time code.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    ttl_days: int = Field(default=7, ge=1, le=30)
+    allowed_emails: list[str] = Field(default_factory=list)
+
+
+class MetricsSettings(BaseModel):
+    """Monitoring stack started by ``nika observability on``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # How often Prometheus scrapes and cAdvisor samples, such as 15s or 30s.
+    scrape_interval: str = "15s"
+    remote_write: RemoteWriteSettings = Field(default_factory=RemoteWriteSettings)
+    share: ShareSettings = Field(default_factory=ShareSettings)
+
+    @field_validator("scrape_interval")
+    @classmethod
+    def _interval(cls, value: str) -> str:
+        if not re.fullmatch(r"[1-9][0-9]*s|1m", value) or (
+            value.endswith("s") and not 5 <= int(value[:-1]) <= 60
+        ):
+            raise ValueError(
+                f"scrape_interval must be between 5s and 60s (or 1m), got {value!r}"
+            )
+        return value
+
+
+class ExecutionSettings(BaseModel):
+    """Where benchmark trials run their labs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # ``native``: on this host. ``firecracker``: in Firecracker microVMs restored
+    # from lab images, configured under ``firecracker``.
+    mode: Literal["native", "firecracker"] = "native"
+    firecracker: FirecrackerSettings = Field(default_factory=FirecrackerSettings)
+
+
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_observability(cls, data: Any) -> Any:
+        """Ignore ``nika.observability``, which saved run configs still hold.
+
+        It configured Langfuse tracing; the model proxy now records every
+        model call in ``model_calls.jsonl``. Also ignore ``nika.telemetry``:
+        the management subnet is fixed in code, not a run-config field.
+        """
+        if not isinstance(data, dict):
+            return data
+        if "observability" not in data and "telemetry" not in data:
+            return data
+        data = dict(data)
+        data.pop("telemetry", None)
+        if "observability" not in data:
+            return data
+        observability = data.pop("observability")
+        if isinstance(observability, dict) and observability.get("langfuse_enabled"):
+            # A UserWarning, because Python hides DeprecationWarning by default.
+            warnings.warn(
+                "nika.observability is ignored: Langfuse tracing was removed; "
+                "model_calls.jsonl records every model call.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return data
+
     result_dir: str = "results"
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
+    execution: ExecutionSettings = Field(default_factory=ExecutionSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
-    observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)
     k8s: K8sSettings = Field(default_factory=K8sSettings)
     lab: LabSettings = Field(default_factory=LabSettings)
@@ -173,6 +376,7 @@ class NikaSettings(BaseModel):
     runtime_validation: RuntimeValidationSettings = Field(
         default_factory=RuntimeValidationSettings
     )
+    metrics: MetricsSettings = Field(default_factory=MetricsSettings)
 
 
 class AgentLlmSettings(BaseModel):
@@ -226,6 +430,128 @@ class AgentAccessSettings(BaseModel):
         return self
 
 
+class SubmissionMapperSettings(BaseModel):
+    """One model that maps the frozen report in ``mode: unstructured``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["openai", "anthropic", "deepseek", "custom"]
+    model: str
+    # OpenAI-style API root for provider=custom; defaults to agent.base_url.
+    base_url: str | None = None
+    # Independent mappings of the report; this model votes for its majority.
+    samples: int = 1
+    # Sampling temperature; null sends none, so the endpoint's default applies.
+    # Use a value above 0 when samples > 1.
+    temperature: float | None = None
+    # Priority when models tie in the vote across models; higher wins.
+    weight: float = 1.0
+
+    @model_validator(mode="after")
+    def _valid(self) -> "SubmissionMapperSettings":
+        if not self.model.strip():
+            raise ValueError("agent.submission mapper model must not be empty")
+        if self.samples < 1:
+            raise ValueError("agent.submission.samples must be >= 1")
+        if self.temperature is not None and self.temperature < 0:
+            raise ValueError("agent.submission.temperature must be >= 0")
+        if self.weight < 0:
+            raise ValueError("agent.submission mapper weight must be >= 0")
+        return self
+
+
+class AgentSubmissionSettings(BaseModel):
+    """How the frozen diagnosis report becomes the scored submission.
+
+    ``structured``: the agent's own model picks the answer, through the
+    agent's ``submit()`` or NIKA's default one. ``unstructured``: NIKA maps
+    the report the same way for every agent type, with one model (``provider``,
+    ``model`` ...) or several (``mappers``).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["structured", "unstructured"] = "structured"
+    provider: Literal["openai", "anthropic", "deepseek", "custom"] | None = None
+    model: str | None = None
+    # OpenAI-style API root for provider=custom; defaults to agent.base_url.
+    base_url: str | None = None
+    # Independent mappings of the report; the majority answer is submitted.
+    samples: int = 1
+    # Sampling temperature of the mapping model; null sends none, so the
+    # endpoint's default applies. Use a value above 0 when samples > 1.
+    temperature: float | None = None
+    # Several mapping models instead of the single one above. Each model
+    # settles on its own majority answer, then the models vote.
+    mappers: list[SubmissionMapperSettings] | None = None
+    # Models that must vote for the winning answer; otherwise nothing is
+    # submitted.
+    min_agreement: int = 1
+
+    @model_validator(mode="after")
+    def _mode_fields(self) -> "AgentSubmissionSettings":
+        single_fields = (self.provider, self.model, self.base_url, self.temperature)
+        single = any(value is not None for value in single_fields) or self.samples != 1
+        if self.mode == "structured":
+            if single or self.mappers is not None or self.min_agreement != 1:
+                raise ValueError(
+                    "agent.submission provider/model/base_url/samples/temperature/"
+                    "mappers/min_agreement apply only to mode: unstructured"
+                )
+            return self
+        if self.mappers is not None:
+            if single:
+                raise ValueError(
+                    "agent.submission: set either provider/model/base_url/samples/"
+                    "temperature or mappers, not both"
+                )
+            if not self.mappers:
+                raise ValueError("agent.submission.mappers must not be empty")
+        elif not self.provider or not (self.model or "").strip():
+            raise ValueError(
+                "agent.submission.mode unstructured requires provider and model"
+            )
+        else:
+            # Validates samples and temperature like a mappers entry.
+            self.mapper_settings()
+        if not 1 <= self.min_agreement <= len(self.mapper_settings()):
+            raise ValueError(
+                "agent.submission.min_agreement must be between 1 and the "
+                "number of mappers"
+            )
+        return self
+
+    def mapper_settings(self) -> list[SubmissionMapperSettings]:
+        """The mapping models of ``mode: unstructured``, in configured order."""
+        if self.mode != "unstructured":
+            return []
+        if self.mappers is not None:
+            return list(self.mappers)
+        return [
+            SubmissionMapperSettings(
+                provider=self.provider,
+                model=str(self.model),
+                base_url=self.base_url,
+                samples=self.samples,
+                temperature=self.temperature,
+            )
+        ]
+
+    def identity(self) -> dict[str, Any]:
+        """Settings that define the submission, as recorded with a run."""
+        if self.mode == "structured":
+            return {"mode": self.mode}
+        if self.mappers is None:
+            return self.model_dump(
+                exclude_none=True, exclude={"mappers", "min_agreement"}
+            )
+        return {
+            "mode": self.mode,
+            "mappers": [m.model_dump(exclude_none=True) for m in self.mappers],
+            "min_agreement": self.min_agreement,
+        }
+
+
 class AgentSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -247,8 +573,28 @@ class AgentSettings(BaseModel):
     reasoning_effort: str | None = None
     # Output-token cap per model response. Not applied by Codex agents or SADE.
     max_tokens: int = 8192
+    # Sampling. None = do not send, so the server applies the model's own
+    # generation defaults. Applied by byo.langgraph and byo.mcp_agent.
+    temperature: float | None = None
+    top_p: float | None = None
+    seed: int | None = None
+    # Host-enforced primitive MCP calls per phase. Missing phases have no cap.
+    tool_call_limits: dict[Literal["diagnosis", "submission"], int] = Field(
+        default_factory=dict
+    )
+    # Refuse sandbox generation requests for a different model.
+    fixed_model: bool = False
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
+
+    @field_validator("tool_call_limits")
+    @classmethod
+    def _tool_limits_non_negative(cls, values: dict[str, int]) -> dict[str, int]:
+        if any(value < 0 for value in values.values()):
+            raise ValueError("agent.tool_call_limits must be non-negative")
+        return values
+
     access: AgentAccessSettings = Field(default_factory=AgentAccessSettings)
+    submission: AgentSubmissionSettings = Field(default_factory=AgentSubmissionSettings)
 
     @model_validator(mode="before")
     @classmethod
@@ -286,6 +632,29 @@ class AgentSettings(BaseModel):
             raise ValueError("agent.max_tokens must be >= 1")
         return value
 
+    @field_validator("temperature")
+    @classmethod
+    def _temperature_non_negative(cls, value: float | None) -> float | None:
+        if value is not None and value < 0:
+            raise ValueError("agent.temperature must be >= 0")
+        return value
+
+    @field_validator("top_p")
+    @classmethod
+    def _top_p_in_range(cls, value: float | None) -> float | None:
+        if value is not None and not 0 < value <= 1:
+            raise ValueError("agent.top_p must be in (0, 1]")
+        return value
+
+    def sampling_params(self) -> dict[str, float | int]:
+        """Explicitly configured sampling parameters (unset ones are omitted)."""
+        params = {
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "seed": self.seed,
+        }
+        return {key: value for key, value in params.items() if value is not None}
+
     @field_validator("timeout_sec")
     @classmethod
     def _timeout_sec_non_negative(cls, value: int) -> int:
@@ -310,6 +679,10 @@ class BenchmarkSettings(BaseModel):
     heavy_batch_size: int = 1
     case_timeout_sec: int = 2400
     continue_on_error: bool = False
+    endpoint_failure_threshold: int = Field(default=3, ge=1)
+    endpoint_backoff_initial_sec: float = Field(default=5, gt=0, allow_inf_nan=False)
+    endpoint_backoff_max_sec: float = Field(default=60, gt=0, allow_inf_nan=False)
+    endpoint_wait_timeout_sec: float = Field(default=900, gt=0, allow_inf_nan=False)
     retry_passes: int = 0
     resume: bool = True
     session_tag: str | None = None
@@ -341,8 +714,11 @@ class RunConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_agent_provider(self) -> RunConfig:
+        from nika.agents.registry import find_agent_spec
+
         agent_type = self.agent.type.strip()
-        if agent_type.lower() != "mock":
+        spec = find_agent_spec(agent_type)
+        if spec is None or spec.requires_provider:
             validate_provider_for_agent(agent_type, self.agent.provider)
         return self
 

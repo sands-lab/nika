@@ -67,7 +67,9 @@ def _record_baseline(case: FailureE2ECase, ctx: FailureE2EContext) -> None:
     probe = get_symptom_contract(case.problem).probe
     if probe == "custom":
         return
-    path = _resolve_path(case.scenario, ctx.parsed, topo_size=case.topo_size)
+    path = _resolve_path(
+        case.scenario, ctx.parsed, topo_size=case.topo_size, net_env=ctx.problem.net_env
+    )
     if path is not None:
         ctx.before = run_probe_snapshot(ctx.runtime, probe, path, params=ctx.parsed)
 

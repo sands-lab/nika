@@ -6,6 +6,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from nika.workflows.benchmark.provenance import (
+    UNVERSIONED_SCHEMA,
+    Provenance,
+)
+
 METADATA_FILENAME = "metadata.yaml"
 README_FILENAME = "README.md"
 RESULTS_DIRNAME = "results"
@@ -137,9 +142,14 @@ class RunIdentity(BaseModel):
     model: str | None = None
     llm_provider: str | None = None
     max_steps: int | None = None
+    # None for runs recorded before NIKA defaulted built-in agents to medium.
+    reasoning_effort: str | None = None
     case_timeout_sec: int
     nika_git_commit: str | None = None
     source_result_dir: str | None = None
+    # Contract D; packages from runs recorded before it are schema 1.
+    schema_version: int = UNVERSIONED_SCHEMA
+    provenance: Provenance | None = None
 
 
 class PackageIdentity(BaseModel):
@@ -166,11 +176,15 @@ class TrialResult(BaseModel):
     trial_index: int = Field(..., ge=1)
     scenario: str
     problem: str
+    node_count: int | None = Field(default=None, ge=0)
+    link_count: int | None = Field(default=None, ge=0)
     outcome: Literal["success", "agent_failed"]
     score_status: ScoreStatus
     metrics: dict[str, float | int | None] = Field(default_factory=dict)
     gt_fault_types: list[str] = Field(default_factory=list)
     predicted_fault_types: list[str] | None = None
+    # Run-validity flags (see ``nika.evaluator.validity``); empty for clean trials.
+    validity_flags: list[str] = Field(default_factory=list)
 
     @field_validator("gt_fault_types")
     @classmethod
@@ -235,3 +249,5 @@ class AggregatedMetrics(BaseModel):
     healthy_mean_detection_score: float = 0.0
     token_totals: dict[str, int] = Field(default_factory=dict)
     steps_totals: dict[str, int] = Field(default_factory=dict)
+    # Trials per run-validity flag; flags that never fired are omitted.
+    validity_counts: dict[str, int] = Field(default_factory=dict)

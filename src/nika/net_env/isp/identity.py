@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from nika.topology.sndlib.catalog import SNDLIB_TOPOLOGY_NAMES
+from nika.topology.catalog import ISP_TOPOLOGY_NAMES
 
 ISP_NAMED_SPECIALS: frozenset[str] = frozenset(
     {
@@ -39,10 +39,10 @@ def is_isp_named_special(scenario: str) -> bool:
 
 
 def is_isp_base_topology(scenario: str) -> bool:
-    """True for ``isp_<sndlib>`` topology scenarios (not named specials)."""
+    """True for ``isp_<topo>`` SNDlib/Topology Zoo scenarios (not named specials)."""
     if not scenario.startswith(_ISP_PREFIX) or scenario in ISP_NAMED_SPECIALS:
         return False
-    return scenario[len(_ISP_PREFIX) :] in SNDLIB_TOPOLOGY_NAMES
+    return scenario[len(_ISP_PREFIX) :] in ISP_TOPOLOGY_NAMES
 
 
 def is_isp_scenario(scenario: str) -> bool:
@@ -66,4 +66,4 @@ def isp_topo_from_scenario(scenario: str) -> str:
 
 
 def list_isp_base_scenarios() -> tuple[str, ...]:
-    return tuple(isp_scenario_id(name) for name in SNDLIB_TOPOLOGY_NAMES)
+    return tuple(isp_scenario_id(name) for name in ISP_TOPOLOGY_NAMES)

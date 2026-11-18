@@ -4,6 +4,9 @@ failure:
   fault_type: arp_acl_block
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_1
     root_causes:
@@ -12,6 +15,9 @@ failure:
         node: client_1
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_2
     root_causes:
@@ -20,6 +26,9 @@ failure:
         node: client_2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_1
     root_causes:
@@ -28,6 +37,9 @@ failure:
         node: client_1
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_2
     root_causes:
@@ -36,6 +48,9 @@ failure:
         node: client_2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_3
     root_causes:
@@ -44,6 +59,9 @@ failure:
         node: client_3
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_4
     root_causes:
@@ -52,6 +70,9 @@ failure:
         node: client_4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_1
     root_causes:
@@ -60,6 +81,9 @@ failure:
         node: client_1
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_2
     root_causes:
@@ -68,6 +92,9 @@ failure:
         node: client_2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_3
     root_causes:
@@ -76,6 +103,9 @@ failure:
         node: client_3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_4
     root_causes:
@@ -84,6 +114,9 @@ failure:
         node: client_4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_5
     root_causes:
@@ -92,6 +125,9 @@ failure:
         node: client_5
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_6
     root_causes:
@@ -100,6 +136,9 @@ failure:
         node: client_6
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_7
     root_causes:
@@ -108,6 +147,9 @@ failure:
         node: client_7
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_8
     root_causes:

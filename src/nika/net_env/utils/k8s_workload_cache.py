@@ -7,6 +7,7 @@ import io
 import json
 import re
 import os
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -17,7 +18,7 @@ from typing import TYPE_CHECKING
 import docker.errors
 import requests
 
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     _get_client,
     ensure_nika_docker_images,
@@ -30,7 +31,9 @@ if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
 
-K3S_IMAGE = "rancher/k3s:v1.34.1-k3s1@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c"
+# The pinned rancher/k3s image plus tcpdump, iperf3, and python3 for node
+# diagnosis (Dockerfile.k3s).
+K3S_NODE_IMAGE = nika_image("k3s")
 
 # System images used by rancher/k3s:v1.34.1-k3s1.
 K3S_SYSTEM_IMAGES = (
@@ -45,6 +48,16 @@ K8S_SCENARIOS = frozenset(
 )
 
 SKOPEO_IMAGE = nika_image("skopeo")
+# Registry or CDN outages often last minutes, beyond skopeo's own short
+# retries. Retry the whole fetch on these transient errors with backoff.
+_TRANSIENT_REGISTRY_ERROR = re.compile(
+    r"status code from registry (5\d\d|429)|unexpected HTTP status: (5\d\d|429)"
+    r"|too many requests|connection reset|i/o timeout"
+    r"|TLS handshake timeout|unexpected EOF|context deadline exceeded",
+    re.IGNORECASE,
+)
+_FETCH_BACKOFF_SEC = (30, 60, 120)
+
 _PROXY_ENV_KEYS = (
     "HTTP_PROXY",
     "HTTPS_PROXY",
@@ -54,15 +67,43 @@ _PROXY_ENV_KEYS = (
     "no_proxy",
 )
 
-_PRELOAD_SIGNAL_PATH = "/var/run/nika-images-preloaded"
-_MOUNT_CACHE_DIR = "/nika-image-cache"
+_PRELOAD_SIGNAL_PATH = "/var/run/images-preloaded"
+_MOUNT_CACHE_DIR = "/image-cache"
 _K3S_API_WAIT_SEC = 600.0
 _K3S_API_POLL_SEC = 2.0
 _IMPORT_TIMEOUT_SEC = 600.0
 
 
 def cache_root() -> Path:
-    return REPO_ROOT / ".nika_cache" / "k8s-images"
+    return CACHE_DIR / "k8s-images"
+
+
+def _fs_type(path: Path) -> str:
+    """Filesystem type of the nearest existing ancestor (``stat -f -c %T``)."""
+    probe = path
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    try:
+        out = subprocess.run(
+            ["stat", "-f", "-c", "%T", str(probe)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout.strip().lower()
+
+
+def ensure_docker_bind_path(path: Path) -> None:
+    """Fail early if the root Docker daemon cannot bind-mount *path* (e.g. NFS root-squash)."""
+    fs = _fs_type(path)
+    if fs.startswith("nfs"):
+        raise RuntimeError(
+            f"{path} is on an NFS filesystem ({fs}); the Docker daemon cannot "
+            "bind-mount it under root-squash."
+        )
 
 
 def _k8s_scenario_class(scenario: str) -> type["NetworkEnvBase"] | None:
@@ -302,6 +343,21 @@ def ensure_cached(image: str) -> Path:
         + "@"
         + digest
     )
+    delays = iter(_FETCH_BACKOFF_SEC)
+    while True:
+        try:
+            _fetch_into_cache(image, source, tar_path)
+            return tar_path
+        except RuntimeError as exc:
+            delay = next(delays, None)
+            if delay is None or not _TRANSIENT_REGISTRY_ERROR.search(str(exc)):
+                raise
+            _progress(f"transient registry error for {image}; retrying in {delay}s")
+            time.sleep(delay)
+
+
+def _fetch_into_cache(image: str, source: str, tar_path: Path) -> None:
+    """Copy one image from its registry into ``tar_path`` (one attempt)."""
     with tempfile.TemporaryDirectory(dir=cache_root()) as tmp:
         directory = Path(tmp) / "image"
         staged = Path(tmp) / "image.tar"
@@ -314,7 +370,7 @@ def ensure_cached(image: str) -> Path:
                 host_machine_arch(),
                 "--preserve-digests",
                 "--retry-times",
-                "2",
+                "5",
                 f"docker://{source}",
                 f"dir:{directory}",
                 mount=Path(tmp),
@@ -340,7 +396,6 @@ def ensure_cached(image: str) -> Path:
             raise RuntimeError(f"Incomplete or corrupt image archive for {image}")
         staged.chmod(0o644)
         staged.replace(tar_path)
-    return tar_path
 
 
 def ensure_workload_cache(scenario: str) -> list[Path]:
@@ -437,6 +492,7 @@ def mount_workload_cache(machine, scenario: str) -> None:
     """Stage the image cache and block node registry fallback, including system pods."""
     if scenario not in K8S_SCENARIOS:
         return
+    ensure_docker_bind_path(cache_root())
     cache_root().mkdir(parents=True, exist_ok=True)
     machine.add_meta("volume", f"{cache_root()}|{_MOUNT_CACHE_DIR}|ro")
     # A refused local endpoint prevents mutable system-image tags from being
@@ -454,19 +510,19 @@ def import_tar_to_node(runtime: LabRuntime, node: str, tar_path: Path) -> None:
     # raise on non-zero exit, so require an explicit marker.
     output = runtime.exec(
         node,
-        f"if [ ! -f {remote_path} ]; then echo NIKA_IMPORT_MISSING; exit 1; fi; "
+        f"if [ ! -f {remote_path} ]; then echo IMPORT_MISSING; exit 1; fi; "
         f"ctr --address /run/k3s/containerd/containerd.sock -n k8s.io "
-        f"images import --local --platform linux/{host_machine_arch()} {remote_path} >/tmp/nika-import.log 2>&1; "
-        f"echo NIKA_IMPORT_EXIT:$?; "
-        f"tail -c 400 /tmp/nika-import.log 2>/dev/null || true",
+        f"images import --local --platform linux/{host_machine_arch()} {remote_path} >/tmp/image-import.log 2>&1; "
+        f"echo IMPORT_EXIT:$?; "
+        f"tail -c 400 /tmp/image-import.log 2>/dev/null || true",
         timeout=_IMPORT_TIMEOUT_SEC,
     )
-    if "NIKA_IMPORT_MISSING" in output:
+    if "IMPORT_MISSING" in output:
         raise RuntimeError(
             f"Cached image tar missing on {node}: {remote_path} "
             f"(is {_MOUNT_CACHE_DIR} mounted?)"
         )
-    if "NIKA_IMPORT_EXIT:0" not in output:
+    if "IMPORT_EXIT:0" not in output:
         raise RuntimeError(
             f"Failed to import {tar_path.name} on {node}: {output.strip()[-500:]}"
         )

@@ -32,15 +32,19 @@ nika env run dc_clos -s s
 
 `uv run nika ...` also works, but uv then checks the environment on every call and keeps its cache in `~/.cache/uv`. NIKA itself never calls uv. The installer points the uv cache and uv-managed Python at `.nika_cache/uv/` only while it runs, so re-run `./scripts/install.sh` after `git pull` to update dependencies without touching your home directory. It does not change uv settings for your other projects.
 
+Worktrees of the same repository share `runtime/` and `.nika_cache/` in the main checkout; see [State directory](configuration.md#state-directory).
+
 Some parts still live outside the repository because they belong to the host:
 
 - Docker images and build cache, in Docker's data root (usually `/var/lib/docker`).
 - The `clab` binary in `.venv/bin` is owned by root and setuid, as in Containerlab's own installer. Members of the `clab_admins` group run it as root. The installer uses `sudo` once to set this up and to create the group and add you to it. Open a new login shell afterwards. If `.venv` sits on a `nosuid` mount or a network home that refuses root-owned setuid files, the installer stops; install Containerlab system-wide with its [own installer](https://containerlab.dev/install/) and re-run, and NIKA uses that copy.
-- The inotify and `vrf` kernel settings described below, under `/etc`.
+- The inotify, neighbor table, and `vrf` kernel settings described below, under `/etc`.
 
-The tools NIKA runs for fault injection and Kubernetes image preparation come in Docker images that `nika images prepare` builds: `nika/tc-bpf` compiles and attaches eBPF programs, and `nika/skopeo` fetches workload images. skopeo uses the proxy variables and the inline `docker login` credentials from `~/.docker/config.json`; credential helpers stay on the host. Containerlab link faults use the host's `tc`, `ip`, and `nsenter`, which most distributions ship by default; the installer warns if one is missing.
+The tools NIKA runs for fault injection and Kubernetes image preparation come in Docker images that `nika images prepare` builds: `nika/tc-bpf` compiles and attaches eBPF programs, and `nika/skopeo` fetches workload images. skopeo uses the proxy variables and the inline `docker login` credentials from `~/.docker/config.json`; credential helpers stay on the host. Every Containerlab environment uses the host's `tc`, `ip`, and `nsenter` to join node-to-node links and to inject link faults; most distributions ship those tools by default, and the installer warns if one is missing.
 
 The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and `iosxr_simple_bgp` fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
+
+It raises the IPv4 and IPv6 neighbor table limits (`net.ipv4.neigh.default.gc_thresh1/2/3` and the IPv6 keys) to at least `8192`, `16384`, and `32768` and persists them in `/etc/sysctl.d/99-nika-neigh.conf`. All container network namespaces share one kernel neighbor table, and large or concurrent labs overflow the kernel default of `1024` entries and drop packets. If the installer cannot change them, follow [Host neighbor table overflows](troubleshooting.md#host-neighbor-table-overflows-large-or-concurrent-labs).
 
 Scenarios with Linux VRF devices, such as `enterprise_branch`, need the host `vrf` kernel module, and the benchmark includes them. The installer loads the module and persists it in `/etc/modules-load.d/nika-vrf.conf`. When the module is missing, the installer stops before changing anything and prints the `linux-modules-extra` install command. See [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch).
 
@@ -48,7 +52,7 @@ Check that no other route on the host, such as one from a VPN or the host networ
 
 ## Runtime images
 
-The installer ends by running `uv run nika images prepare`. It builds every local `nika/*` image, pulls the upstream images that non-vendor scenarios deploy (`kathara/*`, `rancher/k3s`, Nokia SR Linux, and others) by their pinned digests, and caches the `k8s_lab` and `llmd_lab` workload archives and Helm charts under `.nika_cache/`. Benchmarks then start without image builds or registry pulls. Vendor router images still need `--with-vendor-images` (see [Prepare vendor images](#prepare-vendor-images)).
+The installer ends by running `uv run nika images prepare`. It builds every local `nika/*` image, pulls the upstream images that non-vendor scenarios deploy or build on (`kathara/*`, `rancher/k3s`, Nokia SR Linux, and others) by their pinned digests, downloads the pinned SONiC virtual switch build, and caches the `k8s_lab` and `llmd_lab` workload archives and Helm charts under `.nika_cache/`. Benchmarks then start without image builds or registry pulls. Vendor router images still need `--with-vendor-images` (see [Prepare vendor images](#prepare-vendor-images)).
 
 On a fresh 8-vCPU host, the whole first install takes about 20 minutes and uses about 16 GB of disk: 11 GB of Docker images, 4 GB of Docker build cache, and 1 GB under `.nika_cache/`. Pass `--skip-images` to skip this step; labs then build or pull what they need on first deploy.
 
@@ -64,12 +68,12 @@ Re-run `./scripts/install.sh` after `git pull` or on a host with an older or par
 
 - Rebuilds a `nika/*` image when its Dockerfile, the files the Dockerfile copies, or a parent image changed. Builds carry an `io.nika.build-hash` label that records these inputs. Images built by older installers have no label, so they rebuild once.
 - Tags `nika/*` images with the benchmark version (for example `nika/base:0.2.0` for nika-bench 0.2.0). When the current tag is missing but a build from another version (such as `nika/base:latest`) has the same build hash, the installer renames that tag instead of rebuilding. Otherwise it removes the old tag and rebuilds.
-- Removes image tags that the current release no longer references, from repositories only NIKA uses (`nika/*`, legacy `kathara/nika-*`, `rancher/k3s`, MetalLB, llm-d, agentgateway, Routinator, Batfish, SR Linux, and the vendor router images). It also removes the Docker copies of Kubernetes workload images that older releases pulled; those images now live only in `.nika_cache/k8s-images/`. Images used by any container are kept. Generic images such as `postgres` or `debian` are never pruned.
+- Removes image tags that the current release no longer references, from repositories only NIKA uses (`nika/*`, legacy `kathara/nika-*`, `rancher/k3s`, MetalLB, llm-d, agentgateway, Routinator, Batfish, SR Linux, SONiC, and the vendor router images). It also removes the Docker copies of Kubernetes workload images that older releases pulled; those images now live only in `.nika_cache/k8s-images/`. Images used by any container are kept. Generic images such as `postgres` or `debian` are never pruned.
 - Removes stale `.nika_cache/` entries: workload archives the labs no longer use, other Helm versions and charts, and RouterOS CHR downloads for other versions. User-supplied XRd tarballs and SNDlib traffic are kept.
 - Reinstalls gnmic into `.venv/bin` when the `gnmic` on `PATH` differs from the pinned version, and installs Containerlab there when the `clab` on `PATH` is older than the minimum version. A newer Containerlab is kept, including one installed from a package by an older installer.
 - Rewrites an inotify sysctl file from an older installer into the current format.
 
-The installer never rewrites `.env` or `config/nika.yaml`. When `config/nika.yaml` fails validation (for example, it uses a key that this version removed), the installer prints the validation error. Compare the file with `config/nika.example.yaml` and fix it.
+The installer preserves existing `.env` and `config/nika.yaml` settings, except when `--with-agentenv` adds the service credentials and selects the AgentENV sandbox runtime, or `--with-firecracker` selects Firecracker execution. When `config/nika.yaml` fails validation (for example, it uses a key that this version removed), the installer prints the validation error. Compare the file with `config/nika.example.yaml` and fix it.
 
 A second re-run prints `No stale NIKA images` and builds nothing.
 
@@ -90,20 +94,30 @@ After `--track stable`, run cases with a frozen release, for example:
 uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 ```
 
-## Install sbx for sandboxed agents
+## Install a sandbox runtime
 
-Skip this unless you run sandboxed agents (`cli.*`, `sdk.*`, `community.sade`). Host agents such as `byo.langgraph` do not need it.
+NIKA runs every agent in a sandbox, so agent runs need a sandbox runtime. On a host with KVM, the installer can set one up. See [Choose a sandbox runtime](agent-sandbox.md#choose-a-sandbox-runtime) to compare them.
+
+**AgentENV in Docker (recommended).** An open-source, E2B-compatible sandbox service that runs on this host and needs no account:
+
+```shell
+./scripts/install.sh --with-agentenv
+```
+
+It needs `/dev/kvm` and kernel 6.8 or later. The installer loads the `ublk_drv` kernel module and persists it in `/etc/modules-load.d/`, starts the privileged `nika-agentenv` container on `127.0.0.1:8800`, writes its key to `.env`, and points `config/nika.yaml` at it.
+
+**Docker Sandboxes (sbx).** Docker's microVM sandboxes; they need a Docker account:
 
 ```shell
 ./scripts/install.sh --with-sbx
 sbx login
 ```
 
-The flag installs `docker-sbx` from Docker's apt repo, or runs `get.docker.com` with `SBX=1` when that package is unavailable. sbx ships only as a package, so this opt-in step is the only one that uses apt. It skips the install when `sbx` is already on `PATH`.
+The flag installs `docker-sbx` from Docker's apt repo, or runs `get.docker.com` with `SBX=1` when that package is unavailable. sbx ships only as a package, so this opt-in step uses apt. It skips the install when `sbx` is already on `PATH`.
 
 sbx runs each sandbox as a KVM microVM, so your user needs read/write on `/dev/kvm`. When it lacks access, the installer adds you to the group that owns the device (usually `kvm`). Open a new login shell (or run `newgrp kvm`), then run `sbx daemon stop` so the next NIKA run starts the daemon with the new group. Without this, `sbx create` fails with `KVM error: Permission denied`. If `/dev/kvm` is missing, enable hardware virtualization (or nested virtualization on a VM).
 
-See [Agent sandboxing](agent-sandbox.md) for credentials and runtime settings.
+**Without KVM**, use [E2B cloud](agent-sandbox.md#connect-to-e2b-cloud-or-another-e2b-compatible-service). See [Agent sandboxing](agent-sandbox.md) for credentials and runtime settings.
 
 ## Prepare vendor images
 
@@ -126,9 +140,28 @@ Vendor artifacts land under `.nika_cache/vendor/` (gitignored): XRd tarballs as 
 
 Manual fallback for each lab: [IOS-XR](network-scenarios.md#ios-xr-simple-bgp-scenario), [RouterOS](network-scenarios.md#routeros-simple-bgp-scenario).
 
-## Allow Containerlab link faults
+## Set up Firecracker execution
 
-Link faults on Containerlab labs (packet loss, corruption, rate limits, link down, and link flaps) change the host side of each lab link. NIKA runs `tc`, `ip`, `nsenter`, and `sh` on the host through `sudo -n`, so your user needs passwordless `sudo` for those commands. Kathará labs do not need this.
+Benchmark runs that deploy every environment from scratch spend most of their time outside the agent. [Firecracker execution](firecracker.md) restores each trial's environment from a saved microVM instead.
+
+Prerequisites:
+
+- An x86-64 host with KVM (`/dev/kvm`).
+- At least 80 GiB of free disk on the disk that holds the checkout. The installer mounts a btrfs loop file at `runtime/firecracker` and leaves 20 GiB free for Docker images.
+
+> **Warning:** The installer reserves half of the host's memory as huge pages. Other applications cannot use that memory until you [uninstall NIKA](#uninstall).
+
+To set up the host and select Firecracker execution in `config/nika.yaml`:
+
+```shell
+./scripts/install.sh --with-firecracker
+```
+
+The installer ends with the steps it cannot do itself, such as a reboot. See [Set up the host](firecracker.md#set-up-the-host-once) for what it changes and how the memory and disk are sized.
+
+## Allow passwordless sudo for Containerlab
+
+Every Containerlab environment joins node-to-node links through host veths with `ip` and `tc`, then applies link faults (packet loss, corruption, rate limits, link down, and link flaps) on those host ends. NIKA runs `tc`, `ip`, `nsenter`, and `sh` on the host through `sudo -n`, so your user needs passwordless `sudo` for those commands. Kathará environments do not need this.
 
 Check whether `sudo` asks for a password:
 
@@ -157,22 +190,23 @@ The last command now prints the loopback qdisc without a password prompt.
 
 | Removed | Kept |
 | --- | --- |
-| Running sessions, Kathará and Containerlab labs, the Batfish container | Docker and your docker group membership; sbx and your kvm group membership |
+| Running sessions, Kathará and Containerlab labs, the Batfish container, the AgentENV container | Docker and your docker group membership; sbx and your kvm group membership |
 | Docker images NIKA built or pulled, including vendor router images, build parents such as `debian:bookworm-slim`, and legacy tags | A uv installed outside the repository |
-| The Kathará Docker network plugin and `~/.config/kathara.conf` | apt packages that older installers added: clang, skopeo |
-| `/etc/sysctl.d/99-nika-inotify.conf`, with the original inotify limits restored | The source tree |
+| The Kathará Docker network plugin and `~/.config/kathara.conf` | apt packages that installers added: btrfs-progs, and clang and skopeo from older ones |
+| `/etc/sysctl.d/99-nika-inotify.conf` and `/etc/sysctl.d/99-nika-neigh.conf`, with the original limits restored | The source tree |
 | `/etc/sudoers.d/nika-host-tc` | `.env` and `config/` |
+| The [Firecracker](firecracker.md) host settings: the userfaultfd udev rule, `/etc/sysctl.d/99-nika-hugepages.conf` with the original huge-page reservation restored, and the GRUB huge-pages file of older manual setups (its huge pages stay reserved until the next reboot) | |
 | The `clab_admins` group, plus the Containerlab package, `/etc/containerlab`, and `/usr/local/bin/gnmic` that older installers added | `results/` |
-| `.venv` (including `clab` and `gnmic`), `.nika_cache` (including uv and its cache, XRd tarballs, and CHR downloads), and `runtime/` | |
+| `.venv` (including `clab` and `gnmic`), `.nika_cache` (including uv and its cache, XRd tarballs, and CHR downloads), and `runtime/`, including [Firecracker](firecracker.md) images (a btrfs loop file mounted at `runtime/firecracker` is unmounted and its `/etc/fstab` line removed first) | Firecracker images in a `root` you set outside the checkout |
 
 An image that a non-NIKA container still uses is kept, and the script prints its name. Pass `--prune-build-cache` to also run `docker builder prune -af`. The Docker build cache is shared with every build on the host, so only use this flag on a dedicated lab host.
 
-If the inotify limits were raised by an installer older than this one, the original values were not recorded. The kernel defaults return after the next reboot.
+If an installer older than this one raised the inotify limits, the original values were not recorded. The kernel defaults return after the next reboot.
 
 To install again, run `./scripts/install.sh`.
 
 ## Related
 
 - [Remote lab execution](remote.md): lab host vs agent host
-- [Agent sandboxing](agent-sandbox.md): `sbx` for sandboxed agents
+- [Agent sandboxing](agent-sandbox.md): the sandbox runtime every agent runs in
 - [Run configuration](configuration.md): `.env` and `config/nika.yaml`

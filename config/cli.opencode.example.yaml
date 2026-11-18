@@ -1,0 +1,14 @@
+# NIKA run-config template for cli.opencode (OpenCode CLI, Docker Sandbox).
+# Setup: cp config/nika.yaml config/cli.opencode.yaml
+# Replace the copied agent section with this example; preserve your sandbox settings.
+# Use:   uv run nika agent run --run-config config/cli.opencode.yaml --problem dc_clos_s_link_down
+# Credentials stay in the repo-root .env file. This template uses sbx by default;
+# see config/nika.example.yaml for the full platform / benchmark reference.
+
+agent:
+  type: cli.opencode
+  provider: deepseek
+  model: deepseek-v4-flash
+
+nika:
+  result_dir: results/opencode

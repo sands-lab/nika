@@ -277,6 +277,7 @@ def create_pull_request(
     title: str,
     body: str,
     draft: bool = False,
+    labels: tuple[str, ...] = (),
 ) -> str:
     """Open a PR and return its URL."""
     gh = require_gh()
@@ -297,6 +298,8 @@ def create_pull_request(
     ]
     if draft:
         args.append("--draft")
+    for label in labels:
+        args.extend(["--label", label])
     result = run_command(args)
     url = (result.stdout or "").strip().splitlines()[-1].strip()
     if not url.startswith("http"):

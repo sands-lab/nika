@@ -4,6 +4,9 @@ failure:
   fault_type: p4_tcam_entry_corruption
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       control_source: client_2
       host_name: spine_1
@@ -14,6 +17,9 @@ failure:
         node: spine_1
       fault_type: p4_tcam_entry_corruption
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       control_source: client_2
       host_name: gateway_3
@@ -24,6 +30,9 @@ failure:
         node: gateway_3
       fault_type: p4_tcam_entry_corruption
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       control_source: client_2
       host_name: gateway_4

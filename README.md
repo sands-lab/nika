@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="./assets/images/nika-banner.svg" alt="NIKA" width="100%"/>
+<img src="./assets/images/nika-banner-light.svg#gh-light-mode-only" alt="NIKA" width="100%"/>
+<img src="./assets/images/nika-banner.svg#gh-dark-mode-only" alt="NIKA" width="100%"/>
 
 <br />
 
@@ -16,37 +17,42 @@
 [![ArXiv Link](https://img.shields.io/badge/arXiv-2512.16381-red?logo=arxiv)](https://arxiv.org/abs/2512.16381)
 [![Project Page](https://img.shields.io/badge/-Project%20Page-1E88E5?logo=googlechrome&logoColor=white&labelColor=24292f)](https://sands-lab.github.io/nika/)
 [![Slack](https://img.shields.io/badge/-Join%20Slack-4A154B?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0iI2ZmZiIgZD0iTTUuMDQyIDE1LjE2NWEyLjUyOCAyLjUyOCAwIDAgMS0yLjUyIDIuNTIzQTIuNTI4IDIuNTI4IDAgMCAxIDAgMTUuMTY1YTIuNTI3IDIuNTI3IDAgMCAxIDIuNTIyLTIuNTJoMi41MnYyLjUyek02LjMxMyAxNS4xNjVhMi41MjcgMi41MjcgMCAwIDEgMi41MjEtMi41MiAyLjUyNyAyLjUyNyAwIDAgMSAyLjUyMSAyLjUydjYuMzEzQTIuNTI4IDIuNTI4IDAgMCAxIDguODM0IDI0YTIuNTI4IDIuNTI4IDAgMCAxLTIuNTIxLTIuNTIydi02LjMxM3pNOC44MzQgNS4wNDJhMi41MjggMi41MjggMCAwIDEtMi41MjEtMi41MkEyLjUyOCAyLjUyOCAwIDAgMSA4LjgzNCAwYTIuNTI4IDIuNTI4IDAgMCAxIDIuNTIxIDIuNTIydjIuNTJIOC44MzR6TTguODM0IDYuMzEzYTIuNTI4IDIuNTI4IDAgMCAxIDIuNTIxIDIuNTIxIDIuNTI4IDIuNTI4IDAgMCAxLTIuNTIxIDIuNTIxSDIuNTIyQTIuNTI4IDIuNTI4IDAgMCAxIDAgOC44MzRhMi41MjggMi41MjggMCAwIDEgMi41MjItMi41MjFoNi4zMTJ6TTE4Ljk1NiA4LjgzNGEyLjUyOCAyLjUyOCAwIDAgMSAyLjUyMi0yLjUyMUEyLjUyOCAyLjUyOCAwIDAgMSAyNCA4LjgzNGEyLjUyOCAyLjUyOCAwIDAgMS0yLjUyMiAyLjUyMWgtMi41MjJWOC44MzR6TTE3LjY4OCA4LjgzNGEyLjUyOCAyLjUyOCAwIDAgMS0yLjUyMyAyLjUyMSAyLjUyNyAyLjUyNyAwIDAgMS0yLjUyLTIuNTIxVjIuNTIyQTIuNTI3IDIuNTI3IDAgMCAxIDE1LjE2NSAwYTIuNTI4IDIuNTI4IDAgMCAxIDIuNTIzIDIuNTIydjYuMzEyek0xNS4xNjUgMTguOTU2YTIuNTI4IDIuNTI4IDAgMCAxIDIuNTIzIDIuNTIyQTIuNTI4IDIuNTI4IDAgMCAxIDE1LjE2NSAyNGEyLjUyNyAyLjUyNyAwIDAgMS0yLjUyLTIuNTIydi0yLjUyMmgyLjUyek0xNS4xNjUgMTcuNjg4YTIuNTI3IDIuNTI3IDAgMCAxLTIuNTItMi41MjMgMi41MjYgMi41MjYgMCAwIDEgMi41Mi0yLjUyaDYuMzEzQTIuNTI3IDIuNTI3IDAgMCAxIDI0IDE1LjE2NWEyLjUyOCAyLjUyOCAwIDAgMS0yLjUyMiAyLjUyM2gtNi4zMTN6Ii8%2BPC9zdmc%2B&labelColor=24292f)](https://sands-lab.github.io/nika/community/)
+
 [![Open Telco AI](https://img.shields.io/badge/-Open%20Telco%20AI-00AEEF?logo=gsma&logoColor=white&logoSize=auto&labelColor=24292f)](https://www.open-telco.ai/resources/nika/)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face-FFD21E?labelColor=24292f)](https://huggingface.co/datasets/nika-bench/nika-trajectories)
 
 </div>
 
 ## ❓ What is NIKA?
 
-Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **N**etwork **I**ncident Benchmar**k** for **A**I Agents, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces network incidents across data center and campus networks, enterprise WAN overlays, ISP backbones, SDN and P4 fabrics, Kubernetes clusters, and vendor routing environments. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark, NIKA is powered by state-of-the-art network emulation backends like [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
+Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **Network Incident Benchmark for AI Agents**, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces network incidents across data center and campus networks, enterprise WAN overlays, ISP backbones, SDN and P4 fabrics, Kubernetes clusters, and vendor routing environments. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark, NIKA is powered by state-of-the-art network emulation backends like [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
+
+<p align="center">
+  <a href="https://sands-lab.github.io/nika/leaderboard/#gh-light-mode-only"><img src="./assets/images/nika-leaderboard-banner-light.svg#gh-light-mode-only" alt="🏆 NIKA Leaderboard: compare agents and submit your own" width="432"/></a>
+  <a href="https://sands-lab.github.io/nika/leaderboard/#gh-dark-mode-only"><img src="./assets/images/nika-leaderboard-banner-dark.svg#gh-dark-mode-only" alt="🏆 NIKA Leaderboard: compare agents and submit your own" width="432"/></a>
+</p>
+
+## 🙋 Why NIKA?
+
+NIKA enables the comparison of AI agents for network operations under identical, reproducible conditions. This may help different users:
+
+- 💬 **Network SRE** *"I respond to network incidents every day. I want an AI agent to help, but I can't test it in the production network due to safety concerns."*
+- 💬 **Network Manager** *"A vendor is pitching me an AI solution for network operations. It passes all the offline telecom benchmarks (TeleQnA, TeleLogs, TeleMath, 3GPP-TSG), but I need evidence it can handle live network operations before I sign off."*
+- 💬 **AI Researcher** *"I'm designing a new harness for networking tasks. I need a benchmark to ablate components, measure reproducibly, and compare against published baselines."*
+- 💬 **Applied ML Engineer** *"I want to post-train an open-source model on network troubleshooting and need a structured dataset paired with a rigorous evaluation framework."*
+- 💬 **Contributor** *"I want to publish a twin of my network environment along with the common faults I experience, and see if the community can create an agent better than mine!"*
 
 ## ✨ Features
 
 - **Network emulators:** Use NIKA with [Kathará](https://www.kathara.org/) or [Containerlab](https://containerlab.dev/) to run live networks without physical hardware.
 - **Pre-built tasks:** Troubleshoot network incidents without building the setup yourself. NIKA deploys the network and injects the faults.
 - **Bring your AI agent:** Use the included Claude Code, Codex, or LangGraph agents, or [connect your own harness](docs/agents/custom-agents.md).
-- **Agent sandboxing:** Run supported agents in [isolated sandboxes](docs/operations/agent-sandbox.md), with controlled access to the network, filesystem, and tools.
+- **Agent sandboxing:** Run every agent in an [isolated sandbox](docs/operations/agent-sandbox.md), with controlled access to the network, filesystem, and tools.
 - **Fair evaluation:** Evaluate incident detection, localization, and diagnosis under reproducible conditions, and [submit your results](docs/benchmarks/leaderboard-submission.md) to the leaderboard.
 - **MCP network telemetry:** Give agents access to [network diagnostic tools](#network-inspection-via-mcp), telemetry, and router and switch CLIs.
 - **Parallel and remote execution:** Run isolated sessions in parallel to speed up evaluations, or deploy the network on a [remote server](docs/operations/remote.md).
 - **Session inspection:** Review agent actions, logs, and scores in the browser with [`nika inspect`](docs/operations/session-inspect.md).
 - **NIKA SDK:** [Create benchmark tasks](docs/development/creating-benchmark-tasks.md) with new network environments, traffic patterns, and faults.
-
-## 🙋 Why NIKA?
-
-NIKA lets you plug in any LLM or agent framework and measure its operational capability under identical, reproducible conditions.
-
-It helps different users answer questions like:
-
-- 💬 **Network Manager** "A vendor is pitching me an AI solution for network operations. It passes all the standard telecom benchmarks (TeleQnA, TeleLogs, TeleMath, 3GPP-TSG), but I need objective evidence it can handle real incidents before I sign off."
-- 💬 **Network SRE** "I respond to network incidents every day. I want an AI agent to help, but I'm not sure it will understand my topology or make things worse."
-- 💬 **AI Researcher** "I'm designing a new harness for long-horizon network tasks. I need a benchmark to ablate components, measure reproducibly, and compare against published baselines."
-- 💬 **Applied ML Engineer** "I want to fine-tune an open-source model on network troubleshooting and need a structured dataset paired with a rigorous evaluation framework."
-- 💬 **Contributor** "I want to contribute a new network environment or fault type to the community and have it evaluated systematically."
 
 ## 🤖 Overview
 
@@ -65,10 +71,10 @@ Choose the network environment you want to troubleshoot. See the [environment re
 
 | Network type | Environments | Emulator | What they run |
 | --- | --- | --- | --- |
-| Data center Clos | [`dc_clos`](docs/operations/network-scenarios.md#data-center-clos-scenario), [`min3clos`](docs/operations/network-scenarios.md#min3clos) | Kathará (`dc_clos`), Containerlab (`min3clos`) | FRR or Nokia SR Linux routed fabrics |
+| Data center Clos | [`dc_clos`](docs/operations/network-scenarios.md#data-center-clos-scenario), [`min3clos`](docs/operations/network-scenarios.md#min3clos) | Kathará (`dc_clos`), Containerlab (`min3clos`) | FRR, Nokia SR Linux, or SONiC routed fabrics |
 | Campus LAN | [`campus_lan`](docs/operations/network-scenarios.md#campus-lan-scenario) | Kathará | OSPF, DHCP, DNS, and web services |
 | Enterprise WAN | [`enterprise_branch`](docs/operations/network-scenarios.md#enterprise_branch) | Kathará | Provider underlay and WireGuard/eBGP overlay |
-| ISP backbone | [`isp_abilene`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), [`isp_france`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), and other SNDlib topologies | Kathará or Containerlab | SNDlib backbone graphs with configurable routing |
+| ISP backbone | [`isp_abilene`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), [`isp_france`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), and other SNDlib topologies | Kathará or Containerlab | SNDlib backbone graphs on FRR, Nokia SR Linux, or SONiC |
 | SDN fabric | [`sdn_l3_clos`](docs/operations/network-scenarios.md#sdn_l3_clos) | Kathará | ONOS and OVS Clos fabric |
 | P4 fabric | [`p4_dc_fabric`](docs/operations/network-scenarios.md#p4_dc_fabric), [`p4_dc_gateway`](docs/operations/network-scenarios.md#p4_dc_gateway) | Kathará | BMv2 switches and P4Runtime |
 | Kubernetes networking | [`k8s_lab`](docs/operations/network-scenarios.md#k8s_lab), [`llmd_lab`](docs/operations/network-scenarios.md#llmd_lab) | Kathará | k3s clusters in emulated networks |
@@ -77,26 +83,26 @@ Choose the network environment you want to troubleshoot. See the [environment re
 
 ### Network incidents
 
-Explore the [network incidents](docs/operations/failures.md) included in the working benchmark:
+Explore the registered [network incidents](docs/operations/failures.md). The [working pool](docs/benchmarks/benchmark-configuration.md#working-matrix) is the task space that `nika benchmark run` runs by default:
 
-| Failure domain | Failure types | Tasks |
-| --- | ---: | ---: |
-| Link & Interface | 6 | 267 |
-| Routing & Control Plane | 8 | 196 |
-| Forwarding, Encapsulation & Policy | 26 | 324 |
-| Service Networking | 6 | 17 |
-| Management & Orchestration Plane | 4 | 11 |
-| Addressing, Neighbor & Naming | 13 | 132 |
-| Endpoint & Application | 2 | 38 |
-| Traffic, Queueing & Resource | 3 | 25 |
-| Security | 7 | 88 |
-| **Total** | **75** | **1,098** |
+| Failure domain | Registered failure types |
+| --- | ---: |
+| Link & Interface | 6 |
+| Routing & Control Plane | 22 |
+| Forwarding, Encapsulation & Policy | 29 |
+| Service Networking | 11 |
+| Management & Orchestration Plane | 9 |
+| Addressing, Neighbor & Naming | 13 |
+| Endpoint & Application | 3 |
+| Traffic, Queueing & Resource | 4 |
+| Security | 7 |
+| **Total** | **104** |
 
 See the [failure reference](docs/operations/failures.md#registered-failures) for individual faults and injection options.
 
 ### Pluggable agents
 
-NIKA includes agents built with [LangGraph](https://reference.langchain.com/python/langgraph/overview), [mcp-agent](https://github.com/lastmile-ai/mcp-agent), and [AutoGen](https://microsoft.github.io/autogen/stable/); sandboxed [Codex](https://github.com/openai/codex) and [Claude Code](https://github.com/anthropics/claude-code) agents; and community integrations such as [SADE](docs/agents/community/sade.md). [Choose an agent](docs/agents/agent-implementations.md) or [integrate your own](docs/agents/custom-agents.md).
+NIKA includes agents built with [LangGraph](https://reference.langchain.com/python/langgraph/overview), [mcp-agent](https://github.com/lastmile-ai/mcp-agent), and [AutoGen](https://microsoft.github.io/autogen/stable/); sandboxed [Codex](https://github.com/openai/codex), [Claude Code](https://github.com/anthropics/claude-code), [OpenCode](https://opencode.ai), and [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) agents; and community integrations such as [SADE](docs/agents/community/sade.md). [Choose an agent](docs/agents/agent-implementations.md) or [integrate your own](docs/agents/custom-agents.md).
 
 ### Network inspection via MCP
 
@@ -110,6 +116,7 @@ Depending on the network environment, agents can use MCP tools to inspect hosts,
 - Linux with Python 3.12+, `curl`, `git`, and `sudo`.
 - [Docker Engine](https://docs.docker.com/engine/install/).
 - The host `vrf` kernel module. On Ubuntu, install it with `sudo apt-get install linux-modules-extra-$(uname -r)`.
+- KVM (`/dev/kvm`) for the agent sandboxes, or an [E2B](https://e2b.dev/) account on hosts without it.
 
 ### Install NIKA
 
@@ -127,14 +134,13 @@ To run networks on another server, see [remote execution](docs/operations/remote
 
 ### Agent sandboxing
 
-Host agents such as LangGraph need no sandbox. For sandboxed agents (`cli.*`, `sdk.*`, `community.sade`), install `sbx` with KVM access and sign in:
+Every agent runs in its own sandbox, so its framework and dependencies never touch NIKA's environment and it reaches the network only through NIKA's tools. Install a sandbox runtime; we recommend [AgentENV](https://github.com/kvcache-ai/AgentENV), an open-source sandbox service that runs in Docker on your host:
 
 ```shell
-./scripts/install.sh --with-sbx
-sbx login
+./scripts/install.sh --with-agentenv
 ```
 
-If the installer adds you to the `kvm` group, open a new login shell and run `sbx daemon stop` before the first sandboxed run. More detail: [agent sandboxing](docs/operations/agent-sandbox.md).
+It needs KVM and kernel 6.8 or later. To use Docker Sandboxes instead, run `./scripts/install.sh --with-sbx` and `sbx login`; without KVM, use E2B cloud. See [agent sandboxing](docs/operations/agent-sandbox.md) to compare them.
 
 ## 🚀 Quick start
 
@@ -148,10 +154,10 @@ NIKA ships preconfigured agents with templates in [`config/`](config/). The exam
 uv run nika agent list
 ```
 
-**Step 2. Start from its template.** The installer creates `config/nika.yaml` for settings. Replace it with the LangGraph template:
+**Step 2. Select the agent.** Update the installer-created configuration, keeping its sandbox settings:
 
 ```shell
-cp config/byo.langgraph.example.yaml config/nika.yaml
+uv run nika config set agent.type=byo.langgraph
 ```
 
 **Step 3. Select the provider and model:**
@@ -251,11 +257,11 @@ Pick the path that matches what you're trying to do:
 
 ## Network management benchmarks
 
-NIKA is part of a growing ecosystem. The table below compares NIKA with other benchmarks in terms of their focus, agent interactivity, variety, scale, and realism. While the best benchmark depends on your use case, NIKA currently outstands  for realistic agentic evaluations in online environments**.
+NIKA is part of a growing ecosystem. The table below compares NIKA with other benchmarks in terms of their focus, agent interactivity, variety, scale, and realism. NIKA runs agents against executable network incidents with live interaction.
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 75 registered fault types <br> 40 network environments | ⭐️⭐️ <br> 1,098 tasks | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 104 registered fault types <br> 40 network environments | ⭐️⭐️ <br> [Working-pool task counts](docs/operations/failures.md#domain-boundaries) | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |

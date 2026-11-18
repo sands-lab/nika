@@ -4,17 +4,25 @@ import json
 import os
 from pathlib import Path
 
+from nika.benchmark_engine.protocol import LifecycleProtocol, Scores, TrialHandle
 from nika.config import resolve_results_root
 from nika.evaluator.llm_judge import LLMJudge
-from nika.evaluator.result_log import EVAL_METRICS_FILENAME, MESSAGES_FILENAME
+from nika.evaluator.validity import detect_trial_validity
+from nika.evaluator.result_log import (
+    EVAL_METRICS_FILENAME,
+    GROUND_TRUTH_FILENAME,
+    MESSAGES_FILENAME,
+    SUBMISSION_FILENAME,
+)
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.evaluator.scoring import (
+    SCORING_ID,
     GradingError,
     score_detection,
     score_rca_v2,
 )
 from nika.evaluator.score_status import (
-    infer_score_status_from_artifacts,
+    is_infra_error_evidence,
     null_scores,
     resolve_score_status,
     scores_for_status,
@@ -31,6 +39,9 @@ from nika.utils.session_store import SessionStore
 from nika.workflows.session.close import close_session
 
 logger = system_logger
+
+# Trace statistics the frontend adds to the engine's scores.
+TRACE_KEYS = ("in_tokens", "out_tokens", "steps", "tool_calls", "tool_errors")
 
 
 def _format_judge_ground_truth(gt: dict) -> str:
@@ -93,6 +104,41 @@ def generic_eval(gt, submission):
     }
 
 
+def _grade(
+    *,
+    gt: dict | None,
+    submission: dict | None,
+    infra_evidence: bool = False,
+    has_ground_truth: bool | None = None,
+) -> tuple[dict, str, str | None]:
+    """Return ``(scores, score_status, error)`` for one answer."""
+    gt_present = has_ground_truth if has_ground_truth is not None else gt is not None
+    if submission is None:
+        status = resolve_score_status(
+            has_submission=False,
+            infra_evidence=infra_evidence,
+            has_ground_truth=gt_present,
+        )
+        error = None
+        if status == "infra_error":
+            error = (
+                "no ground truth and no submission"
+                if not gt_present
+                else "infrastructure failure before the agent submitted"
+            )
+        return scores_for_status(status), status, error  # type: ignore[arg-type]
+    if not gt_present or gt is None:
+        return dict(null_scores()), "grading_error", "no ground truth"
+    try:
+        return generic_eval(gt, submission), "scored", None
+    except Exception as exc:  # noqa: BLE001 - recorded as grading_error
+        return dict(null_scores()), "grading_error", f"{type(exc).__name__}: {exc}"
+
+
+def _trace_columns(trace_metrics: dict) -> dict:
+    return {key: trace_metrics.get(key) for key in TRACE_KEYS}
+
+
 def build_eval_metrics_payload(
     *,
     gt: dict | None,
@@ -106,46 +152,105 @@ def build_eval_metrics_payload(
     Returns ``(payload, score_status)``. Score columns are ``[0, 1]`` or ``null``;
     never ``-1``.
     """
-    gt_present = has_ground_truth if has_ground_truth is not None else gt is not None
-    if submission is None:
-        status = resolve_score_status(
-            has_submission=False,
-            infra_evidence=infra_evidence,
-            has_ground_truth=gt_present,
-        )
-        scores = scores_for_status(status)  # type: ignore[arg-type]
-    else:
-        if not gt_present or gt is None:
-            status = "grading_error"
-            scores = dict(null_scores())
-            payload = {
-                **scores,
-                "in_tokens": trace_metrics.get("in_tokens"),
-                "out_tokens": trace_metrics.get("out_tokens"),
-                "steps": trace_metrics.get("steps"),
-                "tool_calls": trace_metrics.get("tool_calls"),
-                "tool_errors": trace_metrics.get("tool_errors"),
-            }
-            return payload, status
-        try:
-            scores = generic_eval(gt, submission)
-            status = "scored"
-        except GradingError:
-            status = "grading_error"
-            scores = dict(null_scores())
-        except Exception:
-            status = "grading_error"
-            scores = dict(null_scores())
+    scores, status, _error = _grade(
+        gt=gt,
+        submission=submission,
+        infra_evidence=infra_evidence,
+        has_ground_truth=has_ground_truth,
+    )
+    return {**scores, **_trace_columns(trace_metrics)}, status
 
-    payload = {
-        **scores,
-        "in_tokens": trace_metrics.get("in_tokens"),
-        "out_tokens": trace_metrics.get("out_tokens"),
-        "steps": trace_metrics.get("steps"),
-        "tool_calls": trace_metrics.get("tool_calls"),
-        "tool_errors": trace_metrics.get("tool_errors"),
-    }
-    return payload, status
+
+def _read_ground_truth(session_dir: Path) -> dict:
+    """Return the trial's ground truth; raise when it is missing or malformed."""
+    gt = json.loads((session_dir / GROUND_TRUTH_FILENAME).read_text(encoding="utf-8"))
+    if not isinstance(gt, dict):
+        raise GradingError("ground_truth.json is not an object")
+    return gt
+
+
+def _ground_truth_readable(session_dir: Path) -> bool:
+    try:
+        _read_ground_truth(session_dir)
+    except (json.JSONDecodeError, OSError, GradingError):
+        return False
+    return True
+
+
+def grade_trial(trial_dir: str | Path, *, infra_evidence: bool = False) -> Scores:
+    """Grade ``submission.json`` against ``ground_truth.json`` in *trial_dir*.
+
+    This is the benchmark engine's half of scoring: it reads only those two
+    files and the caller's *infra_evidence* flag, and writes nothing.
+    """
+    trial_dir = Path(trial_dir)
+    submission_path = trial_dir / SUBMISSION_FILENAME
+    submission = None
+    if submission_path.is_file():
+        try:
+            submission = json.loads(submission_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            # Corrupt submission file: present, but grading will fail.
+            submission = {}
+    else:
+        logger.error(f"Submission file not found: {submission_path}")
+
+    try:
+        gt = _read_ground_truth(trial_dir)
+    except (json.JSONDecodeError, OSError, GradingError) as exc:
+        logger.error(f"Ground truth unreadable in {trial_dir}: {exc}")
+        scores, status, _error = _grade(
+            gt=None,
+            submission=submission,
+            infra_evidence=infra_evidence,
+            has_ground_truth=False,
+        )
+        error = f"ground truth unreadable: {exc}"
+    else:
+        scores, status, error = _grade(
+            gt=gt, submission=submission, infra_evidence=infra_evidence
+        )
+    return Scores(status=status, scoring_id=SCORING_ID, metrics=scores, error=error)
+
+
+def frontend_infra_evidence(session_dir: str | Path, infra_evidence: bool) -> bool:
+    """Infrastructure evidence the frontend sends with ``score``.
+
+    That is the caller's flag, or an infrastructure failure recorded as the
+    trial's ``agent_error`` in ``run.json``.
+    """
+    if infra_evidence:
+        return True
+    try:
+        run_meta = json.loads(
+            (Path(session_dir) / RUN_FILENAME).read_text(encoding="utf-8")
+        )
+    except (json.JSONDecodeError, OSError):
+        return False
+    error = run_meta.get("agent_error") if isinstance(run_meta, dict) else None
+    return is_infra_error_evidence(error if isinstance(error, str) else None)
+
+
+def eval_metrics_payload(scores: Scores, session_dir: str | Path) -> dict:
+    """Build ``eval_metrics.json`` from the engine's *scores* and the trial's traces.
+
+    The frontend adds token, step, and tool-call counts and validity flags.
+    A trial whose ground truth is unreadable keeps null counts and no flags.
+    """
+    session_dir = Path(session_dir)
+    if not _ground_truth_readable(session_dir):
+        return {**scores.metrics, **_trace_columns({})}
+    try:
+        trace_metrics = AgentTraceParser(
+            trace_path=str(session_dir / MESSAGES_FILENAME)
+        ).parse_trace()
+    except Exception:  # noqa: BLE001 - traces optional for scoring
+        trace_metrics = {}
+    payload = {**scores.metrics, **_trace_columns(trace_metrics)}
+    payload["validity_flags"] = detect_trial_validity(
+        session_dir, score_status=scores.status
+    ).flags
+    return payload
 
 
 def _stamp_score_status(session_dir: Path, score_status: str) -> None:
@@ -160,6 +265,65 @@ def _stamp_score_status(session_dir: Path, score_status: str) -> None:
         return
     run_meta["score_status"] = score_status
     run_path.write_text(json.dumps(run_meta, indent=2, default=str), encoding="utf-8")
+
+
+def _write_eval_metrics(session: Session, scores: Scores) -> None:
+    """Write ``eval_metrics.json`` and stamp the trial's ``run.json``."""
+    session_dir = Path(session.session_dir)
+    payload = eval_metrics_payload(scores, session_dir)
+    out_path = session_dir / EVAL_METRICS_FILENAME
+    write_json_atomic(out_path, payload)
+    _stamp_score_status(session_dir, scores.status)
+    session.update_run_meta("eval_metrics", payload)
+    session.update_run_meta("score_status", scores.status)
+    log_event(
+        "eval_metrics_saved",
+        f"Wrote numeric eval metrics to {out_path}",
+        session_id=session.session_id,
+    )
+    log_event(
+        "eval_publish",
+        f"Published evaluation for session {session.session_id} (scenario {session.scenario_name}).",
+        session_id=session.session_id,
+        scenario=session.scenario_name,
+    )
+
+
+def _closed_session(
+    session_id: str,
+    *,
+    result_dir: str | Path | None = None,
+    session_dir: str | Path | None = None,
+) -> Session:
+    session = Session()
+    session.load_closed_session(
+        session_id=session_id, result_dir=result_dir, session_dir=session_dir
+    )
+    bind_session_dir(session.session_dir)
+    return session
+
+
+def score_trial(
+    engine: LifecycleProtocol,
+    handle: TrialHandle,
+    *,
+    result_dir: str | Path | None = None,
+    infra_evidence: bool = False,
+) -> Scores:
+    """Score a closed trial on *engine* and write its ``eval_metrics.json``.
+
+    The engine grades the answer; the frontend adds the trace statistics and
+    validity flags and is the only writer of the file.
+    """
+    session = _closed_session(
+        handle.session_id, result_dir=result_dir, session_dir=handle.trial_path
+    )
+    session_dir = Path(session.session_dir)
+    scores = engine.score(
+        handle, infra_evidence=frontend_infra_evidence(session_dir, infra_evidence)
+    )
+    _write_eval_metrics(session, scores)
+    return scores
 
 
 def run_eval_metrics(
@@ -186,104 +350,16 @@ def _run_eval_metrics_one(
     session_dir: str | Path | None = None,
     infra_evidence: bool = False,
 ) -> None:
-    session = Session()
-    session.load_closed_session(
-        session_id=session_id, result_dir=result_dir, session_dir=session_dir
+    """Regrade one closed trial with this NIKA's scoring code."""
+    session = _closed_session(
+        session_id, result_dir=result_dir, session_dir=session_dir
     )
-    bind_session_dir(session.session_dir)
-
     session_dir = Path(session.session_dir)
-    submission_path = session_dir / "submission.json"
-    has_submission = submission_path.is_file()
-    submission = None
-    if has_submission:
-        try:
-            submission = json.loads(submission_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            # Corrupt submission file: treat as present but grading will fail.
-            submission = {}
-            has_submission = True
-
-    if not has_submission:
-        logger.error(f"Submission file not found: {submission_path}")
-
-    run_meta: dict = {}
-    try:
-        raw = json.loads((session_dir / RUN_FILENAME).read_text(encoding="utf-8"))
-        if isinstance(raw, dict):
-            run_meta = raw
-    except (json.JSONDecodeError, OSError):
-        pass
-
-    effective_infra = infra_evidence or (
-        not has_submission
-        and infer_score_status_from_artifacts(
-            has_submission=False,
-            run_meta=run_meta,
-            has_ground_truth=(session_dir / "ground_truth.json").is_file(),
-        )
-        == "infra_error"
+    scores = grade_trial(
+        session_dir,
+        infra_evidence=frontend_infra_evidence(session_dir, infra_evidence),
     )
-
-    gt_path = session_dir / "ground_truth.json"
-    try:
-        gt = json.loads(gt_path.read_text(encoding="utf-8"))
-        if not isinstance(gt, dict):
-            raise GradingError("ground_truth.json is not an object")
-    except (json.JSONDecodeError, OSError, GradingError) as exc:
-        if has_submission:
-            status = "grading_error"
-            scores = dict(null_scores())
-        else:
-            status = resolve_score_status(
-                has_submission=False,
-                infra_evidence=effective_infra,
-                has_ground_truth=False,
-            )
-            scores = scores_for_status(status)  # type: ignore[arg-type]
-        payload = {
-            **scores,
-            "in_tokens": None,
-            "out_tokens": None,
-            "steps": None,
-            "tool_calls": None,
-            "tool_errors": None,
-        }
-        out_path = session_dir / EVAL_METRICS_FILENAME
-        write_json_atomic(out_path, payload)
-        _stamp_score_status(session_dir, status)
-        session.update_run_meta("eval_metrics", payload)
-        session.update_run_meta("score_status", status)
-        logger.error(f"Ground truth unreadable for {session_id}: {exc}")
-        return
-
-    trace_path = os.path.join(session.session_dir, MESSAGES_FILENAME)
-    try:
-        trace_metrics = AgentTraceParser(trace_path=trace_path).parse_trace()
-    except Exception:  # noqa: BLE001 - traces optional for scoring
-        trace_metrics = {}
-    payload, status = build_eval_metrics_payload(
-        gt=gt,
-        submission=submission,
-        trace_metrics=trace_metrics,
-        infra_evidence=effective_infra,
-    )
-    out_path = session_dir / EVAL_METRICS_FILENAME
-    write_json_atomic(out_path, payload)
-    _stamp_score_status(session_dir, status)
-    session.update_run_meta("eval_metrics", payload)
-    session.update_run_meta("score_status", status)
-    log_event(
-        "eval_metrics_saved",
-        f"Wrote numeric eval metrics to {out_path}",
-        session_id=session.session_id,
-    )
-    log_event(
-        "eval_publish",
-        f"Published evaluation for session {session.session_id} (scenario {session.scenario_name}).",
-        session_id=session.session_id,
-        scenario=session.scenario_name,
-    )
+    _write_eval_metrics(session, scores)
 
 
 def run_llm_judge(

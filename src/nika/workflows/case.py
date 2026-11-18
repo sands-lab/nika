@@ -16,16 +16,25 @@ from nika.workflows.benchmark.load_config import (
     normalize_benchmark_row,
 )
 from nika.workflows.benchmark.candidate_context import pool_context_key
-from nika.workflows.benchmark.trials import task_id_for_row
+from nika.workflows.benchmark.trials import (
+    parse_task_selector,
+    sanitize_token,
+    task_id_for_row,
+)
 
 DEFAULT_CATALOG = BENCHMARK_DIR / "working" / "pool"
 DEPLOY_KEYS = ("topo_size", *ISP_DEPLOY_KEYS)
 
 
 def load_example_cases(
-    catalog: Path | None = None, *, env: str | None = None, failure: str | None = None
+    catalog: Path | None = None,
+    *,
+    env: str | None = None,
+    failure: str | None = None,
+    task_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Use catalog presets and fill missing registered contexts for default browsing."""
+    wanted = parse_task_selector(task_id)[0] if task_id else None
     cases: dict[str, dict[str, Any]] = {}
     for row in load_benchmark_input(catalog or DEFAULT_CATALOG):
         if (env and row["scenario"] != env) or (failure and row["problem"] != failure):
@@ -33,20 +42,24 @@ def load_example_cases(
         if is_healthy_case(row["problem"]) or len(row.get("problems", [])) > 1:
             continue
         cls = get_problem_class(row["problem"], row["scenario"])
-        if cls is None or not cls.is_compatible(row["scenario"]):
+        if cls is None:
             continue
         backend = resolve_scenario_backend(
             row["scenario"],
             backend=row.get("backend"),
             default_when_ambiguous="kathara",
         )
-        if cls.supported_backends and backend not in cls.supported_backends:
+        if not cls.is_compatible(
+            row["scenario"], row.get("device_profile"), backend=backend
+        ):
             continue
         cases[task_id_for_row(row)] = {
             **row,
             "case_source": "catalog",
             "experimental": True,
         }
+        if wanted is not None and wanted in cases:
+            return [cases[wanted]]
     if catalog is None:
         from nika.workflows.benchmark.generate import (
             build_failure_cases,
@@ -59,6 +72,8 @@ def load_example_cases(
             include_benchmark_excluded=True
         ):
             if (env and scenario != env) or (failure and problem != failure):
+                continue
+            if wanted is not None and not wanted.startswith(sanitize_token(scenario)):
                 continue
             context = {
                 "scenario": scenario,
@@ -87,12 +102,15 @@ def load_example_cases(
                     problem=problem,
                     rejected=rejected,
                 )
+            if wanted is not None and wanted in cases:
+                return [cases[wanted]]
     return sorted(
         cases.values(),
         key=lambda row: (
             row["scenario"],
             {"": 0, "s": 0, "m": 1, "l": 2}.get(row.get("topo_size", ""), 3),
             row.get("backend", "kathara") != "kathara",
+            row.get("device_profile") or "",
             task_id_for_row(row),
         ),
     )
@@ -106,6 +124,9 @@ def start_example_case(row: dict[str, Any], *, result_dir: str | None = None) ->
     from nika.workflows.session.close import close_session
 
     options = {key: row[key] for key in ISP_DEPLOY_KEYS if key in row}
+    from nika.workflows.benchmark.licensed import require_licensed_images
+
+    require_licensed_images([row])
     validate_benchmark_case(
         row["scenario"],
         row["problem"],
@@ -121,7 +142,13 @@ def start_example_case(row: dict[str, Any], *, result_dir: str | None = None) ->
         row.get("topo_size") if scenario_requires_topo_size(row["scenario"]) else None
     )
     session_id = start_net_env(
-        row["scenario"], size, instance_tag="case", result_dir=result_dir, **options
+        row["scenario"],
+        size,
+        instance_tag="case",
+        result_dir=result_dir,
+        telemetry=row.get("telemetry"),
+        traffic=row.get("traffic"),
+        **options,
     )
     try:
         inject_failure(

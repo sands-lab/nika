@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: e1-1
@@ -27,6 +30,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: e1-2
@@ -45,6 +51,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: e1-3
@@ -63,6 +72,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: e1-4
@@ -81,6 +93,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: e1-5
@@ -99,6 +114,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: e1-6
@@ -117,6 +135,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: e1-7
@@ -135,6 +156,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: e1-8
@@ -153,6 +177,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: e1-9
@@ -171,6 +198,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: e1-2
@@ -189,6 +219,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: e1-3
@@ -207,6 +240,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: e1-4
@@ -225,6 +261,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: e1-5
@@ -243,6 +282,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: e1-6
@@ -261,6 +303,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: e1-7
@@ -279,6 +324,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: e1-8
@@ -297,6 +345,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: e1-9
@@ -315,6 +366,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: e1-3
@@ -333,6 +387,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: e1-4
@@ -351,6 +408,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: e1-5
@@ -369,6 +429,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: e1-6
@@ -387,6 +450,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: e1-7
@@ -405,6 +471,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: e1-8
@@ -423,6 +492,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: e1-9
@@ -441,6 +513,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: e1-10
@@ -459,6 +534,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: e1-4
@@ -477,6 +555,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: e1-5
@@ -495,6 +576,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: e1-6
@@ -513,6 +597,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: e1-7
@@ -531,6 +618,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: e1-8
@@ -549,6 +639,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: e1-9
@@ -567,6 +660,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: e1-5
@@ -585,6 +681,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: e1-6
@@ -603,6 +702,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: e1-7
@@ -621,6 +723,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: e1-8
@@ -639,6 +744,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: e1-9
@@ -657,6 +765,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: e1-10
@@ -675,6 +786,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: e1-6
@@ -693,6 +807,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: e1-7
@@ -711,6 +828,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: e1-8
@@ -729,6 +849,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: e1-9
@@ -747,6 +870,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
       intf_name: e1-7
@@ -765,6 +891,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
       intf_name: e1-8
@@ -783,6 +912,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
       intf_name: e1-9
@@ -801,6 +933,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
       intf_name: e1-8
@@ -819,6 +954,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
       intf_name: e1-9
@@ -837,6 +975,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
       intf_name: e1-9
@@ -853,8 +994,998 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth1
+      peer_host: pc_erlangen
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth2
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth3
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth2
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth3
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth3
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth10
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth10
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth6
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth7
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth8
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth9
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth10
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth10
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth6
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth7
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth8
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth9
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: koeln
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: interface
+        node: koeln
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: koeln
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: interface
+        node: koeln
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: koeln
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: interface
+        node: koeln
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: leipzig
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: interface
+        node: leipzig
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: leipzig
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: interface
+        node: leipzig
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: muenchen
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_muenchen
+    root_causes:
+    - resource:
+        kind: interface
+        node: muenchen
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth0
@@ -873,6 +2004,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth1
@@ -891,6 +2025,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth2
@@ -909,6 +2046,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth3
@@ -927,6 +2067,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth4
@@ -945,6 +2088,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth5
@@ -963,6 +2109,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth6
@@ -981,6 +2130,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth7
@@ -999,6 +2151,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
       intf_name: eth8
@@ -1017,6 +2172,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: eth1
@@ -1035,6 +2193,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: eth2
@@ -1053,6 +2214,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: eth3
@@ -1071,6 +2235,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: eth4
@@ -1089,6 +2256,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: eth5
@@ -1107,6 +2277,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: eth6
@@ -1125,6 +2298,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: eth7
@@ -1143,6 +2319,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: erlangen
       intf_name: eth8
@@ -1161,6 +2340,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: eth2
@@ -1179,6 +2361,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: eth3
@@ -1197,6 +2382,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: eth4
@@ -1215,6 +2403,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: eth5
@@ -1233,6 +2424,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: eth6
@@ -1251,6 +2445,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: eth7
@@ -1269,6 +2466,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: essen
       intf_name: eth8
@@ -1287,6 +2487,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth3
@@ -1305,6 +2508,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth4
@@ -1323,6 +2529,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth5
@@ -1341,6 +2550,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth6
@@ -1359,6 +2571,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth7
@@ -1377,6 +2592,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth8
@@ -1395,6 +2613,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
       intf_name: eth9
@@ -1413,6 +2634,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: eth4
@@ -1431,6 +2655,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: eth5
@@ -1449,6 +2676,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: eth6
@@ -1467,6 +2697,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: eth7
@@ -1485,6 +2718,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
       intf_name: eth8
@@ -1503,6 +2739,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: eth5
@@ -1521,6 +2760,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: eth6
@@ -1539,6 +2781,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: eth7
@@ -1557,6 +2802,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: eth8
@@ -1575,6 +2823,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
       intf_name: eth9
@@ -1593,6 +2844,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
       intf_name: eth6
@@ -1611,6 +2865,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
       intf_name: eth7
@@ -1629,6 +2886,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
       intf_name: eth8
@@ -1647,6 +2907,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
       intf_name: eth7
@@ -1665,6 +2928,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
       intf_name: eth8
@@ -1683,6 +2949,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
       intf_name: eth8
@@ -1694,4 +2963,1978 @@ failure:
         kind: interface
         node: muenchen
         name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth0
+      peer_host: pc_erlangen
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth1
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth2
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth3
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth4
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth1
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth2
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth3
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth4
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth2
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth3
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth4
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth3
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth4
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth5
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth4
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth5
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: koeln
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: interface
+        node: koeln
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: koeln
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: interface
+        node: koeln
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: koeln
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: interface
+        node: koeln
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: leipzig
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: interface
+        node: leipzig
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: leipzig
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: interface
+        node: leipzig
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: muenchen
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_muenchen
+    root_causes:
+    - resource:
+        kind: interface
+        node: muenchen
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth1
+      peer_host: pc_erlangen
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth2
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth3
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: berlin
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth2
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth3
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: erlangen
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_erlangen
+    root_causes:
+    - resource:
+        kind: interface
+        node: erlangen
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth3
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: essen
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_essen
+    root_causes:
+    - resource:
+        kind: interface
+        node: essen
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth10
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth10
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth6
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth7
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth8
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: frankfurt
+      intf_name: eth9
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: interface
+        node: frankfurt
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth5
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hamburg
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: interface
+        node: hamburg
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth10
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth10
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth6
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth6
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth7
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth8
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: hannover
+      intf_name: eth9
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: interface
+        node: hannover
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: koeln
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: interface
+        node: koeln
+        name: eth7
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: koeln
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: interface
+        node: koeln
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: koeln
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: interface
+        node: koeln
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: leipzig
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: interface
+        node: leipzig
+        name: eth8
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: leipzig
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: interface
+        node: leipzig
+        name: eth9
+      fault_type: link_detach
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: muenchen
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_muenchen
+    root_causes:
+    - resource:
+        kind: interface
+        node: muenchen
+        name: eth9
       fault_type: link_detach

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from tests.support.integration_pipeline import load_test_env
+from tests.support.official_release import install as install_official_releases
 from tests.support.prerequisites import docker_available
 from tests.support.scenarios import register_test_scenarios
 
@@ -20,6 +21,35 @@ def _is_sandbox_e2e_test(node_path: str) -> bool:
         "test_sandbox_agents.py" in node_path
         or "test_sandbox_benchmark.py" in node_path
     )
+
+
+@pytest.fixture(autouse=True)
+def isolate_host_monitoring(request: pytest.FixtureRequest, monkeypatch, tmp_path):
+    """Keep benchmark progress documents out of the checkout's ``runtime/``.
+
+    Offline tests also must not start exporters on a host with observability on.
+    """
+    monkeypatch.setattr(
+        "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+        tmp_path / "benchmark_runs",
+    )
+    if not request.node.get_closest_marker(
+        "e2e"
+    ) and not request.node.get_closest_marker("integration"):
+        monkeypatch.setattr("nika.metrics.stack.is_observability_on", lambda: False)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def official_releases(request: pytest.FixtureRequest, monkeypatch):
+    """Serve official release tags from local files instead of GitHub.
+
+    ``live`` tests read the real tags.
+    """
+    if request.node.get_closest_marker("live"):
+        yield None
+        return
+    yield install_official_releases(monkeypatch)
 
 
 @pytest.fixture(autouse=True)

@@ -16,6 +16,11 @@ def init_problem(
     scenario_name: str | None, **kwargs: Any
 ) -> tuple[NetworkEnvBase, LabRuntime]:
     """Resolve network environment and backend-neutral runtime for a problem."""
+    # Session telemetry is attached after construction, not a lab kwarg; faults
+    # target the scenario itself, never the telemetry network.
+    kwargs.pop("telemetry", None)
+    # Background traffic runs on the deployed lab; it is not a lab kwarg either.
+    kwargs.pop("traffic", None)
     if scenario_name is not None:
         from nika.net_env.isp.identity import is_isp_scenario
 

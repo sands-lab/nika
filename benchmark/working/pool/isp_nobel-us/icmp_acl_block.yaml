@@ -7,8 +7,235 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_ann_arbor
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_atlanta
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_atlanta
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_boulder
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_boulder
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_houston
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_houston
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_ithaca
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_ithaca
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_lincoln
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lincoln
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_palo_alto
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_pittsburgh
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_princeton
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_princeton
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_salt_lake_city
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_salt_lake_city
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_san_diego
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_san_diego
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_seattle
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_seattle
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_urbana_champaign
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_urbana_champaign
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_washington
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_washington
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_ann_arbor
     root_causes:
@@ -22,6 +249,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_atlanta
     root_causes:
@@ -35,6 +265,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_boulder
     root_causes:
@@ -48,6 +281,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_houston
     root_causes:
@@ -61,6 +297,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_ithaca
     root_causes:
@@ -74,6 +313,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_lincoln
     root_causes:
@@ -87,6 +329,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_palo_alto
     root_causes:
@@ -100,6 +345,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_pittsburgh
     root_causes:
@@ -113,6 +361,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_princeton
     root_causes:
@@ -126,6 +377,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_salt_lake_city
     root_causes:
@@ -139,6 +393,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_san_diego
     root_causes:
@@ -152,6 +409,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_seattle
     root_causes:
@@ -165,6 +425,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_urbana_champaign
     root_causes:
@@ -178,6 +441,457 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_washington
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_washington
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_ann_arbor
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_atlanta
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_atlanta
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_boulder
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_boulder
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_houston
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_houston
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_ithaca
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_ithaca
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_lincoln
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lincoln
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_palo_alto
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_pittsburgh
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_princeton
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_princeton
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_salt_lake_city
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_salt_lake_city
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_san_diego
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_san_diego
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_seattle
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_seattle
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_urbana_champaign
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_urbana_champaign
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_washington
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_washington
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_ann_arbor
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_ann_arbor
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_atlanta
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_atlanta
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_boulder
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_boulder
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_houston
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_houston
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_ithaca
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_ithaca
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_lincoln
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lincoln
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_palo_alto
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_palo_alto
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_pittsburgh
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_pittsburgh
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_princeton
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_princeton
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_salt_lake_city
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_salt_lake_city
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_san_diego
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_san_diego
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_seattle
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_seattle
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    inject:
+      host_name: pc_urbana_champaign
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_urbana_champaign
+      fault_type: icmp_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: pc_washington
     root_causes:

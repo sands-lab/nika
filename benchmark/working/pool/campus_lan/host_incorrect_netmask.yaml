@@ -4,6 +4,37 @@ failure:
   fault_type: host_incorrect_netmask
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: pc_1_1_1_1
+      netmask_prefix: '8'
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_1_1
+        name: eth0
+      fault_type: host_incorrect_netmask
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      host_name: pc_1_1_1_1
+      netmask_prefix: '8'
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc_1_1_1_1
+        name: eth0
+      fault_type: host_incorrect_netmask
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_1
       netmask_prefix: '8'
@@ -14,6 +45,9 @@ failure:
         name: eth0
       fault_type: host_incorrect_netmask
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_2_1
       netmask_prefix: '8'
@@ -24,6 +58,9 @@ failure:
         name: eth0
       fault_type: host_incorrect_netmask
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_4_1_1
       netmask_prefix: '8'

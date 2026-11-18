@@ -12,27 +12,38 @@ from Kathara.model.Lab import Lab
 
 from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.utils.k8s_traffic_pods import K8sTrafficPods
 from nika.net_env.utils.k8s_workload_cache import (
-    K3S_IMAGE,
+    K3S_NODE_IMAGE,
     K3S_SYSTEM_IMAGES,
     mount_workload_cache,
 )
 from nika.runtime.spec import NodeRole
+from nika.traffic.workload import (
+    BusinessWorkload,
+    WorkloadProcess,
+    routine_change_processes,
+)
 from nika.utils.net import pick_free_port
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
 _FRR_IMAGE = nika_image("frr")
-_K3S_IMAGE = K3S_IMAGE
+_K3S_IMAGE = K3S_NODE_IMAGE
 _BASE_IMAGE = nika_image("base")
+
+# Per-node monitoring agent (``shared/uptime-agent.yaml``).
+_AGENT_IMAGE = "busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092"
+
+_WORD_IMAGE = "ik2227/word:latest@sha256:a32c1a461340d0880693ae1be5580108a24b8fb5b071902a8cb865b02c31a50d"
 
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 
 _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
 
 
-class K8sFatTreeBGP(NetworkEnvBase):
+class K8sFatTreeBGP(K8sTrafficPods, NetworkEnvBase):
     LAB_NAME = "k8s_lab"
     K8S_HOST_IMAGES = (_FRR_IMAGE, _K3S_IMAGE, _BASE_IMAGE)
     K8S_WORKLOAD_IMAGES = (
@@ -43,9 +54,12 @@ class K8sFatTreeBGP(NetworkEnvBase):
         "registry.k8s.io/ingress-nginx/controller:v1.12.0@sha256:e6b8de175acda6ca913891f0f727bca4527e797d52688cbe9fec9040d6f6b6fa",
         "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.0@sha256:aaafd456bda110628b2d4ca6296f38731a3aaf0bf7581efae824a41c770a8fc4",
         "postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54",
-        "ik2227/word:latest@sha256:a32c1a461340d0880693ae1be5580108a24b8fb5b071902a8cb865b02c31a50d",
+        _WORD_IMAGE,
         "ik2227/weather:latest@sha256:b69236a70d439acad840ce5cf71e01bff3be6334095e3887765bba68ec81b35e",
+        _AGENT_IMAGE,
     )
+    # The word app image (Python 3) runs traffic programs on the k3s nodes.
+    TRAFFIC_POD_IMAGE = _WORD_IMAGE
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 15
     TOPO_LEVEL = "hard"
@@ -58,9 +72,31 @@ class K8sFatTreeBGP(NetworkEnvBase):
         self.desc = (
             "A two-pod fat-tree topology using EBGP routing (FRR), with Kubernetes (k3s) "
             "services deployed across the cluster. The network uses leaf-spine-core architecture "
-            "with BGP for routing and k3s for container orchestration."
+            "with BGP for routing and k3s for container orchestration. "
+            "dc_exit is a plain Linux router with static routes (no routing daemon) "
+            "between the upstream AS routers and the data center. MetalLB "
+            "LoadBalancer addresses (101.0.0.0/8) are advertised by the k3s workers "
+            "over BGP and are served on their service ports only: each worker keeps "
+            "a static discard route for the pool (101.0.0.0/8) so pool addresses "
+            "answer only on their service ports, and only the node serving the "
+            "ingress pod announces the VIP. The client resolves "
+            "datacenter.com through a static /etc/hosts entry; "
+            "the lab runs no DNS server for lab names (cluster DNS serves pods only). "
+            "The external client uses the word and weather web apps through the "
+            "ingress at datacenter.com at all times, and a monitoring agent on "
+            "every k3s node calls the apps through their Service names. "
+            "The pod-2 leaves (leaf_2_*) host no Kubernetes nodes; they discard-route "
+            "and announce the unused 101.0.0.0/8 and 201.0.0.0/8 aggregates. "
+            # kubectl is only usable on the k3s server. Resource ids use device names or Kubernetes objects.
+            "`kubectl` works only on controller (the k3s server); the worker "
+            "devices ship the binary but have no kubeconfig. Resources are lab "
+            "devices (identified by device name) or Kubernetes objects "
+            "(identified by kind, namespace and name, as listed in the "
+            "resource inventory)."
         )
         self.kubernetes_nodes = []
+        # Devices whose local PersistentVolumes back the business databases.
+        self.kubernetes_storage_nodes = ["worker1", "worker4"]
 
         # --- FRR router machines: name -> (link order, extra_metas) ---
         # Link order determines eth index: first link = eth0, second = eth1, etc.
@@ -90,9 +126,9 @@ class K8sFatTreeBGP(NetworkEnvBase):
             "worker5": ["AB"],
         }
 
-        # as2r1 is bridged for internet connectivity; controller is bridged so
+        # Only the controller is bridged so
         # Docker can publish the API port to the host (host-side kubectl/MCP).
-        _bridged = {"as2r1", "controller"}
+        _bridged = {"controller"}
 
         # Multipath sysctl for core and spine switches
         _sysctl_multipath = "net.ipv4.fib_multipath_hash_policy=1"
@@ -124,6 +160,9 @@ class K8sFatTreeBGP(NetworkEnvBase):
             "leaf_2_2",
         }
 
+        # Routers that run the FRR image but only carry kernel static routes.
+        _static_routers = {"dc_exit"}
+
         all_machines = {}
 
         # Create FRR router machines
@@ -132,7 +171,11 @@ class K8sFatTreeBGP(NetworkEnvBase):
             self.declare_machine(
                 name,
                 role=NodeRole.ROUTER,
-                capabilities=("linux", "frr", "bgp"),
+                capabilities=(
+                    ("linux", "static_routing")
+                    if name in _static_routers
+                    else ("linux", "frr", "bgp")
+                ),
             )
             if name in _bridged:
                 m.add_meta("bridged", True)
@@ -147,7 +190,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
         # Create k3s node machines.
         # Keepalive until device startup signals networking is ready, then exec
         # k3s as PID1 (avoids bridge/default-route race and cgroupv2 issues; #38).
-        _k3s_wait = "while [ ! -f /var/run/nika-net-ready ]; do sleep 1; done; "
+        _k3s_wait = "while [ ! -f /var/run/net-ready ]; do sleep 1; done; "
         _k3s_server = (
             "server --disable servicelb --disable traefik --write-kubeconfig-mode 644 "
             "--disable-default-registry-endpoint --node-ip 201.1.1.2 "
@@ -164,6 +207,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
                     else NodeRole.INFRASTRUCTURE
                 ),
                 capabilities=("linux", "k3s"),
+                reachability_target=True,
             )
             m.add_meta("privileged", True)
             for ulimit in _K3S_ULIMITS:
@@ -209,7 +253,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
 
         all_machines["controller"].create_file_from_path(
             str(Path(__file__).resolve().parent.parent / "utils" / "k8s_bootstrap.sh"),
-            "/nika-bootstrap.sh",
+            "/lab-bootstrap.sh",
         )
 
         # Load per-machine configuration directories and startup scripts
@@ -251,6 +295,31 @@ class K8sFatTreeBGP(NetworkEnvBase):
             "web": clients,
             "l2_endpoints": sorted(clients, key=lambda h: h != "client"),
         }
+
+    def business_workload(self) -> BusinessWorkload:
+        # The external client browses the apps through the ingress VIP; the
+        # in-cluster monitoring agents (``shared/uptime-agent.yaml``) call
+        # them through cluster DNS.
+        return BusinessWorkload(
+            processes=(
+                WorkloadProcess(
+                    node="client",
+                    app="api_client",
+                    command="web-user",
+                    args=(
+                        "http://datacenter.com/word",
+                        "http://datacenter.com/weather?location=London",
+                        "--workers",
+                        "2",
+                        "--every",
+                        "3-9",
+                        "--seed",
+                        "1",
+                    ),  # fmt: skip
+                ),
+                *routine_change_processes(self.frr_routers()),
+            ),
+        )
 
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:

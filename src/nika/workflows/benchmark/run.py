@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait as wait_futures
+from contextlib import nullcontext
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,6 +18,29 @@ from nika.config import BENCHMARK_DIR, resolve_results_root
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
+from nika.firecracker import firecracker_enabled
+from nika.firecracker.case import wants_case_image
+from nika.firecracker.image import variant_for_row
+from nika.firecracker.schedule import (
+    clean_after_run,
+    group_by_variant,
+    hugepage_need_mib,
+    hugepage_pool_mib,
+    prebuild_images,
+)
+from nika.firecracker.trial import (
+    TrialLab,
+    reap_orphan_trials,
+    release_trial,
+)
+from nika.benchmark_engine import benchmark_engine, release_engine
+from nika.benchmark_engine.protocol import (
+    AgentAccess,
+    EngineError,
+    TrialHandle,
+    TrialRequest,
+)
+from nika.benchmark_engine.tasks import release_task_rows
 from nika.utils.session import Session
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
@@ -37,8 +62,10 @@ from nika.workflows.benchmark.display import (
     OutputMode,
     RunPlan,
     apply_worker_warning_env,
+    confirm_release_drift,
     confirm_run,
     print_deferred_warnings,
+    print_dashboard_link,
     print_inspect_hint,
     print_run_plan,
     quiet_third_party_logging,
@@ -47,11 +74,13 @@ from nika.workflows.benchmark.display import (
 )
 from nika.workflows.benchmark.healthy import (
     is_healthy_case,
-    write_healthy_session_artifacts,
 )
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.load_config import load_benchmark_input
-from nika.workflows.benchmark.multi_fault import flatten_inject_overrides, row_problems
+from nika.workflows.benchmark.multi_fault import (
+    nested_inject_map,
+    row_problems,
+)
 from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
     RETRYABLE_OUTCOMES,
@@ -64,50 +93,53 @@ from nika.evaluator.score_status import (
     resolve_score_status,
     scores_for_status,
 )
+from nika.workflows.benchmark.official_release import (
+    describe_drift,
+    official_release_drift,
+)
 from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
     RUN_CONFIG_FILENAME,
     BenchmarkRelease,
+    ReleaseError,
     SplitName,
     build_job_metadata,
     build_run_identity,
+    check_run_settings,
     load_release,
     load_run_config,
     normalize_split,
-    preflight_release,
+    ensure_release_images,
     release_fields_for_session,
+    verify_engine,
+    verify_task_list,
     write_job_metadata,
 )
-from nika.workflows.benchmark.resume import (
-    benchmark_row_fingerprint,
-    benchmark_row_from_case,
-)
+from nika.workflows.benchmark.resume import benchmark_row_from_case
 from nika.workflows.benchmark.run_progress import (
+    run_display_name,
     update_progress,
     write_progress,
 )
 from nika.workflows.benchmark.trials import (
     Trial,
-    _restore_success_eval_metrics,
+    expand_task_trials,
     expand_trials,
     has_valid_submission,
     heal_trial_outcome,
     is_finalized_failure,
     is_valid_trial,
     merge_run_config,
+    parse_task_selector,
     scan_trials,
     select_trials,
     store_session_id_for_trial,
     trial_dir,
     trial_outcome,
+    trial_ready,
 )
-from nika.workflows.env.start import start_net_env
-from nika.workflows.eval.session import (
-    eval_results,
-    run_eval_metrics,
-)
-from nika.workflows.failure.inject import inject_failure
-from nika.workflows.session.close import close_session, load_session_meta_for_close
+from nika.workflows.eval.session import score_trial
+from nika.workflows.session.close import close_session
 
 
 def _maybe_start_inspect(
@@ -312,11 +344,9 @@ def cleanup_benchmark_interrupt(
                 )
             continue
         try:
-            close_session(
-                session_id=session_id,
-                undeploy=True,
-                session_dir=matched,
-                status="aborted",
+            # The run's engine tears the trial down, as it deployed it.
+            benchmark_engine().stop_trial(
+                _trial_handle(session_id, matched), status="aborted"
             )
             _mark_session_aborted(matched)
             closed += 1
@@ -387,12 +417,77 @@ def default_release_ref() -> str:
     return DEFAULT_RELEASE_VERSION
 
 
+def _start_progress_monitoring() -> bool:
+    """Export this run's progress to Prometheus when observability is on."""
+    from nika.metrics.stack import start_monitoring
+
+    try:
+        return start_monitoring()
+    except Exception as exc:  # noqa: BLE001 - monitoring is optional
+        print(f"WARNING: benchmark progress monitoring unavailable: {exc}")
+        return False
+
+
+def _share_dashboard(
+    run_id: str,
+    results_root: Path,
+    *,
+    run_name: str,
+    monitoring: bool,
+    output_mode: OutputMode,
+) -> str | None:
+    """Open the run's public dashboard link when ``nika.metrics.share`` is on."""
+    from datetime import timezone
+
+    from nika.run_config.loader import get_run_config
+
+    if not get_run_config().nika.metrics.share.enabled:
+        return None
+    if not monitoring:
+        print(
+            "WARNING: nika.metrics.share is enabled but observability is off; "
+            "run `nika observability on` to get a dashboard link."
+        )
+        return None
+    from nika.metrics.share import share_run
+
+    try:
+        record = share_run(
+            run_id,
+            results_root,
+            started_at=datetime.now(timezone.utc),
+            run_name=run_name,
+        )
+    except Exception as exc:  # noqa: BLE001 - the link is optional
+        print(f"WARNING: could not open the dashboard link: {exc}")
+        return None
+    if record is None:
+        return None
+    print_dashboard_link(record, output_mode=output_mode)
+    return str(record["url"])
+
+
+# ``release_meta`` key of the release's access policy; not written to run.json.
+RELEASE_ACCESS_KEY = "agent_access"
+
+
+def _release_access(release_meta: dict | None) -> AgentAccess | None:
+    """The access policy a release run's trials pass to the engine's gateway."""
+    raw = (release_meta or {}).get(RELEASE_ACCESS_KEY)
+    return AgentAccess.model_validate(raw) if raw else None
+
+
 def _stamp_release_meta(session_id: str, release_meta: dict | None) -> None:
     if not release_meta:
         return
     session = Session().load_running_session(session_id=session_id)
     for key, value in release_fields_for_session(release_meta).items():
         session.update_session(key, value)
+
+
+def _stamp_ready(session_id: str, ready: bool) -> None:
+    """Record in ``run.json`` whether ``begin`` returned."""
+    Session().load_running_session(session_id=session_id).update_session("ready", ready)
 
 
 def _stamp_trial_meta(
@@ -419,6 +514,7 @@ def validate_inject_params(
     params: dict[str, Any],
     *,
     problems: list[str] | None = None,
+    release: str | None = None,
 ) -> None:
     """Raise ValueError if inject params do not satisfy the problem schema."""
     resolved_problems = list(problems or row_problems({"problem": problem}))
@@ -439,19 +535,20 @@ def validate_inject_params(
     if topo_size:
         kwargs["topo_size"] = topo_size
     if len(resolved_problems) > 1:
-        nested = flatten_inject_overrides(
+        nested = nested_inject_map(
             {"problem": problem, "problems": resolved_problems, "inject": params}
         )
         problem_inst = get_problem_instance(
             problem_names=resolved_problems,
             scenario_name=scenario,
+            release=release,
             **kwargs,
         )
         if hasattr(problem_inst, "resolve_params"):
             problem_inst.resolve_params(nested)
         return
 
-    problem_cls = get_problem_class(resolved_problems[0], scenario)
+    problem_cls = get_problem_class(resolved_problems[0], scenario, release)
     if problem_cls is None:
         raise ValueError(f"Unknown problem {resolved_problems[0]!r}")
     params_class = getattr(problem_cls, "Params", None)
@@ -528,15 +625,16 @@ def _set_trial_outcome(
     update_run_json(session_dir, _stamp)
 
 
+def _trial_handle(session_id: str, session_dir: Path) -> TrialHandle:
+    return TrialHandle(session_id=session_id, trial_dir=str(session_dir))
+
+
 def _close_quietly(
     session_id: str, session_dir: Path, *, status: str = "finished"
 ) -> None:
     try:
-        close_session(
-            session_id=session_id,
-            undeploy=True,
-            session_dir=session_dir,
-            status=status,  # type: ignore[arg-type]
+        benchmark_engine().stop_trial(
+            _trial_handle(session_id, session_dir), status=status
         )
     except FileNotFoundError:
         pass  # Already closed (worker cleanup) or never registered.
@@ -578,7 +676,9 @@ def _finalize_failed_trial(
 ) -> None:
     """Close the lab and stamp a post-inject failure outcome with ``score_status``.
 
-    ``agent_failed`` is a counted finished slot (kept by resume).
+    Callers finalize only trials that became ready (``begin`` returned), so
+    the agent had a valid task. ``agent_failed`` is a counted finished slot
+    (kept by resume).
     ``endpoint_failed`` / ``infra_failed`` are retryable: ``status=error``, not
     counted, cleaned on resume — no eval_metrics placeholders for those.
     """
@@ -587,7 +687,6 @@ def _finalize_failed_trial(
     _ensure_messages_file(session_dir)
 
     has_submission = has_valid_submission(session_dir)
-    has_ground_truth = (session_dir / "ground_truth.json").is_file()
     if has_submission:
         # Submission-first: agent finished even if a later step failed.
         outcome = "success"
@@ -596,16 +695,10 @@ def _finalize_failed_trial(
     elif outcome == "infra_failed":
         score_status = "infra_error"
     elif outcome == "endpoint_failed":
-        score_status = resolve_score_status(
-            has_submission=False,
-            infra_evidence=False,
-            has_ground_truth=has_ground_truth,
-        )
+        score_status = resolve_score_status(has_submission=False, infra_evidence=False)
     else:
         score_status = resolve_score_status(
-            has_submission=False,
-            infra_evidence=is_infra_error_evidence(error),
-            has_ground_truth=has_ground_truth,
+            has_submission=False, infra_evidence=is_infra_error_evidence(error)
         )
 
     _set_trial_outcome(
@@ -619,10 +712,10 @@ def _finalize_failed_trial(
     # Counted finished slots get metrics; retryable error slots do not.
     if status == "finished":
         try:
-            run_eval_metrics(
-                session_id=session_id,
+            score_trial(
+                benchmark_engine(),
+                _trial_handle(session_id, session_dir),
                 result_dir=result_dir,
-                session_dir=session_dir,
                 infra_evidence=score_status == "infra_error",
             )
         except Exception as eval_error:  # noqa: BLE001 - still record failure
@@ -666,7 +759,7 @@ def _finalize_post_inject_failure(
     result_dir: str | None,
     error: BaseException,
 ) -> str:
-    """Finalize a trial that failed after ground truth was written.
+    """Finalize a trial that failed after it became ready for the agent.
 
     A valid ``submission.json`` means the agent finished its task, so the trial
     is a ``success`` even when a later step (agent timeout, sandbox teardown,
@@ -697,15 +790,15 @@ def _finalize_timed_out_trial(
     result_dir: str | None,
     error: BaseException,
 ) -> None:
-    """After a watchdog kill, stamp a failure when GT was already written."""
+    """After a watchdog kill, stamp a failure when the trial had become ready."""
     results_root = resolve_results_root(result_dir)
     session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
     session_id = (
         store_session_id_for_trial(trial.trial_id, result_dir) or trial.trial_id
     )
-    if not (session_dir / "ground_truth.json").is_file():
-        # Killed during deploy/inject: nothing to score, but undeploy the lab
-        # so it cannot overlap the next (possibly exclusive) trial.
+    if not trial_ready(session_dir):
+        # Killed before ``begin`` returned: nothing to score, but undeploy the
+        # lab so it cannot overlap the next (possibly exclusive) trial.
         _close_quietly(session_id, session_dir, status="error")
         return
     outcome = _finalize_post_inject_failure(
@@ -735,17 +828,17 @@ def _close_and_eval_success(
         session_dir, outcome="success", agent_error=agent_error, score_status="scored"
     )
     try:
-        run_eval_metrics(
-            session_id=session_id, result_dir=result_dir, session_dir=session_dir
+        score_trial(
+            benchmark_engine(),
+            _trial_handle(session_id, session_dir),
+            result_dir=result_dir,
         )
     except Exception as eval_error:  # noqa: BLE001 - outcome already stamped
+        # Never write -1 placeholders for a success: --resume scores it again.
         print(
             f"WARNING: could not write eval metrics for success "
             f"trial {session_id}: {eval_error}"
         )
-        # Rebuild from on-disk artifacts; never write -1 placeholders for a
-        # success, which would block --resume from repairing the metrics.
-        _restore_success_eval_metrics(session_dir)
     _stamp_closed_outcome(
         session_id=session_id,
         session_dir=session_dir,
@@ -781,6 +874,9 @@ def run_single_case(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    telemetry: list[str] | None = None,
+    traffic: dict[str, Any] | None = None,
+    schedule: dict[str, Any] | None = None,
     verbose: bool = False,
     progress: BenchmarkProgress | None = None,
     progress_label: str | None = None,
@@ -794,10 +890,6 @@ def run_single_case(
         The session id and session directory for the completed run.
     """
 
-    def _phase(name: str) -> None:
-        if progress is not None and progress_label:
-            progress.set_phase(progress_label, name)
-
     row = benchmark_row_from_case(
         scenario=scenario,
         problem=problem,
@@ -809,18 +901,27 @@ def run_single_case(
         rpki=rpki,
         backend=backend,
         device_profile=device_profile,
+        telemetry=telemetry,
+        traffic=traffic,
+        problems=problems,
+        schedule=schedule,
+        release=(release_meta or {}).get("version"),
     )
-    isp_bits = [
+    deploy_bits = [
         f"{_ISP_BANNER_LABELS[key]}: {'on' if key == 'rpki' else row[key]}"
         for key in ISP_DEPLOY_KEYS
         if row.get(key)
     ]
+    if telemetry:
+        deploy_bits.append(f"Telemetry: {', '.join(telemetry)}")
+    if row.get("traffic"):
+        deploy_bits.append(f"Traffic: {row['traffic']['pattern']}")
     # Batch trials stay quiet unless -v; bare single-case CLI keeps the banner.
     if verbose or not trial_id:
         print(
             f"Running benchmark for Problem: {problem}, Scenario: {scenario}, "
             f"Topo Size: {topo_size}"
-            + (f", {', '.join(isp_bits)}" if isp_bits else "")
+            + (f", {', '.join(deploy_bits)}" if deploy_bits else "")
             + (f", Trial: {trial_id}" if trial_id else ""),
             flush=True,
         )
@@ -828,36 +929,67 @@ def run_single_case(
     if not verbose:
         quiet_third_party_logging()
 
-    size = topo_size if topo_size else None
-    if scenario_requires_topo_size(scenario) and not size:
+    if scenario_requires_topo_size(scenario) and not topo_size:
         raise ValueError(
             f"Scenario '{scenario}' requires a non-empty topology size (-s s|m|l)."
         )
-    if not scenario_requires_topo_size(scenario):
-        size = None
+    return _run_engine_trial(
+        {
+            "task": row,
+            "failures": row_problems(row),
+            "inject": dict(row.get("inject") or {}),
+            "expected_root_causes": expected_root_causes,
+            "healthy": is_healthy_case(problem),
+            "release": (release_meta or {}).get("version"),
+        },
+        scheduled=row.get("schedule") is not None,
+        summary=f"scenario={scenario} problem={problem}",
+        agent_type=agent_type,
+        llm_provider=llm_provider,
+        model=model,
+        max_steps=max_steps,
+        result_dir=result_dir,
+        session_tag=session_tag,
+        release_meta=release_meta,
+        trial_id=trial_id,
+        trial_index=trial_index,
+        case_key=case_key,
+        candidate_option_id=candidate_option_id,
+        verbose=verbose,
+        progress=progress,
+        progress_label=progress_label,
+    )
 
-    resolved_problems = list(
-        problems or row_problems({"problem": problem, "inject": inject_params})
-    )
-    inject_overrides = (
-        flatten_inject_overrides(
-            {
-                "problem": problem,
-                "problems": resolved_problems,
-                "inject": inject_params,
-            }
-        )
-        if len(resolved_problems) > 1
-        else dict(inject_params)
-    )
 
-    validate_inject_params(
-        problem,
-        scenario,
-        topo_size or "",
-        inject_params,
-        problems=resolved_problems,
-    )
+def _run_engine_trial(
+    task_fields: dict[str, Any],
+    *,
+    scheduled: bool,
+    summary: str,
+    agent_type: str,
+    llm_provider: str | None,
+    model: str | None,
+    max_steps: int | None,
+    result_dir: str | None,
+    session_tag: str | None,
+    release_meta: dict | None,
+    trial_id: str | None,
+    trial_index: int | None,
+    case_key: str | None,
+    candidate_option_id: str | None = None,
+    verbose: bool = False,
+    progress: BenchmarkProgress | None = None,
+    progress_label: str | None = None,
+) -> tuple[str, Path]:
+    """Run one trial on the benchmark engine (env → inject → agent → score).
+
+    *task_fields* name the task in the ``TrialRequest``. *scheduled* tells
+    that the task row has a schedule, which the engine must support.
+    """
+
+    def _phase(name: str) -> None:
+        if progress is not None and progress_label:
+            progress.set_phase(progress_label, name)
 
     predetermined_dir: str | None = None
     if trial_id:
@@ -881,51 +1013,44 @@ def run_single_case(
     if progress is not None and progress_label and predetermined_dir:
         progress.attach_session(progress_label, predetermined_dir)
 
-    _phase("deploy")
-    # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
-    # incorporate result_dir so parallel same-task runs do not share a lab.
-    store_session_id = store_session_id_for_trial(trial_id, result_dir) or trial_id
-    session_id = start_net_env(
-        scenario,
-        size,
-        redeploy=True,
+    engine = benchmark_engine()
+    request = TrialRequest(
+        **task_fields,
+        # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
+        # incorporate result_dir so parallel same-task runs do not share a lab.
+        session_id=store_session_id_for_trial(trial_id, result_dir) or trial_id,
+        trial_dir=predetermined_dir,
         result_dir=result_dir,
         session_tag=session_tag,
-        session_id=store_session_id,
-        session_dir=predetermined_dir,
-        topo=topo,
-        igp=igp,
-        bgp_mode=bgp_mode,
-        rpki=rpki,
-        backend=backend,
-        device_profile=device_profile,
     )
-    session_dir = Path(predetermined_dir) if predetermined_dir else None
-    gt_written = False
+
+    _phase("deploy")
+    handle = engine.start_trial(request)
+    session_id = handle.session_id
+    session_dir = handle.trial_path
+    ready = False
+    scheduler = None
 
     try:
-        if session_dir is None:
-            session_dir = Path(load_session_meta_for_close(session_id)["session_dir"])
-        if is_healthy_case(problem):
-            write_healthy_session_artifacts(session_id)
-        else:
-            _phase("inject")
-            inject_failure(
-                problem_names=resolved_problems,
-                session_id=session_id,
-                param_overrides=inject_overrides,
-                expected_root_causes=expected_root_causes,
-            )
-        gt_written = (session_dir / "ground_truth.json").is_file()
+        _stamp_ready(session_id, False)
+        _phase("prepare")
+        task = engine.begin(handle)
+        if scheduled and not task.scheduled:
+            raise EngineError("This benchmark engine does not support scheduled tasks")
+        if task.scheduled:
+            from nika.benchmark_engine.schedule import EngineSessionScheduler
 
-        session = Session().load_running_session(session_id=session_id)
-        session.update_session(
-            "benchmark_fingerprint",
-            benchmark_row_fingerprint(row),
-        )
-        if candidate_option_id:
-            session.update_session("candidate_option_id", candidate_option_id)
+            scheduler = EngineSessionScheduler(engine, handle)
+            scheduler.prepare()
+        # Failed-trial triage reads this: the agent got a valid task.
+        _stamp_ready(session_id, True)
+        ready = True
+
         _stamp_release_meta(session_id, release_meta)
+        if candidate_option_id:
+            Session().load_running_session(session_id=session_id).update_session(
+                "candidate_option_id", candidate_option_id
+            )
         _stamp_trial_meta(
             session_id,
             trial_id=trial_id,
@@ -934,17 +1059,34 @@ def run_single_case(
         )
 
         _phase("agent")
-        start_agent(
-            agent_type=agent_type,
-            llm_provider=llm_provider,
-            model=model,
-            max_steps=max_steps,
-            session_id=session_id,
-            # Bare single-case CLI streams agent output like session-mode
-            # ``nika agent run``; batch trials stay quiet.
-            stream_output=not trial_id,
-            check_fault_presence=True,
-        )
+
+        def release_scheduled_agent():
+            scheduler.start()
+            scheduler.wait_agent_start()
+
+        try:
+            start_agent(
+                agent_type=agent_type,
+                llm_provider=llm_provider,
+                model=model,
+                max_steps=max_steps,
+                session_id=session_id,
+                task_description=task.task_description,
+                # Bare single-case CLI streams agent output like session-mode
+                # ``nika agent run``; batch trials stay quiet.
+                stream_output=not trial_id,
+                check_fault_presence=True,
+                access=_release_access(release_meta),
+                diagnosis_ready=release_scheduled_agent
+                if scheduler is not None
+                else None,
+            )
+            if scheduler is not None:
+                scheduler.raise_if_failed()
+        finally:
+            if scheduler is not None:
+                owned_scheduler, scheduler = scheduler, None
+                owned_scheduler.close()
         _require_submission(session_dir)
 
         _phase("eval")
@@ -957,7 +1099,11 @@ def run_single_case(
                 result_dir=result_dir,
             )
         else:
-            eval_results(session_id=session_id)
+            try:
+                engine.stop_trial(handle)
+            except FileNotFoundError:
+                pass  # Closed by another process while the agent ran.
+            score_trial(engine, handle, result_dir=result_dir)
             _ensure_messages_file(session_dir)
             try:
                 closed = Session().load_closed_session(
@@ -971,16 +1117,16 @@ def run_single_case(
                     session_dir, outcome="success", score_status="scored"
                 )
     except BaseException as exc:
+        if scheduler is not None:
+            try:
+                scheduler.close()
+            except Exception as cleanup_error:
+                exc.add_note(f"Schedule cleanup failed: {cleanup_error}")
         # Ctrl+C / SystemExit: undeploy the lab, leave the trial incomplete for
         # --resume, and re-raise. Do not count as agent_failed.
         if _is_user_interrupt(exc):
             try:
-                close_session(
-                    session_id=session_id,
-                    undeploy=True,
-                    session_dir=session_dir,
-                    status="aborted",
-                )
+                engine.stop_trial(handle, status="aborted")
                 _mark_session_aborted(session_dir)
                 print(f"cleaned up interrupted session {session_id} (lab undeployed)")
             except Exception as cleanup_error:  # noqa: BLE001 - best effort
@@ -994,7 +1140,7 @@ def run_single_case(
         # success (valid submission), counted agent_failed, or retryable
         # endpoint_failed / infra_failed. Bare single-case CLI (no trial_id)
         # still raises so abort-on-error behavior is preserved.
-        if trial_id and (gt_written or (session_dir / "ground_truth.json").is_file()):
+        if trial_id and ready:
             outcome = _finalize_post_inject_failure(
                 session_id=session_id,
                 session_dir=session_dir,
@@ -1003,8 +1149,8 @@ def run_single_case(
             )
             vprint(
                 verbose or not trial_id,
-                f"{_BENCHMARK_DONE_PREFIX}session_id={session_id} scenario={scenario} "
-                f"problem={problem} session_dir={session_dir} outcome={outcome}",
+                f"{_BENCHMARK_DONE_PREFIX}session_id={session_id} {summary} "
+                f"session_dir={session_dir} outcome={outcome}",
             )
             if outcome in RETRYABLE_OUTCOMES:
                 # Surface as a continuing failure so retry-passes / resume see it.
@@ -1027,8 +1173,8 @@ def run_single_case(
 
     vprint(
         verbose or not trial_id,
-        f"{_BENCHMARK_DONE_PREFIX}session_id={session_id} scenario={scenario} "
-        f"problem={problem} session_dir={session_dir}",
+        f"{_BENCHMARK_DONE_PREFIX}session_id={session_id} {summary} "
+        f"session_dir={session_dir}",
     )
     return session_id, session_dir
 
@@ -1054,6 +1200,8 @@ def run_benchmark_from_yaml(
     verbose: bool = False,
     output_mode: OutputMode = "human",
     plan_header: str | None = None,
+    skip_licensed: bool = False,
+    device_profiles: list[str] | None = None,
 ) -> None:
     """Run ad-hoc YAML cases via the shared trial runner (``n_trials=1``).
 
@@ -1081,6 +1229,8 @@ def run_benchmark_from_yaml(
         verbose=verbose,
         output_mode=output_mode,
         plan_header=plan_header,
+        skip_licensed=skip_licensed,
+        device_profiles=device_profiles,
     )
 
 
@@ -1099,18 +1249,104 @@ def _run_trial(
 ) -> None:
     # Runs in-process or as a spawn worker; silence before FastMCP re-import noise.
     quiet_third_party_logging()
+    with _firecracker_trial_scope(trial, agent_type=agent_type, result_dir=result_dir):
+        _run_trial_case(
+            trial,
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            model=model,
+            max_steps=max_steps,
+            result_dir=result_dir,
+            session_tag=session_tag,
+            release_meta=release_meta,
+            verbose=verbose,
+            progress=progress,
+        )
+
+
+def _firecracker_trial_scope(trial: Trial, *, agent_type: str, result_dir: str | None):
+    """Restore the trial's lab from a lab image with Firecracker execution."""
+    if not firecracker_enabled():
+        return nullcontext()
+    from nika.agents.registry import get_agent_spec
+    from nika.agents.sandbox.config import resolve_sandbox_config
+
+    return TrialLab(
+        variant_for_row(trial.row),
+        trial_key=store_session_id_for_trial(trial.trial_id, result_dir)
+        or trial.trial_id,
+        owner=str(resolve_results_root(result_dir)),
+        sandbox_backend=(
+            resolve_sandbox_config().backend
+            if get_agent_spec(agent_type).template is not None
+            else None
+        ),
+        case_row=trial.row if wants_case_image(trial.row) else None,
+    )
+
+
+def _run_trial_case(
+    trial: Trial,
+    *,
+    agent_type: str,
+    llm_provider: str | None,
+    model: str | None,
+    max_steps: int | None,
+    result_dir: str | None,
+    session_tag: str | None,
+    release_meta: dict | None,
+    verbose: bool = False,
+    progress: BenchmarkProgress | None = None,
+) -> None:
+    task = trial.task
+    if task is not None:
+        # A release task: its benchmark engine reads the task by its ID.
+        meta = release_meta or {}
+        if verbose:
+            print(
+                f"Running benchmark for Problem: {'+'.join(task.faults)}, "
+                f"Scenario: {task.scenario}, Topo Size: {task.topo_size or ''}, "
+                f"Trial: {trial.trial_id}",
+                flush=True,
+            )
+        _run_engine_trial(
+            {
+                "task_id": task.task_id,
+                "release": str(meta["version"]),
+                "split": str(meta["split"]),
+            },
+            scheduled=False,
+            summary=f"scenario={task.scenario} problem={'+'.join(task.faults)}",
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            model=model,
+            max_steps=max_steps,
+            result_dir=result_dir,
+            session_tag=session_tag,
+            release_meta=release_meta,
+            trial_id=trial.trial_id,
+            trial_index=trial.trial_index,
+            case_key=trial.case_key,
+            verbose=verbose,
+            progress=progress,
+            progress_label=trial.label if progress is not None else None,
+        )
+        return
     row = trial.row
+    assert row is not None
+    problems = row_problems(row)
+    expected_root_causes = (
+        None
+        if row.get("root_causes_status") == "unresolved"
+        else row.get("root_causes")
+    )
     run_single_case(
         problem=row["problem"],
-        problems=row_problems(row),
+        problems=problems,
         scenario=row["scenario"],
         topo_size=row.get("topo_size") or "",
         inject_params=row["inject"],
-        expected_root_causes=(
-            None
-            if row.get("root_causes_status") == "unresolved"
-            else row.get("root_causes")
-        ),
+        expected_root_causes=expected_root_causes,
         candidate_option_id=row.get("candidate_option_id"),
         release_meta=release_meta,
         agent_type=agent_type,
@@ -1123,6 +1359,9 @@ def _run_trial(
         trial_index=trial.trial_index,
         case_key=trial.case_key,
         **{key: row.get(key) for key in ISP_DEPLOY_KEYS},
+        telemetry=row.get("telemetry"),
+        traffic=row.get("traffic"),
+        **({"schedule": row["schedule"]} if row.get("schedule") is not None else {}),
         verbose=verbose,
         progress=progress,
         progress_label=trial.label if progress is not None else None,
@@ -1155,7 +1394,10 @@ def _run_trial_with_timeout(
         release_meta=release_meta,
         verbose=verbose,
     )
-    if case_timeout <= 0 and not isolate:
+    # A schedule's timeline runs in a worker process; a release task may have
+    # one, which only its engine knows.
+    may_schedule = trial.row is None or trial.row.get("schedule") is not None
+    if case_timeout <= 0 and not isolate and not may_schedule:
         # In-process: Live can receive phase hooks directly.
         _run_trial(trial, progress=progress, **kwargs)
         return
@@ -1186,9 +1428,14 @@ def _run_trial_with_timeout(
         if case_timeout > 0 and proc.is_alive():
             # SIGTERM runs the worker's cleanup (sandbox, gateway, lab).
             _stop_worker(proc)
+            leak_hint = (
+                "Its VM copy is released when the worker exits."
+                if firecracker_enabled()
+                else "Its lab may be leaked — check `nika session ps`."
+            )
             timeout_error = RuntimeError(
                 f"[{trial.trial_id}] case exceeded --case-timeout ({case_timeout}s) "
-                "and was killed. Its lab may be leaked — check `nika session ps`."
+                f"and was killed. {leak_hint}"
             )
             _finalize_timed_out_trial(trial, result_dir=result_dir, error=timeout_error)
             raise timeout_error
@@ -1196,8 +1443,8 @@ def _run_trial_with_timeout(
             _stop_worker(proc)
             raise RuntimeError(f"[{trial.trial_id}] trial worker did not exit")
         if proc.exitcode not in (0, None):
-            # Worker may have finalized already; if not and GT exists, classify
-            # the crash (agent never started / endpoint → retryable).
+            # Worker may have finalized already; if not and the trial was ready,
+            # classify the crash (agent never started / endpoint → retryable).
             results_root = resolve_results_root(result_dir)
             session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
             # The worker logged the real cause before dying; surface it here so
@@ -1217,7 +1464,7 @@ def _run_trial_with_timeout(
                 # The worker handled SIGTERM/SIGINT and undeployed its lab;
                 # leave the slot incomplete for --resume.
                 raise crash_error
-            if not (session_dir / "ground_truth.json").is_file() or (
+            if not trial_ready(session_dir) or (
                 not is_valid_trial(session_dir)
                 and not heal_trial_outcome(session_dir)
                 and not is_finalized_failure(session_dir)
@@ -1228,6 +1475,11 @@ def _run_trial_with_timeout(
             raise crash_error
     finally:
         _unregister_trial_proc(proc)
+        if firecracker_enabled():
+            # A killed worker cannot delete its VM copy; release it here.
+            release_trial(
+                store_session_id_for_trial(trial.trial_id, result_dir) or trial.trial_id
+            )
 
 
 def _run_trials_batch(
@@ -1247,6 +1499,7 @@ def _run_trials_batch(
     verbose: bool = False,
     progress: BenchmarkProgress | None = None,
     on_trial_finished: Any | None = None,
+    endpoint_guard: Any | None = None,
 ) -> list[str]:
     """Run trials with a concurrency cap (sliding window).
 
@@ -1263,6 +1516,8 @@ def _run_trials_batch(
     failures: list[str] = []
     if not trials_batch:
         return failures
+    if firecracker_enabled():
+        trials_batch = group_by_variant(trials_batch)
     limits = tier_limits(
         batch_size=max_workers or len(trials_batch),
         heavy_batch_size=heavy_batch_size,
@@ -1281,6 +1536,15 @@ def _run_trials_batch(
         release_meta=release_meta,
         isolate=isolate,
         verbose=verbose,
+    )
+    from nika.run_config.loader import get_run_config
+    from nika.workflows.benchmark.endpoint import EndpointBackoff, probe_model
+
+    guard = endpoint_guard or EndpointBackoff(
+        get_run_config().benchmark,
+        lambda timeout: probe_model(
+            llm_provider, model, timeout, agent_type=agent_type
+        ),
     )
     results_root = resolve_results_root(result_dir)
 
@@ -1326,6 +1590,9 @@ def _run_trials_batch(
         failures.append(f"[{trial.trial_id}] {error}")
 
     def _notify_finished(trial: Trial) -> None:
+        guard.record(
+            trial_outcome(trial_dir(results_root, trial.case_key, trial.trial_index))
+        )
         if on_trial_finished is not None:
             on_trial_finished(trial)
 
@@ -1341,16 +1608,18 @@ def _run_trials_batch(
     # Ctrl+C: re-raise; ``run_benchmark_trials`` runs cleanup exactly once.
     if workers == 1:
         for trial in trials_batch:
+            guard.wait()
             try:
                 _run_one(trial)
-                _on_finished(trial)
-                _notify_finished(trial)
             except Exception as e:  # noqa: BLE001
                 _on_finished(trial, failed=True)
                 _notify_finished(trial)
                 if not continue_on_error:
                     raise
                 _report_failure(trial, e)
+            else:
+                _on_finished(trial)
+                _notify_finished(trial)
         return failures
 
     if verbose and progress is None:
@@ -1367,12 +1636,19 @@ def _run_trials_batch(
     # future -> (trial, resource_class)
     futures: dict[Any, tuple[Trial, str]] = {}
     in_flight: dict[str, int] = {}
+    # Firecracker execution with huge pages: expected huge-page use of running copies.
+    hugepage_pool = hugepage_pool_mib() if firecracker_enabled() else None
+    hugepages_in_flight: dict[Any, int] = {}
     # Each light phase may bypass waiting heavy trials at most one batch.
     # Once spent, drain the light tier so heavy trials cannot be starved.
     backfill_remaining = limits["light"]
 
     def _admit_available() -> None:
         nonlocal backfill_remaining
+        if pending and guard.paused:
+            if futures:
+                return
+            guard.wait()
         if not futures:
             backfill_remaining = limits["light"]
         while len(futures) < workers and pending:
@@ -1384,6 +1660,17 @@ def _run_trials_batch(
             )
             if index is None:
                 break
+            need = (
+                hugepage_need_mib(pending[index].row)
+                if hugepage_pool is not None
+                else 0
+            )
+            if (
+                futures
+                and hugepage_pool is not None
+                and sum(hugepages_in_flight.values()) + need > hugepage_pool
+            ):
+                break  # wait until running copies free huge pages
             cls = resource_class(pending[index])
             if cls == CLASS_LIGHT and any(
                 resource_class(trial) != CLASS_LIGHT for trial in pending[:index]
@@ -1393,17 +1680,20 @@ def _run_trials_batch(
             in_flight[cls] = in_flight.get(cls, 0) + 1
             future = pool.submit(_run_one, trial)
             futures[future] = (trial, cls)
+            hugepages_in_flight[future] = need
 
     try:
         _admit_available()
         while futures:
-            for future in as_completed(futures):
+            finished, _ = wait_futures(
+                futures, timeout=0.2, return_when=FIRST_COMPLETED
+            )
+            for future in finished:
                 trial, cls = futures.pop(future)
                 in_flight[cls] = max(0, in_flight.get(cls, 0) - 1)
+                hugepages_in_flight.pop(future, None)
                 try:
                     future.result()
-                    _on_finished(trial)
-                    _notify_finished(trial)
                 except Exception as e:  # noqa: BLE001
                     _on_finished(trial, failed=True)
                     _notify_finished(trial)
@@ -1411,15 +1701,31 @@ def _run_trials_batch(
                         _abort_in_flight()
                         raise
                     _report_failure(trial, e)
-                _admit_available()
-                break
+                else:
+                    _on_finished(trial)
+                    _notify_finished(trial)
+            if futures or pending:
+                guard.poll()
+            _admit_available()
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     return failures
 
 
+def select_trials_rows(
+    rows: list[dict[str, Any]], task_ids: list[str] | None
+) -> list[dict[str, Any]]:
+    """Rows this launch runs (``--task-id`` narrows them)."""
+    if not task_ids:
+        return rows
+    from nika.workflows.benchmark.trials import parse_task_selector, task_id_for_row
+
+    wanted = {parse_task_selector(selector)[0] for selector in task_ids}
+    return [row for row in rows if task_id_for_row(row) in wanted]
+
+
 def run_benchmark_trials(
-    benchmark_file: str,
+    benchmark_file: str | None,
     agent_type: str,
     llm_provider: str | None,
     model: str | None,
@@ -1442,6 +1748,9 @@ def run_benchmark_trials(
     plan_header: str | None = None,
     job: dict[str, Any] | None = None,
     check_images: bool = True,
+    skip_licensed: bool = False,
+    device_profiles: list[str] | None = None,
+    all_trials: list[Trial] | None = None,
 ) -> None:
     """Run cases × ``n_trials`` under ``{result_dir}/trials/`` (shared batch kernel).
 
@@ -1449,7 +1758,8 @@ def run_benchmark_trials(
     (``run_benchmark_from_release``). Without it (``--config``), an ad-hoc run
     config is built and checked the same way, so ``--resume`` refuses to mix
     agents/models/timeouts in one result dir. Either is written only after the
-    user confirms the plan.
+    user confirms the plan. A release run passes its trial grid as
+    ``all_trials`` instead of a ``benchmark_file``.
     """
     if batch_size < 1:
         raise ValueError("batch_size must be >= 1")
@@ -1468,15 +1778,32 @@ def run_benchmark_trials(
     # Quiet MCP/httpx before lab deploy and agent work (default CLI UX).
     quiet_third_party_logging()
 
-    rows = load_benchmark_input(benchmark_file)
-    if not rows:
-        print(f"No benchmark rows found in {benchmark_file}")
-        return
+    rows: list[dict[str, Any]] = []
+    if all_trials is None:
+        if benchmark_file is None:
+            raise ValueError("A benchmark file or a trial grid is required")
+        rows = load_benchmark_input(benchmark_file)
+        if skip_licensed or device_profiles:
+            from nika.workflows.benchmark.licensed import select_rows
+
+            rows = select_rows(
+                rows, skip_licensed=skip_licensed, device_profiles=device_profiles
+            )
+        if not rows:
+            print(f"No benchmark rows found in {benchmark_file}")
+            return
+        if check_images:
+            from nika.remote.config import is_remote_enabled
+
+            if not is_remote_enabled():
+                from nika.workflows.benchmark.licensed import require_licensed_images
+
+                require_licensed_images(select_trials_rows(rows, task_ids))
+        all_trials = expand_trials(rows, n_trials)
     release_meta = dict(release_meta or {})
 
     # ``all_trials`` is the job's full grid; ``trials`` is what this launch
     # runs. ``--task-id`` only narrows the launch, never the job's scope.
-    all_trials = expand_trials(rows, n_trials)
     trials = select_trials(all_trials, task_ids) if task_ids else all_trials
     case_count = len({trial.case_key for trial in trials})
 
@@ -1502,13 +1829,15 @@ def run_benchmark_trials(
             },
         )
         job["case_count"] = len(rows)
+        release_meta = {**job, **release_meta}
     # Legacy scoped-run fields: they shrank the job to one launch's selection.
     job.pop("task_ids", None)
     job.pop("planned_trial_count", None)
-    run_id = None
-    if release_meta:
-        run_id = release_meta.get("run_id") or release_meta.get("job_id")
+    run_id = (
+        release_meta.get("run_id") or release_meta.get("job_id") or job.get("run_id")
+    )
     inspect_url: str | None = None
+    dashboard_url: str | None = None
 
     def _emit_report() -> None:
         """Print the visual summary for the finished run.
@@ -1541,6 +1870,8 @@ def run_benchmark_trials(
         except Exception as report_error:  # noqa: BLE001 - reporting is advisory
             print(f"WARNING: could not render run summary: {report_error}")
         print_inspect_hint(results_root, url=inspect_url, output_mode=output_mode)
+        if dashboard_url:
+            print_dashboard_link({"url": dashboard_url}, output_mode=output_mode)
         print_deferred_warnings(output_mode=output_mode)
 
     selected_ids = {trial.trial_id for trial in trials}
@@ -1589,6 +1920,20 @@ def run_benchmark_trials(
         if not run_id:
             return
         _refresh_progress(pending, status="finished")
+
+    from nika.run_config.loader import get_run_config
+    from nika.workflows.benchmark.endpoint import (
+        EndpointBackoff,
+        EndpointUnavailable,
+        probe_model,
+    )
+
+    endpoint_guard = EndpointBackoff(
+        get_run_config().benchmark,
+        lambda timeout: probe_model(
+            llm_provider, model, timeout, agent_type=agent_type
+        ),
+    )
 
     def _run_pending(
         pending: list[int], *, progress: BenchmarkProgress | None
@@ -1643,6 +1988,7 @@ def run_benchmark_trials(
             verbose=verbose,
             progress=progress,
             on_trial_finished=_refresh_after_trial,
+            endpoint_guard=endpoint_guard,
         )
 
     # Preflight plan only — do not clear/cleanup slots until the user confirms.
@@ -1684,6 +2030,13 @@ def run_benchmark_trials(
     if not confirm_run(yes=yes):
         print("Aborted.")
         return
+    from nika.agents.registry import get_agent_spec
+
+    if get_agent_spec(agent_type).template is not None:
+        from nika.agents.sandbox.backend import get_backend
+        from nika.agents.sandbox.config import resolve_sandbox_config
+
+        get_backend(resolve_sandbox_config()).preflight()
 
     # Confirmed: persist the run config, then pull sandbox images once per job
     # before any case/lab deploy so parallel trials do not race on the first
@@ -1693,6 +2046,10 @@ def run_benchmark_trials(
     else:
         write_json_atomic(results_root / RUN_CONFIG_FILENAME, job, sort_keys=True)
     if run_id:
+        # Named after the run's creation, which a resume keeps.
+        run_name = run_display_name(
+            job.get("model"), job.get("agent_type"), job.get("created_at")
+        )
         write_progress(
             str(run_id),
             result_dir=results_root,
@@ -1704,11 +2061,29 @@ def run_benchmark_trials(
             version=job.get("version"),
             agent_type=job.get("agent_type"),
             model=job.get("model"),
+            run_name=run_name,
+        )
+        dashboard_url = _share_dashboard(
+            str(run_id),
+            results_root,
+            run_name=run_name,
+            monitoring=_start_progress_monitoring(),
+            output_mode=output_mode,
         )
     if check_images:
-        from agent.sandbox.sbx.images import ensure_sbx_template_images
+        from nika.agents.sandbox.backend import prepare_sandbox_templates
 
-        ensure_sbx_template_images([agent_type])
+        images = prepare_sandbox_templates([agent_type])
+        from nika.net_env.utils.kathara.docker_files.docker_images import (
+            ensure_nika_docker_images,
+        )
+
+        ensure_nika_docker_images(images)
+
+    if firecracker_enabled():
+        # VM copies left by a crashed earlier launch on this result dir.
+        for orphan in reap_orphan_trials(str(results_root)):
+            print(f"[firecracker] released VM copy left by trial {orphan}")
 
     # Confirmed: mutate slots (clear --no-resume / clean incomplete) then run.
     _, initial_pending = scan_trials(
@@ -1724,6 +2099,10 @@ def run_benchmark_trials(
         _finish_progress([])
         _emit_report()
         return
+    if firecracker_enabled():
+        # Build every lab image first: trials then only restore, and their
+        # case timeout never includes a build.
+        prebuild_images([trials[i] for i in initial_pending], max_parallel=batch_size)
 
     failures: list[str] = []
     previous_pending: int | None = None
@@ -1737,6 +2116,7 @@ def run_benchmark_trials(
             case_count=case_count,
             n_trials=n_trials,
             inspect_url=inspect_url,
+            dashboard_url=dashboard_url,
             output_mode=output_mode,
         ) as progress:
             for attempt in range(retry_passes + 1):
@@ -1796,12 +2176,14 @@ def run_benchmark_trials(
                     failures = [
                         f"incomplete trial {trials[i].trial_id}" for i in still_pending
                     ]
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EndpointUnavailable) as error:
         print(
-            "\nInterrupted — cleaning up running benchmark sessions "
+            "\nRun aborted. Cleaning up running benchmark sessions "
             f"under {results_root}…"
         )
-        cleanup_benchmark_interrupt(results_root)
+        cleanup_benchmark_interrupt(
+            results_root, signal_workers=isinstance(error, EndpointUnavailable)
+        )
         if run_id:
             try:
                 _root, pending = scan_trials(
@@ -1826,6 +2208,8 @@ def run_benchmark_trials(
         mutate=False,
     )
     _finish_progress(final_pending)
+    if firecracker_enabled():
+        clean_after_run(trials)
 
     if failures:
         print(
@@ -1868,70 +2252,120 @@ def run_benchmark_from_release(
     to stop on the first error.
     """
     resolved_split = normalize_split(split, default="test")
-    resolved = release or load_release(release_ref, split=resolved_split)
+    # The manifest alone: the release's benchmark engine owns its tasks.
+    resolved = release or load_release(
+        release_ref, split=resolved_split, read_tasks=False
+    )
     if resolved.split != resolved_split:
-        resolved = load_release(release_ref, split=resolved_split)
-    n_trials = resolved.n_trials
-    # Validate --task-id before preflight / image pulls so bad selectors fail fast.
-    planned: list[Trial] | None = None
-    if task_ids:
-        planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
-    preflight_release(resolved, check_images=check_images)
-
-    # Timeout is operational (run config / CLI), not a release pin.
-    if case_timeout is None:
-        from nika.run_config.schema import BenchmarkSettings
-
-        case_timeout = int(BenchmarkSettings.model_fields["case_timeout_sec"].default)
-    effective_timeout = int(case_timeout)
-    official = True
-
+        resolved = load_release(release_ref, split=resolved_split, read_tasks=False)
     results_root = resolve_results_root(result_dir)
-    proposed = build_job_metadata(
-        resolved,
-        agent_type=agent_type,
-        model=model,
-        llm_provider=llm_provider,
-        max_steps=max_steps,
-        n_trials=n_trials,
-        case_timeout_sec=effective_timeout,
-        official=official,
-    )
-    existing = load_run_config(results_root)
-    job = merge_run_config(existing=existing, proposed=proposed)
-    if planned is not None:
-        case_count = len({trial.case_key for trial in planned})
-        scope = f"{case_count} cases, {len(planned)} trials"
+    # Settings need only the manifest: check them before the benchmark engine
+    # starts, which can mean building its image.
+    check_run_settings(resolved, agent_type=agent_type)
+    for selector in task_ids or []:
+        parse_task_selector(selector)
+    n_trials = resolved.n_trials
+    try:
+        drift, reference = official_release_drift(
+            load_release(release_ref, split=resolved_split)
+        )
+    except (ReleaseError, ValueError) as exc:
+        print(f"Skipped the official release check for {resolved.ref}: {exc}")
     else:
-        scope = f"{resolved.case_count} cases × {n_trials} trials"
-    job_path = results_root / RUN_CONFIG_FILENAME
-    plan_header = (
-        f"Release {resolved.ref} split={resolved.split} "
-        f"({scope}, "
-        f"official={official}, continue_on_error={continue_on_error}) → {job_path}"
-    )
+        if drift.drifted and not confirm_release_drift(
+            describe_drift(resolved, drift, reference), yes=yes
+        ):
+            print("Aborted.")
+            return
+    with release_engine(
+        resolved.manifest.get("engine"),
+        results_root=results_root,
+        name=resolved.version,
+    ) as pinned_engine:
+        engine = benchmark_engine()
+        description = engine.describe(resolved.version)
+        verify_engine(resolved, description)
+        try:
+            task_list = engine.list_tasks(resolved.version, resolved.split)
+        except EngineError as exc:
+            raise ReleaseError(
+                f"The benchmark engine of {resolved.ref} could not list its "
+                f"{resolved.split!r} tasks: {exc}"
+            ) from exc
+        verify_task_list(resolved, task_list)
+        resolved = replace(resolved, case_count=len(task_list.tasks))
+        all_trials = expand_task_trials(
+            task_list.tasks,
+            n_trials,
+            # Lab images need the rows; Firecracker runs only in-process engines.
+            rows=release_task_rows(resolved.version, resolved.split)
+            if firecracker_enabled()
+            else None,
+        )
+        planned = select_trials(all_trials, task_ids) if task_ids else None
+        # With Firecracker execution, labs (and their images) live in the lab images.
+        if check_images and not firecracker_enabled():
+            ensure_release_images(resolved)
 
-    run_benchmark_trials(
-        benchmark_file=str(resolved.cases_path),
-        agent_type=agent_type,
-        llm_provider=llm_provider,
-        model=model,
-        max_steps=max_steps,
-        n_trials=n_trials,
-        batch_size=batch_size,
-        heavy_batch_size=heavy_batch_size,
-        result_dir=str(results_root),
-        resume=resume,
-        session_tag=session_tag,
-        case_timeout=effective_timeout,
-        continue_on_error=continue_on_error,
-        retry_passes=retry_passes,
-        release_meta=job,
-        task_ids=task_ids,
-        yes=yes,
-        verbose=verbose,
-        output_mode=output_mode,
-        plan_header=plan_header,
-        job=job,
-        check_images=check_images,
-    )
+        # Timeout is operational (run config / CLI), not a release pin.
+        if case_timeout is None:
+            from nika.run_config.schema import BenchmarkSettings
+
+            case_timeout = int(
+                BenchmarkSettings.model_fields["case_timeout_sec"].default
+            )
+        effective_timeout = int(case_timeout)
+        official = True
+
+        proposed = build_job_metadata(
+            resolved,
+            agent_type=agent_type,
+            model=model,
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            n_trials=n_trials,
+            case_timeout_sec=effective_timeout,
+            official=official,
+            engine=description,
+            pinned_engine=pinned_engine,
+        )
+        existing = load_run_config(results_root)
+        job = merge_run_config(existing=existing, proposed=proposed)
+        if planned is not None:
+            case_count = len({trial.case_key for trial in planned})
+            scope = f"{case_count} cases, {len(planned)} trials"
+        else:
+            scope = f"{resolved.case_count} cases × {n_trials} trials"
+        job_path = results_root / RUN_CONFIG_FILENAME
+        plan_header = (
+            f"Release {resolved.ref} split={resolved.split} "
+            f"({scope}, "
+            f"official={official}, continue_on_error={continue_on_error}) → {job_path}"
+        )
+
+        run_benchmark_trials(
+            benchmark_file=None,
+            all_trials=all_trials,
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            model=model,
+            max_steps=max_steps,
+            n_trials=n_trials,
+            batch_size=batch_size,
+            heavy_batch_size=heavy_batch_size,
+            result_dir=str(results_root),
+            resume=resume,
+            session_tag=session_tag,
+            case_timeout=effective_timeout,
+            continue_on_error=continue_on_error,
+            retry_passes=retry_passes,
+            # Trials pass the release's access policy to the engine's gateway.
+            release_meta={**job, RELEASE_ACCESS_KEY: resolved.access.model_dump()},
+            task_ids=task_ids,
+            yes=yes,
+            verbose=verbose,
+            output_mode=output_mode,
+            plan_header=plan_header,
+            job=job,
+            check_images=check_images,
+        )

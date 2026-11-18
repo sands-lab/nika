@@ -68,13 +68,27 @@ class AgentConfigTest:
                     "agent": {
                         "type": "cli.codex",
                         "provider": "openai",
-                        "reasoning_effort": "medium",
+                        "reasoning_effort": "low",
                     }
                 }
             )
         )
-        assert resolve_reasoning_effort(None) == "medium"
-        assert resolve_reasoning_effort("high") == "high"
+        assert resolve_reasoning_effort("cli.codex") == "low"
+        assert resolve_reasoning_effort("cli.codex", "high") == "high"
+
+    def test_reasoning_effort_defaults_to_medium_for_builtin_agents(self) -> None:
+        set_run_config(RunConfig.model_validate({"agent": {}}))
+        for agent_type in (
+            "byo.langgraph",
+            "cli.claude",
+            "cli.opencode",
+            "cli.dsh",
+            "sdk.codex_sdk",
+        ):
+            assert resolve_reasoning_effort(agent_type) == "medium"
+        # Added and community agents configure their own reasoning effort.
+        assert resolve_reasoning_effort("community.sade") is None
+        assert resolve_reasoning_effort("mock") is None
 
     def test_max_tokens_is_none_for_agents_that_cannot_apply_it(self) -> None:
         set_run_config(RunConfig.model_validate({"agent": {"max_tokens": 4096}}))
@@ -83,6 +97,8 @@ class AgentConfigTest:
             "byo.autogen",
             "cli.claude",
             "sdk.claude_sdk",
+            "cli.opencode",
+            "cli.dsh",
         ):
             assert resolve_max_tokens(agent_type) == 4096
         for agent_type in ("mock", "community.sade", "cli.codex", "sdk.codex_sdk"):
@@ -98,6 +114,8 @@ class AgentConfigTest:
             ("sdk.claude_sdk", "deepseek-v4-flash"),
             ("community.sade", "deepseek-v4-flash"),
             ("cli.claude", "deepseek-v4-flash"),
+            ("cli.opencode", "deepseek-v4-flash"),
+            ("cli.dsh", "deepseek-v4-flash"),
         ]
         for agent_type, model in cases:
             provider = (

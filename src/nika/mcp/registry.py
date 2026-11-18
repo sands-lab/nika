@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
+
+from nika.telemetry import NETFLOW, PROMETHEUS, SYSLOG
 
 Backend = Literal["kathara", "containerlab"]
 Role = Literal[
     "host", "routing", "switch", "telemetry", "task", "kubernetes", "observability"
 ]
-ENV_SESSION_BACKEND = "NIKA_SESSION_BACKEND"
 
 # Keyword tokens (from scenario name and net-env TAGS) that trigger optional servers.
 ROUTING_KEYWORDS = frozenset({"bgp", "ebgp", "ospf", "rip", "frr", "routing", "rpki"})
@@ -99,6 +100,24 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         role="telemetry",
         module="nika.mcp.servers.kathara.telemetry_server",
     ),
+    "kathara_netflow_mcp_server": MCPServerSpec(
+        name="kathara_netflow_mcp_server",
+        backend=None,
+        role="telemetry",
+        module="nika.mcp.servers.kathara.netflow_server",
+    ),
+    "kathara_prometheus_mcp_server": MCPServerSpec(
+        name="kathara_prometheus_mcp_server",
+        backend=None,
+        role="telemetry",
+        module="nika.mcp.servers.kathara.prometheus_server",
+    ),
+    "kathara_syslog_mcp_server": MCPServerSpec(
+        name="kathara_syslog_mcp_server",
+        backend=None,
+        role="telemetry",
+        module="nika.mcp.servers.kathara.syslog_server",
+    ),
     # Host-side Kubernetes MCP (session kubeconfig → published API port)
     "k8s_mcp_server": MCPServerSpec(
         name="k8s_mcp_server",
@@ -113,6 +132,18 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         role="routing",
         module="nika.mcp.servers.containerlab.srl_server",
     ),
+    "containerlab_sonic_mcp_server": MCPServerSpec(
+        name="containerlab_sonic_mcp_server",
+        backend="containerlab",
+        role="routing",
+        module="nika.mcp.servers.containerlab.sonic_server",
+    ),
+}
+
+# Vendor CLI server for each Containerlab router platform (``device_profile``).
+CONTAINERLAB_ROUTER_SERVERS: dict[str, str] = {
+    "nokia_srlinux": "containerlab_srl_mcp_server",
+    "sonic": "containerlab_sonic_mcp_server",
 }
 
 # Stable server names used in agent tool prefixes (``{name}_tool``).
@@ -125,19 +156,14 @@ SUBMISSION_SERVER = "task_mcp_server"
 K8S_MCP_SERVER = "k8s_mcp_server"
 
 
-def _sandbox_execution() -> bool:
-    return os.environ.get("NIKA_SANDBOX_EXECUTION") == "1"
-
-
 def _scenario_tokens(scenario_name: str) -> set[str]:
     parts = [scenario_name.lower()]
-    if not _sandbox_execution():
-        try:
-            from nika.net_env.net_env_pool import scenario_tags
+    try:
+        from nika.net_env.net_env_pool import scenario_tags
 
-            parts.extend(tag.lower() for tag in scenario_tags(scenario_name))
-        except ValueError:
-            pass
+        parts.extend(tag.lower() for tag in scenario_tags(scenario_name))
+    except ValueError:
+        pass
     combined = " ".join(parts)
     return set(combined.replace("_", " ").replace("-", " ").split())
 
@@ -148,8 +174,6 @@ def _resolve_diagnosis_backend(
 ) -> str:
     if backend:
         return backend
-    if _sandbox_execution():
-        return os.environ.get(ENV_SESSION_BACKEND, "").strip() or "kathara"
     try:
         from nika.net_env.net_env_pool import scenario_supported_backends
 
@@ -176,11 +200,22 @@ def select_diagnosis_servers(
     scenario_name: str,
     *,
     backend: str | None = None,
+    telemetry: Iterable[str] = (),
+    device_profile: str | None = None,
 ) -> list[str]:
-    """Return MCP server names needed for diagnosis on *scenario*."""
+    """Return MCP server names needed for diagnosis on *scenario*.
+
+    ``telemetry`` lists the kinds the session was started with (see
+    ``nika.telemetry.telemetry_for_session``). ``device_profile`` is the
+    session's router platform; Containerlab routers are SR Linux unless it
+    names another one, and each Containerlab platform gets its vendor CLI
+    server from ``CONTAINERLAB_ROUTER_SERVERS``.
+    """
     backend = _resolve_diagnosis_backend(scenario_name, backend)
 
     tokens = _scenario_tokens(scenario_name)
+    if device_profile in ("iosxr", "routeros"):
+        tokens.add(device_profile)
     servers = [
         DIAGNOSIS_HOST_SERVER,
         DIAGNOSIS_PINGMESH_SERVER,
@@ -188,7 +223,11 @@ def select_diagnosis_servers(
     ]
 
     if backend == "containerlab" and tokens & ROUTING_KEYWORDS:
-        servers.append("containerlab_srl_mcp_server")
+        router_server = CONTAINERLAB_ROUTER_SERVERS.get(
+            device_profile or "nokia_srlinux"
+        )
+        if router_server:
+            servers.append(router_server)
     elif backend != "containerlab" and tokens & IOSXR_KEYWORDS:
         servers.append("kathara_iosxr_mcp_server")
     elif backend != "containerlab" and tokens & ROUTEROS_KEYWORDS:
@@ -201,6 +240,12 @@ def select_diagnosis_servers(
         servers.append("kathara_sdn_mcp_server")
     if tokens & TELEMETRY_KEYWORDS:
         servers.append("kathara_telemetry_mcp_server")
+    if NETFLOW in telemetry:
+        servers.append("kathara_netflow_mcp_server")
+    if PROMETHEUS in telemetry:
+        servers.append("kathara_prometheus_mcp_server")
+    if SYSLOG in telemetry:
+        servers.append("kathara_syslog_mcp_server")
     if tokens & KUBERNETES_KEYWORDS and _k8s_mcp_enabled():
         servers.append(K8S_MCP_SERVER)
 

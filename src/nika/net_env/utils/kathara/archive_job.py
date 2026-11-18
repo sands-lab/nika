@@ -60,7 +60,7 @@ def run(duration):
             raise ValueError("workers must be between 1 and 16")
         children = {}
         completed = 0
-        deadline = time.monotonic() + duration
+        deadline = time.monotonic() + duration if duration > 0 else None
 
         def finish(_signum, _frame):
             raise SystemExit
@@ -69,7 +69,7 @@ def run(duration):
         try:
             # Each worker archives the next snapshot of the local corpus. Keep
             # its latest result so the batch cannot fill the filesystem.
-            while time.monotonic() < deadline:
+            while deadline is None or time.monotonic() < deadline:
                 for index in range(workers):
                     child = children.get(index)
                     if child is not None and child.poll() is None:

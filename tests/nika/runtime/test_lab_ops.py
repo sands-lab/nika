@@ -132,6 +132,22 @@ class LabOpsTest:
 
         assert runtime.get_default_gateway("pc1") == "10.0.0.1"
 
+    def test_json_parsers_report_exec_timeout(self):
+        timeout = "[TIMEOUT] Command 'ip -j route' on 'pc1' exceeded 10s."
+        runtime = _StubRuntime(
+            {
+                ("pc1", "ip -j route"): timeout,
+                ("pc1", "ip -j addr"): timeout,
+            }
+        )
+
+        with pytest.raises(RuntimeError, match="Timed out running `ip -j route`"):
+            runtime.get_default_gateway("pc1")
+        with pytest.raises(RuntimeError, match="Timed out running `ip -j addr`"):
+            runtime.get_host_ip("pc1")
+        with pytest.raises(RuntimeError, match="Timed out running `ip -j addr`"):
+            runtime.get_host_interfaces("pc1")
+
     def test_add_nft_drop_rule_builds_commands(self):
         runtime = _StubRuntime()
         runtime.add_nft_drop_rule("router1", "tcp dport 179 drop")
@@ -258,6 +274,66 @@ class LabOpsTest:
         assert len(sleeps) == frr_api._BGP_ASN_ATTEMPTS - 1
         assert all(s == frr_api._BGP_ASN_RETRY_DELAY_SEC for s in sleeps)
 
+    @pytest.mark.parametrize("bridge_address", ["172.17.0.4", "10.210.0.4"])
+    def test_data_plane_ip_ignores_node_created_and_bridge_interfaces(
+        self, monkeypatch, bridge_address
+    ):
+        from ipaddress import ip_network
+
+        monkeypatch.setattr(
+            "nika.service.lab.semantic_mixin._docker_bridge_networks",
+            lambda: (ip_network(f"{bridge_address}/24", strict=False),),
+        )
+        links = [
+            {"ifname": "lo", "addr_info": [{"family": "inet", "local": "127.0.0.1"}]},
+            {
+                "ifname": "flannel.1",
+                "addr_info": [{"family": "inet", "local": "10.42.1.0"}],
+            },
+            {
+                "ifname": "eth0",
+                "addr_info": [
+                    {"family": "inet", "local": "201.1.3.2", "prefixlen": 24}
+                ],
+            },
+            # Kathara ``bridged`` nodes attach eth1 to Docker's default bridge.
+            {
+                "ifname": "eth1",
+                "addr_info": [{"family": "inet", "local": bridge_address}],
+            },
+        ]
+        runtime = _StubRuntime({("pc1", "ip -j addr"): json.dumps(links)})
+
+        assert runtime.get_data_plane_host_ip("pc1") == "201.1.3.2"
+        assert runtime.get_data_plane_host_ip("pc1", with_prefix=True) == (
+            "201.1.3.2/24"
+        )
+
+    def test_frr_get_rpki_status_prefix_uses_supported_commands(self):
+        from nika.service.lab.frr_api import FRRAPIMixin
+
+        commands: list[str] = []
+
+        class _FRR(FRRAPIMixin):
+            def exec_cmd(self, node: str, cmd: str, **_kwargs) -> str:
+                commands.append(cmd)
+                return ""
+
+        runtime = _FRR()
+        runtime.frr_get_rpki_status("router1", prefix="2001:db8::1/32")
+        assert "vtysh -c 'show rpki prefix 2001:db8::/32' 2>/dev/null || true" in (
+            commands
+        )
+        assert any("show bgp ipv6 unicast 2001:db8::/32" in cmd for cmd in commands)
+
+        commands.clear()
+        runtime.frr_get_rpki_status("router1", prefix="203.0.113.7")
+        assert any("show rpki prefix 203.0.113.7/32" in cmd for cmd in commands)
+        assert any("show bgp ipv4 unicast 203.0.113.7'" in cmd for cmd in commands)
+
+        with pytest.raises(ValueError):
+            runtime.frr_get_rpki_status("router1", prefix="10.0.0.0/8'; reboot; '")
+
     def test_process_running(self):
         runtime = _StubRuntime(
             {("pc1", "pgrep -a named 2>/dev/null || echo NONE"): "123 named\n"}
@@ -303,24 +379,27 @@ class LabOpsTest:
         assert runtime.tc_qdisc_contains("pc1", "eth0", "corrupt")
 
     def test_start_background_od_traffic(self):
-        addr_json = json.dumps(
-            [
-                {
-                    "ifname": "eth0",
-                    "addr_info": [
-                        {"family": "inet", "local": "10.0.0.2", "prefixlen": 24}
-                    ],
-                }
-            ]
-        )
-        runtime = _StubRuntime({("pc2", "ip -j addr"): addr_json})
+        runtime = _StubRuntime()
         labels = runtime.start_background_od_traffic(
-            {"pc1": {"pc2": 20}}, interval=10, unit="M"
+            {"pc1": {"pc1": 5, "pc2": 20, "pc3": 10}, "pc3": {"pc2": 30}},
+            interval=10,
+            unit="M",
+            host_ips={"pc2": "10.0.0.2", "pc3": "10.0.0.3"},
         )
 
-        assert labels == ["pc1_to_pc2"]
-        cmds = [cmd for _, cmd in runtime.calls]
-
-        assert any(("iperf3 -s" in cmd for cmd in cmds))
-
-        assert any(("iperf3 -c 10.0.0.2" in cmd for cmd in cmds))
+        # Diagonal demands are skipped, and each destination gets one port
+        # per source.
+        assert labels == ["pc1_to_pc2", "pc1_to_pc3", "pc3_to_pc2"]
+        by_node: dict[str, list[str]] = {}
+        for node, cmd in runtime.calls:
+            by_node.setdefault(node, []).append(cmd)
+        # One exec per host and phase, not one per flow.
+        assert len(by_node["pc1"]) == 1
+        assert len(by_node["pc2"]) == 1
+        assert len(by_node["pc3"]) == 2
+        # One-shot servers exit after their transfer instead of piling up.
+        assert "iperf3 -s -1 -p $p" in by_node["pc2"][0]
+        assert "for p in 5201 5202;" in by_node["pc2"][0]
+        assert "iperf3 -c 10.0.0.2 -p 5201 -b 20M -t 10" in by_node["pc1"][0]
+        assert "iperf3 -c 10.0.0.3 -p 5201 -b 10M -t 10" in by_node["pc1"][0]
+        assert "iperf3 -c 10.0.0.2 -p 5202 -b 30M -t 10" in by_node["pc3"][1]

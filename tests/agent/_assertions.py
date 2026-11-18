@@ -45,6 +45,24 @@ def assert_submission_fields(session_dir: Path) -> None:
         assert item.get("fault_type")
 
 
+def assert_no_cli_native_mirrors(messages: list[dict]) -> None:
+    """OpenCode/dsh mapped stream events must not appear beside tool_*/llm_*."""
+    native = {
+        "step_start",
+        "step_finish",
+        "tool_use",
+        "text",
+        "thinking",
+        "status",
+        "final",
+    }
+    found = [e.get("event") for e in messages if e.get("event") in native]
+    assert not found, (
+        f"found native CLI stream events {found}; workers should emit "
+        "canonical llm_start/llm_end/tool_start/tool_end only"
+    )
+
+
 def assert_no_codex_tool_item_mirrors(messages: list[dict]) -> None:
     """Codex tools must be tool_* only — not also item.started/completed rows."""
     has_tool_start = any(e.get("event") == "tool_start" for e in messages)
@@ -62,6 +80,11 @@ def assert_no_codex_tool_item_mirrors(messages: list[dict]) -> None:
         f"found {len(mirrors)} Codex tool item.* mirrors alongside tool_*; "
         "workers should emit canonical tool_start/tool_end only"
     )
+
+
+def _is_skill_tool(name: str) -> bool:
+    """Claude Code uses ``Skill``; OpenCode and dsh use lowercase ``skill``."""
+    return name.lower() == "skill"
 
 
 def _extract_tool_names(entry: dict) -> list[str]:
@@ -100,7 +123,9 @@ def _message_text(entry: dict) -> str:
     return "\n".join(parts)
 
 
-def skill_invoked(messages: list[dict], skill_name: str = "nika-test-skill") -> bool:
+def skill_invoked(
+    messages: list[dict], skill_name: str = "skill-loading-check"
+) -> bool:
     """Return True if messages show the named skill was invoked."""
     skill_markers = (
         skill_name,
@@ -110,7 +135,7 @@ def skill_invoked(messages: list[dict], skill_name: str = "nika-test-skill") -> 
     for entry in messages:
         if entry.get("event") == "tool_start":
             tool = entry.get("tool") or {}
-            if tool.get("name") == "Skill" and skill_name in str(
+            if _is_skill_tool(str(tool.get("name") or "")) and skill_name in str(
                 entry.get("input", "")
             ):
                 return True
@@ -120,8 +145,8 @@ def skill_invoked(messages: list[dict], skill_name: str = "nika-test-skill") -> 
             for block in message.get("content") or []:
                 if not isinstance(block, dict) or block.get("type") != "tool_use":
                     continue
-                if block.get("name") == "Skill" and skill_name in json.dumps(
-                    block.get("input") or {}, ensure_ascii=False
+                if _is_skill_tool(str(block.get("name") or "")) and skill_name in (
+                    json.dumps(block.get("input") or {}, ensure_ascii=False)
                 ):
                     return True
         text = _message_text(entry)
@@ -132,7 +157,7 @@ def skill_invoked(messages: list[dict], skill_name: str = "nika-test-skill") -> 
 
 def marker_before_first_mcp_tool(
     messages: list[dict],
-    marker: str = "NIKA_TEST_SKILL_ACTIVE",
+    marker: str = "SKILL_LOADING_CHECK_ACTIVE",
 ) -> bool:
     """Return True when marker text appears before the first non-Skill MCP tool call."""
     for entry in messages:
@@ -140,6 +165,6 @@ def marker_before_first_mcp_tool(
         if marker in text:
             return True
         for tool_name in _extract_tool_names(entry):
-            if tool_name and tool_name != "Skill":
+            if tool_name and not _is_skill_tool(tool_name):
                 return False
     return False

@@ -1,4 +1,4 @@
-"""Containerlab ISP scenario compiled from SNDlib topologies (Nokia SR Linux)."""
+"""Containerlab ISP scenario compiled from SNDlib topologies (Nokia SR Linux or SONiC)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,10 @@ from typing import ClassVar, Literal
 
 import yaml
 
-from nika.config import RUNTIME_DIR
+from nika.net_env.isp.rendered import IspRendered
+from nika.config import clab_workdir
+from nika.net_env.probe_intent import ProbeIntent
+from nika.net_env.isp.brief import design_notes, ebgp_scope_note, stub_probe_intent
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.utils.dependencies import require_gnmic
 from nika.net_env.isp.bgp import (
@@ -30,10 +33,10 @@ from nika.net_env.isp.igp import (
     compile_isp_plan,
 )
 from nika.net_env.utils.containerlab.mgmt_subnet import (
-    mgmt_ipv4_address,
-    mgmt_ipv4_subnet,
+    mgmt_ipv4_addresses,
+    mgmt_ipv4_network,
 )
-from nika.net_env.isp.igp.ifaces import srl_e1_name
+from nika.net_env.isp.igp.ifaces import clab_eth_name, srl_e1_name
 from nika.net_env.isp.igp.srl import render_srl_node_config
 from nika.net_env.isp.profiles import (
     default_device_profile,
@@ -45,18 +48,39 @@ from nika.net_env.isp.traffic import (
     TrafficInterval,
     TrafficMatrixSeries,
     attach_traffic_stubs,
-    remap_inventory_ifaces_to_srl,
+    remap_inventory_ifaces,
 )
 from nika.net_env.isp.brief import format_isp_network_info
+from nika.net_env.isp.contract import build_isp_validation_contract
 from nika.runtime.containerlab.parse import parse_clab_topology
 from nika.runtime.spec import LabSpec, NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
+from nika.net_env.utils.sonic.common import (
+    KIND as SONIC_KIND,
+    activate_sonic_routers,
+    ensure_sonic_image,
+    sonic_port,
+)
+from nika.net_env.utils.sonic.render import (
+    SonicRouter,
+    clab_kind as sonic_clab_kind,
+    translate_frr_design,
+    write_node_files as write_sonic_node_files,
+)
 
 IgpLiteral = Literal["isis", "ospf"]
 MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
 
 SRL_IMAGE = "ghcr.io/nokia/srlinux:24.10@sha256:20064faa8c2fbb2fa6d8812496c28bcfdad40a965da8831da43e55a1eccda14d"
 SRL_TYPE = "ixr-d2l"
-LINUX_IMAGE = "wbitt/network-multitool:latest@sha256:db2810fe2c8d36db074eab5d98fbf861c8ed55e0786d648d3477b3de9135632e"
+# Linux end hosts: the NIKA base image carries the network tools and the
+# Python runtime of the scenario's business traffic programs.
+LINUX_IMAGE = nika_image("base")
+LINUX_CMD = "sleep infinity"
+# Containerlab veths default to MTU 9500, above the SR Linux port MTU (9232),
+# which drops oversized frames without ICMP and black-holes full-size TCP.
+LINUX_HOST_MTU = 1500
 SRL_PASSWORD = "NokiaSrl1!"
 
 
@@ -71,12 +95,20 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
     )
 
 
-class Isp(ContainerlabNetworkEnv):
-    """SNDlib ISP on Containerlab with nokia_srlinux routers + linux stubs."""
+_PLATFORM_LABELS = {"nokia_srlinux": "SRL", "sonic": "SONiC"}
+
+
+class Isp(IspRendered, ContainerlabNetworkEnv):
+    """SNDlib ISP on Containerlab with SR Linux or SONiC routers + linux stubs."""
+
+    # Synthetic WAN traffic matrices follow a gravity model (Roughan, CCR 2005).
+    BASELINE_TRAFFIC = {"pattern": "gravity", "load_mbps": 1.0}
+    ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
+    ROUTING_MODELS = frozenset({"srl-isp"})
 
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
-    DESC = "ISP from SNDlib on Containerlab (Nokia SR Linux)."
+    DESC = "ISP from SNDlib on Containerlab (Nokia SR Linux or SONiC)."
     GNMI_WAIT_TIMEOUT_SEC: ClassVar[int] = 600
 
     def __init__(
@@ -90,6 +122,8 @@ class Isp(ContainerlabNetworkEnv):
         device_profile: str | None = None,
         topo_size: str | None = None,
         scenario_id: str | None = None,
+        routing_parameters: dict | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         kwargs.pop("traffic_mode", None)
@@ -132,6 +166,12 @@ class Isp(ContainerlabNetworkEnv):
         profile_raw = device_profile or default_device_profile("containerlab")
         self.device_profile = normalize_device_profile(profile_raw)
         validate_backend_profile("containerlab", self.device_profile)
+        self.sonic = self.device_profile == "sonic"
+        if self.sonic:
+            # SONiC renders the FRR design; Batfish reads its deployed files.
+            self.ROUTING_MODELS = frozenset({"sonic"})
+        # Containerlab endpoint of plan interface ``ethN`` on this platform.
+        self.router_iface = clab_eth_name if self.sonic else srl_e1_name
 
         config = IspConfig(
             topology=self.topo,
@@ -140,8 +180,29 @@ class Isp(ContainerlabNetworkEnv):
             constant_metric=constant_metric,
         )
         base_plan = compile_isp_plan(config)
-        self.bgp_plan: BgpPlan | None = compile_bgp_plan(base_plan, self.bgp_mode)
+        # The customer site needs a Kathara host and FRR policy; not modelled here.
+        self.bgp_plan: BgpPlan | None = compile_bgp_plan(
+            base_plan, self.bgp_mode, customer_site=False
+        )
         base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
+        from nika.net_env.synthesis.parameters import (
+            RoutingParameters,
+            bind_isp_imports,
+            bind_isp_metrics,
+        )
+
+        solved = RoutingParameters.model_validate(routing_parameters or {})
+        # Only completed IGP metrics declare the all-shortest-path ECMP sketch.
+        self.completed_metrics = bool(solved.ospf_costs or solved.isis_metrics)
+        base_plan = bind_isp_metrics(
+            config,
+            base_plan,
+            self.bgp_plan,
+            routing_parameters,
+            parameter_kinds=self.ROUTING_PARAMETER_KINDS,
+        )
+        if routing_parameters is not None:
+            self.bgp_plan = bind_isp_imports(self.bgp_plan, routing_parameters)
         stub_series = _stub_series_all_routers(base_plan)
         attachment = attach_traffic_stubs(
             base_plan,
@@ -149,10 +210,19 @@ class Isp(ContainerlabNetworkEnv):
             scale=1.0,
             pop_node_ids=tuple(n.node_id for n in base_plan.nodes),
             host_iface="eth1",
-            render_frr=False,
+            # SONiC routes with FRR, so it takes the FRR rendering of the stubs.
+            render_frr=self.sonic,
         )
-        self.traffic: IspTrafficAttachment = remap_inventory_ifaces_to_srl(attachment)
+        self.traffic: IspTrafficAttachment = remap_inventory_ifaces(
+            attachment, self.router_iface
+        )
         self.plan: IspPlan = self.traffic.plan
+        self.validation_contract = build_isp_validation_contract(
+            self.plan,
+            traffic=self.traffic,
+            bgp_plan=self.bgp_plan,
+            scenario=self.scenario_id,
+        )
         self.inventory = dict(self.plan.inventory)
         if self.bgp_plan is not None:
             self.inventory["bgp"] = self.bgp_plan.inventory
@@ -175,28 +245,59 @@ class Isp(ContainerlabNetworkEnv):
             if self.bgp_plan is not None
             else "Infrastructure loopbacks only; BGP disabled."
         )
+        bgp_desc += ebgp_scope_note(self.bgp_plan)
         self.desc = (
             f"ISP from SNDlib topology '{self.plan.topology_name}' on Containerlab "
-            f"({len(self.plan.nodes)} SRL routers, {len(self.plan.links)} links, "
+            f"({len(self.plan.nodes)} {_PLATFORM_LABELS[self.device_profile]} routers, {len(self.plan.links)} links, "
             f"{host_n} edge stubs, IGP={self.plan.igp}, "
             f"metric={self.plan.metric_strategy}, "
             f"device_profile={self.device_profile}). {bgp_desc}"
         )
+        self.desc += design_notes(
+            self.plan, self.bgp_plan, workload=self.business_workload()
+        )
         self._populate_role_lists()
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import use_rendered_configs
+
+            use_rendered_configs(self, required=False)
+
+    def probe_intent(self) -> ProbeIntent | None:
+        return stub_probe_intent(self.bgp_plan, self.traffic)
+
+    def traffic_demands(self):
+        from nika.net_env.isp.workload import stub_demands
+
+        return stub_demands(self.plan, self.traffic, self.topo)
+
+    def business_workload(self):
+        from nika.net_env.isp.workload import build_isp_workload
+
+        # Containerlab routers do not run the service programs; stubs host them.
+        return build_isp_workload(
+            self.plan,
+            self.traffic,
+            self.bgp_plan,
+            self.topo,
+            router_services=False,
+            router_iface=self.router_iface,
+        )
+
+    def bgp_hijack_targets(self):
+        """Business-prefix hijacks that divert a service client's stub traffic."""
+        from nika.net_env.isp.bgp.hijack import lab_hijack_targets
+
+        return lab_hijack_targets(
+            self.plan, self.bgp_plan, self.traffic, self.business_workload()
+        )
 
     def _assign_mgmt_ips(self) -> dict[str, str]:
-        mapping: dict[str, str] = {}
-        index = 2
-        lab = self.name or self.scenario_id
-        for node in sorted(self.plan.nodes, key=lambda n: n.device_name):
-            mapping[node.device_name] = mgmt_ipv4_address(lab, index)
-            index += 1
-        for host in sorted(self.traffic.hosts, key=lambda h: h.host_name):
-            mapping[host.host_name] = mgmt_ipv4_address(lab, index)
-            index += 1
-            if index > 254:
-                raise ValueError("Too many ISP nodes for mgmt /24.")
-        return mapping
+        names = [
+            *sorted(n.device_name for n in self.plan.nodes),
+            *sorted(h.host_name for h in self.traffic.hosts),
+        ]
+        addresses = mgmt_ipv4_addresses(self.name or self.scenario_id, len(names))
+        return dict(zip(names, addresses, strict=True))
 
     def _populate_role_lists(self) -> None:
         self.routers = sorted(n.device_name for n in self.plan.nodes)
@@ -207,7 +308,7 @@ class Isp(ContainerlabNetworkEnv):
         self.sdn_controllers = []
         self.servers = {}
         for node in self.plan.nodes:
-            capabilities = ["linux", "nokia_srlinux", self.plan.igp]
+            capabilities = ["linux", self.device_profile, self.plan.igp]
             if self.bgp_plan is not None:
                 capabilities.append("bgp")
             self.declare_machine(
@@ -226,18 +327,20 @@ class Isp(ContainerlabNetworkEnv):
     def _build_clab_document(self, *, lab_name: str) -> dict:
         if not getattr(self, "_mgmt_ipv4", None):
             self._mgmt_ipv4 = self._assign_mgmt_ips()
-        mgmt_subnet = mgmt_ipv4_subnet(lab_name)
+        mgmt_subnet = str(mgmt_ipv4_network(lab_name, len(self._mgmt_ipv4)))
         nodes: dict = {}
         for node in self.plan.nodes:
-            nodes[node.device_name] = {
-                "kind": "nokia_srlinux",
-                "type": SRL_TYPE,
-                "mgmt-ipv4": self._mgmt_ipv4[node.device_name],
-            }
+            nodes[node.device_name] = (
+                {"kind": SONIC_KIND}
+                if self.sonic
+                else {"kind": "nokia_srlinux", "type": SRL_TYPE}
+            )
+            nodes[node.device_name]["mgmt-ipv4"] = self._mgmt_ipv4[node.device_name]
         for host in self.traffic.hosts:
             nodes[host.host_name] = {
                 "kind": "linux",
                 "image": LINUX_IMAGE,
+                "cmd": LINUX_CMD,
                 "mgmt-ipv4": self._mgmt_ipv4[host.host_name],
             }
 
@@ -246,8 +349,8 @@ class Isp(ContainerlabNetworkEnv):
             links.append(
                 {
                     "endpoints": [
-                        f"{link.endpoint_a}:{srl_e1_name(link.iface_a)}",
-                        f"{link.endpoint_b}:{srl_e1_name(link.iface_b)}",
+                        f"{link.endpoint_a}:{self.router_iface(link.iface_a)}",
+                        f"{link.endpoint_b}:{self.router_iface(link.iface_b)}",
                     ]
                 }
             )
@@ -263,7 +366,7 @@ class Isp(ContainerlabNetworkEnv):
             links.append(
                 {
                     "endpoints": [
-                        f"{edge.router_device}:{srl_e1_name(eth_name)}",
+                        f"{edge.router_device}:{self.router_iface(eth_name)}",
                         f"{edge.host_name}:eth1",
                     ]
                 }
@@ -276,8 +379,12 @@ class Isp(ContainerlabNetworkEnv):
             },
             "topology": {
                 "kinds": {
-                    "nokia_srlinux": {"image": SRL_IMAGE},
-                    "linux": {"image": LINUX_IMAGE},
+                    **(
+                        {SONIC_KIND: sonic_clab_kind()}
+                        if self.sonic
+                        else {"nokia_srlinux": {"image": SRL_IMAGE}}
+                    ),
+                    "linux": {"image": LINUX_IMAGE, "cmd": LINUX_CMD},
                 },
                 "nodes": nodes,
                 "links": links,
@@ -294,8 +401,7 @@ class Isp(ContainerlabNetworkEnv):
         lab_name = self.name
         if not lab_name:
             raise ValueError("Lab name is required before deploy.")
-        self.runtime_workdir = RUNTIME_DIR / "containerlab" / lab_name
-        self.runtime_workdir.mkdir(parents=True, exist_ok=True)
+        self.runtime_workdir = clab_workdir(lab_name)
         self.topology_file = self.runtime_workdir / f"{self.scenario_id}.clab.yml"
 
         self._mgmt_ipv4 = self._assign_mgmt_ips()
@@ -312,6 +418,69 @@ class Isp(ContainerlabNetworkEnv):
         configs = self.runtime_workdir / "configs"
         configs.mkdir(parents=True, exist_ok=True)
 
+        if self.sonic:
+            for router in self.sonic_routers.values():
+                write_sonic_node_files(configs, router)
+        else:
+            for node, document in self.routing_documents.items():
+                (configs / f"{node}.yaml").write_text(
+                    yaml.safe_dump(document, sort_keys=False)
+                )
+
+        for host in self.traffic.hosts:
+            script = "\n".join(
+                [
+                    "#!/bin/bash",
+                    "set -euo pipefail",
+                    f"ip link set dev {host.host_iface} mtu {LINUX_HOST_MTU}",
+                    *host.startup_commands,
+                    "",
+                ]
+            )
+            path = configs / f"{host.host_name}.sh"
+            path.write_text(script, encoding="utf-8")
+            path.chmod(0o755)
+
+    @property
+    def sonic_routers(self) -> dict[str, SonicRouter]:
+        """SONiC rendering of each router's FRR design, as on Kathara."""
+        from nika.net_env.isp.bgp import merge_frr_conf, render_bgp_frr_fragment
+
+        bgp_by_device = {}
+        if self.bgp_plan is not None:
+            bgp_by_device = {n.device_name: n for n in self.bgp_plan.nodes}
+
+        def rename(iface: str) -> str:
+            # Kathara holds BGP-only prefixes on ``BGP_ORIGIN_IFACE``.
+            loopbacks = {"lo": "Loopback0", BGP_ORIGIN_IFACE: "Loopback1"}
+            if iface in loopbacks:
+                return loopbacks[iface]
+            return sonic_port(clab_eth_name(iface))
+
+        routers = {}
+        for node in self.plan.nodes:
+            frr_conf = node.frr_conf
+            bgp_node = bgp_by_device.get(node.device_name)
+            if bgp_node is not None and self.bgp_plan is not None:
+                fragment = render_bgp_frr_fragment(bgp_node, self.bgp_plan)
+                frr_conf = merge_frr_conf(frr_conf, fragment)
+            routers[node.device_name] = translate_frr_design(
+                node.device_name,
+                frr_conf,
+                rename,
+                mtu={i.name: i.mtu for i in node.interfaces if i.mtu},
+            )
+        return routers
+
+    @property
+    def routing_documents(self):
+        if hasattr(self, "_completed_routing_documents"):
+            return self._completed_routing_documents
+        return self.native_routing_documents()
+
+    def native_routing_documents(self):
+        """SR Linux documents NIKA renders from the plan."""
+        documents = {}
         bgp_by_device = {}
         if self.bgp_plan is not None:
             bgp_by_device = {n.device_name: n for n in self.bgp_plan.nodes}
@@ -335,21 +504,32 @@ class Isp(ContainerlabNetworkEnv):
                 extra_loopback_addrs=tuple(extras),
                 include_routing_policy=include_policy,
             )
-            (configs / f"{node.device_name}.yaml").write_text(
-                yaml_text, encoding="utf-8"
-            )
+            document = yaml.safe_load(yaml_text)
+            if bgp_node and bgp_node.import_policies:
+                from nika.net_env.isp.bgp.srl import routing_policy_document
 
-        for host in self.traffic.hosts:
-            script = "\n".join(
-                ["#!/bin/bash", "set -euo pipefail", *host.startup_commands, ""]
-            )
-            path = configs / f"{host.host_name}.sh"
-            path.write_text(script, encoding="utf-8")
-            path.chmod(0o755)
+                document.update(routing_policy_document(bgp_node))
+            if self.completed_metrics:
+                # The declared all-shortest-path sketch requires all equal next hops.
+                protocols = document["srl_nokia-network-instance:network-instance"][0][
+                    "protocols"
+                ]
+                igp_key = (
+                    "srl_nokia-isis:isis"
+                    if self.plan.igp == "isis"
+                    else "srl_nokia-ospf:ospf"
+                )
+                protocols[igp_key]["instance"][0]["max-ecmp-paths"] = max(
+                    len(n.interfaces) for n in self.plan.nodes
+                )
+            documents[node.device_name] = document
+
+        return documents
 
     def _write_setup_script(self, *, lab_name: str) -> None:
         assert self.runtime_workdir is not None
-        routers = sorted(n.device_name for n in self.plan.nodes)
+        # SONiC routers boot with their configuration; SR Linux takes it over gNMI.
+        routers = [] if self.sonic else sorted(n.device_name for n in self.plan.nodes)
         clients = sorted(h.host_name for h in self.traffic.hosts)
         mgmt_lines = "\n".join(
             f"  [{name}]={self._mgmt_ipv4[name]}" for name in [*routers, *clients]
@@ -422,15 +602,28 @@ exit "$FAILED"
             return None
         from nika.net_env.isp.inject_targets import isp_topology_probe_path
 
-        return isp_topology_probe_path(topo)
+        return isp_topology_probe_path(topo, deploy_kwargs.get("bgp_mode"))
+
+    def _collect_lab_images(self) -> set[str]:
+        return {LINUX_IMAGE}
 
     def deploy(self) -> None:
-        require_gnmic()
+        if self.sonic:
+            ensure_sonic_image()
+        else:
+            require_gnmic()
+        self._ensure_docker_images()
         already_existed = self.lab_exists()
         super().deploy()
         if already_existed:
             return
-        self._wait_for_gnmi()
+        if self.sonic:
+            activate_sonic_routers(
+                self._build_runtime(),
+                {name: r.daemons for name, r in self.sonic_routers.items()},
+            )
+        else:
+            self._wait_for_gnmi()
         self._run_setup()
 
     def _gnmi_ready(self, mgmt_ipv4: str) -> bool:
@@ -510,8 +703,8 @@ exit "$FAILED"
         for link in self.plan.links:
             edges.append(
                 (
-                    f"{link.endpoint_a}:{srl_e1_name(link.iface_a)}",
-                    f"{link.endpoint_b}:{srl_e1_name(link.iface_b)}",
+                    f"{link.endpoint_a}:{self.router_iface(link.iface_a)}",
+                    f"{link.endpoint_b}:{self.router_iface(link.iface_b)}",
                 )
             )
         for edge in self.traffic.edge_links:
@@ -525,7 +718,7 @@ exit "$FAILED"
             )
             edges.append(
                 (
-                    f"{edge.router_device}:{srl_e1_name(eth_name)}",
+                    f"{edge.router_device}:{self.router_iface(eth_name)}",
                     f"{edge.host_name}:eth1",
                 )
             )
@@ -535,20 +728,9 @@ exit "$FAILED"
         if self.topology_file is not None and self.topology_file.is_file():
             spec = parse_clab_topology(self.topology_file)
         else:
-            # Pre-deploy: synthesize from in-memory doc.
-            tmp = yaml.safe_dump(
-                self._build_clab_document(lab_name=self.name or self.LAB_NAME),
-                sort_keys=False,
+            spec = parse_clab_topology(
+                self._build_clab_document(lab_name=self.name or self.LAB_NAME)
             )
-            from tempfile import NamedTemporaryFile
-
-            with NamedTemporaryFile("w", suffix=".clab.yml", delete=False) as handle:
-                handle.write(tmp)
-                path = Path(handle.name)
-            try:
-                spec = parse_clab_topology(path)
-            finally:
-                path.unlink(missing_ok=True)
         spec.name = self.name or self.LAB_NAME
         return spec
 
@@ -560,7 +742,23 @@ exit "$FAILED"
             device_profile=self.device_profile,
         )
 
+    def _verify_sonic(self, *, full: bool) -> dict:
+        from nika.net_env.isp.containerlab.verify_sonic import verify_isp_sonic_lab
+
+        return verify_isp_sonic_lab(
+            self._build_runtime(),
+            plan=self.plan,
+            routers=self.sonic_routers,
+            port_name=lambda iface: sonic_port(clab_eth_name(iface)),
+            bgp_plan=self.bgp_plan,
+            traffic=self.traffic,
+            scenario_name=self.scenario_id,
+            full=full,
+        )
+
     def startup_verify_lab(self) -> dict:
+        if self.sonic:
+            return self._verify_sonic(full=False)
         from nika.net_env.isp.containerlab.verify import verify_isp_srl_lab_startup
 
         return verify_isp_srl_lab_startup(
@@ -572,6 +770,8 @@ exit "$FAILED"
         )
 
     def verify_lab(self) -> dict:
+        if self.sonic:
+            return self._verify_sonic(full=True)
         from nika.net_env.isp.containerlab.verify import verify_isp_srl_lab
 
         return verify_isp_srl_lab(

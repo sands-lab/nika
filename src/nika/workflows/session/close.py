@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 from nika.config import (
+    CLAB_RUNTIME_DIR,
+    clab_runtime_root,
     RESULTS_DIR,
     RUNTIME_DIR,
     SESSIONS_DB,
@@ -41,19 +43,22 @@ def _resolve_runtime_workdir(session_meta: dict) -> Path | None:
         return topology_file.parent
     lab_name = meta_get(session_meta, "lab_name", scenario_params=True)
     if lab_name:
-        backend = resolve_backend(session_meta)
-        backend_root = "containerlab" if backend == "containerlab" else "kathara"
-        return Path(RUNTIME_DIR) / backend_root / str(lab_name)
+        if resolve_backend(session_meta) == "containerlab":
+            return Path(CLAB_RUNTIME_DIR) / str(lab_name)
+        return Path(RUNTIME_DIR) / "kathara" / str(lab_name)
     return None
 
 
 def _is_safe_runtime_removal(path: Path, session_meta: dict) -> bool:
-    """Only delete paths under ``runtime/`` and never under ``results/``."""
+    """Only delete lab workdirs under ``runtime/`` or the Containerlab root.
+
+    Never under ``results/``.
+    """
     resolved = path.resolve()
-    runtime_root = Path(RUNTIME_DIR).resolve()
-    if not resolved.is_relative_to(runtime_root):
-        return False
-    if resolved == runtime_root:
+    roots = [Path(RUNTIME_DIR).resolve()]
+    if (clab_root := clab_runtime_root()) is not None:
+        roots.append(clab_root.resolve())
+    if not any(resolved.is_relative_to(root) and resolved != root for root in roots):
         return False
     sessions_root = Path(SESSIONS_DIR).resolve()
     if resolved == sessions_root or resolved.is_relative_to(sessions_root):
@@ -95,11 +100,8 @@ def wipe_runtime_artifacts(
     sessions_root = Path(sessions_dir or SESSIONS_DIR)
     db_file = Path(db_path or SESSIONS_DB).resolve()
     removed = 0
-    if not runtime_root.exists():
-        return removed
-
     sessions_resolved = sessions_root.resolve()
-    for path in runtime_root.iterdir():
+    for path in runtime_root.iterdir() if runtime_root.exists() else ():
         resolved = path.resolve()
         if resolved == sessions_resolved or resolved == db_file:
             continue
@@ -107,12 +109,20 @@ def wipe_runtime_artifacts(
             continue
         _remove_path(path)
         removed += 1
+    clab_root = clab_runtime_root()
+    if runtime_dir is None and clab_root is not None:
+        for path in clab_root.iterdir():
+            _remove_path(path)
+            removed += 1
     return removed
 
 
 def wipe_kathara_labs() -> None:
     """Remove all Kathara devices and collision domains for the current user."""
     try:
+        from nika.runtime.shared.containers import remove_lab_helpers
+
+        remove_lab_helpers(all_labs=True)
         import nika.runtime.kathara.patch  # noqa: F401  # privileged-without-root before wipe
         from Kathara.manager.Kathara import Kathara
 
@@ -180,6 +190,9 @@ def load_session_meta_for_close(
 
 def wipe_all_containerlab_labs() -> None:
     """Remove all Containerlab labs and their orphaned Docker networks."""
+    from nika.service.containerlab.host_tc import HostTcController
+
+    HostTcController.cleanup_lab(all_labs=True)
     try:
         result = subprocess.run(
             ["clab", "destroy", "--all", "--cleanup", "--yes", "--log-level", "error"],
@@ -253,19 +266,25 @@ def remove_orphaned_containerlab_management_network(lab_name: str | None) -> Non
         )
 
 
-def _cleanup_session_sbx(session_meta: dict, *, session_id: str) -> None:
-    """Best-effort remove this session's Docker Sandbox after hard-kill/close.
+def cleanup_session_sandbox(session_meta: dict, *, session_id: str) -> None:
+    """Best-effort remove this session's agent sandbox after hard-kill/close.
 
     Scoped to ``agent_session_id`` only — never wipes other concurrent sandboxes.
+    A benchmark engine container skips it: agents run on the frontend's host,
+    which removes their sandboxes.
     """
-    try:
-        from agent.sandbox.sbx.cleanup import cleanup_sbx_for_session
+    from nika.benchmark_engine import is_engine_server
 
-        result = cleanup_sbx_for_session(session_meta)
+    if is_engine_server():
+        return
+    try:
+        from nika.agents.sandbox.backend import cleanup_sandbox_for_session
+
+        result = cleanup_sandbox_for_session(session_meta)
     except Exception as exc:  # noqa: BLE001 - teardown must not block lab close
         log_error_event(
             "sandbox_cleanup_failed",
-            f"Failed to clean Docker Sandbox for session {session_id}: {exc}",
+            f"Failed to clean agent sandbox for session {session_id}: {exc}",
             session_id=session_id,
             scenario=session_meta.get("scenario_name"),
             error=str(exc),
@@ -275,13 +294,36 @@ def _cleanup_session_sbx(session_meta: dict, *, session_id: str) -> None:
     if result is not None and result.did_work:
         log_event(
             "sandbox_cleanup",
-            f"Removed Docker Sandbox {result.sandbox_name} for session {session_id}",
+            f"Removed agent sandbox {result.sandbox_name} for session {session_id}",
             session_id=session_id,
             sandbox_name=result.sandbox_name,
             removed_sandbox=result.removed_sandbox,
             removed_workspace=result.removed_workspace,
             scenario=session_meta.get("scenario_name"),
         )
+
+
+def _cleanup_local_sandboxes(session_id: str | None, *, stop_all: bool) -> None:
+    """Remove the sandboxes of remote-lab sessions from this host.
+
+    Resolution errors are left to the remote close, which reports them.
+    """
+    store = SessionStore()
+    try:
+        if stop_all:
+            sids = [row["session_id"] for row in store.list_running_sessions()]
+        else:
+            sids = [resolve_running_session_id(session_id, store=store)]
+    except (FileNotFoundError, ValueError):
+        return
+    for sid in sids:
+        try:
+            meta = store.get_session(sid)
+        except FileNotFoundError:
+            continue
+        if meta.get("session_dir"):
+            bind_session_dir(meta["session_dir"])
+        cleanup_session_sandbox(meta, session_id=sid)
 
 
 def _clear_orphan_session_record(
@@ -318,66 +360,17 @@ def _destroy_kathara_lab(lab_name: str) -> None:
     KatharaRuntime(SimpleNamespace(instance=None, name=lab_name, lab=None)).destroy()
 
 
-def _stop_session_record(
-    session_meta: dict,
-    *,
-    undeploy: bool = True,
-    session_id: str | None = None,
-    status: SessionStatus = "finished",
-) -> None:
-    session = Session()
-    session._apply_session_meta(session_meta)
-    if session_id:
-        session.session_id = session_id
-    scenario = getattr(session, "scenario_name", None)
-    if not scenario:
-        # Orphan index rows / job-folder run.json mistaken for sessions have no
-        # lab to undeploy. Clear runtime state without rewriting job metadata.
-        sid = session_id or getattr(session, "session_id", None)
-        if not sid:
-            raise ValueError(
-                "Session has no scenario_name; cannot determine which lab to stop."
-            )
-        _clear_orphan_session_record(
-            session_meta, session_id=str(sid), store=session.store
-        )
-        return
+def session_net_env(session_meta: dict, *, session: Session | None = None):
+    """Rebuild the network environment of a recorded session (lab not touched).
 
-    if session_meta.get("session_dir"):
-        # Bind first so every event below lands in this session's nika.jsonl.
-        bind_session_dir(session_meta["session_dir"])
-    # Drop this session's sbx before lab undeploy so a slow/failed undeploy
-    # cannot leave a hard-killed worker's microVM behind. Scoped by
-    # agent_session_id only (safe with concurrent benchmarks).
-    _cleanup_session_sbx(session_meta, session_id=session.session_id)
+    Matches the deploy-time variant: topology size, ISP parameters and the
+    Containerlab topology/workdir recorded with the session.
+    """
+    if session is None:
+        session = Session()
+        session._apply_session_meta(session_meta)
+    scenario = session.scenario_name
     backend = resolve_backend(session_meta)
-    lab_name = getattr(session, "lab_name", None)
-    try:
-        resolve_scenario_id(scenario)
-    except ValueError:
-        # Test-only, renamed, or removed scenarios cannot rebuild their NetEnv,
-        # but a Kathara lab is torn down by name alone.
-        if backend != "kathara" or not lab_name:
-            raise
-        if undeploy:
-            _destroy_kathara_lab(str(lab_name))
-            log_event(
-                "env_stop",
-                f"Stopped unregistered network environment: {scenario} "
-                f"({session.session_id})",
-                scenario=scenario,
-                session_id=session.session_id,
-                backend=backend,
-            )
-        _clear_session_record(
-            session_meta,
-            session_id=session.session_id,
-            backend=backend,
-            store=session.store,
-            status=status,
-        )
-        return
-
     net_env_kwargs: dict = {"backend": backend}
     from nika.net_env.isp.identity import is_isp_named_special, is_isp_scenario
     from nika.net_env.isp.identity import ISP_NET_ENV_PARAM_KEYS
@@ -418,6 +411,85 @@ def _stop_session_record(
         and meta_path(session_meta, "topology_file", scenario_params=True)
     ):
         net_env.runtime = runtime_for_session(session_meta)
+    return net_env
+
+
+def _stop_session_record(
+    session_meta: dict,
+    *,
+    undeploy: bool = True,
+    session_id: str | None = None,
+    status: SessionStatus = "finished",
+) -> None:
+    session = Session()
+    session._apply_session_meta(session_meta)
+    if session_id:
+        session.session_id = session_id
+    scenario = getattr(session, "scenario_name", None)
+    if not scenario:
+        # Orphan index rows / job-folder run.json mistaken for sessions have no
+        # lab to undeploy. Clear runtime state without rewriting job metadata.
+        sid = session_id or getattr(session, "session_id", None)
+        if not sid:
+            raise ValueError(
+                "Session has no scenario_name; cannot determine which lab to stop."
+            )
+        _clear_orphan_session_record(
+            session_meta, session_id=str(sid), store=session.store
+        )
+        return
+
+    if session_meta.get("session_dir"):
+        # Bind first so every event below lands in this session's nika.jsonl.
+        bind_session_dir(session_meta["session_dir"])
+    from nika.workflows.schedule import cancel_session_schedule
+
+    if cancel_session_schedule(session_meta):
+        return
+    # Drop this session's sandbox before lab undeploy so a slow/failed undeploy
+    # cannot leave a hard-killed worker's microVM behind. Scoped by
+    # agent_session_id only (safe with concurrent benchmarks).
+    cleanup_session_sandbox(session_meta, session_id=session.session_id)
+    backend = resolve_backend(session_meta)
+    if session_meta.get("remote"):
+        # A remote-mode session whose lab host this process is not connected
+        # to, e.g. a Firecracker trial copy, which the trial's worker discards.
+        _clear_session_record(
+            session_meta,
+            session_id=session.session_id,
+            backend=backend,
+            store=session.store,
+            status=status,
+        )
+        return
+    lab_name = getattr(session, "lab_name", None)
+    try:
+        resolve_scenario_id(scenario)
+    except ValueError:
+        # Test-only, renamed, or removed scenarios cannot rebuild their NetEnv,
+        # but a Kathara lab is torn down by name alone.
+        if backend != "kathara" or not lab_name:
+            raise
+        if undeploy:
+            _destroy_kathara_lab(str(lab_name))
+            log_event(
+                "env_stop",
+                f"Stopped unregistered network environment: {scenario} "
+                f"({session.session_id})",
+                scenario=scenario,
+                session_id=session.session_id,
+                backend=backend,
+            )
+        _clear_session_record(
+            session_meta,
+            session_id=session.session_id,
+            backend=backend,
+            store=session.store,
+            status=status,
+        )
+        return
+
+    net_env = session_net_env(session_meta, session=session)
 
     session_dir = session_meta.get("session_dir")
     if not session_dir:
@@ -496,8 +568,8 @@ def _clear_session_record(
         bind_session_dir(session_dir)
 
     # Covers stop_all forced cleanup when ``_stop_session_record`` failed
-    # before its early sbx pass. Idempotent when the early pass already ran.
-    _cleanup_session_sbx(session_meta, session_id=session_id)
+    # before its early sandbox pass. Idempotent when the early pass already ran.
+    cleanup_session_sandbox(session_meta, session_id=session_id)
 
     try:
         ended_cnt = session.store.mark_session_failures_ended(
@@ -555,7 +627,15 @@ def close_session(
 
     if is_remote_enabled():
         from nika.remote.workflows import remote_close_session
+        from nika.workflows.schedule import cancel_session_schedule
 
+        if session_id and cancel_session_schedule(
+            load_session_meta_for_close(session_id)
+        ):
+            return
+
+        # The lab runs on the remote host, but the agent's sandbox runs here.
+        _cleanup_local_sandboxes(session_id, stop_all=stop_all)
         remote_close_session(
             session_id=session_id,
             undeploy=undeploy,

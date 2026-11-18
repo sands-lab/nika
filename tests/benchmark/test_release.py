@@ -13,7 +13,10 @@ from nika.workflows.benchmark.release import (
     JOB_FILENAME,
     ReleaseError,
     freeze_release,
+    freeze_split_release,
     load_release,
+    load_release_from_dir,
+    verify_engine,
     preflight_release,
     verify_dev_test_isolation,
 )
@@ -30,7 +33,7 @@ def _mini_cases_yaml(path: Path) -> Path:
                 "scenario": "dc_clos",
                 "topo_size": "s",
                 "problem": "link_down",
-                "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
             }
         ],
     }
@@ -65,7 +68,6 @@ def test_timed_release_faults_cover_the_default_trial_budget() -> None:
         "sender_resource_contention",
         "receiver_resource_contention",
         "tcp_syn_flood_attack",
-        "incast_traffic_network_limitation",
     }
     timeout = BenchmarkSettings.model_fields["case_timeout_sec"].default
     for split in ("dev", "test"):
@@ -74,6 +76,183 @@ def test_timed_release_faults_cover_the_default_trial_budget() -> None:
                 cls = get_problem_class(row["problem"])
                 params = cls.Params.model_validate(row["inject"])
                 assert params.duration > timeout, (split, row)
+
+
+class TestManifestContracts:
+    """Contract A: refuse versions and task files this NIKA cannot vouch for."""
+
+    def _release_dir(self, tmp_path: Path, **fields) -> Path:
+        release = freeze_release(
+            version="mini",
+            source_cases=_mini_cases_yaml(tmp_path / "cases_src.yaml"),
+            out_dir=tmp_path / "releases" / "mini",
+        )
+        path = release.root / "RELEASE.yaml"
+        manifest = yaml.safe_load(path.read_text(encoding="utf-8"))
+        manifest.update(fields)
+        path.write_text(yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
+        return release.root
+
+    def test_supported_versions_and_matching_hash_load(self, tmp_path: Path) -> None:
+        import hashlib
+
+        root = self._release_dir(tmp_path)
+        digest = hashlib.sha256((root / "dev.yaml").read_bytes()).hexdigest()
+        manifest = yaml.safe_load((root / "RELEASE.yaml").read_text(encoding="utf-8"))
+        manifest["splits"]["dev"]["sha256"] = digest
+        manifest["evaluation"] = {
+            "max_trial_sec": 2400,
+            "access": {"tools": ["*"], "node_roles": ["host"]},
+            "submission_modes": ["structured"],
+            "validity": {"max_harness_rate": 0.1},
+        }
+        (root / "RELEASE.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
+
+        release = load_release_from_dir(root, split="dev")
+        assert release.case_count == 1
+        assert release.access.policy.node_roles == ["host"]
+        assert release.max_trial_sec == 2400
+        assert release.submission_modes == ("structured",)
+        assert release.max_harness_rate == 0.1
+
+    def test_undeclared_harness_rate_uses_default(self, tmp_path: Path) -> None:
+        from nika.evaluator.validity import DEFAULT_MAX_HARNESS_RATE
+
+        release = load_release_from_dir(self._release_dir(tmp_path), split="dev")
+        assert release.max_harness_rate == DEFAULT_MAX_HARNESS_RATE
+
+    @pytest.mark.parametrize(
+        ("fields", "message"),
+        [
+            (
+                {"engine": {"tag": "v9.0.0", "api": {"version": 99}}},
+                "Engine API version 99",
+            ),
+            ({"engine": {"tag": "v9.0.0"}}, "engine.api.version must be"),
+            ({"evaluation": {"access": {"hosts": ["*"]}}}, "evaluation.access"),
+            ({"evaluation": {"max_trial_sec": 0}}, "evaluation.max_trial_sec"),
+            ({"evaluation": {"submission_modes": ["free"]}}, "submission_modes"),
+            (
+                {"evaluation": {"validity": {"max_harness_rate": 1.5}}},
+                "max_harness_rate",
+            ),
+            ({"evaluation": {"validity": {"min_steps": 1}}}, "evaluation.validity"),
+        ],
+    )
+    def test_unsupported_contract_version_is_refused(
+        self, tmp_path: Path, fields: dict, message: str
+    ) -> None:
+        root = self._release_dir(tmp_path, **fields)
+        with pytest.raises(ReleaseError, match=message):
+            load_release_from_dir(root, split="dev")
+
+    def test_drifted_task_file_is_refused(self, tmp_path: Path) -> None:
+        root = self._release_dir(tmp_path)
+        manifest = yaml.safe_load((root / "RELEASE.yaml").read_text(encoding="utf-8"))
+        manifest["splits"]["dev"]["sha256"] = "0" * 64
+        (root / "RELEASE.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
+
+        with pytest.raises(ReleaseError, match="does not match the sha256"):
+            load_release_from_dir(root, split="dev")
+
+    @pytest.mark.parametrize(
+        ("change", "message"),
+        [
+            ({"api_versions": [99]}, "engine API versions"),
+            ({"release_version": "9.9.9"}, "not nika-bench@mini"),
+            ({"task_file_sha256": {"dev.yaml": "0" * 64}}, "does not match"),
+        ],
+    )
+    def test_mismatched_engine_is_refused(
+        self, tmp_path: Path, change: dict, message: str
+    ) -> None:
+        import hashlib
+
+        from nika.benchmark_engine.protocol import EngineDescription
+
+        root = self._release_dir(tmp_path)
+        digest = hashlib.sha256((root / "dev.yaml").read_bytes()).hexdigest()
+        manifest = yaml.safe_load((root / "RELEASE.yaml").read_text(encoding="utf-8"))
+        manifest["splits"]["dev"]["sha256"] = digest
+        (root / "RELEASE.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
+        release = load_release_from_dir(root, split="dev")
+        fields = {
+            "api_versions": [1],
+            "release_id": release.id,
+            "release_version": release.version,
+            "task_file_sha256": {"dev.yaml": digest},
+        }
+
+        verify_engine(release, EngineDescription(**fields))
+        with pytest.raises(ReleaseError, match=message):
+            verify_engine(release, EngineDescription(**{**fields, **change}))
+
+    def test_pinned_engine_release_does_not_run_in_process(
+        self, tmp_path: Path
+    ) -> None:
+        from nika.benchmark_engine.container import EngineContainerError
+
+        root = self._release_dir(
+            tmp_path,
+            engine={"tag": "v9.0.0", "api": {"version": 1}},
+        )
+        release = load_release_from_dir(root, split="dev")
+
+        # The run needs the engine built from the pinned tag, never this NIKA's.
+        with pytest.raises(EngineContainerError, match="v9.0.0"):
+            run_benchmark_from_release(
+                release_ref="mini",
+                split="dev",
+                agent_type="mock",
+                llm_provider=None,
+                model=None,
+                max_steps=None,
+                release=release,
+                result_dir=str(tmp_path / "results"),
+                check_images=False,
+            )
+
+    @pytest.mark.parametrize(
+        ("evaluation", "settings", "message"),
+        [
+            ({}, {"node_roles": ["host"]}, "fixes the agent's access policy"),
+            ({"max_trial_sec": 600}, {"timeout": 1800}, "evaluation.max_trial_sec"),
+            ({"submission_modes": ["structured"]}, {"mode": "unstructured"}, "not"),
+        ],
+    )
+    def test_run_settings_that_conflict_with_the_release_are_refused(
+        self, tmp_path: Path, evaluation: dict, settings: dict, message: str
+    ) -> None:
+        from nika.benchmark_engine.protocol import AccessPolicy, AgentAccess
+        from nika.run_config.schema import AgentSubmissionSettings
+        from nika.workflows.benchmark.release import check_run_settings
+
+        release = load_release_from_dir(
+            self._release_dir(tmp_path, evaluation=evaluation), split="dev"
+        )
+        configured = AgentAccess(
+            role="custom",
+            policy=AccessPolicy(node_roles=settings.get("node_roles", ["*"])),
+        )
+        submission = AgentSubmissionSettings.model_construct(
+            mode=settings.get("mode", "structured")
+        )
+        with (
+            patch("nika.mcp.gateway.access.configured_access", return_value=configured),
+            patch(
+                "nika.utils.agent_config.resolve_agent_timeout",
+                return_value=settings.get("timeout", 600),
+            ),
+            patch(
+                "nika.utils.agent_config.resolve_submission_settings",
+                return_value=submission,
+            ),
+        ):
+            if "mode" in settings:
+                # Host-run agents choose no submission mode.
+                check_run_settings(release, agent_type="oracle")
+            with pytest.raises(ReleaseError, match=message):
+                check_run_settings(release, agent_type="byo.langgraph")
 
 
 class TestFreezeRelease:
@@ -106,6 +285,137 @@ class TestFreezeRelease:
         test = [{**base, "inject": {"host_name": "pc_0_1", "intf_name": "eth0"}}]
         with pytest.raises(ReleaseError, match="semantic isolation"):
             verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+
+    @pytest.mark.parametrize("explicit_defaults", [False, True])
+    def test_network_reuse_with_different_failures_is_rejected(
+        self, explicit_defaults
+    ) -> None:
+        dev = [
+            {"scenario": "dc_clos", "topo_size": size, "problem": problem}
+            for size, problem in (("s", "link_down"), ("m", "dns_record_error"))
+        ]
+        test = [
+            {
+                "scenario": "dc_clos",
+                "topo_size": size,
+                "problem": problem,
+                **(
+                    {"backend": "kathara", "device_profile": "frr"}
+                    if explicit_defaults
+                    else {}
+                ),
+            }
+            for size, problem in (("m", "link_down"), ("s", "dns_record_error"))
+        ]
+        with pytest.raises(ReleaseError, match="network isolation"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        # Published editions retain the rules under which they were frozen.
+        verify_dev_test_isolation(
+            dev_cases=dev, test_cases=test, require_unseen_networks=False
+        )
+
+    @pytest.mark.parametrize("scenario", ["isp_abilene", "isp_abilene_ebgp_rtbh"])
+    def test_isp_graph_cannot_cross_splits_via_another_protocol_or_vendor(
+        self, scenario
+    ):
+        dev = [{"scenario": "isp_abilene", "problem": "link_down", "igp": "ospf"}]
+        test = [
+            {
+                "scenario": scenario,
+                "problem": "link_down",
+                "backend": "containerlab" if scenario == "isp_abilene" else "kathara",
+                "device_profile": "nokia_srlinux"
+                if scenario == "isp_abilene"
+                else "frr",
+            }
+        ]
+        with pytest.raises(ReleaseError, match="network isolation"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        test[0]["scenario"] = "isp_geant"
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+
+    @pytest.mark.parametrize("scenario", ["k8s_lab", "llmd_lab"])
+    def test_fixed_cluster_requires_different_fault_components(self, scenario):
+        dev = [
+            {
+                "scenario": scenario,
+                "problem": "link_down",
+                "inject": {"host_name": "worker1", "intf_name": "eth0"},
+                "root_causes": [
+                    {
+                        "fault_type": "link_down",
+                        "resource": {
+                            "kind": "interface",
+                            "node": "worker1",
+                            "name": "eth0",
+                        },
+                    }
+                ],
+            }
+        ]
+        test = [
+            {
+                "scenario": scenario,
+                "problem": "link_down",
+                "inject": {"host_name": "worker2", "intf_name": "eth0"},
+                "root_causes": [
+                    {
+                        "fault_type": "link_down",
+                        "resource": {
+                            "kind": "interface",
+                            "node": "worker2",
+                            "name": "eth0",
+                        },
+                    }
+                ],
+            }
+        ]
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        test[0]["root_causes"] = dev[0]["root_causes"]
+        with pytest.raises(ReleaseError, match="network isolation"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        test[0].pop("root_causes")
+        with pytest.raises(ReleaseError, match="requires resolved root_causes"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+
+    def test_multi_fault_tasks_compare_individual_taxonomy(self):
+        dev = [
+            {
+                "scenario": "dc_clos",
+                "topo_size": "s",
+                "problem": "link_down+dns_record_error",
+            }
+        ]
+        test = [
+            {"scenario": "dc_clos", "topo_size": "m", "problem": problem}
+            for problem in ("link_down", "dns_record_error")
+        ]
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        test[1]["problem"] = "bgp_acl_block"
+        with pytest.raises(ReleaseError, match="problem sets differ"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+
+    def test_freeze_rejects_shared_network_before_writing_release(self, tmp_path):
+        for split, assignments in (
+            ("dev", (("s", "link_down"), ("m", "dns_record_error"))),
+            ("test", (("m", "link_down"), ("s", "dns_record_error"))),
+        ):
+            rows = [
+                {
+                    "scenario": "dc_clos",
+                    "topo_size": size,
+                    "problem": problem,
+                    "inject": {"host_name": "client_1_1", "intf_name": "eth0"},
+                }
+                for size, problem in assignments
+            ]
+            (tmp_path / f"{split}.yaml").write_text(yaml.safe_dump({"cases": rows}))
+        destination = tmp_path / "candidate-release"
+        with pytest.raises(ReleaseError, match="network isolation"):
+            freeze_split_release(
+                version="candidate", source_dir=tmp_path, out_dir=destination
+            )
+        assert not destination.exists()
 
     def test_preflight_missing_scenario(self, tmp_path: Path) -> None:
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml")
@@ -187,7 +497,10 @@ class TestReleaseRunMetadata:
 
         with (
             patch(
-                "nika.workflows.benchmark.run.preflight_release",
+                "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
+            ),
+            patch(
+                "nika.workflows.benchmark.release.verify_release_tasks",
                 return_value=None,
             ),
             patch(
@@ -247,7 +560,10 @@ class TestReleaseRunMetadata:
         )
         result_dir = tmp_path / "results"
         with (
-            patch("nika.workflows.benchmark.run.preflight_release"),
+            patch(
+                "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
+            ),
+            patch("nika.workflows.benchmark.release.verify_release_tasks"),
             patch(
                 "nika.workflows.benchmark.run._run_trials_batch", return_value=[]
             ) as run_trials,

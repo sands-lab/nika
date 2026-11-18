@@ -1,0 +1,72 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: tls_certificate_expired
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: pc_1_1_1_1
+      control_host: web_server_1
+      host_name: web_server_0
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: tls_certificate_expired
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: pc_1_1_1_1
+      control_host: web_server_1
+      host_name: web_server_0
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: tls_certificate_expired
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: pc_1_1_1_1
+      control_host: web_server_1
+      host_name: web_server_0
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: tls_certificate_expired
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: pc_1_1_1_1
+      control_host: web_server_1
+      host_name: web_server_0
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: tls_certificate_expired
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
+      client_host: pc_1_1_1_1
+      control_host: web_server_1
+      host_name: web_server_0
+    root_causes:
+    - resource:
+        kind: node
+        node: web_server_0
+      fault_type: tls_certificate_expired

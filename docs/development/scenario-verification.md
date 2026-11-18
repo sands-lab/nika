@@ -1,0 +1,331 @@
+# Specification-driven environment verification
+
+NIKA checks whether a constructed network satisfies its original behavior specification. This walkthrough follows one Abilene design through routing completion, device configuration, static analysis and real execution. Each step identifies its input and output.
+
+To run the research commands below, use a separate checkout of the shared `experiment` branch.
+
+Run this experiment explicitly during environment development. For the FRR and IOS XR profiles of `dc_clos`, `campus_lan` and `enterprise_branch`, and for the stored ISP variants that netlab can generate, normal benchmark startup deploys router configurations that netlab generated offline from the environment's design; see [Deploy stored configurations](#deploy-stored-configurations). Saved constructions can be reused without rerunning synthesis and analysis.
+
+## Why these stages are separate
+
+A route requirement does not specify all configuration values, a solved value does not supply every device's syntax, and a generated configuration does not establish its behavior. The workflow assigns each problem to a supported tool:
+
+| Stage | Purpose in this workflow | When it is needed |
+| --- | --- | --- |
+| NetComplete | Solve unknown costs and policy values under the original routing constraints | When the routing sketch contains supported unknowns; omit it for fully specified designs |
+| netlab | Generate device-specific configuration from the fixed design and solved values, and render the same design as FRR or IOS XR for Batfish | When the solver does not emit the target device's configuration; it reduces NIKA-maintained templates, not proof obligations |
+| Batfish | Independently compute modeled behavior from the final configuration and compare it with the original requirements | For routing static acceptance; another forwarding model needs an appropriate analyzer |
+| NIKA native checks | Observe actual sessions, installed routes, packets, fault effects and recovery | For native acceptance; static-only results cannot substitute for execution |
+
+NetComplete can export configurations through its [Tekton Cisco IOS backend](https://github.com/nsg-ethz/tekton/blob/b60e931334e690919d12a5826600e5c400b6173d/tekton/cisco.py), tested with IOS 15.2. NIKA instead uses its supported solver outputs and netlab's device backends for targets including IOS XR, SR Linux and RouterOS. netlab is replaceable and supplies no additional formal guarantee.
+
+## The complete workflow
+
+```mermaid
+flowchart TD
+    accTitle: Construction and independent verification of an environment
+    accDescr: The original design and requirements feed NetComplete and netlab. Batfish checks the generated configurations, then NIKA checks execution, faults and recovery against the same original requirements.
+    S["Original design and behavior requirements"]
+    N["NetComplete<br/>solved costs and policy values"]
+    L["netlab + retained NIKA bindings<br/>candidate device configurations"]
+    B["Batfish<br/>modeled behavior vs. original requirements"]
+    R["Native NIKA execution<br/>healthy behavior, counterexamples, faults and recovery"]
+    A["Accepted within the declared scope"]
+    S --> N
+    N --> L
+    L --> B
+    B -- "static checks pass" --> R
+    R -- "all required checks pass" --> A
+    S -. "fixed design" .-> L
+    S -. "original predicates" .-> B
+    S -. "original predicates and fault expectations" .-> R
+    L -. "same configurations" .-> R
+```
+
+A failed or required unsupported check rejects the construction. Expected behavior always comes from the original specification, not from an earlier tool's output. Deliberately incorrect candidates must produce their predeclared violations in static analysis and execution.
+
+## Shared Clos design
+
+Compare routing, OpenFlow and P4 implementations from the same [Clos design](../../src/nika/net_env/clos/design.py) and [communication requirements](../../src/nika/net_env/clos/requirements.py). These inputs fix the data-plane nodes, attachments, addresses, bidirectional client-service ICMP reachability and isolation from the unowned address `198.18.0.1` before configuration generation. Controller nodes and management links belong to the selected implementation.
+
+| Implementation | Configuration construction | Acceptance |
+| --- | --- | --- |
+| `dc_clos` | Bind ASNs and link addresses to the shared design, complete supported export decisions, then render router configuration | Batfish and native packet checks; eBGP adjacencies and installed next hops |
+| `sdn_l3_clos` | Render OpenFlow rules and SELECT groups | NetKAT/KATch and native packet checks; controller and OVS state |
+| `p4_dc_fabric` | Compile the P4 program and render P4Runtime entries | NetKAT/KATch and native packet checks; compiled forwarding slice and P4Runtime state |
+
+The [routing experiment builder](../../src/nika/workflows/validation/clos.py) adds routing-specific requirements to the common communication contract. The packet experiment builder uses that same communication contract. Each analyzer checks the final candidate against the original requirements within its supported semantics. Endpoint outages require restoring the declared endpoint routes and neighbors as well as interface state.
+
+## 1. Start with a network and a design
+
+The example uses the vendored [Abilene graph](../../src/nika/net_env/isp/topologies/abilene.xml): 12 routers and 15 physical links. This diagram shows every router link, omitting loopbacks and attached hosts.
+
+```mermaid
+flowchart LR
+    accTitle: Abilene physical topology and fixed AS membership
+    accDescr: Twelve routers grouped into three autonomous systems, with ten intra-AS and five inter-AS links. Loopbacks and hosts are omitted.
+    subgraph AS1["AS 65001"]
+        atlam5 --- atlang
+        atlang --- hstnng
+        atlang --- washng
+    end
+    subgraph AS2["AS 65002"]
+        kscyng --- dnvrng
+        dnvrng --- snvang
+        dnvrng --- sttlng
+        snvang --- sttlng
+        losang --- snvang
+    end
+    subgraph AS3["AS 65003"]
+        iplsng --- chinng
+        chinng --- nycmng
+    end
+    atlang --- iplsng
+    hstnng --- kscyng
+    hstnng --- losang
+    iplsng --- kscyng
+    washng --- nycmng
+```
+
+Before synthesis, the experiment fixes the following design. NIKA's existing builder supplies deterministic address and session bindings. These are inputs to NetComplete, not choices discovered by it.
+
+| Design input | Value in this environment |
+| --- | --- |
+| AS membership | The three groups shown above |
+| Intra-AS routing | OSPF area 0; iBGP route reflection with one reflector per AS |
+| Reflectors | `atlam5`, `dnvrng`, `chinng`; the other routers in each AS are clients |
+| Inter-AS routing | eBGP on the five links between the groups |
+| Router loopbacks | Fixed `/32` addresses; for example, `dnvrng = 10.255.0.4/32` |
+| Physical link addresses | Fixed `/31` addresses; for example, `atlang–iplsng = 10.0.0.4/31` |
+| Business prefix origins | `washng`: `198.51.100.0/24`; `losang`: `198.51.101.0/24`; `nycmng`: `198.51.102.0/24` |
+| Fixed policies | Existing business-prefix admission and export policies |
+| Reference path policy | Preserve the shortest-path/ECMP sets of the original graph with uniform intra-AS cost 10, including the declared link-down graph |
+| Declared link incident | Disable `dnvrng:eth1`, the attachment to `snvang` |
+| Unknown values | Active intra-AS OSPF costs and supported per-prefix BGP import decisions/preferences |
+
+OSPF does not form adjacencies across AS boundaries. External-link subnets are advertised passively within the local AS so BGP next hops remain reachable. NetComplete does not choose the AS partition, reflector placement, protocol stack or fault target in this experiment.
+
+## 2. State the required behavior before filling the unknowns
+
+The original specification contains path requirements and BGP exit orders, plus adjacency and communication requirements. In this catalogue experiment, the builder enumerates paths from the fixed reference graph before invoking the solver; the designer does not hand-write every per-router predicate. Here are excerpts from that input specification, expressed as design statements rather than API calls.
+
+| Original requirement | Healthy network | After the `dnvrng–snvang` outage |
+| --- | --- | --- |
+| Path from `losang` to `dnvrng`'s loopback | `losang → snvang → dnvrng` | `losang → snvang → sttlng → dnvrng` |
+| Path from `snvang` to that loopback | `snvang → dnvrng` | `snvang → sttlng → dnvrng` |
+| Exit from AS 65001 for `198.51.102.0/24` | Prefer AS 65003 to AS 65002 | Retain that preference while both exits remain available |
+| Protocol adjacencies | Expected OSPF and BGP sessions are established | Surviving sessions match the fault-state specification |
+| Business communication | Declared endpoint pairs can communicate | Communication follows the independently declared fault-state requirements |
+
+The complete example fixes six exit orders. In this table, `>` means preferred neighboring AS, not a prescribed numeric local preference.
+
+| Selecting AS | Original exit orders |
+| --- | --- |
+| 65001 | For `198.51.101.0/24`: 65002 > 65003; for `198.51.102.0/24`: 65003 > 65002 |
+| 65002 | For `198.51.100.0/24`: 65001 > 65003; for `198.51.102.0/24`: 65003 > 65001 |
+| 65003 | For `198.51.100.0/24`: 65001 > 65002; for `198.51.101.0/24`: 65002 > 65001 |
+
+We follow AS 65001's requirement for `198.51.102.0/24` below: **AS 65003 before AS 65002**.
+
+The builder resolves these statements into concrete predicates before solving:
+
+| Predicate | Expected value |
+| --- | --- |
+| First external AS of the selected route at `hstnng` for `198.51.102.0/24` | `65003` |
+| Next hop at `snvang` for `10.255.0.4/32`, healthy | `dnvrng`, address `10.0.0.14` |
+| Next hop at `snvang` for the same prefix, link down | `sttlng`, address `10.0.0.29` |
+
+NIKA derives per-hop predicates from the specified paths with fixed logic. It does not infer the desired path from the configuration later produced by netlab. The complete experiment resolves to 133 healthy predicates; the tables show only the subset needed to explain the transformations.
+
+## 3. Let NetComplete fill the declared holes
+
+**Input:** the fixed graph and routing sketch, unknown cost/policy fields, and the original healthy and fault-state requirements.
+
+[NetComplete](https://www.usenix.org/conference/nsdi18/presentation/el-hassany) completes a partial configuration subject to routing requirements. For OSPF, the declared paths must be shortest paths under the solved costs. Healthy and link-down graphs share surviving-link cost variables: the solver cannot choose a different configuration for the outage. If no supported assignment satisfies the requirements, the experiment rejects the construction rather than changing the required behavior.
+
+**Output in the recorded run:** 20 interface-cost bindings and 10 neighbor import policies. The 20 bindings describe both ends of the ten intra-AS links, with symmetric costs. All solved active OSPF costs were 1. Selected BGP outputs were:
+
+| Router in AS 65001 | Import from | Prefix | Solved admission | Solved local preference |
+| --- | --- | --- | --- | --- |
+| `atlang` | AS 65003, peer `10.0.0.5` | `198.51.102.0/24` | Permit | 2 |
+| `washng` | AS 65003, peer `10.0.0.26` | Same prefix | Permit | 2 |
+| `hstnng` | AS 65002, peer `10.0.0.19` | Same prefix | Permit | 1 |
+| `hstnng` | AS 65002, peer `10.0.0.21` | Same prefix | Permit | 1 |
+
+The ordering `2 > 1` implements the original exit order. The exact numbers are solver outputs; another satisfying assignment could use different values. Unit costs make the healthy `snvang → dnvrng` path shorter than the alternate. Removing that link leaves `snvang → sttlng → dnvrng` as the specified route.
+
+NIKA saves these values as structured routing parameters. In this integration, it does **not** ask NetComplete to export the final device CLI. IGP and AS-import completion are supported stages over the fixed sketch; this experiment does not invoke NetComplete's full BGP-to-OSPF feedback synthesis.
+
+## 4. Generate the target device configuration
+
+**Input:** the original graph, addresses, AS/RR assignments and fixed policies, the solved parameters above, and a selected device profile.
+
+NIKA builds the netlab input from the design itself: the ISP plan, or the routing design that an Ethernet environment records while it builds its lab. It never parses configuration that NIKA rendered. netlab expands this input into addressed interfaces, protocol sessions and routing policies, then renders the target network operating system's syntax. NIKA checks that the derived BGP sessions and prefix origins agree with the fixed sketch.
+
+NIKA renders a capability itself only when the pinned netlab version cannot express it, such as RouterOS prefix filters, iBGP attachment of generated admission policies, or leaking between the default table and business VRFs. `summary.json` lists each such capability under `configuration.retained` with the netlab limitation that requires it. These statements remain subject to the same final checks.
+
+**Output:** a candidate configuration for each router. At `atlang`, the solved AS 65003 preference becomes these FRR fragments. These are abbreviated excerpts from the recorded candidate, not complete standalone configurations.
+
+```text
+ip prefix-list NC_PFX_0_1-ipv4 seq 100 permit 198.51.102.0/24
+
+route-map NC_IN_0-ipv4 permit 20
+  set local-preference 2
+  match ip address prefix-list NC_PFX_0_1-ipv4
+
+router bgp 65001
+  address-family ipv4
+    neighbor 10.0.0.5 route-map NC_IN_0-ipv4 in
+```
+
+Selecting IOS XR and reusing the same fixed design and solved values produces prefix sets and route policies instead. These excerpts were generated offline with the pinned netlab version for this walkthrough:
+
+```text
+prefix-set NC_PFX_0_1
+  198.51.102.0/24
+end-set
+
+route-policy NC_IN_0
+  ...
+  if destination in NC_PFX_0_1 then
+    set local-preference 2
+    done
+  endif
+  ...
+end-policy
+
+router bgp 65001
+  neighbor 10.0.0.5
+    address-family ipv4 unicast
+      route-policy NC_IN_0 in
+```
+
+Both express the same prefix-specific import decision. RouterOS and SR Linux need their own supported renderings; sharing a solved value does not make their configuration languages interchangeable. The IOS XR excerpt is generation evidence, not native XRd acceptance. The execution results in step 6 belong to FRR.
+
+Before relying on netlab for a design, compare its candidate with NIKA's native renderer for the same design. [`generator_consistency.py`](https://github.com/sands-lab/nika/blob/experiment/experiment/scenario_validation/generator_consistency.py) renders both, analyzes each with the platform's Batfish export and lists every differing routing fact: interface addresses, IGP areas, costs and adjacencies, BGP sessions and roles, RIB and FIB entries, selected BGP paths and per-neighbor import/export outcomes. An empty difference list shows that the two generators agree within that projection, not that either candidate meets the requirements; steps 5 and 6 still decide acceptance. The [experiment guide](https://github.com/sands-lab/nika/blob/experiment/experiment/scenario_validation/README.md#compare-native-and-netlab-configurations) describes the command and report. The comparison needs Batfish to model the candidates, so it is unavailable for SR Linux, RouterOS and FRR IS-IS.
+
+### Deploy stored configurations
+
+Running netlab at every startup would slow deployment and make it depend on netlab, so NIKA stores netlab's output in the package and deploys it. `dc_clos`, `campus_lan` and `enterprise_branch` store each size for FRR, and for IOS XR where that profile is supported. ISP environments store each variant (IGP, BGP mode, device profile and options) that the benchmark pool and current release use. Ordinary startup and `--check` read the stored files and do not need netlab.
+
+Environment developers regenerate the stored configurations from the repository root after changing a design. Regeneration runs the pinned netlab, so add `--extra netlab` to the `uv sync` command you use, for example `uv sync --extra batfish --extra netlab`.
+
+```bash
+uv run nika env render --scenario enterprise_branch
+uv run nika env render --scenario enterprise_branch --check
+```
+
+`nika env render` regenerates the stored configurations under the environment's `rendered/` directory, with a digest of the design and the netlab version. At startup, NIKA recomputes the digest and deploys the stored configurations. If the design changed, startup stops and names the command to run. `--check` runs the same comparison without writing and exits nonzero when a stored variant is stale.
+
+RouterOS routers in `dc_clos`, `campus_lan` and `enterprise_branch` keep NIKA's own rendering, because netlab does not generate them there. RouterOS ISP deployments with IS-IS also keep it, because netlab's RouterOS templates have no IS-IS module. `nika env render` reports any other variant that netlab cannot generate, which also keeps NIKA's rendering. An ISP deployment outside the stored variants, such as an ad-hoc topology, does the same.
+
+netlab configures some Linux features with shell scripts instead of routing-daemon configuration. For WireGuard tunnels on FRR Site Edges, its `tunnel.wireguard` plugin creates each interface and peer with `wg set`; NIKA stores this script beside the router configuration and runs it from `/etc/netlab/` at startup. During a validation run with solved routing parameters, NIKA renders the routers and generates this script with netlab at startup. These routers keep no `wg-quick` files: the script holds their WireGuard configuration, and `wg show` displays the running tunnel state.
+
+## 5. Check the final candidate with Batfish
+
+**Input:** final configurations, host/interface addressing, physical connectivity, and the original predicates from step 2. A fault-state snapshot also identifies the disabled link endpoints.
+
+Batfish parses the configuration, computes modeled protocol/route state and answers routing and forwarding questions. NIKA compares those answers with the original expectations. It does not merely compare netlab's output with NetComplete's numeric parameters. This independent check matters because a correct solver assignment can still be bound to the wrong interface or peer during generation. Solver success alone does not establish that the final configurations implement that assignment.
+
+| Check | Original expected answer | Recorded Batfish answer |
+| --- | --- | --- |
+| Selected BGP route at `hstnng` for `198.51.102.0/24` | First external AS is 65003 | BEST route, AS path `65003`, local preference 2 |
+| Healthy next hop at `snvang` for `10.255.0.4/32` | `dnvrng` | Declared next-hop predicate passed |
+| Next hop for the same prefix after link removal | `sttlng` | Fault-state next-hop predicate passed |
+| Full healthy specification | Every required predicate passes | 133 passed |
+| Full link-down specification | Every fault-state predicate passes | 133 passed |
+
+Batfish reads this example's FRR configuration directly. IOS XR and SONiC also have native parsers. Batfish cannot parse SR Linux or RouterOS and does not model IS-IS for FRR, so for those deployments netlab renders the same design as FRR, or as IOS XR when the IGP is IS-IS. Static analysis then covers the design, and only native execution checks the device's own configuration syntax. Static negative controls state their mistake as a change to the routing design: a wrong neighbor or local ASN, a denied export, a withdrawn origin, an interface moved to another IGP area or out of the IGP, a missing route-reflector client role, or a discard route. netlab renders the changed design with its own templates, so a control does not edit generated configuration text and can express settings that disagree between two peers, such as a wrong neighbor ASN. Configuration that NIKA renders itself, such as the RPKI and RTBH statements beside netlab's output, still takes text edits. Native runtime controls use the device's commands. `summary.json` records the rendering under `static_analysis`. The pinned Batfish build includes the [FRR next-hop correction](../../scripts/batfish/frr-next-hop-self.patch).
+
+A deliberate bad candidate tests whether the checks detect the intended mistake. Removing `washng`'s business-prefix announcement violated exactly 12 predeclared predicates in this run. A violation, tool error or required unsupported property rejects the candidate; it does not count as acceptance. So does any statement Batfish ignores, unless it is one of the exceptions listed with its reason in `ACCEPTED_PARSE_WARNINGS` of [`client.py`](../../src/nika/validation/batfish/client.py). Most exceptions, such as markup, timers and logging, do not affect routing. The other three, per-neighbor community-send controls, RFC 8212 eBGP policy and `no bgp network import-check`, are behaviors Batfish models differently from the router; static acceptance does not establish them, and only native execution observes their effect. Equivalent statements that Batfish's grammar lacks, such as one-line IOS XR static routes, are rewritten into a form it parses before analysis.
+
+## 6. Deploy, observe, inject and recover
+
+**Input:** the statically accepted candidate and the same original requirements. NIKA deploys it through the ordinary environment lifecycle.
+
+**Output:** real protocol, installed-route and packet observations, followed by fault-state and recovery reports. For the tracked BGP predicate, FRR's selected AS path was `65003`, matching both the original requirement and Batfish's prediction.
+
+| Executed state in the recorded FRR run | Required observation | Recorded outcome |
+| --- | --- | --- |
+| Healthy | Complete original specification holds | 133 passed |
+| Business-announcement withdrawal | Exactly the declared original predicates fail | Same 12 violations as static analysis |
+| Maximum-prefix incident on `hstnng–losang` | The two directed BGP-adjacency predicates fail | Exactly those two violations |
+| `dnvrng–snvang` link down | Complete declared fault-state specification holds | 133 passed |
+| Recovery after each incident | Complete healthy specification holds again | 133 passed after each recovery |
+
+Equal counts alone do not establish correctness. Each row must match the declared predicate identities and expectations for that state. Shared acceptance assertions enforce this rule across environment families.
+
+For registered configuration failures, declare the impact before analysis. `expected_failed_ids` names healthy intents that must fail; `unconstrained_ids` names intents whose pass/fail outcome may vary. Every remaining healthy intent must pass. Both lists reference original intent IDs and must be disjoint. An unconstrained outcome still requires a concrete observation: unsupported, skipped, missing or erroneous results reject acceptance.
+
+The ISP experiment builder derives maximum-prefix impact from the original BGP session sketch. If the affected session is the last peering between two ASes, the required violations include their declared direct-exit preferences as well as the two directed adjacencies. Alternate peerings can preserve those exit preferences. This derivation uses the authored topology and preferences before synthesis.
+
+Static analysis and execution apply these bounds independently within their own predicate scopes. Batfish predictions do not replace authored runtime expectations. Inspect `impact-model-<failure>.json` and `impact-failure-<failure>.json` for the required failures, preserved intents, unconstrained outcomes and acceptance violations. In `summary.json`, each modeled failure's runtime entry under `failure_compatibility` includes `model_comparison`: the shared static IDs and the IDs that failed only in the model or only in execution. Differences on unconstrained intents remain visible even when both stages satisfy the authored bounds. These comparisons cover declared predicate outcomes, not all possible traffic or device state.
+
+Native checks matter because a modeled route is not an installed route, and modeled forwarding is not an observed packet exchange. Runtime-only original requirements supplement shared predicates where the static model is insufficient, including installed ECMP limits and enterprise overlay isolation.
+
+### Compare verification methods
+
+When Batfish, the installed forwarding state and the native probes disagree about an intent, the cause can be a modeling gap, a translation error, incomplete convergence or a wrong check. To record all three answers per intent, run an experiment with `--runtime --compare-methods`.
+
+In every runtime state of a Kathara deployment whose routers all run Linux, NIKA reads the main IPv4 FIB of each router and checks the declared reachability and isolation intents on it with NetKAT. Intents between addressed endpoints are checked, including a router's own traffic. Each intent then has three answers: Batfish on the analyzed configurations of that state, NetKAT on the installed FIB, and the native probe.
+
+| Output | Content |
+| --- | --- |
+| `summary.json`, `method_comparison` | The disagreeing intents of each state |
+| `method-comparison/` | The FIBs and per-intent tables of each state |
+| `fib` is `unsupported` in the per-intent tables, and the state's `method_comparison` entry has `fib_scope` | The deployment is not on Kathara or has native vendor routers |
+| `fib` is `error` in the per-intent tables, and the state's `method_comparison` entry has `fib_error` | NIKA could not model that state's FIB; the validation run continues |
+
+A disagreement still needs diagnosis. The static model may not cover the behavior: VRF tables, policy routing, packet filters, NAT and tunnels are outside the FIB model. A configuration may also be translated incorrectly, routing may not have converged, or a check may be wrong.
+
+## SDN and P4 forwarding verification
+
+The acceptance sequence stays the same, but fixed match/action candidates have no routing holes to solve. Their existing domain generators produce OpenFlow rules or P4Runtime entries. NIKA derives a restricted forwarding model from those concrete entries and the physical topology; [NetKAT](https://doi.org/10.1145/2535838.2535862) supplies its semantics and [KATch](https://github.com/cornell-netlab/KATch) decides the queries. NetComplete and netlab are not used.
+
+| Original requirement or incident | Static check | Native check |
+| --- | --- | --- |
+| Client-service ICMP communication | A successful forwarding trace exists; round-trip requirements also check the reverse direction | The declared packet exchange succeeds |
+| Unowned-address isolation | No successful forwarding trace exists | The declared packet exchange fails |
+| Missing endpoint route | Removing an LPM entry or adding a destination drop violates exactly the predeclared predicates | Apply the corresponding configuration change and reproduce those violations |
+| Endpoint-interface outage and recovery | Remove the endpoint attachment and check the fault-state requirements | Disable that endpoint interface, check the fault state, then restore healthy behavior |
+
+For P4, compilation also checks the projected LPM key and forwarding action. The static claim covers well-formed IPv4 ICMP with sufficient TTL and resolved neighbors. It excludes full parser/control-flow/extern correctness, ARP, controller transitions, queueing and stateful services. Reachability establishes a possible trace, not delivery under every selector/hash choice. Native waypoint mapping is unsupported; endpoint-only outages do not cover every effect of the benchmark's broader `link_down` action.
+
+## Acceptance scope and reproduction
+
+Acceptance establishes the declared properties within the supported static models and exercised native states. It does not prove universal compiler correctness, analyzer/router equivalence or convergence under arbitrary failures; other bugs can remain.
+
+| Environment family | Experiment scope and boundary |
+| --- | --- |
+| ISP FRR and SR Linux | Supported OSPF or IPv4 Level-2 IS-IS sketches, iBGP RR and ordinary eBGP; IS-IS uses a shortest-path reduction with symmetric metrics 1–65,535, not a native NetComplete IS-IS solver |
+| ISP IOS XR | Supported OSPF or IPv4 Level-2 IS-IS sketches with no BGP, iBGP RR or eBGP, subject to device/fault bindings and parser limits; ISP contracts declare OSPF adjacencies only, so IS-IS adjacencies are checked natively on XR |
+| ISP RouterOS | Supported OSPF sketches with no BGP, iBGP RR or eBGP, subject to device/fault bindings; static analysis reads the design rendered as FRR; netlab has no RouterOS IS-IS module |
+| ISP and `min3clos` on SONiC | Static acceptance only, with routing model `sonic`: ISP profiles take the FRR sketches, completion and predicates; `min3clos` checks its fixed design without completion. Batfish parses the SONiC files natively, and IS-IS-only designs are projected to IOS XR. netlab and native execution are not available for SONiC routers in this workflow; `nika env run` verifies them natively |
+| Clos, campus, enterprise, min3clos and direct BGP | Declared routing, communication, policy and isolation; installed ECMP and overlay behavior require native evidence |
+| Clos, campus and enterprise with `device_profile: routeros` | The same sketches and requirements as FRR, size `s`, except the Clos ECMP predicates; RouterOS routers are analyzed as their design rendered by netlab as FRR, together with the FRR routers; netlab does not generate the deployed RouterOS routers |
+| Clos, campus and enterprise with `device_profile: iosxr` | The same sketches and requirements as FRR, size `s`; XR and FRR routers are analyzed together, with netlab generating the XR routers as `iosxr` devices |
+| SDN and P4 | Restricted forwarding checks plus native counterexamples, outages and recovery; recorded native packet acceptance covers sizes `s`, `m` and `l` |
+| Kubernetes and llmd | Existing readiness/runtime checks; outside this formal-analysis experiment |
+
+With `device_profile: iosxr`, `dc_clos` (size `s`) runs its spines on XRd and keeps its bridged leaves on FRR, `campus_lan` its core routers and `enterprise_branch` its provider routers. The other roles stay FRR/Linux, so one deployment mixes vendors. NetComplete completes the FRR design, and each eligible router runs the XR translation of its completed configuration. One Batfish snapshot holds the XR and FRR configurations, and native checks read each requirement on the router that observes it. A fault on an XR router is undone by replacing its running configuration with the one saved before injection. The `-iosxr` specimens in `experiment/scenario_validation` keep the FRR requirements and replace only the XR-specific negative controls. Other routing models reject mixed-vendor deployments, because their projections would omit the XR routers. netlab renders static routes; NIKA keeps the eBGP multipath and open eBGP policies that the pinned XR templates do not emit. See [native IOS XR routers](../operations/network-scenarios.md#native-ios-xr-routers) for the roles and limits.
+
+### RouterOS routers in Ethernet environments
+
+With `device_profile: routeros`, `dc_clos`, `campus_lan` (core, distribution and server-gateway routers) and `enterprise_branch` (Site Edges) run their eligible routers on RouterOS at size `s`. The `-routeros` specimens keep the FRR requirements, completion sketches, incidents and registered failures; their static negative controls are design changes that netlab renders as FRR for Batfish, and their runtime controls use RouterOS commands. The RouterOS translation keeps the solved values: export route maps become filter chains that apply the first exact-prefix match and reject the rest, OSPF costs set the network template's cost, and Site Edge import preferences become the tunnel's import chain.
+
+Batfish has no RouterOS parser, so static analysis reads each converted router's routing design rendered by netlab as FRR under its container interface names, with the Linux addressing and static routes of that design. Site Edges, analyzed with the Linux static model, contribute only their default-table addressing and static routes, as FRR edges do; VRFs, WireGuard, BGP, NAT and QoS stay runtime requirements.
+
+Native checks observe non-backbone OSPF areas, bridged ports and the Site Edge's overlay BGP table. After a registered failure, the RouterOS failure provider restores only the menu groups whose `/export terse` changed since the saved configuration. RouterOS keeps established neighbors of a reconfigured OSPF area, so its `ospf_area_misconfiguration` operation restarts the OSPF instance after renumbering the area. RouterOS installs one best BGP path, so the Clos specimen omits the FRR ECMP predicates and disables one BGP session natively instead.
+
+Catalogue support, offline generation, static acceptance and native acceptance are distinct. A representative run does not cover every topology/vendor/protocol combination. Heavy native environments run one at a time and remain subject to resource admission.
+
+Each experiment saves its original specification, solved parameters, candidate configurations and verification reports. Use the [experiment guide](https://github.com/sands-lab/nika/blob/experiment/experiment/scenario_validation/README.md) for dependencies, execution, saved-build replay and test matrices, and the [runtime validation guide](scenario-validation.md) for ordinary startup checks.
+
+The recorded FRR example uses the benchmark's OSPF/eBGP Abilene profile with six AS-exit orders. From the repository root, prepare the benchmark inputs, then run only that profile:
+
+```bash
+uv run python experiment/scenario_validation/benchmark_isp.py benchmark/working/cases.yaml --scenario isp_abilene --output /tmp/abilene-input
+uv run python experiment/scenario_validation/experiment.py /tmp/abilene-input/isp_abilene--ospf--ebgp--kathara/specification.json --config-generator netlab --runtime --output /tmp/abilene-verified
+```
+
+The first command writes the input `specification.json` without deploying a network. The second saves `routing-parameters.json`, `candidate-configs/atlang.conf`, `static-healthy.json`, `runtime-healthy.json` and `summary.json` under `/tmp/abilene-verified`, corresponding to the values, configuration and results shown above.

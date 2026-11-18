@@ -8,30 +8,22 @@ Two-phase pipeline via ``codex exec`` subprocesses (no LangGraph).
 * **submission phase** → :class:`~agent.cli.codex.phases.CodexCliSubmissionPhase`
   (``codex exec`` with the task MCP server; calls ``submit()`` to record
   a structured result)
-
-Session ID propagation follows the same path as the LangChain path:
-``NIKA_SESSION_ID`` is injected into each MCP server's ``env`` block via
-:class:`~agent.utils.mcp_servers.MCPServerConfig`.
-
-Select with ``nika agent run -a cli.codex``.
 """
 
 from __future__ import annotations
 
 from agent.cli.codex.phases.diagnosis import CodexCliDiagnosisPhase
 from agent.cli.codex.phases.submission import CodexCliSubmissionPhase
-from agent.sandbox.session_dir import resolve_agent_session_dir, resolve_agent_trace_dir
-from agent.utils.two_phase import TwoPhaseAgent
-from nika.utils.session import Session
+from agent.base import DiagnosisAgent
 
 
-class CodexCliAgent(TwoPhaseAgent):
+class CodexCliAgent(DiagnosisAgent):
     """Two-phase troubleshooting agent backed by Codex CLI workers.
 
     Parameters
     ----------
     session_id:
-        NIKA session identifier.
+        Opaque session handle of the run.
     model:
         Codex model name forwarded to ``codex exec -m`` (default ``"gpt-5.4-mini"``).
     llm_provider:
@@ -53,21 +45,15 @@ class CodexCliAgent(TwoPhaseAgent):
         llm_provider: str,
         stream_output: bool = True,
     ) -> None:
-        self.session_id = session_id
-        self.model = model
-        self.llm_provider = llm_provider
-        self.reasoning_effort = reasoning_effort
-        self.stream_output = stream_output
-
-        session = Session()
-        session.load_running_session(session_id=session_id)
-        self.session = session
-        # The sandbox workspace holds the CLI workspace; the trace stays in the
-        # host session dir, which the sandbox cannot write.
-        self.session_dir: str = resolve_agent_session_dir(session.session_dir)
-        self.trace_dir: str = resolve_agent_trace_dir(session_id, session.session_dir)
-
-        scenario_name: str = getattr(session, "scenario_name", "")
+        super().__init__(
+            session_id,
+            model=model,
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            reasoning_effort=reasoning_effort,
+            stream_output=stream_output,
+        )
+        scenario_name = self.scenario_name
 
         self._diagnosis_phase = CodexCliDiagnosisPhase(
             session_id=session_id,

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import re
+import shlex
+from collections.abc import Mapping
 from typing import Any, ClassVar
 
 from pydantic import Field
 
-from nika.problems.rca import (
-    k8s_resource,
-)
+from nika.problems.rca import UnresolvedRootCauseError, node_resource
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 from nika.problems.support.kubernetes.node_filter import (
     DropSpec,
@@ -20,6 +21,13 @@ from nika.problems.base import (
 )
 from nika.problems.support.benchmark_targets import (
     k8s_control_node,
+)
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    shell,
+    tcp_connect_cmd,
 )
 from nika.utils.logger import system_logger
 
@@ -38,6 +46,15 @@ DNS_PROTOCOLS = ("udp", "tcp")
 #: CoreDNS metrics port: left reachable on purpose, so verification can show
 #: that the CoreDNS pod is up and routable while only DNS itself is cut.
 DNS_METRICS_PORT = 9153
+DNS_PROBE_NAME = "kubernetes.default.svc.cluster.local"
+_IPV4 = r"\d+\.\d+\.\d+\.\d+"
+
+
+def _first_ipv4(text: str, *, line: bool = False) -> str | None:
+    """First IPv4 address in *text* (alone on its line when *line*)."""
+    pattern = rf"^({_IPV4})\s*$" if line else rf"\b({_IPV4})\b"
+    match = re.search(pattern, text, re.M)
+    return match.group(1) if match else None
 
 
 class CoreDNSIsolationParams(K8sParams):
@@ -48,7 +65,8 @@ class CoreDNSIsolationParams(K8sParams):
         description=(
             "Device to filter DNS traffic on. Defaults to every node hosting a "
             "CoreDNS pod, which isolates CoreDNS cluster-wide; naming another "
-            "node instead cuts DNS only for the pods scheduled there."
+            "node instead cuts DNS only for the pods scheduled there. Benchmark "
+            "cases name the node, so the faulty device is known without a cluster."
         ),
     )
     dns_service: str = Field(
@@ -100,12 +118,13 @@ class CoreDNSIsolation(K8sProblemBase):
     def benchmark_inject_params(cls, ctx):
         k8s_nodes = ctx.roles.get("k8s_nodes") or []
         control = k8s_control_node(ctx)
-        # node_name is intentionally left unset: the fault resolves the nodes
-        # actually hosting CoreDNS at inject time, which is where isolating it
-        # takes the whole cluster's name resolution down.
+        # The labs place CoreDNS on the control plane, so filtering DNS there
+        # takes the whole cluster's name resolution down. The faulty device is
+        # the node holding the drop rules, named so ground truth needs no cluster.
         workers = sorted(node for node in k8s_nodes if node != control)
         return {
             "control_node": control,
+            "node_name": control,
             "symptom_host": workers[0] if workers else control,
         }
 
@@ -183,9 +202,111 @@ class CoreDNSIsolation(K8sProblemBase):
         return self.target_devices[0]
 
     def root_cause_resources(self, params: CoreDNSIsolationParams):
-        ns = params.dns_namespace or DNS_NAMESPACE
-        name = params.dns_service or DNS_SERVICE
-        return [k8s_resource("Service", name, namespace=ns)]
+        # The fault is the filter rules, which live on the node(s) they were
+        # installed on; the Service and CoreDNS pods are unchanged.
+        # Offline ground truth skips __init__, so target_devices may be unset.
+        devices = (
+            [params.node_name]
+            if params.node_name
+            else getattr(self, "target_devices", [])
+        )
+        if not devices:
+            raise UnresolvedRootCauseError(
+                "k8s_coredns_isolated needs node_name to name the device that "
+                "holds the DNS drop rules before injection."
+            )
+        return [node_resource(device) for device in devices]
+
+    def oracle_playbook(self, params: CoreDNSIsolationParams) -> OraclePlaybook:
+        control = self.control_node(params)
+        target = params.node_name or control
+        probe = params.symptom_host or next(
+            (node for node in sorted(self.cluster_nodes()) if node != target), target
+        )
+        ns, port = params.dns_namespace, params.dns_port
+
+        def dns_query(outputs: Mapping[str, str]) -> dict[str, Any]:
+            vip = _first_ipv4(outputs.get("dns_vip", ""), line=True)
+            # Without a parsed ClusterIP there is nothing to query; a lookup
+            # against a bogus server would time out and fake the symptom.
+            command = (
+                f"nslookup -timeout=3 {DNS_PROBE_NAME} {vip} 2>&1 | tail -4"
+                if vip
+                else "echo VIP_UNKNOWN"
+            )
+            return {"host_name": probe, "command": command, "timeout": 20}
+
+        def metrics_probe(outputs: Mapping[str, str]) -> dict[str, Any]:
+            pod_ip = _first_ipv4(outputs.get("dns_pods", "").partition("Running")[2])
+            command = (
+                tcp_connect_cmd(pod_ip, DNS_METRICS_PORT)
+                if pod_ip
+                else "echo POD_IP_UNKNOWN"
+            )
+            return {"host_name": probe, "command": command, "timeout": 15}
+
+        return OraclePlaybook(
+            finding=(
+                f"Packet filter rules on {target} drop DNS (port {port}) to the "
+                f"{ns}/{params.dns_service} Service and the CoreDNS pods, so cluster "
+                "name resolution times out while CoreDNS itself is healthy."
+            ),
+            steps=[
+                shell(
+                    control,
+                    f"kubectl get pods -n {ns} -l {shlex.quote(params.dns_selector)} "
+                    "-o wide --no-headers 2>&1 | head -10",
+                    "Check that the CoreDNS pods are Running and Ready, and where they run.",
+                    contains(
+                        r"\b1/1\s+Running\b", "CoreDNS pods are Running and Ready"
+                    ),
+                    evidence=True,
+                    timeout=30,
+                    save_as="dns_pods",
+                ),
+                shell(
+                    control,
+                    f"kubectl get svc {params.dns_service} -n {ns} "
+                    "-o jsonpath='{.spec.clusterIP}'; echo; "
+                    f"kubectl get endpointslices -n {ns} "
+                    f"-l kubernetes.io/service-name={params.dns_service} --no-headers",
+                    "Read the DNS Service ClusterIP and confirm it still lists endpoints.",
+                    contains(rf"^{_IPV4}\s*$", "the DNS Service has a ClusterIP"),
+                    timeout=30,
+                    save_as="dns_vip",
+                ),
+                OracleStep(
+                    f"Resolve a Service name from {probe} through the cluster DNS Service.",
+                    "exec_shell",
+                    dns_query,
+                    contains(
+                        r"timed out|no servers could be reached",
+                        "the DNS query times out",
+                    ),
+                    evidence=True,
+                    attempts=2,
+                ),
+                OracleStep(
+                    f"Open TCP to the CoreDNS pod's metrics port from {probe}: the pod "
+                    "itself stays reachable by IP.",
+                    "exec_shell",
+                    metrics_probe,
+                    contains(r"^CONNECTED$", "the CoreDNS pod accepts TCP on 9153"),
+                    evidence=True,
+                ),
+                shell(
+                    target,
+                    "iptables-save 2>/dev/null | grep -E -- "
+                    f"'--dport {port} .*-j (DROP|REJECT)' | head -20",
+                    f"Inspect the packet filter on {target}, the node hosting CoreDNS.",
+                    contains(
+                        rf"-p (udp|tcp) .*--dport {port} -j (DROP|REJECT)",
+                        f"iptables drops DNS port {port}",
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
 
     def inject_fault(self, params: CoreDNSIsolationParams) -> None:
         k8s = self.runtime.lab_api
@@ -199,8 +320,10 @@ class CoreDNSIsolation(K8sProblemBase):
         )
         self.blocked_specs = [spec.describe() for spec in specs]
 
+        self._recovery_filters = []
         for device in devices:
             node_filter = NodeFilter(self.runtime, device)
+            self._recovery_filters.append(node_filter)
             for spec in specs:
                 node_filter.block(spec)
 
@@ -211,6 +334,16 @@ class CoreDNSIsolation(K8sProblemBase):
             f"{destinations['pod_ips'] or ['<none>']}. Name resolution fails while "
             "IP connectivity and the CoreDNS pods themselves stay healthy."
         )
+
+    def recover_fault(self, params: CoreDNSIsolationParams) -> dict:
+        filters = getattr(self, "_recovery_filters", None)
+        if filters is None:
+            return {"verified": False, "details": {"error": "injection_state_missing"}}
+        removed = [node_filter.recover() for node_filter in reversed(filters)]
+        return {
+            "verified": all(removed),
+            "details": {"owned_rules_removed": all(removed)},
+        }
 
     def verify_fault(self, params: CoreDNSIsolationParams) -> dict:
         k8s = self.runtime.lab_api

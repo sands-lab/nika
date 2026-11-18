@@ -1,0 +1,22 @@
+id: LEAK-P4-FAULT-TABLES
+title: P4 program exposes fault tables and actions
+class: shortcut
+severity: block
+status: fixed
+summary: The deployed P4 info and program listed GatewayIngress.internal_fault_drop and internal_fault_loss_config;
+  p4rt_exec output showed them.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: internal_fault_\w+|\bfault_drop\b
+exploit: false
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B5
+  date: '2026-10-14'
+  refs:
+  - '#206'
+  found_by: manual
+guideline: ''
+fixed_in: c00630bc

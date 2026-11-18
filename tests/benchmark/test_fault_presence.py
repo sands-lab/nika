@@ -91,7 +91,9 @@ def test_remote_artifact_is_checked_during_and_before_cleanup(
     (tmp_path / "ground_truth.json").write_text(
         json.dumps({"is_anomaly": True}), encoding="utf-8"
     )
-    monkeypatch.setattr(presence, "_remote_lab", lambda: True)
+    from nika.benchmark_engine import engine as engine_module
+
+    monkeypatch.setattr(engine_module, "remote_lab", lambda: True)
     calls: list[str] = []
 
     def remote_check(_self: RemoteClient, session_id: str) -> dict:
@@ -107,12 +109,9 @@ def test_remote_artifact_is_checked_during_and_before_cleanup(
     watch = PresenceWatch("s-remote", tmp_path, delay_sec=30)
     watch.start()
     watch.finish()
-    assert len(calls) == 3
-    assert [item["phase"] for item in logged] == [
-        "post_inject",
-        "during_agent",
-        "before_cleanup",
-    ]
+    # The engine's timeline logs the post-inject read, not the watch.
+    assert len(calls) == 2
+    assert [item["phase"] for item in logged] == ["during_agent", "before_cleanup"]
     assert logged[-1]["result"] == "absent"
 
 
@@ -129,3 +128,37 @@ def test_recheck_uses_the_injected_instance() -> None:
     assert result["evidence"]["wrong_asn"] == 65000
     assert other.calls == [] or len(other.calls) == raw_calls_before
     assert injected.calls
+
+
+def test_recheck_retries_once_on_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(presence.time, "sleep", lambda _sec: None)
+
+    class _TimeoutThenPresent:
+        root_cause_name = "arp_cache_poisoning"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def recheck_artifact(self, params: object = None) -> dict:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("Timed out running `ip -j route` on client_10_1")
+            return {
+                "present": True,
+                "fault": self.root_cause_name,
+                "scope": "artifact",
+                "evidence": {},
+                "error": None,
+            }
+
+    fault = _TimeoutThenPresent()
+    bind_injected_problem("s-timeout", fault, {"host_name": "client_10_1"})
+    from nika.validation.presence import recheck_bound_artifact
+
+    result = recheck_bound_artifact("s-timeout")
+    clear_injected_problem("s-timeout")
+    assert result["present"] is True
+    assert fault.calls == 2
+    assert result["error"] is None

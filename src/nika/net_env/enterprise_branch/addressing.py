@@ -75,3 +75,8 @@ def edge_name_for(site_name: str) -> str:
 
 def isp_name_for(provider: str) -> str:
     return f"{provider}_core"
+
+
+def nat_public_ip(site_id: int, suffix: int = 10) -> str:
+    """Routed public /32 a Site Edge source-NATs GUEST/IOT traffic to."""
+    return f"198.18.{site_id}.{suffix}"

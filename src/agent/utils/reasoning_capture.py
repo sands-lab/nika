@@ -102,7 +102,7 @@ def attach_openai_reasoning(ai_message: Any, openai_message: Any) -> None:
     """Copy OpenAI-compat reasoning onto a LangChain AIMessage.
 
     Stores the canonical ``additional_kwargs["reasoning_content"]`` key used by
-    LangChain ``content_blocks`` and NIKA inspect.
+    LangChain ``content_blocks`` and the trace viewer.
     """
     if ai_message is None or openai_message is None:
         return
