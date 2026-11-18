@@ -56,6 +56,11 @@ jobs:
             deploy, so prefer reading code when that suffices. Do not push commits,
             open PRs, or leave runtime resources (containers, sessions) behind.
 
+            This is a one-shot headless run: it ends when your turn ends, and
+            nothing delivers task notifications afterwards. Do all of the triage
+            yourself in this turn. Do not start subagents, workers, or background
+            tasks, and post the triage comment before you finish.
+
             1. Labels: list existing labels (`gh label list --limit 200`) and apply the
                fitting ones (type, area, priority if evident) with
                `gh issue edit ${{ github.event.issue.number }} --add-label ...`.
