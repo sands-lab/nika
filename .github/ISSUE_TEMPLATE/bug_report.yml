@@ -1,0 +1,58 @@
+name: Bug report
+description: Report something that does not work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe what you observed; you do not need to know the cause or propose a fix. Keep logs short and remove credentials or other sensitive information before posting.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: |
+        What happens, and what does it prevent you from doing? Include a short error or concrete example when useful. If this affects benchmark validity, explain how it changes the incident, hides evidence, reveals the answer, or affects scoring.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and context
+      description: |
+        Share the smallest command, configuration, or sequence that demonstrates the problem. Include the NIKA version or commit if known. For benchmark runs, include the task ID and benchmark release; add the backend, host/runtime versions, or agent/model only when relevant. If you cannot reproduce it reliably, say so and share evidence from the affected run or trial instead.
+    validations:
+      required: false
+  - type: textarea
+    id: analysis
+    attributes:
+      label: Initial analysis
+      description: |
+        Optional. What have you checked, and what remains uncertain? Distinguish confirmed observations from suspected causes. Link relevant code, artifacts, or related issues rather than pasting long logs.
+    validations:
+      required: false
+  - type: dropdown
+    id: ai-disclosure
+    attributes:
+      label: AI disclosure
+      description: How was this issue written?
+      options:
+        - Written entirely by a human
+        - Written with AI assistance, then reviewed and edited by a human
+        - Written by an AI agent
+    validations:
+      required: true
+  - type: input
+    id: ai-tools
+    attributes:
+      label: AI tools used
+      description: List every AI tool or agent used to research or write this issue, or enter `None`.
+      placeholder: e.g. Claude Code and ChatGPT, or None
+    validations:
+      required: true

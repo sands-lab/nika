@@ -55,12 +55,10 @@ jobs:
             Triage issue #${{ github.event.issue.number }} (event: ${{ github.event.action }}).
             Read it with `gh issue view ${{ github.event.issue.number }} --comments`.
 
-            If the issue was edited, re-triage its current text. If an earlier triage
-            comment exists (it starts with `<!-- letta-issue-triage -->`), update it with
-            `gh api -X PATCH repos/${{ github.repository }}/issues/comments/<id> -F body=@<file>`
-            instead of posting a new one, and replace `agent-ready` or `needs-human`
-            when your judgment changes. If the edit does not change the triage, leave
-            the comment and labels as they are.
+            If the issue was edited, re-triage its current text: update the existing
+            triage comment (step 4) and replace `agent-ready` or `needs-human` when
+            your judgment changes. If the edit does not change the triage, leave the
+            comment and labels as they are.
 
             You run in a checkout of the repository with NIKA installed: run
             `source .venv/bin/activate` to use the `nika` CLI and start labs if
@@ -90,9 +88,13 @@ jobs:
                  ambiguous requirements, benchmark contract changes, or anything you
                  are unsure about.
 
-            4. Post ONE triage comment that starts with the line
-               `<!-- letta-issue-triage -->`, followed by these sections, omitting
-               empty ones:
+            4. Post ONE triage comment with these sections, omitting empty ones.
+               Edits and retries must not create duplicate triage comments. Before
+               posting, look for a comment by `github-actions[bot]` containing
+               `<!-- nika-issue-triage -->`. If it exists, update it with
+               `gh api -X PATCH repos/${{ github.repository }}/issues/comments/<id> -F body=@<file>`;
+               otherwise create one. Include this marker in the comment. Do not
+               edit comments by other authors.
                - `### TL;DR`: only if the issue is long or highly technical (typical of
                  AI-written issues). 2-4 short sentences explaining, without
                  implementation details, what is wrong or wanted and why it matters.
@@ -100,3 +102,17 @@ jobs:
                  how they relate.
                - `### Triage`: `agent-ready` or `needs-human`, with a brief rationale
                  and, for needs-human, the specific questions a human must decide.
+      # The agent can exit 0 without commenting, or duplicate a comment after an
+      # uncertain write; fail visibly in both cases. Only github-actions[bot]
+      # comments count, so issue authors cannot satisfy the check with the marker.
+      - name: Verify triage comment
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          FILTER: >-
+            .[] | select(.user.login == "github-actions[bot]"
+            and (.body | contains("<!-- nika-issue-triage -->"))) | .html_url
+        run: |
+          urls=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" --jq "$FILTER")
+          count=$(grep -c . <<<"$urls" || true)
+          echo "Found $count triage comment(s): $urls"
+          [ "$count" -eq 1 ]
