@@ -10,6 +10,7 @@ import yaml
 from nika.net_env.net_env_pool import resolve_scenario_id, scenario_fixed_topo_size
 from nika.problems.registry import get_problem_class, resolve_problem_name
 from nika.telemetry import telemetry_field
+from nika.workflows.benchmark.objectives import objectives_field
 from nika.traffic.profiles import traffic_field
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM, is_healthy_case
 from nika.workflows.benchmark.isp_options import (
@@ -79,6 +80,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     isp_device_profile = row.get("device_profile")
     telemetry_option = telemetry_field(row.get("telemetry"))
     telemetry_option.update(traffic_field(row.get("traffic")))
+    telemetry_option.update(objectives_field(row.get("objectives")))
 
     if is_healthy_case(raw_problem):
         if inject:
@@ -101,6 +103,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
                 )
         isp_options = validate_and_resolve_isp_options(
             scenario=canonical,
+            dataset_labels="network_id" in row and "slice" in row,
             problem=HEALTHY_PROBLEM,
             problem_tags=set(),
             topo_size=topo_size,
@@ -136,6 +139,10 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         return normalized
 
     problem = problem_label
+    if len(problems) == 1 and (plan is None or len(plan.events) == 1):
+        cls = get_problem_class(problems[0])
+        if cls is not None and cls.combination_only:
+            raise ValueError(f"{problems[0]} is available only in multi-fault tasks")
     problem_tags: set[str] = set()
     for item in problems:
         problem_cls = get_problem_class(item)
@@ -143,6 +150,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
             problem_tags.update(problem_cls.TAGS)
     isp_options = validate_and_resolve_isp_options(
         scenario=canonical,
+        dataset_labels="network_id" in row and "slice" in row,
         problem=problems[0],
         problem_tags=problem_tags,
         topo_size=topo_size,
@@ -172,7 +180,9 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         inject = {}
     elif len(problems) > 1:
         nested: dict[str, dict[str, str]] = {}
-        for item in problems:
+        from nika.problems.multi import fault_instance_keys
+
+        for item in fault_instance_keys(problems):
             piece = inject.get(item)
             if not isinstance(piece, dict) or not piece:
                 raise ValueError(f"Multi-fault case must provide inject.{item} mapping")
@@ -264,7 +274,9 @@ def read_benchmark_document(path: str | Path) -> dict[str, Any]:
     return {**data, "cases": expanded}
 
 
-def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
+def load_benchmark_yaml(
+    path: str | Path, *, include_metadata: bool = False
+) -> list[dict[str, Any]]:
     """Load benchmark cases from a YAML file.
 
     Accept one complete task or a list of complete task file paths::
@@ -296,16 +308,32 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
                 f"Benchmark case {idx} missing required field 'problem' or 'problems'"
             )
         try:
-            normalized.append(normalize_benchmark_row(row))
+            task = normalize_benchmark_row(row)
+            if include_metadata:
+                from nika.workflows.benchmark.network_identity import (
+                    DATASET_METADATA_FIELDS,
+                )
+
+                task.update(
+                    {key: row[key] for key in DATASET_METADATA_FIELDS if key in row}
+                )
+            normalized.append(task)
         except ValueError as exc:
             raise ValueError(f"Benchmark case {idx} ({path}): {exc}") from exc
     return normalized
 
 
-# Deploy fields a candidate case or healthy variant may set.
-CASE_PROFILE_FIELDS = ("topo_size", *ISP_OPTION_KEYS, "telemetry", "traffic")
+# Fields shared by candidate cases and healthy variants.
+CASE_PROFILE_FIELDS = (
+    "topo_size",
+    *ISP_OPTION_KEYS,
+    "telemetry",
+    "traffic",
+    "objectives",
+)
 _VARIANT_META = frozenset(CASE_PROFILE_FIELDS)
 _CASE_META = frozenset(CASE_PROFILE_FIELDS) | {"inject", "root_causes"}
+_COMBINATION_CASE_META = _CASE_META | {"schedule"}
 
 
 def _variant_common(scenario_name: str, variant: dict[str, Any]) -> dict[str, Any]:
@@ -328,19 +356,66 @@ def _case_common(scenario_name: str, case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def combination_rows(scenario_name: str, section: Any) -> list[dict[str, Any]]:
+    """Expand a pool ``combination`` section into multi-fault task rows.
+
+    Untimed cases become ``problems`` rows with per-failure ``inject`` maps;
+    timed cases carry their ``schedule``.
+    """
+    if not isinstance(section, dict) or set(section) != {"name", "failures", "cases"}:
+        raise ValueError("Combination section requires name, failures, and cases")
+    failures = section["failures"]
+    cases = section["cases"]
+    if not isinstance(failures, list) or len(failures) < 2:
+        raise ValueError(f"Combination {section['name']!r} needs two or more failures")
+    if not isinstance(cases, list) or not cases:
+        raise ValueError(f"Combination {section['name']!r} requires cases")
+    rows: list[dict[str, Any]] = []
+    for index, case in enumerate(cases):
+        location = f"Combination {section['name']!r} case {index}"
+        if not isinstance(case, dict):
+            raise ValueError(f"{location} must be a mapping")
+        unknown = set(case) - _COMBINATION_CASE_META
+        if unknown:
+            raise ValueError(f"{location} has unknown fields: {sorted(unknown)}")
+        if ("inject" in case) == ("schedule" in case):
+            raise ValueError(f"{location} requires one of inject or schedule")
+        if not case.get("root_causes"):
+            raise ValueError(f"{location} requires non-empty root_causes")
+        row: dict[str, Any] = {
+            "scenario": scenario_name,
+            **{key: case[key] for key in CASE_PROFILE_FIELDS if key in case},
+            "root_causes": case["root_causes"],
+        }
+        if "schedule" in case:
+            row["schedule"] = case["schedule"]
+        else:
+            row["problems"] = list(failures)
+            row["inject"] = case["inject"]
+        rows.append(row)
+    return rows
+
+
 def _load_candidate_file(data: Any, path: str | Path) -> list[dict[str, Any]]:
     if not isinstance(data, dict):
         raise ValueError(f"Invalid candidate file: {path}")
     scenario = data.get("scenario")
     if not isinstance(scenario, dict) or not scenario.get("name"):
         raise ValueError(f"Candidate file requires scenario.name: {path}")
-    if ("failure" in data) == ("healthy" in data):
+    sections = [key for key in ("failure", "combination", "healthy") if key in data]
+    if len(sections) != 1:
         raise ValueError(
-            f"Candidate file requires one failure or healthy section: {path}"
+            f"Candidate file requires one failure, combination, or healthy "
+            f"section: {path}"
         )
     scenario_name = str(scenario["name"])
     expanded: list[dict[str, Any]] = []
-    if "healthy" in data:
+    if "combination" in data:
+        try:
+            expanded = combination_rows(scenario_name, data["combination"])
+        except ValueError as exc:
+            raise ValueError(f"{exc}: {path}") from exc
+    elif "healthy" in data:
         healthy = data["healthy"]
         if not isinstance(healthy, dict) or set(healthy) != {"variants"}:
             raise ValueError(f"Invalid healthy candidate section: {path}")

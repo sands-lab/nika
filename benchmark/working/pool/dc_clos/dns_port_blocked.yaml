@@ -7,6 +7,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_1
     root_causes:
@@ -18,6 +23,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_2
     root_causes:
@@ -29,6 +39,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_3
     root_causes:
@@ -40,6 +55,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_4
     root_causes:
@@ -52,6 +72,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_1
     root_causes:
@@ -64,6 +89,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_2
     root_causes:
@@ -76,6 +106,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_3
     root_causes:
@@ -88,6 +123,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_4
     root_causes:
@@ -100,6 +140,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_1
     root_causes:
@@ -112,6 +157,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_2
     root_causes:
@@ -124,6 +174,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_3
     root_causes:
@@ -136,6 +191,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_4
     root_causes:
@@ -149,6 +209,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_1
     root_causes:
@@ -162,6 +227,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_2
     root_causes:
@@ -175,6 +245,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_3
     root_causes:
@@ -188,6 +263,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_4
     root_causes:
@@ -199,6 +279,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_1
     root_causes:
@@ -210,6 +295,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_2
     root_causes:
@@ -221,6 +311,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_3
     root_causes:
@@ -232,6 +327,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_4
     root_causes:
@@ -243,6 +343,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_5
     root_causes:
@@ -254,6 +359,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_6
     root_causes:
@@ -265,6 +375,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_7
     root_causes:
@@ -276,6 +391,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_8
     root_causes:
@@ -289,6 +409,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_1
     root_causes:
@@ -302,6 +427,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_2
     root_causes:
@@ -315,6 +445,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_3
     root_causes:
@@ -328,6 +463,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_4
     root_causes:
@@ -341,6 +481,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_5
     root_causes:
@@ -354,6 +499,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_6
     root_causes:
@@ -367,6 +517,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_7
     root_causes:
@@ -380,6 +535,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_8
     root_causes:
@@ -391,6 +551,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_1
     root_causes:
@@ -402,6 +567,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_10
     root_causes:
@@ -413,6 +583,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_11
     root_causes:
@@ -424,6 +599,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_12
     root_causes:
@@ -435,6 +615,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_13
     root_causes:
@@ -446,6 +631,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_14
     root_causes:
@@ -457,6 +647,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_15
     root_causes:
@@ -468,6 +663,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_16
     root_causes:
@@ -479,6 +679,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_2
     root_causes:
@@ -490,6 +695,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_3
     root_causes:
@@ -501,6 +711,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_4
     root_causes:
@@ -512,6 +727,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_5
     root_causes:
@@ -523,6 +743,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_6
     root_causes:
@@ -534,6 +759,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_7
     root_causes:
@@ -545,6 +775,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_8
     root_causes:
@@ -556,6 +791,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_9
     root_causes:
@@ -569,6 +809,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_1
     root_causes:
@@ -582,6 +827,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_10
     root_causes:
@@ -595,6 +845,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_11
     root_causes:
@@ -608,6 +863,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_12
     root_causes:
@@ -621,6 +881,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_13
     root_causes:
@@ -634,6 +899,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_14
     root_causes:
@@ -647,6 +917,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_15
     root_causes:
@@ -660,6 +935,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_16
     root_causes:
@@ -673,6 +953,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_2
     root_causes:
@@ -686,6 +971,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_3
     root_causes:
@@ -699,6 +989,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_4
     root_causes:
@@ -712,6 +1007,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_5
     root_causes:
@@ -725,6 +1025,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_6
     root_causes:
@@ -738,6 +1043,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_7
     root_causes:
@@ -751,6 +1061,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_8
     root_causes:
@@ -764,6 +1079,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_9
     root_causes:

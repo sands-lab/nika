@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: bydgoszcz
     root_causes:
@@ -28,6 +33,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: gdansk
     root_causes:
@@ -44,6 +54,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kolobrzeg
     root_causes:
@@ -60,6 +75,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: krakow
     root_causes:
@@ -76,6 +96,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: lodz
     root_causes:
@@ -92,6 +117,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: poznan
     root_causes:
@@ -108,6 +138,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: rzeszow
     root_causes:
@@ -124,6 +159,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: warsaw
     root_causes:
@@ -140,150 +180,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      host_name: wroclaw
-    root_causes:
-    - resource:
-        kind: node
-        node: wroclaw
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: bydgoszcz
-    root_causes:
-    - resource:
-        kind: node
-        node: bydgoszcz
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: gdansk
-    root_causes:
-    - resource:
-        kind: node
-        node: gdansk
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: kolobrzeg
-    root_causes:
-    - resource:
-        kind: node
-        node: kolobrzeg
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: krakow
-    root_causes:
-    - resource:
-        kind: node
-        node: krakow
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: lodz
-    root_causes:
-    - resource:
-        kind: node
-        node: lodz
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: poznan
-    root_causes:
-    - resource:
-        kind: node
-        node: poznan
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: rzeszow
-    root_causes:
-    - resource:
-        kind: node
-        node: rzeszow
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: warsaw
-    root_causes:
-    - resource:
-        kind: node
-        node: warsaw
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: wroclaw
     root_causes:
@@ -300,6 +201,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: bydgoszcz
     root_causes:
@@ -316,6 +222,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: gdansk
     root_causes:
@@ -332,6 +243,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kolobrzeg
     root_causes:
@@ -348,6 +264,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: krakow
     root_causes:
@@ -364,6 +285,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: lodz
     root_causes:
@@ -380,6 +306,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: poznan
     root_causes:
@@ -396,6 +327,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: rzeszow
     root_causes:
@@ -412,6 +348,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: warsaw
     root_causes:
@@ -428,6 +369,200 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: wroclaw
+    root_causes:
+    - resource:
+        kind: node
+        node: wroclaw
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: bydgoszcz
+    root_causes:
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: gdansk
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: kolobrzeg
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: krakow
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: lodz
+    root_causes:
+    - resource:
+        kind: node
+        node: lodz
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: poznan
+    root_causes:
+    - resource:
+        kind: node
+        node: poznan
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: rzeszow
+    root_causes:
+    - resource:
+        kind: node
+        node: rzeszow
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: warsaw
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: wroclaw
     root_causes:

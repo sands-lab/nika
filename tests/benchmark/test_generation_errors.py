@@ -4,10 +4,6 @@ import pytest
 
 from nika.problems.support.benchmark_targets import NoValidTargetError
 from nika.workflows.benchmark import generate
-from nika.workflows.benchmark.inject_resolve import (
-    resolve_multi_inject_params,
-    validate_benchmark_case,
-)
 
 pytestmark = pytest.mark.contract
 
@@ -34,23 +30,3 @@ def test_generator_errors_propagate(monkeypatch):
     with pytest.raises(RuntimeError, match="Cannot enumerate targets") as result:
         _build(monkeypatch, error)
     assert result.value.__cause__ is error
-
-
-def test_pmtu_combination_selects_eligible_native_deployment_targets():
-    from nika.problems.rca.inventory import load_offline_net_env
-    from nika.problems.support.router_ops import native_router_profile
-
-    problems = ["mtu_mismatch", "icmp_frag_needed_filter_misconfiguration"]
-    options = {"device_profile": "iosxr"}
-    env = load_offline_net_env("campus_lan", "s", **options)
-    for seed in range(10):
-        injects = resolve_multi_inject_params(
-            problems, "campus_lan", "s", seed=seed, isp_options=options
-        )
-        host = injects["mtu_mismatch"]["host_name"]
-        assert native_router_profile(env, host) != "iosxr"
-        assert injects[problems[1]]["host_name"] == host
-        for name, inject in injects.items():
-            validate_benchmark_case(
-                "campus_lan", name, inject, "s", isp_options=options, net_env=env
-            )

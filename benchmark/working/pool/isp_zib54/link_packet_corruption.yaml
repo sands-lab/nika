@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n1
@@ -33,6 +38,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n1
@@ -54,6 +64,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -75,6 +90,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -96,6 +116,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -117,6 +142,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -138,6 +168,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -159,6 +194,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -180,6 +220,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n12
@@ -201,6 +246,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n12
@@ -222,6 +272,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n13
@@ -243,6 +298,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n13
@@ -264,6 +324,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n14
@@ -285,6 +350,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n14
@@ -306,6 +376,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n14
@@ -327,6 +402,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -348,6 +428,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -369,6 +454,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n16
@@ -390,6 +480,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n17
@@ -411,6 +506,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n17
@@ -432,6 +532,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n18
@@ -453,6 +558,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n18
@@ -474,6 +584,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n19
@@ -495,6 +610,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n2
@@ -516,6 +636,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n2
@@ -537,6 +662,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -558,6 +688,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -579,6 +714,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -600,6 +740,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -621,6 +766,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -642,6 +792,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -663,6 +818,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -684,6 +844,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n22
@@ -705,6 +870,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n22
@@ -726,6 +896,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -747,6 +922,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -768,6 +948,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -789,6 +974,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -810,6 +1000,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -831,6 +1026,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -852,6 +1052,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -873,6 +1078,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -894,6 +1104,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -915,6 +1130,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n24
@@ -936,6 +1156,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n25
@@ -957,6 +1182,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n25
@@ -978,6 +1208,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -999,6 +1234,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -1020,6 +1260,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -1041,6 +1286,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -1062,6 +1312,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -1083,6 +1338,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -1104,6 +1364,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -1125,6 +1390,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -1146,6 +1416,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n27
@@ -1167,6 +1442,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n27
@@ -1188,6 +1468,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n3
@@ -1209,6 +1494,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n30
@@ -1230,6 +1520,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n31
@@ -1251,6 +1546,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n31
@@ -1272,6 +1572,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n32
@@ -1293,6 +1598,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n32
@@ -1314,6 +1624,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n32
@@ -1335,6 +1650,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n32
@@ -1356,6 +1676,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n33
@@ -1377,6 +1702,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n33
@@ -1398,6 +1728,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n35
@@ -1419,6 +1754,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n36
@@ -1440,6 +1780,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n38
@@ -1461,6 +1806,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n38
@@ -1482,6 +1832,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n38
@@ -1503,6 +1858,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n39
@@ -1524,6 +1884,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n4
@@ -1545,6 +1910,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n40
@@ -1566,6 +1936,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n40
@@ -1587,6 +1962,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n41
@@ -1608,6 +1988,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n42
@@ -1629,6 +2014,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n43
@@ -1650,6 +2040,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n45
@@ -1671,6 +2066,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n47
@@ -1692,6 +2092,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n50
@@ -1713,6 +2118,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n1
@@ -1734,6 +2144,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n1
@@ -1755,6 +2170,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -1776,6 +2196,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -1797,6 +2222,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -1818,6 +2248,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n10
@@ -1839,6 +2274,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -1860,6 +2300,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n11
@@ -1881,6 +2326,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n12
@@ -1902,6 +2352,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n12
@@ -1923,6 +2378,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n13
@@ -1944,6 +2404,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n13
@@ -1965,6 +2430,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n14
@@ -1986,6 +2456,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n14
@@ -2007,6 +2482,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n14
@@ -2028,6 +2508,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -2049,6 +2534,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n15
@@ -2070,6 +2560,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n16
@@ -2091,6 +2586,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n17
@@ -2112,6 +2612,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n17
@@ -2133,6 +2638,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n18
@@ -2154,6 +2664,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n18
@@ -2175,6 +2690,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n19
@@ -2196,6 +2716,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n2
@@ -2217,6 +2742,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n2
@@ -2238,6 +2768,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -2259,6 +2794,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n20
@@ -2280,6 +2820,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -2301,6 +2846,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -2322,6 +2872,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -2343,6 +2898,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -2364,6 +2924,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n21
@@ -2385,6 +2950,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n22
@@ -2406,6 +2976,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n22
@@ -2427,6 +3002,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -2448,6 +3028,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -2469,6 +3054,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -2490,6 +3080,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -2511,6 +3106,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -2532,6 +3132,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -2553,6 +3158,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -2574,6 +3184,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -2595,6 +3210,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n23
@@ -2616,6 +3236,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n24
@@ -2637,6 +3262,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n25
@@ -2658,6 +3288,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n25
@@ -2679,6 +3314,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -2700,6 +3340,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -2721,6 +3366,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -2742,6 +3392,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -2763,6 +3418,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -2784,6 +3444,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -2805,6 +3470,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -2826,6 +3496,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n26
@@ -2847,6 +3522,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n27
@@ -2868,6 +3548,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n27
@@ -2889,6 +3574,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n3
@@ -2910,6 +3600,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n30
@@ -2931,6 +3626,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n31
@@ -2952,6 +3652,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n31
@@ -2973,6 +3678,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n32
@@ -2994,6 +3704,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n32
@@ -3015,6 +3730,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n32
@@ -3036,6 +3756,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n32
@@ -3057,6 +3782,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n33
@@ -3078,6 +3808,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n33
@@ -3099,6 +3834,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n35
@@ -3120,6 +3860,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n36
@@ -3141,6 +3886,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n38
@@ -3162,6 +3912,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n38
@@ -3183,6 +3938,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n38
@@ -3204,6 +3964,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n39
@@ -3225,6 +3990,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n4
@@ -3246,6 +4016,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n40
@@ -3267,6 +4042,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n40
@@ -3288,6 +4068,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n41
@@ -3309,6 +4094,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n42
@@ -3330,6 +4120,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n43
@@ -3351,6 +4146,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n45
@@ -3372,6 +4172,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n47
@@ -3393,6 +4198,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corruption_percentage: '10'
       host_name: n50

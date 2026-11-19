@@ -1,0 +1,109 @@
+scenario:
+  name: enterprise_branch
+combination:
+  name: standby_tunnel_key_exposed
+  failures:
+  - wireguard_peer_key_misconfiguration
+  - link_down
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    schedule:
+      agent_start: 210s
+      events:
+      - problem: wireguard_peer_key_misconfiguration
+        inject:
+          host_name: br1_edge
+          intf_name: wg_hq_b
+          scope: interface
+        at: 0s
+      - problem: link_down
+        inject:
+          host_name: isp1_core
+          intf_name: eth2
+        at: 30s
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: link
+        name: br1_edge:eth2--isp1_core:eth2
+      fault_type: link_down
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    schedule:
+      agent_start: 210s
+      events:
+      - problem: wireguard_peer_key_misconfiguration
+        inject:
+          host_name: br1_edge
+          intf_name: wg_hq_b
+          scope: interface
+        at: 0s
+      - problem: link_down
+        inject:
+          host_name: isp1_core
+          intf_name: eth2
+        at: 30s
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: link
+        name: br1_edge:eth2--isp1_core:eth2
+      fault_type: link_down
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    schedule:
+      agent_start: 210s
+      events:
+      - problem: wireguard_peer_key_misconfiguration
+        inject:
+          host_name: br1_edge
+          intf_name: wg_hq_b
+          scope: interface
+        at: 0s
+      - problem: link_down
+        inject:
+          host_name: isp1_core
+          intf_name: eth2
+        at: 30s
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: link
+        name: br1_edge:eth2--isp1_core:eth2
+      fault_type: link_down

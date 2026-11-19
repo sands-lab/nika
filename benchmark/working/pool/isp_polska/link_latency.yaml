@@ -1,0 +1,80 @@
+scenario:
+  name: isp_polska
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: gdansk
+      intf_name: eth1
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_gdansk
+    root_causes:
+    - resource:
+        kind: link
+        name: gdansk:eth1--warsaw:eth1
+      fault_type: link_latency
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: gdansk
+      intf_name: eth0
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_gdansk
+    root_causes:
+    - resource:
+        kind: link
+        name: gdansk:eth0--warsaw:eth0
+      fault_type: link_latency
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: gdansk
+      intf_name: eth0
+      peer_host: pc_warsaw
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_gdansk
+    root_causes:
+    - resource:
+        kind: link
+        name: gdansk:eth0--warsaw:eth0
+      fault_type: link_latency

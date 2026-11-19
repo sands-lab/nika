@@ -7,6 +7,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: gateway_1
       max_connections: '4'
@@ -19,6 +24,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: gateway_1
       max_connections: '4'
@@ -31,6 +41,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: gateway_1
       max_connections: '4'

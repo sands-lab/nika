@@ -51,7 +51,6 @@ __all__ = [
     "list_isp_base_scenarios",
     "isp_config_for_problem",
     "isp_column_suffix",
-    "isp_options_from_row",
     "validate_and_resolve_isp_options",
     "isp_stack_for_backend",
 ]
@@ -118,17 +117,6 @@ def _resolve_stack(
         if device_profile in (None, "", "-")
         else str(device_profile).strip().lower()
     )
-    if is_isp_named_special(scenario):
-        if raw_backend not in (None, DEFAULT_BACKEND_FOR_ISP):
-            raise ValueError(
-                f"Scenario {scenario!r} is Kathara-only; got backend={raw_backend!r}."
-            )
-        if raw_profile not in (None, "frr"):
-            raise ValueError(
-                f"Scenario {scenario!r} uses device_profile=frr; got {raw_profile!r}."
-            )
-        return isp_stack_for_backend(DEFAULT_BACKEND_FOR_ISP)
-
     resolved_backend = raw_backend or DEFAULT_BACKEND_FOR_ISP
     if raw_profile is None:
         resolved_profile = default_device_profile(resolved_backend)
@@ -136,34 +124,6 @@ def _resolve_stack(
         resolved_profile = normalize_device_profile(raw_profile)
     validate_backend_profile(resolved_backend, resolved_profile)
     return {"backend": resolved_backend, "device_profile": resolved_profile}
-
-
-def isp_options_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
-    """Return ISP kwargs, or a non-ISP lab's router platform, from a normalized row."""
-    scenario = str(row.get("scenario") or "")
-    if not is_isp_scenario(scenario):
-        return _native_profile_option(
-            scenario,
-            {
-                "topo": None,
-                **{key: None for key in ISP_PROTOCOL_KEYS},
-                "backend": row.get("backend") or None,
-                "device_profile": row.get("device_profile") or None,
-            },
-        )
-    stack = _resolve_stack(
-        scenario=scenario,
-        backend=row.get("backend"),
-        device_profile=row.get("device_profile"),
-    )
-    if is_isp_named_special(scenario):
-        return dict(stack)
-    return {
-        "igp": str(row.get("igp") or DEFAULT_IGP),
-        "bgp_mode": str(row.get("bgp_mode") or DEFAULT_BGP_MODE),
-        "rpki": bool(row.get("rpki", False)),
-        **stack,
-    }
 
 
 def _native_profile_option(
@@ -216,11 +176,12 @@ def validate_and_resolve_isp_options(
     rpki: Any = None,
     backend: Any = None,
     device_profile: Any = None,
+    dataset_labels: bool = False,
 ) -> dict[str, Any] | None:
     """Validate ISP option fields; return resolved kwargs or ``None`` for non-ISP.
 
     Topology identity is the scenario ID. Base ``isp_<topo>`` accepts protocol
-    options; named specials reject overrides. ``topo`` must not be supplied.
+    options. ``topo`` must not be supplied.
     """
     provided = {
         "topo": None if topo in (None, "", "-") else str(topo),
@@ -240,6 +201,21 @@ def validate_and_resolve_isp_options(
         native = _native_profile_option(scenario, provided)
         if native is not None:
             return native
+        # Dataset rows resolve defaults even when the scenario has no stack option.
+        from nika.net_env.net_env_pool import resolve_scenario_backend
+
+        resolved_backend = resolve_scenario_backend(
+            scenario, default_when_ambiguous="kathara"
+        )
+        if (
+            dataset_labels
+            and not any_protocol
+            and not topo_provided
+            and provided["backend"] in (None, resolved_backend)
+            and provided["device_profile"]
+            in (None, default_device_profile(resolved_backend))
+        ):
+            return None
         if any_protocol or topo_provided or any_stack:
             raise ValueError(
                 f"Scenario {scenario!r} does not accept topo/igp/bgp_mode/rpki/"
@@ -271,22 +247,8 @@ def validate_and_resolve_isp_options(
         device_profile=provided["device_profile"],
     )
 
-    if is_isp_named_special(scenario):
-        if any_protocol:
-            raise ValueError(
-                f"Scenario {scenario!r} uses a fixed protocol profile; omit "
-                f"igp/bgp_mode/rpki (got igp={provided['igp']!r}, "
-                f"bgp_mode={provided['bgp_mode']!r}, rpki={provided['rpki']!r})."
-            )
-        return dict(stack)
-
     tags = problem_tags if problem_tags is not None else set()
     defaults = isp_config_for_problem(problem, tags)
-    if defaults.get("rpki"):
-        raise ValueError(
-            f"Problem {problem!r} requires a named RPKI scenario "
-            f"(isp_abilene_ebgp_rpki or isp_geant_ebgp_rpki), not {scenario!r}."
-        )
 
     resolved = {
         "igp": provided["igp"] if provided["igp"] is not None else defaults["igp"],
@@ -302,11 +264,6 @@ def validate_and_resolve_isp_options(
         ),
         **stack,
     }
-    if resolved["rpki"]:
-        raise ValueError(
-            f"rpki=true is only valid on named RPKI scenarios; use "
-            f"isp_abilene_ebgp_rpki or isp_geant_ebgp_rpki (not {scenario!r})."
-        )
     if resolved["igp"] not in SUPPORTED_IGPS:
         raise ValueError(
             f"Invalid igp {resolved['igp']!r} for scenario {scenario!r}; "
@@ -321,4 +278,18 @@ def validate_and_resolve_isp_options(
             f"Invalid bgp_mode {resolved['bgp_mode']!r} for scenario "
             f"{scenario!r}; expected one of {ISP_BGP_MODES}."
         )
+    from nika.net_env.net_env_pool import isp_deployment_has_profiles
+
+    carries_rpki = isp_deployment_has_profiles(
+        scenario,
+        bgp_mode=resolved["bgp_mode"],
+        backend=resolved.get("backend"),
+        device_profile=resolved.get("device_profile"),
+    )
+    if resolved["rpki"] and not carries_rpki:
+        raise ValueError(
+            f"rpki=true on {scenario!r} needs bgp_mode 'ebgp' on Kathara FRR, "
+            "whose deployments carry RPKI/ROV."
+        )
+    resolved["rpki"] = carries_rpki
     return resolved

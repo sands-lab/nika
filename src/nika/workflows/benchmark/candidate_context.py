@@ -7,6 +7,7 @@ from typing import Any
 from nika.net_env.net_env_pool import list_all_net_envs
 from nika.problems.registry import list_avail_problem_instances
 from nika.workflows.benchmark.healthy import is_healthy_case
+from nika.workflows.benchmark.multi_fault import row_problems
 from nika.workflows.benchmark.isp_options import is_isp_base_topology
 from nika.workflows.benchmark.resume import benchmark_option_id
 
@@ -53,6 +54,8 @@ def deployment_environment_key(
 
 def pool_context_key(row: dict[str, Any]) -> tuple[Any, ...]:
     """Collapse key: one representative inject per deployment context."""
+    if len(row_problems(row)) > 1:
+        return ("multi_fault", benchmark_option_id(row))
     scenario = str(row.get("scenario") or "")
     if is_healthy_case(row.get("problem")):
         if is_isp_base_topology(scenario):
@@ -128,7 +131,7 @@ def row_to_case(row: dict[str, Any]) -> dict[str, Any]:
     """Export a flat benchmark case (strip loader-only fields)."""
     case: dict[str, Any] = {
         "scenario": row["scenario"],
-        "problem": row["problem"],
+        "problem": "+".join(row_problems(row)),
         "inject": dict(row.get("inject") or {}),
     }
     topo_size = row.get("topo_size") or ""
@@ -142,9 +145,16 @@ def row_to_case(row: dict[str, Any]) -> dict[str, Any]:
         "device_profile",
         "telemetry",
         "traffic",
+        "objectives",
     ):
         if key in row:
             case[key] = row[key]
+    if row.get("schedule") is not None:
+        case.pop("problem")
+        case.pop("inject")
+        case["schedule"] = row["schedule"]
+    elif len(row_problems(row)) > 1:
+        case["problems"] = row_problems(row)
     root_causes = row.get("root_causes")
     if root_causes is not None:
         case["root_causes"] = root_causes

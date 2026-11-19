@@ -7,74 +7,35 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: leaf_1
+      observer_device: client_1
+      probe_dst_ip: 10.0.1.11
+      target_ip: 10.0.1.11
     root_causes:
     - resource:
         kind: node
         node: leaf_1
       fault_type: p4_table_entry_misconfig
-  - topo_size: s
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_2
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_2
-      fault_type: p4_table_entry_misconfig
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
-    inject:
-      host_name: spine_1
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_1
-      fault_type: p4_table_entry_misconfig
-  - topo_size: m
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: spine_2
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_2
-      fault_type: p4_table_entry_misconfig
-  - topo_size: m
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: spine_3
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_3
-      fault_type: p4_table_entry_misconfig
-  - topo_size: m
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: spine_4
-    root_causes:
-    - resource:
-        kind: node
-        node: spine_4
-      fault_type: p4_table_entry_misconfig
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: leaf_1
+      observer_device: client_1
+      probe_dst_ip: 10.0.1.11
+      target_ip: 10.0.1.11
     root_causes:
     - resource:
         kind: node
@@ -84,76 +45,18 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: leaf_2
+      host_name: leaf_1
+      observer_device: client_1
+      probe_dst_ip: 10.0.1.11
+      target_ip: 10.0.1.11
     root_causes:
     - resource:
         kind: node
-        node: leaf_2
-      fault_type: p4_table_entry_misconfig
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_3
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_3
-      fault_type: p4_table_entry_misconfig
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_4
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_4
-      fault_type: p4_table_entry_misconfig
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_5
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_5
-      fault_type: p4_table_entry_misconfig
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_6
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_6
-      fault_type: p4_table_entry_misconfig
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_7
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_7
-      fault_type: p4_table_entry_misconfig
-  - topo_size: l
-    traffic:
-      pattern: uniform
-      load_mbps: 1.0
-    inject:
-      host_name: leaf_8
-    root_causes:
-    - resource:
-        kind: node
-        node: leaf_8
+        node: leaf_1
       fault_type: p4_table_entry_misconfig

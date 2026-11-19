@@ -7,9 +7,14 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       forwarding_device: hq_edge
-      intf_name: eth4
+      intf_name: eth1
       probe_dst_ip: 10.0.20.2
       seed: '42'
     root_causes:
@@ -22,9 +27,14 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       forwarding_device: hq_edge
-      intf_name: eth4
+      intf_name: eth1
       probe_dst_ip: 10.0.20.2
       seed: '42'
     root_causes:
@@ -37,9 +47,14 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       forwarding_device: hq_edge
-      intf_name: eth4
+      intf_name: eth1
       probe_dst_ip: 10.0.20.2
       seed: '42'
     root_causes:
@@ -51,9 +66,14 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       forwarding_device: hq_edge
-      intf_name: eth5
+      intf_name: eth1
       probe_dst_ip: 10.0.20.2
       seed: '42'
     root_causes:
@@ -65,9 +85,14 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       forwarding_device: hq_edge
-      intf_name: eth5
+      intf_name: eth1
       probe_dst_ip: 10.0.20.2
       seed: '42'
     root_causes:

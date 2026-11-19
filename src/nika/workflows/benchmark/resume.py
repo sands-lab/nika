@@ -17,14 +17,17 @@ from nika.workflows.session.close import close_session
 
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.multi_fault import row_problems
+from nika.workflows.benchmark.objectives import objectives_field
 
 
 def _fingerprint_inject(row: dict[str, Any]) -> dict[str, Any]:
     inject = row.get("inject") or {}
     problems = row_problems(row)
     if len(problems) > 1:
+        from nika.problems.multi import fault_instance_keys
+
         nested: dict[str, dict[str, str]] = {}
-        for problem in problems:
+        for problem in fault_instance_keys(problems):
             piece = inject.get(problem) if isinstance(inject, dict) else {}
             if isinstance(piece, dict):
                 nested[problem] = {str(k): str(v) for k, v in sorted(piece.items())}
@@ -51,6 +54,7 @@ def benchmark_row_identity(row: dict[str, Any]) -> dict[str, Any]:
         },
         # Only when set, so rows without telemetry keep their published identity.
         **({"telemetry": list(row["telemetry"])} if row.get("telemetry") else {}),
+        **objectives_field(row.get("objectives")),
         **traffic_field(row.get("traffic")),
         "inject": _fingerprint_inject(row),
         **(
@@ -102,6 +106,7 @@ def benchmark_option_id(row: dict[str, Any]) -> str:
                 ),
             )
         )
+    identity.extend(objectives_field(row.get("objectives")).items())
     identity.extend(
         (f"inject.{key}", value)
         for key, value in sorted((row.get("inject") or {}).items())

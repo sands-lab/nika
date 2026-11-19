@@ -1,0 +1,44 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_corp_pc:eth0--br1_edge:eth0
+      fault_type: link_latency
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_corp_pc:eth0--br1_edge:eth0
+      fault_type: link_latency

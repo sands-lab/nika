@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_1
@@ -35,6 +40,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_15
@@ -58,6 +68,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_17
@@ -81,6 +96,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_19
@@ -104,6 +124,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_23
@@ -127,6 +152,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_26
@@ -150,6 +180,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_1
@@ -173,6 +208,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_15
@@ -196,6 +236,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_17
@@ -219,6 +264,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_19
@@ -242,6 +292,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_23
@@ -265,6 +320,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       burst: 16kb
       host_name: n_26

@@ -7,60 +7,101 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      forwarding_device: router_core_2
-      intf_name: eth2
+      forwarding_device: server_access_router
+      intf_name: eth1
       observer_device: pc_1_1_1_1
       probe_dst_ip: 10.200.0.3
       seed: '42'
     root_causes:
     - resource:
         kind: node
-        node: router_core_2
+        node: server_access_router
+      fault_type: device_forwarding_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      forwarding_device: server_access_router
+      intf_name: eth1
+      observer_device: pc_1_1_1_1
+      probe_dst_ip: 10.200.0.3
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: server_access_router
       fault_type: device_forwarding_packet_corruption
   - topo_size: s
     device_profile: routeros
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      forwarding_device: router_core_2
-      intf_name: eth2
+      forwarding_device: server_access_router
+      intf_name: eth1
       observer_device: pc_1_1_1_1
       probe_dst_ip: 10.200.0.3
       seed: '42'
     root_causes:
     - resource:
         kind: node
-        node: router_core_2
+        node: server_access_router
       fault_type: device_forwarding_packet_corruption
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      forwarding_device: router_core_2
-      intf_name: eth3
+      forwarding_device: server_access_router
+      intf_name: eth1
       observer_device: pc_1_1_1_1
       probe_dst_ip: 10.200.0.3
       seed: '42'
     root_causes:
     - resource:
         kind: node
-        node: router_core_2
+        node: server_access_router
       fault_type: device_forwarding_packet_corruption
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      forwarding_device: router_core_2
-      intf_name: eth5
+      forwarding_device: server_access_router
+      intf_name: eth1
       observer_device: pc_1_1_1_1
       probe_dst_ip: 10.200.0.3
       seed: '42'
     root_causes:
     - resource:
         kind: node
-        node: router_core_2
+        node: server_access_router
       fault_type: device_forwarding_packet_corruption

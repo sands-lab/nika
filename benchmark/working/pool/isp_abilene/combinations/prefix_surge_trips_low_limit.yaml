@@ -1,0 +1,46 @@
+scenario:
+  name: isp_abilene
+combination:
+  name: prefix_surge_trips_low_limit
+  failures:
+  - bgp_max_prefix_limit_low
+  - bgp_prefix_surge
+  cases:
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    schedule:
+      agent_start: 30s
+      events:
+      - problem: bgp_max_prefix_limit_low
+        inject:
+          neighbor_ip: 10.0.0.23
+          peer_name: kscyng
+          receiver_name: iplsng
+        at: 0s
+      - problem: bgp_prefix_surge
+        inject:
+          neighbor_ip: 10.0.0.23
+          peer_name: kscyng
+          receiver_name: iplsng
+        at: 30s
+    root_causes:
+    - resource:
+        kind: node
+        node: iplsng
+      fault_type: bgp_max_prefix_limit_low
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: bgp_prefix_surge

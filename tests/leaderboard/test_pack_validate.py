@@ -266,6 +266,7 @@ _FULL_METADATA: dict[str, Any] = {
     "agent": {
         "model": "mock-v1",
         "framework": "mock",
+        "tuned_on_dev": False,
         "tools": ["task_mcp_server"],
         "skills": ["network-diagnosis"],
         "optimization_methods": ["none"],
@@ -379,6 +380,7 @@ def test_cli_submit_generates_metadata_and_validates_offline(
         "--authors",
         "NIKA Test",
         "--dry-run",
+        "--no-tuned-on-dev",
     ]
     runner = CliRunner()
     result = runner.invoke(app, args)
@@ -685,7 +687,11 @@ class TestLeaderboardPackValidate:
             (session / name).write_text(original, encoding="utf-8")
 
         result = submit_leaderboard_package(
-            result_dir, name="Test Agent", authors="NIKA Test", dry_run=True
+            result_dir,
+            name="Test Agent",
+            authors="NIKA Test",
+            dry_run=True,
+            tuned_on_dev=False,
         )
         for name in ("messages.jsonl", "nika.jsonl"):
             packed = result.trajectories_dir / "trials" / session.name / name
@@ -811,6 +817,7 @@ class TestLeaderboardPackValidate:
         data["info"]["authors"] = "Lab Authors"
         data["info"]["org"] = "Lab"
         data["info"]["site"] = "https://example.com/agent"
+        data["agent"]["tuned_on_dev"] = False
         data["agent"]["model"] = "gpt-4.1"
         data["agent"]["framework"] = "autogen"
         data["agent"]["tools"] = ["pingmesh_mcp_server"]
@@ -854,6 +861,7 @@ class TestLeaderboardPackValidate:
         data["info"]["authors"] = "Author One"
         data["info"]["email"] = "agent@example.com"
         data["info"]["github"] = "example-lab"
+        data["agent"]["tuned_on_dev"] = False
         data["agent"]["model"] = "gpt-4.1"
         data["agent"]["framework"] = "langgraph"
         (staging / METADATA_FILENAME).write_text(

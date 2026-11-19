@@ -65,14 +65,6 @@ SCORE_METRIC_KEYS = (
     "fault_type_f1",
 )
 
-TRACE_METRIC_KEYS = (
-    "in_tokens",
-    "out_tokens",
-    "steps",
-    "tool_calls",
-    "tool_errors",
-)
-
 
 class SubmissionInfo(BaseModel):
     """User-facing submission identity (leaderboard display)."""
@@ -94,6 +86,7 @@ class SubmissionAgent(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    tuned_on_dev: bool | None = Field(default=None, strict=True)
     model: str = Field(..., min_length=1)
     framework: str = Field(..., min_length=1)
     tools: list[str]
@@ -126,7 +119,8 @@ class BenchmarkIdentity(BaseModel):
     id: str
     version: str
     ref: str
-    split: Literal["dev", "test"]
+    split: Literal["dev", "test", "dev+test"]
+    include_slices: bool = False
     case_count: int = Field(..., ge=1)
     n_trials: int = Field(..., ge=1)
     scoring_id: str
@@ -147,6 +141,7 @@ class RunIdentity(BaseModel):
     case_timeout_sec: int
     nika_git_commit: str | None = None
     source_result_dir: str | None = None
+    comparison_config: dict[str, Any] | None = None
     # Contract D; packages from runs recorded before it are schema 1.
     schema_version: int = UNVERSIONED_SCHEMA
     provenance: Provenance | None = None
@@ -185,6 +180,7 @@ class TrialResult(BaseModel):
     predicted_fault_types: list[str] | None = None
     # Run-validity flags (see ``nika.evaluator.validity``); empty for clean trials.
     validity_flags: list[str] = Field(default_factory=list)
+    dataset: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("gt_fault_types")
     @classmethod
@@ -235,6 +231,11 @@ class AggregatedMetrics(BaseModel):
     mean_rca_f1: float
     mean_localization_f1: float
     mean_detection_score: float
+    main_score: float | None = None
+    healthy_false_positive_rate: float | None = None
+    multi_fault_mean_rca_f1: float | None = None
+    vendor_deltas: dict[str, Any] = Field(default_factory=dict)
+    size_slices: dict[str, Any] = Field(default_factory=dict)
     n_trials_expected: int
     n_trials_present: int
     n_success: int

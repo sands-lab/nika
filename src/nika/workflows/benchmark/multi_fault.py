@@ -4,12 +4,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from nika.problems.multi import fault_instance_keys
+
 
 def join_problem_label(problems: list[str]) -> str:
     return "+".join(problems)
 
 
 def row_problems(row: dict[str, Any]) -> list[str]:
+    if row.get("schedule") is not None:
+        return list(
+            dict.fromkeys(
+                str(event["problem"])
+                for event in row["schedule"]["events"]
+                if event.get("problem")
+            )
+        )
     raw = row.get("problems")
     if isinstance(raw, list) and raw:
         return [str(item) for item in raw]
@@ -29,7 +39,7 @@ def nested_inject_map(row: dict[str, Any]) -> dict[str, dict[str, str]]:
     if len(problems) == 1:
         return {problems[0]: {str(k): str(v) for k, v in inject.items()}}
     nested: dict[str, dict[str, str]] = {}
-    for problem in problems:
+    for problem in fault_instance_keys(problems):
         piece = inject.get(problem)
         if not isinstance(piece, dict) or not piece:
             raise ValueError(

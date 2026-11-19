@@ -33,6 +33,11 @@ _REPACK = (
 )
 
 ISSUE_SPECS: dict[str, IssueSpec] = {
+    "ERROR_RUN_CONFIG_MISMATCH": IssueSpec(
+        "run configuration differs from the shared reference",
+        "The model, harness, budgets, or trials differ from the reference scores package.",
+        "Rerun with the shared run config and original model revision, then pack again.",
+    ),
     "ERROR_TRAJECTORY_AUDIT": IssueSpec(
         "trajectory audit blocks submission",
         "Recorded evidence triggered a blocking audit rule.",

@@ -14,7 +14,6 @@ from nika.workflows.leaderboard.schema import (
     SubmissionMetadata,
 )
 
-DEFAULT_SUBMISSION_DIRNAME = "submission"
 
 META_TEMPLATE: dict[str, Any] = {
     "info": {
@@ -28,6 +27,7 @@ META_TEMPLATE: dict[str, Any] = {
         "github": None,
     },
     "agent": {
+        "tuned_on_dev": None,
         "model": "",
         "framework": "",
         "tools": [],
@@ -129,6 +129,7 @@ def parse_metadata_payload(data: dict[str, Any]) -> SubmissionMetadata:
         "github": _normalize_optional_str(info_raw.get("github")),
     }
     agent_data = {
+        "tuned_on_dev": agent_raw.get("tuned_on_dev"),
         "model": str(agent_raw.get("model") or "").strip(),
         "framework": str(agent_raw.get("framework") or "").strip(),
         "tools": _parse_list_field(agent_raw.get("tools"), field="tools"),

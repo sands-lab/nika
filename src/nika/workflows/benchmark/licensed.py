@@ -1,7 +1,6 @@
 """Select benchmark rows by device profile and check licensed vendor images.
 
-Rows with an IOS XR or RouterOS ``device_profile`` (and the licensed
-``iosxr_simple_bgp`` / ``routeros_simple_bgp`` scenarios) need vendor images
+Rows with an IOS XR or RouterOS ``device_profile`` need vendor images
 that NIKA cannot download. Runs check them before any lab starts, so a
 missing image is reported with the affected rows instead of failing inside
 deployment.
@@ -18,30 +17,20 @@ from nika.net_env.isp.profiles import default_device_profile
 PREPARE_HINT = (
     "Prepare them with `./scripts/install.sh --with-vendor-images` (see "
     "docs/operations/network-scenarios.md), or leave these rows out with "
-    "--skip-licensed or --device-profile."
+    "--skip-licensed or --device-profile for local debugging. Full release runs require every image."
 )
 
 
 def row_device_profile(row: dict[str, Any]) -> str:
-    """Router platform selected by the row or declared by its environment."""
-    from nika.net_env.native_routers import native_profiles
-    from nika.net_env.net_env_pool import (
-        scenario_containerlab_device_profiles,
-        scenario_tags,
-        scenario_supported_backends,
-    )
+    """Router platform selected by the row, or the backend's default platform."""
+    from nika.net_env.net_env_pool import resolve_scenario_backend
 
     if row.get("device_profile"):
         return str(row["device_profile"])
-    if row.get("backend") == "containerlab":
-        return default_device_profile("containerlab")
-    containerlab_profiles = scenario_containerlab_device_profiles(row["scenario"])
-    if containerlab_profiles and "kathara" not in scenario_supported_backends(
-        row["scenario"]
-    ):
-        return containerlab_profiles[0]
-    profiles = set(scenario_tags(row["scenario"])) & native_profiles()
-    return next(iter(profiles)) if len(profiles) == 1 else "frr"
+    backend = resolve_scenario_backend(
+        row["scenario"], backend=row.get("backend"), default_when_ambiguous="kathara"
+    )
+    return default_device_profile(backend)
 
 
 def row_licensed_images(row: dict[str, Any]) -> tuple[str, ...]:

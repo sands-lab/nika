@@ -7,363 +7,16 @@ failure:
     igp: isis
     bgp_mode: ibgp_rr
     rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: at1_at
-    root_causes:
-    - resource:
-        kind: node
-        node: at1_at
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: be1_be
-    root_causes:
-    - resource:
-        kind: node
-        node: be1_be
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: ch1_ch
-    root_causes:
-    - resource:
-        kind: node
-        node: ch1_ch
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: cz1_cz
-    root_causes:
-    - resource:
-        kind: node
-        node: cz1_cz
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: de1_de
-    root_causes:
-    - resource:
-        kind: node
-        node: de1_de
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: es1_es
-    root_causes:
-    - resource:
-        kind: node
-        node: es1_es
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: fr1_fr
-    root_causes:
-    - resource:
-        kind: node
-        node: fr1_fr
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: gr1_gr
-    root_causes:
-    - resource:
-        kind: node
-        node: gr1_gr
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: hr1_hr
-    root_causes:
-    - resource:
-        kind: node
-        node: hr1_hr
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: hu1_hu
-    root_causes:
-    - resource:
-        kind: node
-        node: hu1_hu
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: ie1_ie
-    root_causes:
-    - resource:
-        kind: node
-        node: ie1_ie
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: il1_il
-    root_causes:
-    - resource:
-        kind: node
-        node: il1_il
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: it1_it
-    root_causes:
-    - resource:
-        kind: node
-        node: it1_it
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: lu1_lu
-    root_causes:
-    - resource:
-        kind: node
-        node: lu1_lu
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: nl1_nl
-    root_causes:
-    - resource:
-        kind: node
-        node: nl1_nl
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: ny1_ny
-    root_causes:
-    - resource:
-        kind: node
-        node: ny1_ny
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: pl1_pl
-    root_causes:
-    - resource:
-        kind: node
-        node: pl1_pl
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: pt1_pt
-    root_causes:
-    - resource:
-        kind: node
-        node: pt1_pt
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: se1_se
-    root_causes:
-    - resource:
-        kind: node
-        node: se1_se
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: si1_si
-    root_causes:
-    - resource:
-        kind: node
-        node: si1_si
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: sk1_sk
-    root_causes:
-    - resource:
-        kind: node
-        node: sk1_sk
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: uk1_uk
-    root_causes:
-    - resource:
-        kind: node
-        node: uk1_uk
-      fault_type: bgp_acl_block
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: at1_at
     root_causes:
@@ -380,6 +33,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: be1_be
     root_causes:
@@ -396,6 +54,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: ch1_ch
     root_causes:
@@ -412,6 +75,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: cz1_cz
     root_causes:
@@ -428,6 +96,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: de1_de
     root_causes:
@@ -444,6 +117,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: es1_es
     root_causes:
@@ -460,6 +138,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: fr1_fr
     root_causes:
@@ -476,6 +159,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: gr1_gr
     root_causes:
@@ -492,6 +180,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: hr1_hr
     root_causes:
@@ -508,6 +201,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: hu1_hu
     root_causes:
@@ -524,6 +222,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: ie1_ie
     root_causes:
@@ -540,6 +243,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: il1_il
     root_causes:
@@ -556,6 +264,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: it1_it
     root_causes:
@@ -572,6 +285,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: lu1_lu
     root_causes:
@@ -588,6 +306,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: nl1_nl
     root_causes:
@@ -604,6 +327,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: ny1_ny
     root_causes:
@@ -620,6 +348,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: pl1_pl
     root_causes:
@@ -636,6 +369,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: pt1_pt
     root_causes:
@@ -652,6 +390,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: se1_se
     root_causes:
@@ -668,6 +411,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: si1_si
     root_causes:
@@ -684,6 +432,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: sk1_sk
     root_causes:
@@ -700,6 +453,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: uk1_uk
     root_causes:

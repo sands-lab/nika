@@ -1,0 +1,55 @@
+scenario:
+  name: isp_zib54
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n10
+      intf_name: eth1
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth1--n19:eth1
+      fault_type: link_latency
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n10
+      intf_name: eth0
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n10
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth0--n19:eth0
+      fault_type: link_latency

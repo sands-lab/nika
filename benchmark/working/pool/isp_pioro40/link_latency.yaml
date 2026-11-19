@@ -1,0 +1,55 @@
+scenario:
+  name: isp_pioro40
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n0
+      intf_name: eth1
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_n0
+    root_causes:
+    - resource:
+        kind: link
+        name: n0:eth1--n12:eth1
+      fault_type: link_latency
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n0
+      intf_name: eth0
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_n0
+    root_causes:
+    - resource:
+        kind: link
+        name: n0:eth0--n12:eth0
+      fault_type: link_latency

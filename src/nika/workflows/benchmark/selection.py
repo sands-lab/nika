@@ -16,7 +16,6 @@ from nika.workflows.benchmark.candidate_context import (
 )
 from nika.workflows.benchmark.e2e_validation import isp_containerlab_node_count
 from nika.workflows.benchmark.healthy import is_healthy_case
-from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
 
 GAIN_FAILURE_SCENARIO = 100
@@ -286,6 +285,17 @@ def select_benchmark_cases(
     seed: int = 42,
 ) -> tuple[list[dict[str, Any]], CoverageState]:
     """Run coverage-guided selection over collapsed candidates."""
+    from nika.problems.registry import get_problem_class
+    from nika.workflows.benchmark.multi_fault import row_problems
+
+    for row in candidates:
+        names = row_problems(row)
+        if (
+            len(names) == 1
+            and (cls := get_problem_class(names[0])) is not None
+            and cls.combination_only
+        ):
+            raise ValueError(f"{names[0]} is available only in multi-fault tasks")
     pool = [enrich_candidate(row) for row in candidates]
     rng = random.Random(seed)
     seeded_order = sorted(
@@ -337,7 +347,3 @@ def baseline_one_per_failure(
         problem = str(row["problem"])
         by_failure.setdefault(problem, row)
     return [row_to_case(row) for row in by_failure.values()]
-
-
-def selection_fingerprints(cases: list[dict[str, Any]]) -> list[str]:
-    return [benchmark_row_fingerprint(case) for case in cases]

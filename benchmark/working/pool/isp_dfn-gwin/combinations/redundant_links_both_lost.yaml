@@ -1,0 +1,44 @@
+scenario:
+  name: isp_dfn-gwin
+combination:
+  name: redundant_links_both_lost
+  failures:
+  - link_down
+  - link_down
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      link_down[1]:
+        host_name: hannover
+        intf_name: e1-6
+        peer_host: pc_ip
+        probe_dst_ip: 10.254.0.26
+        symptom_host: pc_hannover
+      link_down[2]:
+        host_name: frankfurt
+        intf_name: e1-6
+        peer_host: pc_ip
+        probe_dst_ip: 10.254.0.26
+        symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-6--ip:e1-2
+      fault_type: link_down
+    - resource:
+        kind: link
+        name: frankfurt:e1-6--ip:e1-1
+      fault_type: link_down

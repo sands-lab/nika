@@ -1,7 +1,0 @@
-scenario:
-  name: routeros_simple_bgp
-healthy:
-  variants:
-  - traffic:
-      pattern: uniform
-      load_mbps: 1.0

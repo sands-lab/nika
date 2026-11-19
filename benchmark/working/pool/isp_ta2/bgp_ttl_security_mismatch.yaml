@@ -6,12 +6,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n10
     root_causes:
@@ -22,12 +27,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n15
     root_causes:
@@ -38,12 +48,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n24
     root_causes:
@@ -54,12 +69,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n25
     root_causes:
@@ -70,12 +90,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n26
     root_causes:
@@ -86,12 +111,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n30
     root_causes:
@@ -102,12 +132,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n33
     root_causes:
@@ -118,12 +153,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n34
     root_causes:
@@ -134,12 +174,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n38
     root_causes:
@@ -150,12 +195,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n42
     root_causes:
@@ -166,12 +216,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n47
     root_causes:
@@ -182,12 +237,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n48
     root_causes:
@@ -198,12 +258,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n5
     root_causes:
@@ -214,12 +279,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n55
     root_causes:
@@ -230,12 +300,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n56
     root_causes:
@@ -246,12 +321,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n61
     root_causes:
@@ -262,12 +342,17 @@ failure:
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n63
     root_causes:

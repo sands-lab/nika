@@ -7,811 +7,16 @@ failure:
     igp: ospf
     bgp_mode: none
     rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: aachen
-    root_causes:
-    - resource:
-        kind: node
-        node: aachen
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: augsburg
-    root_causes:
-    - resource:
-        kind: node
-        node: augsburg
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: bayreuth
-    root_causes:
-    - resource:
-        kind: node
-        node: bayreuth
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: berlin
-    root_causes:
-    - resource:
-        kind: node
-        node: berlin
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: bielefeld
-    root_causes:
-    - resource:
-        kind: node
-        node: bielefeld
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: braunschweig
-    root_causes:
-    - resource:
-        kind: node
-        node: braunschweig
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: bremen
-    root_causes:
-    - resource:
-        kind: node
-        node: bremen
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: bremerhaven
-    root_causes:
-    - resource:
-        kind: node
-        node: bremerhaven
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: chemnitz
-    root_causes:
-    - resource:
-        kind: node
-        node: chemnitz
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: darmstadt
-    root_causes:
-    - resource:
-        kind: node
-        node: darmstadt
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: dortmund
-    root_causes:
-    - resource:
-        kind: node
-        node: dortmund
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: dresden
-    root_causes:
-    - resource:
-        kind: node
-        node: dresden
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: duesseldorf
-    root_causes:
-    - resource:
-        kind: node
-        node: duesseldorf
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: erfurt
-    root_causes:
-    - resource:
-        kind: node
-        node: erfurt
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: essen
-    root_causes:
-    - resource:
-        kind: node
-        node: essen
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: flensburg
-    root_causes:
-    - resource:
-        kind: node
-        node: flensburg
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: frankfurt
-    root_causes:
-    - resource:
-        kind: node
-        node: frankfurt
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: freiburg
-    root_causes:
-    - resource:
-        kind: node
-        node: freiburg
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: fulda
-    root_causes:
-    - resource:
-        kind: node
-        node: fulda
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: giessen
-    root_causes:
-    - resource:
-        kind: node
-        node: giessen
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: greifswald
-    root_causes:
-    - resource:
-        kind: node
-        node: greifswald
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: hamburg
-    root_causes:
-    - resource:
-        kind: node
-        node: hamburg
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: hannover
-    root_causes:
-    - resource:
-        kind: node
-        node: hannover
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: kaiserslautern
-    root_causes:
-    - resource:
-        kind: node
-        node: kaiserslautern
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: karlsruhe
-    root_causes:
-    - resource:
-        kind: node
-        node: karlsruhe
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: kassel
-    root_causes:
-    - resource:
-        kind: node
-        node: kassel
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: kempten
-    root_causes:
-    - resource:
-        kind: node
-        node: kempten
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: kiel
-    root_causes:
-    - resource:
-        kind: node
-        node: kiel
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: koblenz
-    root_causes:
-    - resource:
-        kind: node
-        node: koblenz
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: koeln
-    root_causes:
-    - resource:
-        kind: node
-        node: koeln
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: konstanz
-    root_causes:
-    - resource:
-        kind: node
-        node: konstanz
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: leipzig
-    root_causes:
-    - resource:
-        kind: node
-        node: leipzig
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: magdeburg
-    root_causes:
-    - resource:
-        kind: node
-        node: magdeburg
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: mannheim
-    root_causes:
-    - resource:
-        kind: node
-        node: mannheim
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: muenchen
-    root_causes:
-    - resource:
-        kind: node
-        node: muenchen
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: muenster
-    root_causes:
-    - resource:
-        kind: node
-        node: muenster
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: norden
-    root_causes:
-    - resource:
-        kind: node
-        node: norden
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: nuernberg
-    root_causes:
-    - resource:
-        kind: node
-        node: nuernberg
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: oldenburg
-    root_causes:
-    - resource:
-        kind: node
-        node: oldenburg
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: osnabrueck
-    root_causes:
-    - resource:
-        kind: node
-        node: osnabrueck
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: passau
-    root_causes:
-    - resource:
-        kind: node
-        node: passau
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: regensburg
-    root_causes:
-    - resource:
-        kind: node
-        node: regensburg
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: saarbruecken
-    root_causes:
-    - resource:
-        kind: node
-        node: saarbruecken
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: schwerin
-    root_causes:
-    - resource:
-        kind: node
-        node: schwerin
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: siegen
-    root_causes:
-    - resource:
-        kind: node
-        node: siegen
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: stuttgart
-    root_causes:
-    - resource:
-        kind: node
-        node: stuttgart
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: trier
-    root_causes:
-    - resource:
-        kind: node
-        node: trier
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: ulm
-    root_causes:
-    - resource:
-        kind: node
-        node: ulm
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: wesel
-    root_causes:
-    - resource:
-        kind: node
-        node: wesel
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: wuerzburg
-    root_causes:
-    - resource:
-        kind: node
-        node: wuerzburg
-      fault_type: ospf_acl_block
-  - topo_size: l
-    igp: ospf
-    bgp_mode: none
-    rpki: false
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: aachen
     root_causes:
@@ -828,6 +33,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: augsburg
     root_causes:
@@ -844,6 +54,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: bayreuth
     root_causes:
@@ -860,6 +75,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: berlin
     root_causes:
@@ -876,6 +96,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: bielefeld
     root_causes:
@@ -892,6 +117,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: braunschweig
     root_causes:
@@ -908,6 +138,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: bremen
     root_causes:
@@ -924,6 +159,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: bremerhaven
     root_causes:
@@ -940,6 +180,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: chemnitz
     root_causes:
@@ -956,6 +201,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: darmstadt
     root_causes:
@@ -972,6 +222,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: dortmund
     root_causes:
@@ -988,6 +243,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: dresden
     root_causes:
@@ -1004,6 +264,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: duesseldorf
     root_causes:
@@ -1020,6 +285,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: erfurt
     root_causes:
@@ -1036,6 +306,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: essen
     root_causes:
@@ -1052,6 +327,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: flensburg
     root_causes:
@@ -1068,6 +348,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: frankfurt
     root_causes:
@@ -1084,6 +369,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: freiburg
     root_causes:
@@ -1100,6 +390,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: fulda
     root_causes:
@@ -1116,6 +411,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: giessen
     root_causes:
@@ -1132,6 +432,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: greifswald
     root_causes:
@@ -1148,6 +453,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: hamburg
     root_causes:
@@ -1164,6 +474,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: hannover
     root_causes:
@@ -1180,6 +495,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kaiserslautern
     root_causes:
@@ -1196,6 +516,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: karlsruhe
     root_causes:
@@ -1212,6 +537,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kassel
     root_causes:
@@ -1228,6 +558,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kempten
     root_causes:
@@ -1244,6 +579,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kiel
     root_causes:
@@ -1260,6 +600,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: koblenz
     root_causes:
@@ -1276,6 +621,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: koeln
     root_causes:
@@ -1292,6 +642,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: konstanz
     root_causes:
@@ -1308,6 +663,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: leipzig
     root_causes:
@@ -1324,6 +684,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: magdeburg
     root_causes:
@@ -1340,6 +705,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: mannheim
     root_causes:
@@ -1356,6 +726,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: muenchen
     root_causes:
@@ -1372,6 +747,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: muenster
     root_causes:
@@ -1388,6 +768,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: norden
     root_causes:
@@ -1404,6 +789,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: nuernberg
     root_causes:
@@ -1420,6 +810,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: oldenburg
     root_causes:
@@ -1436,6 +831,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: osnabrueck
     root_causes:
@@ -1452,6 +852,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: passau
     root_causes:
@@ -1468,6 +873,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: regensburg
     root_causes:
@@ -1484,6 +894,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: saarbruecken
     root_causes:
@@ -1500,6 +915,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: schwerin
     root_causes:
@@ -1516,6 +936,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: siegen
     root_causes:
@@ -1532,6 +957,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: stuttgart
     root_causes:
@@ -1548,6 +978,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: trier
     root_causes:
@@ -1564,6 +999,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: ulm
     root_causes:
@@ -1580,6 +1020,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: wesel
     root_causes:
@@ -1596,6 +1041,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: wuerzburg
     root_causes:

@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: albany
     root_causes:
@@ -19,18 +24,6 @@ failure:
         kind: node
         node: albany
       fault_type: ospf_duplicate_router_id
-  - topo_size: m
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: atlanta
-    root_causes:
     - resource:
         kind: node
         node: atlanta
@@ -44,6 +37,36 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: atlanta
+    root_causes:
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: boston
     root_causes:
@@ -51,6 +74,10 @@ failure:
         kind: node
         node: boston
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -60,6 +87,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: charlotte
     root_causes:
@@ -67,6 +99,10 @@ failure:
         kind: node
         node: charlotte
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -76,6 +112,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: chicago
     root_causes:
@@ -83,6 +124,10 @@ failure:
         kind: node
         node: chicago
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -92,6 +137,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: cleveland
     root_causes:
@@ -99,6 +149,10 @@ failure:
         kind: node
         node: cleveland
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -108,6 +162,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: dallas
     root_causes:
@@ -115,6 +174,10 @@ failure:
         kind: node
         node: dallas
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -124,6 +187,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: denver
     root_causes:
@@ -131,6 +199,10 @@ failure:
         kind: node
         node: denver
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -140,6 +212,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: detroit
     root_causes:
@@ -147,6 +224,10 @@ failure:
         kind: node
         node: detroit
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -156,6 +237,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: elpaso
     root_causes:
@@ -163,6 +249,10 @@ failure:
         kind: node
         node: elpaso
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -172,6 +262,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: houston
     root_causes:
@@ -179,6 +274,10 @@ failure:
         kind: node
         node: houston
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -188,6 +287,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: indianapolis
     root_causes:
@@ -195,6 +299,10 @@ failure:
         kind: node
         node: indianapolis
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -204,6 +312,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kansascity
     root_causes:
@@ -211,6 +324,10 @@ failure:
         kind: node
         node: kansascity
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -220,6 +337,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: lasvegas
     root_causes:
@@ -227,6 +349,10 @@ failure:
         kind: node
         node: lasvegas
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -236,6 +362,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: losangeles
     root_causes:
@@ -243,6 +374,10 @@ failure:
         kind: node
         node: losangeles
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -252,6 +387,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: miami
     root_causes:
@@ -259,6 +399,10 @@ failure:
         kind: node
         node: miami
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -268,6 +412,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: minneapolis
     root_causes:
@@ -275,6 +424,10 @@ failure:
         kind: node
         node: minneapolis
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -284,6 +437,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: nashville
     root_causes:
@@ -291,6 +449,10 @@ failure:
         kind: node
         node: nashville
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -300,6 +462,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: neworleans
     root_causes:
@@ -307,6 +474,10 @@ failure:
         kind: node
         node: neworleans
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -316,6 +487,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: newyork
     root_causes:
@@ -323,6 +499,10 @@ failure:
         kind: node
         node: newyork
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -332,6 +512,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: saltlakecity
     root_causes:
@@ -339,6 +524,10 @@ failure:
         kind: node
         node: saltlakecity
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -348,6 +537,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: sanfrancisco
     root_causes:
@@ -355,6 +549,10 @@ failure:
         kind: node
         node: sanfrancisco
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -364,6 +562,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: seattle
     root_causes:
@@ -371,6 +574,10 @@ failure:
         kind: node
         node: seattle
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -380,6 +587,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: stlouis
     root_causes:
@@ -387,6 +599,10 @@ failure:
         kind: node
         node: stlouis
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -396,6 +612,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: tulsa
     root_causes:
@@ -403,6 +624,10 @@ failure:
         kind: node
         node: tulsa
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -412,6 +637,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: washingtondc
     root_causes:
@@ -419,18 +649,6 @@ failure:
         kind: node
         node: washingtondc
       fault_type: ospf_duplicate_router_id
-  - topo_size: m
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: albany
-    root_causes:
     - resource:
         kind: node
         node: albany
@@ -444,9 +662,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: atlanta
+      host_name: albany
     root_causes:
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: atlanta
@@ -460,6 +687,36 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: atlanta
+    root_causes:
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: boston
     root_causes:
@@ -467,6 +724,10 @@ failure:
         kind: node
         node: boston
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -476,6 +737,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: charlotte
     root_causes:
@@ -483,6 +749,10 @@ failure:
         kind: node
         node: charlotte
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -492,6 +762,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: chicago
     root_causes:
@@ -499,6 +774,10 @@ failure:
         kind: node
         node: chicago
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -508,6 +787,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: cleveland
     root_causes:
@@ -515,6 +799,10 @@ failure:
         kind: node
         node: cleveland
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -524,6 +812,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: dallas
     root_causes:
@@ -531,6 +824,10 @@ failure:
         kind: node
         node: dallas
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -540,6 +837,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: denver
     root_causes:
@@ -547,6 +849,10 @@ failure:
         kind: node
         node: denver
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -556,6 +862,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: detroit
     root_causes:
@@ -563,6 +874,10 @@ failure:
         kind: node
         node: detroit
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -572,6 +887,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: elpaso
     root_causes:
@@ -579,6 +899,10 @@ failure:
         kind: node
         node: elpaso
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -588,6 +912,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: houston
     root_causes:
@@ -595,6 +924,10 @@ failure:
         kind: node
         node: houston
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -604,6 +937,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: indianapolis
     root_causes:
@@ -611,6 +949,10 @@ failure:
         kind: node
         node: indianapolis
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -620,6 +962,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kansascity
     root_causes:
@@ -627,6 +974,10 @@ failure:
         kind: node
         node: kansascity
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -636,6 +987,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: lasvegas
     root_causes:
@@ -643,6 +999,10 @@ failure:
         kind: node
         node: lasvegas
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -652,6 +1012,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: losangeles
     root_causes:
@@ -659,6 +1024,10 @@ failure:
         kind: node
         node: losangeles
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -668,6 +1037,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: miami
     root_causes:
@@ -675,6 +1049,10 @@ failure:
         kind: node
         node: miami
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -684,6 +1062,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: minneapolis
     root_causes:
@@ -691,6 +1074,10 @@ failure:
         kind: node
         node: minneapolis
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -700,6 +1087,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: nashville
     root_causes:
@@ -707,6 +1099,10 @@ failure:
         kind: node
         node: nashville
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -716,6 +1112,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: neworleans
     root_causes:
@@ -723,6 +1124,10 @@ failure:
         kind: node
         node: neworleans
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -732,6 +1137,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: newyork
     root_causes:
@@ -739,6 +1149,10 @@ failure:
         kind: node
         node: newyork
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -748,6 +1162,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: saltlakecity
     root_causes:
@@ -755,6 +1174,10 @@ failure:
         kind: node
         node: saltlakecity
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -764,6 +1187,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: sanfrancisco
     root_causes:
@@ -771,6 +1199,10 @@ failure:
         kind: node
         node: sanfrancisco
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -780,6 +1212,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: seattle
     root_causes:
@@ -787,6 +1224,10 @@ failure:
         kind: node
         node: seattle
       fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
     bgp_mode: none
@@ -796,6 +1237,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: stlouis
     root_causes:
@@ -803,21 +1249,9 @@ failure:
         kind: node
         node: stlouis
       fault_type: ospf_duplicate_router_id
-  - topo_size: m
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: tulsa
-    root_causes:
     - resource:
         kind: node
-        node: tulsa
+        node: albany
       fault_type: ospf_duplicate_router_id
   - topo_size: m
     igp: ospf
@@ -828,10 +1262,44 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: tulsa
+    root_causes:
+    - resource:
+        kind: node
+        node: tulsa
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
+      fault_type: ospf_duplicate_router_id
+  - topo_size: m
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: washingtondc
     root_causes:
     - resource:
         kind: node
         node: washingtondc
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: albany
       fault_type: ospf_duplicate_router_id

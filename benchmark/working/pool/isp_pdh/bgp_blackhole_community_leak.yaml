@@ -1,0 +1,29 @@
+scenario:
+  name: isp_pdh
+failure:
+  fault_type: bgp_blackhole_community_leak
+  cases:
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n2
+      peer_host: pc_n2
+      probe_dst_ip: 198.51.100.1
+      symptom_host: n11
+    root_causes:
+    - resource:
+        kind: node
+        node: n2
+      fault_type: bgp_blackhole_community_leak

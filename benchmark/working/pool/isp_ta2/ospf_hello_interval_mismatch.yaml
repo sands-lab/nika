@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n35
       intf_name: eth2
@@ -19,4 +24,8 @@ failure:
     - resource:
         kind: node
         node: n35
+      fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: node
+        node: n11
       fault_type: ospf_hello_interval_mismatch

@@ -1,0 +1,29 @@
+scenario:
+  name: isp_brain
+failure:
+  fault_type: bgp_blackhole_community_leak
+  cases:
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: cvk
+      peer_host: pc_cvk
+      probe_dst_ip: 198.51.100.1
+      symptom_host: hu
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk
+      fault_type: bgp_blackhole_community_leak

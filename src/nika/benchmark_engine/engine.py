@@ -30,6 +30,7 @@ from nika.benchmark_engine.protocol import (
     TrialRequest,
 )
 from nika.utils.logger import bind_session_dir
+from nika.workflows.benchmark.objectives import objectives_field, objectives_prompt
 from nika.utils.session import Session
 from nika.validation.presence import (
     anomaly_expected,
@@ -136,12 +137,21 @@ class BenchmarkEngine:
                 Session().load_running_session(session_id=session_id).update_session(
                     "benchmark_version", request.release
                 )
+            objectives = objectives_field(task.get("objectives"))
+            if objectives:
+                Session().load_running_session(session_id=session_id).update_session(
+                    "objectives", objectives["objectives"]
+                )
             if trial_dir is None:
                 trial_dir = str(load_session_meta_for_close(session_id)["session_dir"])
         except BaseException:
             close_session(session_id=session_id, undeploy=True, status="error")
             raise
-        preinjected = image_lab is not None and image_lab.case is not None
+        preinjected = (
+            image_lab is not None
+            and image_lab.case is not None
+            and image_lab.case.injected
+        )
         self._started[session_id] = (request, preinjected)
         return TrialHandle(
             session_id=session_id,
@@ -183,6 +193,7 @@ class BenchmarkEngine:
         task_description = getattr(session, "task_description", None)
         if not task_description:
             raise EngineError(f"trial {session_id} has no task description")
+        task_description += objectives_prompt(request.task.get("objectives"))
         return AgentTask(task_description=task_description, scheduled=True)
 
     def schedule_operation(self, handle: TrialHandle, operation: str) -> dict:
@@ -230,6 +241,7 @@ class BenchmarkEngine:
             backend=backend,
             telemetry=telemetry_for_session(row),
             device_profile=device_profile_for(row),
+            deployment=row,
         )
         if SUBMISSION_SERVER not in servers:
             servers.append(SUBMISSION_SERVER)

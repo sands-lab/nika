@@ -21,7 +21,9 @@ from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
     classify_trial_failure,
 )
+from nika.workflows.benchmark.release import load_release
 from nika.workflows.benchmark.run import run_benchmark_from_release
+from nika.workflows.benchmark.trials import task_id_for_row
 from tests.agent.sandbox_support import (
     sandbox_backend_available,
     sandbox_provider_credential_available,
@@ -415,7 +417,10 @@ class SandboxEngineReleaseTest(_SandboxBenchmark):
     def test_pinned_release_produces_sandbox_artifacts(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        task = "dc_clos__receiver_resource_c__ha2be5b357067"
+        release = load_release("0.3.0", split="test")
+        task = task_id_for_row(
+            next(row for row in release.cases if row["scenario"] == "dc_clos")
+        )
         base_url = live_custom_base_url() if OPENAI_PROVIDER == "custom" else None
         run_config = _backend_run_config(self.sandbox_backend, base_url=base_url)
         monkeypatch.setenv(ENV_RUN_CONFIG, str(run_config))

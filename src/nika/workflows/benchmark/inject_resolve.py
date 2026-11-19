@@ -17,7 +17,6 @@ from nika.problems.support.router_ops import (
 from nika.problems.support.benchmark_targets import (
     InjectTargetContext,
     InjectValidationContext,
-    MultiInjectContext,
     all_device_names as _all_device_names,
     choice as _choice,
     device_interfaces as _device_interfaces,
@@ -121,8 +120,6 @@ def _get_net_env_for_benchmark(
     release: str | None = None,
 ):
     kwargs: dict = {}
-    if release is not None:
-        kwargs["environment_release"] = release
     if topo_size and not is_isp_scenario(scenario):
         kwargs["topo_size"] = topo_size
     kwargs.update(_isp_protocol_kwargs(scenario, isp_options))
@@ -301,8 +298,13 @@ def validate_benchmark_case(
     isp_options: dict[str, str] | None = None,
     net_env=None,
     release: str | None = None,
+    combined: bool = False,
 ) -> None:
-    """Raise ValueError if a benchmark row is inconsistent with tags or topology."""
+    """Raise ValueError if a benchmark row is inconsistent with tags or topology.
+
+    ``combined`` validates one member of a failure combination, which need not
+    show its single-failure symptom on its own.
+    """
     from nika.net_env.net_env_pool import resolve_scenario_id, scenario_tags
 
     canonical = resolve_scenario_id(scenario)
@@ -313,6 +315,9 @@ def validate_benchmark_case(
     problem_cls = get_problem_class(problem)
     if problem_cls is None:
         raise ValueError(f"Unknown problem {problem!r}")
+
+    if problem_cls.combination_only and not combined:
+        raise ValueError(f"{problem} is available only in multi-fault tasks")
 
     if not problem_cls.is_compatible(
         canonical,
@@ -416,7 +421,7 @@ def validate_benchmark_case(
                 f"(topo_size={topo_size!r})"
             )
 
-    if not workload_exercises(problem_cls, net_env, inject):
+    if not combined and not workload_exercises(problem_cls, net_env, inject):
         raise ValueError(
             f"{problem} needs {problem_cls.SYMPTOM_WORKLOAD} traffic, but the "
             f"{scenario} business workload does not exercise "
@@ -433,58 +438,7 @@ def validate_benchmark_case(
         devices=devices,
         ifaces_by_device=ifaces_by_device,
     )
-    problem_cls.validate_benchmark_inject(ctx, inject)
-
-
-def _coordinate_multi_inject_params(
-    problems: list[str],
-    params_by_problem: dict[str, dict[str, str]],
-    ctx: MultiInjectContext,
-) -> dict[str, dict[str, str]]:
-    """Let the failure that declares the other co-injected ones adjust params."""
-    names = set(problems)
-    for problem in problems:
-        problem_cls = _benchmark_problem_class(problem)
-        coordinates = problem_cls.BENCHMARK_COORDINATES
-        if coordinates and coordinates == names - {problem}:
-            return problem_cls.coordinate_benchmark_inject(ctx, params_by_problem)
-    return params_by_problem
-
-
-def resolve_multi_inject_params(
-    problems: list[str],
-    scenario: str,
-    topo_size: str = "",
-    *,
-    seed: int = DEFAULT_SEED,
-    isp_options: dict[str, str] | None = None,
-) -> dict[str, dict[str, str]]:
-    """Return per-problem inject params for a coordinated multi-fault case."""
-    if len(problems) < 2:
-        raise ValueError("resolve_multi_inject_params requires at least two problems.")
-    resolved: dict[str, dict[str, str]] = {}
-    for problem in problems:
-        resolved[problem] = resolve_inject_params(
-            problem,
-            scenario,
-            topo_size,
-            seed=seed,
-            isp_options=isp_options,
-        )
-    net_env = _get_net_env_for_benchmark(scenario, topo_size, isp_options=isp_options)
-    _load_inventory(net_env)
-    rng = _case_rng(
-        seed,
-        scenario,
-        "+".join(sorted(problems)),
-        topo_size,
-        _deploy_rng_key(isp_options),
-    )
-    ctx = MultiInjectContext(
-        scenario=scenario,
-        topo_size=topo_size,
-        net_env=net_env,
-        rng=rng,
-        backend=_resolve_benchmark_backend(scenario, isp_options),
-    )
-    return _coordinate_multi_inject_params(problems, resolved, ctx)
+    if combined:
+        problem_cls.validate_combined_inject(ctx, inject)
+    else:
+        problem_cls.validate_benchmark_inject(ctx, inject)

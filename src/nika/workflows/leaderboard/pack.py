@@ -15,6 +15,7 @@ import yaml
 from nika.config import REPO_ROOT, resolve_results_root
 from nika.benchmark_engine.protocol import UnsupportedContractVersion
 from nika.evaluator.validity import FAULT_ABSENT_AT_CLEANUP, has_agent_trace
+from nika.workflows.benchmark.network_identity import DATASET_METADATA_FIELDS
 from nika.workflows.benchmark.provenance import check_schema_version, schema_version_of
 from nika.workflows.benchmark.release import (
     load_run_config,
@@ -39,6 +40,7 @@ from nika.workflows.leaderboard.meta_input import (
 from nika.workflows.leaderboard.release_check import (
     compare_trial_ids,
     load_reference,
+    select_release_tasks,
     release_drift_issue,
     run_commit_changes,
 )
@@ -348,6 +350,8 @@ def pack_leaderboard_submission(
     if release is None or reference is None:
         raise LeaderboardPackError(ValidationReport(issues=issues.issues).render_text())
 
+    include_slices = bool(run_cfg.get("include_slices", False))
+    release = select_release_tasks(release, include_slices=include_slices)
     for field, expected in (
         ("benchmark_id", release.id),
         ("case_count", release.case_count),
@@ -396,6 +400,9 @@ def pack_leaderboard_submission(
                 scenario=str(trial.row["scenario"]),
                 problem=str(trial.row["problem"]),
                 session_dir=session_dir,
+                dataset={
+                    k: trial.row[k] for k in DATASET_METADATA_FIELDS if k in trial.row
+                },
             )
         except TrialResultError as exc:
             raise LeaderboardPackError(str(exc)) from exc
@@ -450,6 +457,7 @@ def pack_leaderboard_submission(
             ref=release.ref,
             split=release.split,  # type: ignore[arg-type]
             case_count=release.case_count,
+            include_slices=include_slices,
             n_trials=release.n_trials,
             scoring_id=str(scoring.get("id") or ""),
             leaderboard_primary=str(
@@ -473,12 +481,32 @@ def pack_leaderboard_submission(
             source_result_dir=_relative_result_hint(results_root),
             schema_version=schema_version,
             provenance=run_cfg.get("provenance"),
+            comparison_config={
+                **(run_cfg.get("comparison_config") or {}),
+                **{
+                    k: run_cfg.get(k)
+                    for k in (
+                        "max_tokens",
+                        "sampling",
+                        "agent_timeout_sec",
+                        "access_role",
+                        "submission",
+                    )
+                },
+            }
+            if release.manifest.get("selection")
+            else None,
         ),
         trajectories_relpath=traj_relpath,
         scores_package=None,
     )
     if not identity.run.run_id or not identity.run.agent_type:
         raise LeaderboardPackError("run.json must include run_id and agent_type")
+
+    if release.manifest.get("selection") and meta_model.agent.tuned_on_dev is None:
+        raise LeaderboardPackError(
+            "Set agent.tuned_on_dev to true or false in metadata.yaml"
+        )
 
     traj_identity = PackageIdentity(
         created_at=identity.created_at,
@@ -518,7 +546,12 @@ def pack_leaderboard_submission(
     trials_out = results_out / TRIALS_DIRNAME
     trials_out.mkdir(parents=True)
 
-    metrics = aggregate_trial_results(trial_results, n_trials_expected=len(trials))
+    metrics = aggregate_trial_results(
+        trial_results,
+        n_trials_expected=len(trials),
+        task_rows=release.cases if release.manifest.get("selection") else None,
+        trials_per_task=release.n_trials,
+    )
     confusion = build_rca_confusion(trial_results)
 
     metadata_path = package_root / METADATA_FILENAME

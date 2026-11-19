@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n9
       intf_name: eth1
@@ -19,6 +24,11 @@ failure:
     - resource:
         kind: interface
         node: n9
+        name: eth1
+      fault_type: ospf_network_type_mismatch
+    - resource:
+        kind: interface
+        node: n32
         name: eth1
       fault_type: ospf_network_type_mismatch
   - topo_size: l
@@ -30,6 +40,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n32
       intf_name: eth0
@@ -37,5 +52,10 @@ failure:
     - resource:
         kind: interface
         node: n32
+        name: eth0
+      fault_type: ospf_network_type_mismatch
+    - resource:
+        kind: interface
+        node: n9
         name: eth0
       fault_type: ospf_network_type_mismatch

@@ -7,6 +7,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay
@@ -25,6 +30,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay
@@ -43,6 +53,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay
@@ -60,6 +75,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay
@@ -77,6 +97,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       corp_prefix: 10.0.10.0/24
       direction: lan_to_overlay

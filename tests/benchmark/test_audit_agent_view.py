@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import subprocess
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -25,6 +27,25 @@ from scripts.benchmark_audit.agent_view import (
 from scripts.benchmark_audit.environment import CaseAudit, CaseIdentity, StageResult
 
 pytestmark = pytest.mark.unit
+
+
+def test_missing_declared_pingmesh_baseline_is_not_a_healthy_audit(
+    tmp_path, monkeypatch
+):
+    from scripts.benchmark_audit import agent_view
+    from scripts.benchmark_audit.live import _agent_view_stage
+
+    meta = {
+        "session_dir": str(tmp_path),
+        "scenario_params": {"telemetry": ["pingmesh"]},
+    }
+    monkeypatch.setattr(agent_view, "session_host_api", lambda _sid: (object(), meta))
+    stage = _agent_view_stage(
+        "agent_view",
+        lambda: agent_view.run_agent_view("owned", MagicMock(), "dc_clos", "s"),
+    )
+    assert stage.status == "no_evidence"
+    assert "pingmesh-latency-baseline.json" in stage.reason
 
 
 def test_classify_rounds_separates_stable_from_flaky_and_unmeasured() -> None:
@@ -165,6 +186,31 @@ def test_parse_snapshot_drops_the_snapshot_command_itself() -> None:
     assert parsed["text"]["processes"] == ["user command", "root bgpd -d pid=<n>"]
 
 
+@pytest.mark.parametrize(
+    "section,line,reason",
+    [
+        ("tc", "qdisc netem 1: dev eth0 root loss 25%", "device_tc_artifact"),
+        ("tc", "qdisc clsact ffff: dev eth0 parent ffff:fff1", "device_tc_artifact"),
+        ("tc", "filter protocol all pref 10 bpf name tc_egress", "device_tc_artifact"),
+        ("links", "prog/xdp id 42 tag abc jited", "device_xdp_artifact"),
+        ("management_reads", "info flat interface *", "device_management_read_trace"),
+    ],
+)
+def test_neutral_datapath_objects_are_injection_artifacts(section, line, reason):
+    before = _node({}, **{section: []})
+    after = _node({}, **{section: [line]})
+    findings = diff_snapshots(before, after, "nika")["flagged"]
+    assert len(findings) == 1
+    assert findings[0]["why"] == [reason]
+    assert not diff_snapshots(after, after, "nika")["flagged"]
+
+
+def test_new_interface_default_queue_is_not_an_injector_artifact():
+    before = _node({}, tc=[])
+    after = _node({}, tc=["qdisc noqueue 0: dev loopback1 root refcnt 2"])
+    assert not diff_snapshots(before, after, "nika")["flagged"]
+
+
 def test_diff_flags_names_tokens_and_prefault_copies_only() -> None:
     pattern = token_pattern("host_incorrect_dns")
     before = _node(
@@ -231,6 +277,34 @@ def test_diff_flags_names_tokens_and_prefault_copies_only() -> None:
     assert diff["lines_added"] == {"processes": 3, "routes": 1}
 
 
+@pytest.mark.parametrize("capability", ["nokia_srlinux", "frr"])
+def test_native_gnmi_shadow_rotation_keeps_content_and_backup_checks(
+    capability, monkeypatch
+):
+    from nika.runtime.spec import NodeIdentity, NodeRole
+    from scripts.benchmark_audit.agent_view import LeakScan
+
+    original = "/var/log/srlinux/debug/ramdisk/trace_events_gnmi.log"
+    shadow = "/var/log/srlinux/debug/shadow/trace_events_gnmi.log.shadow"
+    backup = "/tmp/trace_events_gnmi.log.keep"
+    after = _node({original: "2" * 32, shadow: "1" * 32, backup: "1" * 32})
+    scan = LeakScan(
+        lambda *_: "",
+        machines={"r": NodeIdentity(NodeRole.ROUTER, (capability,))},
+        fault="device_flow_blackhole",
+    )
+    scan.before = {"r": _node({original: "1" * 32})}
+    monkeypatch.setattr(scan, "_capture", lambda: {"r": after})
+    flagged = {item["path"] for item in scan.capture_after_and_diff()["flagged"]}
+    assert backup in flagged
+    assert (shadow in flagged) == (capability != "nokia_srlinux")
+    after["hits"][shadow] = 1
+    assert any(
+        item["path"] == shadow and "content_token" in item["why"]
+        for item in scan.capture_after_and_diff()["flagged"]
+    )
+
+
 def _audit(fault: str, stages: list[tuple[str, str]]) -> CaseAudit:
     return CaseAudit(
         identity=CaseIdentity(scenario="dc_clos", fault=fault),
@@ -251,11 +325,13 @@ def test_agent_view_stages_are_required_for_admission() -> None:
         "baseline_lab",
         "baseline_path",
         "sham_symptom",
+        "sham_oracle",
         "baseline_agent_view",
         "inject_artifact",
         "leak_scan",
         "symptom",
         "oracle",
+        "neighbor_oracle",
         "control_path",
         "persistence_artifact",
         "persistence_symptom",
@@ -279,6 +355,35 @@ def test_agent_view_stages_are_required_for_admission() -> None:
                 == status
             )
 
+    image = [
+        "image_artifact",
+        "image_symptom",
+        "oracle",
+        "neighbor_oracle",
+        "image_persistence_artifact",
+        "image_persistence_symptom",
+        "image_final_artifact",
+        "image_final_symptom",
+    ]
+    restored = _audit("link_down", [(name, "pass") for name in image])
+    assert restored.admission() == "no_evidence"
+    restored.mode = "case_image"
+    assert restored.admission() == "pass"
+    restored.stages[1].status = "fail"
+    assert restored.admission() == "fail"
+    look_alikes = _audit(
+        "link_down",
+        [(name, "pass") for name in fault if name != "neighbor_oracle"],
+    )
+    look_alikes.stages.append(
+        StageResult(
+            stage="neighbor_oracle",
+            status="unsupported",
+            reason="no_confusable_on_scenario",
+        )
+    )
+    assert look_alikes.admission() == "pass"
+
 
 def test_global_addresses_lead_with_eth0_not_kernel_order() -> None:
     output = (
@@ -287,6 +392,27 @@ def test_global_addresses_lead_with_eth0_not_kernel_order() -> None:
         "7: eth10   inet 10.9.0.1/24 scope global eth10\n"
     )
     assert parse_global_addresses(output)[4] == ["10.200.0.7", "20.200.0.1", "10.9.0.1"]
+
+
+def test_agent_view_uses_declared_data_interface_on_containerlab():
+    from scripts.benchmark_audit.agent_view import AgentViewProbe
+
+    output = (
+        "5: eth1 inet 172.28.0.1/16 scope global eth1\n"
+        "6: eth0 inet 10.0.1.10/24 scope global eth0\n"
+        "@@RESOLV\n"
+    )
+    probe = AgentViewProbe(
+        lambda *_: output,
+        machines={},
+        endpoints=["endpoint"],
+        backend="containerlab",
+        isolated=lambda *_: False,
+        zone_files={},
+        data_interfaces={"endpoint": ["eth0"]},
+    )
+    probe.prepare()
+    assert probe.addresses["endpoint"][4] == ["10.0.1.10"]
 
 
 def test_file_times_keep_nanosecond_precision_and_ignore_malformed_records():
@@ -442,3 +568,82 @@ def test_scan_reports_missing_metadata_without_inventing_time_leads():
         "files_before": 1,
         "files_after": 1,
     }
+
+
+@pytest.mark.parametrize(
+    ("fault", "native"),
+    [
+        ("ospf_hello_interval_mismatch", "ip ospf hello-interval 5"),
+        ("bgp_ttl_security_mismatch", "neighbor 172.16.0.1 ttl-security hops 1"),
+        ("isis_metric_style_mismatch", "metric-style narrow"),
+        (
+            "bgp_prefix_list_length_mismatch",
+            "ip prefix-list enterprise-ipv4 seq 100 permit 10.0.0.0/8",
+        ),
+        ("bgp_prefix_list_length_mismatch", '"prefix-list": [{"name": "enterprise"}]'),
+    ],
+)
+def test_combination_native_keywords_keep_real_leak_markers(fault, native):
+    pattern = re.compile(token_pattern((fault, "link_down")), re.I)
+    assert not pattern.search(native)
+    assert pattern.search(fault)
+    assert pattern.search("link_down")
+    assert pattern.search("nika")
+    before = {"files": {}, "hits": {}, "text": {}}
+    after = {"files": {"/etc/frr/frr.conf.bak": "saved"}, "hits": {}, "text": {}}
+    flagged = diff_snapshots(before, after, pattern.pattern)["flagged"]
+    assert flagged[0]["why"] == ["backup_name"]
+
+
+@pytest.mark.parametrize(
+    ("fault", "native"),
+    [
+        ("ospf_duplicate_router_id", '"router-id": "10.255.0.3"'),
+        ("switch_datapath_id_conflict", 'other-config:datapath-id="0000000000001001"'),
+        ("ospf_hello_interval_mismatch", "ip ospf hello-interval 5"),
+        ("bgp_ttl_security_mismatch", "neighbor 172.16.0.1 ttl-security hops 1"),
+        ("isis_metric_style_mismatch", "metric-style narrow"),
+    ],
+)
+def test_native_config_keywords_do_not_hide_fault_names(fault, native):
+    pattern = re.compile(token_pattern(fault), re.I)
+    assert not pattern.search(native)
+    assert pattern.search(fault)
+    assert pattern.search("injected by nika")
+
+
+@pytest.mark.parametrize("fault", ["link_down", "link_flap"])
+def test_native_log_mask_preserves_other_tokens_on_the_same_line(
+    tmp_path, monkeypatch, fault
+):
+    from scripts.benchmark_audit import agent_view
+    from nika.problems.registry import get_problem_class
+
+    log = tmp_path / "syslog"
+    log.write_text(
+        "mac_remote_fault occurred\nmac_local_fault occurred\n"
+        f"mac_local_fault; injected by nika; {fault}\n"
+    )
+    monkeypatch.setattr(agent_view, "SCAN_DIRS", (str(tmp_path),))
+    script = agent_view.snapshot_script(
+        token_pattern(fault),
+        set(),
+        get_problem_class(fault).NATIVE_LOG_KEYWORDS,
+    )
+    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    snapshot = parse_snapshot(result.stdout)
+    assert snapshot["hits"] == {str(log): 1}
+
+
+def test_native_log_copy_exemption_still_scans_content_and_other_backups():
+    source = "/var/log/srlinux/debug/ramdisk/sr_cli.log"
+    copy = "/var/log/srlinux/debug/shadow/sr_cli.log.shadow"
+    before = _node({source: "old"})
+    after = _node({source: "new", copy: "old", source + ".keep": "old"})
+    diff = diff_snapshots(before, after, "nika", ((source, copy),))
+    assert [item["path"] for item in diff["flagged"]] == [source + ".keep"]
+    after["hits"][copy] = 1
+    diff = diff_snapshots(before, after, "nika", ((source, copy),))
+    assert next(item for item in diff["flagged"] if item["path"] == copy)["why"] == [
+        "content_token"
+    ]

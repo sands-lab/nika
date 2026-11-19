@@ -1,0 +1,29 @@
+scenario:
+  name: isp_cost266
+failure:
+  fault_type: bgp_blackhole_community_leak
+  cases:
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: milan
+      peer_host: pc_milan
+      probe_dst_ip: 198.51.100.1
+      symptom_host: zurich
+    root_causes:
+    - resource:
+        kind: node
+        node: milan
+      fault_type: bgp_blackhole_community_leak

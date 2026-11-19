@@ -1,0 +1,65 @@
+scenario:
+  name: p4_dc_fabric
+failure:
+  fault_type: link_capacity_bottleneck
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      burst: 8kb
+      host_name: leaf_2
+      intf_name: eth0
+      limit: 16kb
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_2:eth0--web_2:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      burst: 8kb
+      host_name: leaf_2
+      intf_name: eth0
+      limit: 16kb
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_2:eth0--web_2:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      burst: 8kb
+      host_name: leaf_2
+      intf_name: eth0
+      limit: 16kb
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_2:eth0--web_2:eth0
+      fault_type: link_capacity_bottleneck

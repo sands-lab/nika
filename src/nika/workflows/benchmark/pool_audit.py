@@ -18,6 +18,9 @@ from nika.workflows.benchmark.candidate_context import (
     normalize_topo_scale,
     pool_context_key,
 )
+from nika.problems.combinations import check_multi_fault_task, task_placement
+from nika.problems.rca.materialize import ground_truth_for_multi_case
+from nika.workflows.benchmark.multi_fault import row_problems
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.load_config import (
@@ -66,9 +69,16 @@ def _ground_truth_check(
     cache_key = (scenario, topo_size, *isp_kwargs.items())
     if cache_key not in env_cache:
         env_cache[cache_key] = load_offline_net_env(scenario, topo_size, **isp_kwargs)
-    truth = ground_truth_for_case(
-        problem=str(row["problem"]),
-        params=dict(row.get("inject") or {}),
+    multi = len(row_problems(row)) > 1
+    truth = (ground_truth_for_multi_case if multi else ground_truth_for_case)(
+        **(
+            {"problems": row_problems(row), "params": task_placement(row)}
+            if multi
+            else {
+                "problem": str(row["problem"]),
+                "params": dict(row.get("inject") or {}),
+            }
+        ),
         scenario=scenario,
         topo_size=topo_size,
         net_env=env_cache[cache_key],
@@ -95,21 +105,24 @@ def audit_candidate_pool(path: str) -> dict[str, Any]:
         scenarios_seen.add(str(row["scenario"]))
         scale_counts[normalize_topo_scale(row)] += 1
         if not is_healthy_case(problem):
-            failure_problems.add(problem)
-            failure_scenario[problem].add(str(row["scenario"]))
+            failure_problems.update(row_problems(row))
+            for name in row_problems(row):
+                failure_scenario[name].add(str(row["scenario"]))
 
         issues: list[str] = []
         warnings: list[str] = []
         try:
             normalize_benchmark_row(row)
+            check_multi_fault_task(row)
         except ValueError as exc:
             issues.append(f"normalize_failed: {exc}")
 
         if not is_healthy_case(problem):
             inject = row.get("inject") or {}
-            if not inject:
+            if not inject and row.get("schedule") is None:
                 issues.append("inject_empty")
-            warnings.extend(f"telemetry:{flag}" for flag in _telemetry_flags(problem))
+            for name in row_problems(row):
+                warnings.extend(f"telemetry:{flag}" for flag in _telemetry_flags(name))
 
         if issues:
             row_issues.append(

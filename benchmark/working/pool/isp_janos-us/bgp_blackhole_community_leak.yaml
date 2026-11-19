@@ -1,0 +1,29 @@
+scenario:
+  name: isp_janos-us
+failure:
+  fault_type: bgp_blackhole_community_leak
+  cases:
+  - topo_size: m
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: dallas
+      peer_host: pc_dallas
+      probe_dst_ip: 198.51.100.1
+      symptom_host: nashville
+    root_causes:
+    - resource:
+        kind: node
+        node: dallas
+      fault_type: bgp_blackhole_community_leak

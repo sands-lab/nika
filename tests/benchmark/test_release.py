@@ -10,6 +10,7 @@ import pytest
 import yaml
 
 from nika.workflows.benchmark.release import (
+    CANARY_HEADER,
     JOB_FILENAME,
     ReleaseError,
     freeze_release,
@@ -67,9 +68,18 @@ def test_published_release_preflight() -> None:
     """The documented release must load and pass its complete contract gate."""
     release = load_release("0.3.0", split="test")
 
-    assert release.case_count == 85
+    assert len(release.select_cases()) == 128
+    assert release.select_cases(include_slices=True) == release.cases
+    assert {r["slice"] for r in release.select_cases()} == {
+        "core",
+        "healthy",
+        "multi_fault",
+    }
     assert release.n_trials == 3
     preflight_release(release, check_images=False)
+    for name in ("RELEASE.yaml", "dev.yaml", "test.yaml"):
+        text = (release.root / name).read_text(encoding="utf-8")
+        assert text.startswith(CANARY_HEADER)
 
 
 def test_timed_release_faults_cover_the_default_trial_budget() -> None:
@@ -78,8 +88,8 @@ def test_timed_release_faults_cover_the_default_trial_budget() -> None:
     from nika.run_config.schema import BenchmarkSettings
 
     timed_faults = {
-        "sender_resource_contention",
-        "receiver_resource_contention",
+        "endpoint_cpu_contention",
+        "endpoint_cpu_contention",
         "tcp_syn_flood_attack",
     }
     timeout = BenchmarkSettings.model_fields["case_timeout_sec"].default
@@ -274,6 +284,8 @@ class TestFreezeRelease:
         assert "scenario_problem_pin" not in manifest
         assert "cases_sha256" not in manifest["splits"]["dev"]
         assert manifest["splits"]["dev"]["case_count"] == 1
+        for path in (release.root / "dev.yaml", release.root / "RELEASE.yaml"):
+            assert path.read_text(encoding="utf-8").startswith(CANARY_HEADER)
 
     def test_semantic_context_overlap_is_rejected(self) -> None:
         base = {
@@ -335,47 +347,26 @@ class TestFreezeRelease:
         verify_dev_test_isolation(dev_cases=dev, test_cases=test)
 
     @pytest.mark.parametrize("scenario", ["k8s_lab", "llmd_lab"])
-    def test_fixed_cluster_requires_different_fault_components(self, scenario):
+    def test_cluster_size_isolation_includes_every_fault_component(self, scenario):
         dev = [
             {
                 "scenario": scenario,
                 "problem": "link_down",
+                "topo_size": "s",
                 "inject": {"host_name": "worker1", "intf_name": "eth0"},
-                "root_causes": [
-                    {
-                        "fault_type": "link_down",
-                        "resource": {
-                            "kind": "interface",
-                            "node": "worker1",
-                            "name": "eth0",
-                        },
-                    }
-                ],
             }
         ]
         test = [
             {
                 "scenario": scenario,
                 "problem": "link_down",
+                "topo_size": "m",
                 "inject": {"host_name": "worker2", "intf_name": "eth0"},
-                "root_causes": [
-                    {
-                        "fault_type": "link_down",
-                        "resource": {
-                            "kind": "interface",
-                            "node": "worker2",
-                            "name": "eth0",
-                        },
-                    }
-                ],
             }
         ]
         verify_dev_test_isolation(dev_cases=dev, test_cases=test)
-        test[0]["root_causes"] = dev[0]["root_causes"]
-        with pytest.raises(ReleaseError, match="network isolation"):
-            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
-        test[0].pop("root_causes")
-        with pytest.raises(ReleaseError, match="requires resolved root_causes"):
+        test[0]["topo_size"] = "s"
+        with pytest.raises(ReleaseError, match="isolation"):
             verify_dev_test_isolation(dev_cases=dev, test_cases=test)
 
     def test_multi_fault_tasks_compare_individual_taxonomy(self):
@@ -393,6 +384,20 @@ class TestFreezeRelease:
         verify_dev_test_isolation(dev_cases=dev, test_cases=test)
         test[1]["problem"] = "bgp_acl_block"
         with pytest.raises(ReleaseError, match="problem sets differ"):
+            verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+
+    def test_combination_only_members_follow_their_network(self):
+        dev = [
+            {"scenario": "dc_clos", "topo_size": "s", "problem": "link_down"},
+            {
+                "scenario": "isp_abilene",
+                "problem": "bgp_max_prefix_limit_low+bgp_prefix_surge",
+            },
+        ]
+        test = [{"scenario": "dc_clos", "topo_size": "m", "problem": "link_down"}]
+        verify_dev_test_isolation(dev_cases=dev, test_cases=test)
+        test[0]["topo_size"] = "s"
+        with pytest.raises(ReleaseError, match="isolation"):
             verify_dev_test_isolation(dev_cases=dev, test_cases=test)
 
     def test_freeze_rejects_shared_network_before_writing_release(self, tmp_path):
@@ -590,3 +595,74 @@ class TestReleaseRunMetadata:
         assert run_trials.called
         assert run_trials.call_args.kwargs["case_timeout"] == 60
         assert "run_judge" not in run_trials.call_args.kwargs
+
+
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+def test_release_accepts_vendor_rows_and_checks_images_before_preparing_labs(
+    tmp_path, monkeypatch, profile
+):
+    from nika.net_env.utils.kathara.docker_files import docker_images
+    from nika.workflows.benchmark import release as release_module
+
+    source = _mini_cases_yaml(tmp_path / "source.yaml")
+    payload = yaml.safe_load(source.read_text())
+    payload["cases"][0]["device_profile"] = profile
+    source.write_text(yaml.safe_dump(payload))
+    release = freeze_release(
+        version="vendor", source_cases=source, out_dir=tmp_path / "vendor"
+    )
+    preflight_release(release, check_images=False)
+    monkeypatch.setattr(docker_images, "image_exists", lambda _: False)
+    with patch.object(release_module, "ensure_nika_docker_images") as prepare:
+        with pytest.raises(
+            ReleaseError, match="licensed vendor images that are not installed"
+        ) as exc:
+            preflight_release(release)
+        assert profile in str(exc.value)
+        assert "--with-vendor-images" in str(exc.value)
+        prepare.assert_not_called()
+
+
+@pytest.mark.parametrize("split", ["dev", "test"])
+def test_preflight_checks_hashes_of_both_splits(tmp_path, split):
+    import shutil
+
+    original = load_release("0.3.0", split=split)
+    root = tmp_path / "release"
+    root.mkdir()
+    for name in ("RELEASE.yaml", "dev.yaml", "test.yaml"):
+        shutil.copyfile(original.root / name, root / name)
+    release = load_release_from_dir(root, split=split)
+    other = root / ("test.yaml" if split == "dev" else "dev.yaml")
+    other.write_text(other.read_text() + "\n# changed after loading\n")
+    with pytest.raises(ReleaseError, match="does not match the sha256"):
+        preflight_release(release, check_images=False)
+
+
+def test_split_freeze_pins_the_versioned_engine(tmp_path):
+    from nika.benchmark_engine.protocol import API_VERSION
+
+    source = load_release("0.3.0", split="dev")
+    frozen = freeze_split_release(
+        version="9.8.7", source_dir=source.root, out_dir=tmp_path / "release"
+    )
+    manifest = yaml.safe_load((frozen.root / "RELEASE.yaml").read_text())
+    assert manifest["engine"]["tag"] == "v9.8.7"
+    assert manifest["engine"]["api"]["version"] == API_VERSION
+    for split in ("dev", "test"):
+        assert frozen.splits[split]["sha256"] == source.splits[split]["sha256"]
+
+
+def test_split_freeze_cleans_staging_when_copy_fails(tmp_path):
+    source = load_release("0.3.0", split="dev")
+    unrelated = tmp_path / "unrelated"
+    unrelated.mkdir()
+    with patch(
+        "nika.workflows.benchmark.release.shutil.copy2",
+        side_effect=OSError("copy failed"),
+    ):
+        with pytest.raises(OSError, match="copy failed"):
+            freeze_split_release(
+                version="9.8.7", source_dir=source.root, out_dir=tmp_path / "release"
+            )
+    assert list(tmp_path.iterdir()) == [unrelated]

@@ -1,0 +1,29 @@
+scenario:
+  name: isp_ta1
+failure:
+  fault_type: bgp_blackhole_community_leak
+  cases:
+  - topo_size: m
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n16
+      peer_host: pc_n16
+      probe_dst_ip: 198.51.100.1
+      symptom_host: n19
+    root_causes:
+    - resource:
+        kind: node
+        node: n16
+      fault_type: bgp_blackhole_community_leak

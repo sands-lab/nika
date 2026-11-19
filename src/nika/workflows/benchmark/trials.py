@@ -141,7 +141,11 @@ def case_key_for_row(row: dict[str, Any]) -> str:
     full = "__".join([base, *inject_parts])
     # Keep trial directory names short for nested runtime paths. Retain the
     # readable scenario/problem prefix and hash the full identity when needed.
-    if len(full) + 5 <= 48 and row.get("schedule") is None:
+    if (
+        len(full) + 5 <= 48
+        and row.get("schedule") is None
+        and not identity.get("objectives")
+    ):
         return full
     digest = hashlib.sha1(benchmark_row_fingerprint(row).encode("utf-8")).hexdigest()[
         :12
@@ -703,11 +707,13 @@ _RUN_IDENTITY_FIELDS = (
     "benchmark_id",
     "version",
     "split",
+    "include_slices",
     "agent_type",
     "model",
     "llm_provider",
     "max_steps",
     "max_tokens",
+    "comparison_config",
     "n_trials",
     "case_timeout_sec",
     "official",
@@ -719,7 +725,7 @@ _RUN_IDENTITY_FIELDS = (
 )
 _GIT_FIELDS = ("nika_git_commit", "nika_git_dirty")
 # Identity of runs recorded before the field existed.
-_IDENTITY_DEFAULTS = {"submission": {"mode": "structured"}}
+_IDENTITY_DEFAULTS = {"submission": {"mode": "structured"}, "include_slices": False}
 
 
 def run_config_identity(job: dict[str, Any]) -> dict[str, Any]:

@@ -1,0 +1,65 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: link_capacity_bottleneck
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      burst: 8kb
+      host_name: leaf_1
+      intf_name: eth2
+      limit: 16kb
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1:eth2--service_1_1:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      burst: 8kb
+      host_name: leaf_1
+      intf_name: eth4
+      limit: 16kb
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1:eth4--service_1_1:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      burst: 8kb
+      host_name: leaf_1
+      intf_name: eth8
+      limit: 16kb
+      rate: 128kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_1:eth8--service_1_1:eth0
+      fault_type: link_capacity_bottleneck

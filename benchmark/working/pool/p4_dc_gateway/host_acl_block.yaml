@@ -1,0 +1,481 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: host_acl_block
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_1
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: host_acl_block
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_1
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: host_acl_block
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_2
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: host_acl_block
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_2
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: host_acl_block
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_1
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: host_acl_block
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_1
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: host_acl_block
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_2
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: host_acl_block
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_2
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: host_acl_block
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_3
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3
+      fault_type: host_acl_block
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_3
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3
+      fault_type: host_acl_block
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_4
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4
+      fault_type: host_acl_block
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_4
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_1
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_1
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_1
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_2
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_2
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_2
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_3
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_3
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_3
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_4
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_4
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_4
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_5
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_5
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_5
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_5
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_6
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_6
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_6
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_6
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_7
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_7
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_7
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_7
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_8
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: client_8
+      fault_type: host_acl_block
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: client_8
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: client_8
+      fault_type: host_acl_block

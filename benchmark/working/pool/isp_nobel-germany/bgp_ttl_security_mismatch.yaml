@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: dortmund
     root_causes:
@@ -28,6 +33,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: essen
     root_causes:
@@ -44,6 +54,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: frankfurt
     root_causes:
@@ -60,6 +75,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: koeln
     root_causes:
@@ -76,6 +96,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: mannheim
     root_causes:
@@ -92,6 +117,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: muenchen
     root_causes:
@@ -108,6 +138,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: nuernberg
     root_causes:
@@ -124,6 +159,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: stuttgart
     root_causes:
@@ -140,6 +180,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: ulm
     root_causes:
@@ -150,12 +195,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: dortmund
     root_causes:
@@ -166,12 +216,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: essen
     root_causes:
@@ -182,12 +237,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: frankfurt
     root_causes:
@@ -198,12 +258,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: koeln
     root_causes:
@@ -214,12 +279,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: mannheim
     root_causes:
@@ -230,12 +300,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: muenchen
     root_causes:
@@ -246,12 +321,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: nuernberg
     root_causes:
@@ -262,12 +342,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: stuttgart
     root_causes:
@@ -278,12 +363,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: ulm
     root_causes:

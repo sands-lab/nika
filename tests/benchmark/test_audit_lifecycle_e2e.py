@@ -83,7 +83,7 @@ def test_healthy_audit_requires_live_oracle(monkeypatch):
     "scenario,backend,target,saved_config,oracle_solved",
     [
         ("simple_bgp", "kathara", "router1", "/etc/frr/frr.conf", False),
-        ("min3clos", "containerlab", "leaf1", "/etc/opt/srlinux/config.json", True),
+        ("dc_clos", "containerlab", "leaf_1", "/etc/opt/srlinux/config.json", True),
     ],
 )
 def test_audit_uses_recorded_injection_and_collects_time_leads(

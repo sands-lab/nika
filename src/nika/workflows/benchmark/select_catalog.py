@@ -9,11 +9,9 @@ from typing import Any
 import yaml
 
 from nika.config import BENCHMARK_DIR
-from nika.net_env.net_env_pool import (
-    deployment_needs_licensed_images,
-    list_all_net_envs,
-)
-from nika.workflows.benchmark.candidate_context import collapse_candidates
+from nika.workflows.benchmark.candidate_context import collapse_candidates, row_to_case
+from nika.workflows.benchmark.multi_fault import row_problems
+from nika.problems.combinations import check_multi_fault_task, combination_for_row
 from nika.workflows.benchmark.coverage_report import build_coverage_report
 from nika.workflows.benchmark.load_config import load_candidate_catalog
 from nika.workflows.benchmark.pool_audit import eligible_candidates
@@ -39,18 +37,12 @@ def write_selected_catalog(
         if skip_audit
         else eligible_candidates(str(pool_path))
     )
-    # Releases only depend on openly available images (see preflight_release);
-    # native router profiles (``device_profile: iosxr`` / ``routeros``) do not.
-    specs = list_all_net_envs()
-    candidates = [
-        row
-        for row in candidates
-        if row["scenario"] not in specs
-        or not deployment_needs_licensed_images(
-            row["scenario"], row.get("device_profile")
-        )
-    ]
-
+    multi_fault = [row for row in raw_rows if len(row_problems(row)) > 1]
+    for row in multi_fault:
+        check_multi_fault_task(row)
+        if combination_for_row(row) is None:
+            raise ValueError("Candidate combination is not in the tested catalog")
+    candidates = [row for row in candidates if len(row_problems(row)) == 1]
     cases, _ = select_benchmark_cases(candidates, seed=seed)
     coverage = build_coverage_report(
         selected_cases=cases,
@@ -61,6 +53,8 @@ def write_selected_catalog(
             f"Selected cases violate benchmark contract: {coverage['selection_contract']}"
         )
 
+    cases.extend(row_to_case(row) for row in multi_fault)
+    coverage["multi_fault_tasks"] = len(multi_fault)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         yaml.safe_dump(

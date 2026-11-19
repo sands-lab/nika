@@ -141,6 +141,7 @@ def trial_result_from_dir(
     scenario: str,
     problem: str,
     session_dir: Path,
+    dataset: dict[str, Any] | None = None,
 ) -> TrialResult:
     """Read one trial directory into a ``TrialResult``.
 
@@ -178,4 +179,5 @@ def trial_result_from_dir(
         gt_fault_types=gt_fault_types(session_dir, problem=problem),
         predicted_fault_types=predicted_fault_types(session_dir),
         validity_flags=validity.flags,
+        dataset=dataset if dataset is not None else dict(run_meta.get("dataset") or {}),
     )

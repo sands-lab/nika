@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: atlang
       intf_name: eth1
@@ -19,6 +24,11 @@ failure:
     - resource:
         kind: interface
         node: atlang
+        name: eth1
+      fault_type: ospf_network_type_mismatch
+    - resource:
+        kind: interface
+        node: atlam5
         name: eth1
       fault_type: ospf_network_type_mismatch
   - topo_size: s
@@ -30,6 +40,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: atlam5
       intf_name: eth0
@@ -37,6 +52,11 @@ failure:
     - resource:
         kind: interface
         node: atlam5
+        name: eth0
+      fault_type: ospf_network_type_mismatch
+    - resource:
+        kind: interface
+        node: atlang
         name: eth0
       fault_type: ospf_network_type_mismatch
   - topo_size: s
@@ -48,6 +68,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: atlang
       intf_name: eth1
@@ -55,5 +80,10 @@ failure:
     - resource:
         kind: interface
         node: atlang
+        name: eth1
+      fault_type: ospf_network_type_mismatch
+    - resource:
+        kind: interface
+        node: atlam5
         name: eth1
       fault_type: ospf_network_type_mismatch

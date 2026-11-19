@@ -1,0 +1,115 @@
+scenario:
+  name: campus_lan
+combination:
+  name: latent_adjacency_cut
+  failures:
+  - ospf_hello_interval_mismatch
+  - link_down
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    schedule:
+      agent_start: 60s
+      events:
+      - problem: ospf_hello_interval_mismatch
+        inject:
+          host_name: router_core_1
+          intf_name: eth1
+        at: 0s
+      - problem: link_down
+        inject:
+          host_name: router_core_1
+          intf_name: eth0
+        at: 60s
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_1
+      fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: node
+        node: router_core_3
+      fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: link
+        name: router_core_1:eth0--router_core_2:eth0
+      fault_type: link_down
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    schedule:
+      agent_start: 60s
+      events:
+      - problem: ospf_hello_interval_mismatch
+        inject:
+          host_name: router_core_1
+          intf_name: eth1
+        at: 0s
+      - problem: link_down
+        inject:
+          host_name: router_core_1
+          intf_name: eth0
+        at: 60s
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_1
+      fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: node
+        node: router_core_3
+      fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: link
+        name: router_core_1:eth0--router_core_2:eth0
+      fault_type: link_down
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    schedule:
+      agent_start: 60s
+      events:
+      - problem: ospf_hello_interval_mismatch
+        inject:
+          host_name: router_core_1
+          intf_name: eth1
+        at: 0s
+      - problem: link_down
+        inject:
+          host_name: router_core_1
+          intf_name: eth0
+        at: 60s
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_1
+      fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: node
+        node: router_core_3
+      fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: link
+        name: router_core_1:eth0--router_core_2:eth0
+      fault_type: link_down

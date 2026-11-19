@@ -7,6 +7,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: hq_guest_pc4
       host_name_2: hq_guest_pc3
@@ -14,5 +19,10 @@ failure:
     - resource:
         kind: interface
         node: hq_guest_pc4
+        name: eth0
+      fault_type: mac_address_conflict
+    - resource:
+        kind: interface
+        node: hq_guest_pc3
         name: eth0
       fault_type: mac_address_conflict

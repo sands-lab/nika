@@ -51,6 +51,7 @@ _COMPARED_SETTINGS = (
     "images",
     "engine",
     "evaluation",
+    "selection",
 )
 _COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 # Package identities are untrusted input; keep the version a single path part.

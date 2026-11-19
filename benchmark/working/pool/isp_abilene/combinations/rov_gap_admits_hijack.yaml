@@ -1,0 +1,43 @@
+scenario:
+  name: isp_abilene
+combination:
+  name: rov_gap_admits_hijack
+  failures:
+  - bgp_rov_not_enforced
+  - bgp_hijacking
+  cases:
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    schedule:
+      agent_start: 30s
+      events:
+      - problem: bgp_rov_not_enforced
+        inject:
+          host_name: iplsng
+        at: 0s
+      - problem: bgp_hijacking
+        inject:
+          variant: rpki_invalid_origin
+          host_name: kscyng
+        at: 30s
+    root_causes:
+    - resource:
+        kind: node
+        node: iplsng
+      fault_type: bgp_rov_not_enforced
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: bgp_hijacking

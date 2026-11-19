@@ -182,6 +182,7 @@ def _fill_staging(staging: Path, *, name: str, **agent_overrides: Any) -> None:
     data["info"]["authors"] = "NIKA CI"
     data["info"]["org"] = "NIKA CI"
     data["info"]["site"] = "https://example.com/nika-e2e"
+    data["agent"]["tuned_on_dev"] = False
     data["agent"]["model"] = agent_overrides.get("model", "mock-v1")
     data["agent"]["framework"] = agent_overrides.get("framework", "mock")
     data["agent"]["tools"] = agent_overrides.get(

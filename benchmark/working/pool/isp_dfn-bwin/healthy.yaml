@@ -11,6 +11,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: isis
     bgp_mode: ibgp_rr
@@ -20,6 +25,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: isis
     bgp_mode: ibgp_rr
@@ -29,6 +39,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: isis
     bgp_mode: ibgp_rr
@@ -38,6 +53,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: isis
     bgp_mode: ibgp_rr
@@ -47,6 +67,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: isis
     bgp_mode: none
@@ -56,6 +81,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: isis
     bgp_mode: none
@@ -65,6 +95,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: isis
     bgp_mode: none
@@ -74,6 +109,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: isis
     bgp_mode: none
@@ -83,6 +123,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: isis
     bgp_mode: none
@@ -92,6 +137,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: ospf
     bgp_mode: ebgp
@@ -101,6 +151,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: ospf
     bgp_mode: ebgp
@@ -110,15 +165,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: ospf
     bgp_mode: ebgp
@@ -128,6 +179,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: ospf
     bgp_mode: ebgp
@@ -137,6 +193,25 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: ospf
     bgp_mode: none
@@ -146,6 +221,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: ospf
     bgp_mode: none
@@ -155,6 +235,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: ospf
     bgp_mode: none
@@ -164,6 +249,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: ospf
     bgp_mode: none
@@ -173,6 +263,11 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
   - topo_size: s
     igp: ospf
     bgp_mode: none
@@ -182,3 +277,8 @@ healthy:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog

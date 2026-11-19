@@ -1,0 +1,105 @@
+scenario:
+  name: isp_dfn-bwin
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: berlin
+      intf_name: e1-1
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-1--frankfurt:e1-1
+      fault_type: link_latency
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: berlin
+      intf_name: eth1
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth1--frankfurt:eth1
+      fault_type: link_latency
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: berlin
+      intf_name: eth0
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth0--frankfurt:eth0
+      fault_type: link_latency
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: berlin
+      intf_name: eth0
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth0--frankfurt:eth0
+      fault_type: link_latency

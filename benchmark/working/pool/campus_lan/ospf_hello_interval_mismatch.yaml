@@ -7,6 +7,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: server_access_router
       intf_name: eth7
@@ -15,11 +20,20 @@ failure:
         kind: node
         node: server_access_router
       fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: node
+        node: router_core_3
+      fault_type: ospf_hello_interval_mismatch
   - topo_size: s
     device_profile: iosxr
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: router_core_2
       intf_name: eth2
@@ -28,11 +42,20 @@ failure:
         kind: node
         node: router_core_2
       fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: node
+        node: router_dist_2_1
+      fault_type: ospf_hello_interval_mismatch
   - topo_size: s
     device_profile: routeros
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: router_dist_1_1
       intf_name: eth0
@@ -41,10 +64,19 @@ failure:
         kind: node
         node: router_dist_1_1
       fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: node
+        node: router_core_1
+      fault_type: ospf_hello_interval_mismatch
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: router_dist_2_2
       intf_name: eth0
@@ -53,10 +85,19 @@ failure:
         kind: node
         node: router_dist_2_2
       fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: node
+        node: router_core_2
+      fault_type: ospf_hello_interval_mismatch
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: router_dist_2_3
       intf_name: eth0
@@ -64,4 +105,8 @@ failure:
     - resource:
         kind: node
         node: router_dist_2_3
+      fault_type: ospf_hello_interval_mismatch
+    - resource:
+        kind: node
+        node: router_core_2
       fault_type: ospf_hello_interval_mismatch

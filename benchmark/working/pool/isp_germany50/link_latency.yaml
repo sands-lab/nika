@@ -1,0 +1,55 @@
+scenario:
+  name: isp_germany50
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: duesseldorf
+      intf_name: eth1
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_duesseldorf
+    root_causes:
+    - resource:
+        kind: link
+        name: duesseldorf:eth1--essen:eth1
+      fault_type: link_latency
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: duesseldorf
+      intf_name: eth0
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_duesseldorf
+    root_causes:
+    - resource:
+        kind: link
+        name: duesseldorf:eth0--essen:eth0
+      fault_type: link_latency

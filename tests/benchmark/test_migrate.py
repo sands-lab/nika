@@ -15,6 +15,19 @@ def _write_yaml(path: Path, payload: dict) -> None:
     path.write_text(yaml.dump(payload, sort_keys=False), encoding="utf-8")
 
 
+def test_materializes_repeated_fault_placements() -> None:
+    from nika.problems.combinations import get_combination
+    from nika.workflows.benchmark.migrate import materialize_case
+
+    row = get_combination("redundant_links_both_lost").rows()[0]
+    materialized = materialize_case(row)
+    assert materialized["inject"] == row["inject"]
+    causes = materialized["root_causes"]
+    assert len(causes) == 2
+    assert {cause["fault_type"] for cause in causes} == {"link_down"}
+    assert len({cause["resource"]["name"] for cause in causes}) == 2
+
+
 class MigrateBenchmarkTest:
     def test_migrates_link_down(self, tmp_path: Path) -> None:
         src = tmp_path / "in.yaml"

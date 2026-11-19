@@ -12,10 +12,15 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: ann_arbor
-      intf_name: eth1
+      intf_name: eth4
       peer_host: pc_princeton
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_ann_arbor
@@ -23,7 +28,7 @@ failure:
     root_causes:
     - resource:
         kind: link
-        name: ann_arbor:eth1--princeton:eth1
+        name: ann_arbor:eth4--pc_ann_arbor:eth1
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -34,54 +39,15 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: ann_arbor
-      intf_name: eth2
-      peer_host: pc_ithaca
-      probe_dst_ip: 10.254.0.18
-      symptom_host: pc_ann_arbor
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: ann_arbor:eth2--ithaca:eth2
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: ann_arbor
-      intf_name: eth3
-      peer_host: pc_salt_lake_city
-      probe_dst_ip: 10.254.0.38
-      symptom_host: pc_ann_arbor
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: ann_arbor:eth3--salt_lake_city:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: atlanta
-      intf_name: eth1
+      intf_name: eth3
       peer_host: pc_pittsburgh
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_atlanta
@@ -89,7 +55,7 @@ failure:
     root_causes:
     - resource:
         kind: link
-        name: atlanta:eth1--pittsburgh:eth1
+        name: atlanta:eth3--pc_atlanta:eth1
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -100,32 +66,15 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: atlanta
-      intf_name: eth2
-      peer_host: pc_houston
-      probe_dst_ip: 10.254.0.14
-      symptom_host: pc_atlanta
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: atlanta:eth2--houston:eth2
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: boulder
-      intf_name: eth1
+      intf_name: eth4
       peer_host: pc_lincoln
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_boulder
@@ -133,7 +82,7 @@ failure:
     root_causes:
     - resource:
         kind: link
-        name: boulder:eth1--lincoln:eth2
+        name: boulder:eth4--pc_boulder:eth1
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -144,54 +93,15 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: boulder
-      intf_name: eth2
-      peer_host: pc_houston
-      probe_dst_ip: 10.254.0.14
-      symptom_host: pc_boulder
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: boulder:eth2--houston:eth4
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: boulder
-      intf_name: eth3
-      peer_host: pc_salt_lake_city
-      probe_dst_ip: 10.254.0.38
-      symptom_host: pc_boulder
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: boulder:eth3--salt_lake_city:eth3
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: houston
-      intf_name: eth1
+      intf_name: eth5
       peer_host: pc_washington
       probe_dst_ip: 10.254.0.54
       symptom_host: pc_houston
@@ -199,7 +109,7 @@ failure:
     root_causes:
     - resource:
         kind: link
-        name: houston:eth1--washington:eth2
+        name: houston:eth5--pc_houston:eth1
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -210,32 +120,15 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: houston
-      intf_name: eth3
-      peer_host: pc_san_diego
-      probe_dst_ip: 10.254.0.42
-      symptom_host: pc_houston
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: houston:eth3--san_diego:eth2
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: ithaca
-      intf_name: eth1
+      intf_name: eth4
       peer_host: pc_washington
       probe_dst_ip: 10.254.0.54
       symptom_host: pc_ithaca
@@ -243,7 +136,7 @@ failure:
     root_causes:
     - resource:
         kind: link
-        name: ithaca:eth1--washington:eth1
+        name: ithaca:eth4--pc_ithaca:eth1
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -254,32 +147,15 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: ithaca
-      intf_name: eth3
-      peer_host: pc_pittsburgh
-      probe_dst_ip: 10.254.0.30
-      symptom_host: pc_ithaca
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: ithaca:eth3--pittsburgh:eth4
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: lincoln
-      intf_name: eth1
+      intf_name: eth3
       peer_host: pc_urbana_champaign
       probe_dst_ip: 10.254.0.50
       symptom_host: pc_lincoln
@@ -287,7 +163,7 @@ failure:
     root_causes:
     - resource:
         kind: link
-        name: lincoln:eth1--urbana_champaign:eth1
+        name: lincoln:eth3--pc_lincoln:eth1
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -298,10 +174,15 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: palo_alto
-      intf_name: eth1
+      intf_name: eth4
       peer_host: pc_san_diego
       probe_dst_ip: 10.254.0.42
       symptom_host: pc_palo_alto
@@ -309,7 +190,7 @@ failure:
     root_causes:
     - resource:
         kind: link
-        name: palo_alto:eth1--san_diego:eth1
+        name: palo_alto:eth4--pc_palo_alto:eth1
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -320,62 +201,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: palo_alto
-      intf_name: eth2
-      peer_host: pc_salt_lake_city
-      probe_dst_ip: 10.254.0.38
-      symptom_host: pc_palo_alto
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: palo_alto:eth2--salt_lake_city:eth2
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: palo_alto
-      intf_name: eth3
-      peer_host: pc_seattle
-      probe_dst_ip: 10.254.0.46
-      symptom_host: pc_palo_alto
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: palo_alto:eth3--seattle:eth2
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: pittsburgh
-      intf_name: eth2
-      peer_host: pc_urbana_champaign
-      probe_dst_ip: 10.254.0.50
+      intf_name: eth5
+      peer_host: pc_atlanta
+      probe_dst_ip: 10.254.0.6
       symptom_host: pc_pittsburgh
       up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: pittsburgh:eth2--urbana_champaign:eth2
+        name: pc_pittsburgh:eth1--pittsburgh:eth5
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -386,40 +228,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: pittsburgh
-      intf_name: eth3
-      peer_host: pc_princeton
-      probe_dst_ip: 10.254.0.34
-      symptom_host: pc_pittsburgh
-      up_time: '12'
-    root_causes:
-    - resource:
-        kind: link
-        name: pittsburgh:eth3--princeton:eth2
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: princeton
-      intf_name: eth3
-      peer_host: pc_washington
-      probe_dst_ip: 10.254.0.54
+      intf_name: eth4
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 10.254.0.2
       symptom_host: pc_princeton
       up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: princeton:eth3--washington:eth3
+        name: pc_princeton:eth1--princeton:eth4
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -430,18 +255,50 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: salt_lake_city
+      intf_name: eth4
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 10.254.0.2
+      symptom_host: pc_salt_lake_city
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_salt_lake_city:eth1--salt_lake_city:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: san_diego
-      intf_name: eth3
-      peer_host: pc_seattle
-      probe_dst_ip: 10.254.0.46
+      intf_name: eth4
+      peer_host: pc_palo_alto
+      probe_dst_ip: 10.254.0.26
       symptom_host: pc_san_diego
       up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: san_diego:eth3--seattle:eth3
+        name: pc_san_diego:eth1--san_diego:eth4
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -452,10 +309,15 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: seattle
-      intf_name: eth1
+      intf_name: eth4
       peer_host: pc_urbana_champaign
       probe_dst_ip: 10.254.0.50
       symptom_host: pc_seattle
@@ -463,7 +325,61 @@ failure:
     root_causes:
     - resource:
         kind: link
-        name: seattle:eth1--urbana_champaign:eth3
+        name: pc_seattle:eth1--seattle:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: urbana_champaign
+      intf_name: eth4
+      peer_host: pc_lincoln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_urbana_champaign
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_urbana_champaign:eth1--urbana_champaign:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: washington
+      intf_name: eth4
+      peer_host: pc_ithaca
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_washington
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_washington:eth1--washington:eth4
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -474,18 +390,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: ann_arbor
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_princeton
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_ann_arbor
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: ann_arbor:eth0--princeton:eth0
+        name: ann_arbor:eth3--pc_ann_arbor:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -496,62 +417,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: ann_arbor
-      intf_name: eth1
-      peer_host: pc_ithaca
-      probe_dst_ip: 10.254.0.18
-      symptom_host: pc_ann_arbor
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: ann_arbor:eth1--ithaca:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: ann_arbor
-      intf_name: eth2
-      peer_host: pc_salt_lake_city
-      probe_dst_ip: 10.254.0.38
-      symptom_host: pc_ann_arbor
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: ann_arbor:eth2--salt_lake_city:eth0
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: atlanta
-      intf_name: eth0
+      intf_name: eth2
       peer_host: pc_pittsburgh
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: atlanta:eth0--pittsburgh:eth0
+        name: atlanta:eth2--pc_atlanta:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -562,40 +444,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: atlanta
-      intf_name: eth1
-      peer_host: pc_houston
-      probe_dst_ip: 10.254.0.14
-      symptom_host: pc_atlanta
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: atlanta:eth1--houston:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: boulder
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_lincoln
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_boulder
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: boulder:eth0--lincoln:eth1
+        name: boulder:eth3--pc_boulder:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -606,62 +471,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: boulder
-      intf_name: eth1
-      peer_host: pc_houston
-      probe_dst_ip: 10.254.0.14
-      symptom_host: pc_boulder
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: boulder:eth1--houston:eth3
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: boulder
-      intf_name: eth2
-      peer_host: pc_salt_lake_city
-      probe_dst_ip: 10.254.0.38
-      symptom_host: pc_boulder
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: boulder:eth2--salt_lake_city:eth2
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: houston
-      intf_name: eth0
+      intf_name: eth4
       peer_host: pc_washington
       probe_dst_ip: 10.254.0.54
       symptom_host: pc_houston
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: houston:eth0--washington:eth1
+        name: houston:eth4--pc_houston:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -672,40 +498,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: houston
-      intf_name: eth2
-      peer_host: pc_san_diego
-      probe_dst_ip: 10.254.0.42
-      symptom_host: pc_houston
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: houston:eth2--san_diego:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: ithaca
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_washington
       probe_dst_ip: 10.254.0.54
       symptom_host: pc_ithaca
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: ithaca:eth0--washington:eth0
+        name: ithaca:eth3--pc_ithaca:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -716,40 +525,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: ithaca
-      intf_name: eth2
-      peer_host: pc_pittsburgh
-      probe_dst_ip: 10.254.0.30
-      symptom_host: pc_ithaca
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: ithaca:eth2--pittsburgh:eth3
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: lincoln
-      intf_name: eth0
+      intf_name: eth2
       peer_host: pc_urbana_champaign
       probe_dst_ip: 10.254.0.50
       symptom_host: pc_lincoln
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: lincoln:eth0--urbana_champaign:eth0
+        name: lincoln:eth2--pc_lincoln:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -760,18 +552,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: palo_alto
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_san_diego
       probe_dst_ip: 10.254.0.42
       symptom_host: pc_palo_alto
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: palo_alto:eth0--san_diego:eth0
+        name: palo_alto:eth3--pc_palo_alto:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -782,62 +579,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: palo_alto
-      intf_name: eth1
-      peer_host: pc_salt_lake_city
-      probe_dst_ip: 10.254.0.38
-      symptom_host: pc_palo_alto
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: palo_alto:eth1--salt_lake_city:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: palo_alto
-      intf_name: eth2
-      peer_host: pc_seattle
-      probe_dst_ip: 10.254.0.46
-      symptom_host: pc_palo_alto
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: palo_alto:eth2--seattle:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: pittsburgh
-      intf_name: eth1
-      peer_host: pc_urbana_champaign
-      probe_dst_ip: 10.254.0.50
+      intf_name: eth4
+      peer_host: pc_atlanta
+      probe_dst_ip: 10.254.0.6
       symptom_host: pc_pittsburgh
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: pittsburgh:eth1--urbana_champaign:eth1
+        name: pc_pittsburgh:eth0--pittsburgh:eth4
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -848,40 +606,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: pittsburgh
-      intf_name: eth2
-      peer_host: pc_princeton
-      probe_dst_ip: 10.254.0.34
-      symptom_host: pc_pittsburgh
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: pittsburgh:eth2--princeton:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: princeton
-      intf_name: eth2
-      peer_host: pc_washington
-      probe_dst_ip: 10.254.0.54
+      intf_name: eth3
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 10.254.0.2
       symptom_host: pc_princeton
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: princeton:eth2--washington:eth2
+        name: pc_princeton:eth0--princeton:eth3
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -892,18 +633,50 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: salt_lake_city
+      intf_name: eth3
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 10.254.0.2
+      symptom_host: pc_salt_lake_city
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_salt_lake_city:eth0--salt_lake_city:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: san_diego
-      intf_name: eth2
-      peer_host: pc_seattle
-      probe_dst_ip: 10.254.0.46
+      intf_name: eth3
+      peer_host: pc_palo_alto
+      probe_dst_ip: 10.254.0.26
       symptom_host: pc_san_diego
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: san_diego:eth2--seattle:eth2
+        name: pc_san_diego:eth0--san_diego:eth3
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -914,18 +687,77 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: seattle
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_urbana_champaign
       probe_dst_ip: 10.254.0.50
       symptom_host: pc_seattle
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: seattle:eth0--urbana_champaign:eth2
+        name: pc_seattle:eth0--seattle:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: urbana_champaign
+      intf_name: eth3
+      peer_host: pc_lincoln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_urbana_champaign
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_urbana_champaign:eth0--urbana_champaign:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: washington
+      intf_name: eth3
+      peer_host: pc_ithaca
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_washington
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_washington:eth0--washington:eth3
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -936,18 +768,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: ann_arbor
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_princeton
       probe_dst_ip: 10.254.0.34
       symptom_host: pc_ann_arbor
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: ann_arbor:eth0--princeton:eth0
+        name: ann_arbor:eth3--pc_ann_arbor:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -958,62 +795,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: ann_arbor
-      intf_name: eth1
-      peer_host: pc_ithaca
-      probe_dst_ip: 10.254.0.18
-      symptom_host: pc_ann_arbor
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: ann_arbor:eth1--ithaca:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: ann_arbor
-      intf_name: eth2
-      peer_host: pc_salt_lake_city
-      probe_dst_ip: 10.254.0.38
-      symptom_host: pc_ann_arbor
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: ann_arbor:eth2--salt_lake_city:eth0
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: atlanta
-      intf_name: eth0
+      intf_name: eth2
       peer_host: pc_pittsburgh
       probe_dst_ip: 10.254.0.30
       symptom_host: pc_atlanta
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: atlanta:eth0--pittsburgh:eth0
+        name: atlanta:eth2--pc_atlanta:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -1024,40 +822,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: atlanta
-      intf_name: eth1
-      peer_host: pc_houston
-      probe_dst_ip: 10.254.0.14
-      symptom_host: pc_atlanta
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: atlanta:eth1--houston:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: boulder
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_lincoln
       probe_dst_ip: 10.254.0.22
       symptom_host: pc_boulder
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: boulder:eth0--lincoln:eth1
+        name: boulder:eth3--pc_boulder:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -1068,62 +849,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: boulder
-      intf_name: eth1
-      peer_host: pc_houston
-      probe_dst_ip: 10.254.0.14
-      symptom_host: pc_boulder
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: boulder:eth1--houston:eth3
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: boulder
-      intf_name: eth2
-      peer_host: pc_salt_lake_city
-      probe_dst_ip: 10.254.0.38
-      symptom_host: pc_boulder
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: boulder:eth2--salt_lake_city:eth2
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: houston
-      intf_name: eth0
+      intf_name: eth4
       peer_host: pc_washington
       probe_dst_ip: 10.254.0.54
       symptom_host: pc_houston
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: houston:eth0--washington:eth1
+        name: houston:eth4--pc_houston:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -1134,40 +876,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: houston
-      intf_name: eth2
-      peer_host: pc_san_diego
-      probe_dst_ip: 10.254.0.42
-      symptom_host: pc_houston
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: houston:eth2--san_diego:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: ithaca
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_washington
       probe_dst_ip: 10.254.0.54
       symptom_host: pc_ithaca
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: ithaca:eth0--washington:eth0
+        name: ithaca:eth3--pc_ithaca:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -1178,40 +903,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: ithaca
-      intf_name: eth2
-      peer_host: pc_pittsburgh
-      probe_dst_ip: 10.254.0.30
-      symptom_host: pc_ithaca
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: ithaca:eth2--pittsburgh:eth3
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: lincoln
-      intf_name: eth0
+      intf_name: eth2
       peer_host: pc_urbana_champaign
       probe_dst_ip: 10.254.0.50
       symptom_host: pc_lincoln
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: lincoln:eth0--urbana_champaign:eth0
+        name: lincoln:eth2--pc_lincoln:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -1222,18 +930,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: palo_alto
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_san_diego
       probe_dst_ip: 10.254.0.42
       symptom_host: pc_palo_alto
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: palo_alto:eth0--san_diego:eth0
+        name: palo_alto:eth3--pc_palo_alto:eth0
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -1244,62 +957,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: palo_alto
-      intf_name: eth1
-      peer_host: pc_salt_lake_city
-      probe_dst_ip: 10.254.0.38
-      symptom_host: pc_palo_alto
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: palo_alto:eth1--salt_lake_city:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: palo_alto
-      intf_name: eth2
-      peer_host: pc_seattle
-      probe_dst_ip: 10.254.0.46
-      symptom_host: pc_palo_alto
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: palo_alto:eth2--seattle:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: pittsburgh
-      intf_name: eth1
-      peer_host: pc_urbana_champaign
-      probe_dst_ip: 10.254.0.50
+      intf_name: eth4
+      peer_host: pc_atlanta
+      probe_dst_ip: 10.254.0.6
       symptom_host: pc_pittsburgh
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: pittsburgh:eth1--urbana_champaign:eth1
+        name: pc_pittsburgh:eth0--pittsburgh:eth4
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -1310,40 +984,23 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      down_time: '1'
-      host_name: pittsburgh
-      intf_name: eth2
-      peer_host: pc_princeton
-      probe_dst_ip: 10.254.0.34
-      symptom_host: pc_pittsburgh
-      up_time: '1'
-    root_causes:
-    - resource:
-        kind: link
-        name: pittsburgh:eth2--princeton:eth1
-      fault_type: link_flap
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: princeton
-      intf_name: eth2
-      peer_host: pc_washington
-      probe_dst_ip: 10.254.0.54
+      intf_name: eth3
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 10.254.0.2
       symptom_host: pc_princeton
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: princeton:eth2--washington:eth2
+        name: pc_princeton:eth0--princeton:eth3
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -1354,18 +1011,50 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: salt_lake_city
+      intf_name: eth3
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 10.254.0.2
+      symptom_host: pc_salt_lake_city
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_salt_lake_city:eth0--salt_lake_city:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: san_diego
-      intf_name: eth2
-      peer_host: pc_seattle
-      probe_dst_ip: 10.254.0.46
+      intf_name: eth3
+      peer_host: pc_palo_alto
+      probe_dst_ip: 10.254.0.26
       symptom_host: pc_san_diego
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: san_diego:eth2--seattle:eth2
+        name: pc_san_diego:eth0--san_diego:eth3
       fault_type: link_flap
   - topo_size: s
     igp: isis
@@ -1376,16 +1065,453 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       down_time: '1'
       host_name: seattle
-      intf_name: eth0
+      intf_name: eth3
       peer_host: pc_urbana_champaign
       probe_dst_ip: 10.254.0.50
       symptom_host: pc_seattle
-      up_time: '1'
+      up_time: '12'
     root_causes:
     - resource:
         kind: link
-        name: seattle:eth0--urbana_champaign:eth2
+        name: pc_seattle:eth0--seattle:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: urbana_champaign
+      intf_name: eth3
+      peer_host: pc_lincoln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_urbana_champaign
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_urbana_champaign:eth0--urbana_champaign:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: washington
+      intf_name: eth3
+      peer_host: pc_ithaca
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_washington
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_washington:eth0--washington:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: ann_arbor
+      intf_name: eth4
+      peer_host: pc_princeton
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_ann_arbor
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: ann_arbor:eth4--pc_ann_arbor:eth0
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: atlanta
+      intf_name: eth3
+      peer_host: pc_pittsburgh
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_atlanta
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: atlanta:eth3--pc_atlanta:eth0
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: boulder
+      intf_name: eth4
+      peer_host: pc_lincoln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_boulder
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: boulder:eth4--pc_boulder:eth0
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: houston
+      intf_name: eth5
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_houston
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: houston:eth5--pc_houston:eth0
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: ithaca
+      intf_name: eth4
+      peer_host: pc_washington
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_ithaca
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: ithaca:eth4--pc_ithaca:eth0
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: lincoln
+      intf_name: eth3
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_lincoln
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: lincoln:eth3--pc_lincoln:eth0
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: palo_alto
+      intf_name: eth4
+      peer_host: pc_san_diego
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_palo_alto
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: palo_alto:eth4--pc_palo_alto:eth0
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: pittsburgh
+      intf_name: eth5
+      peer_host: pc_atlanta
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_pittsburgh
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_pittsburgh:eth0--pittsburgh:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: princeton
+      intf_name: eth4
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 10.254.0.2
+      symptom_host: pc_princeton
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_princeton:eth0--princeton:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: salt_lake_city
+      intf_name: eth4
+      peer_host: pc_ann_arbor
+      probe_dst_ip: 10.254.0.2
+      symptom_host: pc_salt_lake_city
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_salt_lake_city:eth0--salt_lake_city:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: san_diego
+      intf_name: eth4
+      peer_host: pc_palo_alto
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_san_diego
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_san_diego:eth0--san_diego:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: seattle
+      intf_name: eth4
+      peer_host: pc_urbana_champaign
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_seattle
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_seattle:eth0--seattle:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: urbana_champaign
+      intf_name: eth4
+      peer_host: pc_lincoln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_urbana_champaign
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_urbana_champaign:eth0--urbana_champaign:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      down_time: '1'
+      host_name: washington
+      intf_name: eth4
+      peer_host: pc_ithaca
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_washington
+      up_time: '12'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_washington:eth0--washington:eth4
       fault_type: link_flap

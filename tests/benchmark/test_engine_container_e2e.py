@@ -19,6 +19,7 @@ from nika.benchmark_engine.container import RUN_LABEL, _git_commit, image_id
 from nika.config import SESSIONS_DIR
 from nika.problems.rca.materialize import assert_root_causes_match
 from nika.runtime.factory import runtime_for_session
+from nika.workflows.benchmark.admit import HEAVY_CLASSES, resource_class_for_row
 from nika.workflows.benchmark.release import load_release
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import is_valid_trial, task_id_for_row
@@ -30,21 +31,27 @@ pytestmark = [
     pytest.mark.skipif(not docker_available(), reason="Docker required"),
 ]
 
-TASK = "dc_clos__receiver_resource_c__ha2be5b357067"
-
 
 def _engine_cases() -> list:
-    selected = os.environ.get("NIKA_CI_ENGINE_TASK_ID", TASK).strip()
+    selected = os.environ.get("NIKA_CI_ENGINE_TASK_ID", "").strip()
     cases = []
     release_ref = os.environ.get("NIKA_CI_ENGINE_RELEASE", "0.3.0")
     for split in os.environ.get("NIKA_CI_ENGINE_SPLIT", "test").split(","):
         split = split.strip()
         release = load_release(release_ref, split=split)
-        matching = [
-            row
-            for row in release.cases
-            if selected == "all" or task_id_for_row(row) == selected
-        ]
+        if selected:
+            matching = [
+                row
+                for row in release.cases
+                if selected == "all" or task_id_for_row(row) == selected
+            ]
+        else:
+            matching = [
+                row
+                for row in release.cases
+                if row.get("slice", "core") == "core"
+                and resource_class_for_row(row) not in HEAVY_CLASSES
+            ][:1]
         if not matching:
             raise ValueError(f"No engine task {selected!r} in {split!r}")
         cases.extend(
@@ -68,6 +75,7 @@ def _run_task(result_dir: Path, release_ref: str, split: str, task: dict) -> Pat
             model=None,
             max_steps=None,
             result_dir=str(result_dir),
+            include_slices=True,
             task_ids=[f"{task_id_for_row(task)}__t01"],
             yes=True,
         )

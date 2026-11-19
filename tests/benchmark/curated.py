@@ -18,7 +18,10 @@ from nika.workflows.benchmark.release import (
 )
 
 CURATED_FIXTURE = (
-    Path(__file__).resolve().parent / "fixtures" / "curated_0_3_0_test.yaml"
+    Path(__file__).resolve().parents[1]
+    / "fixtures"
+    / "benchmark"
+    / "curated_0_3_0_test.yaml"
 )
 CURATED_VERSION = "curated-0.3.0-test"
 RELEASE_TEST_YAML = (

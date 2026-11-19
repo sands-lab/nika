@@ -481,6 +481,7 @@ def submit_leaderboard_package(
     hf_model: str | None = None,
     hf_revision: str | None = None,
     proprietary: bool = False,
+    tuned_on_dev: bool | None = None,
     release_source: ReleaseSource = "official",
 ) -> SubmitResult:
     """Pack a release run, validate packages, then open GitHub and/or HF PRs.
@@ -519,6 +520,8 @@ def submit_leaderboard_package(
         else:
             metadata, _meta_path, readme_path = load_submission_dir(submission_dir)
             readme_text = readme_path.read_text(encoding="utf-8")
+        if tuned_on_dev is not None:
+            metadata.agent.tuned_on_dev = tuned_on_dev
         metadata.agent.extra.update(
             resolve_hf_model(
                 run_cfg,

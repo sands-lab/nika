@@ -9,8 +9,6 @@ import yaml
 from nika.workflows.benchmark.inject_enumerate import enumerate_inject_params
 from nika.workflows.benchmark.inject_resolve import validate_benchmark_case
 from nika.config import BENCHMARK_DIR
-from nika.problems.registry import get_problem_class
-from nika.problems.support.benchmark_targets import workload_exercises
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.rca.materialize import ground_truth_for_case
 from nika.workflows.benchmark.load_config import (
@@ -193,12 +191,6 @@ def test_link_family_problems_share_inject_targets() -> None:
     assert len(baseline_targets) > 1
     assert ("backend_web_0", "eth0") in baseline_targets
 
-    detach = enumerate_inject_params("link_detach", "campus_lan", "s", net_env=net_env)
-    detach_targets = {(row["host_name"], row["intf_name"]) for row in detach}
-    assert detach_targets < baseline_targets
-    assert ("backend_web_0", "eth0") not in detach_targets
-    assert ("pc_1_1_1_1", "eth0") in detach_targets
-
     for problem in (
         "link_flap",
         "link_packet_corruption",
@@ -218,17 +210,6 @@ def test_link_family_problems_share_inject_targets() -> None:
     assert not enumerate_inject_params(
         "link_capacity_bottleneck", "campus_lan", "s", net_env=net_env
     )
-    clos = load_offline_net_env("min3clos", "s")
-    capacity = enumerate_inject_params(
-        "link_capacity_bottleneck", "min3clos", "s", net_env=clos
-    )
-    assert capacity
-    capacity_cls = get_problem_class("link_capacity_bottleneck")
-    for inject in capacity:
-        assert workload_exercises(capacity_cls, clos, inject)
-        validate_benchmark_case(
-            "min3clos", "link_capacity_bottleneck", inject, "s", net_env=clos
-        )
 
 
 def test_bundled_candidate_catalog_loads_all_options() -> None:
@@ -236,7 +217,6 @@ def test_bundled_candidate_catalog_loads_all_options() -> None:
     assert pool.is_dir()
     candidate_files = sorted(pool.rglob("*.yaml"))
     assert candidate_files
-    assert not any("iosxr_simple_bgp" in path.as_posix() for path in candidate_files)
     failure_text = next(
         path for path in candidate_files if path.name == "link_down.yaml"
     ).read_text(encoding="utf-8")
@@ -249,7 +229,6 @@ def test_bundled_candidate_catalog_loads_all_options() -> None:
     assert "resources:" not in failure_text
     rows = load_benchmark_input(pool)
     assert rows
-    assert not any(row["scenario"] == "iosxr_simple_bgp" for row in rows)
     assert len({row["candidate_option_id"] for row in rows}) == len(rows)
     healthy_environments = {
         deployment_environment_key(row)

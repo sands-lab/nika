@@ -20,7 +20,8 @@ from nika.evaluator.validity import (
 from nika.workflows.benchmark.provenance import check_schema_version
 from nika.workflows.benchmark.official_release import ReleaseSource
 from nika.workflows.benchmark.release import BenchmarkRelease
-from nika.workflows.benchmark.trials import expand_trials
+from nika.workflows.benchmark.trials import expand_trials, task_id_for_row
+from nika.workflows.benchmark.network_identity import DATASET_METADATA_FIELDS
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
     build_rca_confusion,
@@ -36,6 +37,7 @@ from nika.workflows.leaderboard.meta_input import MetaInputError, parse_metadata
 from nika.workflows.leaderboard.release_check import (
     coverage_issues,
     load_reference,
+    select_release_tasks,
     run_commit_changes,
 )
 from nika.workflows.leaderboard.schema import (
@@ -115,6 +117,7 @@ def validate_leaderboard_submission(
     release_source: ReleaseSource = "official",
     trajectories_dir: str | Path | None = None,
     audit_repo: Path | None = None,
+    run_config_reference: str | Path | None = None,
 ) -> ValidationReport:
     """Validate a leaderboard submission package. Returns a report (does not raise).
 
@@ -163,7 +166,7 @@ def validate_leaderboard_submission(
         raw_meta = _load_yaml(metadata_path)
         if not isinstance(raw_meta, dict):
             raise MetaInputError(f"{METADATA_FILENAME} must be a YAML object")
-        parse_metadata_payload(raw_meta)
+        metadata = parse_metadata_payload(raw_meta)
     except (MetaInputError, ValidationError, yaml.YAMLError) as exc:
         return _failed("ERROR_METADATA_INVALID", f"invalid {METADATA_FILENAME}: {exc}")
 
@@ -181,6 +184,20 @@ def validate_leaderboard_submission(
         return _failed(
             "ERROR_IDENTITY_INVALID", f"{RESULTS_DIRNAME}/{IDENTITY_FILENAME}: {exc}"
         )
+
+    if run_config_reference is not None:
+        from nika.workflows.leaderboard.comparison import configuration_mismatches
+
+        try:
+            issues.extend(
+                "ERROR_RUN_CONFIG_MISMATCH",
+                configuration_mismatches(root, Path(run_config_reference)),
+            )
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            issues.add(
+                "ERROR_RUN_CONFIG_MISMATCH",
+                f"Cannot read reference configuration: {exc}",
+            )
 
     try:
         metrics = AggregatedMetrics.model_validate(_load_json(metrics_path))
@@ -237,10 +254,38 @@ def validate_leaderboard_submission(
     )
 
     if release is not None and reference is not None:
+        if release.manifest.get("selection") and identity.run.comparison_config is None:
+            issues.add(
+                "ERROR_RUN_CONFIG_MISMATCH",
+                "Missing recorded comparison configuration; rerun and pack again",
+            )
+        if release.manifest.get("selection") and metadata.agent.tuned_on_dev is None:
+            issues.add(
+                "ERROR_METADATA_INVALID", "Set agent.tuned_on_dev to true or false"
+            )
+        release = select_release_tasks(
+            release, include_slices=identity.benchmark.include_slices
+        )
         issues.extend(
             "ERROR_BENCHMARK_MISMATCH", benchmark_identity_mismatches(identity, release)
         )
 
+        if release.manifest.get("selection"):
+            datasets = {
+                task_id_for_row(row): {
+                    k: row[k] for k in DATASET_METADATA_FIELDS if k in row
+                }
+                for row in release.cases
+            }
+            for trial in trial_results:
+                if (
+                    trial.case_key in datasets
+                    and trial.dataset != datasets[trial.case_key]
+                ):
+                    issues.add(
+                        "ERROR_RESULTS_INVALID",
+                        f"Trial {trial.trial_id} dataset metadata differs from the release",
+                    )
         expected_trials = expand_trials(release.cases, release.n_trials)
         coverage = coverage_issues(
             release,
@@ -258,7 +303,10 @@ def validate_leaderboard_submission(
 
         if metrics is not None and complete:
             recomputed = aggregate_trial_results(
-                trial_results, n_trials_expected=len(expected_trials)
+                trial_results,
+                n_trials_expected=len(expected_trials),
+                task_rows=release.cases if release.manifest.get("selection") else None,
+                trials_per_task=release.n_trials,
             )
             issues.extend(
                 "ERROR_SCORE_MISMATCH", metrics_nearly_equal(recomputed, metrics)

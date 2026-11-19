@@ -137,11 +137,14 @@ class FaultCheck(_Message):
 
 
 class AccessPolicy(_Message):
-    """What the agent may touch during diagnosis; ``*`` allows everything."""
+    """Diagnosis permissions, with shell access restricted by node role."""
 
     tools: list[str] = Field(default_factory=lambda: ["*"])
     node_roles: list[str] = Field(default_factory=lambda: ["*"])
     node_ids: list[str] = Field(default_factory=list)
+    shell_node_roles: list[Literal["host", "server", "service", "controller"]] = Field(
+        default_factory=lambda: ["host", "server", "service", "controller"]
+    )
 
 
 class AgentAccess(_Message):

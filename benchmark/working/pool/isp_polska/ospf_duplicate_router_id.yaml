@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: bialystok
     root_causes:
@@ -19,18 +24,6 @@ failure:
         kind: node
         node: bialystok
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: bydgoszcz
-    root_causes:
     - resource:
         kind: node
         node: bydgoszcz
@@ -44,12 +37,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: gdansk
+      host_name: bydgoszcz
     root_causes:
     - resource:
         kind: node
-        node: gdansk
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -60,9 +62,218 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: gdansk
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: katowice
     root_causes:
+    - resource:
+        kind: node
+        node: katowice
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: kolobrzeg
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: krakow
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: lodz
+    root_causes:
+    - resource:
+        kind: node
+        node: lodz
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: poznan
+    root_causes:
+    - resource:
+        kind: node
+        node: poznan
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: rzeszow
+    root_causes:
+    - resource:
+        kind: node
+        node: rzeszow
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: szczecin
+    root_causes:
+    - resource:
+        kind: node
+        node: szczecin
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: warsaw
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: katowice
@@ -76,118 +287,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      host_name: kolobrzeg
-    root_causes:
-    - resource:
-        kind: node
-        node: kolobrzeg
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: krakow
-    root_causes:
-    - resource:
-        kind: node
-        node: krakow
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: lodz
-    root_causes:
-    - resource:
-        kind: node
-        node: lodz
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: poznan
-    root_causes:
-    - resource:
-        kind: node
-        node: poznan
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: rzeszow
-    root_causes:
-    - resource:
-        kind: node
-        node: rzeszow
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: szczecin
-    root_causes:
-    - resource:
-        kind: node
-        node: szczecin
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: warsaw
-    root_causes:
-    - resource:
-        kind: node
-        node: warsaw
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: wroclaw
     root_causes:
@@ -195,18 +299,6 @@ failure:
         kind: node
         node: wroclaw
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: bialystok
-    root_causes:
     - resource:
         kind: node
         node: bialystok
@@ -220,9 +312,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: bydgoszcz
+      host_name: bialystok
     root_causes:
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: bydgoszcz
@@ -236,12 +337,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: gdansk
+      host_name: bydgoszcz
     root_causes:
     - resource:
         kind: node
-        node: gdansk
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -252,9 +362,218 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: gdansk
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: katowice
     root_causes:
+    - resource:
+        kind: node
+        node: katowice
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: kolobrzeg
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: krakow
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: lodz
+    root_causes:
+    - resource:
+        kind: node
+        node: lodz
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: poznan
+    root_causes:
+    - resource:
+        kind: node
+        node: poznan
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: rzeszow
+    root_causes:
+    - resource:
+        kind: node
+        node: rzeszow
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: szczecin
+    root_causes:
+    - resource:
+        kind: node
+        node: szczecin
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: warsaw
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: katowice
@@ -268,118 +587,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      host_name: kolobrzeg
-    root_causes:
-    - resource:
-        kind: node
-        node: kolobrzeg
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: krakow
-    root_causes:
-    - resource:
-        kind: node
-        node: krakow
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: lodz
-    root_causes:
-    - resource:
-        kind: node
-        node: lodz
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: poznan
-    root_causes:
-    - resource:
-        kind: node
-        node: poznan
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: rzeszow
-    root_causes:
-    - resource:
-        kind: node
-        node: rzeszow
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: szczecin
-    root_causes:
-    - resource:
-        kind: node
-        node: szczecin
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: warsaw
-    root_causes:
-    - resource:
-        kind: node
-        node: warsaw
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: wroclaw
     root_causes:
@@ -387,18 +599,6 @@ failure:
         kind: node
         node: wroclaw
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: bialystok
-    root_causes:
     - resource:
         kind: node
         node: bialystok
@@ -412,9 +612,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: bydgoszcz
+      host_name: bialystok
     root_causes:
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: bydgoszcz
@@ -428,12 +637,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: gdansk
+      host_name: bydgoszcz
     root_causes:
     - resource:
         kind: node
-        node: gdansk
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -444,9 +662,218 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: gdansk
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: katowice
     root_causes:
+    - resource:
+        kind: node
+        node: katowice
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: kolobrzeg
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: krakow
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: lodz
+    root_causes:
+    - resource:
+        kind: node
+        node: lodz
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: poznan
+    root_causes:
+    - resource:
+        kind: node
+        node: poznan
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: rzeszow
+    root_causes:
+    - resource:
+        kind: node
+        node: rzeszow
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: szczecin
+    root_causes:
+    - resource:
+        kind: node
+        node: szczecin
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: warsaw
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: katowice
@@ -460,118 +887,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      host_name: kolobrzeg
-    root_causes:
-    - resource:
-        kind: node
-        node: kolobrzeg
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: krakow
-    root_causes:
-    - resource:
-        kind: node
-        node: krakow
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: lodz
-    root_causes:
-    - resource:
-        kind: node
-        node: lodz
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: poznan
-    root_causes:
-    - resource:
-        kind: node
-        node: poznan
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: rzeszow
-    root_causes:
-    - resource:
-        kind: node
-        node: rzeszow
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: szczecin
-    root_causes:
-    - resource:
-        kind: node
-        node: szczecin
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: warsaw
-    root_causes:
-    - resource:
-        kind: node
-        node: warsaw
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: wroclaw
     root_causes:
@@ -579,18 +899,6 @@ failure:
         kind: node
         node: wroclaw
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: bialystok
-    root_causes:
     - resource:
         kind: node
         node: bialystok
@@ -604,9 +912,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: bydgoszcz
+      host_name: bialystok
     root_causes:
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: bydgoszcz
@@ -620,12 +937,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: gdansk
+      host_name: bydgoszcz
     root_causes:
     - resource:
         kind: node
-        node: gdansk
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -636,9 +962,218 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: gdansk
+    root_causes:
+    - resource:
+        kind: node
+        node: gdansk
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: katowice
     root_causes:
+    - resource:
+        kind: node
+        node: katowice
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: kolobrzeg
+    root_causes:
+    - resource:
+        kind: node
+        node: kolobrzeg
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: krakow
+    root_causes:
+    - resource:
+        kind: node
+        node: krakow
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: lodz
+    root_causes:
+    - resource:
+        kind: node
+        node: lodz
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: poznan
+    root_causes:
+    - resource:
+        kind: node
+        node: poznan
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: rzeszow
+    root_causes:
+    - resource:
+        kind: node
+        node: rzeszow
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bydgoszcz
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: szczecin
+    root_causes:
+    - resource:
+        kind: node
+        node: szczecin
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: warsaw
+    root_causes:
+    - resource:
+        kind: node
+        node: warsaw
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: katowice
@@ -652,122 +1187,19 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
-    inject:
-      host_name: kolobrzeg
-    root_causes:
-    - resource:
-        kind: node
-        node: kolobrzeg
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: krakow
-    root_causes:
-    - resource:
-        kind: node
-        node: krakow
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: lodz
-    root_causes:
-    - resource:
-        kind: node
-        node: lodz
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: poznan
-    root_causes:
-    - resource:
-        kind: node
-        node: poznan
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: rzeszow
-    root_causes:
-    - resource:
-        kind: node
-        node: rzeszow
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: szczecin
-    root_causes:
-    - resource:
-        kind: node
-        node: szczecin
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: warsaw
-    root_causes:
-    - resource:
-        kind: node
-        node: warsaw
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: wroclaw
     root_causes:
     - resource:
         kind: node
         node: wroclaw
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: bialystok
       fault_type: ospf_duplicate_router_id

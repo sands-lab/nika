@@ -1,0 +1,55 @@
+scenario:
+  name: dc_clos
+combination:
+  name: bgp_transport_masks_asn
+  failures:
+  - bgp_asn_misconfig
+  - bgp_acl_block
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      bgp_asn_misconfig:
+        host_name: spine_1
+      bgp_acl_block:
+        host_name: spine_1
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_1
+      fault_type: bgp_asn_misconfig
+    - resource:
+        kind: node
+        node: spine_1
+      fault_type: bgp_acl_block
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      bgp_asn_misconfig:
+        host_name: spine_1
+      bgp_acl_block:
+        host_name: spine_1
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_1
+      fault_type: bgp_asn_misconfig
+    - resource:
+        kind: node
+        node: spine_1
+      fault_type: bgp_acl_block

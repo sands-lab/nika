@@ -1,0 +1,55 @@
+scenario:
+  name: isp_janos-us
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: sanfrancisco
+      intf_name: eth1
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_sanfrancisco
+    root_causes:
+    - resource:
+        kind: link
+        name: sanfrancisco:eth1--seattle:eth1
+      fault_type: link_latency
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: sanfrancisco
+      intf_name: eth0
+      peer_host: pc_seattle
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_sanfrancisco
+    root_causes:
+    - resource:
+        kind: link
+        name: sanfrancisco:eth0--seattle:eth0
+      fault_type: link_latency

@@ -1,0 +1,39 @@
+scenario:
+  name: enterprise_branch
+combination:
+  name: bottleneck_masks_receive_window
+  failures:
+  - tcp_receive_window_limited
+  - link_capacity_bottleneck
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      tcp_receive_window_limited:
+        host_name: br1_corp_pc
+        large_url: http://10.0.20.2/large.bin
+        sender_host: hq_srv
+        sender_ip: 10.0.20.2
+        small_url: http://10.0.20.2/small.bin
+      link_capacity_bottleneck:
+        burst: 16kb
+        host_name: hq_srv
+        intf_name: eth0
+        limit: 32kb
+        rate: 128kbit
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_corp_pc
+      fault_type: tcp_receive_window_limited
+    - resource:
+        kind: link
+        name: hq_edge:eth1--hq_srv:eth0
+      fault_type: link_capacity_bottleneck

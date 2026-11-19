@@ -1,0 +1,85 @@
+scenario:
+  name: campus_lan
+combination:
+  name: redundant_links_both_lost
+  failures:
+  - link_down
+  - link_down
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      link_down[1]:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down[2]:
+        host_name: router_core_1
+        intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: router_core_1:eth1--router_core_3:eth0
+      fault_type: link_down
+    - resource:
+        kind: link
+        name: router_core_1:eth0--router_core_2:eth0
+      fault_type: link_down
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      link_down[1]:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down[2]:
+        host_name: router_core_1
+        intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: router_core_1:eth1--router_core_3:eth0
+      fault_type: link_down
+    - resource:
+        kind: link
+        name: router_core_1:eth0--router_core_2:eth0
+      fault_type: link_down
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      link_down[1]:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down[2]:
+        host_name: router_core_1
+        intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: router_core_1:eth1--router_core_3:eth0
+      fault_type: link_down
+    - resource:
+        kind: link
+        name: router_core_1:eth0--router_core_2:eth0
+      fault_type: link_down

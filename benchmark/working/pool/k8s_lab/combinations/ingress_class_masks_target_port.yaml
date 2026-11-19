@@ -1,0 +1,31 @@
+scenario:
+  name: k8s_lab
+combination:
+  name: ingress_class_masks_target_port
+  failures:
+  - k8s_service_target_port_mismatch
+  - k8s_ingress_class_mismatch
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      k8s_service_target_port_mismatch:
+        control_node: controller
+      k8s_ingress_class_mismatch:
+        control_node: controller
+    root_causes:
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_service_target_port_mismatch
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_ingress_class_mismatch

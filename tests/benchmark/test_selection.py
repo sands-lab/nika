@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 
+from nika.workflows.benchmark.multi_fault import row_problems
+
 from nika.problems.registry import (
-    compatible_columns,
     get_problem_class,
     list_avail_problem_instances,
 )
@@ -22,7 +23,6 @@ from nika.workflows.benchmark.selection import (
     compute_gain,
     select_benchmark_cases,
     selection_context_key,
-    selection_fingerprints,
     CoverageState,
 )
 
@@ -198,7 +198,7 @@ def test_selection_is_reproducible_with_seed() -> None:
     pool = _synthetic_pool()
     cases_a, _ = select_benchmark_cases(pool, seed=7)
     cases_b, _ = select_benchmark_cases(pool, seed=7)
-    assert selection_fingerprints(cases_a) == selection_fingerprints(cases_b)
+    assert cases_a == cases_b
 
 
 def test_selection_rejects_failure_without_matched_healthy_control() -> None:
@@ -264,17 +264,45 @@ def test_real_catalog_selection_constraints() -> None:
     catalog = Path("benchmark/working/pool")
     if not catalog.is_dir():
         return
-    collapsed = collapse_candidates(load_candidate_catalog(catalog))
-    cases, _state = select_benchmark_cases(collapsed, seed=42)
-    registry = {
-        name for name in list_avail_problem_instances() if compatible_columns(name)
+    from nika.problems.combinations import check_multi_fault_task
+    from nika.workflows.benchmark.generate import iter_failure_case_specs
+    from nika.workflows.benchmark.load_config import load_benchmark_yaml
+    from nika.workflows.benchmark.resume import benchmark_row_fingerprint
+
+    source = load_candidate_catalog(catalog)
+    source_multi = [row for row in source if len(row_problems(row)) > 1]
+    selected_multi = [
+        row
+        for row in load_benchmark_yaml("benchmark/working/cases.yaml")
+        if len(row_problems(row)) > 1
+    ]
+    assert {benchmark_row_fingerprint(row) for row in selected_multi} == {
+        benchmark_row_fingerprint(row) for row in source_multi
     }
+    for row in selected_multi:
+        check_multi_fault_task(row)
+    # Per-fault repeat and healthy-control rules apply to the single-fault core.
+    collapsed = collapse_candidates(
+        [row for row in source if len(row_problems(row)) == 1]
+    )
+    cases, _state = select_benchmark_cases(collapsed, seed=42)
+    registry = {name for name, *_ in iter_failure_case_specs()}
     selected_failures = {
-        get_problem_class(row["problem"]).root_cause_name
+        get_problem_class(problem).root_cause_name
         for row in cases
         if row["problem"] != HEALTHY_PROBLEM
+        for problem in row_problems(row)
     }
-    assert registry <= selected_failures
+    assert registry == selected_failures
+    combination_only = {
+        name
+        for name, cls in list_avail_problem_instances().items()
+        if cls.combination_only
+    }
+    assert combination_only.isdisjoint(selected_failures)
+    assert combination_only <= {
+        problem for row in selected_multi for problem in row_problems(row)
+    }
     assert len(cases) < len(collapsed)
     healthy_environments = {
         deployment_environment_key(row)

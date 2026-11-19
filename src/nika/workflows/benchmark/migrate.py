@@ -11,7 +11,7 @@ from nika.problems.rca.materialize import (
     ground_truth_for_case,
     ground_truth_for_multi_case,
 )
-from nika.workflows.benchmark.multi_fault import row_problems
+from nika.workflows.benchmark.multi_fault import nested_inject_map, row_problems
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.problems.rca import UnresolvedRootCauseError, canonical_root_causes
@@ -109,14 +109,7 @@ def materialize_case(
             )
         else:
             isp_kwargs[key] = str(value)
-    inject_raw = dict(row.get("inject") or {})
-    if len(problems) > 1:
-        inject_map = {
-            name: {str(k): str(v) for k, v in dict(inject_raw.get(name) or {}).items()}
-            for name in problems
-        }
-    else:
-        inject_map = {problems[0]: {str(k): str(v) for k, v in inject_raw.items()}}
+    inject_map = nested_inject_map(row)
     cache = env_cache if env_cache is not None else {}
     cache_key = (scenario, topo, release, *isp_kwargs.items())
     if cache_key not in cache:

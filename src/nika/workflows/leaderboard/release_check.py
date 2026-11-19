@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from nika.workflows.benchmark.official_release import (
     OfficialReleaseUnavailable,
@@ -194,3 +194,11 @@ def release_drift_issue(
         details=[f"Checked against: {reference.describe()}"],
         fix=_rerun_fix(release, reference),
     )
+
+
+def select_release_tasks(
+    release: BenchmarkRelease, *, include_slices: bool = False
+) -> BenchmarkRelease:
+    """Keep package coverage and its case count aligned with the run selection."""
+    rows = release.select_cases(include_slices=include_slices)
+    return replace(release, cases=rows, case_count=len(rows))

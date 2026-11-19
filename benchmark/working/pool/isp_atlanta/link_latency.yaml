@@ -1,0 +1,80 @@
+scenario:
+  name: isp_atlanta
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n1
+      intf_name: eth1
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth1--n6:eth1
+      fault_type: link_latency
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n1
+      intf_name: eth0
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth0--n6:eth0
+      fault_type: link_latency
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n1
+      intf_name: eth0
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_n1
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth0--n6:eth0
+      fault_type: link_latency

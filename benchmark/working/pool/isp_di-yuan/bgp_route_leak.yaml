@@ -1,0 +1,27 @@
+scenario:
+  name: isp_di-yuan
+failure:
+  fault_type: bgp_route_leak
+  cases:
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_4
+      peer: 10.0.0.26
+    root_causes:
+    - resource:
+        kind: node
+        node: n_4
+      fault_type: bgp_route_leak

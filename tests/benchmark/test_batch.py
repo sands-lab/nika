@@ -34,7 +34,7 @@ SCENARIO_CASES: list[ScenarioCase] = [
     # test_sandbox_benchmark.py instead.
     ScenarioCase("simple_bgp", "link_down"),
     ScenarioCase("simple_bgp", "link_flap"),
-    ScenarioCase("simple_bgp", "link_detach"),
+    ScenarioCase("simple_bgp", "link_down"),
 ]
 
 

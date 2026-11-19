@@ -273,3 +273,21 @@ def test_default_gateway_request_retains_published_engine_wire_schema() -> None:
     payload = GatewayRequest().model_dump(mode="json")
     assert "tool_call_limits" not in payload
     assert set(payload) == {"access", "sandbox", "bind_host", "agent_host"}
+
+
+def test_native_trial_always_requests_redeployment(monkeypatch):
+    from nika.benchmark_engine import engine as module
+
+    calls = []
+    monkeypatch.setattr(module, "active_trial_lab", lambda: None)
+    monkeypatch.setattr(
+        module, "start_net_env", lambda *args, **kwargs: calls.append(kwargs) or "fresh"
+    )
+    request = TrialRequest(
+        task={"scenario": "dc_clos", "topo_size": "s"},
+        failures=[],
+        trial_dir="/results/fresh",
+    )
+    engine = module.BenchmarkEngine()
+    assert engine.start_trial(request).session_id == "fresh"
+    assert calls[0]["redeploy"] is True

@@ -89,6 +89,7 @@ from nika.workflows.benchmark.outcomes import (
     is_signal_exit_code,
     trace_ends_in_llm_call,
 )
+from nika.workflows.benchmark.network_identity import DATASET_METADATA_FIELDS
 from nika.evaluator.score_status import (
     is_infra_error_evidence,
     resolve_score_status,
@@ -99,7 +100,6 @@ from nika.workflows.benchmark.official_release import (
     official_release_drift,
 )
 from nika.workflows.benchmark.release import (
-    DEFAULT_RELEASE_VERSION,
     RUN_CONFIG_FILENAME,
     BenchmarkRelease,
     ReleaseError,
@@ -411,10 +411,6 @@ def _mark_session_aborted(session_dir: Path) -> None:
 
 def default_benchmark_yaml_path() -> str:
     return str(BENCHMARK_DIR / "working" / "pool")
-
-
-def default_release_ref() -> str:
-    return DEFAULT_RELEASE_VERSION
 
 
 def _start_progress_monitoring() -> bool:
@@ -865,6 +861,8 @@ def run_single_case(
     case_key: str | None = None,
     expected_root_causes: list | None = None,
     candidate_option_id: str | None = None,
+    dataset_metadata: dict[str, Any] | None = None,
+    objectives: list[str] | None = None,
     topo: str | None = None,
     igp: str | None = None,
     bgp_mode: str | None = None,
@@ -905,6 +903,9 @@ def run_single_case(
         telemetry=telemetry,
         traffic=traffic,
     )
+    from nika.workflows.benchmark.objectives import objectives_field
+
+    row.update(objectives_field(objectives))
     from nika.schedule import schedule_for_task
 
     if schedule is not None:
@@ -918,6 +919,12 @@ def run_single_case(
     plan = schedule_for_task(row)
     if schedule is not None:
         row["schedule"] = plan.case_value()
+    if len(row.get("problems") or []) > 1:
+        from nika.problems.combinations import check_multi_fault_task
+
+        check_multi_fault_task(
+            {**row, "inject": inject_params} if not schedule else row
+        )
     deploy_bits = [
         f"{_ISP_BANNER_LABELS[key]}: {'on' if key == 'rpki' else row[key]}"
         for key in ISP_DEPLOY_KEYS
@@ -1010,6 +1017,8 @@ def run_single_case(
             "benchmark_fingerprint",
             benchmark_row_fingerprint(row),
         )
+        if dataset_metadata:
+            session.update_session("dataset", dataset_metadata)
         if candidate_option_id:
             session.update_session("candidate_option_id", candidate_option_id)
         _stamp_trial_meta(
@@ -1274,6 +1283,8 @@ def _run_trial_case(
         inject_params=row["inject"],
         expected_root_causes=expected_root_causes,
         candidate_option_id=row.get("candidate_option_id"),
+        dataset_metadata={k: row[k] for k in DATASET_METADATA_FIELDS if k in row},
+        objectives=row.get("objectives"),
         release_meta=release_meta,
         agent_type=agent_type,
         llm_provider=llm_provider,
@@ -1671,6 +1682,7 @@ def run_benchmark_trials(
     plan_header: str | None = None,
     job: dict[str, Any] | None = None,
     check_images: bool = True,
+    benchmark_rows: list[dict[str, Any]] | None = None,
     skip_licensed: bool = False,
     device_profiles: list[str] | None = None,
 ) -> None:
@@ -1699,7 +1711,11 @@ def run_benchmark_trials(
     # Quiet MCP/httpx before lab deploy and agent work (default CLI UX).
     quiet_third_party_logging()
 
-    rows = load_benchmark_input(benchmark_file)
+    rows = (
+        benchmark_rows
+        if benchmark_rows is not None
+        else load_benchmark_input(benchmark_file)
+    )
     if skip_licensed or device_profiles:
         from nika.workflows.benchmark.licensed import select_rows
 
@@ -2147,6 +2163,7 @@ def run_benchmark_from_release(
     max_steps: int | None,
     *,
     split: SplitName | str = "test",
+    include_slices: bool = False,
     batch_size: int = 1,
     heavy_batch_size: int = 1,
     result_dir: str | None = None,
@@ -2176,10 +2193,11 @@ def run_benchmark_from_release(
     # Settings and --task-id need only the manifest: check them before the
     # benchmark engine starts, which can mean building its image.
     check_run_settings(resolved, agent_type=agent_type)
+    selected_rows = resolved.select_cases(include_slices=include_slices)
     n_trials = resolved.n_trials
     planned: list[Trial] | None = None
     if task_ids:
-        planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
+        planned = select_trials(expand_trials(selected_rows, n_trials), task_ids)
     try:
         drift, reference = official_release_drift(resolved)
     except ReleaseError as exc:
@@ -2224,13 +2242,14 @@ def run_benchmark_from_release(
             engine=engine,
             pinned_engine=pinned_engine,
         )
+        proposed.update(include_slices=include_slices, case_count=len(selected_rows))
         existing = load_run_config(results_root)
         job = merge_run_config(existing=existing, proposed=proposed)
         if planned is not None:
             case_count = len({trial.case_key for trial in planned})
             scope = f"{case_count} cases, {len(planned)} trials"
         else:
-            scope = f"{resolved.case_count} cases × {n_trials} trials"
+            scope = f"{len(selected_rows)} cases × {n_trials} trials"
         job_path = results_root / RUN_CONFIG_FILENAME
         plan_header = (
             f"Release {resolved.ref} split={resolved.split} "
@@ -2240,6 +2259,7 @@ def run_benchmark_from_release(
 
         run_benchmark_trials(
             benchmark_file=str(resolved.cases_path),
+            benchmark_rows=selected_rows,
             agent_type=agent_type,
             llm_provider=llm_provider,
             model=model,

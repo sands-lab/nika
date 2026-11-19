@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n_1
     root_causes:
@@ -19,82 +24,6 @@ failure:
         kind: node
         node: n_1
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: nokia_srlinux
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_10
-    root_causes:
-    - resource:
-        kind: node
-        node: n_10
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: nokia_srlinux
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_11
-    root_causes:
-    - resource:
-        kind: node
-        node: n_11
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: nokia_srlinux
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_2
-    root_causes:
-    - resource:
-        kind: node
-        node: n_2
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: nokia_srlinux
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_3
-    root_causes:
-    - resource:
-        kind: node
-        node: n_3
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: nokia_srlinux
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_4
-    root_causes:
     - resource:
         kind: node
         node: n_4
@@ -108,12 +37,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_5
+      host_name: n_10
     root_causes:
     - resource:
         kind: node
-        node: n_5
+        node: n_10
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_11
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -124,12 +62,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_6
+      host_name: n_11
     root_causes:
     - resource:
         kind: node
-        node: n_6
+        node: n_11
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_10
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -140,9 +87,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_7
+      host_name: n_2
     root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: n_7
@@ -156,12 +112,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_8
+      host_name: n_3
     root_causes:
     - resource:
         kind: node
-        node: n_8
+        node: n_3
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_4
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -172,25 +137,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_9
+      host_name: n_4
     root_causes:
     - resource:
         kind: node
-        node: n_9
+        node: n_4
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_1
-    root_causes:
     - resource:
         kind: node
         node: n_1
@@ -200,45 +158,122 @@ failure:
     bgp_mode: none
     rpki: false
     backend: containerlab
-    device_profile: sonic
+    device_profile: nokia_srlinux
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_10
+      host_name: n_5
     root_causes:
     - resource:
         kind: node
-        node: n_10
+        node: n_5
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
     bgp_mode: none
     rpki: false
     backend: containerlab
-    device_profile: sonic
+    device_profile: nokia_srlinux
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_11
+      host_name: n_6
     root_causes:
     - resource:
         kind: node
-        node: n_11
+        node: n_6
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
     bgp_mode: none
     rpki: false
     backend: containerlab
-    device_profile: sonic
+    device_profile: nokia_srlinux
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_2
+      host_name: n_7
     root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_8
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_9
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: n_2
@@ -252,25 +287,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_3
+      host_name: n_1
     root_causes:
     - resource:
         kind: node
-        node: n_3
+        node: n_1
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_4
-    root_causes:
     - resource:
         kind: node
         node: n_4
@@ -284,12 +312,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_5
+      host_name: n_10
     root_causes:
     - resource:
         kind: node
-        node: n_5
+        node: n_10
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_11
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -300,12 +337,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_6
+      host_name: n_11
     root_causes:
     - resource:
         kind: node
-        node: n_6
+        node: n_11
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_10
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -316,9 +362,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_7
+      host_name: n_2
     root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: n_7
@@ -332,12 +387,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_8
+      host_name: n_3
     root_causes:
     - resource:
         kind: node
-        node: n_8
+        node: n_3
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_4
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -348,25 +412,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_9
+      host_name: n_4
     root_causes:
     - resource:
         kind: node
-        node: n_9
+        node: n_4
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_1
-    root_causes:
     - resource:
         kind: node
         node: n_1
@@ -375,46 +432,123 @@ failure:
     igp: ospf
     bgp_mode: none
     rpki: false
-    backend: kathara
-    device_profile: frr
+    backend: containerlab
+    device_profile: sonic
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_10
+      host_name: n_5
     root_causes:
     - resource:
         kind: node
-        node: n_10
+        node: n_5
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
     bgp_mode: none
     rpki: false
-    backend: kathara
-    device_profile: frr
+    backend: containerlab
+    device_profile: sonic
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_11
+      host_name: n_6
     root_causes:
     - resource:
         kind: node
-        node: n_11
+        node: n_6
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
     bgp_mode: none
     rpki: false
-    backend: kathara
-    device_profile: frr
+    backend: containerlab
+    device_profile: sonic
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_2
+      host_name: n_7
     root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_8
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_9
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: n_2
@@ -428,25 +562,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_3
+      host_name: n_1
     root_causes:
     - resource:
         kind: node
-        node: n_3
+        node: n_1
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_4
-    root_causes:
     - resource:
         kind: node
         node: n_4
@@ -460,12 +587,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_5
+      host_name: n_10
     root_causes:
     - resource:
         kind: node
-        node: n_5
+        node: n_10
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_11
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -476,12 +612,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_6
+      host_name: n_11
     root_causes:
     - resource:
         kind: node
-        node: n_6
+        node: n_11
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_10
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -492,9 +637,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_7
+      host_name: n_2
     root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: n_7
@@ -508,12 +662,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_8
+      host_name: n_3
     root_causes:
     - resource:
         kind: node
-        node: n_8
+        node: n_3
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_4
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -524,25 +687,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_9
+      host_name: n_4
     root_causes:
     - resource:
         kind: node
-        node: n_9
+        node: n_4
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_1
-    root_causes:
     - resource:
         kind: node
         node: n_1
@@ -552,45 +708,122 @@ failure:
     bgp_mode: none
     rpki: false
     backend: kathara
-    device_profile: iosxr
+    device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_10
+      host_name: n_5
     root_causes:
     - resource:
         kind: node
-        node: n_10
+        node: n_5
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
     bgp_mode: none
     rpki: false
     backend: kathara
-    device_profile: iosxr
+    device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_11
+      host_name: n_6
     root_causes:
     - resource:
         kind: node
-        node: n_11
+        node: n_6
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
     bgp_mode: none
     rpki: false
     backend: kathara
-    device_profile: iosxr
+    device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_2
+      host_name: n_7
     root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_8
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_9
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: n_2
@@ -604,25 +837,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_3
+      host_name: n_1
     root_causes:
     - resource:
         kind: node
-        node: n_3
+        node: n_1
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_4
-    root_causes:
     - resource:
         kind: node
         node: n_4
@@ -636,12 +862,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_5
+      host_name: n_10
     root_causes:
     - resource:
         kind: node
-        node: n_5
+        node: n_10
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_11
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -652,12 +887,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_6
+      host_name: n_11
     root_causes:
     - resource:
         kind: node
-        node: n_6
+        node: n_11
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_10
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -668,9 +912,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_7
+      host_name: n_2
     root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: n_7
@@ -684,12 +937,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_8
+      host_name: n_3
     root_causes:
     - resource:
         kind: node
-        node: n_8
+        node: n_3
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_4
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -700,25 +962,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_9
+      host_name: n_4
     root_causes:
     - resource:
         kind: node
-        node: n_9
+        node: n_4
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_1
-    root_causes:
     - resource:
         kind: node
         node: n_1
@@ -728,45 +983,122 @@ failure:
     bgp_mode: none
     rpki: false
     backend: kathara
-    device_profile: routeros
+    device_profile: iosxr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_10
+      host_name: n_5
     root_causes:
     - resource:
         kind: node
-        node: n_10
+        node: n_5
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
     bgp_mode: none
     rpki: false
     backend: kathara
-    device_profile: routeros
+    device_profile: iosxr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_11
+      host_name: n_6
     root_causes:
     - resource:
         kind: node
-        node: n_11
+        node: n_6
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
     bgp_mode: none
     rpki: false
     backend: kathara
-    device_profile: routeros
+    device_profile: iosxr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_2
+      host_name: n_7
     root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_8
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_9
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: n_2
@@ -780,25 +1112,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_3
+      host_name: n_1
     root_causes:
     - resource:
         kind: node
-        node: n_3
+        node: n_1
       fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    igp: ospf
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: routeros
-    traffic:
-      pattern: gravity
-      load_mbps: 1.0
-    inject:
-      host_name: n_4
-    root_causes:
     - resource:
         kind: node
         node: n_4
@@ -812,12 +1137,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_5
+      host_name: n_10
     root_causes:
     - resource:
         kind: node
-        node: n_5
+        node: n_10
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_11
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -828,12 +1162,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_6
+      host_name: n_11
     root_causes:
     - resource:
         kind: node
-        node: n_6
+        node: n_11
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_10
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -844,9 +1187,18 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_7
+      host_name: n_2
     root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
     - resource:
         kind: node
         node: n_7
@@ -860,12 +1212,21 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
-      host_name: n_8
+      host_name: n_3
     root_causes:
     - resource:
         kind: node
-        node: n_8
+        node: n_3
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_4
       fault_type: ospf_duplicate_router_id
   - topo_size: s
     igp: ospf
@@ -876,10 +1237,144 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_4
+    root_causes:
+    - resource:
+        kind: node
+        node: n_4
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_5
+    root_causes:
+    - resource:
+        kind: node
+        node: n_5
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_6
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_7
+    root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n_8
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_duplicate_router_id
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: n_9
     root_causes:
     - resource:
         kind: node
         node: n_9
+      fault_type: ospf_duplicate_router_id
+    - resource:
+        kind: node
+        node: n_2
       fault_type: ospf_duplicate_router_id

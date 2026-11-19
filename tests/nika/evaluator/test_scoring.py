@@ -164,7 +164,7 @@ class ScoringTest:
         assert payload["localization_f1"] == 1.0
 
     @pytest.mark.parametrize(
-        "fault_type", ["bgp_max_prefix_exceeded", "flow_rule_loop"]
+        "fault_type", ["ospf_hello_interval_mismatch", "flow_rule_loop"]
     )
     def test_distributed_fault_accepts_either_participating_node(
         self, fault_type: str
@@ -198,14 +198,14 @@ class ScoringTest:
         assert score_rca(wrong, truth)["rca_f1"] == 0.0
 
     def test_distributed_location_overlaps_another_fault(self) -> None:
-        max_prefix = "bgp_max_prefix_exceeded"
+        timer_mismatch = "ospf_hello_interval_mismatch"
         truth = _gt(
-            RootCause(resource=node_resource("a"), fault_type=max_prefix),
-            RootCause(resource=node_resource("b"), fault_type=max_prefix),
+            RootCause(resource=node_resource("a"), fault_type=timer_mismatch),
+            RootCause(resource=node_resource("b"), fault_type=timer_mismatch),
             RootCause(resource=node_resource("b"), fault_type="routing_service_down"),
         )
         submitted = _sub(
-            RootCause(resource=node_resource("a"), fault_type=max_prefix),
+            RootCause(resource=node_resource("a"), fault_type=timer_mismatch),
             RootCause(resource=node_resource("b"), fault_type="routing_service_down"),
         )
         scores = score_rca(submitted, truth)

@@ -1,0 +1,82 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_1_1_1_1
+      intf_name: eth0
+      observer_device: pc_1_1_1_1
+      probe_dst_ip: 10.200.0.3
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_1_1_1_1:eth0--switch_access_1_1_1:eth1
+      fault_type: link_latency
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_1_1_1_1
+      intf_name: eth0
+      observer_device: pc_1_1_1_1
+      probe_dst_ip: 10.200.0.3
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_1_1_1_1:eth0--switch_access_1_1_1:eth1
+      fault_type: link_latency
+  - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_1_1_1_1
+      intf_name: eth0
+      observer_device: pc_1_1_1_1
+      probe_dst_ip: 10.200.0.3
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_1_1_1_1:eth0--switch_access_1_1_1:eth1
+      fault_type: link_latency
+  - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_1_1_1_1
+      intf_name: eth0
+      observer_device: pc_1_1_1_1
+      probe_dst_ip: 10.200.0.3
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_1_1_1_1:eth0--switch_access_1_1_1:eth1
+      fault_type: link_latency

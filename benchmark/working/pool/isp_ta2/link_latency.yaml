@@ -1,0 +1,30 @@
+scenario:
+  name: isp_ta2
+failure:
+  fault_type: link_latency
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: n30
+      intf_name: eth0
+      peer_host: pc_n40
+      probe_dst_ip: 10.254.0.138
+      symptom_host: pc_n30
+    root_causes:
+    - resource:
+        kind: link
+        name: n30:eth0--n40:eth0
+      fault_type: link_latency

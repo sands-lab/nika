@@ -7,6 +7,11 @@ failure:
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_server_3
       host_name_2: load_balancer
@@ -16,11 +21,21 @@ failure:
         node: web_server_3
         name: eth0
       fault_type: mac_address_conflict
+    - resource:
+        kind: interface
+        node: load_balancer
+        name: eth0
+      fault_type: mac_address_conflict
   - topo_size: s
     device_profile: iosxr
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: load_balancer
       host_name_2: web_server_2
@@ -30,11 +45,21 @@ failure:
         node: load_balancer
         name: eth0
       fault_type: mac_address_conflict
+    - resource:
+        kind: interface
+        node: web_server_2
+        name: eth0
+      fault_type: mac_address_conflict
   - topo_size: s
     device_profile: routeros
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: dns_server
       host_name_2: web_server_1
@@ -44,10 +69,20 @@ failure:
         node: dns_server
         name: eth0
       fault_type: mac_address_conflict
+    - resource:
+        kind: interface
+        node: web_server_1
+        name: eth0
+      fault_type: mac_address_conflict
   - topo_size: m
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: web_server_3
       host_name_2: dns_server
@@ -57,10 +92,20 @@ failure:
         node: web_server_3
         name: eth0
       fault_type: mac_address_conflict
+    - resource:
+        kind: interface
+        node: dns_server
+        name: eth0
+      fault_type: mac_address_conflict
   - topo_size: l
     traffic:
       pattern: uniform
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: pc_2_1_2_2
       host_name_2: pc_2_1_2_4
@@ -68,5 +113,10 @@ failure:
     - resource:
         kind: interface
         node: pc_2_1_2_2
+        name: eth0
+      fault_type: mac_address_conflict
+    - resource:
+        kind: interface
+        node: pc_2_1_2_4
         name: eth0
       fault_type: mac_address_conflict

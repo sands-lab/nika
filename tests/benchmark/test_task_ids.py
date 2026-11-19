@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from contextlib import nullcontext
 from pathlib import Path
@@ -49,6 +50,40 @@ def _isolate_run_config(monkeypatch: pytest.MonkeyPatch):
 
 
 class TestTaskSelectors:
+    def test_short_task_id_includes_nondefault_objectives(self) -> None:
+        row = {
+            "scenario": "campus_lan",
+            "topo_size": "s",
+            "problem": "healthy",
+            "inject": {},
+        }
+        assert task_id_for_row(row) == "campus_lan__healthy__s"
+        assert task_id_for_row(row) == task_id_for_row(
+            {**row, "objectives": ["detection", "localization", "rca"]}
+        )
+        assert task_id_for_row(row) != task_id_for_row({**row, "objectives": ["rca"]})
+
+    @pytest.mark.parametrize("placement", ["link_down[1]", "link_down[2]"])
+    def test_repeated_fault_targets_have_distinct_task_and_cache_identities(
+        self, placement
+    ) -> None:
+        from nika.workflows.benchmark.resume import benchmark_row_fingerprint
+
+        row = {
+            "scenario": "dc_clos",
+            "topo_size": "s",
+            "problem": "link_down+link_down",
+            "inject": {
+                "link_down[1]": {"host_name": "leaf_1", "intf_name": "eth0"},
+                "link_down[2]": {"host_name": "leaf_2", "intf_name": "eth0"},
+            },
+        }
+        moved = deepcopy(row)
+        moved["inject"][placement]["intf_name"] = "eth1"
+        assert benchmark_row_fingerprint(row) != benchmark_row_fingerprint(moved)
+        assert task_id_for_row(row) != task_id_for_row(moved)
+        assert len(index_rows_by_task_id([row, moved])) == 2
+
     def test_parse_case_and_trial_ids(self) -> None:
         assert parse_task_selector(TASK_A) == (TASK_A, None)
         assert parse_task_selector(f"{TASK_A}__t02") == (TASK_A, 2)
@@ -143,8 +178,9 @@ class TestReleaseTaskIdGate:
         runner.assert_not_called()
         assert not (result_dir / "run.json").exists()
 
+    @pytest.mark.parametrize("include_slices", [False, True])
     def test_scoped_run_keeps_full_job_scope(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], include_slices: bool
     ) -> None:
         release = load_release("0.3.0", split="test")
         task_id = task_id_for_row(release.cases[0])
@@ -171,6 +207,7 @@ class TestReleaseTaskIdGate:
                 model="mock-v1",
                 max_steps=None,
                 split="test",
+                include_slices=include_slices,
                 result_dir=str(result_dir),
                 check_images=False,
                 release=release,
@@ -178,15 +215,22 @@ class TestReleaseTaskIdGate:
             )
         runner.assert_called_once()
         job = json.loads((result_dir / "run.json").read_text(encoding="utf-8"))
+        assert job["include_slices"] is include_slices
         assert "task_ids" not in job
         assert "planned_trial_count" not in job
-        assert job["case_count"] == release.case_count
+        assert job["case_count"] == len(
+            release.select_cases(include_slices=include_slices)
+        )
         progress = json.loads(
             (tmp_path / "benchmark_runs" / f"{job['run_id']}.json").read_text(
                 encoding="utf-8"
             )
         )
-        assert progress["total_trials"] == release.case_count * release.n_trials
+        assert (
+            progress["total_trials"]
+            == len(release.select_cases(include_slices=include_slices))
+            * release.n_trials
+        )
         plan = " ".join(capsys.readouterr().out.split())
         assert "1/1 run(s) remaining" in plan
         assert "1 case(s), 1 of 3 trial(s) selected" in plan
@@ -197,8 +241,8 @@ class TestPublishedReleaseCatalog:
         release = load_release("0.3.0", split="test")
         entries = catalog_entries(release.cases)
         ids = [entry["task_id"] for entry in entries]
-        assert len(ids) == 85
-        assert len(set(ids)) == 85
+        assert len(ids) == release.case_count
+        assert len(set(ids)) == release.case_count
 
 
 class TestBenchmarkCatalogCli:

@@ -12,6 +12,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: charlotte
     root_causes:
@@ -28,6 +33,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: dallas
     root_causes:
@@ -44,6 +54,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: elpaso
     root_causes:
@@ -60,6 +75,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: houston
     root_causes:
@@ -76,6 +96,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: indianapolis
     root_causes:
@@ -92,6 +117,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kansascity
     root_causes:
@@ -108,6 +138,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: minneapolis
     root_causes:
@@ -124,6 +159,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: nashville
     root_causes:
@@ -140,6 +180,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: stlouis
     root_causes:
@@ -156,6 +201,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: tulsa
     root_causes:
@@ -172,6 +222,11 @@ failure:
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: washingtondc
     root_causes:
@@ -182,12 +237,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: charlotte
     root_causes:
@@ -198,12 +258,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: dallas
     root_causes:
@@ -214,12 +279,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: elpaso
     root_causes:
@@ -230,12 +300,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: houston
     root_causes:
@@ -246,12 +321,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: indianapolis
     root_causes:
@@ -262,12 +342,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: kansascity
     root_causes:
@@ -278,12 +363,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: minneapolis
     root_causes:
@@ -294,12 +384,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: nashville
     root_causes:
@@ -310,12 +405,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: stlouis
     root_causes:
@@ -326,12 +426,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: tulsa
     root_causes:
@@ -342,12 +447,17 @@ failure:
   - topo_size: m
     igp: ospf
     bgp_mode: ebgp
-    rpki: false
+    rpki: true
     backend: kathara
     device_profile: frr
     traffic:
       pattern: gravity
       load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
     inject:
       host_name: washingtondc
     root_causes:

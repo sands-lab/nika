@@ -1,0 +1,2117 @@
+scenario:
+  name: isp_polska
+failure:
+  fault_type: host_acl_block
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bialystok
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bialystok
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bialystok
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bialystok
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bydgoszcz
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bydgoszcz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bydgoszcz
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bydgoszcz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_gdansk
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_gdansk
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_gdansk
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_gdansk
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_katowice
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_katowice
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_katowice
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_katowice
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_kolobrzeg
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_kolobrzeg
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_kolobrzeg
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_kolobrzeg
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_krakow
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_krakow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_krakow
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_krakow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_lodz
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lodz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_lodz
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lodz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_poznan
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_poznan
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_poznan
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_poznan
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_rzeszow
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_rzeszow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_rzeszow
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_rzeszow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_szczecin
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_szczecin
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_szczecin
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_szczecin
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_warsaw
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_warsaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_warsaw
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_warsaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_wroclaw
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_wroclaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_wroclaw
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_wroclaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bialystok
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bialystok
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bialystok
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bialystok
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bydgoszcz
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bydgoszcz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bydgoszcz
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bydgoszcz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_gdansk
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_gdansk
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_gdansk
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_gdansk
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_katowice
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_katowice
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_katowice
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_katowice
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_kolobrzeg
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_kolobrzeg
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_kolobrzeg
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_kolobrzeg
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_krakow
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_krakow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_krakow
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_krakow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_lodz
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lodz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_lodz
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lodz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_poznan
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_poznan
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_poznan
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_poznan
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_rzeszow
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_rzeszow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_rzeszow
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_rzeszow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_szczecin
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_szczecin
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_szczecin
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_szczecin
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_warsaw
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_warsaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_warsaw
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_warsaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_wroclaw
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_wroclaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_wroclaw
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_wroclaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bialystok
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bialystok
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bialystok
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bialystok
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bydgoszcz
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bydgoszcz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bydgoszcz
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bydgoszcz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_gdansk
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_gdansk
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_gdansk
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_gdansk
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_katowice
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_katowice
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_katowice
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_katowice
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_kolobrzeg
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_kolobrzeg
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_kolobrzeg
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_kolobrzeg
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_krakow
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_krakow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_krakow
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_krakow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_lodz
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lodz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_lodz
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lodz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_poznan
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_poznan
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_poznan
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_poznan
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_rzeszow
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_rzeszow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_rzeszow
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_rzeszow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_szczecin
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_szczecin
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_szczecin
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_szczecin
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_warsaw
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_warsaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_warsaw
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_warsaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_wroclaw
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_wroclaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_wroclaw
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_wroclaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bialystok
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bialystok
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bialystok
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bialystok
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bydgoszcz
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bydgoszcz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_bydgoszcz
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_bydgoszcz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_gdansk
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_gdansk
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_gdansk
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_gdansk
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_katowice
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_katowice
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_katowice
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_katowice
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_kolobrzeg
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_kolobrzeg
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_kolobrzeg
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_kolobrzeg
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_krakow
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_krakow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_krakow
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_krakow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_lodz
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lodz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_lodz
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_lodz
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_poznan
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_poznan
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_poznan
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_poznan
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_rzeszow
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_rzeszow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_rzeszow
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_rzeszow
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_szczecin
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_szczecin
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_szczecin
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_szczecin
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_warsaw
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_warsaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_warsaw
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_warsaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_wroclaw
+      protocol: http
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_wroclaw
+      fault_type: host_acl_block
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: pc_wroclaw
+      protocol: icmp
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_wroclaw
+      fault_type: host_acl_block

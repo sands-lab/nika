@@ -21,11 +21,13 @@ from nika.net_env.net_env_pool import (
     scenario_requires_topo_size,
     scenario_supported_backends,
 )
+from nika.problems.combinations import get_combination, list_combinations
 from nika.problems.rca import UnresolvedRootCauseError
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.rca.materialize import ground_truth_for_case
 from nika.problems.rca.models import FaultResource
 from nika.problems.registry import get_problem_class, list_avail_problem_instances
+from nika.telemetry import TELEMETRY_KINDS, telemetry_field
 from nika.traffic.profiles import traffic_field
 from nika.problems.support.router_ops import unsupported_native_targets
 from nika.workflows.benchmark.e2e_validation import containerlab_isp_supported
@@ -39,12 +41,15 @@ from nika.workflows.benchmark.inject_resolve import (
 from nika.topology.catalog import isp_topology_size
 from nika.workflows.benchmark.isp_options import (
     is_isp_base_topology,
-    is_isp_named_special,
     isp_config_for_problem,
     isp_stack_for_backend,
     isp_topo_from_scenario,
 )
-from nika.workflows.benchmark.load_config import CASE_PROFILE_FIELDS
+from nika.workflows.benchmark.load_config import (
+    CASE_PROFILE_FIELDS,
+    combination_rows,
+    normalize_benchmark_row,
+)
 from nika.workflows.benchmark.resume import benchmark_option_id
 
 WORKING_DIRNAME = "working"
@@ -55,14 +60,6 @@ def default_pool_dir() -> Path:
     return BENCHMARK_DIR / WORKING_DIRNAME / POOL_DIRNAME
 
 
-_PROFILE_FIELDS = (
-    "topo_size",
-    "igp",
-    "bgp_mode",
-    "rpki",
-    "backend",
-    "device_profile",
-)
 # Deployment options a case row may carry besides ``topo_size``. ISP rows use
 # all of them; other environments with native router profiles carry only
 # ``device_profile``, and their default (FRR) rows carry none.
@@ -72,6 +69,9 @@ _DEPLOY_OPTION_KEYS = ("igp", "bgp_mode", "rpki", "backend", "device_profile")
 # (Ethernet ``topo_size`` or ISP topology tier), within the sizes the
 # environment declares, so no candidate needs a large native lab.
 NATIVE_PROFILE_BENCHMARK_SIZE = "s"
+# Every benchmark task runs with all telemetry kinds, so agents can query
+# metrics, flows, and logs whatever the scenario.
+BENCHMARK_TELEMETRY = telemetry_field(TELEMETRY_KINDS)
 # Containerlab ISP rows run on SR Linux (the backend default) and on these.
 CONTAINERLAB_ALTERNATE_PROFILES = ("sonic",)
 
@@ -124,11 +124,8 @@ def native_benchmark_profiles(scenario: str, topo_size: str = "") -> list[str]:
     """Native router profiles the pool carries for one deployment size.
 
     ``topo_size`` is the Ethernet size; ISP base scenarios use their
-    topology tier. Named ISP specials keep FRR (their overlays have no
-    native rendering).
+    topology tier.
     """
-    if is_isp_named_special(scenario):
-        return []
     if is_isp_base_topology(scenario):
         topo_size = isp_topology_size(isp_topo_from_scenario(scenario))
     if topo_size != NATIVE_PROFILE_BENCHMARK_SIZE:
@@ -141,15 +138,23 @@ def native_benchmark_profiles(scenario: str, topo_size: str = "") -> list[str]:
     ]
 
 
+def _deployed_isp_options(scenario: str, options: dict[str, Any]) -> dict[str, Any]:
+    """ISP row options whose ``rpki`` records whether the deployment carries it."""
+    from nika.net_env.net_env_pool import isp_deployment_has_profiles
+
+    carries_rpki = isp_deployment_has_profiles(
+        scenario,
+        bgp_mode=options.get("bgp_mode"),
+        backend=options.get("backend"),
+        device_profile=options.get("device_profile"),
+    )
+    return {**options, "rpki": carries_rpki}
+
+
 def _isp_stack_variants(
     scenario: str, problem_cls: type | None
 ) -> list[dict[str, str]]:
     scenario_backends = set(scenario_supported_backends(scenario))
-    if is_isp_named_special(scenario):
-        if "kathara" not in scenario_backends:
-            return []
-        return [isp_stack_for_backend("kathara")]
-
     if problem_cls is None:
         problem_backends = {"kathara", "containerlab"}
     else:
@@ -224,7 +229,9 @@ def _document_sort_key(document: dict[str, Any]) -> tuple[str, ...]:
     scenario = str(document["scenario"]["name"])
     if "failure" in document:
         return (scenario, "0", str(document["failure"]["fault_type"]))
-    return (scenario, "1", "healthy")
+    if "combination" in document:
+        return (scenario, "1", str(document["combination"]["name"]))
+    return (scenario, "2", "healthy")
 
 
 def _normalized_inject(params: dict[str, Any]) -> dict[str, str]:
@@ -296,26 +303,16 @@ def iter_failure_case_specs(
     """Yield compatible deployment contexts, optionally including non-benchmark labs."""
     net_envs = list_all_net_envs()
     for problem, problem_cls in sorted(list_avail_problem_instances().items()):
+        if problem_cls.combination_only:
+            continue
         problem_tags = set(problem_cls.TAGS)
         for scenario, scenario_spec in sorted(net_envs.items()):
             if scenario_spec.benchmark_excluded and not include_benchmark_excluded:
                 continue
             if not _compatible_with_any_deployment(problem_cls, scenario):
                 continue
-            if is_isp_named_special(scenario):
-                for stack in _isp_stack_variants(scenario, problem_cls):
-                    yield (
-                        problem,
-                        scenario,
-                        _fixed_or_empty_topo_size(scenario),
-                        dict(stack),
-                    )
-                continue
             if is_isp_base_topology(scenario):
                 protocol = isp_config_for_problem(problem, problem_tags)
-                # RPKI profiles deploy only on named RPKI scenarios (above).
-                if protocol["rpki"]:
-                    continue
                 for stack in _isp_stack_variants(scenario, problem_cls):
                     if not problem_cls.is_compatible(scenario, stack["device_profile"]):
                         continue
@@ -323,7 +320,7 @@ def iter_failure_case_specs(
                         problem,
                         scenario,
                         _fixed_or_empty_topo_size(scenario),
-                        {**protocol, **stack},
+                        _deployed_isp_options(scenario, {**protocol, **stack}),
                     )
                 continue
             for topo_size in _topo_sizes_for_scenario(scenario):
@@ -526,6 +523,7 @@ def build_failure_cases(
             {
                 **_profile_fields(topo_size, isp_options),
                 **traffic,
+                **BENCHMARK_TELEMETRY,
                 "inject": inject,
                 "root_causes": catalog_root_causes,
             }
@@ -567,6 +565,7 @@ def _healthy_specs(
                 scenario_baseline_traffic(scenario, opts.get("device_profile"))
             )["traffic"],
         )
+        opts.update(BENCHMARK_TELEMETRY)
         isp_options = opts
         key = (
             scenario,
@@ -592,14 +591,8 @@ def _healthy_specs(
                 spec = _emit(
                     scenario,
                     _fixed_or_empty_topo_size(scenario),
-                    {**protocol, **stack},
+                    _deployed_isp_options(scenario, {**protocol, **stack}),
                 )
-                if spec is not None:
-                    yield spec
-            continue
-        if is_isp_named_special(scenario):
-            for stack in _isp_stack_variants(scenario, None):
-                spec = _emit(scenario, _fixed_or_empty_topo_size(scenario), dict(stack))
                 if spec is not None:
                     yield spec
             continue
@@ -625,6 +618,13 @@ def _healthy_specs(
 
 
 def _document_option_ids(document: dict[str, Any]) -> list[str]:
+    if "combination" in document:
+        return [
+            benchmark_option_id(normalize_benchmark_row(row))
+            for row in combination_rows(
+                document["scenario"]["name"], document["combination"]
+            )
+        ]
     if "failure" in document:
         ids: list[str] = []
         for case in document["failure"]["cases"]:
@@ -650,6 +650,9 @@ def _document_option_ids(document: dict[str, Any]) -> list[str]:
 
 def _document_path(document: dict[str, Any]) -> Path:
     scenario = str(document["scenario"]["name"])
+    if "combination" in document:
+        name = document["combination"]["name"]
+        return Path(scenario) / "combinations" / f"{name}.yaml"
     leaf = (
         f"{document['failure']['fault_type']}.yaml"
         if "failure" in document
@@ -727,8 +730,150 @@ def build_candidate_catalog(
             all_ids.add(option_id)
         documents.append(document)
 
+    for document in build_combination_documents(rejected=rejected):
+        for option_id in _document_option_ids(document):
+            if option_id in all_ids:
+                raise RuntimeError(f"Duplicate catalog option_id {option_id}")
+            all_ids.add(option_id)
+        documents.append(document)
+
     documents.sort(key=_document_sort_key)
     return documents, _build_report(documents, rejected)
+
+
+def _materialize_target(
+    *,
+    problem: str,
+    scenario: str,
+    topo_size: str,
+    isp_options: dict[str, Any] | None,
+    net_env: Any,
+    inject: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Validate one failure's target in a multi-fault task; return its root causes."""
+    validate_benchmark_case(
+        scenario,
+        problem,
+        inject,
+        topo_size,
+        isp_options=isp_options,
+        net_env=net_env,
+        combined=True,
+    )
+    truth = ground_truth_for_case(
+        problem=problem,
+        params=inject,
+        scenario=scenario,
+        topo_size=topo_size,
+        net_env=net_env,
+    )
+    return _catalog_root_causes(truth.root_causes, fault_type=problem)
+
+
+def _combination_traffic(
+    failures: tuple[str, ...], scenario: str, net_env: Any
+) -> dict[str, Any]:
+    """Use the one non-baseline traffic profile the failures need, if any."""
+    profiles = {
+        json.dumps(profile, sort_keys=True): profile
+        for name in failures
+        if (profile := get_problem_class(name).TRAFFIC_PROFILE)
+    }
+    if len(profiles) > 1:
+        raise ValueError(f"{'+'.join(failures)} needs conflicting traffic profiles")
+    profile = next(iter(profiles.values()), None)
+    return traffic_field(profile or net_env.BASELINE_TRAFFIC)
+
+
+def build_combination_documents(
+    *, rejected: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Materialize the tested multi-fault tasks of ``nika.problems.combinations``.
+
+    Placements must satisfy the combination's declared topology precondition.
+    Other validation failures remain catalog errors.
+    """
+    from nika.validation.symptom.combinations import CHECKS
+
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for combination in list_combinations():
+        for task, row in zip(combination.tasks, combination.rows()):
+            scenario = task["scenario"]
+            topo_size = str(task.get("topo_size") or "")
+            isp_options = {
+                key: task[key] for key in _DEPLOY_OPTION_KEYS if key in task
+            } or None
+            net_env = load_offline_net_env(
+                scenario, topo_size, **_offline_kwargs(isp_options)
+            )
+            placement_valid = CHECKS[combination.name].placement_valid
+            if placement_valid is not None and not placement_valid(
+                net_env, task["inject"]
+            ):
+                if rejected is not None:
+                    rejected.append(
+                        _rejection(
+                            reason="combination_topology_precondition",
+                            problem="+".join(combination.failures),
+                            scenario=scenario,
+                            topo_size=topo_size,
+                            inject=task["inject"],
+                            error=f"{combination.name}: placement does not satisfy the topology precondition",
+                            isp_options=isp_options,
+                        )
+                    )
+                continue
+            root_causes: list[dict[str, Any]] = []
+            for name, key in zip(
+                combination.failures, combination.instance_keys, strict=True
+            ):
+                try:
+                    root_causes.extend(
+                        _materialize_target(
+                            problem=name,
+                            scenario=scenario,
+                            topo_size=topo_size,
+                            isp_options=isp_options,
+                            net_env=net_env,
+                            inject=_normalized_inject(task["inject"][key]),
+                        )
+                    )
+                except (ValueError, UnresolvedRootCauseError) as exc:
+                    raise RuntimeError(
+                        f"Catalog task {combination.name} on {scenario} is invalid: "
+                        f"{name}: {exc}"
+                    ) from exc
+            case = {
+                **_profile_fields(topo_size, isp_options),
+                **_combination_traffic(combination.failures, scenario, net_env),
+                **BENCHMARK_TELEMETRY,
+            }
+            if "schedule" in row:
+                case["schedule"] = row["schedule"]
+            else:
+                case["inject"] = {
+                    name: _normalized_inject(params)
+                    for name, params in row["inject"].items()
+                }
+            case["root_causes"] = root_causes
+            grouped[(scenario, combination.name)].append(case)
+    return [
+        {
+            "scenario": {"name": scenario},
+            "combination": {
+                "name": name,
+                "failures": list(get_combination(name).failures),
+                "cases": sorted(cases, key=_case_sort_key_any),
+            },
+        }
+        for (scenario, name), cases in sorted(grouped.items())
+    ]
+
+
+def _case_sort_key_any(case: dict[str, Any]) -> tuple[str, ...]:
+    return _variant_sort_key(case) + (
+        json.dumps(case.get("inject") or case.get("schedule"), sort_keys=True),
+    )
 
 
 def _build_report(
@@ -736,6 +881,11 @@ def _build_report(
 ) -> dict[str, Any]:
     failure_groups = [row for row in documents if "failure" in row]
     healthy = [row for row in documents if "healthy" in row]
+    combination_options: Counter[str] = Counter()
+    for document in documents:
+        if "combination" in document:
+            section = document["combination"]
+            combination_options[section["name"]] += len(section["cases"])
     by_failure_scenarios: dict[str, set[str]] = defaultdict(set)
     by_failure_options: Counter[str] = Counter()
     by_scenario_scale: Counter[str] = Counter()
@@ -756,6 +906,7 @@ def _build_report(
             "failures": len(by_failure_options),
             "scenarios": len({str(row["scenario"]["name"]) for row in documents}),
             "healthy_candidate_files": len(healthy),
+            "combination_options": sum(combination_options.values()),
             "validation_rejected_options": len(rejected),
         },
         "failure_scenario_counts": {
@@ -764,6 +915,7 @@ def _build_report(
         },
         "failure_option_counts": dict(sorted(by_failure_options.items())),
         "scenario_scale_option_counts": dict(sorted(by_scenario_scale.items())),
+        "combination_option_counts": dict(sorted(combination_options.items())),
         "rejection_reason_counts": dict(
             sorted(Counter(row["reason"] for row in rejected).items())
         ),
@@ -782,6 +934,10 @@ def _print_report(report: dict[str, Any]) -> None:
     print("scenario/scale options")
     for key, count in report["scenario_scale_option_counts"].items():
         print(f"  {key}: {count}")
+    if report["combination_option_counts"]:
+        print("combination options")
+        for name, count in report["combination_option_counts"].items():
+            print(f"  {name}: {count}")
     if report["rejection_reason_counts"]:
         print("rejections")
         for reason, count in report["rejection_reason_counts"].items():

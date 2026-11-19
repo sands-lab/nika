@@ -1,0 +1,27 @@
+scenario:
+  name: isp_nobel-eu
+failure:
+  fault_type: bgp_route_leak
+  cases:
+  - topo_size: m
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
+    telemetry:
+    - netflow
+    - pingmesh
+    - prometheus
+    - syslog
+    inject:
+      host_name: milan
+      peer: 10.0.0.51
+    root_causes:
+    - resource:
+        kind: node
+        node: milan
+      fault_type: bgp_route_leak

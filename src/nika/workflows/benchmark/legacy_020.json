@@ -1,0 +1,1884 @@
+[
+  {
+    "inject": {
+      "host_name": "br1_corp_pc"
+    },
+    "problem": "arp_acl_block",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "client"
+    },
+    "problem": "arp_cache_poisoning",
+    "scenario": "k8s_lab",
+    "split": "dev"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "ibgp_rr",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "host_name": "amsterdam"
+    },
+    "problem": "bgp_acl_block",
+    "rpki": false,
+    "scenario": "isp_nobel-eu",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "ibgp_rr",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "host_name": "amsterdam"
+    },
+    "problem": "bgp_asn_misconfig",
+    "rpki": false,
+    "scenario": "isp_cost266",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "backend": "kathara",
+    "device_profile": "frr",
+    "inject": {
+      "host_name": "kscyng",
+      "peer_host": "pc_kscyng",
+      "probe_dst_ip": "198.51.100.1",
+      "symptom_host": "iplsng"
+    },
+    "problem": "bgp_blackhole_community_leak",
+    "scenario": "isp_abilene_ebgp_rtbh",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "ibgp_rr",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "host_name": "albany",
+      "peer_host": "pc_albany",
+      "probe_dst_ip": "198.18.0.1",
+      "symptom_host": "atlanta",
+      "target_network": "198.18.0.0/24"
+    },
+    "problem": "bgp_hijacking",
+    "rpki": false,
+    "scenario": "isp_janos-us",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "ebgp",
+    "device_profile": "frr",
+    "igp": "ospf",
+    "inject": {
+      "flood_count": "120",
+      "neighbor_ip": "10.0.0.35",
+      "peer_name": "nl1_nl",
+      "receiver_name": "de1_de"
+    },
+    "problem": "bgp_max_prefix_exceeded",
+    "rpki": false,
+    "scenario": "isp_geant",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "ibgp_rr",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "host_name": "n7",
+      "peer_host": "pc_n7",
+      "prefix": "203.0.113.0/24",
+      "probe_dst_ip": "203.0.113.1",
+      "symptom_host": "n0"
+    },
+    "problem": "bgp_missing_route_advertisement",
+    "rpki": false,
+    "scenario": "isp_pioro40",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "backend": "kathara",
+    "device_profile": "frr",
+    "inject": {
+      "host_name": "kscyng"
+    },
+    "problem": "bgp_rpki_invalid_route_leak",
+    "scenario": "isp_abilene_ebgp_rpki",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "bmv2_switch_down",
+    "scenario": "p4_dc_fabric",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "forwarding_device": "leaf_2",
+      "intf_name": "eth0",
+      "observer_device": "client_1_1",
+      "probe_dst_ip": "10.0.2.11",
+      "seed": "42"
+    },
+    "problem": "device_forwarding_packet_corruption",
+    "scenario": "sdn_l3_clos",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1",
+      "subnet": "10.1.1.0"
+    },
+    "problem": "dhcp_missing_subnet",
+    "scenario": "campus_lan",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1"
+    },
+    "problem": "dhcp_service_down",
+    "scenario": "campus_lan",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1"
+    },
+    "problem": "dhcp_spoofed_dns",
+    "scenario": "campus_lan",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1"
+    },
+    "problem": "dhcp_spoofed_gateway",
+    "scenario": "campus_lan",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1",
+      "subnet": "10.1.1.0"
+    },
+    "problem": "dhcp_spoofed_subnet",
+    "scenario": "campus_lan",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "delay_ms": "1000",
+      "host_name": "dns_pod0",
+      "intf_name": "eth0"
+    },
+    "problem": "dns_lookup_latency",
+    "scenario": "dc_clos",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "dns_pod0"
+    },
+    "problem": "dns_port_blocked",
+    "scenario": "dc_clos",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "dns_pod0",
+      "target_domain": "pod0",
+      "target_website": "web0"
+    },
+    "problem": "dns_record_error",
+    "scenario": "dc_clos",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "dns_pod0"
+    },
+    "problem": "dns_service_down",
+    "scenario": "dc_clos",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1",
+      "host_name_2": "spine_2",
+      "port_name": "eth5",
+      "port_name_2": "eth5"
+    },
+    "problem": "flow_rule_loop",
+    "scenario": "sdn_l3_clos",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "spine_1"
+    },
+    "problem": "flow_rule_shadowing",
+    "scenario": "sdn_l3_clos",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1_1"
+    },
+    "problem": "frr_service_down",
+    "scenario": "k8s_lab",
+    "split": "dev"
+  },
+  {
+    "inject": {
+      "host_name": "client_0"
+    },
+    "problem": "host_incorrect_dns",
+    "scenario": "dc_clos",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "client"
+    },
+    "problem": "host_incorrect_gateway",
+    "scenario": "k8s_lab",
+    "split": "dev"
+  },
+  {
+    "inject": {
+      "host_name": "client"
+    },
+    "problem": "host_incorrect_ip",
+    "scenario": "llmd_lab",
+    "split": "dev"
+  },
+  {
+    "inject": {
+      "host_name": "br1_corp_pc",
+      "netmask_prefix": "8"
+    },
+    "problem": "host_incorrect_netmask",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "br1_corp_pc",
+      "host_name_2": "br1_corp_pc2"
+    },
+    "problem": "host_ip_conflict",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "client_3_1",
+      "intf_name": "eth0"
+    },
+    "problem": "host_missing_ip",
+    "scenario": "p4_dc_fabric",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "kathara",
+    "device_profile": "frr",
+    "inject": {
+      "host_name": "at1_at"
+    },
+    "problem": "host_static_blackhole",
+    "scenario": "isp_geant_ebgp_rpki",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "client"
+    },
+    "problem": "http_acl_block",
+    "scenario": "llmd_lab",
+    "split": "dev"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "host_name": "pc_atlanta"
+    },
+    "problem": "icmp_acl_block",
+    "rpki": false,
+    "scenario": "isp_janos-us-ca",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "host_name": "atlam5"
+    },
+    "problem": "icmp_frag_needed_filter_misconfiguration",
+    "rpki": false,
+    "scenario": "isp_abilene",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "duration": "3600",
+      "host_name": "service_1_1",
+      "observer_device": "client_1",
+      "probe_dst_ip": "10.0.1.11"
+    },
+    "problem": "incast_traffic_network_limitation",
+    "problems": [
+      "incast_traffic_network_limitation"
+    ],
+    "scenario": "p4_dc_gateway",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "bmv2_port": "2",
+      "host_name": "gateway_1",
+      "int_mtu": "1480",
+      "intf_name": "eth1"
+    },
+    "problem": "int_insufficient_mtu_headroom",
+    "scenario": "p4_dc_gateway",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "control_node": "controller",
+      "node_name": "controller"
+    },
+    "problem": "k8s_clusterip_routing_broken",
+    "scenario": "llmd_lab",
+    "split": "dev"
+  },
+  {
+    "inject": {
+      "control_node": "controller",
+      "symptom_host": "worker1"
+    },
+    "problem": "k8s_coredns_isolated",
+    "scenario": "k8s_lab",
+    "split": "dev"
+  },
+  {
+    "inject": {
+      "control_node": "controller",
+      "control_url": "http://200.0.0.8/",
+      "namespace": "llm-d",
+      "pod_selector": "gateway.networking.k8s.io/gateway-name=llm-d-gateway",
+      "symptom_host": "client",
+      "symptom_url": "http://llmd/v1/models"
+    },
+    "problem": "k8s_networkpolicy_deny",
+    "scenario": "llmd_lab",
+    "split": "dev"
+  },
+  {
+    "inject": {
+      "control_node": "controller",
+      "node_name": "worker1"
+    },
+    "problem": "k8s_worker_apiserver_partition",
+    "scenario": "llmd_lab",
+    "split": "dev"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4_action_selector_member_misconfig",
+    "scenario": "p4_dc_gateway",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "gateway_1",
+      "learning_delay_ms": "8000",
+      "seed": "42"
+    },
+    "problem": "lb_pending_connection_update_race",
+    "scenario": "p4_dc_gateway",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "burst": "64kb",
+      "host_name": "client1",
+      "intf_name": "eth1",
+      "limit": "500kb",
+      "rate": "30kbit"
+    },
+    "problem": "link_capacity_bottleneck",
+    "scenario": "min3clos",
+    "split": "dev"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "host_name": "n10",
+      "intf_name": "eth0",
+      "peer_host": "pc_n2",
+      "probe_dst_ip": "10.254.0.46",
+      "symptom_host": "pc_n10"
+    },
+    "problem": "link_detach",
+    "rpki": false,
+    "scenario": "isp_ta2",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "host_name": "berlin",
+      "intf_name": "eth0",
+      "peer_host": "pc_frankfurt",
+      "probe_dst_ip": "10.254.0.6",
+      "symptom_host": "pc_berlin"
+    },
+    "problem": "link_down",
+    "rpki": false,
+    "scenario": "isp_dfn-bwin",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "down_time": "1",
+      "host_name": "berlin",
+      "intf_name": "eth0",
+      "peer_host": "pc_hamburg",
+      "probe_dst_ip": "10.254.0.26",
+      "symptom_host": "pc_berlin",
+      "up_time": "1"
+    },
+    "problem": "link_flap",
+    "rpki": false,
+    "scenario": "isp_nobel-germany",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "corruption_percentage": "10",
+      "host_name": "n_0",
+      "intf_name": "eth0",
+      "peer_host": "pc_n_24",
+      "probe_dst_ip": "10.254.0.70",
+      "symptom_host": "pc_n_0"
+    },
+    "problem": "link_packet_corruption",
+    "rpki": false,
+    "scenario": "isp_india35",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "backend_cpu_host": "backend_web_0",
+      "backend_probe_host": "load_balancer",
+      "backend_url": "http://20.200.0.2/small",
+      "client_host": "pc_1_1_1_1",
+      "concurrency": "200",
+      "control_url": "http://web0.local/small",
+      "cpu_quota": "0.2",
+      "duration_sec": "300",
+      "host_name": "load_balancer",
+      "load_client_hosts": "pc_2_1_1_1",
+      "load_workers": "4",
+      "probe_concurrency": "4",
+      "probe_requests": "60",
+      "vip_url": "http://web99.local/small",
+      "warmup_sec": "5"
+    },
+    "problem": "load_balancer_overload",
+    "scenario": "campus_lan",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "pc_1_1_1_2",
+      "host_name_2": "pc_1_1_1_1"
+    },
+    "problem": "mac_address_conflict",
+    "scenario": "campus_lan",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge",
+      "intf_name": "eth2",
+      "mtu": "500"
+    },
+    "problem": "mtu_mismatch",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge",
+      "nat_ip_a": "198.18.1.10",
+      "nat_ip_b": "198.18.1.11",
+      "source_prefix": "10.1.40.0/24",
+      "wan_interface": "eth2"
+    },
+    "problem": "nat_mapping_removed_without_drain",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "ospf",
+    "inject": {
+      "host_name": "n1"
+    },
+    "problem": "ospf_acl_block",
+    "rpki": false,
+    "scenario": "isp_ta1",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "ospf",
+    "inject": {
+      "host_name": "aachen"
+    },
+    "problem": "ospf_area_misconfiguration",
+    "rpki": false,
+    "scenario": "isp_germany50",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "backend": "kathara",
+    "device_profile": "frr",
+    "inject": {
+      "host_name": "berlin"
+    },
+    "problem": "ospf_neighbor_missing",
+    "scenario": "isp_dfn-bwin_ebgp_rtbh",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4_action_selector_member_misconfig",
+    "scenario": "p4_dc_fabric",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4_ecmp_group_member_missing",
+    "scenario": "p4_dc_fabric",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "bmv2_port": "2",
+      "host_name": "gateway_1",
+      "intf_name": "eth1",
+      "threshold": "1024"
+    },
+    "problem": "p4_ecn_threshold_misconfiguration",
+    "scenario": "p4_dc_gateway",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1",
+      "observer_device": "client_1_1",
+      "probe_dst_ip": "10.0.2.11"
+    },
+    "problem": "p4_table_entry_misconfig",
+    "scenario": "p4_dc_fabric",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "gateway_1"
+    },
+    "problem": "p4_table_entry_missing",
+    "scenario": "p4_dc_gateway",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4_table_resource_exhaustion",
+    "scenario": "p4_dc_fabric",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "control_source": "client_2",
+      "host_name": "gateway_3",
+      "target_ip": "10.0.4.11"
+    },
+    "problem": "p4_tcam_entry_corruption",
+    "scenario": "p4_dc_gateway",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4runtime_partial_write",
+    "scenario": "p4_dc_fabric",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4runtime_pipeline_mismatch",
+    "scenario": "p4_dc_fabric",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "duration": "3600",
+      "host_name": "client"
+    },
+    "problem": "receiver_resource_contention",
+    "scenario": "llmd_lab",
+    "split": "dev"
+  },
+  {
+    "inject": {
+      "host_name": "onos"
+    },
+    "problem": "sdn_controller_crash",
+    "scenario": "sdn_l3_clos",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "client_host": "client_2_1",
+      "cpu_quota": "0.05",
+      "dst_ip": "10.0.1.11",
+      "duration": "3600",
+      "host_name": "web_1",
+      "large_url": "http://10.0.1.11/large.bin",
+      "small_url": "http://10.0.1.11/small.bin",
+      "stress_cpus": "16"
+    },
+    "problem": "sender_resource_contention",
+    "scenario": "sdn_l3_clos",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "bmv2_port": "2",
+      "host_name": "gateway_1",
+      "intf_name": "eth1",
+      "loss_basis_points": "200",
+      "seed": "42"
+    },
+    "problem": "silent_egress_packet_loss",
+    "scenario": "p4_dc_gateway",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge",
+      "port_end": "40063",
+      "port_start": "40000",
+      "public_ip": "198.18.1.10",
+      "source_prefix": "10.1.40.0/24"
+    },
+    "problem": "snat_port_pool_exhaustion",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "onos",
+      "southbound_port": "6653"
+    },
+    "problem": "southbound_port_block",
+    "scenario": "sdn_l3_clos",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "onos",
+      "mismatched_port": "6633",
+      "original_port": "6653"
+    },
+    "problem": "southbound_port_mismatch",
+    "scenario": "sdn_l3_clos",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "br1_corp_pc2",
+      "large_url": "http://10.0.20.2/large.bin",
+      "sender_host": "hq_srv",
+      "sender_ip": "10.0.20.2",
+      "small_url": "http://10.0.20.2/small.bin"
+    },
+    "problem": "tcp_receive_window_limited",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "attacker_device": "client_1",
+      "duration": "3600",
+      "flows": "100",
+      "rate_pps": "1000",
+      "seed": "42",
+      "target_ip": "10.0.1.12",
+      "target_port": "80"
+    },
+    "problem": "tcp_syn_flood_attack",
+    "scenario": "p4_dc_gateway",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "corp_prefix": "10.0.10.0/24",
+      "direction": "lan_to_overlay",
+      "dst_host": "br1_corp_pc",
+      "host_name": "hq_edge",
+      "intf_name": "wg_br1",
+      "src_host": "hq_corp_pc"
+    },
+    "problem": "vrf_dscp_remarking",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "attacker_device": "client_0",
+      "host_name": "webserver0_pod0",
+      "observer_device": "dns_pod0",
+      "probe_url": "http://10.0.1.2/small.bin"
+    },
+    "problem": "web_dos_attack",
+    "scenario": "dc_clos",
+    "split": "dev",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge",
+      "intf_name": "wg_hq",
+      "target_prefix": "10.0.20.0/24"
+    },
+    "problem": "wireguard_allowed_ips_misconfiguration",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge",
+      "intf_name": "wg_hq"
+    },
+    "problem": "wireguard_peer_key_misconfiguration",
+    "scenario": "enterprise_branch",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "min3clos",
+    "split": "dev"
+  },
+  {
+    "backend": "containerlab",
+    "bgp_mode": "ebgp",
+    "device_profile": "nokia_srlinux",
+    "igp": "ospf",
+    "inject": {},
+    "problem": "healthy",
+    "rpki": false,
+    "scenario": "isp_di-yuan",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "containerlab",
+    "bgp_mode": "ibgp_rr",
+    "device_profile": "nokia_srlinux",
+    "igp": "isis",
+    "inject": {},
+    "problem": "healthy",
+    "rpki": false,
+    "scenario": "isp_pdh",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "containerlab",
+    "bgp_mode": "ebgp",
+    "device_profile": "nokia_srlinux",
+    "igp": "ospf",
+    "inject": {},
+    "problem": "healthy",
+    "rpki": false,
+    "scenario": "isp_dfn-bwin",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "containerlab",
+    "bgp_mode": "none",
+    "device_profile": "nokia_srlinux",
+    "igp": "isis",
+    "inject": {},
+    "problem": "healthy",
+    "rpki": false,
+    "scenario": "isp_pdh",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "containerlab",
+    "bgp_mode": "none",
+    "device_profile": "nokia_srlinux",
+    "igp": "isis",
+    "inject": {},
+    "problem": "healthy",
+    "rpki": false,
+    "scenario": "isp_dfn-gwin",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "containerlab",
+    "bgp_mode": "none",
+    "device_profile": "nokia_srlinux",
+    "igp": "isis",
+    "inject": {},
+    "problem": "healthy",
+    "rpki": false,
+    "scenario": "isp_di-yuan",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "containerlab",
+    "bgp_mode": "ebgp",
+    "device_profile": "nokia_srlinux",
+    "igp": "ospf",
+    "inject": {},
+    "problem": "healthy",
+    "rpki": false,
+    "scenario": "isp_pdh",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "backend": "containerlab",
+    "bgp_mode": "ibgp_rr",
+    "device_profile": "nokia_srlinux",
+    "igp": "isis",
+    "inject": {},
+    "problem": "healthy",
+    "rpki": false,
+    "scenario": "isp_di-yuan",
+    "split": "dev",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "client_0"
+    },
+    "problem": "arp_acl_block",
+    "scenario": "dc_clos",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "client_10_1"
+    },
+    "problem": "arp_cache_poisoning",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "backend": "containerlab",
+    "bgp_mode": "ibgp_rr",
+    "device_profile": "nokia_srlinux",
+    "igp": "isis",
+    "inject": {
+      "host_name": "n1"
+    },
+    "problem": "bgp_acl_block",
+    "rpki": false,
+    "scenario": "isp_pdh",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1_1"
+    },
+    "problem": "bgp_asn_misconfig",
+    "scenario": "k8s_lab",
+    "split": "test"
+  },
+  {
+    "backend": "kathara",
+    "device_profile": "frr",
+    "inject": {
+      "host_name": "frankfurt",
+      "peer_host": "pc_frankfurt",
+      "probe_dst_ip": "198.51.100.1",
+      "symptom_host": "hamburg"
+    },
+    "problem": "bgp_blackhole_community_leak",
+    "scenario": "isp_dfn-bwin_ebgp_rtbh",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "export_prefix_list": "LOCAL-ADV",
+      "host_name": "br1_edge",
+      "observer_host": "br2_corp_pc",
+      "probe_dst_ip": "10.9.10.2",
+      "symptom_host": "br2_edge",
+      "target_network": "10.9.10.0/24"
+    },
+    "problem": "bgp_hijacking",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "ebgp",
+    "device_profile": "frr",
+    "igp": "ospf",
+    "inject": {
+      "flood_count": "120",
+      "neighbor_ip": "10.0.0.21",
+      "peer_name": "losang",
+      "receiver_name": "hstnng"
+    },
+    "problem": "bgp_max_prefix_exceeded",
+    "rpki": false,
+    "scenario": "isp_abilene",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge"
+    },
+    "problem": "bgp_missing_route_advertisement",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "backend": "kathara",
+    "device_profile": "frr",
+    "inject": {
+      "host_name": "es1_es"
+    },
+    "problem": "bgp_rpki_invalid_route_leak",
+    "scenario": "isp_geant_ebgp_rpki",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "gateway_1"
+    },
+    "problem": "bmv2_switch_down",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "forwarding_device": "router_core_2",
+      "intf_name": "eth5",
+      "observer_device": "pc_1_1_1_1",
+      "probe_dst_ip": "10.200.0.3",
+      "seed": "42"
+    },
+    "problem": "device_forwarding_packet_corruption",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1",
+      "subnet": "10.1.1.0"
+    },
+    "problem": "dhcp_missing_subnet",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1"
+    },
+    "problem": "dhcp_service_down",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1"
+    },
+    "problem": "dhcp_spoofed_dns",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1"
+    },
+    "problem": "dhcp_spoofed_gateway",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "dhcp_server",
+      "host_name_2": "pc_1_1_1_1",
+      "subnet": "10.1.1.0"
+    },
+    "problem": "dhcp_spoofed_subnet",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "delay_ms": "1000",
+      "host_name": "dns_server",
+      "intf_name": "eth0"
+    },
+    "problem": "dns_lookup_latency",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "dns_server"
+    },
+    "problem": "dns_port_blocked",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "dns_server",
+      "target_domain": "local",
+      "target_website": "web1"
+    },
+    "problem": "dns_record_error",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "dns_server"
+    },
+    "problem": "dns_service_down",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1",
+      "host_name_2": "spine_1",
+      "port_name": "eth2",
+      "port_name_2": "eth2"
+    },
+    "problem": "flow_rule_loop",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "spine_1"
+    },
+    "problem": "flow_rule_shadowing",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "host_name": "aachen"
+    },
+    "problem": "frr_service_down",
+    "rpki": false,
+    "scenario": "isp_germany50",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "pc_1_1_1_1"
+    },
+    "problem": "host_incorrect_dns",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "client_0"
+    },
+    "problem": "host_incorrect_gateway",
+    "scenario": "dc_clos",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "client_1"
+    },
+    "problem": "host_incorrect_ip",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "worker3",
+      "netmask_prefix": "8"
+    },
+    "problem": "host_incorrect_netmask",
+    "scenario": "k8s_lab",
+    "split": "test"
+  },
+  {
+    "inject": {
+      "host_name": "client",
+      "host_name_2": "web"
+    },
+    "problem": "host_ip_conflict",
+    "scenario": "llmd_lab",
+    "split": "test"
+  },
+  {
+    "inject": {
+      "host_name": "client",
+      "intf_name": "eth0"
+    },
+    "problem": "host_missing_ip",
+    "scenario": "llmd_lab",
+    "split": "test"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge"
+    },
+    "problem": "host_static_blackhole",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "client_1"
+    },
+    "problem": "http_acl_block",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "client_1"
+    },
+    "problem": "icmp_acl_block",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "gateway_1"
+    },
+    "problem": "icmp_frag_needed_filter_misconfiguration",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "duration": "3600",
+      "host_name": "web_2",
+      "observer_device": "client_1_1",
+      "probe_dst_ip": "10.0.2.11"
+    },
+    "problem": "incast_traffic_network_limitation",
+    "problems": [
+      "incast_traffic_network_limitation"
+    ],
+    "scenario": "p4_dc_fabric",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "bmv2_port": "2",
+      "host_name": "gateway_1",
+      "int_mtu": "1480",
+      "intf_name": "eth1"
+    },
+    "problem": "int_insufficient_mtu_headroom",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "control_node": "controller",
+      "node_name": "controller"
+    },
+    "problem": "k8s_clusterip_routing_broken",
+    "scenario": "k8s_lab",
+    "split": "test"
+  },
+  {
+    "inject": {
+      "control_node": "controller",
+      "symptom_host": "worker1"
+    },
+    "problem": "k8s_coredns_isolated",
+    "scenario": "llmd_lab",
+    "split": "test"
+  },
+  {
+    "inject": {
+      "control_node": "controller",
+      "control_url": "http://datacenter.com/weather?location=London",
+      "namespace": "word-ns",
+      "pod_selector": "app=word",
+      "symptom_host": "client",
+      "symptom_url": "http://datacenter.com/word"
+    },
+    "problem": "k8s_networkpolicy_deny",
+    "scenario": "k8s_lab",
+    "split": "test"
+  },
+  {
+    "inject": {
+      "control_node": "controller",
+      "node_name": "worker1"
+    },
+    "problem": "k8s_worker_apiserver_partition",
+    "scenario": "k8s_lab",
+    "split": "test"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4_table_resource_exhaustion",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "gateway_1",
+      "learning_delay_ms": "8000",
+      "seed": "42"
+    },
+    "problem": "lb_pending_connection_update_race",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "backend": "kathara",
+    "bgp_mode": "none",
+    "device_profile": "frr",
+    "igp": "isis",
+    "inject": {
+      "burst": "64kb",
+      "host_name": "n_10",
+      "intf_name": "eth0",
+      "limit": "500kb",
+      "peer_host": "pc_n_9",
+      "probe_dst_ip": "10.254.0.42",
+      "rate": "30kbit",
+      "symptom_host": "pc_n_10"
+    },
+    "problem": "link_capacity_bottleneck",
+    "rpki": false,
+    "scenario": "isp_di-yuan",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "client_0",
+      "intf_name": "eth0"
+    },
+    "problem": "link_detach",
+    "scenario": "dc_clos",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "br1_corp_pc",
+      "intf_name": "eth0"
+    },
+    "problem": "link_down",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "down_time": "1",
+      "host_name": "client_1_1",
+      "intf_name": "eth0",
+      "observer_device": "client_1_1",
+      "probe_dst_ip": "10.0.2.11",
+      "up_time": "1"
+    },
+    "problem": "link_flap",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "corruption_percentage": "10",
+      "host_name": "br1_edge",
+      "intf_name": "eth3",
+      "observer_device": "br1_corp_pc",
+      "probe_dst_ip": "10.0.20.2"
+    },
+    "problem": "link_packet_corruption",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "backend_cpu_host": "backend_web_0",
+      "backend_probe_host": "load_balancer",
+      "backend_url": "http://20.200.0.2/small",
+      "client_host": "pc_1_1_1_1",
+      "concurrency": "200",
+      "control_url": "http://web0.local/small",
+      "cpu_quota": "0.2",
+      "duration_sec": "300",
+      "host_name": "load_balancer",
+      "load_client_hosts": "pc_2_1_1_1",
+      "load_workers": "4",
+      "probe_concurrency": "4",
+      "probe_requests": "60",
+      "vip_url": "http://web99.local/small",
+      "warmup_sec": "5"
+    },
+    "problem": "load_balancer_overload",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "web_server_1",
+      "host_name_2": "web_server_0"
+    },
+    "problem": "mac_address_conflict",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "backend": "kathara",
+    "device_profile": "frr",
+    "inject": {
+      "host_name": "at1_at",
+      "intf_name": "eth0",
+      "mtu": "500"
+    },
+    "problem": "mtu_mismatch",
+    "scenario": "isp_geant_ebgp_rpki",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge",
+      "nat_ip_a": "198.18.1.10",
+      "nat_ip_b": "198.18.1.11",
+      "source_prefix": "10.1.40.0/24",
+      "wan_interface": "eth3"
+    },
+    "problem": "nat_mapping_removed_without_drain",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "router_core_1"
+    },
+    "problem": "ospf_acl_block",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "router_core_1"
+    },
+    "problem": "ospf_area_misconfiguration",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "router_core_1"
+    },
+    "problem": "ospf_neighbor_missing",
+    "scenario": "campus_lan",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4_action_selector_member_misconfig",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4_ecmp_group_member_missing",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "bmv2_port": "10",
+      "host_name": "spine_1",
+      "intf_name": "eth9",
+      "threshold": "1024"
+    },
+    "problem": "p4_ecn_threshold_misconfiguration",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4_table_entry_misconfig",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1",
+      "observer_device": "client_1_1",
+      "probe_dst_ip": "10.0.2.11"
+    },
+    "problem": "p4_table_entry_missing",
+    "scenario": "p4_dc_fabric",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4_table_resource_exhaustion",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "control_source": "client_2",
+      "host_name": "spine_1",
+      "target_ip": "10.0.1.12"
+    },
+    "problem": "p4_tcam_entry_corruption",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "leaf_1"
+    },
+    "problem": "p4runtime_partial_write",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "gateway_1"
+    },
+    "problem": "p4runtime_pipeline_mismatch",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "duration": "3600",
+      "host_name": "client_0"
+    },
+    "problem": "receiver_resource_contention",
+    "scenario": "dc_clos",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "onos"
+    },
+    "problem": "sdn_controller_crash",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "client_host": "client",
+      "cpu_quota": "0.05",
+      "dst_ip": "200.0.0.8",
+      "duration": "3600",
+      "host_name": "web",
+      "large_url": "http://200.0.0.8/large.bin",
+      "small_url": "http://200.0.0.8/small.bin",
+      "stress_cpus": "16"
+    },
+    "problem": "sender_resource_contention",
+    "scenario": "llmd_lab",
+    "split": "test"
+  },
+  {
+    "inject": {
+      "bmv2_port": "2",
+      "host_name": "gateway_1",
+      "intf_name": "eth1",
+      "loss_basis_points": "200",
+      "seed": "42"
+    },
+    "problem": "silent_egress_packet_loss",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge",
+      "port_end": "40063",
+      "port_start": "40000",
+      "public_ip": "198.18.1.10",
+      "source_prefix": "10.1.40.0/24"
+    },
+    "problem": "snat_port_pool_exhaustion",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "onos",
+      "southbound_port": "6653"
+    },
+    "problem": "southbound_port_block",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "host_name": "onos",
+      "mismatched_port": "6633",
+      "original_port": "6653"
+    },
+    "problem": "southbound_port_mismatch",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "br1_corp_pc",
+      "large_url": "http://10.0.20.2/large.bin",
+      "sender_host": "hq_srv",
+      "sender_ip": "10.0.20.2",
+      "small_url": "http://10.0.20.2/small.bin"
+    },
+    "problem": "tcp_receive_window_limited",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "attacker_device": "client_1",
+      "duration": "3600",
+      "flows": "100",
+      "rate_pps": "1000",
+      "seed": "42",
+      "target_ip": "10.0.4.12",
+      "target_port": "80"
+    },
+    "problem": "tcp_syn_flood_attack",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "corp_prefix": "10.0.10.0/24",
+      "direction": "lan_to_overlay",
+      "dst_host": "br1_corp_pc",
+      "host_name": "hq_edge",
+      "intf_name": "wg_br1",
+      "src_host": "hq_corp_pc"
+    },
+    "problem": "vrf_dscp_remarking",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {
+      "attacker_device": "client_4_1",
+      "host_name": "web_2",
+      "observer_device": "client_1_1",
+      "probe_url": "http://10.0.2.11/"
+    },
+    "problem": "web_dos_attack",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge",
+      "intf_name": "wg_hq",
+      "target_prefix": "10.0.20.0/24"
+    },
+    "problem": "wireguard_allowed_ips_misconfiguration",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "s"
+  },
+  {
+    "inject": {
+      "host_name": "br1_edge",
+      "intf_name": "wg_hq"
+    },
+    "problem": "wireguard_peer_key_misconfiguration",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {
+      "host_name": "leaf1"
+    },
+    "problem": "bgp_asn_misconfig",
+    "scenario": "min3clos",
+    "split": "test"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "llmd_lab",
+    "split": "test"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "dc_clos",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "dc_clos",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "k8s_lab",
+    "split": "test"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "p4_dc_gateway",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "sdn_l3_clos",
+    "split": "test",
+    "topo_size": "l"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "enterprise_branch",
+    "split": "test",
+    "topo_size": "m"
+  },
+  {
+    "inject": {},
+    "problem": "healthy",
+    "scenario": "dc_clos",
+    "split": "test",
+    "topo_size": "s"
+  }
+]

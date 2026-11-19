@@ -37,7 +37,7 @@ def _trial(
     row: dict = {"scenario": scenario, "problem": problem, "inject": {}}
     if backend is not None:
         row["backend"] = backend
-    key = case_key or f"{scenario}__{problem}"
+    key = case_key or f"{scenario}__{problem}" + (f"__{backend}" if backend else "")
     return Trial(
         case_index=case_index,
         trial_index=trial_index,
@@ -53,8 +53,11 @@ def test_resource_class_containerlab_backend() -> None:
     ) == (CLASS_CLAB)
 
 
-def test_resource_class_min3clos_without_backend() -> None:
-    assert resource_class_for_row({"scenario": "min3clos"}) == CLASS_CLAB
+def test_resource_class_dc_clos_containerlab() -> None:
+    assert (
+        resource_class_for_row({"scenario": "dc_clos", "backend": "containerlab"})
+        == CLASS_CLAB
+    )
 
 
 def test_resource_class_from_case_key_token() -> None:
@@ -71,7 +74,10 @@ def test_resource_class_from_case_key_token() -> None:
 def test_resource_class_k8s_family() -> None:
     assert resource_class_for_row({"scenario": "k8s_lab"}) == CLASS_K8S
     assert resource_class_for_row({"scenario": "llmd_lab"}) == CLASS_K8S
-    assert resource_class_for_row({"scenario": "iosxr_simple_bgp"}) == CLASS_K8S
+    assert (
+        resource_class_for_row({"scenario": "dc_clos", "device_profile": "iosxr"})
+        == CLASS_K8S
+    )
 
 
 @pytest.mark.parametrize("profile", ["iosxr", "routeros"])
@@ -105,7 +111,9 @@ def test_resource_class_large_topo() -> None:
 
 
 def test_pick_admissible_skips_blocked_head() -> None:
-    clab_b = _trial(scenario="min3clos", trial_index=2, case_index=1)
+    clab_b = _trial(
+        scenario="dc_clos", backend="containerlab", trial_index=2, case_index=1
+    )
     light = _trial(scenario="dc_clos", trial_index=1, case_index=2)
     pending = [clab_b, light]
     limits = tier_limits(batch_size=2, heavy_batch_size=1)
@@ -269,8 +277,8 @@ def test_run_trials_batch_serializes_two_clab(tmp_path: Path) -> None:
                 active_clab -= 1
 
     trials = [
-        _trial(scenario="min3clos", trial_index=1, case_index=0),
-        _trial(scenario="min3clos", trial_index=2, case_index=1),
+        _trial(scenario="dc_clos", backend="containerlab", trial_index=1, case_index=0),
+        _trial(scenario="dc_clos", backend="containerlab", trial_index=2, case_index=1),
     ]
     with patch(
         "nika.workflows.benchmark.run._run_trial_with_timeout",
@@ -319,7 +327,7 @@ def test_run_trials_batch_clab_exclusive_no_peer_sessions(tmp_path: Path) -> Non
                 active -= 1
 
     trials = [
-        _trial(scenario="min3clos", trial_index=1, case_index=0),
+        _trial(scenario="dc_clos", backend="containerlab", trial_index=1, case_index=0),
         _trial(scenario="dc_clos", trial_index=1, case_index=1),
         _trial(scenario="dc_clos", trial_index=2, case_index=2),
     ]
@@ -376,8 +384,8 @@ def test_run_trials_batch_waits_for_clab_before_light(tmp_path: Path) -> None:
             time.sleep(0.05)
 
     trials = [
-        _trial(scenario="min3clos", trial_index=1, case_index=0),
-        _trial(scenario="min3clos", trial_index=2, case_index=1),
+        _trial(scenario="dc_clos", backend="containerlab", trial_index=1, case_index=0),
+        _trial(scenario="dc_clos", backend="containerlab", trial_index=2, case_index=1),
         _trial(scenario="dc_clos", trial_index=1, case_index=2),
     ]
     with patch(
@@ -546,7 +554,13 @@ def test_run_trials_batch_heavy_batch_size(tmp_path: Path) -> None:
             for i in range(4)
         ],
         *[
-            _trial(scenario="min3clos", trial_index=1, case_index=i, case_key=f"h{i}")
+            _trial(
+                scenario="dc_clos",
+                backend="containerlab",
+                trial_index=1,
+                case_index=i,
+                case_key=f"h{i}",
+            )
             for i in range(4, 7)
         ],
     ]
