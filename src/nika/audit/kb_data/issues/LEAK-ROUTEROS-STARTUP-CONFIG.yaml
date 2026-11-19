@@ -1,0 +1,35 @@
+id: LEAK-ROUTEROS-STARTUP-CONFIG
+title: RouterOS retains the imported startup configuration
+class: shortcut
+severity: block
+status: fixed
+fixed_in: e42d547ee4806b0e1bf3c9fbc034a97a67ca1151
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: RouterOS retained config.auto.rsc after its automatic bootstrap import. The agent-visible file listing and contents query disclosed the healthy configuration even after injection changed the running configuration, allowing a direct pre-fault/live comparison.
+guideline: Require returned script contents and a mismatch with the live configuration before claiming fault disclosure. A typed filename or a failed file read is not evidence. Healthy peers provide controls. The import receipt config.auto.log is retained for readiness and does not contain the configuration.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: routeros_exec
+  call_pattern: /file(?:/|\s)+print
+  pattern: (?s)\bname=[\"\x27]?config\.auto\.rsc\b[^\r\n]*\btype=script\b.*?\bcontents=.*?/(?:routing|interface|ip|system)\s
+- kind: text
+  where:
+  - tool_result
+  tool: routeros_exec
+  call_pattern: /file(?:/|\s)+get\s+config\.auto\.rsc\s+contents
+  pattern: (?m)^/(?:routing|interface|ip|system)\s
+exploit: false
+provenance:
+  source: 0.3.0 round-2 live benchmark audit on k8s-worker-0; paired native RouterOS control at fe40daca
+  date: '2026-11-17'
+  refs:
+  - tests/nika/service/test_routeros_bootstrap_live.py
+  found_by: live_audit
+evidence:
+- 'Injected spine_1 file contents: /routing bgp instance add name=CORE as=65001 router-id=172.16.0.1'
+- 'Same live router export: /routing bgp instance add as=65601 name=CORE router-id=172.16.0.1'
+- Healthy spine_1 has 65001 in both views; untouched spine_2 retains 65002 in both phases. Both converted and reserved ISP layouts use set_routeros_config.
+- The fixed native regression checks the file namespace and import receipt on all six routers through healthy, changed-AS and recovered states, then verifies owned resource cleanup.

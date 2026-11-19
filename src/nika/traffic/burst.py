@@ -202,14 +202,17 @@ class BurstTrafficGenerator:
         prior = self.runtime.exec(
             host, "sysctl -n net.ipv4.tcp_ecn", timeout=10
         ).strip()
+        if not prior.isdigit():
+            raise RuntimeError(f"Could not read TCP ECN setting on {host!r}")
+        if prior == "1":
+            return
         self.runtime.exec(host, "sysctl -w net.ipv4.tcp_ecn=1", timeout=10)
-        if prior.isdigit() and prior != "1":
-            self.runtime.exec(
-                host,
-                f"(sleep {seconds:.0f}; sysctl -w net.ipv4.tcp_ecn={prior}) "
-                ">/dev/null 2>&1 &",
-                timeout=10,
-            )
+        self.runtime.exec(
+            host,
+            f"(sleep {seconds:.0f}; sysctl -w net.ipv4.tcp_ecn={prior}) "
+            ">/dev/null 2>&1 &",
+            timeout=10,
+        )
 
     def run(
         self,
@@ -239,60 +242,76 @@ class BurstTrafficGenerator:
         )
         start_time = max(time.time() + 1.0, synchronized_start)
         sink_pids: list[int] = []
-        if raw_udp:
-            sink_seconds = max(0.0, start_time - time.time()) + duration + 5
-            for flow in flows:
-                output = self.runtime.exec(
-                    destination,
-                    f"python3 -c {shlex.quote(_RAW_UDP_SINK)} "
-                    f"{flow.destination_port} {sink_seconds:.0f} "
-                    f">/dev/null 2>&1 & echo $!",
-                    timeout=10,
-                ).strip()
-                if output.isdigit():
-                    sink_pids.append(int(output))
-        else:
-            for flow in flows:
-                self.runtime.exec(
-                    destination,
-                    f"iperf3 -s -1 -p {flow.destination_port} >/dev/null 2>&1 &",
-                    timeout=10,
-                )
-        if protocol == "tcp":
-            restore_after = max(0.0, start_time - time.time()) + duration + 5
-            for host in dict.fromkeys([destination, *(f.source for f in flows)]):
-                self._enable_tcp_ecn_until(host, restore_after)
         sender_pids: dict[str, int] = {}
-        for flow in flows:
-            udp = "-u" if protocol == "udp" else ""
-            delay = max(0.0, start_time - time.time())
+        prepared = PreparedBurst(self.runtime, flows, destination_ip)
+        try:
             if raw_udp:
-                command = (
-                    f"exec python3 -c {shlex.quote(_RAW_UDP_SENDER)} "
-                    f"{shlex.quote(destination_ip)} {flow.destination_port} "
-                    f"{bitrate} {packet_size} {duration} {flow.source_port} "
-                    f"{burst_packets} {start_time:.6f}"
-                )
-                output = self.runtime.exec(
-                    flow.source,
-                    f"({command}) >/dev/null 2>&1 & echo $!",
-                    timeout=10,
-                ).strip()
-                if output.isdigit():
-                    sender_pids[flow.source] = int(output)
+                sink_seconds = max(0.0, start_time - time.time()) + duration + 5
+                for flow in flows:
+                    identity = prepared.launch(
+                        destination,
+                        [
+                            "python3",
+                            "-c",
+                            _RAW_UDP_SINK,
+                            str(flow.destination_port),
+                            f"{sink_seconds:.0f}",
+                        ],
+                    )
+                    sink_pids.append(identity[0])
             else:
-                command = (
-                    f"sleep {delay:.6f}; exec iperf3 -c {destination_ip} -p {flow.destination_port} "
-                    f"{udp} -b {rate} -l {packet_size} -t {duration} "
-                    f"--cport {flow.source_port}"
-                )
-                output = self.runtime.exec(
-                    flow.source,
-                    f"({command}) >/dev/null 2>&1 & echo $!",
-                    timeout=10,
-                ).strip()
-                if output.isdigit():
-                    sender_pids[flow.source] = int(output)
+                for flow in flows:
+                    prepared.launch(
+                        destination,
+                        ["iperf3", "-s", "-1", "-p", str(flow.destination_port)],
+                    )
+            if protocol == "tcp":
+                restore_after = max(0.0, start_time - time.time()) + duration + 5
+                for host in dict.fromkeys([destination, *(f.source for f in flows)]):
+                    self._enable_tcp_ecn_until(host, restore_after)
+            for flow in flows:
+                delay = max(0.0, start_time - time.time())
+                if raw_udp:
+                    command = [
+                        "python3",
+                        "-c",
+                        _RAW_UDP_SENDER,
+                        destination_ip,
+                        str(flow.destination_port),
+                        str(bitrate),
+                        str(packet_size),
+                        str(duration),
+                        str(flow.source_port),
+                        str(burst_packets),
+                        f"{start_time:.6f}",
+                    ]
+                else:
+                    command = [
+                        "python3",
+                        "-c",
+                        "import os,sys,time; time.sleep(float(sys.argv[1])); "
+                        "os.execvp(sys.argv[2], sys.argv[2:])",
+                        f"{delay:.6f}",
+                        "iperf3",
+                        "-c",
+                        destination_ip,
+                        "-p",
+                        str(flow.destination_port),
+                        *(["-u"] if protocol == "udp" else []),
+                        "-b",
+                        rate,
+                        "-l",
+                        str(packet_size),
+                        "-t",
+                        str(duration),
+                        "--cport",
+                        str(flow.source_port),
+                    ]
+                identity = prepared.launch(flow.source, command)
+                sender_pids[flow.source] = identity[0]
+        except BaseException:
+            prepared.stop()
+            raise
         return {
             "event": "traffic_profile",
             "profile": "burst",
@@ -321,7 +340,7 @@ class PreparedBurst:
     destination_ip: str
     processes: list[tuple[str, list]] = field(default_factory=list)
 
-    def launch(self, host: str, command: list[str]) -> None:
+    def launch(self, host: str, command: list[str]) -> list:
         """Discard helper output and retain the child's PID and birth identity."""
         source = (
             process_source()
@@ -341,6 +360,7 @@ except BaseException:
             )
         )
         self.processes.append((host, identity))
+        return identity
 
     def start(self, *, rate: str, packet_size: int, stop_at: float) -> None:
         _rate_bps(rate)

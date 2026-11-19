@@ -1,0 +1,34 @@
+id: HARNESS-NATIVE-LOOKALIKE-TARGET
+title: Look-alike planning falls back outside its native target pool
+class: harness_defect
+role: lead
+severity: warn
+status: fixed
+fixed_in: 96fc6b38342ab244c8ad17e6a508403bdad5a9e7
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The hybrid IOS XR enterprise deployment has no native eBGP router with attached clients for the missing-policy look-alike. Its selector fell back to an unsupported FRR edge, failing admission while constructing that control. The selector now raises NoValidTargetError and the audit reports the unavailable control explicitly. Valid controls and unexpected errors remain checked.
+scope:
+  fault_types:
+  - bgp_prefix_list_length_mismatch
+  scenarios:
+  - enterprise_branch
+guideline: Inspect control construction before interpreting a failed look-alike Oracle. Derive eligible targets from the selected deployment's declared capabilities. An empty target pool must be reported explicitly; it must not fall back to an unsupported router. Preserve valid controls and fail unexpected planning errors. Compare matched deployment profiles and retain primary Oracle, symptom and persistence evidence.
+detect:
+- kind: source_text
+  where:
+  - harness
+  exclude_authored: false
+  pattern: '(?s)"stage":\s*"neighbor_oracle",\s*"status":\s*"fail",\s*"reason":\s*"RuntimeCapabilityError: No native BGP policy evidence on '
+  source_fingerprints:
+  - src/nika/problems/routing_control_plane/bgp.py: 71f761d79efb2e75806557567a55457f4b5004eaed33a1a0cbdeb8be2ebe5497
+    scripts/benchmark_audit/live.py: bccace8036746be4d0871e825ebc04ca0610cad06b1d68aee09125a08f5b1e61
+provenance:
+  source: ADM3-k8s-worker-0 frozen IOS XR prefix-list admission and native controls
+  date: '2026-11-17'
+  refs:
+  - tests/benchmark/test_audit_controls.py
+  found_by: live_audit
+evidence:
+- The c42b6177 case-image record passes its primary Oracle, artifact, symptom and persistence checks but fails constructing the missing-policy look-alike on br2_edge. Only the transit routers are IOS XR; they lack the required eBGP/client combination. All eligible edge roles are FRR.
+- At clean afdc1e9f, native neighbor_oracle passes with a valid advertisement control and an explicit unavailable missing-policy control. An independent native-keyword scanner false positive remains in that retained record.
+- Clean 5a23d975 passes the full native matrix in 580.4 seconds after declaring the ordinary prefix-list keyword through the existing failure-owned scanner mechanism. Normal nika exec observations and empty owned-resource cleanup receipts are retained. The full generated pool remains byte-identical; task identity, authored rows and ground truth are unchanged. Corrected snapshot verification remains deferred to integration.

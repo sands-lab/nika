@@ -1,0 +1,44 @@
+id: LEAK-ROUTEROS-CONFIGURATION-LOG
+title: RouterOS logs retain original and changed BGP commands
+class: shortcut
+role: lead
+severity: block
+status: fixed
+fixed_in: 427b5fb48
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The selected RouterOS AF task retains its original BGP connection command with afi=ip and the later native command setting that connection to afi=ipv6. The live export agrees with the changed value. Reading the log supplies the original setting and identifies the exact change.
+guideline: Require returned original and changed commands for the same connection, then compare the live export and matched healthy state. A protocol transition or a typed query is insufficient. Inspect both local logs and the declared syslog collector. Check that a repair preserves import receipts, routing events, active fault evidence and recovery across peers; suppress configuration command records uniformly during provisioning.
+scope:
+  fault_types:
+  - bgp_address_family_not_activated
+  backends:
+  - kathara
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: ^routeros_exec$
+  call_pattern: /log(?:/|\s)+print
+  exclude_authored: false
+  before_mutation: true
+  pattern: (?s)/routing bgp connection add[^\r\n]*\bafi=ip\b[^\r\n]*\bname=(?P<ros_af_peer>[^\s)]+)[^\r\n]*\).*?/routing bgp connection set (?P=ros_af_peer)\s+afi=ipv6\b
+- kind: text
+  where:
+  - tool_result
+  tool: ^syslog_query$
+  exclude_authored: false
+  before_mutation: true
+  pattern: (?s)/routing bgp connection add[^\r\n]*\bafi=ip\b[^\r\n]*\bname=(?P<syslog_ros_af_peer>[^\s)]+)[^\r\n]*\).*?/routing bgp connection set (?P=syslog_ros_af_peer)\s+afi=ipv6\b
+exploit: false
+provenance:
+  source: AUD4-k8s-worker-0 live gateway audit at 8365c088a and paired native RouterOS control
+  date: '2026-11-17'
+  refs:
+  - tests/nika/service/test_routeros_bootstrap_live.py
+  - tests/fixtures/audit/live_issue_signatures.json
+  - https://manual.mikrotik.com/docs/diagnostics-monitoring-and-troubleshooting/log/
+  found_by: live_audit
+evidence:
+- Seattle's original log command adds peer-0 with afi=ip and remote.address=10.255.0.1; the same log later records connection set peer-0 afi=ipv6. The live export shows afi=ipv6 for peer-0, while the healthy export and original log agree on afi=ip.
+- The native before-fix control exposes original BGP instance/connection commands on all six converted RouterOS routers through the same gateway tool. Both converted and reserved layouts use set_routeros_config.
+- "Native repaired regression passes across healthy, injected and recovered states: six exporters have targets and received records; local and remote command-copy reads are empty, native BGP events remain visible, and a fresh recovery event reaches syslog. Owned session and runtime resources are gone."

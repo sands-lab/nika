@@ -4,9 +4,9 @@ class: healthy_lure
 role: known
 severity: warn
 status: fixed
-fixed_in: 7edc92aa
-summary: Warning events from cluster bootstrap stayed in k8s_list_events on healthy labs, so agents reported
-  failures. Bootstrap events are now cleared.
+fixed_in: 36fec5eac15bd3ed9c20094673435eae1b98da8b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: Healthy restored Kubernetes environments can expose recovered startup Warning history. Initial restore handoff verifies current health and telemetry before sealing the healthy baseline. Injection and ordinary recovery preserve incident warnings.
 scope:
   scenarios:
   - k8s_lab
@@ -15,10 +15,18 @@ detect:
 - kind: text
   tool: k8s_list_events
   exclude_authored: false
-  pattern: \bWarning\b.*\b(?:FailedScheduling|BackOff|FailedMount|Unhealthy|FailedCreatePodSandBox)\b
+  pattern: \bWarning\b[^\n]*\b(?:FailedScheduling|BackOff|FailedMount|Unhealthy|FailedCreatePodSandBox)\b|"type"\s*:\s*"Warning"\s*,\s*"reason"\s*:\s*"(?:FailedScheduling|BackOff|FailedMount|Unhealthy|FailedCreatePodSandBox)"
 provenance:
   source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
   date: '2026-10-22'
   refs:
   - '#206'
   found_by: live_audit
+evidence:
+- 'Round-2 llmd/l healthy image 16cf87314892 at fe40daca retains a FailedMount warning for backup/object-store-worker6 after that pod is 1/1 Running with zero restarts. k8s_list_events and kubectl read the same event 30.89 seconds apart; the healthy Oracle passes. Controller startup clears warnings before background traffic pods are created. Native lifecycle verification passes.'
+- 'Corrected native llmd/l exposes no Warning events in two healthy MCP rounds. A standard readiness-probe failure produces two Unhealthy events; recovery and ordinary full health verification preserve both. All owned machines, links and state session documents are absent after close.'
+- The original bootstrap cleanup landed in 7edc92aa. AUD-k8s-master at 9702d6823 observed stale Warning events in healthy image 6faa9e1fb758 twice, while 49 running Pods were ready, two admission jobs had Succeeded, and word/weather HTTP reads returned 200. Calls 148/157, 153/156 and 154/155 are retained in adm-scratch/aud-k8s-master-evidence/healthy-6faa9e1fb758/calls.jsonl.
+- Round 2 corrected-source image 4f36020898ac at fe40daca still returns recovered FailedMount/Unhealthy Warning history twice through k8s_list_events (healthy calls119/123) while their Pods are Ready, both apps return200 and the healthy reference passes. The merged clock/monitoring repair does not close this issue. Paired memory-prefetch gating reduced later events but retained saved events and exposed a failing historical telemetry window; that candidate was reverted. Do not clear active incident events to make the baseline look clean.
+- 'Combined repair25b6c9ad: fresh native k8s_lab/l with all telemetry and traffic returns zero Warning events and healthy historical PromQL value0 twice. Readiness injection returns HTTP503 and five incident Warning events; recovery returns HTTP200 and retains six warnings. The isolated guest source matches the committed host files; guest sessions/containers are empty, VMM is gone, private runtime directory removed, base unchanged.'
+- 'New host prefill with original injected large case7e4e1c7cbec6 preserves genuine Unhealthy events twice, fault/control HTTP contrast and the Oracle. The disposable copy is removed. This writes no new image; merged-image confirmation remains with orchestration.'
+guideline: Compare Warning history with current Pod readiness and repeated application reads. Clear bootstrap warnings only at initial baseline sealing. Preserve incident warnings during injection, restore and recovery. Check historical telemetry windows independently.

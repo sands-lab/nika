@@ -87,7 +87,7 @@ The following paths derive labels from the same method:
 - `freeze_release` materializes an explicitly supplied flat case file.
 - `nika benchmark migrate` upgrades an existing case matrix.
 
-Candidate options and frozen releases store materialized `root_causes` so reviewers can inspect labels. The candidate catalog stores one flat executable case per `failure.cases` entry with the same `root_causes` shape shown above. During injection, NIKA derives the labels again and rejects a case when the derived value differs from the materialized value.
+Candidate options and benchmark releases store materialized `root_causes` so reviewers can inspect labels. The candidate catalog stores one flat executable case per `failure.cases` entry with the same `root_causes` shape shown above. During injection, NIKA derives the labels again and rejects a case when the derived value differs from the materialized value.
 
 ## Submit a diagnosis
 
@@ -204,7 +204,7 @@ The tier-A target includes `bgp_md5_password_mismatch`, whose ISP candidates use
 
 Always report these as a pair:
 
-- `submission_rate = n(scored) / N`
+- `submission_rate`: the number of scored trials divided by the number of expected trials (or 1 when none are expected), across all selected trials.
 - `conditional_mean_*`: average scored trials within each main task that asks for the objective, then average those task means; `null` when no such trials exist
 
 Also report:

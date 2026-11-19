@@ -1,0 +1,37 @@
+id: HARNESS-PCAP-PROTOCOL-TOTAL
+title: Protocol capture pages report totals from unrelated protocols
+class: harness_defect
+role: known
+severity: warn
+status: fixed
+fixed_in: d50e4f5f729117c3296518fbe156517e97bd4246
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  The protocol view filters the returned packets by protocol but counts
+  total_available without that protocol filter. A capture with only TCP
+  and IS-IS reports a positive DNS total with an empty first page.
+scope: {}
+guideline: >-
+  Compare protocol pages with packet pages using the same combined display
+  filter. Their total counts must agree. Check a present protocol, a
+  narrower display filter, an absent protocol, and an offset beyond the end.
+  An empty first page with a positive total is inconsistent when limit is positive.
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: packet_capture_inspect
+  pattern: '(?s)"view"\s*:\s*"protocol".*?"truncated"\s*:\s*false.*?"returned"\s*:\s*0\s*,.*?"total_available"\s*:\s*[1-9]\d*\s*,.*?"offset"\s*:\s*0\s*,.*?"packets"\s*:\s*\[\s*\]'
+provenance:
+  source: AUD2-nika01 healthy native Cost266 protocol inspection
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  Source fe40daca, capture 5c1ac014fa2148e68c591736ff61db37 contains ten packets
+  with TCP and IS-IS protocol summaries. The DNS protocol first page reports
+  returned=0, total_available=10, offset=0, truncated=false, and packets=[].
+- >-
+  Native MCP protocol and filtered packet pages agree: TCP total 12 with a one-packet truncated page; DNS total zero, and a contradictory display-filter total zero with an empty non-truncated page.
+  The native session closed successfully.

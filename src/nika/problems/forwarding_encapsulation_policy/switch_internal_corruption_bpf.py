@@ -78,7 +78,7 @@ class SwitchEgressClassifier:
                 network_mode=f"container:{state.proxy_id}",
                 qdisc=True,
             )
-        except Exception:
+        except BaseException:
             proxy.remove(state)
             raise
 

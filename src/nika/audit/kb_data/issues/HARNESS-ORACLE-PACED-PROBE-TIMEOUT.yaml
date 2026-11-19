@@ -1,0 +1,30 @@
+id: HARNESS-ORACLE-PACED-PROBE-TIMEOUT
+title: Reference packet pacing exceeds the command deadline
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: 643d667f12c118e4838cf271143ed6911f9ee0f1
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The large P4 silent-loss reference sends16 destinations times12 flows times32 packets with20ms pacing per source. Its122.88s minimum exceeds the60s tool deadline, so every source times out before completing.
+guideline: Require the authored reference call and its actual timeout. Compute the minimum pacing duration and preserve samples and pacing on every affected path. Select destinations from declared topology capabilities and bound batches; do not lower diagnosis thresholds or count an agent-authored timeout as this defect.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  fault_types:
+  - silent_egress_packet_loss
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: exec_shell
+  pattern: (?s)\[TIMEOUT\].*21000 \+ 1009.*exceeded 60(?:\.0)?s
+  call_pattern: sock.sendto.*19408|time.sleep
+provenance:
+  source: AUD-k8s-master round-2 live restored lab plus standard injection at fe40daca
+  date: '2026-11-17'
+  refs:
+  - tests/nika/problems/test_silent_loss_oracle.py
+  found_by: live_audit
+evidence:
+- "Case c4c7ea9ee1 calls135\u2013142 each TIMEOUT after60s; their authored loops have16 destinations,12 flows,32 repeats and0.02s sleeps. Native91950118 selects declared affected-leaf services, batches at most2, and retains all source/flow/packet counts and pacing."
+- 'Fresh native91950118 normal P4/s: observed768 every phase; healthy/recovery missing0, injected and repeated injected missing14. All probes complete, no tool errors, owned sessions/containers/networks absent. Original large images require integration/rebuild.'

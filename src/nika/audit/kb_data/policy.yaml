@@ -45,10 +45,11 @@ forbidden_tools:
 
 # Tools that run commands on lab nodes. State-changing commands sent through
 # them change the network under diagnosis.
-node_exec_tools: [exec_shell, srl_exec_cli, p4rt_exec, sdn_onos_rest]
+node_exec_tools: [exec_shell, device_read, iosxr_exec, routeros_exec, srl_exec_cli, sonic_exec_cli, p4rt_exec, sdn_onos_rest]
 
-# Commands that change state on a node. Read-only diagnosis never needs them.
+# Commands that change state on a node. These identify context for the audit; writes are allowed.
 mutating_commands:
+  - \b(?:insert|modify|delete|delete-lpm|apply)\b
   - \bsystemctl\s+(?:start|stop|restart|reload|enable|disable)\b
   - \bservice\s+\S+\s+(?:start|stop|restart|reload)\b
   - \bip\s+(?:-\S+\s+)*(?:addr|address|route|link|neigh|rule)\s+(?:add|del|delete|replace|change|flush|set)\b
@@ -85,6 +86,7 @@ tool_error_patterns:
 
 # Tool output that the harness cut short.
 output_truncated_patterns:
+  - The output of your last tool call exceeded the output limit and was truncated
   - The output of your last command was too long
   - \[output truncated
   - \.\.\. \[truncated\]

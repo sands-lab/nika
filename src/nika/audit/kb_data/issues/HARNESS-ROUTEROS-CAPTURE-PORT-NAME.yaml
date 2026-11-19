@@ -1,0 +1,30 @@
+id: HARNESS-ROUTEROS-CAPTURE-PORT-NAME
+title: Packet capture rejects a running native RouterOS physical port
+class: harness_defect
+role: lead
+severity: warn
+status: fixed
+fixed_in: cee83d2fd13396dbbb8423240764168ba89c335e
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The native CLI reports ether2 as a running physical port, but packet_capture_start rejects that name because the capture provider checks the Linux wrapper namespace without translating it. RouterOS converted and reserved layouts use different offsets. The repair reuses the existing environment mapping and preserves missing-interface validation.
+scope:
+  backends:
+  - kathara
+guideline: Require a matching native RouterOS interface inventory showing the requested physical port is running. A rejected unknown or disconnected port alone does not establish a defect. Compare the native name and its declared Linux alias with bounded captures of the same endpoint traffic. Cover converted and reserved layouts and retain a missing-port negative control.
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: packet_capture_start
+  exclude_authored: false
+  call_pattern: '"interface"\s*:\s*"ether[2-9]"'
+  pattern: Interface 'ether[2-9]' does not exist
+provenance:
+  source: AUD3-xwangz-vm restored healthy RouterOS environment through the agent gateway
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- 'Source c42b6177, variant e63d8cffbae6: routeros_exec lists running br1_edge ether2 in vrf_corp; packet_capture_start rejects ether2 and lists Linux wrapper ports instead.'
+- Clean native 5367300d1 captures 15 packets through ether2 and 14 through eth0. Both captures contain eight matching client/gateway ICMP packets. Unknown ether99 is rejected. All 19 owned containers and the host session are absent after cleanup. Seventy-four capture tests pass; the four layout controls fail on original source. Both layouts and missing-port validation remain covered.
+- Nika01 port 6c9c17c1ed373b1a1ad87d17f6c1f2516d31292f retains the same provider SHA256 as the clean native source 5367300d1. Its 77 capture checks, including live capture workflows, pass. The native physical-port correction is reused across the shared RouterOS capability and both declared layouts; the original rejected call remains evidence from xwangz-vm.

@@ -164,7 +164,7 @@ class PackageIdentity(BaseModel):
 
 
 class TrialResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     trial_id: str
     case_key: str
@@ -225,7 +225,7 @@ class RcaConfusion(BaseModel):
 
 
 class AggregatedMetrics(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     primary_metric: str = PRIMARY_METRIC
     mean_rca_f1: float

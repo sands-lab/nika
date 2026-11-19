@@ -1,0 +1,36 @@
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+scope:
+  scenarios:
+  - dc_clos
+  backends:
+  - kathara
+provenance:
+  source: AUD3-xwangz-vm configured public gateway in original restored and matched healthy native labs
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+id: HARNESS-IOSXR-CAPTURE-PORT-NAME
+title: Capture rejects a live native IOS XR data port
+summary: The actual IOS XR spine lists its native data port Up/Up, but capture rejects both long and abbreviated native names. Linux eth0 on the same node captures packets.
+guideline: Verify the actual node declares IOS XR capability and that its live native inventory lists the requested data port. Do not use a native name on an FRR leaf in a mixed variant. Compare the corresponding Linux interface, and preserve missing-port and other-capability negative controls.
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: packet_capture_start
+  exclude_authored: false
+  call_pattern: (?:GigabitEthernet|Gi)0/0/0/0
+  pattern: Interface '(?:GigabitEthernet|Gi)0/0/0/0' does not exist.*Available interfaces:.*eth0
+  source_fingerprints:
+  - src/nika/service/packet_capture/capture_backend.py: 0ccddcd414d85f86306238068c3be0f5e6b776a557f0507969d9b86e1034afb9
+  - src/nika/service/packet_capture/capture_backend.py: 97c2122fa2e3b28d8d16d24aecb7fab28e0e10da186425a2247fc04b22abae2c
+evidence:
+- 'Original c42b6177 snapshot: spine_1 GigabitEthernet0/0/0/0 is Up/Up, native-name start fails, eth0 stops with63 packets. Fault target is a different client attachment.'
+- Matched healthy native5d6bd096d reproduces both long and abbreviated name failures; eth0 captures68 packets. All20 owned containers and the host session are absent after cleanup.
+- Repair7f5ae960a reuses iosxr.container_interface before existence validation. Missing native99 and non-IOSXR capability controls remain. Native fixed-code validation is running.
+- 'Clean39a5a0040 fixed native public gateway: long native name captures63 packets, abbreviated name128 and Linux eth0 control73; each returns8 inspected packets. Unknown native99 is rejected. Provider hashes match; all20 owned containers and host session are absent. 96 focused checks/Ruff pass;7 original-source regression controls fail.'
+fixed_in: cee83d2fd13396dbbb8423240764168ba89c335e
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

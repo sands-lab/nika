@@ -1,0 +1,40 @@
+id: HARNESS-P4-READ-MASTER-PREEMPTION
+title: P4Runtime observations can preempt active writers
+class: harness_defect
+severity: block
+status: fixed
+fixed_in: ed1324cfe
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: Read clients opened P4Runtime arbitration streams and elected themselves primary. Concurrent table-fill writes then failed with PERMISSION_DENIED, preventing case-image creation.
+guideline: Read paths must not enter primary arbitration. Confirm concurrent writer failure independently; a reported primary flag alone does not prove preemption. Preserve explicit writes and their election process. Verify read RPCs, repeated writer success, native admission, and cleanup.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  - p4_dc_fabric
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: ^p4rt_exec$
+  call_pattern: '"args"\s*:\s*"(?:read(?:-table)?|counters)(?=\s|")'
+  pattern: '"arbitration"\s*:\s*\{\s*"master"\s*:\s*true'
+  source_fingerprints:
+  - src/nika/net_env/utils/kathara/p4rt_manager.py: adb56dc9d777b2b644f83be00927c5e1e9769e08359bf5ddab701b6367acc4c7
+- kind: source_text
+  where:
+  - harness
+  pattern: '(?s)table fill failed:.*PERMISSION_DENIED.*Not primary'
+  source_fingerprints:
+  - src/nika/net_env/utils/kathara/p4rt_manager.py: adb56dc9d777b2b644f83be00927c5e1e9769e08359bf5ddab701b6367acc4c7
+provenance:
+  source: AUD4-xwangz-vm public P4 reads and ADM4 native writer controls
+  date: '2026-11-17'
+  refs:
+  - src/nika/net_env/utils/kathara/p4rt_manager.py
+  - tests/nika/service/kathara/test_p4rt_entries.py
+  - p4_dc_gateway__p4_table_resource_exhaustion__0b46e8b65b
+  found_by: live_audit
+evidence:
+- Frozen 8365c088a healthy Gateway and Fabric calls14 issue p4rt_exec with args read and return arbitration.master true with a positive election ID. The pinned constructor always opens StreamChannel and enters primary arbitration, including observation commands.
+- Original case-image injection for 0b46e8b65b fails table fill with PERMISSION_DENIED and Not primary. The native administrative control reproduces this after a second legacy connection and retains three successful writer updates after a query connection. These write controls are separate from agent-visible evidence.
+- Immutable 4e86b8b42 passes the exact large native case admission and Oracle. The provider hash remains 941c479e936580fe17ca5820874ddfa92fcbd4820bfbc1f5c1dc15bcd42c0bc3, both ownership controls pass, and the owned session and runtime are absent. Corrected snapshot admission remains pending integration.

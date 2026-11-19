@@ -7,10 +7,20 @@ from nika.workflows.benchmark.network_identity import (
     DATASET_METADATA_FIELDS,
 )
 from nika.workflows.benchmark.trials import task_id_for_row
-from nika.workflows.leaderboard.aggregate import aggregate_trial_results
+from nika.workflows.leaderboard.aggregate import (
+    aggregate_trial_results,
+    metrics_nearly_equal,
+)
 from nika.workflows.leaderboard.schema import TrialResult
 
 pytestmark = pytest.mark.contract
+
+
+@pytest.mark.parametrize("field", ["mean_rca_f1", "case_consistency"])
+def test_comparison_rejects_nonfinite_scores(field):
+    expected = aggregate_trial_results([], n_trials_expected=0)
+    actual = expected.model_copy(update={field: float("nan")})
+    assert any(field in issue for issue in metrics_nearly_equal(expected, actual))
 
 
 def _trial(row, score, index=1):

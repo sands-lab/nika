@@ -1,0 +1,49 @@
+id: HARNESS-ORACLE-READ-OUTPUT-LIMIT
+title: Reference diagnosis reads exceed the agent-visible output limits
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: '30805221'
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: P4 intent context reads can truncate global switch JSON before bounded evidence succeeds. Broad reference reads fail on larger live inventories. The BGP ASN playbook reads every neighbor on a route reflector and exceeds device_read's 64 KiB cap. The zero-replica playbook includes unrelated Kubernetes Pods and its JSON is truncated by the gateway before the evidence checker can parse it.
+guideline: The output guard is intentional. Confirm that the failing call comes from the authored reference playbook and prevents its evidence assertion from running. An agent-authored broad command alone does not establish this defect. Narrow the query to the observed target neighbor or Pods selected by a Deployment, retain independent controls, and verify that remaining matching Pods still prevent a zero-replica diagnosis. Do not increase limits or accept partial JSON as evidence.
+scope:
+  fault_types:
+  - bgp_asn_misconfig
+  - k8s_deployment_replicas_zero
+  - p4_ecmp_group_member_missing
+  - p4_action_selector_member_misconfig
+  - p4_table_entry_missing
+  - p4_table_entry_misconfig
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: device_read
+  call_pattern: show bgp neighbors
+  pattern: Device output exceeds 64 KiB; narrow the command
+- kind: text
+  where:
+  - tool_result
+  tool: exec_shell
+  call_pattern: kubectl get deployments,pods -A -o json
+  pattern: The output of your last tool call exceeded the output limit and was truncated
+- kind: text
+  where:
+  - tool_result
+  tool: p4rt_exec
+  call_pattern: read
+  pattern: The output of your last tool call exceeded the output limit and was truncated
+provenance:
+  source: AUD-k8s-master live audit at 9702d6823683551f24d55836f4538f6d20d539cc
+  date: '2026-11-16'
+  refs:
+  - tests/nika/problems/test_bgp_oracle_playbooks.py
+  - tests/nika/problems/test_k8s_deployment_replicas_zero.py
+  found_by: live_audit
+evidence:
+- 'isp_sun__bgp_asn_misconfig__1020921ba0: device_read on n10, show bgp neighbors, returned Device output exceeds 64 KiB; narrow the command in both reference observations.'
+- 'k8s_lab__k8s_deployment_replicas_zero__241dcce625: the reference deployments,pods query returned gateway head/tail truncation in every repeated attempt, while a bounded live read showed weather-dply at zero replicas.'
+- Native Sun ASN diagnosis and recovery passed after bfb7c4b1; native Kubernetes scale-zero diagnosis and recovery passed after 7067b94d. Both owned sessions closed.
+- 'Round 2: integrated source b4df0c46 already bounds peer ASN evidence and zero-replica observations; the remaining optional host-neighbor read is bounded on fix/aud2-k8s-master. Round-1 native receipts remain source-specific.'
+- Round 2 native Sun verification at fe40daca plus a3383e12 passed bounded target and peer reads, ASN diagnosis, recovery, nonzero telemetry and owned cleanup. The peer mismatch/independent-session predicates and zero-replica remaining-Pod controls are retained.

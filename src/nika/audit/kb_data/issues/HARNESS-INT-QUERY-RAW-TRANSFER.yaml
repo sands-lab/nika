@@ -1,0 +1,30 @@
+id: HARNESS-INT-QUERY-RAW-TRANSFER
+title: A bounded INT query transfers the whole retained raw window
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: 643d667f12c118e4838cf271143ed6911f9ee0f1
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The INT API reads up to100000 raw JSON reports from the collector before applying filters and pagination. A valid delivery query with limit1000 times out while transferring that raw window rather than returning its bounded result.
+guideline: Require a valid INT call and the producing collector timeout signature, then verify the raw-transfer mechanism in its pinned source. Preserve the same retained100000-row tail, trace collapse before filtering, delivery grace, filters and paging. A timeout alone does not prove this mechanism.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  fault_types:
+  - silent_egress_packet_loss
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: int_query_telemetry
+  pattern: '(?s)Observation on collector returned no exit status: \[TIMEOUT\].*tail -n 100000 /var/lib/int-collector/int_reports\.jsonl.*exceeded 20s'
+provenance:
+  source: AUD-k8s-master round-2 live restored lab plus standard injection at fe40daca
+  date: '2026-11-17'
+  refs:
+  - tests/nika/service/test_int_query.py
+  - tests/nika/service/test_observation_errors.py
+  found_by: live_audit
+evidence:
+- 'Case c4c7ea9ee1 calls143/147: limit1000 delivery query fails checked_exec collector tail -n100000 at20s; call146 times out and later transport errors remain recorded. Nativee7b80479+91950118 returns bounded healthy/fault/recovery deliveries through the same MCP API; subprocess regressions check retained window, trace merging, limits and failed-observation handling.'
+- 'Fresh native91950118 normal P4/s: observed768 every phase; healthy/recovery missing0, injected and repeated injected missing14. All probes complete, no tool errors, owned sessions/containers/networks absent. Original large images require integration/rebuild.'

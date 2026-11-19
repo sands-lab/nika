@@ -5,7 +5,7 @@ severity: warn
 status: fixed
 fixed_in: 7edc92aa
 summary: In release 0.2.0 packet_capture_start passed the interface name straight to dumpcap without mapping it or
-  checking that it exists. On SR Linux nodes (isp_pdh, min3clos) the native name ethernet-1/N or ethernet-1/N.0 is
+  checking that it exists. On SR Linux nodes (isp_pdh, dc_clos) the native name ethernet-1/N or ethernet-1/N.0 is
   not a Linux interface, so all 41 completed captures that used it returned 0 packets and 0 bytes instead of an
   error, while captures on the Linux name e1-N saw traffic (36 packets on e1-5 against 0 on ethernet-1/5 in the
   same case). Agents read the empty capture as missing traffic. 7edc92aa maps SR Linux names
@@ -17,7 +17,7 @@ guideline: Counts when packet_capture_start names an SR Linux interface (etherne
 scope:
   scenarios:
   - isp_pdh
-  - min3clos
+  - dc_clos
 detect:
 - kind: text
   where:

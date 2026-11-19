@@ -1,0 +1,51 @@
+id: HARNESS-FIRECRACKER-MISSING-TELEMETRY
+title: Restored trials omit the telemetry declared by the case
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+fixed_in: 532072af1b2772faab669929dd9891bae41b3ca6
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  Firecracker lab-image variants omitted telemetry from both deployment parameters
+  and the image key. Restored 0.3.0 cases declared netflow, pingmesh, prometheus,
+  and syslog, but exposed only host and packet-capture tools. The reference
+  diagnosis could not call prometheus_query. Native deployment with the same
+  declared telemetry serves the missing tools.
+scope:
+  releases:
+  - 0.3.0
+guideline: >-
+  On each restored environment variant, compare the authored telemetry list with
+  the gateway's tools/list results. Prometheus or pingmesh requires
+  prometheus_query; netflow requires flow_coverage and flow_records; syslog
+  requires syslog_query. Keep the exact tools/list requests and replies.
+  A missing tool is a defect only when the case declares that capability.
+  Confirm the trial uses Firecracker and compare a native deployment with the
+  same parameters. The text signature is a lead for failed tool discovery;
+  absence from tools/list requires this explicit inventory comparison.
+  List every served MCP server; partial inventories and authored access-policy
+  exclusions do not establish an omission.
+detect:
+- kind: text
+  where:
+  - tool_result
+  - harness
+  exclude_authored: false
+  pattern: "(?:tool_unavailable:|Unknown tool:?|KeyError:)\\s*['\"]?(?:prometheus_query|flow_coverage|flow_records|syslog_query)\\b"
+- kind: text
+  where: [init]
+  pattern: '(?s)\A\s*\[(?=.*"server"\s*:\s*"kathara_base_mcp_server")(?=.*"name"\s*:\s*"device_read")(?!.*"name"\s*:\s*"prometheus_query").*\]\s*\Z'
+provenance:
+  source: AUD-nika01 restored healthy isp_atlanta diagnosis MCP inventory
+  date: '2026-11-16'
+  refs:
+  - tests/nika/firecracker/test_image_telemetry_live.py
+  found_by: live_audit
+evidence:
+- >-
+  Source 9702d6823, lab image 58909d1e053b: tools/list returns ten host and
+  packet-capture tools, with no telemetry tool despite four declared kinds.
+- >-
+  tests/nika/firecracker/test_firecracker.py checks telemetry propagation,
+  canonical ordering, distinct image identity, and native admission capacity.

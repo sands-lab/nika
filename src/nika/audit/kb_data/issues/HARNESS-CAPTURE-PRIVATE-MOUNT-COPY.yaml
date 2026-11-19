@@ -1,0 +1,34 @@
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+scope:
+  scenarios:
+  - dc_clos
+  backends:
+  - kathara
+provenance:
+  source: AUD3-xwangz-vm configured public gateway in original restored and matched healthy native labs
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+id: HARNESS-CAPTURE-PRIVATE-MOUNT-COPY
+title: Capture inspection cannot copy a file from the live node mount
+summary: The capture is nonempty and visible to node execution, but the host-side decoder copies it through Docker archive, which cannot see the live private mount.
+guideline: Require a valid passive capture, nonzero stop counts and an immediate same-ID inspect failure. Confirm the native node still sees the same bytes. A privileged binary-read comparison diagnoses the mechanism; it is separate from the agent-reproducible start/stop/inspect evidence. Preserve explicit missing-file and empty-file errors.
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: packet_capture_inspect
+  exclude_authored: false
+  pattern: (?s)404 Client Error.*archive\?path=.*capture-.*pcapng.*Could not find the file
+  source_fingerprints:
+  - src/nika/service/packet_capture/inspect.py: a172c97075c97a72d26fd23f3120a1bb49ffeb5cc949af63f95c68d06a2d7b11
+evidence:
+- Original snapshot capture stops with63 packets and22791 bytes, then packet inspection returns Docker archive404.
+- 'Matched healthy native capture stops with68 packets and7084 bytes, then the same public inspection fails. Privileged diagnosis: Docker archive fails for both direct and /proc/1/root paths; binary cat exits0 with7084 bytes and pcap header d4c3b2a1. This diagnosis is not agent evidence.'
+- Repair6408a5f8b reads the binary file through exec in the live container mount namespace; it does not decode/re-encode packet bytes. Nonzero and empty reads raise. All96 focused capture/CPU checks and Ruff pass; fixed native controls are running.
+- 'Clean39a5a0040 fixed native public gateway: long native name captures63 packets, abbreviated name128 and Linux eth0 control73; each returns8 inspected packets. Unknown native99 is rejected. Provider hashes match; all20 owned containers and host session are absent. 96 focused checks/Ruff pass;7 original-source regression controls fail.'
+fixed_in: cee83d2fd13396dbbb8423240764168ba89c335e
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

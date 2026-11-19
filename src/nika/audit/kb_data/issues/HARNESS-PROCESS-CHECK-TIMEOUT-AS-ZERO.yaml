@@ -1,0 +1,33 @@
+id: HARNESS-PROCESS-CHECK-TIMEOUT-AS-ZERO
+title: Artifact verification converts process-query timeouts into zero processes
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: 22fd3aa28e50cda89269511ae69868bd8e37048b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The fault artifact verifier parses a process count from an unchecked ten-second runtime observation. A timeout is nonnumeric and becomes zero, rejecting a live snapshot even though the same process query returns100 with a longer budget.
+guideline: Preserve the exact runtime command, timeout text and timing, then repeat the same read with an adequate bounded budget. Compare actual processes before treating a failed observation as fault absence. Check command status before parsing the count, and propagate malformed or unavailable observations. Keep the traffic profile and realization predicates unchanged.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  fault_types:
+  - tcp_syn_flood_attack
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: exec_shell
+  call_pattern: pgrep.*-fc
+  pattern: \[TIMEOUT\]
+  source_fingerprints:
+  - src/nika/problems/security/tcp_syn_flood.py: 5d66a213580463077c68a09659729dfbd5f7b17038f5dda9483d2d6349fad2b0
+provenance:
+  source: ADM-k8s-master c42 restored artifact diagnostics and AUD normal restore/injection failures
+  date: '2026-11-17'
+  refs:
+  - src/nika/problems/security/tcp_syn_flood.py
+  found_by: live_audit
+evidence:
+- The exact same NIKA runtime process query returns a TIMEOUT at budget10seconds after16.378seconds, then100 at budget60 after10.219seconds. After attach, repeat reads return100 after14.974seconds and10.122seconds. The original verifier reports flows_running0 with a fresh live collector; normal AUD case restore and lab-image injection both fail the artifact check.
+- All diagnostic trial copies close. ADM ab397909 uses existing checked_exec with a60secondbudget and preserves invalid or failed observations instead of reporting zero.21focused regressions and Ruff pass; matching4vCPU/8GiB native verification is pending. This evidence is administrative; no original agent-tool output is claimed.
+- Exact native source2d705acc includes checked observation ab397909 and the declared large-fabric CPU floor. At8CPU/13GiB, the selected task passes full admission and the reference Oracle. Its guest closes with empty sessions/containers and unchanged base. Originalc42 restored admission remains blocked until integration.

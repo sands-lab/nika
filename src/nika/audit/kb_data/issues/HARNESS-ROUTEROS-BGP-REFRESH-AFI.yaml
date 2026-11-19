@@ -1,0 +1,37 @@
+id: HARNESS-ROUTEROS-BGP-REFRESH-AFI
+title: RouterOS import-policy injection omits the route-refresh address family
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: cee83d2fd13396dbbb8423240764168ba89c335e
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  RouterOS requires an afi argument for BGP session refresh. The native
+  bgp_prefix_list_length_mismatch injector updated an import rule but issued
+  refresh without afi. The task failed before exposing its diagnostic surface,
+  and recovery repeated the same invalid command.
+guideline: >-
+  Confirm that the failure comes from the import-range provider's refresh
+  command, not another RouterOS command or a guessed agent argument. This is
+  task-preparation evidence, not an agent-visible observation. Verify actual
+  route withdrawal, established peers, and recovery with afi=ip.
+scope:
+  fault_types: [bgp_prefix_list_length_mismatch]
+detect:
+- kind: text
+  where: [harness, tool_result]
+  pattern: 'missing value\(s\) of argument\(s\) afi'
+exploit: false
+provenance:
+  source: AUD-xwangz-vm native fallback at 9702d6823
+  date: '2026-11-17'
+  refs:
+  - https://manual.mikrotik.com/docs/cli-reference/routing/bgp/session/refresh/
+  found_by: live_audit
+evidence:
+- >-
+  set_bgp_import_prefix_range issued /routing bgp session refresh [find].
+  RouterOS returned Script Error: missing value(s) of argument(s) afi.
+- >-
+  The patched native regression passed route withdrawal, stable peers,
+  exact recovery, and cleanup in 113.26 seconds.

@@ -16,13 +16,13 @@ Each row maps a symptom class to a single owning family. When a symptom plausibl
 | Symptom pattern | Owning family |
 |---|---|
 | Interface currently DOWN, missing, or detached; active flap script/process; repeated carrier transitions with network-down history | `link-fault-skill` |
-| Packet-length / MTU filter rule observed on a host (`link_fragmentation_disabled` is an iptables length rule) | `acl-skill` |
+| Packet filter blocking ICMP Fragmentation Needed | `acl-skill` |
 | Quiet throughput drop, bandwidth limit, packet corruption, non-default qdisc stack | `tc-fault-skill` |
 | Per-host addressing or identity anomaly on one host (or a small minority): IP, gateway, netmask, missing IP, malformed resolv.conf, static `arp -s`. If every host in a subnet shares the symptom, treat as upstream cascade. | `host-ip-skill` |
 | DHCP server-side fault — daemon dead, missing subnet declaration, server pushing wrong gateway/DNS. Requires direct evidence on the DHCP server; hosts without an IP is not sufficient on its own (possible cascade). | `dhcp-fault-skill` |
 | Concrete duplicate `link/ether`, or an ARP entry that flips between two MACs for one IP | `mac-address-conflict-skill` |
 | Selective protocol or service drop via nft/iptables (HTTP, DNS port, ICMP, BGP, ARP) | `acl-skill` |
-| DNS server-side fault — wrong zone answer, named down, port 53 filtered, or a tc delay on the DNS server's egress (`dns_lookup_latency`) | `dns-fault-skill` |
+| DNS server-side fault — wrong zone answer, named down, or port 53 filtered | `dns-fault-skill` |
 | OSPF or FRR fault — missing neighbor, area mismatch, FRR daemon down, OSPF-protocol ACL | `ospf-fault-skill` |
 | BGP advertisement, leak, hijack, ASN, or route-propagation symptom | `bgp-fault-skill` |
 | Load balancer on the hot path and itself implicated (VIP slow or timing out, LB command timeout, failed LB IP lookup, LB CPU/socket spike) | `load-balancer-skill` |
@@ -35,13 +35,13 @@ Each row maps a symptom class to a single owning family. When a symptom plausibl
 - `host_incorrect_dns` (host's own resolv.conf is wrong) belongs to `host-ip-skill`, not `dns-fault-skill`. `dns-fault-skill` covers server-side faults only.
 - **DHCP cascade trap.** Hosts without an IP may indicate a genuine DHCP fault or an upstream cascade (broken routing/control plane, ACL, controller, or link making the relay path unreachable). `dhcp-fault-skill` therefore requires direct evidence on the DHCP server — daemon dead via `pgrep` or wrong configuration — and a confirmed path from each affected access gateway or relay to the server before submission.
 - `ospf_acl_block` belongs to `ospf-fault-skill`: the symptom is a broken OSPF adjacency; the ACL is the mechanism. Generic ACL drops on other protocols belong to `acl-skill`.
-- `link_fragmentation_disabled` is implemented as an iptables length filter and therefore surfaces as an ACL rule. It belongs to `acl-skill` despite its name.
+- Investigate an interface MTU mismatch on the affected link. A filter blocking ICMP Fragmentation Needed belongs to `acl-skill`.
 - Transient DHCP no-IP or short lease without direct link evidence stays in `host-ip-skill`; do not reroute to `link-fault-skill`.
 - `carrier_changes` alone is weak history. If the host access interface is UP/present and there is no flap script/process or `Network is down` history, keep a one-host missing-IP symptom in `host-ip-skill`.
 - Slow service response with LB VIP slow and an LB resource spike belongs to `load-balancer-skill`. A single backend slow while the LB is idle belongs to `resource-contention-skill`.
-- **Crash versus contention.** `host_crash` means the device's container was killed, stopped, or removed. If MCP shell probes mark a running web/app server as an isolated timeout/`exec_failed`, route to `resource-contention-skill`; known-IP ICMP success further rules against `host_crash`.
-- **Load-balancer guard.** If a device named or classified as `load_balancer` is flagged by reachability, interface, or resource checks through MCP, enter `load-balancer-skill` before considering `host_crash`, `web_dos_attack`, `endpoint_cpu_contention`. A shell timeout on the LB is direct LB pressure evidence, not proof of `host_crash`, when ICMP or HTTP still partially works.
-- **Ping-pair / unknown-status caveat.** `ping_pair(src, dst_name)` and `get_reachability` resolve `dst_name` before pinging. Any name-resolution failure on the source — broken or wrong resolver config, a corrupted/missing DNS record, a crashed or unreachable name server, a transient lookup parse error — produces a row with `status="unknown"` and null tx/rx/loss that is indistinguishable from a path failure. Treat these rows as **unconfirmed** until you re-test with a direct-IP probe: `exec_shell(src, "ping -c2 <dst-ip>")` using the IP listed in the same `get_reachability` `hosts` map. If direct-IP succeeds, the symptom lives in the resolver/DNS/host-identity layer, not in routing or link. This rule is topology- and family-agnostic and must run before entering any fault-family skill driven by an `unknown` row.
+- **Unresponsive host versus contention.** If a running web/app server has an isolated shell timeout, inspect resource contention. A successful direct-IP probe shows the host is still reachable.
+- **Load-balancer guard.** If a device named or classified as `load_balancer` is flagged by reachability, interface, or resource checks through MCP, enter `load-balancer-skill` before considering `web_dos_attack` or `endpoint_cpu_contention`. A shell timeout on the LB is pressure evidence when ICMP or HTTP still partially works.
+- **Name-resolution caveat.** A probe by hostname can fail because name resolution fails on the source. Compare it with a direct-IP probe from the same host before attributing the failure to the network path.
 
 ## Diagnosis report
 

@@ -1,0 +1,21 @@
+id: K8S-HEALTHY-WARNING-HISTORY
+title: Check Warning history against current healthy Kubernetes state
+class: healthy_lure
+role: lead
+severity: info
+status: open
+summary: A healthy Kubernetes environment can retain recovered bootstrap Warning events. A Warning alone does not establish a benchmark defect. Compare it with the affected resource, current readiness and service behavior, and a repeated read.
+guideline: Require the referenced live Pods to be Ready and relevant application or network controls to succeed. Separate completed Jobs, historical events and current symptoms. Keep injected-episode warnings intact. The k8s_lab fix receipt in LURE-K8S-BOOTSTRAP-WARNINGS does not prove other scenarios, including llmd_lab, have a clean baseline.
+scope:
+  healthy: true
+detect:
+- kind: text
+  tool: k8s_list_events
+  exclude_authored: false
+  pattern: '\bWarning\b[^\n]*\b(?:FailedScheduling|BackOff|FailedMount|Unhealthy|FailedCreatePodSandBox)\b|"type"\s*:\s*"Warning"\s*,\s*"reason"\s*:\s*"(?:FailedScheduling|BackOff|FailedMount|Unhealthy|FailedCreatePodSandBox)"'
+provenance:
+  source: AUD-k8s-master round-2 scope review and native warning repair25b6c9ad
+  date: '2026-11-17'
+  refs:
+  - LURE-K8S-BOOTSTRAP-WARNINGS
+  found_by: live_audit

@@ -1,0 +1,39 @@
+id: HARNESS-CPU-STARVED-VERIFY
+title: CPU contention verification executes inside the throttled container
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+fixed_in: 272eb085412b8cab32dad30b547834d2a980b44c
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: After applying the authored 0.05 CPU quota and launching 16 archive workers, endpoint_cpu_contention
+  runs its listener gate through docker exec in the same constrained cgroup. Command startup can exceed
+  the 120-second timeout, aborting injection before the agent starts despite the intended workload being
+  present.
+scope:
+  fault_types:
+  - endpoint_cpu_contention
+guideline: Distinguish injection failure from agent tool failure or an unrealized workload. Compare a
+  controller-side listener observation in the isolated container network namespace with the in-container
+  observation at the same quota and worker count. Preserve the listener gate and authored resource intensity.
+  Require healthy and unused-port negative controls, an injected control, and agent-visible symptom and
+  diagnosis checks.
+detect:
+- kind: source_text
+  where:
+  - harness
+  - tool_result
+  exclude_authored: false
+  pattern: '(?s)Observation on \S+ returned no exit status: \[TIMEOUT\].*ss
+    -Hltn.*exceeded 120s'
+  source_fingerprints:
+  - src/nika/problems/endpoint_application/transport.py: 64bad0e98519819d2c38c2bb9b9713a98ada82676ec19d858c4a44934bae510a
+provenance:
+  source: AUD-nika01 native case injection before agent probes
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- Source 9702d6823 native Clos case c4f6b43b34 aborts in verify_fault while observing web_1 TCP port 80.
+  The command exceeds 120 seconds and returns no exit status. The owned session closes.
+- 'Round-2 native IOS XR Clos verification at e87dce01 preserves the authored 0.05 CPU quota and 16 archive workers. Healthy listener and unused-port controls pass; the injected listener read takes 0.18 seconds. Injection, agent-visible Oracle evidence, slowdown, recovery, and cleanup all pass.'

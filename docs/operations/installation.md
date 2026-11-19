@@ -88,10 +88,10 @@ Most users can skip this section. If you already cloned a branch, leave it alone
 
 `--track` fails if you have uncommitted changes. Commit or stash first.
 
-After `--track stable`, run cases with a frozen release, for example:
+After `--track stable`, list the benchmark releases available on that branch:
 
 ```shell
-uv run nika benchmark run --release 0.3.0 --split test --result_dir results/my-run
+uv run nika benchmark releases
 ```
 
 ## Install a sandbox runtime

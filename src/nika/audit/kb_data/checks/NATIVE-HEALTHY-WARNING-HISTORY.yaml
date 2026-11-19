@@ -1,0 +1,30 @@
+id: NATIVE-HEALTHY-WARNING-HISTORY
+title: Check native warning history against current healthy state
+class: healthy_lure
+role: lead
+severity: info
+status: open
+summary: Healthy restored environments can retain RouterOS prior-boot kernel or service errors and FRR scheduler-starvation messages. These historical messages do not establish a current fault.
+guideline: Compare event times with the lab clock and task handoff, repeat the read, and check current protocol state and endpoint behavior. Separate recovered startup history from ongoing failures and from errors created by the auditor's own commands. Preserve incident logs when evaluating a persistent injected fault. A passing endpoint sweep establishes those observed paths, not the absence of an underlying vendor defect or complete protocol coverage.
+scope:
+  healthy: true
+  backends: [kathara, containerlab]
+detect:
+- kind: text
+  tool: '^routeros_exec$'
+  call_pattern: '/log(?:/|\s)+print'
+  exclude_authored: false
+  pattern: 'kernel failure in previous boot|Automatic supout\.rif file generated due to service malfunction'
+- kind: text
+  tool: '^syslog_query$'
+  exclude_authored: false
+  pattern: 'CPU starvation:[^\n]{0,500}getting executed [0-9]+ms late'
+provenance:
+  source: AUD4-k8s-worker-0 live healthy gateway observations at 8365c088a
+  date: '2026-11-17'
+  refs:
+  - tests/fixtures/audit/live_issue_signatures.json
+  found_by: live_audit
+evidence:
+- RouterOS ann_arbor and ithaca logged prior-boot kernel failures and generated autosupout.rif; the restored healthy variant passed 182 directed IPv4 checks in two rounds. No vendor/kernel cause was established.
+- The healthy Nobel-Germany syslog query retained an earlier 181084ms wheel_timer_thread delay, while its current 272 directed IPv4 checks passed in both rounds. This is a historical-warning review lead, not a confirmed current CPU or network fault.

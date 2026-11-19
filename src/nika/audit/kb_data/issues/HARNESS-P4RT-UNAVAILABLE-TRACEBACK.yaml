@@ -1,0 +1,31 @@
+id: HARNESS-P4RT-UNAVAILABLE-TRACEBACK
+title: P4Runtime reads expose an unhandled connection traceback
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: 30805221e9f5a0777bddb4dc7723505fdb86ed80
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: A valid P4Runtime read against a stopped switch exposes the manager's Python traceback and raw gRPC exception. The controller remains reachable and its liveness probe correctly returns UNAVAILABLE. Device unavailability is the intended incident; the unhandled tool exception is a separate interface defect.
+guideline: Confirm a supported read command, the traceback and a working controller/liveness control. Preserve the failed device status and a nonzero CLI exit when formatting the error. Do not count a concise UNAVAILABLE result as a tool defect, or a generic utility filename as benchmark branding.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  - p4_dc_fabric
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: p4rt_exec
+  call_pattern: read|counters
+  pattern: '(?s)Traceback \(most recent call last\):.*p4rt_manager\.py.*(?:StatusCode\.(?:UNAVAILABLE|DEADLINE_EXCEEDED)|P4Runtime arbitration timeout)'
+provenance:
+  source: AUD-k8s-master round-2 live case-image restore at fe40daca55ea41cae6e74006f5e2a79390f14f9e
+  date: '2026-11-17'
+  refs:
+  - p4_dc_gateway__bmv2_switch_down__3b2e5ad672
+  - tests/nika/service/kathara/test_p4rt_entries.py
+  found_by: live_audit
+evidence:
+- 'Case 7044c0584b72, call 4: p4rt_exec read --switch gateway_1 returns a Python stack through /opt/p4rt/p4rt_manager.py and StatusCode.UNAVAILABLE with Connection refused.'
+- 'Calls 109 and 110: p4rt_exec probe --switch gateway_1 returns controller_reachable=true, reachable=false, status=UNAVAILABLE on both reads.'
+- 'Fresh native p4_dc_gateway/s workflow at 4f13a394: healthy reads pass; read, read-table and counters each return failed JSON with UNAVAILABLE twice after normal switch-down injection. The Oracle passes; recovery restores reads and HTTP200. Isolated aud2-p4-state has no running sessions or owned Docker containers/networks after close.  This verifies the common tool contract; the original large case image is unchanged.'

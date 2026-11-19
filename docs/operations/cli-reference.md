@@ -171,7 +171,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
   | `--metric-strategy constant\|routing_cost\|inv_capacity` | Link metric strategy for ISP topology scenarios (default `constant`) |
   | `--constant-metric N` | Metric for the `constant` strategy and fallbacks (default `10`) |
   | `--bgp-mode none\|ibgp_rr\|ebgp` | BGP preset for ISP topology scenarios (default `none`) |
-  | `--rpki` / `--no-rpki` | Records RPKI/ROV on an ISP `--bgp-mode ebgp` deployment on Kathara FRR, which carries it anyway. Other deployments reject it |
+  | `--rpki` / `--no-rpki` | `--rpki` records RPKI/ROV on an ISP `--bgp-mode ebgp` deployment on Kathara FRR, which carries it automatically; other deployments reject `--rpki`. `--no-rpki` passes no override and does not disable that automatic profile. |
   | `--backend kathara\|containerlab` | Lab backend. Defaults to `kathara` when both are supported |
   | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux\|sonic` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` and `sonic` on Containerlab; the default follows `--backend`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros` on Kathara. `dc_clos` also accepts `nokia_srlinux` and `sonic` on Containerlab at every supported size. RouterOS supports only size `s` in these three environments. IOS XR supports only size `s` for `dc_clos`, and all sizes for `campus_lan` and `enterprise_branch`. See [SONiC routers](network-scenarios.md#sonic-routers-on-containerlab), [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
@@ -284,10 +284,10 @@ Implements the experiment pipeline: start env → inject → agent → close ses
 
 ### Batch mode
 
-Omit the `SCENARIO` positional argument to run a case matrix. Pass **`--release`** (alias **`-d`**) for a frozen suite or **`--config`** for a YAML file or candidate pool. With neither flag and no `benchmark.release` in `config/nika.yaml`, NIKA runs the candidate pool at `benchmark/working/pool`.
+Omit the `SCENARIO` positional argument to run a case matrix. Pass **`--release`** (alias **`-d`**) for a benchmark release or **`--config`** for a YAML file or candidate pool. With neither flag and no `benchmark.release` in `config/nika.yaml`, NIKA runs the candidate pool at `benchmark/working/pool`.
 
 ```shell
-# Frozen release
+# Benchmark release
 nika benchmark releases
 nika benchmark run --release 0.3.0 --split test --result_dir results/my-run
 
@@ -317,7 +317,7 @@ nika benchmark run --release 0.3.0 --split test \
 
 | Command | What it does |
 |---------|----------------|
-| `nika benchmark list` | Without `--release` or `--config`, prints one row per frozen release: version, default split, case count per split, `n_trials`, and status. It reads only the `RELEASE.yaml` manifests and skips preflight. With `--release` (optionally `--split`) or `--config`, prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for each case. Add `--json` for scripts. |
+| `nika benchmark list` | Without `--release` or `--config`, prints one row per benchmark release: version, default split, case count per split, `n_trials`, and status. It reads only the `RELEASE.yaml` manifests and skips preflight. With `--release` (optionally `--split`) or `--config`, prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for each case. Add `--json` for scripts. |
 | `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. `--oracle` also prints the task's reference diagnosis, the oracle's playbook steps (see [Oracle solver](../benchmarks/oracle-solver.md)). |
 | `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before the run starts. |
 | `nika benchmark run --skip-licensed` | `--config` batch mode only. Leaves out rows that need licensed vendor images: IOS XR and RouterOS `device_profile` rows. Without it, a run that needs a missing licensed image stops before any lab starts and lists the affected rows. |
@@ -486,7 +486,7 @@ After writing the CSV, the command prints headline scores, run health, a fault-v
 | `--top` | Max rows per breakdown table; `0` shows all (default: 15) |
 | `--json` | Also write the report aggregates to this JSON path |
 
-Scoring matches `nika leaderboard pack`, so the headline here and a submission built from the same directory agree. Full formulas and `score_status` rules: [Score a submission](../benchmarks/root-cause-evaluation.md#score-a-submission).
+Scoring matches the package built by `nika leaderboard submit`, so the headline here and a submission built from the same directory agree. Full formulas and `score_status` rules: [Score a submission](../benchmarks/root-cause-evaluation.md#score-a-submission).
 
 When you compare against the raw CSV:
 
@@ -514,7 +514,7 @@ nika leaderboard submit --result_dir results/my-run \
 
 | Flag | Meaning |
 |------|---------|
-| `--submission DIR` | Required. Directory with the edited `metadata.yaml` and `README.md` from `template` |
+| `--submission DIR` | Directory with the edited `metadata.yaml` and `README.md` from `template`; alternatively, use `--name` and `--authors` to generate minimal metadata |
 | `--out DIR` | Scores package directory (default `{result_dir}/{YYYYMMDD}_{slug}/`); trajectories go to a sibling `{name}_trajectories/` |
 | `--draft` | Open the GitHub PR as a draft |
 | `--title TEXT` | GitHub PR title (default `Add submission <package>`) |

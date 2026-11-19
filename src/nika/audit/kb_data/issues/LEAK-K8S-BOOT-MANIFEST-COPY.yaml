@@ -1,0 +1,64 @@
+id: LEAK-K8S-BOOT-MANIFEST-COPY
+title: Runtime Kubernetes bootstrap manifests retain pre-fault configuration
+class: shortcut
+role: known
+severity: warn
+status: fixed
+fixed_in: 756eeeea8caff68a7f3b78df8f0acab3477cac9b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  The llmd controller retains /k8s startup YAML after applying it. During a
+  Service selector fault, that copy retains the healthy selector while the
+  live Service selects no Pods. Diffing the copy against the API reveals
+  the edited field without reconstructing the Service-to-Pod relationship.
+scope:
+  scenarios:
+  - llmd_lab
+  fault_types:
+  - k8s_service_selector_mismatch
+  - k8s_service_target_port_mismatch
+  - k8s_deployment_replicas_zero
+  - lb_advertisement_missing
+guideline: >-
+  Read the scenario-owned startup YAML through the controller shell and
+  compare the relevant object and field with the live Kubernetes API.
+  Count a disclosure only when the startup copy retains the pre-fault field.
+  A file listing or a copy that agrees with the injected field is a lead.
+  Remove runtime bootstrap copies after verified startup; preserve authored
+  repository manifests and live API objects. Keep the normal observation
+  and recovery workflow working without those files.
+detect:
+- kind: text
+  tool: exec_shell
+  call_pattern: '(?:cat|head|sed).*?/k8s/[^\s"\x27]*\.ya?ml'
+  where:
+  - tool_result
+  pattern: '(?s)apiVersion:.*?kind:\s*(?:Service|Deployment|L2Advertisement|BGPAdvertisement)\b.*?spec:'
+provenance:
+  source: AUD2-nika01 fresh llmd/l Service selector case at fe40daca
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  Call 69 reads /k8s/pd-03-epp.yaml through exec_shell and returns Service
+  llm-d/llm-d-epp selector app=llm-d-epp. Call 207 reads the live Service,
+  Deployment, Pods and EndpointSlices: the Service selector is llm-d-epp-v2,
+  Ready Pods retain llm-d-epp, and the Service has no endpoints. The
+  unaffected-Service control in the firewall case reads the same startup copy.
+- >-
+  The round-one k8s-master report identifies the same generic class under
+  /shared in k8s_lab. This record and local repair cover llmd_lab; integrate
+  the peer scenario repair separately rather than claiming it verified here.
+- >-
+  Original target-port calls 73/207 expose healthy targetPort 9002 in the
+  bootstrap copy versus live 9003. Advertisement calls 92/207 expose
+  llm-d-pool in /k8s/metallb-l2.yaml versus live ingress-pool. Both match
+  the same pre-fault-copy mechanism.
+- >-
+  Native llmd/l with all four telemetry kinds and uniform traffic passes
+  healthy, injected-selector and recovered controls at clean c6ab33c3.
+  No runtime /k8s YAML remains; the authored manifest hash is unchanged.
+  The Service loses its two ready endpoints on injection and regains them
+  on recovery; HTTP and full health pass. Zero owned machines, links and
+  active session documents remain.

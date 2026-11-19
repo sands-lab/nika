@@ -3,7 +3,8 @@ title: sdn_onos_rest returns whole ONOS collections that exceed the tool output 
 class: signal_invisible
 severity: warn
 status: fixed
-fixed_in: 7edc92aa
+fixed_in: ed1324cfe
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
 summary: >-
   In 0.2.0 sdn_onos_rest had no device filter and no summary, so /onos/v1/flows, /links and /devices returned
   whole collections. The head/tail cut at 10000 characters elided most of the state (about 600000 characters
@@ -31,6 +32,8 @@ provenance:
   - sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t02:8
   found_by: agentic
 evidence:
+- 'Native repair b6f28a61: diagnosis gateway retrieved 62 filtered flows and 15 groups in 32 pages without truncation or duplicate IDs. All 15 admission stages and the Oracle passed. Session and runtime cleanup passed.'
+- 'Round 4N native large SDN case: sdn_onos_rest(path=/onos/v1/flows, device=of:0000000000001001) reports 62 flows and elides 69071 characters. Device filtering alone does not expose the full collection.'
 - '20261019_claude_code_qwen3_coder_next_fp8 sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t01 step 7:
   "path": "/onos/v1/links", ... 55626 characters elided'
 - '20261016_claude_code_claude_opus_5_5 sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t02 step 8: The output

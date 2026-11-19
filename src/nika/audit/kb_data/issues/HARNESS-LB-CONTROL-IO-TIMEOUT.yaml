@@ -1,0 +1,37 @@
+id: HARNESS-LB-CONTROL-IO-TIMEOUT
+title: LB control readers abandon responses on established flows
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: 643d667f12c118e4838cf271143ed6911f9ee0f1
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The serial LB control reader labels all sixteen persistent flows broken while the sockets remain established with unread HTTP response bytes. Short per-flow IO deadlines and blocked sequential progress cause the validation control to fail independently of the declared fault.
+guideline: Compare the exact control ports and status with socket state and receive queues. Established state alone is insufficient; preserve unread response bytes, the real request errors and matched healthy/fault/recovery controls. Keep the sixteen controls and six-of-eight fault threshold. Read independent flows concurrently, close finite sockets, and verify full native admission. This is a harness control defect; administrator evidence does not establish an agent-tool error.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  fault_types:
+  - lb_connection_state_exhaustion
+  - lb_pending_connection_update_race
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: exec_shell
+  call_pattern: cat.*probe-lb-flows\.status
+  pattern: (?s)"flows"\s*:\s*\{(?:\s*"\d+"\s*:\s*"broken"\s*,?){16}\s*\}
+  source_fingerprints:
+  - src/nika/validation/symptom/p4_gateway_probes.py: 089957772377eb4f4d0e343b153dc74f636052316b12e6888d33a2f713b6b5fe
+  - src/nika/validation/symptom/p4_gateway_probes.py: ce7f8a9f8315a0dd006d48f9c7d260023098c988d649b4d05197b356a98db61f
+  - src/nika/validation/symptom/p4_gateway_probes.py: 3e74083848beb376fd7f57c6750e301690e917fc5158f3672fe9a806ae5f4bb7
+  before_mutation: true
+provenance:
+  source: Native control diagnostics at f40814c4 and large-environment follow-up at 78c7398a
+  date: '2026-11-17'
+  refs:
+  - tests/nika/validation/symptom/test_lb_baseline.py
+  found_by: live_audit
+evidence:
+- At f40814c4, administrative diagnostics recorded 16 broken persistent flows while each socket remained ESTAB with 197 bytes in RecvQ. The exact shell invocation was not retained, so this does not establish an MCP-tool observation.
+- Both native cases failed at f40814c4. Follow-up 78c7398a runs requests concurrently with 10-second receive deadlines, closes finite sockets, and pauses the declared business workload around the timed update. The parent retains bounded whole-batch setup retries.
+- At 78c7398a both large native matrices passed diagnosis and all required behavioral, control, reference, and persistence stages; neighbor_oracle was explicitly unsupported. The private 14 GiB guest closed with zero sessions and containers and an unchanged base. The separate persistent-fixture shortcut remains open.

@@ -1,0 +1,24 @@
+id: NATIVE-K8S-INOTIFY-CAPACITY
+title: Native Kubernetes startup exhausts shared host inotify instances
+class: harness_defect
+role: lead
+severity: info
+status: by_design
+summary: Native k3s nodes share the host kernel's per-user inotify instance ceiling. On a Kubernetes host with a ceiling of 128, an owned worker exited before baseline readiness because kubelet could not start cAdvisor or create fsnotify watchers. This is an infrastructure capacity limit, not evidence that an injected network fault is present.
+guideline: Require the owned k3s worker's startup failure and its kubelet inotify/fsnotify error. Keep privileged container-log confirmation separate from agent-visible observations. Check cleanup after failed startup. A successful Pingmesh HTTP-discovery repair does not establish enough watcher capacity for kubelet. Use an isolated kernel for further native verification when host settings must remain unchanged, and retain the source and runtime differences. Do not infer an invisible incident or a failed benchmark label from a lab that never reached baseline.
+scope:
+  scenarios: [k8s_lab, llmd_lab]
+  backends: [kathara]
+detect:
+- kind: text
+  where: [harness]
+  exclude_authored: false
+  pattern: 'Failed to start cAdvisor.{0,160}(?:inotify_init|too many open files)|error creating fsnotify watcher: too many open files'
+provenance:
+  source: AUD-k8s-master round-2 native verification at fe40daca plus manifest sealing port
+  date: '2026-11-17'
+  refs:
+  - src/nika/net_env/verify.py
+  found_by: live_audit
+evidence:
+- 'Session aud2-verify-1794881958-1297995: worker4 exited with code 1, OOMKilled=false. Its kubelet logged Failed to start cAdvisor with inotify_init: too many open files and failed fsnotify watchers. The host ceiling remained 128; AUD changed no host settings. Startup cleanup left no owned session, containers or networks.'

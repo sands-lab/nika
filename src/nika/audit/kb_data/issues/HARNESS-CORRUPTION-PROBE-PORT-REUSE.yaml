@@ -1,0 +1,42 @@
+id: HARNESS-CORRUPTION-PROBE-PORT-REUSE
+title: Repeated corruption reference probes reuse occupied client ports
+class: harness_defect
+role: lead
+severity: warn
+status: fixed
+fixed_in: 272eb085412b8cab32dad30b547834d2a980b44c
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The corruption reference reused source ports 24000–24023 while earlier sockets remained in FIN-WAIT-1 or TIME-WAIT. Transfers could fail locally with curl error 45 and the old capture filter could include retransmissions from the previous probe. A repeated snapshot observation returned 0 successful and 24 failed transfers instantly without new receiver checksum errors.
+guideline: Confirm local bind errors and occupied source ports before attributing a failed repeat to this issue. An all-failed transfer count alone is a lead. Compare a fresh-port control and require checksum and captured current-probe evidence. Select the first free source-port block from current client TCP state, bind the capture filter to the same block, and reject local binding errors.
+scope:
+  fault_types:
+  - device_forwarding_packet_corruption
+  agent_types:
+  - oracle
+detect:
+- kind: source_text
+  tool: exec_shell
+  where:
+  - tool_result
+  call_pattern: curl.*--local-port
+  pattern: (?s)curl:\s*\(45\).*?bind failed|\bcurl_exit=45\b
+  source_fingerprints:
+  - src/nika/problems/forwarding_encapsulation_policy/switch_internal_corruption.py: 60955da143a8b3e9b5c56b8402c886300086d53b14acb3f33f2b5ccfcd1b6d6d
+- kind: source_text
+  tool: exec_shell
+  where:
+  - tool_result
+  call_pattern: curl.*--local-port
+  pattern: (?m)^ok=0 failed=24\s*$
+  source_fingerprints:
+  - src/nika/problems/forwarding_encapsulation_policy/switch_internal_corruption.py: 60955da143a8b3e9b5c56b8402c886300086d53b14acb3f33f2b5ccfcd1b6d6d
+provenance:
+  source: 0.3.0 round-2 live audit on k8s-worker-0; assigned snapshot and paired native FRR reference-probe control at fe40daca
+  date: '2026-11-17'
+  refs:
+  - tests/nika/service/test_corruption_reference_live.py
+  found_by: live_audit
+evidence:
+- 'Native repeated curl returned (45) bind failed with errno 98: Address already in use. The normal host tool showed the selected ports occupied in FIN-WAIT-1 and TIME-WAIT.'
+- Fresh ports 24024–24047 produced new transfers and checksum errors in the same injected control.
+- The fixed native regression rejects healthy and recovered controls, confirms both repeated injected reference runs with all six evidence checks, and verifies owned runtime cleanup.

@@ -1,0 +1,40 @@
+id: FNR-SNAPSHOT-DHCP-RESTART-MISSED
+title: A restored DHCP server keeps serving its old configuration after injection
+class: fault_not_realized
+severity: warn
+status: fixed
+fixed_in: 532072af1b2772faab669929dd9891bae41b3ca6
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  A restore-time clock step makes the DHCP service PID file appear older than
+  boot. The service shim fails to replace the live daemon when the injector
+  restarts it. The file loses the target subnet, but clients still receive
+  leases from the old daemon and reach the web service. Preserving guest time
+  makes the same retained image replace the daemon and realize the outage.
+guideline: >-
+  A successful HTTP read is a lead only when it comes from the task's targeted
+  DHCP client after injection. Confirm the missing server subnet and repeat
+  the client's address, DNS, and application reads after the lease window.
+  Compare an unaffected subnet and a matched restore that preserves time.
+  Healthy reads or reads from an unaffected client do not confirm this issue.
+scope:
+  scenarios: [campus_lan]
+  fault_types: [dhcp_missing_subnet]
+detect:
+- kind: text
+  where: [tool_result]
+  tool: exec_shell
+  call_pattern: 'pc_1_1_1_1'
+  pattern: 'HTTP=200\s+bytes=[1-9][0-9]*'
+provenance:
+  source: AUD-xwangz-vm live benchmark audit at 9702d6823
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  Original restore: dhcpd keeps PID 37; subnet 10.1.1.0 is absent in the file,
+  yet pc_1_1_1_1 retains 10.1.1.10/24 and gets HTTP=200 bytes=262852 in two rounds.
+- >-
+  Same retained image with 507edb0e0: dhcpd PID 202; targeted client has no
+  address and HTTP=000, while pc_1_2_1_1 gets HTTP=200 in two rounds.

@@ -1,0 +1,36 @@
+id: HARNESS-SNAT-QUIESCENT-OCCUPANCY
+title: SNAT reference reads occupancy between workload bursts
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+fixed_in: 22fd3aa28e50cda89269511ae69868bd8e37048b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The reference requires 90% occupancy of a pool of 64 ports but only reads connections between ordinary workload bursts. Repeated complete observations can contain 52 occupied ports while the restricted rule remains present. The reference fails without applying the concurrent demand that exercises the configured limit.
+guideline: Require complete deduplicated output, the selected public address and pool of 64 ports, and a failed reference occupancy predicate. Repeat the read on a quiet host. Exclude truncation and failed queries. Hold bounded diagnostic connections while reading the pool. Retain 90% occupancy, require excess-connection failure, and verify healthy, injected and recovered controls with owned cleanup. Keep diagnostic clients out of saved case images. A detector match is a review lead; it does not establish fault absence.
+scope:
+  fault_types:
+  - snat_port_pool_exhaustion
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: routeros_exec
+  call_pattern: (?s)\$port>=40000.*\$port<=40063.*:foreach port,value in=\$used
+  pattern: \A(?:reply-dst-address=(?:\d{1,3}\.){3}\d{1,3}:\d+\r?\n){0,56}reply-dst-address=(?:\d{1,3}\.){3}\d{1,3}:\d+\s*\Z
+  source_fingerprints:
+  - src/nika/problems/service_networking/gateway.py: 6e8ad5370b5844e953d273c6dca626508697030e7dd581a325f28218ab4890c4
+exploit: false
+provenance:
+  source: AUD3b-nika01 native gateway observation and canonical reference confirmation
+  date: '2026-11-17'
+  refs:
+  - src/nika/net_env/enterprise_branch/workload.py
+  - src/nika/problems/service_networking/gateway.py
+  - tests/nika/service/test_snat_reference_live.py
+  found_by: live_audit
+evidence:
+- At c42b6177, three complete replies of 1922 bytes contain 52 distinct ports in 40000-40063. The unchanged 90% predicate requires 58. The canonical reference fails only this predicate.
+- The declared guest workload keeps 48 long-poll sessions and adds short bursts of 32 connections. A quiescent read does not establish saturation. No missing-fault claim is made from that read.
+- At clean 3dafa13e, native FRR and RouterOS tests reject healthy/recovered controls and confirm the injected restriction. Healthy/recovered diagnostics connect 80/80; injected diagnostics connect 64/80 on FRR and 32/80 on RouterOS, with occupancy passing. Every phase removes its owned files and both native sessions close.
+- 'FRR retains high occupancy after recovery, but the restored policy and successful fresh connections reject the diagnosis.'

@@ -196,7 +196,7 @@ uv run nika inspect
 
 ![NIKA Inspect timeline: model reasoning, MCP tool calls, and a selected router command with its output](./assets/images/nika-inspect-timeline.png)
 
-To evaluate the same agent on a benchmark release:
+To evaluate the same agent on the provisional 0.3.0 benchmark, first [prepare the IOS XR and RouterOS images](docs/operations/installation.md#prepare-vendor-images). Then run:
 
 ```shell
 uv run nika benchmark run --release 0.3.0 --split test --result_dir results/my-run

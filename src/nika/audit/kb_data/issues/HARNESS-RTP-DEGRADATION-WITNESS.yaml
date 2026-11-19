@@ -1,0 +1,45 @@
+id: HARNESS-RTP-DEGRADATION-WITNESS
+title: QoS manifestation accepts idle estimates and burst-only loss
+class: harness_defect
+role: lead
+severity: warn
+status: fixed
+fixed_in: 22fd3aa28e50cda89269511ae69868bd8e37048b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The restored DSCP case passes its first manifestation check on receive-idle loss estimates, while the live rewrite counter is static. Isolated resume bursts can also satisfy pooled loss before sustained contention. The QoS observer now requires its latest three distinct intervals to contain received media and meet the existing loss threshold individually, retaining pooled loss and baseline-delta checks.
+scope:
+  fault_types:
+  - vrf_dscp_remarking
+  scenarios:
+  - enterprise_branch
+guideline: For a partial-loss degradation fault, distinguish observed reception and sequence-gap loss from receiver-idle estimates. Require the declared consecutive observation window and compare live mechanism counters, native sham/recovery controls and repeated post-handoff observations. Preserve original failed records. A later warm reading or a native pass alone does not establish a restored fix. Do not infer a packet-sequence or clock defect without direct measurements. An empty receive window alone does not prove QoS degradation, an absent fault or a permanent outage. Compare the validator decision with fresh sender/receiver evidence, rewrite-counter growth, declared workload contention and matched controls. Keep early failures and later live observations separate. Require accepted evidence to establish the intended symptom; do not weaken the predicate or infer a safe runtime repair from an unconfirmed restore cause. External repairs remain pending until integrated ancestry and native verification are established.
+detect:
+- kind: source_text
+  where:
+  - harness
+  exclude_authored: false
+  pattern: (?s)"stage":\s*"image_symptom",\s*"status":\s*"pass"(?:(?!"stage").)*?"intervals":\s*\[(?:\s*\{[^{}]*"rx":\s*0,\s*"lost":\s*10,[^{}]*\},?){3}
+  source_fingerprints:
+  - src/nika/validation/symptom/custom.py: f20eb15cc1daa7e47c530663f7ec6bac09f01fde61cc149d92d6fe8e16280ead
+    src/nika/traffic/apps/media_peer.py: 6af4097227b4e0f89a01b8a1b518203fafe676ec090625a26e29e5925128ee35
+- kind: text
+  where:
+  - harness
+  exclude_authored: false
+  pattern: '"rx"\s*:\s*0\s*,\s*"lost"\s*:\s*[1-9][0-9]*\s*,\s*"loss"\s*:\s*100(?:\.0+)?\b'
+- kind: text
+  where:
+  - tool_result
+  tool: ^exec_shell$
+  pattern: \brx=0\b[^\n]*\blost=[1-9][0-9]*\b[^\n]*\bloss=100(?:\.0+)?%
+provenance:
+  source: ADM3-k8s-worker-0 DSCP case-image admission, raw gateway counters and unchanged-image timing controls
+  date: '2026-11-17'
+  refs:
+  - tests/nika/validation/test_vrf_dscp_probe.py
+  - 9477ad8e
+  found_by: live_audit
+evidence:
+- Original c42b6177 admission accepts three rx=0/lost=10 intervals as 100% loss. Complete normal-policy tool receipts show the rewrite counter fixed at 6,592 over three reads. Persistence later reports zero loss, then the final window reports roughly 40% loss.
+- The independent restored trace has isolated 86.9% and 91.2% burst intervals followed by zero-loss windows. Receive-idle loss comes from media_peer.Stream.expected_hint. The trace proves observation timing and workload convergence, without establishing a packet-sequence or kernel-clock cause.
+- The exact native IOS XR case passes healthy RTP baseline/sham, injected manifestation, primary Oracle, persistence and final manifestation with the repaired predicate. Its full native audit still fails the separate healthy Pingmesh latency check; no full-native-pass claim is made. A process-only fixed-validator control on the unchanged image rejects idle/burst windows, admits after 210.7 seconds, and passes three normal-policy Oracles plus repeated persistence. Image and guest source files remain unchanged; controlled observations are diagnostic evidence, not an official corrected-image score.

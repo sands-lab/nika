@@ -1,0 +1,38 @@
+id: HARNESS-PCAP-VERSION-STDERR
+title: Capture version metadata contains a tshark stderr warning
+class: harness_defect
+role: known
+severity: warn
+status: fixed
+fixed_in: d50e4f5f729117c3296518fbe156517e97bd4246
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  Native packet_capture_stop and packet_capture_inspect responses place the
+  root execution warning in tshark_version. The version helper merges stderr
+  into stdout and selects the first line, before the actual version banner.
+scope: {}
+guideline: >-
+  Stop and inspect a capture through MCP on a node with tshark installed.
+  The tshark_version field must contain the version banner or null when no
+  version is available. A root execution warning is not version metadata.
+  Compare the node path with the host fallback, which already separates streams.
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: packet_capture_stop|packet_capture_inspect
+  pattern: '"tshark_version"\s*:\s*"Running as user'
+provenance:
+  source: AUD2-nika01 native healthy Cost266 MCP capture
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  Source fe40daca, capture d2dd35ed12024f9fae2c70e69192371a: packet_capture_stop
+  reports tshark_version as Running as user "root" and group "root". This could
+  be dangerous. The summary view repeats the same warning. Expert pagination
+  and the underlying packet capture work correctly.
+- >-
+  Native MCP stop and summary return the TShark banner. Mixed ICMP/TCP/HTTP packets remain readable.
+  The native session closed successfully.

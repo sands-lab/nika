@@ -4,9 +4,9 @@ A benchmark task is only fair if a careful operator could solve it with the tool
 
 The oracle knows the injected failure and its parameters, so its scores are not agent results. Use it to validate tasks and to read a worked diagnosis for each one, not to compare agents.
 
-## Run the oracle on a benchmark release
+## Run the oracle on the provisional 0.3.0 benchmark
 
-Run these commands from the repository root on a lab host prepared by [Installation](../operations/installation.md). The oracle runs in the NIKA process, so it needs neither LLM credentials nor an agent sandbox:
+The 0.3.0 benchmark is provisional and has not been officially released. Run these commands from the repository root on a lab host prepared by [Installation](../operations/installation.md). The oracle runs in the NIKA process, so it needs neither LLM credentials nor an agent sandbox:
 
 ```shell
 uv run nika benchmark run --release 0.3.0 --split test --agent oracle
@@ -21,7 +21,7 @@ Each trial directory also contains `oracle.json`. `solved` is true when the orac
 `nika benchmark describe --oracle` prints a task's reference diagnosis without starting the environment:
 
 ```shell
-uv run nika benchmark describe enterprise_branch__link_down__hcecf68b8564f \
+uv run nika benchmark describe dc_clos__link_down__s__netfl__h907e0a095756 \
   --release 0.3.0 --split test --oracle
 ```
 
@@ -33,10 +33,10 @@ Playbooks that read the running environment's state, such as those for Container
 
 1. It rebuilds each injected failure from the session's injection record and asks the failure for its playbook.
 2. It maps authored device reads to `device_read` using the scenario's declared node roles and capabilities. Unsupported shell evidence stays in the playbook and fails access checks; the oracle keeps every evidence requirement.
-3. It measures the symptom with a Pingmesh snapshot, then runs the playbook steps in order. A step whose observation takes time to settle after injection, or that checks an intermittent fault, is retried until the observation holds.
+3. It queries recorded endpoint probe results with `prometheus_query`, then runs the playbook steps in order. A step whose observation takes time to settle after injection, or that checks an intermittent fault, is retried until the observation holds.
 4. It submits the ground-truth root causes of every failure whose evidence steps all hold. In a multi-fault task it can therefore submit the confirmed faults and leave out an unconfirmed one, which earns partial RCA credit while `oracle.json` reports `solved: false`. When no failure is confirmed, it does not submit, so the trial ends as `no_submission` and scores 0.
 
-A healthy task's playbook is a Pingmesh snapshot that must report no anomalies; the oracle then submits `is_anomaly: false`, and otherwise does not submit.
+A healthy task's playbook queries recorded endpoint probes and requires them to match the reachability policy; the oracle then submits `is_anomaly: false`, and otherwise does not submit.
 
 ## Write a playbook for a new failure
 

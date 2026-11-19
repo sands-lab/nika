@@ -1,0 +1,33 @@
+id: LURE-P4-INT-DELIVERY
+title: Healthy large P4 control reports missing packet deliveries
+class: healthy_lure
+severity: warn
+status: open
+summary: A fresh native large P4 gateway control reports missing deliveries before any failure injection. The collector requests a4MiB UDP receive buffer but Linux silently caps it at425984bytes; receive-buffer drops discard INT reports while almost all controlled data packets reach the services. Incomplete reports can either trigger silent_egress_packet_loss on a healthy lab or exceed its upper loss bound and produce a vacuous negative.
+guideline: Confirm an uninjected matched control and complete sender commands before judging the counts. Compare agent-visible service UDP counters with controlled datagram totals; use collector receive-buffer/drop counters only as administrative causal evidence. Verify effective socket capacity after reserving it, without changing host sysctls. Preserve source, topology, CPU/RAM, workload, query bounds and cleanup. Require healthy and recovered missing counts below the minimum fault threshold, rather than accepting a negative caused by the maximum loss bound. Keep loss thresholds and packet samples unchanged.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  healthy: true
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: int_query_telemetry
+  call_pattern: '"view"\s*:\s*"delivery"'
+  pattern: (?s)"observed"\s*:\s*[1-9]\d{2,}.*?"missing"\s*:\s*(?:[3-9]|[1-9]\d+)\b
+provenance:
+  source: AUD-k8s-master round-3 exact large native negative control at04241e0a
+  date: '2026-11-17'
+  refs:
+  - p4_dc_gateway__silent_egress_packet_loss__c4c7ea9ee1
+  - src/nika/problems/link_interface/p4_gateway.py
+  - src/nika/net_env/p4_dc_gateway/collector.py
+  - https://man7.org/linux/man-pages/man7/socket.7.html
+  found_by: live_audit
+evidence:
+- The normal diagnosis MCP query on healthy spine_1:eth9 reported 939 observed packets, 790 delivered packets and 149 missing packets, with queue occupancy 5. All eight paced commands completed and the management endpoint was reachable. No fault injection preceded the failed healthy assertion.
+- 'Both controls used8CPUs/14GiB; the original image uses4CPUs/8GiB. Their sessions, containers and guests are closed, and base metadata is unchanged.'
+- At8c103d8a, healthy service UDP NoPorts counters grow3069+3072 for6144controlled datagrams while INT reports113missing of280observed. Administrative collector RcvbufErrors grow994->2601 and ss reports rb425984. Recovered service counters grow3072+3070 while INT reports217missing of448. These negative reference verdicts are rejected as incomplete controls.
+- Combined native c27d5299 includes the paced VIP workload and declared CPU floor plus bounded queries, lab clock, socket capacity and checked port reads. At 8 CPU/13 GiB, healthy and repeated controls confirm the fault with 58/1000 and148/869 missing reports while both controlled endpoint totals reach6144. Collector UDP error and receive-buffer-drop counters stay zero. Both strict negatives fail, so no injection follows. Providers remain unchanged, the guest closes with empty sessions/containers, and the shared base remains unchanged. Receipt is int-convergence-native-vm under the AUD evidence directory. Residual report integrity remains open.
+- Private native decoder diagnostic f60cbea9 preserves parser acceptance and public output. Four checkpoints show received/written counts34152/34152,95519/95519,109556/109556 and182783/182783 withzero rejected records. UDP error counters stay zero. Healthy controls still report35/736 and53/512 missing while each endpoint total is6144. This excludes observed decoder rejection at those checkpoints; it does not prove that report transport, retained windows or reused packet cohorts are complete. Guest/session resources close and providers/base remain unchanged. Private counter code is not an accepted production repair.

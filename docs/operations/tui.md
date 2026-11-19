@@ -26,7 +26,7 @@ Type `/` to open the command menu. Tab completes commands, subcommands, options,
 | `/lab [SCENARIO]` | Deploy a scenario without a fault | `nika env run` |
 | `/inject` | Inject a failure into a running session | `nika failure inject` |
 | `/shell` | Interactive shell on a lab host; each line runs through `nika exec` | `nika exec` |
-| `/bench` | Run a frozen release split with an agent, or list releases and their tasks | `nika benchmark run --release …` |
+| `/bench` | Run a benchmark release split with an agent, or list releases and their tasks | `nika benchmark run --release …` |
 
 Every CLI group is also a slash command. With arguments it runs directly (`/session ps -a`, `/failure describe link_down`). Without arguments it lets you choose a subcommand and opens a form for its options. Form fields that name a session, host, scenario, failure, task, agent profile, release, or split open a searchable picker. A line that starts with `nika ` runs as typed.
 

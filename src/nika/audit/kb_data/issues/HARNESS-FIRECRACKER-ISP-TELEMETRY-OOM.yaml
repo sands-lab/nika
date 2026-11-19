@@ -1,0 +1,37 @@
+id: HARNESS-FIRECRACKER-ISP-TELEMETRY-OOM
+title: Monitored ISP guests exhaust a four-GiB memory budget
+class: harness_defect
+severity: warn
+status: open
+summary: With authored telemetry enabled, four-GiB Sun and ZIB54 guests kill NIKA during startup.
+  A GEANT lab snapshot builds with little headroom, then kills NIKA during restored gateway
+  cleanup. A ready image does not establish sufficient runtime memory.
+guideline: Retain the failed guest console and distinguish a guest OOM from host contention
+  or an agent tool failure. Native fallback can complete network auditing, but it does not
+  certify corrected snapshot admission. Preserve authored collectors and validate sizing through
+  the normal image path after integration.
+scope:
+  scenarios:
+  - isp_sun
+  - isp_zib54
+  - isp_geant
+detect:
+- kind: text
+  where:
+  - harness
+  pattern: 'Out of memory: Killed process \d+ \(nika\)'
+exploit: false
+provenance:
+  source: AUD2-xwangz-vm repeated GEANT restore; independent ADM2 startup/restore confirmation
+  date: '2026-11-17'
+  refs:
+  - 7d8ec0402
+  - a3284657d
+  found_by: live_audit
+evidence:
+- 'Two GEANT restore copies at fe40daca print ''Out of memory: Killed process 859 (nika)''
+  and fail remote lifecycle cleanup. Their disposable VM directories are released and local
+  mirrors are cleared.'
+- ADM2 separately records the same kernel failure for Sun and ZIB54 startup and GEANT restored
+  Oracle execution, with eight-GiB sizing repairs on its separate branch. This administrative
+  evidence is outside the agent-visible surface.

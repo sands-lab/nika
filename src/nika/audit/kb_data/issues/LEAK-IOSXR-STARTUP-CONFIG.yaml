@@ -1,0 +1,29 @@
+id: LEAK-IOSXR-STARTUP-CONFIG
+title: IOS XR retains the uploaded startup configuration
+class: shortcut
+severity: block
+status: fixed
+fixed_in: e42d547ee4806b0e1bf3c9fbc034a97a67ca1151
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: IOS XR retained disk0:/startup-config.cfg after bootstrap application. The normal vendor CLI returned the original configuration after an ASN injection changed the live configuration, allowing a direct pre-fault/live comparison.
+guideline: Require returned configuration contents and a mismatch with the live state before claiming fault disclosure. A directory entry, typed filename or failed file read is only a lead. Compare a healthy state and an untouched peer. Preserve native committed configuration and commit telemetry when removing the auxiliary upload.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: iosxr_exec
+  call_pattern: (?i)\bmore\s+disk0:/startup-config\.cfg\b
+  pattern: (?ms)^hostname\s+\S+.*?^interface\s+GigabitEthernet\S+.*?^\s+ipv4 address\s+\S+\s+\S+
+exploit: false
+provenance:
+  source: 0.3.0 round-2 live benchmark audit on k8s-worker-0; assigned enterprise snapshot and paired native Clos IOS XR control at fe40daca
+  date: '2026-11-17'
+  refs:
+  - tests/nika/service/test_iosxr_bootstrap_live.py
+  found_by: live_audit
+evidence:
+- 'Injected spine_1 startup file: router bgp 65001. Same live router configuration: router bgp 65601.'
+- Healthy spine_1 has 65001 in both views; untouched spine_2 retains 65002 before and after injection.
+- Both assigned IOS XR variants use configure_xrd_router. Their native cores retain the file even when the assigned fault changes an FRR edge or host; that presence alone does not prove an exact shortcut for those cases.
+- The fixed native gateway regression checks file absence and actual BGP ASN and peers on both routers through healthy state, ASN failure and recovery, then verifies owned resource cleanup.

@@ -1,0 +1,47 @@
+id: HARNESS-PCAP-EXPERT-RESULTS
+title: Packet expert view mislabels summary columns and ignores pagination
+class: harness_defect
+role: known
+severity: warn
+status: fixed
+fixed_in: 532072af1b2772faab669929dd9891bae41b3ca6
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  packet_capture_inspect(view=expert, limit=5) returned seven items and
+  truncated=false. Its parser treated tshark's frequency as a frame number,
+  its expert group as severity, and its protocol as group. It also returned
+  column headings as observations, ignored offset, and silently capped the
+  underlying result at 200 items.
+guideline: >-
+  Inspect the same stopped capture with limit=2 at offsets 0 and 2. Each page
+  must contain at most two expert groups and report the requested offset,
+  the full group count, and whether more groups remain. Compare the fields
+  with tshark -q -z expert on the same agent-readable capture file. Frequency
+  counts events; it is not a frame number. Severity comes from the expert
+  section, group names include Sequence, and protocol names include TCP.
+  Column headings are not observations. Keep packet pagination distinct from
+  expert-group pagination.
+detect:
+- kind: text
+  tool: packet_capture_inspect
+  where:
+  - tool_result
+  pattern: '(?s)"view":\s*"expert".*?"frame":\s*"\d+".*?"severity":\s*"Sequence".*?"group":\s*"TCP"'
+provenance:
+  source: AUD-nika01 live restored Atlanta capture and bounded TCP probe
+  date: '2026-11-16'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  Capture 6512c51be04c419d88df8cc327b95280: expert inspection requested limit=5;
+  returned=7, offset=0, truncated=false. Rows report severity=Sequence and
+  group=TCP, alongside two Frequency column headings.
+- >-
+  tests/nika/service/test_packet_capture.py retains multi-page, empty-page,
+  frequency, severity, group, protocol, and header-exclusion checks.
+
+- >-
+  Native MCP verification on dc_clos/s returned pages of two, two, and one
+  expert groups at offsets 0, 2, and 4. The five groups retained native note
+  and chat severity, Sequence group, TCP protocol, and frequency counts.

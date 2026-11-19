@@ -15,6 +15,7 @@ hands the ports back to the hub and removes the helper.
 from __future__ import annotations
 
 import hashlib
+import secrets
 import shlex
 import time
 from dataclasses import dataclass
@@ -39,6 +40,7 @@ _SPLICE_SOURCE = (
     )
 )
 _READY = "/run/splice.ready"
+_CANCEL = "/run/splice.cancel"
 _LOG = "/run/splice.log"
 _PID = "/run/splice.pid"
 _READY_TIMEOUT_SEC = 20.0
@@ -100,8 +102,10 @@ class KatharaVdeFaultProxy:
         container = self.runtime.get_container(endpoint.node)
         node_pid = isolated_container_pid(container)
         key = self._key(node, intf)
+        creation_token = secrets.token_hex(16)
         labels = {
             "nika.fault_proxy": key,
+            "nika.creation_token": creation_token,
             "nika.lab_name": self.runtime.lab_name,
             "nika.endpoint_node": endpoint.node,
             "nika.endpoint_intf": endpoint.intf,
@@ -122,17 +126,27 @@ class KatharaVdeFaultProxy:
                 labels=labels,
                 name=name,
             )
-        except Exception:
+        except BaseException:
             # ``containers.run`` can create the helper and then fail to start
-            # it, so look it up by its unique name as well.
-            self._remove_container(name)
+            # it. A name collision alone does not establish ownership.
+            try:
+                created = self._client.containers.get(name)
+                if (created.labels or {}).get("nika.creation_token") == creation_token:
+                    created.remove(force=True)
+            except docker.errors.NotFound:
+                pass
             raise
         state = VdeFaultProxyState(key, endpoint, peer, proxy.id)
         try:
             self._start_splice(proxy, hub, node_pid, endpoint.intf)
             return state
-        except Exception:
-            self.remove(state, suppress_errors=True)
+        except BaseException as error:
+            try:
+                self.remove(state)
+            except Exception as cleanup_error:
+                error.add_note(
+                    f"Proxy helper {state.proxy_id} could not be cleaned: {cleanup_error}"
+                )
             raise
 
     def set_netem_corrupt(self, state: VdeFaultProxyState, percentage: int) -> None:
@@ -345,8 +359,8 @@ class KatharaVdeFaultProxy:
         except Exception:
             if not suppress_errors:
                 raise
-        finally:
-            self._remove_container(state.proxy_id)
+            return
+        self._remove_container(state.proxy_id)
 
     def discover(self, node: str, intf: str) -> VdeFaultProxyState | None:
         key = self._key(node, intf)
@@ -387,7 +401,9 @@ class KatharaVdeFaultProxy:
             [
                 "/bin/sh",
                 "-c",
-                f"{shlex.join(process_command('record', _PID))} $$ && exec python3 -c {args} >{_LOG} 2>&1",
+                f"{shlex.join(process_command('record', _PID))} $$ && "
+                f"test ! -e {shlex.quote(_CANCEL)} && "
+                f"exec python3 -c {args} >{_LOG} 2>&1",
             ],
             detach=True,
         )
@@ -415,8 +431,11 @@ import re
 import subprocess
 import time
 path = {_READY!r}
+Path({_CANCEL!r}).touch()
 if not Path(path).is_file():
-    raise SystemExit(0)
+    stop_owned(read_identity({_PID!r}))
+    if not Path(path).is_file():
+        raise SystemExit(0)
 record = read_identity(path)
 if not isinstance(record, dict):
     raise RuntimeError("Refusing unverified VDE relay and hub identities")

@@ -1,0 +1,63 @@
+id: HARNESS-NAT-OCCUPANCY-OUTPUT-BOUND
+title: NAT occupancy evidence is incomplete after tool output limits
+class: harness_defect
+role: lead
+severity: warn
+status: fixed
+fixed_in: d50e4f5f729117c3296518fbe156517e97bd4246
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The SNAT reference counted translated ports from ordinary conntrack rows. The device byte limit
+  or gateway clipping could discard rows and make the occupancy predicate fail although the live pool
+  was exhausted. A restored FRR case failed its first evidence round after three clipped responses; its
+  second round passed after the row set shrank.
+guideline: A clipped broad query alone is not a defect. Confirm that a required reference predicate consumed
+  an incomplete row set. Compare complete device-side occupancy with the exposed result, and summarize
+  inside the device before every transport bound while preserving timeouts and bounded ordinary rows.
+  Do not weaken the occupancy threshold.
+scope:
+  fault_types:
+  - snat_port_pool_exhaustion
+  agent_types:
+  - oracle
+detect:
+- kind: source_text
+  tool: device_read
+  where:
+  - tool_result
+  call_pattern: conntrack.*-L.*--reply-dst
+  pattern: (?s)<warning>.*?exceeded the output limit and was truncated
+  source_fingerprints:
+  - src/nika/mcp/device_read.py: 57c7913098f16a76573a7f60976569f5ab58ea2a5fd3452b1a4d3c14af69feb4
+    src/nika/problems/service_networking/gateway.py: 9bb5f8fe2baf71e9458dbe7f7c2545bd30b8dd159421cc3f5e3ea938724e8a6f
+- kind: source_text
+  where:
+  - tool_result
+  tool: (?:^|__)device_read$
+  call_pattern: conntrack.*--reply-dst
+  pattern: Device output exceeds 64 KiB; narrow the command
+  exclude_authored: false
+  source_fingerprints:
+  - src/nika/mcp/device_read.py: f135340704dc1da885b5c8ef260ca148d59fa10fbfcca7c769afcf16e5e56c8a
+  - src/nika/mcp/device_read.py: 57c7913098f16a76573a7f60976569f5ab58ea2a5fd3452b1a4d3c14af69feb4
+provenance:
+  source: AUD2 live restored SNAT observation at fe40daca and ADM2 native boundary reproduction/repair
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- Normal-policy device_read(conntrack -L -p tcp --reply-dst 198.18.1.10) returned the gateway clipping
+  marker three times while the 90%-of-64-ports predicate stayed false. The same case passes the second
+  round.
+- ADM separately reproduced the earlier 64 KiB device bound and moved complete occupancy projection before
+  it in d88ca51e. Native full admission, reference, controls, persistence, recovery and cleanup pass at
+  clean source08cb55601043c7b7471cbc77219d1ac320f78b30.
+- AUD records the existing ADM repair and does not duplicate or rebuild it. Generic bounded telemetry-list
+  clipping remains separate.
+- 'Trial 20261117-015624-test-95e029, Oracle step 3, device_read: "tool_error: Error executing tool device_read:
+  Device output exceeds 64 KiB; narrow the command". All other admission stages passed.'
+- Native paired fix session 20261117-021740-test-4d7a01 solved the Oracle on its first attempt; nika exec
+  independently counted 64 occupied pool ports. Full native admission passed at d88ca51e and its owned
+  session closed.
+- The process regression supplies late mappings beyond 64 KiB and checks that the complete 40000-40063
+  range reaches the gateway display prefix. Missing and duplicate bindings remain covered by the occupancy
+  tests.

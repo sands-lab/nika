@@ -17,7 +17,7 @@ uv run nika env list
 
 Install with [`./scripts/install.sh`](../../scripts/install.sh). Installer options: [Installation](installation.md). Overview: root [README](../../README.md#-installation).
 
-Containerlab scenarios run Nokia SR Linux routers by default, which NIKA configures over gNMI with `gnmic`. Pass `--device-profile sonic` to run them on [SONiC](#sonic-routers-on-containerlab) instead. `dc_clos` and `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
+Containerlab scenarios run Nokia SR Linux routers by default, which NIKA configures over gNMI with `gnmic`. Pass `--device-profile sonic` to run them on [SONiC](#sonic-routers-on-containerlab) instead. `dc_clos` and SNDlib `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
 
 Link failures must act outside the nodes, where an agent cannot see them. Kathara links already pass through host-side bridges. On Containerlab, NIKA deploys each link between two nodes as two veths into the host namespace and joins their host ends with a `tc` redirect, so link failures act on the host ends. Node interfaces keep their names and addresses, and the host ends disappear with the lab. Joining those host ends needs passwordless `sudo` for `ip` and `tc` on the Docker host; see [Allow passwordless sudo for Containerlab](installation.md#allow-passwordless-sudo-for-containerlab).
 
@@ -381,7 +381,7 @@ Each router is a VM that needs about 1 GiB, so NIKA checks available memory befo
 
 Agents run RouterOS commands with the `routeros_exec` tool of [`kathara_routeros_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools). RouterOS `ether1` is vrnetlab's management port. In an ISP environment, container interface `ethN` is RouterOS `ether(N+1)`; in the other environments, `ethN` is `ether(N+2)`.
 
-Link-down failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once. The watcher also treats an interface that `link_down` moved out of the container as down.
+Link-down failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once. The watcher also treats a missing container interface as down.
 
 Link-quality failures, such as `link_capacity_bottleneck`, are not supported on a link between two RouterOS routers and raise `RuntimeCapabilityError`. Target a link with at least one FRR or Linux endpoint instead.
 
@@ -699,7 +699,7 @@ Host pairs that the environment isolates by design, such as guest LANs or separa
 
 Every task that `nika benchmark generate` writes to the working pool runs a background traffic profile, so faulty and healthy tasks carry the same kind of load. Because the profile is the same for every failure, its programs say nothing about which fault, if any, the agent faces. Each environment declares its baseline: `uniform` at 1 Mbit/s, or `gravity` at 1 Mbit/s for ISP backbones. A failure can replace the baseline for its own tasks with `TRAFFIC_PROFILE`, but any difference from the baseline hints at the failure class, so no current failure does.
 
-Benchmark releases keep their tasks as published: a task without `traffic:`, such as every task of release 0.3.0, runs without a profile. A multi-fault task runs the profile its YAML names.
+Benchmark releases keep their tasks as published: a task without `traffic:` runs without a profile. A multi-fault task runs the profile its YAML names.
 
 ## Telemetry
 

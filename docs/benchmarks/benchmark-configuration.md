@@ -10,7 +10,7 @@ For ad-hoc runs, use a benchmark YAML whose `cases:` list contains relative path
 
 ## Benchmark release (`nika-bench@0.3.0`)
 
-`0.3.0` is provisional until its release tag exists. Its task files can be inspected and audited locally. The release workflow below requires the tagged benchmark engine.
+`0.3.0` is provisional until its release tag exists. Its task files can be inspected and audited locally. The release workflow below requires the engine commit pinned in the release manifest to be available in the checkout.
 
 A benchmark release provides public Dev and Test splits. Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
 
@@ -41,12 +41,12 @@ Each release run treats `--result_dir` as **one run** and writes:
 
 Active run progress is recorded under `runtime/benchmark_runs/{run_id}.json`.
 
-After a finished release run, submit a leaderboard entry (packs and validates automatically). See the [leaderboard submission guide](leaderboard-submission.md).
+After a finished release run, follow the [leaderboard submission guide](leaderboard-submission.md) to prepare and validate an entry. For provisional 0.3.0, use its local validation and dry-run instructions; official submission requires the release tag.
 
 ```shell
 nika leaderboard template -o results/my-run/submission
 # edit metadata.yaml + README.md
-nika leaderboard submit --result_dir results/my-run --submission results/my-run/submission
+nika leaderboard submit --result_dir results/my-run --submission results/my-run/submission --release-source local --dry-run
 ```
 
 `defaults.n_trials` in `RELEASE.yaml` is 3 for `0.3.0`. It expands the selected task set to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed` (capability / no submission / tool-heavy or post-LLM case timeout). LLM/API endpoint failures (connection refused, provider 5xx, case-timeout killed mid-LLM after LLM-dominated wall clock, etc.) stamp `outcome=endpoint_failed` instead: they are **not** scored and `--resume` cleans and retries them. This is about the model HTTP endpoint, not the network lab under test. Failures after ground truth is written but before the agent demonstrably started (sandbox CLI missing, MCP gateway URL or bind failure, a worker killed during agent setup) stamp `outcome=infra_failed`. NIKA treats them like `endpoint_failed`: not scored, cleaned, and retried. NIKA counts a failure as `agent_failed` only when `nika.jsonl` has `agent_start` and `messages.jsonl` has at least one model or tool event. A valid `submission.json` makes the trial `success`, even when a later step (agent timeout, sandbox teardown) fails, provided its scheduler completed without errors when present. NIKA also cleans incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
@@ -244,7 +244,7 @@ The generator prints group, concrete option, failure, scenario, healthy, and rej
 
 ## Published releases
 
-Frozen releases keep their published flat `cases:` files and remain independent from candidate generation. See the [versioning policy](../../VERSIONING.md) to reproduce an older release.
+Published releases keep their flat `cases:` files and remain independent from candidate generation. See the [versioning policy](../../VERSIONING.md) to reproduce an older release.
 
 Configurations and task labels accept `frr_service_down` as an alias for `routing_service_down`. Release `0.3.0` uses `routing_service_down` in its tasks, ground truth, and RCA candidates.
 
@@ -298,7 +298,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>link_capacity_bottleneck</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
+<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -366,7 +366,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>link_latency</code></td>
 <td align="center">○</td>
-<td align="center">○</td>
+<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -599,7 +599,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -781,7 +781,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -885,11 +885,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>ospf_hello_interval_mismatch</code></td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -931,11 +931,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>ospf_network_type_mismatch</code></td>
-<td align="center">●</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">●</td>
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -1123,15 +1123,15 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>device_flow_blackhole</code></td>
 <td align="center">○</td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1152,9 +1152,9 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>device_forwarding_packet_corruption</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1328,8 +1328,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1351,8 +1351,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">●</td>
 <td align="center">○</td>
+<td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1360,8 +1360,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>mtu_mismatch</code></td>
 <td align="center">○</td>
-<td align="center">●</td>
 <td align="center">○</td>
+<td align="center">●</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -1382,11 +1382,11 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>ospf_acl_block</code></td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
 <td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
@@ -1445,8 +1445,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1491,8 +1491,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1537,8 +1537,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
@@ -1560,14 +1560,14 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>rib_fib_inconsistency</code></td>
-<td align="center">●</td>
 <td align="center">○</td>
+<td align="center">●</td>
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -1779,8 +1779,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1802,8 +1802,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">●</td>
 <td align="center">○</td>
+<td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1825,8 +1825,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">●</td>
 <td align="center">○</td>
+<td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1977,8 +1977,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">●</td>
 <td align="center">○</td>
+<td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2000,8 +2000,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">●</td>
 <td align="center">○</td>
+<td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2069,8 +2069,8 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
 <td align="center">●</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3457,9 +3457,9 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <tr>
 <td><code>endpoint_cpu_contention</code></td>
 <td align="center">○</td>
+<td align="center"></td>
 <td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>

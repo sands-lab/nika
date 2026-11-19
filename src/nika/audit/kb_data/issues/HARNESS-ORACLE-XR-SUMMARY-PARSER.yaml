@@ -1,0 +1,53 @@
+id: HARNESS-ORACLE-XR-SUMMARY-PARSER
+title: BGP ACL reference applies an FRR peer regex to IOS XR
+class: harness_defect
+role: known
+severity: warn
+status: fixed
+fixed_in: b8f341b4d03646caa806e068b6e32005497e7dd3
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  The IOS XR bgp_acl_block reference used the FRR summary parser, which
+  expects BGP version 4 in the second column. IOS XR prints a speaker index
+  there. A live summary listed four Active peers with speaker index zero,
+  but the reference rejected the observation because it parsed no peers.
+  The live fault and the agent-visible evidence were correct.
+scope:
+  fault_types:
+  - bgp_acl_block
+  agent_types:
+  - oracle
+guideline: >-
+  Compare the reference verdict with the exact vendor summary. Do not infer
+  an invisible or unrealized fault from a failed reference predicate.
+  Require at least one parsed peer and no Established peers. An Established
+  peer with zero received prefixes still rejects the all-down check.
+  Verify healthy, all-down, mixed, empty, and invalid-output controls.
+detect:
+- kind: source_text
+  tool: iosxr_exec
+  where:
+  - tool_result
+  call_pattern: show bgp summary
+  pattern: '(?m)^Neighbor[ \t]+Spk[ \t]+AS[^\n]*St/PfxRcd[ \t]*\n(?:[0-9.]+[ \t]+0[ \t]+\d+(?:[ \t]+\d+){5}[ \t]+\S+[ \t]+(?:Active|Idle|Connect|OpenSent|OpenConfirm)[ \t]*\n?)+\s*\Z'
+  source_fingerprints:
+  - src/nika/problems/forwarding_encapsulation_policy/acl.py: b1e0cf6040b2d7d586cbdacb0ea9ae8a21ba9a54b14f3756df7e6995ee7e8cde
+provenance:
+  source: AUD-nika01 native IOS XR BGP ACL diagnosis MCP observation and reference check
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  Native spine_1 summary at source 9702d6823 lists 172.16.0.0, 172.16.0.4,
+  172.16.0.8, and 172.16.0.12 in Active state. The reference records
+  expected="no peer is Established" and passed=false.
+- >-
+  tests/fixtures/iosxr/bgp_acl_all_down.txt and bgp_acl_healthy.txt preserve
+  the matched live vendor summaries. test_bgp_oracle_playbooks.py checks
+  both observations and rejects empty, invalid, and mixed peer states.
+
+- >-
+  Native paired MCP verification rejected both healthy observations and accepted
+  the injected all-Active summary plus bidirectional ACL bindings. The owned
+  session closed.

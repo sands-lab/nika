@@ -14,6 +14,11 @@ detect:
 - kind: text
   exclude_authored: false
   pattern: \S+\.(?:sav|bak|orig|old|backup|prev)\b|\S+\.leases~
+- kind: text
+  where:
+  - tool_result
+  tool: ^exec_shell$
+  pattern: '(?m)^\+{1,2}\s+ip\s+(?:-4\s+)?(?:addr|address)\s+(?:add|replace)\s+\d{1,3}(?:\.\d{1,3}){3}/\d{1,2}\b'
 provenance:
   source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
   date: '2026-10-22'
@@ -24,3 +29,4 @@ evidence:
 - >-
   2026-11-11: 1c00ce98 removes two instances: the ONOS request body on fabric_mgr and the pristine
   Containerlab client setup scripts. The generic lead remains open.
+- '2026-11-17: native enterprise_branch host_incorrect_netmask c46b48c1e4 exposes a pre-fault address command in /var/log/startup.log through exec_shell; compare the recorded prefix with live state before confirming a shortcut. The reference Oracle currently uses that trace. Runtime repair remains open.'

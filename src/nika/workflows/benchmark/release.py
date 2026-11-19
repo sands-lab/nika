@@ -1563,7 +1563,7 @@ def freeze_split_release(
         staged = load_release_from_dir(staging, split="dev")
         preflight_release(staged, check_images=False)
         staging.rename(dest)
-    except Exception:
+    except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
     return load_release_from_dir(dest, split="dev")

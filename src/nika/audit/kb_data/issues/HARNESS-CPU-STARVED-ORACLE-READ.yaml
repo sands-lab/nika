@@ -1,0 +1,37 @@
+id: HARNESS-CPU-STARVED-ORACLE-READ
+title: CPU contention prevents required reference observations
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+summary: CPU contention can starve worker and quota observations. The preserved worker repair bounds process discovery; the builtin quota read avoids external cat/head processes while preserving counters, evidence predicates, timeouts and retries.
+scope:
+  fault_types:
+  - endpoint_cpu_contention
+guideline: Compare the original worker observation and a bounded alternative through the configured agent gateway on the same retained case image. Repeat both observations. Preserve the authored quota, worker count, evidence predicate and timeout. Check quota counters and healthy controls separately. A successful isolated read does not establish that the alternative works throughout a trial. Judge reference failure with its configured retry policy; isolated timeouts remain leads.
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: exec_shell
+  exclude_authored: false
+  call_pattern: archive-job\.pid
+  pattern: (?s)^\[TIMEOUT\] Command .*archive-job\.pid.*exceeded 60(?:\.0)?s\.
+- kind: text
+  where:
+  - tool_result
+  tool: exec_shell
+  exclude_authored: false
+  call_pattern: cpu\.max.*cpu\.stat
+  pattern: (?s)^\[TIMEOUT\] Command .*cpu\.max.*cpu\.stat.*exceeded 60(?:\.0)?s\.
+provenance:
+  source: AUD3-xwangz-vm restored case through the configured agent gateway
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- Source c42b6177, lab image 63b0ffdc6771, case image 26c677627090. Both observation rounds return a 60-second timeout for the original archive-child shell loop and parent-scoped ps. The first quota/throttling read passes; the second also times out. No configuration is changed.
+- ADM correction 63d10d3f1 passes the complete clean native admission and reference policy. A later original-source snapshot retry also passes. Individual process-read timeouts remain retained; they do not test the full reference retry policy. Fixed-image validation belongs to integration.
+- 'Restored RouterOS case d892991308: worker observation succeeds on attempt2 with16 workers, but original quota read times out on all3 configured60-second attempts. Complete native Oracle at clean2edb6891e passes both required observations on first attempts, unchanged predicates/budgets. Provider hashes match and no new containers/networks remain. The original bulk-transfer symptom still fails and is a separate eligibility defect.'
+fixed_in: 22fd3aa28e50cda89269511ae69868bd8e37048b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

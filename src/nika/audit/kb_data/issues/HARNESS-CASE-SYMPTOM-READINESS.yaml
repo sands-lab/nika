@@ -1,0 +1,32 @@
+id: HARNESS-CASE-SYMPTOM-READINESS
+title: Restored injected cases are exposed before their symptom is ready
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+fixed_in: 36fec5eac15bd3ed9c20094673435eae1b98da8b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The restored-case handoff checked only the injected artifact. In the FRR enterprise DSCP case, the rewrite rule was present but the first media-loss observation was near zero; later observations exceeded42 percent. A bounded wait for the existing declared symptom contract makes the effect observable before agent handoff.
+scope:
+  fault_types:
+  - vrf_dscp_remarking
+  scenarios:
+  - enterprise_branch
+guideline: Compare artifact presence and fresh symptom windows immediately after restore and later in the same trial. Repeat on the same case image and retain host load, packet counters and source identity. An initial failure followed by a pass is a lead, not proof of its cause. Confirm readiness with the unchanged symptom predicate and an immediate post-handoff check. Keep finite timeouts, failed-session cleanup, thresholds, persistence checks and scheduled task semantics.
+detect:
+- kind: source_text
+  where:
+  - harness
+  exclude_authored: false
+  pattern: (?s)"stage":\s*"image_symptom",\s*"status":\s*"fail".*?"stage":\s*"image_persistence_symptom",\s*"status":\s*"pass"
+  source_fingerprints:
+  - src/nika/firecracker/trial.py: 234bf78cb466128b71c34a30f864228c4a920a4cc7e31dcd4d4148a2c9d5e7bf
+provenance:
+  source: ADM2-k8s-worker-0 repeated frozen-image restore and fixed-host counterfactual
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- 'Frozen sourcefe40daca case705dd29d205e: image_symptom loss0.0084 percent failed; image_persistence_symptom loss43.5889 percent passed. Artifact, Oracle, look-alikes and final checks passed. A second restore measured first1.1833 percent and later42.6354 percent.'
+- 'Unchanged frozen image with host fix0b600fda: the actual remote contract returned false at51.45 seconds, true at84.72 seconds, then true immediately after handoff at110.72 seconds. The owned session and trial closed at118.50 seconds. Guest network reads confirm a growing remark counter and active best-effort contention.'
+- Full native DSCP admission passed at clean0b600fda in382.0 seconds with all stages and cleanup. Firecracker regressions46 passed, one opt-in skipped; remote/snapshot contracts31 passed. No authored task identity or ground truth changed.

@@ -1,0 +1,36 @@
+id: FNR-ROUTEROS-BGP-ORIGIN-PATH
+title: Reference origin comparison cannot parse the selected native path
+class: harness_defect
+role: lead
+severity: warn
+status: fixed
+summary: The public native route shows contribution=active and an AS path ending at the originator, but the reference predicate uses the FRR text parser and rejects it. Read the origin AS through the public native CLI and compare the exact prefix and selected native path with the existing RouterOS parser.
+scope:
+  fault_types:
+  - bgp_hijacking
+  backends:
+  - kathara
+  healthy: false
+guideline: Require the actual live origin AS and the complete native route row. Reject inactive paths, another origin, absent origin AS and another prefix. A source-specific signature is a review lead; native output alone is not a failed-Oracle verdict.
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: routeros_exec
+  exclude_authored: false
+  call_pattern: dst-address=
+  pattern: (?s)contribution=active.*?\.as-path="[0-9, ]+"
+  source_fingerprints:
+  - src/nika/problems/security/bgp.py: b04941be94009e794346dfd3582ed7609802f869ac2f0055632d7f9ce33b1639
+provenance:
+  source: AUD3-xwangz-vm review of final-source restored admission and its public reference reads
+  date: '2026-11-17'
+  refs:
+  - results/20261117-133206-test-7d3297/oracle.json
+  found_by: live_audit
+evidence:
+- 'Native admission at clean4ee9a5ef7, with provider blobs identical to correction385f8f02f passes all required stages, full reference evidence, and persistence. Separate recovery evidence follows. Public extra controls receive all three replies at both target-prefix addresses and the outside-prefix control. Provider hashes match before/after; no new containers or networks remain.'
+- 'Separate native control at clean 64941cbb7 verifies healthy, injected and recovered public state. Original NAT output is restored; the selected specific prefix is withdrawn; all three endpoint controls pass. Provider hashes match and all owned containers/session are absent.'
+- 'Provenance distinction: native driver receipt records385f8f02f at launch; the audit record is clean4ee9a5ef7, whose only additional changes are KB records. Both runtime-provider blobs match exactly and before/after provider hashes are stable. The separate recovery control is clean64941cbb7.'
+fixed_in: cee83d2fd13396dbbb8423240764168ba89c335e
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

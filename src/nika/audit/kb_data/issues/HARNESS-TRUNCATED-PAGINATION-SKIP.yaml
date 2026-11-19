@@ -1,0 +1,21 @@
+id: HARNESS-TRUNCATED-PAGINATION-SKIP
+title: Truncated paginated rows can skip entries when following the cursor
+class: harness_defect
+severity: warn
+status: open
+summary: A bounded row response can retain the head and tail while leaving next_offset past omitted middle rows, so continuing from that offset loses entries.
+guideline: Compare the bounded response and its continuation with smaller pages. A truncation marker alone is a lead, not proof that a cursor skips entries.
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: ^flow_coverage$
+  pattern: '"next_offset"\s*:\s*(?:\d+|null)[\s\S]*"omitted_rows"\s*:\s*[1-9]\d*'
+provenance:
+  source: AUD4N xwangz-vm native gateway comparison
+  date: '2026-11-18'
+  refs:
+  - src/nika/mcp/tool_output.py
+  found_by: live_audit
+evidence:
+- On campus_lan, flow_coverage with limit 100 and offset 0 returned 80 rows, omitted_rows 20 and next_offset 100. Four untruncated pages of 25 exposed the missing middle nodes.

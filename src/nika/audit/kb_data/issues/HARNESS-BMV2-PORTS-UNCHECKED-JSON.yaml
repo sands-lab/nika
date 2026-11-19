@@ -1,0 +1,31 @@
+id: HARNESS-BMV2-PORTS-UNCHECKED-JSON
+title: BMv2 port reads hide command failures behind a JSON decoder error
+class: harness_defect
+severity: warn
+status: fixed
+summary: bmv2_get_ports parses unchecked command output as JSON. A command timeout or failed observation therefore appears as an unrelated JSON decoder error and loses the underlying device and command status.
+guideline: Compare the failing port query with reachable peer observations and the same healthy variant. Preserve command exit status before decoding JSON; keep real unavailability explicit. A broad command timeout does not establish that the device itself is down.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  - p4_dc_fabric
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: bmv2_get_ports
+  pattern: 'Expecting value: line 1 column 2 \(char 1\)'
+  source_fingerprints:
+  - src/nika/mcp/servers/kathara/bmv2_server.py: 1a509a092a2fcd17bc9d0ff39b399acd647c6a61fd62e07442f6eac32aa69884
+provenance:
+  source: AUD-k8s-master round-3 restored original-source case
+  date: '2026-11-17'
+  refs:
+  - p4_dc_gateway__bmv2_switch_down__3b2e5ad672
+  - src/nika/mcp/servers/kathara/bmv2_server.py
+  found_by: live_audit
+evidence:
+- 'At c42b6177, normal MCP bmv2_get_ports on unrelated gateway_6 and spine_3 returns Expecting value: line 1 column 2 (char 1), while adjacent switch port calls succeed. The underlying command output was not retained, so its precise failure cause is not claimed.'
+- 'Native P4/s at immutable17b89102 returns correct ports through the normal diagnosis gateway for gateway_1, spine_1, and a scoped gateway_1:eth0 read. A controlled administrative delay before the unmodified port command causes an actual backend timeout; the tool preserves spine_1 and TIMEOUT rather than raising JSONDecodeError. Provider hash is unchanged, and the owned session/machines/links are absent. This verifies the shared tool contract; the original large snapshot is unchanged.'
+fixed_in: 643d667f12c118e4838cf271143ed6911f9ee0f1
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

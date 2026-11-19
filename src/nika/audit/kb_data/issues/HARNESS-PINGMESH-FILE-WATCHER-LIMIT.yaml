@@ -1,0 +1,24 @@
+id: HARNESS-PINGMESH-FILE-WATCHER-LIMIT
+title: Pingmesh discovery fails when the host exhausts inotify instances
+class: harness_defect
+severity: warn
+status: open
+summary: Prometheus file discovery cannot create its target-file watcher when the shared host reaches its per-user inotify instance limit. The endpoint probers and target generator remain healthy, but Prometheus has no Pingmesh targets and native startup fails its telemetry readiness check. The observed host limit was 128; no host limits or Kubernetes services were changed.
+guideline: Require the collector's file-watcher error and distinguish it from an ordinary unreachable data-plane target. Confirm that endpoint prober health checks succeed, the generator reports active targets, and Prometheus has no Pingmesh scrape pool. Collector shell diagnostics are privileged confirmation, not agent-visible evidence. Reuse the collector's local HTTP server to serve Prometheus HTTP service discovery with the same target batches, labels, rotation, and probe budget; retain the readiness assertions.
+scope:
+  backends: [kathara, containerlab]
+detect:
+- kind: text
+  where: [harness, tool_result]
+  exclude_authored: false
+  pattern: 'Error adding file watcher.{0,200}too many open files'
+provenance:
+  source: AUD-k8s-master native verification of isp_sun at 9702d6823 with audit fixes
+  date: '2026-11-17'
+  refs:
+  - https://prometheus.io/docs/prometheus/latest/http_sd/
+  - tests/nika/telemetry/test_pingmesh.py
+  - tests/nika/telemetry/test_frr_live.py
+  found_by: live_audit
+evidence:
+- 'The collector logged component="discovery manager scrape" discovery=file config=pingmesh msg="Error adding file watcher" err="too many open files". All 27 endpoint health checks returned 200, the generator reported 64 active targets, and /api/v1/targets showed node/netflow/pingmesh_status pools but no pingmesh pool. Native startup failed after 114 seconds. Exact diagnostics are retained in verify-native-bgp/pingmesh-diagnostic.json.'

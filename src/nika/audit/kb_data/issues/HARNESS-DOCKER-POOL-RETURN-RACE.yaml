@@ -1,0 +1,31 @@
+id: HARNESS-DOCKER-POOL-RETURN-RACE
+title: Docker connection disposal can fail after a successful request
+class: harness_defect
+role: lead
+severity: warn
+status: fixed
+fixed_in: 36fec5eac15bd3ed9c20094673435eae1b98da8b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: A legitimate parallel hostname read returned a NoneType.qsize exception on the original source. An installed urllib3 leaf control reproduces a full-pool disposal path that closes a connection, then tries to log the size of a concurrently closed pool. The repair handles only that verified already-closed cleanup frame and never replays commands.
+scope:
+  backends:
+  - kathara
+  - containerlab
+guideline: Retain the exact tool, arguments, first failure and subsequent successful reads. Distinguish an observed tool defect from its inferred library mechanism. Check the installed provider and connection-return traceback. A cleanup guard must require the original provider frame, a closed pool and an already closed connection; request errors, capacity errors and unrelated attribute errors remain visible. Do not retry arbitrary commands because an error can occur after a command executed. Verify parallel reads, real data-plane behavior, error controls, immutable source and owned cleanup on the applicable backend.
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: ^exec_shell$
+  pattern: '''NoneType'' object has no attribute ''qsize'''
+provenance:
+  source: AUD3-k8s-worker-0 original-source gateway exception and native Docker transport controls
+  date: '2026-11-17'
+  refs:
+  - tests/nika/runtime/test_docker_pool_return.py
+  - https://raw.githubusercontent.com/urllib3/urllib3/main/src/urllib3/connectionpool.py
+  found_by: live_audit
+evidence:
+- Original c42b6177 prefix-list receipt call0 sends exec_shell to hq_srv with printf and hostname, timeout35. It returns ToolException with NoneType.qsize. Later reads on the same node succeed; primary reference predicates and labels agree twice.
+- The installed urllib32.8.0 leaf control reproduces AttributeError in connectionpool.py _put_conn after both pool and connection are closed. The fixed return preserves one close operation. This is a controlled leaf measurement, not another original-network occurrence.
+- At clean dedb3a64, 23 focused runtime tests pass. Kathara/FRR and Containerlab/SONiC native controls each pass32 parallel hostname reads, DNS/HTTP, full backend network verification and ordinary nika exec. Invalid-node and real HTTP NotFound errors remain visible. Both source/provider hashes remain unchanged and both owned stores and runtime resources are empty. Corrected snapshot verification remains deferred to integration.

@@ -1,0 +1,33 @@
+id: HARNESS-SILENT-LOSS-SERVICE-INVENTORY
+title: Silent-loss symptom checks read a removed singular service field
+class: harness_defect
+severity: warn
+status: fixed
+summary: The silent_egress_packet_loss baseline records a services list, but its symptom result reads state["service"]. A realized snapshot therefore raises KeyError instead of returning measured target and independent-path loss.
+guideline: Check the normal symptom API or matrix stage and compare its saved baseline inventory with the reporting field. Preserve both path measurements and loss thresholds. This is an admission-only error; an administrator API failure does not establish an agent-visible tool defect. Verify the exact native symptom lifecycle before closing it.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  fault_types:
+  - silent_egress_packet_loss
+  healthy: false
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  pattern: (?:/symptom failed \(400\):|KeyError:) ['\"]service['\"]
+  source_fingerprints:
+  - src/nika/validation/symptom/p4_gateway_probes.py: 089957772377eb4f4d0e343b153dc74f636052316b12e6888d33a2f713b6b5fe
+provenance:
+  source: ADM-k8s-master original c42 Firecracker case admission; normal remote symptom API
+  date: '2026-11-17'
+  refs:
+  - p4_dc_gateway__silent_egress_packet_loss__c4c7ea9ee1
+  - src/nika/validation/symptom/p4_gateway_probes.py
+  found_by: live_audit
+evidence:
+- 'Original matrix image_symptom, image_persistence_symptom and image_final_symptom each report Remote POST /v1/sessions/20261117-101333-test-6b2d7a/symptom failed (400): ''service''. The artifact stage confirms the declared interface.'
+- ADM e1fb8dc8 exports the services inventory used by the sender and receiver measurements, preserving target and independent-control loss thresholds. Focused healthy, target-only and shared-loss regressions are retained. Native verification is pending.
+- 'Native exact-large lifecycle at immutableee4c0009 includes ADM e1fb8dc8 as identical patch41e0af35. It returns the services inventory and measures healthy/recovered0%bothpaths, target-only1.276%and1.658%under repeated injection, and30clean agent-policy artifact reads. Provider3e74083848beb376fd7f57c6750e301690e917fc5158f3672fe9a806ae5f4bb7 stays unchanged. Sessions, containers and links are absent; guest closed/base unchanged.'
+fixed_in: 643d667f12c118e4838cf271143ed6911f9ee0f1
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

@@ -1,0 +1,37 @@
+id: HARNESS-ROUTEROS-NAT-RECOVERY-OMITTED
+title: RouterOS export restoration omits source NAT rules and withdrawn addresses
+class: harness_defect
+severity: warn
+status: fixed
+summary: Native SNAT exhaustion and NAT renumbering inject successfully but fail scheduler
+  cleanup verification. The export restoration menu list omits firewall NAT, and address changes
+  are ignored, so the injected NAT rule and withdrawn public address are not restored. Re-adding
+  a withdrawn address also changes RouterOS print order. A stable address inventory preserves
+  exact recovery comparisons without changing NAT rule order.
+guideline: Treat scheduler recovery output as lifecycle evidence, not as an agent tool observation.
+  Check exact before/after NAT rules and WAN addresses. Restore changed static address tuples
+  without clearing unchanged management addresses. Deleted connection state cannot be recreated;
+  configuration recovery must still pass independently.
+scope:
+  fault_types:
+  - snat_port_pool_exhaustion
+  - nat_mapping_removed_without_drain
+detect:
+- kind: text
+  where:
+  - harness
+  pattern: Failure recovery verification failed:[^\n]*(?:configuration_restored|pool_restored)[^\n]*False
+exploit: false
+provenance:
+  source: AUD-xwangz-vm native fallback at source 55993691c
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- SessionScheduler.close reports configuration_restored=False for NAT renumbering and pool_restored=False
+  for SNAT exhaustion. Both owned native sessions still close through close_session; no lab
+  is left running.
+- 'Round-two native regression restores both NAT faults, checks exact rules/address membership
+  and connectivity, and verifies owned-resource cleanup.'
+fixed_in: e42d547ee4806b0e1bf3c9fbc034a97a67ca1151
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

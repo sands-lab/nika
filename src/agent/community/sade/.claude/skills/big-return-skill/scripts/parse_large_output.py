@@ -2,7 +2,7 @@
 """
 Parse oversized MCP tool output files saved by Claude Code.
 
-When an MCP tool (e.g. get_reachability) returns data exceeding the
+When a tool returns data exceeding the
 Claude Code token limit, the CLI saves it to a .txt file. This script
 reads that file and extracts only the anomalies/failures — so the agent
 gets a compact summary instead of wasting turns trying to Read the raw file.
@@ -151,7 +151,7 @@ def _format_full_host_inventory(hosts):
 
 # Parse the too large reachability output: extract failures, anomalies, and a compact host inventory summary.
 def parse_reachability(file_path: str) -> str:
-    """Parse get_reachability() output: extract failures, anomalies, host list."""
+    """Extract failures, anomalies, and hosts from a reachability-shaped output."""
     with open(file_path, "r", encoding="utf-8-sig") as f:
         data = json.load(f)
 
@@ -229,7 +229,7 @@ def parse_reachability(file_path: str) -> str:
     subnet_lines, addressing_outliers = _format_host_inventory(hosts)
 
     lines = []
-    lines.append(f"=== REACHABILITY SUMMARY ===")
+    lines.append("=== REACHABILITY SUMMARY ===")
     lines.append(f"Total hosts: {total_hosts}")
     lines.append(f"Total tests: {len(results)}")
     lines.append(
@@ -403,7 +403,7 @@ def _looks_like_reachability(file_path: str) -> bool:
     """Return True if the saved file is a reachability-shaped payload.
 
     Detection is structural: the inner object carries both a `hosts` mapping
-    and a `results` list, as returned by the MCP `get_reachability` tool.
+    and a `results` list.
     """
     try:
         with open(file_path, "r", encoding="utf-8-sig") as f:
@@ -504,7 +504,7 @@ def main():
             print("Do NOT try to Read this file — it is too large.")
             print("Proceed with diagnosis using other tools (exec_shell, etc).")
         except Exception:
-            print(f"Could not read file. Proceed with other diagnostic tools.")
+            print("Could not read file. Proceed with other diagnostic tools.")
 
 
 if __name__ == "__main__":

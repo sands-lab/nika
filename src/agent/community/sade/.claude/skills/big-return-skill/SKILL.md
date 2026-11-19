@@ -1,6 +1,6 @@
 ---
 name: big-return-skill
-description: Parse oversized MCP tool output. When a tool returns "Output has been saved to <file>.txt" because the result exceeded Claude Code's token limit, run this skill's parser instead of re-reading the file in chunks. Covers `get_reachability` on large topologies.
+description: Parse oversized tool output saved to a file instead of re-reading the file in chunks.
 ---
 
 # Oversized Tool Outputs
@@ -20,7 +20,7 @@ python h.py parse_large "<file_path>"
 
 Auto-detection picks one of two formatters based on payload shape:
 
-- **Reachability**: payload carries `hosts` + `results` (as returned by `get_reachability()`). The reachability formatter groups failures by source/destination, surfaces clustered suspect destinations, and preserves the host/IP inventory.
+- **Reachability**: payload carries `hosts` + `results`. The reachability formatter groups failures by source/destination, surfaces clustered suspect destinations, and preserves the host/IP inventory.
 - **Generic**: any other oversized JSON falls through to a key/structure summary; plain-text payloads are emitted truncated.
 
 Override with `--type reachability` or `--type generic` only if auto-detection picks the wrong formatter.

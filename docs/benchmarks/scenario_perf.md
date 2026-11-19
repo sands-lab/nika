@@ -227,12 +227,12 @@ SONiC-VS on Containerlab is outside the profiled benchmark baseline. This measur
 | Other load | A Kathara `isp_abilene` lab from another session ran throughout. Other NIKA sessions on the same host started and stopped during the run |
 | Leftovers | After every step: no containers and no sessions from this run |
 
-The case file is one healthy row per variant. ISP rows set `topo_size: s`, `rpki: false`, `backend: containerlab`, and `device_profile: sonic`.
+The historical case file has one healthy row per variant. It requires a checkout that still contains the retired `min3clos` implementation. To profile the current fabric, replace the first row with `dc_clos` at size `s`; it is a different measurement. ISP rows set `topo_size: s`, `rpki: false`, `backend: containerlab`, and `device_profile: sonic`.
 
 ```bash
 uv run python - <<'EOF'
 import yaml
-cases = [{"scenario": "dc_clos", "problem": "healthy", "topo_size": "s",
+cases = [{"scenario": "min3clos", "problem": "healthy",
           "backend": "containerlab", "device_profile": "sonic"}]
 for scenario, igp, bgp_mode in (
     ("isp_dfn-bwin", "ospf", "ebgp"),

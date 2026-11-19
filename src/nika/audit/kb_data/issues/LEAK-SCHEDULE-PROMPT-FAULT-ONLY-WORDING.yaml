@@ -1,0 +1,38 @@
+id: LEAK-SCHEDULE-PROMPT-FAULT-ONLY-WORDING
+title: Timed-fault prompts add reporting instructions absent from healthy tasks
+class: shortcut
+severity: warn
+status: fixed
+fixed_in: 5b2b26b705ed74f565a8e66f9f33cdf19a342417
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  The scheduler appended instructions to observe network changes and report
+  recovering faults only for non-static plans. The same environment's healthy
+  and static-fault prompts lacked both lines. These instructions identify the
+  task mode before any network observation.
+guideline: >-
+  Compare agent-visible task descriptions from the same environment and source
+  version. Confirm the extra lines in two timed-fault tasks and their absence
+  in a healthy control. Environment-specific descriptions alone are not a leak.
+  Give healthy, static, and timed tasks identical neutral temporal instructions.
+scope: {}
+detect:
+- kind: text
+  where: [prompt]
+  pattern: 'Observe network changes during this task\.|Report faults observed over time, including faults that recover\.'
+exploit: false
+provenance:
+  source: AUD-xwangz-vm live benchmark audit at 9702d6823
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  Both timed WireGuard-plus-link tasks append the two lines. The matched
+  healthy and static BGP task descriptions omit them. The scheduler source
+  is unchanged between the original source and the native fallback repair.
+
+- >-
+  A native dc_clos control with healthy, static link-down, and timed link-down
+  schedules now produces byte-identical task descriptions. All three owned
+  sessions close successfully.

@@ -1,0 +1,42 @@
+id: LURE-SNAPSHOT-PIDFILE-STALE
+title: Advancing a restored guest clock invalidates live service PID files
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: 532072af1b2772faab669929dd9891bae41b3ca6
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  Firecracker restore set the guest UTC clock to the host clock. In an aged
+  healthy campus snapshot, named.pid then predated the apparent boot time.
+  The image's systemctl replacement emptied the PID file and reported named
+  and bind9 inactive while named kept serving DNS. Native status was active.
+guideline: >-
+  Confirm the running daemon and a successful DNS answer in two readings.
+  Compare PID-file content and timestamps before the first status call, because
+  status itself can clear a file it treats as stale. Compare a fresh restore
+  that preserves guest time. A stopped daemon or an unused installed unit is
+  not this defect. The bind9 alias-only issue is LURE-CAMPUS-BIND9-UNIT-DEAD.
+scope:
+  scenarios: [campus_lan, dc_clos]
+detect:
+- kind: text
+  where: [tool_result]
+  tool: exec_shell
+  call_pattern: 'systemctl\s+status\s+named'
+  pattern: 'named\.service[\s\S]{0,300}?Active: inactive \(dead\)'
+exploit: false
+provenance:
+  source: AUD-xwangz-vm live benchmark audit at 9702d6823
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  Before the first status read: named.pid contains 29, mtime 1794870773,
+  /proc/stat btime 1794871759. DNS resolves web0.local to 10.200.0.3.
+  The status read reports inactive and leaves named.pid empty.
+- >-
+  Native matched control: named and bind9 both active in two readings.
+- >-
+  The same retained image with 507edb0e0 keeps PID 29, mtime 1794870773,
+  btime 1794870721, active named status, and successful DNS in two rounds.

@@ -68,13 +68,16 @@ def test_kathara_classifier_uses_proxy_namespace_and_recovery_removes_proxy() ->
         proxy.remove.assert_called_once_with(state)
 
 
-def test_failed_kathara_load_resumes_hub_and_removes_proxy() -> None:
+@pytest.mark.parametrize(
+    "error", [RuntimeError("load failed"), KeyboardInterrupt("load failed")]
+)
+def test_failed_kathara_load_resumes_hub_and_removes_proxy(error) -> None:
     bitflip = SwitchNamespaceBitflip(SimpleNamespace(lab_name="dc_clos__lab"))
     proxy = MagicMock()
     with (
         patch.object(bitflip, "_proxy", return_value=proxy),
-        patch.object(bitflip, "_load", side_effect=RuntimeError("load failed")),
+        patch.object(bitflip, "_load", side_effect=error),
     ):
-        with pytest.raises(RuntimeError, match="load failed"):
+        with pytest.raises(type(error), match="load failed"):
             bitflip.attach("spine", "eth1", 42)
     proxy.remove.assert_called_once_with(proxy.insert.return_value)

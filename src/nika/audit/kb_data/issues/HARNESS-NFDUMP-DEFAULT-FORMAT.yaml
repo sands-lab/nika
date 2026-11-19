@@ -1,0 +1,21 @@
+id: HARNESS-NFDUMP-DEFAULT-FORMAT
+title: Default nfdump output misrepresents ordinary flow records
+class: harness_defect
+severity: warn
+status: open
+summary: The default nfdump output renders ordinary flow records as epoch-dated INVALID events, while explicit flow formats show their actual timestamps and fields.
+guideline: Compare the same records with an explicit flow format before confirming the issue. Preserve user-selected formats, query options and bidirectional counters when correcting the default.
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: ^nfdump$
+  pattern: '1970-01-01 00:00:00[.]000\s+INVALID\s+Ignore\s+\d+'
+provenance:
+  source: AUD4N xwangz-vm native gateway comparison
+  date: '2026-11-18'
+  refs:
+  - src/nika/service/kathara/netflow_api.py
+  found_by: live_audit
+evidence:
+- Native sdn_l3_clos healthy gateway nfdump with -c 3 reports epoch-dated INVALID records. The same records with -o line and a field format show current timestamps and matching endpoints and byte counts.

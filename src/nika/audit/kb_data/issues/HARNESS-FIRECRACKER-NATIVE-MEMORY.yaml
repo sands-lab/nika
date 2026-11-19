@@ -1,0 +1,44 @@
+id: HARNESS-FIRECRACKER-NATIVE-MEMORY
+title: Derived vendor VM memory is below native admission requirements
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+fixed_in: 756eeeea8caff68a7f3b78df8f0acab3477cac9b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  Derived Firecracker memory omitted native admission headroom or the booted
+  guest reserve. A VM can exceed the platform working-memory budget yet fail
+  its unchanged deployment admission check after boot. Sizing includes the
+  declared topology, telemetry infrastructure, native admission estimate and
+  a 2 GiB guest reserve. Explicit overrides remain operator configuration.
+guideline: >-
+  Compare the failed VM's effective memory with the native platform estimate
+  for the same topology and telemetry. A default derived VM below that
+  estimate is a sizing defect. An explicit small override or insufficient
+  physical host capacity is a configuration or resource limit. Keep those
+  separate. Do not weaken native admission to make the image build.
+detect:
+- kind: source_text
+  where:
+  - harness
+  - tool_result
+  exclude_authored: false
+  pattern: '(?s)\[firecracker\][^\n]*lab image[^\n]*failed:[^\n]*needs an estimated [\d.]+ GiB including headroom; only [\d.]+ GiB is available'
+  source_fingerprints:
+  - src/nika/firecracker/image.py: 2a7524dd72a0bbacc1757882098ca14d7879b38a78f6816c3bf370856feb2971
+  - src/nika/firecracker/image.py: 5eb486e93f34bcd053a5e8b07b0eb24cd2642e5e3b42a97fc92718a086e3ca1e
+provenance:
+  source: ADM-nika01 original lab-image build and AUD-nika01 native fallback
+  date: '2026-11-16'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  Native fallback passed healthy routing, DNS, HTTP, and endpoint checks.
+  tests/nika/firecracker/test_firecracker.py requires the VM to cover the
+  platform estimate and the guest allowance, with declared telemetry applied.
+- >-
+  The code fix is ADM commit efd3df0a reused as 54f9cf9e. Corrected-image
+  restore verification is deferred to orchestration because its 14 GiB VM
+  exceeds the existing hugepage pool. No image rebuild or host change was made.

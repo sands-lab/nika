@@ -1,0 +1,23 @@
+id: HARNESS-NETMASK-NO-LOCAL-CONTROL
+title: Netmask admission fails when the local subnet has no sibling host
+class: harness_defect
+severity: warn
+status: open
+summary: The netmask symptom probe can reject a valid fault before injection when it requires a same-subnet sibling even though a reachable in-subnet gateway can serve as the local control.
+guideline: Verify that the gateway is inside the original subnet and reachable, and retain the original target-loss and control-reachability checks. Do not treat a missing local observer as proof that the fault is absent.
+scope:
+  fault_types:
+  - host_incorrect_netmask
+detect:
+- kind: text
+  where:
+  - harness
+  pattern: 'no_sibling_in_the_real_subnet|no_baseline_observer'
+provenance:
+  source: AUD4N xwangz-vm native admission
+  date: '2026-11-18'
+  refs:
+  - src/nika/validation/symptom/addressing_probes.py
+  found_by: live_audit
+evidence:
+- RouterOS-profile enterprise_branch host_incorrect_netmask 0501a9399c reports no_sibling_in_the_real_subnet at baseline and no_baseline_observer at later symptom checks, while both agent-visible Oracle predicates pass in two injected rounds.

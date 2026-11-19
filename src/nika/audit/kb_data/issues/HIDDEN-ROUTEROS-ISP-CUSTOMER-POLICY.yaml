@@ -1,0 +1,31 @@
+id: HIDDEN-ROUTEROS-ISP-CUSTOMER-POLICY
+title: Healthy RouterOS ISP filters declared customer routes
+class: healthy_lure
+severity: warn
+status: fixed
+summary: The RouterOS policy completion admits business prefixes but omits the declared customer prefix. The healthy Polska deployment consequently reports failed expected-reachable probes from customer and same-AS endpoints, even though BGP sessions establish. Input and export policy bindings need to preserve the authored customer-routing intent.
+guideline: Require RouterOS inventory, a fault-free matched deployment, repeated failures labeled expected=reachable, and live policy or route evidence. Expected isolation is not a baseline defect. Compare the declared customer prefix with accepted routes and policy bindings, rather than raw received-prefix counts, which can include rejected routes. The renderer repair must retain ordinary eBGP export restrictions and only allow customer export on declared partner and internal sessions.
+scope:
+  scenarios:
+  - isp_polska
+  healthy: true
+detect:
+- kind: text
+  tool: prometheus_query
+  where:
+  - tool_result
+  call_pattern: probe_success
+  pattern: (?s)"expected":\s*"reachable"[^}]{0,250}"source":\s*"(?:cust_wroclaw|pc_katowice|pc_krakow|pc_lodz)"\s*\}[^}]{0,80}"value":\s*0\.0
+provenance:
+  source: AUD-k8s-master live native healthy control at 9702d6823
+  date: '2026-11-17'
+  refs:
+  - src/nika/net_env/isp/netlab.py
+  - tests/nika/net_env/isp/test_routeros_render.py
+  - e3d85406
+  found_by: live_audit
+evidence:
+- 'healthy-native-54f083eec956 calls 211 and 215: min by (source,module,expected) (avg_over_time(probe_success[2m])) returned value 0.0 for expected reachable sources cust_wroclaw, pc_katowice, pc_krakow, and pc_lodz. Call 131, routeros_exec wroclaw /export terse, shows POLICY-BGP-IN and POLICY-BGP-OUT accepting business prefixes and ending in reject without the customer prefix. ADM independently committed renderer repair e3d85406; native verification is pending.'
+- ADM native verification at f1e5c290 passed the full Polska task matrix, including healthy agent view, injection, reference diagnosis, persistence, recovery and final health. Independent customer route/ping controls passed. Merged in b8f341b4; round-2 snapshot confirmation remains pending.
+fixed_in: b8f341b4
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

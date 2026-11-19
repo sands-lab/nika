@@ -20,7 +20,7 @@ The leaderboard ranks the **Test main score**, the equal-weight task mean over c
 
 **Terms** (see the [glossary](../../GLOSSARY.md)):
 
-- **Benchmark release**: a published, unchanging set of **tasks**, such as `0.3.0`, split into Dev and Test sets.
+- **Benchmark release**: a published, unchanging set of **tasks**, split into Dev and Test sets.
 - **Trial**: one scored run of a task. The release defines how many trials each task needs.
 - **Scores package** and **trajectories package**: the two submissions above.
 - **`metadata.yaml`**: the entry's name, authors, model, and agent harness. See [its fields](#metadatayaml).
@@ -28,6 +28,8 @@ The leaderboard ranks the **Test main score**, the equal-weight task mean over c
 ## Run Dev and Test with a shared configuration
 
 For a zero-shot evaluation of release 0.3.0, run the main set across Dev and Test in one run. Configure the agent and model as described in [configuration](../operations/configuration.md). The main set includes core, healthy, and multi-fault tasks. Vendor twins and third-size tasks are optional; add `--include-slices` to run them too.
+
+Release 0.3.0 is provisional until its release tag is published. Before then, add `--release-source local` to submission dry runs and validation commands to check against this checkout. These checks are provisional; leaderboard CI requires the published official reference.
 
 ```shell
 uv run nika benchmark run --release 0.3.0 --split dev+test --result_dir results/my-run

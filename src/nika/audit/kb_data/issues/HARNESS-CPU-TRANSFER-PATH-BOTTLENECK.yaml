@@ -1,0 +1,39 @@
+id: HARNESS-CPU-TRANSFER-PATH-BOTTLENECK
+title: Transit capacity masks endpoint CPU service degradation
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+summary: 'The frozen RouterOS CPU row violates the documented bulk-transfer eligibility contract: its capped transit path masks the required slowdown even when CPU realization is correct. Fixdb300cc96 excludes capped paths through the existing capability gate; the frozen provisional row needs reselection.'
+scope:
+  fault_types:
+  - endpoint_cpu_contention
+  healthy: false
+guideline: A CHR Free license is a capacity lead, not a defect by itself. Compare the same healthy and injected transfer through the configured public gateway, inspect the full configured symptom attempts, and confirm CPU realization separately. Use a healthy peer to distinguish server service delay from path RTT or loss. Do not relax the CPU quota, worker count or slowdown threshold. Validate baseline, sham, symptom, persistence, reference and recovery behavior; a command running inside the constrained endpoint can itself time out.
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: routeros_exec
+  exclude_authored: false
+  call_pattern: /system license print
+  pattern: (?m)^\s*level:\s*free\s*$
+  source_fingerprints:
+  - src/nika/problems/endpoint_application/transport.py: 9a69e411ec14efe871ac40264bc4f778d70d3e1177748e93fe7a00c87fb33466
+  - src/nika/problems/endpoint_application/transport.py: d2e6aa6175f180c466c7fc41b6b7f647c430495e3e564dc9ba792780d28a6814
+provenance:
+  source: AUD3-xwangz-vm restored case and paired native public-gateway controls
+  date: '2026-11-17'
+  refs:
+  - https://manual.mikrotik.com/docs/getting-started/routeros-licensing/chr/chr-licensing/
+  - docs/operations/failures.md
+  - docs/operations/network-scenarios.md
+  found_by: live_audit
+evidence:
+- Original source c42b6177 fails all three restored bulk-transfer symptom ratios (0.627, 0.902 and 0.708) against the unchanged 0.20 gate.
+- Clean native 2edb6891e passes the complete worker/quota Oracle, but all three transfer ratios (0.248, 0.302 and 0.360) remain above 0.20. The full failed admission and its baseline telemetry failure remain retained.
+- Public license output reports level free. Healthy 2 MiB transfer speed is 102683 B/s and injected speed is 30726 B/s; public small-response time grows from 0.013583 s to 13.021042 s. ICMP controls receive all three replies in both phases. A local-host alternative times out and is rejected; it is not a validated repair.
+- Canonical ADM correctiondb300cc96 raises the generic minimum path budget to10Mbit/s, removes exactly one working-pool option, leaves frozen files unchanged, and rejects the exact invalid row before environment load. Fifty-four focused and45 native-config release contracts pass. This is eligibility validation, not a passing native admission of the invalid row.
+- Alternative5d6bd096d passes its native small-object measurement (ratios0.0205,0.0143,0.00884), but changes the authored bulk-transfer metric. It is reverted by39a5a0040 and retained on audit-alternative/cpu-http-service as comparison only. Follow-up jobs are stopped before injection and cleanly disposed.
+fixed_in: 22fd3aa28e50cda89269511ae69868bd8e37048b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

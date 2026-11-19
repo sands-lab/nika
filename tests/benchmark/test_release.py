@@ -653,15 +653,18 @@ def test_split_freeze_pins_the_versioned_engine(tmp_path):
         assert frozen.splits[split]["sha256"] == source.splits[split]["sha256"]
 
 
-def test_split_freeze_cleans_staging_when_copy_fails(tmp_path):
+@pytest.mark.parametrize(
+    "error", [OSError("copy failed"), KeyboardInterrupt("copy failed")]
+)
+def test_split_freeze_cleans_staging_when_copy_fails(tmp_path, error):
     source = load_release("0.3.0", split="dev")
     unrelated = tmp_path / "unrelated"
     unrelated.mkdir()
     with patch(
         "nika.workflows.benchmark.release.shutil.copy2",
-        side_effect=OSError("copy failed"),
+        side_effect=error,
     ):
-        with pytest.raises(OSError, match="copy failed"):
+        with pytest.raises(type(error), match="copy failed"):
             freeze_split_release(
                 version="9.8.7", source_dir=source.root, out_dir=tmp_path / "release"
             )

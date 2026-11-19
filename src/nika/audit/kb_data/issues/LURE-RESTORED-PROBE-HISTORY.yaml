@@ -1,0 +1,43 @@
+id: LURE-RESTORED-PROBE-HISTORY
+title: Healthy restored environments expose transient endpoint probe history
+class: healthy_lure
+role: lead
+severity: warn
+status: fixed
+fixed_in: 36fec5eac15bd3ed9c20094673435eae1b98da8b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: Healthy France restores pass environment health, direct paths and the healthy Oracle while transient TCP probe failures remain in the default one-minute Pingmesh history. Pre-injection verification now waits for declared exporter health and fresh observed scrapes before reading the unchanged history predicate. Metric history and isolation intent remain intact; exhaustive rotating-path coverage is not claimed.
+scope:
+  fault_types:
+  - healthy
+  scenarios:
+  - isp_france
+  - isp_polska
+  - enterprise_branch
+guideline: Require a healthy task and matched image/source. Compare unfiltered history before and after handoff with direct reachability and the reference Oracle; retain raw sample timestamps in the lab clock. A later clean reading or native pass alone does not identify the cause. Check fresh scrapes and exporter health before reading history. Preserve failures and policy intent. Rotating observations are not exhaustive path coverage; unavailable probers can rotate out of currently visible failed-scrape rows. Record current and historical queries at handoff before a broad sweep can age out samples. Compare with declared reachability and isolation, current readings, repeated direct checks and matched source/image identity. Retain timestamps and distinguish a single startup observation from repeated reproduction. Reuse LURE-RESTORED-PROBE-HISTORY for the confirmed shared handoff mechanism; controls on other profiles or smaller topologies do not establish selected-topology verification. Preserve metric history and intended isolation.
+detect:
+- kind: source_text
+  where:
+  - harness
+  exclude_authored: false
+  pattern: (?s)"stage":\s*"agent_view",\s*"status":\s*"fail".*?pingmesh unreachable.*?"mode":\s*"case_image"
+  source_fingerprints:
+  - src/nika/remote/handlers.py: 7439e4070d838eb4e9c640d7853f5820fe97275633897fe198892e71feb1928f
+- kind: text
+  where:
+  - tool_result
+  tool: ^prometheus_query$
+  exclude_authored: false
+  call_pattern: '"query"\s*:\s*"count\((?:min_over_time\(probe_success\{expected=\"reachable\"\}\[1m\]\)\s*<\s*1|probe_success\{expected=\"reachable\"\}\s*==\s*0)\)"'
+  pattern: '"value"\s*:\s*[1-9][0-9]*(?:\.0+)?\s*[,}]'
+provenance:
+  source: ADM3-k8s-worker-0 repeated original-source restores and native handoff controls
+  date: '2026-11-17'
+  refs:
+  - LURE-RESTORED-PROBE-HISTORY
+  found_by: live_audit
+evidence:
+- Four c42b6177 restores of isp_france__healthy__88bf49a6c8 fail agent_view with 17, 6, 6 and 32 repeated TCP readings. Baseline/final environment health, 400 direct IPv4 checks, the scenario path and the healthy Oracle pass.
+- "r3b-france-instrumented.jsonl before_view reports 25 anomalies before agent-view probes run; the two agent-view rounds report 25 then 0. Raw failures at 1794899630.710\u20131794899640.009 follow image creation 1794899610.243 and are 70\u201380 seconds old at the final clean reading 1794899710.309. Their underlying network/kernel cause is not established."
+- Clean b0bc6a59 native France admission with the real pre-injection handoff check passes in 293.6 seconds. Real stopped-exporter controls pass on FRR/Kathara in 192.6 seconds and SONiC/Containerlab in 217.4 seconds, including ordinary nika exec, healthy data-plane checks, rejection, recovery, unchanged agent-view assertions and owned-resource cleanup. Corrected snapshot verification remains deferred to integration.
+- At clean 53971fce, the same lifecycle assertions pass on RouterOS enterprise in 269.1 seconds and IOS XR enterprise in 341.4 seconds, reading the deployment's declared ProbeIntent for history checks. Both owned sessions and resources are gone. The additional native SR Linux control is unsupported here because its existing 32 GiB class floor exceeds the 22.76 GiB physical ordinary-memory ceiling with 40 GiB hugepages reserved. Original-source SR Linux snapshot admissions remain separate evidence.

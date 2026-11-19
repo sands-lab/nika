@@ -1,0 +1,36 @@
+id: HARNESS-ROUTEROS-FLOW-TARGET-SETUP
+title: RouterOS flow export starts without a target
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+fixed_in: 427b5fb48
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: RouterOS telemetry setup emits an extra opening brace in its target-creation block. Traffic-flow becomes enabled but no export target exists, and readiness accepts that enabled flag. Healthy and injected tools report supported routers with null record times and empty flow records or load.
+guideline: Require declared NetFlow, active traffic and repeated collector observations after the documented export delay. Read native target count and exporter state through the gateway. Zero targets are valid when NetFlow was not requested. Distinguish unsupported nodes and ordinary export lag from a missing destination. Verify actual records reach the collector after a repair, and retain a zero-target negative readiness control.
+scope:
+  backends:
+  - kathara
+  releases:
+  - 0.3.0
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: ^routeros_exec$
+  call_pattern: /ip(?:/|\s)+traffic-flow(?:/|\s)+target(?:/|\s)+print.*\bcount-only\b
+  exclude_authored: false
+  before_mutation: true
+  pattern: ^\s*0\s*$
+provenance:
+  source: AUD4-k8s-worker-0 frozen healthy/injected gateway observations and native before-fix target check
+  date: '2026-11-17'
+  refs:
+  - src/nika/telemetry/routeros.py
+  - tests/nika/service/test_routeros_bootstrap_live.py
+  - tests/nika/telemetry/test_vendor.py
+  found_by: live_audit
+evidence:
+- Frozen Nobel-US RouterOS healthy and injected flow_coverage results list supported exporters with null newest_record/last_update; flow_records and flow_current_load return empty rows despite the declared workload.
+- The native before-fix control accepts telemetry startup, then each of its six RouterOS target-count queries returns 0. The frozen Seattle native log separately records the setup syntax error. The emitted target block has two opening braces and one closing brace.
+- "Native repaired regression passes across healthy, injected and recovered states: six exporters have targets and received records; local and remote command-copy reads are empty, native BGP events remain visible, and a fresh recovery event reaches syslog. Owned session and runtime resources are gone."

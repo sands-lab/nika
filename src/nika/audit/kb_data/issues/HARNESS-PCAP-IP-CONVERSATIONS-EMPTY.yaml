@@ -1,0 +1,57 @@
+id: HARNESS-PCAP-IP-CONVERSATIONS-EMPTY
+title: IPv4 capture summaries discard native conversation rows
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: d50e4f5f729117c3296518fbe156517e97bd4246
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: A summary view reports positive IPv4 frame counts and endpoints but no conversations.
+  Its parser treats the native IPv4 '<->' table as an address-and-port table, then tries to
+  parse the bytes unit as an integer and drops every row.
+guideline: Confirm that captured IPv4 packets and distinct endpoints exist before treating
+  an empty conversation list as a defect. Compare a read-only tshark conv,ip table on the
+  same capture where the node policy permits shell access. IPv4 conversation rows have no
+  transport ports. Native conversation sizes can include SI suffixes such as
+  kB; preserve their scale and display rounding. Check returned byte counts
+  against per-frame sums, rather than accepting any positive number.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: packet_capture_inspect
+  call_pattern: '"view":\s*"summary"'
+  pattern: (?s)"protocol":\s*"ip",\s*"frames":\s*[1-9]\d*.*?"conversations":\s*\[\s*\]
+exploit: false
+provenance:
+  source: AUD2-xwangz-vm healthy SONiC snapshot at fe40daca
+  date: '2026-11-17'
+  refs:
+  - tests/fixtures/packet_capture/tshark_ipv4_conversations.txt
+  found_by: live_audit
+evidence:
+- packet_capture_inspect(capture_id=617e9a0107264730989f717b0c29d415, view=summary, limit=5)
+  returns IPv4 frames=128, four IPv4 endpoints, and conversations=[]. A second capture returns
+  the same discrepancy.
+- A network-isolated native tshark process reads a deterministic two-frame IPv4 control and
+  emits one conversation with 2 frames and 1516 bytes; the historical parser discards that
+  real table row. This process control confirms the parser format, not the original task state.
+- 'Native PacketCaptureLiveE2ETest.test_all_inspect_views_and_container_pcap_persistence passes
+  positive/absent protocol totals and nonempty IPv4 conversation output.'
+- >-
+  Independent nika01 healthy native Cost266, Sun, and restored llmd summaries
+  also report IPv4 frames and distinct endpoints with empty conversations.
+  Local selective port fb437e33 and unit repair 98a96dc6 pass native MCP verification.
+- >-
+  The first local selective-port control exposed an additional parser-format
+  error: 42 frames and 20 kB in native conv,ip became frames=42, bytes=20.
+  Endpoints on the same capture report 20152 bytes. This is a regression in
+  the draft conversation repair, not an observed scalar error in fe40daca
+  (whose conversation array is empty). Its positivity-only native assertion
+  is rejected.
+- >-
+  Renewed native MCP control at 98a96dc6 compares conversations with exact
+  per-packet sums: 8 frames / 11536 bytes, 20 / 2129, and 42 / 20152.
+  Returned frame counts agree; byte values preserve native SI rounding.
+  Protocol counts, version fields and the empty-filter control still pass.
+  Zero owned machines, links and state sessions remain.

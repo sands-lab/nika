@@ -1,0 +1,36 @@
+id: HARNESS-ROUTEROS-PREFIX-LOCAL-DELIVERY
+title: Native prefix origination does not deliver the requested address locally
+class: harness_defect
+role: lead
+severity: block
+status: fixed
+summary: A restored bgp_hijacking case advertises and selects the intended prefix, but a public traceroute reaches the originator and then times out. The provider creates a connected bridge address; other addresses in that prefix require neighbor resolution. This violates the local-prefix delivery contract used by the symptom probe.
+scope:
+  fault_types:
+  - bgp_hijacking
+  backends:
+  - kathara
+  healthy: false
+guideline: Require healthy reachability, the selected native path, and failure at the originator. A path timeout alone can be the intended symptom of another fault. Verify the complete normal native admission and controls without relaxing reachability or Oracle predicates.
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: exec_shell
+  exclude_authored: false
+  call_pattern: traceroute.*(?:[0-9]{1,3}\.){3}[0-9]{1,3}
+  pattern: (?m)^\s*12\s+\*
+  source_fingerprints:
+  - src/nika/net_env/utils/routeros/fault_ops.py: 65490263e4f284cd83d69a35ccef160da6e03f53e25bd09ea2adad625e928843
+provenance:
+  source: AUD3-xwangz-vm review of final-source restored admission and its public reference reads
+  date: '2026-11-17'
+  refs:
+  - results/20261117-133206-test-7d3297/oracle.json
+  found_by: live_audit
+evidence:
+- 'Native admission at clean4ee9a5ef7, with provider blobs identical to correction385f8f02f passes all required stages, full reference evidence, and persistence. Separate recovery evidence follows. Public extra controls receive all three replies at both target-prefix addresses and the outside-prefix control. Provider hashes match before/after; no new containers or networks remain.'
+- 'Separate native control at clean 64941cbb7 verifies healthy, injected and recovered public state. Original NAT output is restored; the selected specific prefix is withdrawn; all three endpoint controls pass. Provider hashes match and all owned containers/session are absent.'
+- 'Provenance distinction: native driver receipt records385f8f02f at launch; the audit record is clean4ee9a5ef7, whose only additional changes are KB records. Both runtime-provider blobs match exactly and before/after provider hashes are stable. The separate recovery control is clean64941cbb7.'
+fixed_in: cee83d2fd13396dbbb8423240764168ba89c335e
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

@@ -1,0 +1,42 @@
+id: HARNESS-WEB-DOS-CONNECTION-EVIDENCE
+title: HTTP service exits and loses reference connection evidence
+class: harness_defect
+severity: warn
+status: fixed
+summary: The original SONiC Clos case image initially realizes web_dos_attack, then its unbounded HTTP service exceeds the 256 MiB cgroup budget. The service exits, public source connection counts collapse, and the reference and late persistence checks fail. A bounded service retains the original connection evidence and recovers without a restart in native validation.
+guideline: Repeat public victim and source connection reads and compare a healthy service. On a Linux endpoint, inspect process state, port listeners and readable cgroup OOM counters. A low count alone is a lead. Distinguish service exit from a sustained observable symptom, and distinguish privileged kernel corroboration from agent-visible evidence. Bound service concurrency within its memory budget, retain the reference thresholds, verify late evidence and healthy recovery, and close only owned diagnostic resources. Native success does not establish corrected snapshot admission.
+scope:
+  scenarios:
+  - dc_clos
+  fault_types:
+  - web_dos_attack
+  healthy: false
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: exec_shell
+  pattern: '(?m)^(?:open (?:[0-9]|[1-9][0-9])|top(?: (?:[0-9]|[1-9][0-9]))?)\s*$'
+- kind: text
+  where:
+  - tool_result
+  tool: exec_shell
+  call_pattern: memory\.events
+  exclude_authored: false
+  pattern: (?m)^oom_kill\s+[1-9]\d*\s*$
+exploit: false
+provenance:
+  source: AUD2-xwangz-vm live SONiC lab-image restore at fe40daca
+  date: '2026-11-17'
+  refs:
+  - src/nika/problems/security/web.py
+  - tests/nika/service/test_static_http_capacity_live.py
+  found_by: live_audit
+evidence:
+- Round one calls 120/121 report top 11 and open 0. Round two calls 191/193 report an empty top count and open 0. Observer curl calls 118/190 report HTTP 000 with connect time zero. These are exact MCP reads, not nika exec.
+- At c42b6177, public snapshot calls show a defunct static service, no port 80 listener, memory.max 268435456 and oom_kill 1. Repeated reference counts are top 3 and open 0. Original snapshot admission fails Oracle and both late artifact/symptom windows.
+- Privileged guest kernel diagnostics independently confirm a cgroup OOM kill of Python. At the event the cgroup records about 125 MB anonymous memory, 113 MB socket memory and 29 MB kernel memory. This corroboration is separate from the public gateway evidence.
+- At clean, unchanged ffb01f42, the exact native SONiC Clos variant passes full admission and a late reference. The victim remains below 93 MiB in sampled reads under its 256 MiB limit, with zero OOM events and at most 129 threads including the main thread. The independent service remains healthy. Recovery closes the injecting instance's owned processes, HTTP returns 200 without a service restart, and the victim returns to one thread. The session and all runtime resources close.
+- Two earlier native attempts pass admission and late evidence but fail test-only recovery helpers. The retained complete regression passes after retaining the injecting instance. No reference threshold, workload, fault parameter or image is weakened or rebuilt. Corrected snapshot admission belongs to integration.
+fixed_in: 36fec5eac15bd3ed9c20094673435eae1b98da8b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

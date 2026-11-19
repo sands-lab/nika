@@ -1,0 +1,56 @@
+id: HARNESS-K8S-OWNER-GUIDANCE
+title: Kubernetes configuration owner guidance permits the wrong granularity
+class: label_unidentifiable
+role: known
+severity: warn
+status: fixed
+fixed_in: ecedb1c569a34f924de1b19d082656073acb576f
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  Service fault ground truth uses node/controller, but the environment brief
+  permits Kubernetes objects and the public ontology says node_or_k8s. The
+  catalog accepts the actual faulty Service ID while exact scoring rejects
+  that Service against the controller-node label. The existing cluster
+  configuration ownership convention is absent from the agent guidance.
+scope:
+  scenarios:
+  - k8s_lab
+  - llmd_lab
+guideline: >-
+  Compare the public ontology owner kind and shared environment brief with
+  the materialized resource kind. State the existing controller-device
+  ownership convention for Service, Deployment, Ingress and load-balancer
+  configuration. State node ownership for node-local faults and Kubernetes
+  object ownership for NetworkPolicy. Preserve materialized labels and
+  scoring when clarifying the existing convention. Hypothetical score
+  controls establish the interface mismatch, not an observed agent error.
+detect:
+- kind: text
+  where:
+  - prompt
+  - init
+  pattern: '(?s)"id"\s*:\s*"k8s_service_(?:selector|target_port)_mismatch"(?:(?!"id"\s*:).)*"owner_kind"\s*:\s*"node_or_k8s"'
+provenance:
+  source: AUD2-nika01 llmd Service observations and original public interface control
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  The actual Service llm-d/llm-d-epp has a selector mismatch and empty
+  endpoints. Original fe40daca ownership_entries exposes node_or_k8s for
+  both Service failure IDs. The normal catalog and submit validator accept
+  k8s/Service/llm-d/llm-d-epp, while hypothetical scoring gives it F1=0
+  against node/controller; the controller resource gives F1=1. No agent
+  trial or observed score effect is claimed.
+- >-
+  The working fix makes K8sProblemBase ownership node, with NetworkPolicyDeny
+  explicitly k8s. Both environment briefs explain the existing convention.
+  The release-wide contract checks every ground-truth resource kind against
+  the public hint; eight focused checks require the precise Kubernetes kinds.
+- >-
+  Native public submission catalog at clean c6ab33c3 exposes owner_kind=node
+  for both Service faults and k8s for NetworkPolicy; the actual Service ID
+  remains in the catalog. The shared brief states configuration faults on
+  controller. The same run verifies the real selector fault and recovery,
+  preserves provider hashes and closes with zero owned resources.

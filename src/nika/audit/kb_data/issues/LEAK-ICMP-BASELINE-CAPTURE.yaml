@@ -1,0 +1,45 @@
+id: LEAK-ICMP-BASELINE-CAPTURE
+title: ICMP case baselines retain a named pre-fault capture
+class: shortcut
+role: known
+severity: block
+status: fixed
+fixed_in: 22fd3aa28e50cda89269511ae69868bd8e37048b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The ICMP filtering baseline leaves /tmp/probe-icmp.pcap in the receiving host after reading its packet counts. Restored cases expose an 884-byte capture through normal shell inventory, while matched healthy labs have no such file. The named validation trace discloses the incident family and preserves pre-fault probe traffic.
+guideline: Require a pre-existing returned capture inventory or contents and a matched healthy control. Typed filenames do not establish a leak. Use a uniquely owned temporary capture, wait for its bounded process, read the same code4/code3 measurements and remove the file on success or failure. Verify the actual baseline and repeated fault/recovery path through the agent gateway on every selected profile.
+scope:
+  fault_types:
+  - icmp_frag_needed_filter_misconfiguration
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: exec_shell
+  call_pattern: find|stat
+  pattern: (?m)^\d+\s+\d+\s+[1-9]\d*\s+/tmp/probe-icmp\.pcap\s*$
+  before_mutation: true
+- kind: text
+  tool: exec_shell
+  where:
+  - tool_result
+  call_pattern: \b(?:find|ls|stat)\b
+  pattern: (?m)^.*(?:\s|^)/tmp/probe-icmp\.pcap\s*$
+- kind: text
+  tool: exec_shell
+  where:
+  - tool_result
+  call_pattern: \btcpdump\b[^\r\n]*/tmp/probe-icmp\.pcap
+  pattern: (?m)^.*\bICMP\b[^\r\n]*(?:need to frag|port [0-9]+ unreachable)
+provenance:
+  source: AUD-k8s-master original c42 restored enterprise and RouterOS Clos cases; matched healthy controls
+  date: '2026-11-17'
+  refs:
+  - enterprise_branch__icmp_frag_needed_filter_misconfiguration__0c58f0b32b
+  - dc_clos__mtu_mismatch+icmp_frag_needed_filter_misconfiguration__42bde4c94d
+  - src/nika/validation/symptom/icmp_probes.py
+  - tests/nika/service/test_icmp_baseline_live.py
+  found_by: live_audit
+evidence:
+- Original enterprise case0c58f0b32b call58 returns1794897775 1794897775 884 /tmp/probe-icmp.pcap from br1_corp_pc. RouterOS compound case42bde4c94d call70 returns1794898594 1794898594 884 /tmp/probe-icmp.pcap from client_1_1. Matching healthy controls have neither capture.
+- Candidate d4c6568c uses a unique temporary file, awaits the eight-second capture and removes its owned file in finally. Packet generation and five-per-code predicates remain unchanged. The retained live test shares baseline, measured healthy, repeated fault, recovery and public cleanup assertions across FRR enterprise and RouterOS Clos deployments. Native d4c6568c FRR (4 CPU/5 GiB) and identical-provider 2977ee96 RouterOS (7 CPU/14 GiB) checks pass with baseline, healthy and recovered code4/code3 counts are 5/5; injected and repeated counts are 0/5. Each profile records ten public process/file reads without capture remnants and owned runtime cleanup. Both cold guests close with no sessions or containers, and the shared base remains unchanged. This proves the shared ICMP component; final merged-source snapshot and compound-task reruns remain required.

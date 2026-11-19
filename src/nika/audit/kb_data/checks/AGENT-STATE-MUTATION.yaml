@@ -2,15 +2,15 @@ id: AGENT-STATE-MUTATION
 title: Agent sent a state-changing command to a lab node
 class: agent_integrity
 role: lead
-severity: warn
-status: open
-summary: A node exec tool ran a command that changes configuration, routes, rules, processes, or services.
-  Repairs can erase the fault and the evidence; later reports then describe the agent's own changes.
-guideline: 'Check whether the change touched the faulted component and whether the fault was still present
-  at cleanup (validity flag fault_absent_at_cleanup). A trial whose agent removed the fault before submitting
-  is invalid, not a benchmark defect. NIKA does not detect or block exec_shell changes (a project decision),
-  so this audit is the only check: back each conclusion with independent evidence (fault_absent_at_cleanup,
-  the state before and after the command, or the command''s own output), not with the command text alone.'
+severity: info
+status: by_design
+summary: Device and controller CLI commands may change configuration, routes, rules, processes, or services.
+  Agent writes are allowed by design (user decision, 2026-11-16).
+guideline: 'Use mutation records to interpret observations after an agent changes device state.
+  A CLI write, repair, or high mutation rate alone is not an integrity defect.
+  Evaluate presence checks and scoring against their independent contracts and the observed state.'
+evidence:
+- 'Historical policy treated agent repairs that erased a fault as invalid. Superseded on 2026-11-16.'
 detect:
 - kind: mutation
 - kind: metric

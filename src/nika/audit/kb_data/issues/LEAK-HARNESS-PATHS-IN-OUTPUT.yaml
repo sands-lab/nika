@@ -12,7 +12,7 @@ detect:
 - kind: text
   where:
   - tool_result
-  pattern: /opt/nika|/var/lib/nika|/etc/nika|/nika-bootstrap|nika:tap:|p4rt_manager\.py|nika/(?:base|frr)\b|\bnika-[a-z][\w-]*|router
+  pattern: /opt/nika|/var/lib/nika|/etc/nika|/nika-bootstrap|nika:tap:|nika/(?:base|frr)\b|\bnika-[a-z][\w-]*|router
     isis NIKA|area-tag NIKA
 exploit: false
 provenance:
@@ -22,5 +22,6 @@ provenance:
   - '#206'
   found_by: manual
 guideline: 'Benchmark identity, not a specific fault: it may appear in every trial, healthy ones included.
-  A hit on a commit after the fix is a regression.'
+  A hit on a commit after the fix is a regression. A generic P4Runtime utility basename such as
+  p4rt_manager.py under /opt/p4rt does not identify NIKA; require an actual benchmark marker.'
 fixed_in: 7edc92aa

@@ -1,0 +1,46 @@
+id: LEAK-P4-BASELINE-PROBES
+title: P4 case images retain named baseline listeners and status files
+class: shortcut
+role: known
+severity: block
+status: fixed
+fixed_in: 643d667f12c118e4838cf271143ed6911f9ee0f1
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: Healthy case-baseline capture leaves validation-only receivers or persistent HTTP clients inside the saved P4 case. Their command lines and named probe files disclose the incident family independently of normal network diagnosis. Matched healthy lab observations have neither fixture.
+guideline: Require a pre-existing helper process or returned file inventory plus a matched healthy control. Typed filenames alone are not evidence. Compare the actual baseline API before injection, repeated symptoms and recovery. Use declared workload sessions or finite probes that finish and remove their owned artifacts before returning; renaming a persistent fixture does not resolve the shortcut.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  fault_types:
+  - silent_egress_packet_loss
+  - lb_connection_state_exhaustion
+  - lb_pending_connection_update_race
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: exec_shell
+  call_pattern: \bps\b
+  pattern: (?m)^.*\bpython3?\b[^\r\n]*probe-(?:udp-loss\.log|lb-flows\.status)
+  before_mutation: true
+- kind: text
+  where:
+  - tool_result
+  tool: exec_shell
+  call_pattern: find|stat
+  pattern: (?m)^\d+\s+\d+\s+[1-9]\d*\s+/tmp/probe-(?:udp-loss\.log|lb-flows\.status)\s*$
+  before_mutation: true
+provenance:
+  source: AUD-k8s-master original c42 restored P4 cases and matched healthy control
+  date: '2026-11-17'
+  refs:
+  - p4_dc_gateway__silent_egress_packet_loss__c4c7ea9ee1
+  - p4_dc_gateway__lb_pending_connection_update_race__54e9718253
+  - LEAK-NAT-BASELINE-PROBE
+  found_by: live_audit
+evidence:
+- Silent-loss calls71/81 return python3 receiver command lines opening /tmp/probe-udp-loss.log on service_1_1 and service_2_1. Calls69/79 return 40960-byte files. Matched healthy fd384daf45e7 has no such process or file.
+- Pending-LB call32 returns a persistent Python HTTP client naming /tmp/probe-lb-flows.status, and call30 returns its345-byte file. The healthy control has neither. Other LB case scope must be confirmed against its retained calls.
+- Candidate50f216f9 bounds silent-loss receivers to each counted round and returns packet identities in memory. Target/control thresholds, pacing and counts are unchanged. The exact large native lifecycle is verified below.
+- 'Silent-loss instance is fixed by50f216f9 and natively verified at immutableee4c0009 on the exactlargeenvironment. The actual baseline API receives4096datagrams; a measured healthy negative and recovery each show0%on both paths, with repeated target-onlyfaultloss1.276%and1.658%. All30normalgateway process/file/listener checks reject fixture remnants. Owned resources are absent, guest closed/base unchanged. LB proof follows below.'
+- Native LB source 81098949 includes ordinary VIP sessions from18601cdf and preserves nominal aggregate cadence. Both exact large admissions pass in an 8-CPU/13-GiB cold guest. Two measured healthy controls update the actual pool with16original sessions progressing and zero of eight trial sessions broken. Twelve native runtime process and file reads across the baseline and measured rounds return no retained fixture. The guest closes with empty sessions and containers, and the base remains unchanged. Final combined-source snapshot reruns remain required.

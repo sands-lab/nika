@@ -181,7 +181,7 @@ Default production and benchmark paths use light runtime checks without Batfish 
 
 | Key | Default | Meaning and constraints |
 | --- | --- | --- |
-| `benchmark.release` | `null` | Frozen release selected when `--release` is absent. |
+| `benchmark.release` | `null` | Benchmark release selected when `--release` is absent. |
 | `benchmark.split` | `null` | Release split selected when `--split` is absent. |
 | `benchmark.include_slices` | `false` | Add vendor twins and third-size comparisons to the main set. `--include-slices` and `--main-only` override this setting. |
 | `benchmark.batch_size` | `1` | Max concurrent light trials (sliding window). Must be at least `1`. |

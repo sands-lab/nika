@@ -1,0 +1,42 @@
+id: HARNESS-SONIC-NESTED-DOCKER-DISCOVERY
+title: SONiC show commands discover local FRR through an absent nested Docker CLI
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: b8f341b4d03646caa806e068b6e32005497e7dd3
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: >-
+  The single-container SONiC-VS image runs FRR locally. Upstream show.main
+  nevertheless discovers the routing stack with sudo docker ps at import
+  time. A valid show interfaces status call emits docker: not found, and the
+  failed discovery leaves routing_stack empty instead of selecting FRR.
+guideline: >-
+  Reproduce with a documented show command in a healthy SONiC environment.
+  Compare interface output and route-command availability after selecting the
+  declared local FRR stack before show.main imports. Do not suppress stderr:
+  repair discovery so other CLI failures remain visible.
+scope: {}
+detect:
+- kind: text
+  where: [tool_result]
+  tool: sonic_exec_cli
+  pattern: 'exec: docker: not found|Failed to get routing stack'
+exploit: false
+provenance:
+  source: AUD-xwangz-vm healthy snapshot at 9702d6823
+  date: '2026-11-17'
+  refs: []
+  found_by: live_audit
+evidence:
+- >-
+  sonic_exec_cli(device_name=leaf_2, command=show interfaces status) returns
+  the interface table followed by /usr/local/bin/sudo: 2: exec: docker: not found.
+  The same suffix occurs on all six healthy SONiC switches.
+- >-
+  Administrative inspection of the pinned image, not agent evidence, confirms
+  show.main.get_routing_stack executes sudo docker ps and overwrites the FRR
+  default with empty stdout.
+
+- >-
+  Patched native sonic_exec_cli reads of interfaces, IP routes, and BGP summary
+  pass in two rounds without nested Docker discovery. The owned lab closes.

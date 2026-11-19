@@ -1,0 +1,35 @@
+id: HARNESS-CORRUPTION-TCP-RECOVERY-REJECTED
+title: Reference diagnosis rejects TCP recovery during a realized fault
+class: harness_defect
+severity: warn
+status: fixed
+summary: The device_forwarding_packet_corruption reference required some of 24 TCP requests to time out. A fresh snapshot completed all 24 requests while receiver checksum counters grew and filtered probe captures contained invalid TCP checksums. TCP recovered the affected data, so the timeout predicate rejected the realized fault.
+guideline: A successful request is not proof that no packets were corrupted. Require the authored reference call, positive receiver checksum deltas and invalid-checksum packets attributed to its fresh probe tuples on both disjoint paths. Confirm TCP retransmissions through sender counter growth. Keep complete probe counts, zero local-bind errors, receiver deltas, filtered captures, independent paths and healthy/recovered controls; an all-success response alone does not establish this issue.
+scope:
+  fault_types:
+  - device_forwarding_packet_corruption
+  agent_types:
+  - oracle
+  healthy: false
+detect:
+- kind: source_text
+  where:
+  - tool_result
+  tool: exec_shell
+  call_pattern: curl.*--local-port
+  pattern: (?m)^ok=24 failed=0 local_errors=0\s*$
+  source_fingerprints:
+  - src/nika/problems/forwarding_encapsulation_policy/switch_internal_corruption.py: cd37afb6f5e9a3cbe5c62ce3e5085b43e2bd0e5612aa0594639123238e6b4bf1
+provenance:
+  source: ADM-k8s-master round-3 live Firecracker admission at c42b6177; public diagnosis MCP reference calls
+  date: '2026-11-17'
+  refs:
+  - enterprise_branch__device_forwarding_packet_corruption__4a0e173b0f
+  - tests/nika/problems/test_device_fault_localization.py
+  found_by: live_audit
+evidence:
+- Original live reference step6 returns ok=24 failed=0 local_errors=0. hq_srv TcpInCsumErrors grows60->78 and the scoped capture reports16 invalid probe packets. The disjoint internet_web path grows50->328 with176 invalid probe packets. Only the first timeout predicate fails.
+- 'ADM native repair66a666ba adds sender retransmission growth and retains complete probes, receiver checksum/capture attribution and independent paths. The exact native verification receipt is recorded below; AUD own-case restore is pending.'
+- 'Exact-case native full matrix passes at clean66a666ba; all stages, both sender retransmission checks, receiver deltas and filtered packet attribution pass. Cleanup confirms zero sessions, containers and networks. AUD own-case snapshot restore remains pending.'
+fixed_in: 22fd3aa28e50cda89269511ae69868bd8e37048b
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4

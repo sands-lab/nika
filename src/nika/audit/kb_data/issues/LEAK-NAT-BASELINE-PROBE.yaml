@@ -1,0 +1,45 @@
+id: LEAK-NAT-BASELINE-PROBE
+title: Case images retain named NAT baseline helpers
+class: shortcut
+role: known
+severity: block
+status: fixed
+fixed_in: 272eb085412b8cab32dad30b547834d2a980b44c
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: Case-image healthy baseline capture started a test-only TCP listener and flow client. Their command lines named probe-nat files, and the saved case retained the listener, translated peer-address log and broken-flow status. Those artifacts disclosed the NAT task family independently of normal diagnosis. The matched healthy lab had none of them.
+guideline: Require a pre-existing helper process or returned artifact contents, with a matched healthy control. A typed filename or failed read is not evidence. Distinguish normal public-service sessions and logs from test-only baseline fixtures. Baselines should use declared workload services and leave no persistent listener, client or status/log file in the case image.
+scope:
+  fault_types:
+  - nat_mapping_removed_without_drain
+  - snat_port_pool_exhaustion
+detect:
+- kind: text
+  tool: exec_shell
+  where:
+  - tool_result
+  call_pattern: \bps\b
+  pattern: (?m)^.*\bpython3?\b[^\r\n]*probe-nat-(?:peers\.log|flow\.status)
+- kind: text
+  tool: exec_shell
+  where:
+  - tool_result
+  call_pattern: /tmp/probe-nat-peers\.log
+  pattern: (?m)^[0-9]+(?:\.[0-9]+){3}\s*$
+- kind: text
+  tool: exec_shell
+  where:
+  - tool_result
+  call_pattern: /tmp/probe-nat-flow\.status
+  pattern: (?m)^(?:alive|broken)(?=\s|/tmp/|$)
+exploit: false
+provenance:
+  source: 0.3.0 round-2 live audit on k8s-worker-0; matched healthy and restored NAT case-image gateway observations at fe40daca
+  date: '2026-11-17'
+  refs:
+  - tests/nika/service/test_nat_baseline_live.py
+  found_by: live_audit
+evidence:
+- 'Normal-policy process output on internet_web: python3 -u -c import socket, threading log = open(''/tmp/probe-nat-peers.log'', ...)'
+- The FRR NAT case returns 198.18.1.10 from the peer log and broken from the flow-status file. The matched healthy server has no helper listener or named files.
+- Native acceptance assertions are shared by the selected FRR and IOS XR profiles, cover both NAT failures and recovery, and check the agent-visible process/file/listener surface after the actual case-baseline API.
+- Native FRR and IOS XR checks both pass healthy case-baseline capture, injected symptoms and recovery for both failures. All 72 agent-policy process, file and listener observations reject the original fixture signatures; owned resources are absent.

@@ -46,6 +46,29 @@ def test_prepared_burst_retains_process_if_stop_command_fails():
 
 
 @pytest.mark.unit
+def test_standalone_burst_cleans_receivers_when_ecn_read_fails():
+    runtime = Mock()
+    runtime.get_data_plane_host_ip.side_effect = ["192.0.2.2", "192.0.2.1"]
+    runtime.exec.side_effect = ['[123, 456, "boot"]', "read failed", "stopped"]
+
+    with pytest.raises(RuntimeError, match="Could not read TCP ECN"):
+        BurstTrafficGenerator(runtime).run(
+            sources=["source"],
+            destination="destination",
+            protocol="tcp",
+            rate="1M",
+            packet_size=128,
+            duration=1,
+            synchronized_start=0,
+            seed=1,
+        )
+
+    commands = [call.args[1] for call in runtime.exec.call_args_list]
+    assert not any("sysctl -w" in command for command in commands)
+    assert "stop_owned([123, 456, 'boot'])" in shlex.split(commands[-1])[2]
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize("rate", ["8K/0", "0/4", "invalid"])
 def test_invalid_raw_rate_is_rejected_before_starting_receivers(rate):
     runtime = Mock()

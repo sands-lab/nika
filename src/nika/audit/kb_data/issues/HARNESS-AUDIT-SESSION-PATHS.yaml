@@ -1,0 +1,35 @@
+id: HARNESS-AUDIT-SESSION-PATHS
+title: Native audit loses deployed Containerlab paths
+class: harness_defect
+role: lead
+severity: warn
+status: fixed
+fixed_in: 96fc6b38342ab244c8ad17e6a508403bdad5a9e7
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: Native audit reconstruction preserved scenario identity but dropped the deployed Containerlab topology and runtime directories. Provenance capture then failed before fault validation on a normally deployed environment.
+guideline: Require a deployed healthy lab and persisted topology metadata before attributing this error. Restore deployment paths after canonical environment construction. Preserve missing-topology rejection. An offline topology identity check does not establish a live runtime binding. This is validator evidence, not an agent diagnosis or a missing-fault observation.
+scope:
+  backends:
+  - containerlab
+detect:
+- kind: source_text
+  where:
+  - harness
+  - tool_result
+  exclude_authored: false
+  pattern: 'ValueError: Containerlab env [^\r\n]{1,180} has no topology_file\.'
+  source_fingerprints:
+  - scripts/benchmark_audit/live.py: bccace8036746be4d0871e825ebc04ca0610cad06b1d68aee09125a08f5b1e61
+    src/nika/runtime/factory.py: 171e1dc7cb343adc385ef9985c43b3cc6ae015537322368643235751250a0f82
+exploit: false
+provenance:
+  source: AUD3-nika01 native audit reconstruction and retained ADM normal-deployment failure
+  date: '2026-11-17'
+  refs:
+  - scripts/benchmark_audit/live.py
+  - tests/benchmark/test_audit_controls.py
+  found_by: live_audit
+evidence:
+- 'Original provider at c42b6177 and43b80184 raises ValueError: Containerlab env ''dc_clos__1117071436-4c3a3b'' has no topology_file during provenance capture, before fault validation.'
+- Both metadata layouts fail before repair. The repaired constructor retains their deployed paths for Clos and fixed ISP environments and still rejects missing topology metadata.
+- 'Pinned native healthy audit at36e8d53f passes baseline_lab, agent_view, oracle and final_lab. Exact lab resources and its running session document are absent after close.'

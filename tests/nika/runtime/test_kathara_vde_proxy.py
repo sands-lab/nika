@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import statistics
 import time
+from unittest.mock import patch
 
 import pytest
 
@@ -48,6 +49,58 @@ def _throughput(runtime: KatharaRuntime, *, reverse: bool) -> float:
         assert "error" not in result, result
         rates.append(result["end"]["sum_received"]["bits_per_second"])
     return statistics.median(rates)
+
+
+@pytest.mark.skipif(not docker_available(), reason="Docker required for VDE proxy")
+def test_pre_ready_failure_resumes_the_owned_hub(tmp_path) -> None:
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.runtime.base import RuntimeCapabilityError
+    from nika.runtime.factory import net_env_kwargs_for_session, resolve_backend
+    from nika.runtime.kathara import vde_proxy
+    from nika.runtime.meta import meta_path
+    from nika.utils.session import Session
+    from nika.workflows.env.start import start_net_env
+    from nika.workflows.session.close import close_session
+
+    session_id = start_net_env("dc_clos", "s", result_dir=str(tmp_path), telemetry=[])
+    try:
+        session = Session().load_running_session(session_id=session_id)
+        env = get_net_env_instance(
+            session.scenario_name,
+            lab_name=session.lab_name,
+            backend=resolve_backend(session),
+            **net_env_kwargs_for_session(session),
+        )
+        env.topology_file = meta_path(session, "topology_file", scenario_params=True)
+        env.runtime_workdir = meta_path(
+            session, "runtime_workdir", scenario_params=True
+        )
+        runtime = KatharaRuntime(env)
+        address = runtime.get_data_plane_host_ip("web_1")
+        assert address
+        assert "0% packet loss" in runtime.exec(
+            "client_1_1", f"ping -c 2 -W 2 {address}", timeout=15
+        )
+        proxy = KatharaVdeFaultProxy(runtime)
+        target = '_PROCESS_HELPERS["send_pidfd"](switch_fd, signal.SIGSTOP)'
+        assert vde_proxy._SPLICE_SOURCE.count(target) == 1
+        source = vde_proxy._SPLICE_SOURCE.replace(
+            target,
+            target
+            + '\n            print("HUB_PAUSED", flush=True)\n            time.sleep(60)',
+        )
+        with (
+            patch.object(vde_proxy, "_SPLICE_SOURCE", source),
+            patch.object(vde_proxy, "_READY_TIMEOUT_SEC", 6),
+            pytest.raises(RuntimeCapabilityError, match="HUB_PAUSED"),
+        ):
+            proxy.insert("client_1_1", "eth0")
+        assert proxy.discover("client_1_1", "eth0") is None
+        assert "0% packet loss" in runtime.exec(
+            "client_1_1", f"ping -c 2 -W 2 {address}", timeout=15
+        )
+    finally:
+        close_session(session_id, undeploy=True, status="finished")
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker required for VDE proxy")

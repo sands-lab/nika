@@ -1,0 +1,28 @@
+id: HARNESS-ECN-HEALTHY-SHAM
+title: ECN symptom becomes positive on a measured healthy control
+class: harness_defect
+role: known
+severity: warn
+status: open
+summary: The native candidate passes ECN baseline capture with1738 received and53 CE-marked packets, but its next uninjected target burst receives1711 withzero CE while the sibling receives1922 with1185 CE. The healthy-sham predicate therefore falsely confirms the fault. This is measured at candidate2d705acc, not an additional claim about the original c42 snapshot.
+guideline: Preserve the real healthy sham and the fault/recovery predicates. Measure whether each target burst exercises the declared marking threshold; distinguish insufficient target pressure from disabled marking. Revalidate after changes to workload cadence, CPU allocation or receiver timing.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  fault_types:
+  - p4_ecn_marking_disabled
+detect:
+- kind: text
+  where:
+  - harness
+  exclude_authored: false
+  pattern: (?s)"stage"\s*:\s*"sham_symptom"\s*,\s*"status"\s*:\s*"fail"\s*,\s*"reason"\s*:\s*"the symptom predicate holds on the healthy lab".*?"fault_type"\s*:\s*"p4_ecn_marking_disabled"
+provenance:
+  source: AUD live benchmark validation record at 2d705acc
+  date: '2026-11-17'
+  refs:
+  - p4_dc_gateway__p4_ecn_marking_disabled__5b3c24cbce
+  found_by: live_audit
+evidence:
+- The native candidate passes ECN baseline capture with1738 received and53 CE-marked packets, but its next uninjected target burst receives1711 withzero CE while the sibling receives1922 with1185 CE. The healthy-sham predicate therefore falsely confirms the fault. This is measured at candidate2d705acc, not an additional claim about the original c42 snapshot.
+- The original records remain unchanged. ADM owns the runtime validation repair and native verification.

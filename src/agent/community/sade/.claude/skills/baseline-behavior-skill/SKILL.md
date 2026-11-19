@@ -23,9 +23,8 @@ description: Reference list of signals that look suspicious but are normal testb
 
 ## Routing And FRR
 
-- `frr_show_running_config` and `frr_show_ip_route` can look healthy even if FRR is dead; check the daemon processes directly.
-- FRR helper tools use `router_name`.
-- If you are unsure of the FRR schema, use `exec_shell(host_name="<router>", command="vtysh -c '...'")`.
+- Configuration and cached routes can look healthy even if a routing daemon is down. Compare protocol state with observations from peers.
+- Use `device_read` for FRR router commands and the platform CLI tool for native routers.
 - Cached routes can keep ping working after OSPF or BGP breaks.
 
 ## Service And HTTP

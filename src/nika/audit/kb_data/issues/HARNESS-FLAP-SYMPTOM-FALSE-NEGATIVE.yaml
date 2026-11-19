@@ -1,0 +1,28 @@
+id: HARNESS-FLAP-SYMPTOM-FALSE-NEGATIVE
+title: Restored link-flap admission rejects the observable periodic fault
+class: harness_defect
+role: known
+severity: warn
+status: open
+summary: Original restored RouterOS case passes artifact and reference checks but fails all three symptom windows. The first54 samples all fail; later56-sample windows contain onlyone qualifying answered run. Normal MCP calls138/139 observe UP/DOWN on the authored attachment, and call140 observes56 sent/12 replies in separated runs. The fault is live and observable; admission still rejects its sampled symptom.
+guideline: Keep MIN_RUN and MIN_CYCLES and matched healthy/recovery controls. Retain the actual send count, duration, reply deadlines, carrier transitions and path recovery when diagnosing the undersampled train. A passing reference or carrier transition does not justify weakening the symptom assertion.
+scope:
+  scenarios:
+  - dc_clos
+  fault_types:
+  - link_flap
+detect:
+- kind: text
+  where:
+  - harness
+  exclude_authored: false
+  pattern: (?s)(?=.*"fault"\s*:\s*"link_flap")(?=.*"stage"\s*:\s*"oracle"\s*,\s*"status"\s*:\s*"pass")(?=.*"stage"\s*:\s*"image_symptom"\s*,\s*"status"\s*:\s*"fail").*?"periodic_loss"\s*:\s*false
+provenance:
+  source: AUD live benchmark validation record at c42b6177
+  date: '2026-11-17'
+  refs:
+  - dc_clos__link_flap__b5937ef29e
+  found_by: live_audit
+evidence:
+- Original restored RouterOS case passes artifact and reference checks but fails all three symptom windows. The first54 samples all fail; later56-sample windows contain onlyone qualifying answered run. Normal MCP calls138/139 observe UP/DOWN on the authored attachment, and call140 observes56 sent/12 replies in separated runs. The fault is live and observable; admission still rejects its sampled symptom.
+- The original records remain unchanged. ADM owns the runtime validation repair and native verification.

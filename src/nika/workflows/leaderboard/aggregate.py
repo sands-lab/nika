@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from collections import Counter, defaultdict
-from math import sqrt
+from math import isfinite, sqrt
 from statistics import mean
 
 from scipy.stats import t as student_t
@@ -412,7 +412,7 @@ def metrics_nearly_equal(a: AggregatedMetrics, b: AggregatedMetrics) -> list[str
     ):
         left = float(getattr(a, field))
         right = float(getattr(b, field))
-        if abs(left - right) > _FLOAT_TOL:
+        if not (isfinite(left) and isfinite(right)) or abs(left - right) > _FLOAT_TOL:
             issues.append(f"metrics.{field}: expected {left}, got {right}")
     for field in (
         "conditional_mean_rca_f1",
@@ -426,7 +426,7 @@ def metrics_nearly_equal(a: AggregatedMetrics, b: AggregatedMetrics) -> list[str
         if left is None or right is None:
             issues.append(f"metrics.{field}: expected {left!r}, got {right!r}")
             continue
-        if abs(float(left) - float(right)) > _FLOAT_TOL:
+        if not (isfinite(left) and isfinite(right)) or abs(left - right) > _FLOAT_TOL:
             issues.append(f"metrics.{field}: expected {left}, got {right}")
     if a.token_totals != b.token_totals:
         issues.append(
@@ -449,7 +449,10 @@ def metrics_nearly_equal(a: AggregatedMetrics, b: AggregatedMetrics) -> list[str
             )
     # Older packages omit this additive metric.
     if a.case_consistency is not None and b.case_consistency is not None:
-        if abs(a.case_consistency - b.case_consistency) > _FLOAT_TOL:
+        if (
+            not (isfinite(a.case_consistency) and isfinite(b.case_consistency))
+            or abs(a.case_consistency - b.case_consistency) > _FLOAT_TOL
+        ):
             issues.append(
                 f"metrics.case_consistency: expected {a.case_consistency}, "
                 f"got {b.case_consistency}"

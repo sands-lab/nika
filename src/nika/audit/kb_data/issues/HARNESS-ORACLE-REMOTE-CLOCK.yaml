@@ -1,0 +1,31 @@
+id: HARNESS-ORACLE-REMOTE-CLOCK
+title: Reference telemetry window uses the frontend clock for a restored guest
+class: harness_defect
+severity: warn
+status: fixed
+fixed_in: 643d667f12c118e4838cf271143ed6911f9ee0f1
+fixed_in_equivalent: a310a899777c7de1398b95237e88f322c92614f4
+summary: The silent-loss reference records time.time() in the frontend process and uses it as the INT window start inside a restored guest. The preserved guest clock can lag by hours, excluding packets sent by the reference.
+guideline: A zero-packet result is only a lead. Confirm that the pinned playbook captures frontend time and compare the actual query start with an agent-visible guest timestamp produced by a known source. Read the lab kernel clock through an allowed tool before sampling and use that saved value for the query. Preserve delivery sample and loss thresholds.
+scope:
+  scenarios:
+  - p4_dc_gateway
+  fault_types:
+  - silent_egress_packet_loss
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: int_query_telemetry
+  pattern: (?s)"observed":\s*0,\s*"delivered":\s*0,\s*"missing":\s*0
+provenance:
+  source: AUD-k8s-master round-2 cross-call and pinned-source review at fe40daca
+  date: '2026-11-17'
+  refs:
+  - tests/nika/problems/test_silent_loss_oracle.py
+  - src/nika/net_env/utils/kathara/p4rt_manager.py
+  found_by: live_audit
+evidence:
+- "Case c4c7ea9ee1 call134 guest arbitration.election_id1794882132210231955 is produced by time.time_ns in the pinned manager. INT calls143\u2013152 use start_time1794893479.0592701, over3hours later; calls144/145 show observed0. Pinned oracle begin() captures frontend time.time, establishing the mechanism separately from empty telemetry."
+- 'Native91950118 reads time.time_ns through allowed exec_shell and passes observed768 per phase, healthy/recovery missing0 and both fault missing14. Unit controls require the saved remote timestamp. Corrected restored-image admission awaits integration/rebuild.'
+- Round3 c42 public call166 reports arbitration.election_id1794898874641730186 from the pinned guest time.time_ns producer, while call175 uses frontend start_time1794911558.5021155, about12684seconds later. Empty delivery is therefore supported by cross-call clock evidence. Native8a step3 reads lab1794904234534262316 and the query returns1000observations; only the clock/window component is verified, while its overall healthy delivery control still fails report integrity. All owned resources close.

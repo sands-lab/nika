@@ -298,6 +298,27 @@ def _identity_path(package: Path) -> Path:
     return package / RESULTS_DIRNAME / IDENTITY_FILENAME
 
 
+@pytest.mark.parametrize("target", ["aggregate", "trial"])
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_validation_rejects_nonfinite_scores(mini_release_env, target, value):
+    _, result_dir = mini_release_env
+    package = _pack(result_dir)
+    if target == "aggregate":
+        path = package / "results" / "metrics.json"
+        data = json.loads(path.read_text())
+        data["mean_rca_f1"] = value
+    else:
+        path = next((package / "results" / "trials").glob("*/result.json"))
+        data = json.loads(path.read_text())
+        data["metrics"]["rca_f1"] = value
+    path.write_text(json.dumps(data))
+
+    report = validate_leaderboard_submission(package)
+
+    assert not report.ok
+    assert "ERROR_RESULTS_INVALID" in [issue.code for issue in report.issues]
+
+
 def test_absent_fault_rejects_pack_and_trajectory_validation(mini_release_env) -> None:
     from nika.workflows.leaderboard.validate_trajectories import (
         validate_trajectory_package,
