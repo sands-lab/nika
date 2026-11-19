@@ -182,6 +182,9 @@ def inject_prepared_failure(
     expected_root_causes: list | None = None,
 ) -> dict[str, Any]:
     """Run the injection workflow and return its verification evidence."""
+    from nika.service.pingmesh.baseline import freeze_session_latency_baseline
+
+    freeze_session_latency_baseline(SessionStore().get_session(session.session_id))
     resolved_names = problem_names
     session.update_session("problem_names", resolved_names)
     bind_session_dir(session.session_dir)

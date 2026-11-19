@@ -28,7 +28,7 @@ class BackendResolveTest:
             lambda *args, **kwargs: None,
         )
         monkeypatch.setattr(
-            "nika.workflows.env.start._calibrate_pingmesh",
+            "nika.workflows.env.start._initialize_pingmesh_latency",
             lambda *args, **kwargs: None,
         )
 

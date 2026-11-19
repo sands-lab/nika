@@ -440,6 +440,12 @@ class AgentViewProbe:
             f"pingmesh {a['type']} {a['source']} -> {a['target']}": False
             for a in snapshot.get("anomalies") or []
         }
+        results.update(
+            {
+                f"pingmesh {a['type']} {a['source']} -> {a['target']}": None
+                for a in snapshot.get("unverified") or []
+            }
+        )
         if snapshot.get("anomalies_omitted"):
             results["pingmesh anomalies omitted"] = False
         summary = dict(snapshot.get("summary") or {})
@@ -1188,7 +1194,7 @@ def run_agent_view(
     """Run the healthy agent-view probes on a deployed session."""
     from nika.net_env.net_env_pool import get_probe_path
     from nika.net_env.probe_intent import ProbeIntent
-    from nika.service.pingmesh.baseline import read_latency_baseline
+    from nika.service.pingmesh.baseline import capture_latency_baseline
     from nika.service.pingmesh.recorded import recorded_mesh
     from nika.telemetry import PINGMESH, telemetry_for_session
     from nika.telemetry.pingmesh import topology_plan
@@ -1198,7 +1204,11 @@ def run_agent_view(
     runtime = net_env._build_runtime()
     intent = ProbeIntent.from_metadata(meta.get("metadata"))
     mesh_enabled = PINGMESH in telemetry_for_session(meta)
-    baselines = read_latency_baseline(meta["session_dir"]) if mesh_enabled else {}
+    baselines = (
+        capture_latency_baseline(api, meta["session_dir"], intent)
+        if mesh_enabled
+        else {}
+    )
     isolated = intent.isolation_matcher() if intent else (lambda _a, _b: False)
 
     def pingmesh() -> dict[str, Any]:

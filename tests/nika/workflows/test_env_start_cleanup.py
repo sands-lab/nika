@@ -124,7 +124,7 @@ def test_static_validation_requires_explicit_opt_in(
         patch("nika.workflows.env.start.get_net_env_instance", return_value=env),
         patch("nika.workflows.env.start.apply_telemetry", return_value={}),
         patch("nika.workflows.env.start._configure_telemetry"),
-        patch("nika.workflows.env.start._calibrate_pingmesh"),
+        patch("nika.workflows.env.start._initialize_pingmesh_latency"),
         patch("nika.workflows.env.start.verify_lab_with_retry", return_value=None),
         patch("nika.workflows.env.start.Session", return_value=session),
         patch("nika.workflows.env.start.bind_session_dir"),
@@ -170,7 +170,7 @@ def test_yaml_static_validation_setting_enables_batfish(
         patch("nika.workflows.env.start.get_net_env_instance", return_value=env),
         patch("nika.workflows.env.start.apply_telemetry", return_value={}),
         patch("nika.workflows.env.start._configure_telemetry"),
-        patch("nika.workflows.env.start._calibrate_pingmesh"),
+        patch("nika.workflows.env.start._initialize_pingmesh_latency"),
         patch("nika.workflows.env.start.verify_lab_with_retry", return_value=None),
         patch("nika.workflows.env.start.Session", return_value=session),
         patch("nika.workflows.env.start.bind_session_dir"),
@@ -203,9 +203,9 @@ def test_baseline_is_sealed_after_started_workloads(tmp_path, defer_background):
 
     def seal():
         assert actions == (
-            ["business", "calibrate"]
+            ["business", "latency_window"]
             if defer_background
-            else ["business", "background", "calibrate"]
+            else ["business", "background", "latency_window"]
         )
         actions.append("sealed")
 
@@ -226,8 +226,8 @@ def test_baseline_is_sealed_after_started_workloads(tmp_path, defer_background):
         patch("nika.workflows.env.start.apply_telemetry", return_value={}),
         patch("nika.workflows.env.start._configure_telemetry"),
         patch(
-            "nika.workflows.env.start._calibrate_pingmesh",
-            side_effect=lambda *_: actions.append("calibrate"),
+            "nika.workflows.env.start._initialize_pingmesh_latency",
+            side_effect=lambda *_: actions.append("latency_window"),
         ),
         patch("nika.workflows.env.start.verify_lab_with_retry", return_value=None),
         patch("nika.workflows.env.start.Session", return_value=session),

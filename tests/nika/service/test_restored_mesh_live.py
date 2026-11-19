@@ -72,7 +72,11 @@ def test_healthy_handoff_rejects_unavailable_prober_and_recovers(
         env = session_net_env(meta)
         intent = ProbeIntent.from_metadata(meta["metadata"])
         baselines = read_latency_baseline(meta["session_dir"])
-        assert handle_session_verify(sid)["verified"]
+        verification = handle_session_verify(sid)
+        assert verification["ready"]
+        if verification["pingmesh"]["summary"]["latency_status"] == "unverified":
+            assert verification["verified"] is False
+            assert verification["checks"]["pingmesh_latency"] is None
         observations.append(
             {
                 "phase": "healthy",
@@ -126,11 +130,28 @@ def test_healthy_handoff_rejects_unavailable_prober_and_recovers(
         )
         runtime.exec(node, f"kill -CONT {stopped}")
         stopped = None
-        assert handle_session_verify(sid)["verified"]
+        verification = handle_session_verify(sid)
+        assert verification["ready"]
+        if verification["pingmesh"]["summary"]["latency_status"] == "unverified":
+            assert verification["verified"] is False
         recovered = recorded_mesh(api, intent=intent, baselines=baselines)
         assert not recovered["anomalies"], recovered
-        view = run_agent_view(sid, env, scenario, "s")
-        assert not view["violated_count"] and not view["error_count"], view
+        unverified_flags = set()
+
+        def audit_mesh(*args, **kwargs):
+            snapshot = recorded_mesh(*args, **kwargs)
+            unverified_flags.update(
+                f"pingmesh {item['type']} {item['source']} -> {item['target']}"
+                for item in snapshot.get("unverified", [])
+            )
+            return snapshot
+
+        with monkeypatch.context() as patch:
+            patch.setattr("nika.service.pingmesh.recorded.recorded_mesh", audit_mesh)
+            view = run_agent_view(sid, env, scenario, "s")
+        assert not view["violated_count"], view
+        assert view["error_count"] == len(unverified_flags), view
+        assert set(view["error"]) <= unverified_flags, view
         observations.append(
             {"phase": "recovered", "mesh": recovered, "agent_view": view}
         )

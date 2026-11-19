@@ -276,21 +276,15 @@ def _configure_telemetry(net_env: Any, session: Session, *, scenario: str) -> No
         )
 
 
-def _calibrate_pingmesh(
-    net_env: Any, session: Session, intent: Any, backend: str
-) -> None:
-    from nika.service.lab.host_api import create_host_api
-    from nika.service.pingmesh.baseline import capture_latency_baseline
-    from nika.utils.session_store import SessionStore
+def _initialize_pingmesh_latency(session: Session) -> None:
+    from nika.service.pingmesh.baseline import initialize_latency_baseline
 
-    meta = SessionStore().get_session(session.session_id)
-    api = create_host_api(
-        lab_name=net_env.name,
-        backend=backend,
-        runtime=net_env._build_runtime(),
-        session_meta=meta,
+    initialize_latency_baseline(session.session_dir)
+    log_event(
+        "latency_verification_pending",
+        "Latency evidence is not verified. Background probes continue sampling.",
+        session_id=session.session_id,
     )
-    capture_latency_baseline(api, session.session_dir, intent)
 
 
 def start_net_env(
@@ -706,7 +700,7 @@ def start_net_env(
                 duration_ms=elapsed_ms(traffic_started),
             )
         if "pingmesh" in telemetry_kinds:
-            _calibrate_pingmesh(net_env, session, probe_intent, resolved_backend)
+            _initialize_pingmesh_latency(session)
         net_env.seal_baseline()
     except BaseException as exc:
         # Session is registered before deploy; clean up so interrupted starts

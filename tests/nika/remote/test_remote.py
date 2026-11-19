@@ -106,7 +106,24 @@ def test_recovered_protocols_require_complete_verification(restored):
 @pytest.mark.parametrize(
     "snapshot,exporters_ready,scrape_at,ready",
     [
-        ({"summary": {"observed_targets": 2}, "anomalies": []}, True, 11, True),
+        (
+            {
+                "summary": {"observed_targets": 2, "latency_status": "verified"},
+                "anomalies": [],
+            },
+            True,
+            11,
+            True,
+        ),
+        (
+            {
+                "summary": {"observed_targets": 2, "latency_status": "unverified"},
+                "anomalies": [],
+            },
+            True,
+            11,
+            True,
+        ),
         ({"summary": {"observed_targets": 2}, "anomalies": []}, True, 9, False),
         ({"summary": {"observed_targets": 2}, "anomalies": []}, False, 11, False),
         (
@@ -162,7 +179,13 @@ def test_restored_mesh_requires_readable_healthy_history(
 
         fresh.side_effect = completed_scrape
         if ready:
-            assert handlers.handle_session_verify("owned")["verified"]
+            result = handlers.handle_session_verify("owned")
+            assert result["ready"] is True
+            assert result["verified"] is (
+                snapshot["summary"]["latency_status"] == "verified"
+            )
+            if not result["verified"]:
+                assert result["checks"]["pingmesh_latency"] is None
         else:
             with pytest.raises(RuntimeError, match="Pingmesh is not ready"):
                 handlers.handle_session_verify("owned")

@@ -1,4 +1,6 @@
-"""Read observed mesh history for healthy-state auditing."""
+"""Read mesh history and report latency coverage separately from readiness."""
+
+import math
 
 from nika.service.kathara.prometheus_api import prometheus_query_for
 from nika.service.pingmesh.baseline import sustained_high_latency
@@ -52,39 +54,64 @@ def recorded_mesh(
         (row["metric"]["source"], row["metric"]["target"]): row["values"]
         for row in previous_latency
     }
-    for row in latency:
-        labels = row["metric"]
-        path = (labels["source"], labels["target"])
-        if path not in baselines:
-            anomalies.append(
+    current = {
+        (row["metric"]["source"], row["metric"]["target"]): row["values"]
+        for row in latency
+    }
+    paths = set(baselines) | set(current)
+    paths.update(
+        (row["metric"]["source"], row["metric"]["target"])
+        for row in rows
+        if row["metric"].get("expected") != "isolated"
+        and row["metric"].get("module", "icmp") == "icmp"
+    )
+    unverified = []
+    latency_failed = False
+    for source, target in sorted(paths):
+        path = (source, target)
+        baseline = baselines.get(path)
+        declared = intent is not None and intent.max_expected_rtt_ms is not None
+        threshold = intent.latency_threshold_ms(0) / 1000 if declared else None
+        basis = "declared design limit"
+        if baseline is not None:
+            relative = max(0.05, baseline * 2.5, baseline + 0.075)
+            if threshold is None or relative < threshold:
+                threshold = relative
+                basis = f"healthy baseline {baseline} seconds"
+
+        # Count raw scrapes, not overlapping maxima or resampled instant values.
+        def values(points):
+            return [
+                value
+                for _stamp, value in points
+                if isinstance(value, (int, float))
+                and math.isfinite(value)
+                and value > 0
+            ]
+
+        samples = values(current.get(path, []))
+        earlier = values(previous.get(path, []))
+        if threshold is None or min(len(samples), len(earlier)) < 2:
+            unverified.append(
                 {
-                    "source": labels["source"],
-                    "target": labels["target"],
-                    "type": "unknown",
-                    "detail": "No healthy latency baseline is available for this path.",
+                    "source": source,
+                    "target": target,
+                    "type": "latency_unverified",
+                    "detail": "A declared latency limit or healthy baseline and repeated observations are required.",
                 }
             )
             continue
-        baseline = baselines[path]
-        if baseline is None:
-            continue
-        threshold = max(0.05, baseline * 2.5, baseline + 0.075)
-        # Count raw scrapes, not overlapping maxima or resampled instant values.
-        samples = [value for _stamp, value in row["values"]]
         high = sustained_high_latency(samples, threshold)
-        earlier = [
-            value
-            for _stamp, value in previous.get((labels["source"], labels["target"]), [])
-        ]
         prior_high = sustained_high_latency(earlier, threshold)
         if not high or not prior_high:
             continue
+        latency_failed = True
         anomalies.append(
             {
-                "source": labels["source"],
-                "target": labels["target"],
+                "source": source,
+                "target": target,
                 "type": "high_latency",
-                "detail": f"ICMP RTT exceeds {threshold} seconds (healthy baseline {baseline} seconds) in {prior_high}/{len(earlier)} and {high}/{len(samples)} samples in consecutive one-minute windows",
+                "detail": f"ICMP RTT exceeds {threshold} seconds ({basis}) in {prior_high}/{len(earlier)} and {high}/{len(samples)} samples in consecutive one-minute windows",
             }
         )
     pairs = {(row["metric"]["source"], row["metric"]["target"]) for row in rows}
@@ -93,6 +120,16 @@ def recorded_mesh(
             "total_pairs": len(pairs),
             "observed_targets": len(rows),
             "anomaly_count": len(anomalies),
+            "latency_status": "failed"
+            if latency_failed
+            else "unverified"
+            if unverified
+            else "verified"
+            if paths
+            else "not_applicable",
+            "latency_pairs": len(paths),
+            "latency_unverified_pairs": len(unverified),
         },
         "anomalies": anomalies,
+        "unverified": unverified,
     }

@@ -48,6 +48,30 @@ def test_missing_declared_pingmesh_baseline_is_not_a_healthy_audit(
     assert "pingmesh-latency-baseline.json" in stage.reason
 
 
+def test_unverified_latency_does_not_produce_a_healthy_agent_view():
+    from scripts.benchmark_audit.agent_view import AgentViewProbe
+
+    probe = AgentViewProbe(
+        lambda *_args, **_kwargs: "",
+        machines={},
+        endpoints=[],
+        backend="kathara",
+        isolated=lambda _a, _b: False,
+        zone_files={},
+        pingmesh=lambda: {
+            "anomalies": [],
+            "unverified": [
+                {"type": "latency_unverified", "source": "a", "target": "b"}
+            ],
+            "summary": {"latency_status": "unverified"},
+        },
+    )
+    flags, _summary = probe._pingmesh_round()
+    result = summarize_agent_view([{"pingmesh": flags}, {"pingmesh": flags}], [{}, {}])
+    assert result["error_count"] == 1
+    assert result["violated_count"] == 0
+
+
 def test_classify_rounds_separates_stable_from_flaky_and_unmeasured() -> None:
     rounds = [
         {"a": True, "b": False, "c": False, "d": None},

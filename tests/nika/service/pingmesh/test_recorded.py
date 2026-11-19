@@ -93,9 +93,9 @@ def test_recorded_latency_requires_a_majority_in_both_windows(monkeypatch, earli
     assert recorded.recorded_mesh(None, baselines={("a", "b"): 0.01})["anomalies"] == []
 
 
-@pytest.mark.parametrize("budget_ms", [None, 2000])
-def test_recorded_latency_uses_path_baseline_not_declared_wan_budget(
-    monkeypatch, budget_ms
+@pytest.mark.parametrize("budget_ms, high", [(None, True), (2000, True), (100, True)])
+def test_recorded_latency_retains_healthy_history_with_a_declared_limit(
+    monkeypatch, budget_ms, high
 ):
     labels = {"source": "a", "target": "b", "expected": "reachable"}
 
@@ -108,12 +108,9 @@ def test_recorded_latency_uses_path_baseline_not_declared_wan_budget(
 
     monkeypatch.setattr(recorded, "prometheus_query_for", query)
     intent = ProbeIntent(max_expected_rtt_ms=budget_ms)
-    assert (
-        recorded.recorded_mesh(None, intent, baselines={("a", "b"): 0.01})["anomalies"][
-            0
-        ]["type"]
-        == "high_latency"
-    )
+    result = recorded.recorded_mesh(None, intent, baselines={("a", "b"): 0.01})
+    assert bool(result["anomalies"]) is high
+    assert result["summary"]["latency_status"] == ("failed" if high else "verified")
 
 
 def test_recorded_latency_reports_missing_path_baseline(monkeypatch):
@@ -127,9 +124,10 @@ def test_recorded_latency_reports_missing_path_baseline(monkeypatch):
         return []
 
     monkeypatch.setattr(recorded, "prometheus_query_for", query)
-    assert (
-        recorded.recorded_mesh(None, baselines={})["anomalies"][0]["type"] == "unknown"
-    )
+    result = recorded.recorded_mesh(None, baselines={})
+    assert not result["anomalies"]
+    assert result["unverified"][0]["type"] == "latency_unverified"
+    assert result["summary"]["latency_status"] == "unverified"
 
 
 def test_unavailable_latency_baseline_does_not_hide_unreachable_path(monkeypatch):
@@ -165,3 +163,24 @@ def test_recorded_latency_compares_each_direction_to_its_own_baseline(monkeypatc
     assert [(a["source"], a["target"], a["type"]) for a in anomalies] == [
         ("a", "b", "high_latency")
     ]
+
+
+@pytest.mark.parametrize("budget_ms, high", [(2000, False), (100, True)])
+def test_declared_design_limit_checks_latency_without_waiting_for_a_baseline(
+    monkeypatch, budget_ms, high
+):
+    labels = {"source": "a", "target": "b", "expected": "reachable"}
+
+    def query(_api, *, query, limit):
+        if "probe_success" in query:
+            return [{"metric": labels, "value": 1}]
+        if "duration_seconds" in query:
+            return [{"metric": labels, "values": [[1, 0.2], [2, 0.2]]}]
+        return []
+
+    monkeypatch.setattr(recorded, "prometheus_query_for", query)
+    result = recorded.recorded_mesh(
+        None, ProbeIntent(max_expected_rtt_ms=budget_ms), baselines={("a", "b"): None}
+    )
+    assert bool(result["anomalies"]) is high
+    assert result["summary"]["latency_status"] == ("failed" if high else "verified")

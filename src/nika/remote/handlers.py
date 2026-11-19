@@ -526,12 +526,13 @@ def handle_session_verify(
     result = verify_lab_with_retry(
         net_env, full=initial_baseline or bool(meta.get("runtime_restored"))
     )
+    observed: dict[str, Any] = {}
     if PINGMESH in telemetry_for_session(meta):
         from nika.net_env.probe_intent import ProbeIntent
         from nika.problems.support.polling import wait_until
         from nika.service.kathara.prometheus_api import prometheus_query_for
         from nika.service.lab.host_api import create_host_api
-        from nika.service.pingmesh.baseline import read_latency_baseline
+        from nika.service.pingmesh.baseline import capture_latency_baseline
         from nika.service.pingmesh.recorded import recorded_mesh
 
         metadata = meta.get("metadata") or {}
@@ -542,10 +543,9 @@ def handle_session_verify(
             lab_name=meta["lab_name"], backend=resolve_backend(meta), session_meta=meta
         )
         intent = ProbeIntent.from_metadata(metadata)
-        baselines = read_latency_baseline(meta["session_dir"])
+        baselines = capture_latency_baseline(api, meta["session_dir"], intent)
         runtime = net_env._build_runtime()
         fresh_after = time.time()
-        observed: dict[str, Any] = {}
 
         def mesh_ready() -> bool:
             observed.clear()
@@ -568,21 +568,40 @@ def handle_session_verify(
                 "Restored Pingmesh is not ready: "
                 f"{observed.get('summary', 'no recorded samples')}"
             )
-    verified = result is not None  # None: the scenario has no startup verification
-    if initial_baseline and verified:
+    scenario_verified = result is not None
+    latency = (
+        observed.get("summary", {}).get("latency_status", "unverified")
+        if observed
+        else None
+    )
+    verified = scenario_verified and latency not in ("unverified", "failed")
+    if initial_baseline and scenario_verified:
         net_env.seal_baseline()
-    outcome = "passed again" if verified else "skipped (no startup verification)"
+    outcome = (
+        "passed again"
+        if verified
+        else "ready; latency unverified"
+        if scenario_verified
+        else "skipped (no startup verification)"
+    )
+    checks = dict((result or {}).get("checks") or {})
+    if observed:
+        checks["pingmesh_readiness"] = True
+        checks["pingmesh_latency"] = None if latency == "unverified" else True
     log_event(
         "env_reverify",
         f"Lab verification {outcome} for {meta.get('scenario_name')} "
         f"({meta.get('lab_name')})",
         session_id=session_id,
         verified=verified,
-        checks=(result or {}).get("checks"),
+        checks=checks,
+        latency_status=latency,
         duration_ms=round((time.monotonic() - started) * 1000, 1),
     )
     return {
         "session_id": session_id,
+        "ready": True,
         "verified": verified,
-        "checks": (result or {}).get("checks"),
+        "checks": checks,
+        "pingmesh": observed,
     }
