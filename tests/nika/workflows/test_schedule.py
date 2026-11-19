@@ -21,6 +21,118 @@ from nika.workflows.benchmark.trials import case_key_for_row, has_valid_submissi
 pytestmark = pytest.mark.contract
 
 
+@pytest.mark.parametrize("timed", [False, True])
+def test_scheduled_fault_freezes_healthy_latency_before_mutation(
+    tmp_path, monkeypatch, timed
+):
+    from nika.problems.rca import ProblemGroundTruth, RootCause, interface_resource
+    from nika.service.lab import host_api
+    from nika.service.pingmesh import baseline
+    from nika.workflows import schedule as runtime
+    from nika.workflows.failure.inject import PreparedFailure
+
+    now = [100.0]
+    mutated = [False]
+    monkeypatch.setattr(baseline.time, "time", lambda: now[0])
+    baseline.initialize_latency_baseline(str(tmp_path))
+    now[0] = 104.0
+
+    def query(_api, *, query, limit):
+        assert not mutated[0], "Fault samples must not enter the healthy baseline"
+        if query.startswith("pingmesh_endpoint_supported"):
+            return [{"node": "a"}, {"node": "b"}]
+        return [
+            {
+                "metric": {"source": "a", "target": "b"},
+                "values": [[101, 0.01], [102, 0.02], [103, 0.03]],
+            }
+        ]
+
+    monkeypatch.setattr(baseline, "prometheus_query_for", query)
+    monkeypatch.setattr(host_api, "create_host_api", lambda **_: None)
+    meta = {
+        "session_dir": str(tmp_path),
+        "lab_name": "latency-contract",
+        "backend": "kathara",
+        "scenario_params": {"telemetry": ["pingmesh"]},
+    }
+    session = SimpleNamespace(
+        session_dir=str(tmp_path),
+        store=SimpleNamespace(
+            get_session=lambda _: meta,
+            update_failure_injection=lambda *args: None,
+        ),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "Session",
+        lambda: SimpleNamespace(load_running_session=lambda **_: session),
+    )
+    inject_params = {"host_name": "client_1_1", "intf_name": "eth0"}
+    row = {
+        "scenario": "dc_clos",
+        "topo_size": "s",
+        "problem": "link_down",
+        "inject": inject_params,
+    }
+    if timed:
+        row.pop("problem")
+        row.pop("inject")
+        row["schedule"] = {
+            "agent_start": 0,
+            "events": [{"problem": "link_down", "at": 0.01, "inject": inject_params}],
+        }
+    scheduler = runtime.SessionScheduler(
+        "latency-contract", schedule_for_task(normalize_benchmark_row(row))
+    )
+    env = SimpleNamespace(align_saved_configs=lambda: None)
+
+    def inject():
+        window = json.loads((tmp_path / baseline.WINDOW_FILE).read_text())
+        assert window["frozen_at"] == 104.0
+        assert baseline.read_latency_baseline(str(tmp_path)) == {
+            ("a", "b"): 0.02,
+            ("b", "a"): None,
+        }
+        mutated[0] = True
+        now[0] = 1000.0
+
+    truth = ProblemGroundTruth(
+        is_anomaly=True,
+        root_causes=[
+            RootCause(resource=interface_resource("a", "eth0"), fault_type="link_down")
+        ],
+    )
+    problem = SimpleNamespace(
+        inject_fault=inject,
+        verify_fault=lambda: {"verified": True},
+        get_ground_truth=lambda: truth,
+        recover_fault=lambda: {"verified": True},
+        check_runtime_compatible=lambda **_: None,
+        net_env=env,
+    )
+    scheduler.net_env = env
+    scheduler._prepared = {(0, 0): PreparedFailure(problem, None)}
+    scheduler._failure_ids = {(0, 0): 0}
+    monkeypatch.setattr(scheduler, "_write_truth", lambda: None)
+    monkeypatch.setattr(
+        "nika.problems.support.recovery.verify_recovered_environment", lambda _: None
+    )
+    scheduler.start()
+    try:
+        assert scheduler.complete.wait(5), scheduler.status()
+        scheduler.raise_if_failed()
+        assert mutated[0]
+        saved = (tmp_path / baseline.BASELINE_FILE).read_bytes()
+        assert baseline.capture_latency_baseline(None, str(tmp_path), None) == {
+            ("a", "b"): 0.02,
+            ("b", "a"): None,
+        }
+        assert (tmp_path / baseline.BASELINE_FILE).read_bytes() == saved
+    finally:
+        scheduler.close()
+
+
 @pytest.mark.parametrize(
     "problems", [["healthy"], ["link_down"], ["link_down", "dns_record_error"]]
 )

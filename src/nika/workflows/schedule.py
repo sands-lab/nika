@@ -643,6 +643,13 @@ class SessionScheduler:
                         )
                     prepared = self._prepared[key]
                     if not self.restored:
+                        from nika.service.pingmesh.baseline import (
+                            freeze_session_latency_baseline,
+                        )
+
+                        freeze_session_latency_baseline(
+                            self.session.store.get_session(self.session_id)
+                        )
                         self._active[key] = None
                         self.session.store.update_failure_injection(
                             self.session_id,
