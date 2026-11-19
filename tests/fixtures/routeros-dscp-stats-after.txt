@@ -1,0 +1,3 @@
+Columns: CHAIN, ACTION, BYTES, PACKETS
+# CHAIN        ACTION           BYTES  PACKETS
+0 postrouting  change-dscp  1 997 640    1 611

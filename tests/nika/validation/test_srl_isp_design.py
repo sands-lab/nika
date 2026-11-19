@@ -1,6 +1,7 @@
 """SR Linux ISP designs share metric completion and original behavioral controls."""
 
 from pathlib import Path
+import json
 
 import pytest
 
@@ -18,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[3]
 PROFILES = benchmark_isp_profiles(
     [
         ROOT / "benchmark/working/cases.yaml",
+        ROOT / "tests/fixtures/benchmark/routing_profiles.yaml",
         ROOT / "benchmark/releases/0.3.0/dev.yaml",
         ROOT / "benchmark/releases/0.3.0/test.yaml",
     ]
@@ -70,11 +72,11 @@ def test_native_isp_metric_binding_and_controls_preserve_original_sketch(key):
     assert static and not any("srl_nokia" in t or "ip-prefix:" in t for t in static)
     assert all(c.commands[0] == "enter candidate" for c in spec.runtime_counterexamples)
     originals = {
-        (c["problem"], tuple(sorted(c["inject"].items())))
+        (c["problem"], json.dumps(c["inject"], sort_keys=True))
         for c in profile["benchmark_cases"]
     }
     assert all(
-        (f.problem, tuple(sorted(f.params.items()))) in originals
+        (f.problem, json.dumps(f.params, sort_keys=True)) in originals
         for f in spec.failure_checks
     )
 

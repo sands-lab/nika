@@ -1,0 +1,13 @@
+Notes (2)
+=============
+   Frequency      Group           Protocol  Summary
+           1   Sequence                TCP  This frame initiates the connection closing
+           1   Sequence                TCP  This frame undergoes the connection closing
+
+Chats (4)
+=============
+   Frequency      Group           Protocol  Summary
+           1   Sequence                TCP  Connection establish request (SYN): server port 64012
+           1   Sequence                TCP  Connection establish acknowledge (SYN+ACK): server port 64012
+           2   Sequence                TCP  Connection finish (FIN)
+Running as user "root" and group "root". This could be dangerous.

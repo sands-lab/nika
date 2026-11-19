@@ -21,7 +21,6 @@ Two deterministic checks, run by ``python -m scripts.benchmark_audit.matrix``:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import shlex
@@ -83,7 +82,7 @@ def classify_rounds(
 
 
 def parse_global_addresses(
-    output: str, *, skip: Iterable[str] = ()
+    output: str, *, skip: Iterable[str] = (), interfaces: Iterable[str] | None = None
 ) -> dict[int, list[str]]:
     """Global IPv4 and IPv6 addresses from ``ip -o addr show scope global``.
 
@@ -93,11 +92,16 @@ def parse_global_addresses(
     ``cni0``, or whichever interface the kernel numbered first.
     """
     skipped = set(skip) | {"lo"}
+    allowed = set(interfaces) if interfaces is not None else None
     found: dict[int, list[str]] = {4: [], 6: []}
     rows: list[tuple[list[Any], int, str]] = []
     for line in output.splitlines():
         match = re.match(r"\d+:\s+(\S+?)(?:@\S+)?\s+(inet6?)\s+(\S+)", line)
-        if not match or match.group(1) in skipped:
+        if (
+            not match
+            or match.group(1) in skipped
+            or (allowed is not None and match.group(1) not in allowed)
+        ):
             continue
         family = 6 if match.group(2) == "inet6" else 4
         iface = [
@@ -287,6 +291,7 @@ class AgentViewProbe:
         zone_files: dict[str, str],
         pingmesh: Callable[[], dict[str, Any]] | None = None,
         path_probe: Callable[[], dict[str, Any]] | None = None,
+        data_interfaces: dict[str, list[str]] | None = None,
     ) -> None:
         self.exec = exec_cmd
         self.machines = machines
@@ -296,6 +301,7 @@ class AgentViewProbe:
         self.names = zone_names(zone_files)
         self.pingmesh = pingmesh
         self.path_probe = path_probe
+        self.data_interfaces = data_interfaces or {}
         self.addresses: dict[str, dict[int, list[str]]] = {}
         self.resolvers: list[str] = []
 
@@ -321,7 +327,12 @@ class AgentViewProbe:
         for node, output in outputs:
             text = output or ""
             addr_text, _, resolv = text.partition("@@RESOLV")
-            self.addresses[node] = parse_global_addresses(addr_text, skip=skip)
+            interfaces = self.data_interfaces.get(node)
+            self.addresses[node] = parse_global_addresses(
+                addr_text,
+                skip=skip if interfaces is None else (),
+                interfaces=interfaces,
+            )
             if re.search(r"^nameserver\s", resolv, re.M):
                 self.resolvers.append(node)
         self.resolvers = sorted(self.resolvers)[:MAX_DNS_CLIENTS]
@@ -570,9 +581,17 @@ EMPTY_MD5 = "d41d8cd98f00b204e9800998ecf8427e"
 SNAPSHOT_MARK = "__agentview_snapshot__"
 
 
-def token_pattern(fault: str) -> str:
+def token_pattern(fault: str | tuple[str, ...]) -> str:
     """Case-insensitive ERE (also valid Python ``re``) for leak tokens."""
-    return "|".join([*GENERIC_TOKENS, *fault_tokens(fault)])
+    from nika.problems.registry import get_problem_class
+
+    members = (fault,) if isinstance(fault, str) else fault
+    patterns = list(GENERIC_TOKENS)
+    for member in members:
+        cls = get_problem_class(member)
+        native = set(getattr(cls, "NATIVE_CONFIG_KEYWORDS", ()))
+        patterns.extend(t for t in fault_tokens(member) if t not in native)
+    return "|".join(dict.fromkeys(patterns))
 
 
 def mask_deployment(text: str) -> str:
@@ -629,7 +648,9 @@ def mask_line(line: str) -> str:
     return " ".join(masked.split())
 
 
-def snapshot_script(pattern: str, capabilities: set[str]) -> str:
+def snapshot_script(
+    pattern: str, capabilities: set[str], native_log_keywords: tuple[str, ...] = ()
+) -> str:
     """One shell script that prints every agent-visible section of a node."""
     prune = " -o ".join(f"-path {d}" for d in PRUNE_DIRS)
     find = (
@@ -637,6 +658,16 @@ def snapshot_script(pattern: str, capabilities: set[str]) -> str:
         f"-type f -size -{MAX_FILE_KIB}k -print0 2>/dev/null"
     )
     quoted = shlex.quote(pattern)
+    hits = f"{find} | xargs -0 -r grep -c -H -i -E {quoted} 2>/dev/null | grep -v ':0$'"
+    if native_log_keywords:
+        masks = " ".join(
+            "-e " + shlex.quote(f"s@{word}@<native>@g") for word in native_log_keywords
+        )
+        hits = (
+            f"{find} | xargs -0 -r grep -H -i -E {quoted} 2>/dev/null"
+            f" | sed -E {masks} | grep -i -E {quoted}"
+            " | cut -d: -f1 | sort | uniq -c | awk '{print $2 \":\" $1}'"
+        )
     sections = [
         ("files", f"{find} | xargs -0 -r md5sum 2>/dev/null"),
         (
@@ -646,8 +677,7 @@ def snapshot_script(pattern: str, capabilities: set[str]) -> str:
         ),
         (
             "hits",
-            f"{find} | xargs -0 -r grep -c -H -i -E {quoted} 2>/dev/null"
-            " | grep -v ':0$'",
+            hits,
         ),
         ("nika_files", f"{find} | xargs -0 -r grep -l -i nika 2>/dev/null"),
         (
@@ -689,6 +719,13 @@ def snapshot_script(pattern: str, capabilities: set[str]) -> str:
     if "nokia_srlinux" in capabilities or "srl" in capabilities:
         sections.append(
             ("srl", "PYTHONDONTWRITEBYTECODE=1 sr_cli -d 'info flat' 2>/dev/null")
+        )
+        sections.append(
+            (
+                "management_reads",
+                "sed -n -E 's/^.*\\| (info flat interface .*)$/\\1/p' "
+                "/var/log/srlinux/debug/ramdisk/sr_cli.log 2>/dev/null",
+            )
         )
     if "k3s" in capabilities:
         sections.append(
@@ -768,7 +805,10 @@ def _is_copy_of(path: str, original: str) -> bool:
 
 
 def diff_snapshots(
-    before: dict[str, Any], after: dict[str, Any], pattern: str
+    before: dict[str, Any],
+    after: dict[str, Any],
+    pattern: str,
+    native_log_copies: tuple[tuple[str, str], ...] = (),
 ) -> dict[str, Any]:
     """Diff one node's snapshots and flag fault-revealing changes.
 
@@ -794,7 +834,12 @@ def diff_snapshots(
             why.append("content_token")
         if path in added and BACKUP_NAME.search(path):
             why.append("backup_name")
-        if path in added and new[path] in prior and _is_copy_of(path, prior[new[path]]):
+        if (
+            path in added
+            and new[path] in prior
+            and _is_copy_of(path, prior[new[path]])
+            and (prior[new[path]], path) not in native_log_copies
+        ):
             why.append(f"copy_of_prefault:{prior[new[path]]}")
         if why:
             flagged.append(
@@ -817,13 +862,28 @@ def diff_snapshots(
         for line in sorted(delta):
             if section == "processes":
                 new_processes.append(line)
+            why = []
             if token.search(line):
+                why.append("line_token")
+            # Neutral object names still expose an injector. These commands
+            # omit packet counters, so ordinary traffic cannot add TC lines.
+            if section == "tc" and not re.fullmatch(
+                r"qdisc noqueue 0: dev \S+ root refcnt \d+", line
+            ):
+                why.append("device_tc_artifact")
+            if section == "management_reads":
+                why.append("device_management_read_trace")
+            if section == "links" and re.search(
+                r"\b(?:prog/xdp|xdp(?:generic|drv|offload)?)\b", line
+            ):
+                why.append("device_xdp_artifact")
+            if why:
                 flagged.append(
                     {
                         "section": section,
                         "line": line[:300],
                         "change": "added",
-                        "why": ["line_token"],
+                        "why": why,
                     }
                 )
     return {
@@ -917,12 +977,22 @@ class LeakScan:
         exec_cmd: Exec,
         *,
         machines: dict[str, Any],
-        fault: str,
+        fault: str | tuple[str, ...],
         p4_read: Callable[[], str] | None = None,
     ) -> None:
         self.exec = exec_cmd
         self.machines = machines
         self.pattern = token_pattern(fault)
+        from nika.problems.registry import get_problem_class
+
+        members = (fault,) if isinstance(fault, str) else fault
+        classes = [get_problem_class(member) for member in members]
+        self.native_log_keywords = tuple(
+            word for cls in classes for word in cls.NATIVE_LOG_KEYWORDS
+        )
+        self.native_log_copies = tuple(
+            pair for cls in classes for pair in cls.NATIVE_LOG_COPIES
+        )
         self.p4_read = p4_read
         self.before: dict[str, dict[str, Any] | None] = {}
 
@@ -930,7 +1000,10 @@ class LeakScan:
         def one(node: str) -> tuple[str, dict[str, Any] | None]:
             caps = set(getattr(self.machines[node], "capabilities", ()) or ())
             output = _safe_exec(
-                self.exec, node, snapshot_script(self.pattern, caps), 120
+                self.exec,
+                node,
+                snapshot_script(self.pattern, caps, self.native_log_keywords),
+                120,
             )
             return node, None if output is None else parse_snapshot(output)
 
@@ -985,7 +1058,16 @@ class LeakScan:
             if old is None or new is None:
                 unreadable.append(node)
                 continue
-            diff = diff_snapshots(old, new, self.pattern)
+            copies = self.native_log_copies
+            caps = set(getattr(self.machines.get(node), "capabilities", ()) or ())
+            if caps & {"nokia_srlinux", "srl"}:
+                copies += (
+                    (
+                        "/var/log/srlinux/debug/ramdisk/trace_events_gnmi.log",
+                        "/var/log/srlinux/debug/shadow/trace_events_gnmi.log.shadow",
+                    ),
+                )
+            diff = diff_snapshots(old, new, self.pattern, copies)
             content = [
                 item["path"]
                 for item in diff["flagged"]
@@ -1106,23 +1188,28 @@ def run_agent_view(
     """Run the healthy agent-view probes on a deployed session."""
     from nika.net_env.net_env_pool import get_probe_path
     from nika.net_env.probe_intent import ProbeIntent
-    from nika.service.pingmesh import engine as pingmesh_engine
-    from nika.service.pingmesh.endpoints import discover_endpoints
+    from nika.service.pingmesh.baseline import read_latency_baseline
+    from nika.service.pingmesh.recorded import recorded_mesh
+    from nika.telemetry import PINGMESH, telemetry_for_session
+    from nika.telemetry.pingmesh import topology_plan
     from nika.validation.symptom.probe import run_probe_snapshot
 
     api, meta = session_host_api(session_id)
     runtime = net_env._build_runtime()
     intent = ProbeIntent.from_metadata(meta.get("metadata"))
+    mesh_enabled = PINGMESH in telemetry_for_session(meta)
+    baselines = read_latency_baseline(meta["session_dir"]) if mesh_enabled else {}
     isolated = intent.isolation_matcher() if intent else (lambda _a, _b: False)
 
     def pingmesh() -> dict[str, Any]:
-        return asyncio.run(pingmesh_engine.run_pingmesh_snapshot(api, intent=intent))
+        return recorded_mesh(api, intent=intent, baselines=baselines)
 
     bgp_mode = getattr(net_env, "bgp_mode", None)
     path = get_probe_path(
         scenario,
         topo_size=topo_size or "s",
         deploy_overrides={"bgp_mode": bgp_mode} if bgp_mode else None,
+        net_env=net_env,
     )
 
     def path_probe() -> dict[str, Any]:
@@ -1136,14 +1223,18 @@ def run_agent_view(
         out["path"] = {"src": path.src_host, "dst": path.dst_ip, "url": path.http_url}
         return out
 
+    endpoint_plan = topology_plan(net_env)["endpoints"]
     probe = AgentViewProbe(
         lambda node, command, timeout: runtime.exec(node, command, timeout=timeout),
         machines=_machines(net_env, runtime),
-        endpoints=discover_endpoints(api),
+        endpoints=sorted(endpoint_plan),
+        data_interfaces={
+            name: endpoint["interfaces"] for name, endpoint in endpoint_plan.items()
+        },
         backend=runtime.backend,
         isolated=isolated,
         zone_files=_lab_zone_files(net_env),
-        pingmesh=pingmesh,
+        pingmesh=pingmesh if mesh_enabled else None,
         path_probe=path_probe if path is not None else None,
     )
     result = probe.run()
@@ -1151,7 +1242,7 @@ def run_agent_view(
     return result
 
 
-def leak_scan_for(net_env: Any, fault: str) -> LeakScan:
+def leak_scan_for(net_env: Any, fault: str | tuple[str, ...]) -> LeakScan:
     """A leak scanner over every node of the session, plus P4Runtime tables."""
     runtime = net_env._build_runtime()
     machines = _machines(net_env, runtime)

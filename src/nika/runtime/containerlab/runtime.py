@@ -264,7 +264,7 @@ class ContainerlabRuntime(LabRuntime):
             )
         )
         HostTcController.cleanup_lab(self._lab_name)
-        # Containers holding a detached interface (link_detach) are labelled.
+        # Containers holding a detached interface are labelled.
         remove_lab_helpers(self._lab_name)
         result = self._run_clab(
             "destroy",

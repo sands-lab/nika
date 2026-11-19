@@ -7,6 +7,7 @@ import json
 import shlex
 import subprocess
 from collections.abc import Callable, Iterable
+from itertools import batched
 
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.shared.containers import docker_client, isolated_container_pid
@@ -194,20 +195,22 @@ def cleanup_host_taps(lab_name: str) -> None:
         return
     # Recheck the alias and kernel identity immediately before each deletion.
     # A helper avoids adding a host-sudo requirement to Kathara deployments.
-    commands = []
-    for link in links:
-        name = shlex.quote(link["ifname"])
-        commands.append(
-            f'test "$(cat /sys/class/net/{name}/ifalias)" = {shlex.quote(link["ifalias"])} '
-            f'&& test "$(cat /sys/class/net/{name}/ifindex)" = {link["ifindex"]} '
-            f"&& ip link delete dev {name}"
+    # Keep each shell argument below Linux's per-argument size limit.
+    for batch in batched(links, 128):
+        commands = []
+        for link in batch:
+            name = shlex.quote(link["ifname"])
+            commands.append(
+                f'test "$(cat /sys/class/net/{name}/ifalias)" = {shlex.quote(link["ifalias"])} '
+                f'&& test "$(cat /sys/class/net/{name}/ifindex)" = {link["ifindex"]} '
+                f"&& ip link delete dev {name}"
+            )
+        _run_net_admin_helper(
+            ["/bin/sh", "-ec", "\n".join(commands)],
+            "host",
+            lab_name,
+            f"Cannot clean TAPs for {lab_name}",
         )
-    _run_net_admin_helper(
-        ["/bin/sh", "-ec", "\n".join(commands)],
-        "host",
-        lab_name,
-        f"Cannot clean TAPs for {lab_name}",
-    )
     if owned_host_taps(lab_name):
         raise RuntimeCapabilityError(f"TAPs remain after closing {lab_name}")
     log_event(

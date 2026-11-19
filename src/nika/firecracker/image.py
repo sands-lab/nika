@@ -67,9 +67,6 @@ FREE_PAGE_REPORT_SEC = 5
 BUILD_DEPLOY_TIMEOUT_SEC = 1800
 # Free space kept on the Firecracker root beyond a build's VM memory.
 BUILD_SPACE_MARGIN_MIB = 4096
-# Guest memory the VM's own kernel and services hold (about 0.7 GiB measured),
-# added to a native vendor lab's admission estimate.
-GUEST_OVERHEAD_MIB = 1024
 # Deploy parameters that change the lab; mirrors ``start_net_env``'s keywords.
 VARIANT_KEYS = (
     "scenario",
@@ -80,6 +77,7 @@ VARIANT_KEYS = (
     "rpki",
     "backend",
     "device_profile",
+    "telemetry",
     # A background traffic profile runs inside the lab, so the image carries it.
     "traffic",
     "defer_background_traffic",
@@ -129,6 +127,22 @@ def images_dir() -> Path:
 
 def variant(**params: Any) -> dict[str, Any]:
     """Deploy parameters of one environment variant (``None`` values dropped)."""
+    from nika.net_env.isp.identity import is_isp_base_topology
+    from nika.net_env.net_env_pool import isp_deployment_has_profiles
+    from nika.telemetry import TELEMETRY_KINDS, normalize_telemetry
+
+    scenario = str(params.get("scenario") or "")
+    telemetry = params.get("telemetry")
+    params["telemetry"] = list(
+        normalize_telemetry(TELEMETRY_KINDS if telemetry is None else telemetry)
+    )
+    if is_isp_base_topology(scenario):
+        params["rpki"] = isp_deployment_has_profiles(
+            scenario,
+            bgp_mode=params.get("bgp_mode"),
+            backend=params.get("backend"),
+            device_profile=params.get("device_profile"),
+        )
     return {key: params.get(key) for key in VARIANT_KEYS if params.get(key) is not None}
 
 
@@ -152,6 +166,7 @@ def variant_for_row(row: dict[str, Any]) -> dict[str, Any]:
         scenario=scenario,
         topo_size=size,
         **{key: row.get(key) for key in ISP_DEPLOY_KEYS},
+        telemetry=row.get("telemetry"),
         traffic=row.get("traffic") or None,
         defer_background_traffic=True
         if plan and plan.activates("background")
@@ -182,9 +197,8 @@ def lab_settings() -> dict[str, Any]:
     return {section: nika[section] for section in LAB_SETTING_SECTIONS}
 
 
-# Guest kernel, Docker and NIKA, and each node that is not a platform router,
-# in a variant whose routers run another platform (see vm_memory_mib).
-GUEST_BASE_MIB = 1024
+# Guest kernel, Docker and NIKA, and each node without a platform memory budget.
+GUEST_BASE_MIB = 2048
 NODE_MEMORY_MIB = 64
 # One vCPU for the guest kernel, Docker and NIKA in those same variants.
 GUEST_BASE_CPUS = 1
@@ -197,8 +211,8 @@ def vm_memory_mib(params: dict[str, Any]) -> int:
     applies first. A variant whose routers run a router platform is sized
     from what it deploys: each router needs its platform's
     ``ROUTER_MEMORY_MIB``, and not below ``DEFAULT_VM_MEMORY_OVERRIDES`` for
-    that scenario. Other labs use NIKA's sizes for large labs or
-    ``vm_memory``.
+    that scenario. Other labs reserve ``NODE_MEMORY_MIB`` per declared node
+    plus guest overhead, with NIKA's sizes or ``vm_memory`` as a floor.
     """
     from nika.run_config.schema import DEFAULT_VM_MEMORY_OVERRIDES
 
@@ -215,6 +229,10 @@ def vm_memory_mib(params: dict[str, Any]) -> int:
         return derived
     if memory is None:
         memory = DEFAULT_VM_MEMORY_OVERRIDES.get(scenario, settings.vm_memory)
+        return max(
+            int(memory[:-3]) * 1024,
+            _platform_memory_mib(json.dumps(params, sort_keys=True)),
+        )
     return int(memory[:-3]) * 1024
 
 
@@ -225,7 +243,7 @@ def vm_cpus(params: dict[str, Any]) -> int:
     applies first. A variant whose routers run a router platform is sized
     from what it deploys: each router needs its platform's
     ``ROUTER_CPU_MILLIS``, and not below ``vm_cpus``. Other labs use NIKA's
-    sizes for large labs or ``vm_cpus``.
+    sizes or ``vm_cpus`` as a floor for an environment's declared CPU minimum.
     """
     from nika.run_config.schema import DEFAULT_VM_CPU_OVERRIDES
 
@@ -238,6 +256,10 @@ def vm_cpus(params: dict[str, Any]) -> int:
         return max(_platform_cpus(json.dumps(params, sort_keys=True)), settings.vm_cpus)
     if cpus is None:
         cpus = DEFAULT_VM_CPU_OVERRIDES.get(scenario, settings.vm_cpus)
+        env = _platform_environment(json.dumps(params, sort_keys=True))
+        minimum = getattr(env, "native_lab_cpus", lambda: None)()
+        if minimum is not None:
+            cpus = max(cpus, minimum)
     return cpus
 
 
@@ -254,24 +276,61 @@ def _router_attr(profile: str | None, name: str) -> int | None:
     return getattr(module, name, None)
 
 
+def _platform_environment(params_json: str) -> Any:
+    """Construct the declared platform environment without deploying it."""
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.telemetry import apply_telemetry, normalize_telemetry
+
+    params = json.loads(params_json)
+    kwargs = {
+        key: value
+        for key, value in params.items()
+        if key not in {"scenario", "telemetry"}
+    }
+    env = get_net_env_instance(params["scenario"], **kwargs)
+    kinds = normalize_telemetry(params.get("telemetry"))
+    if kinds and (
+        env.backend == "kathara"
+        or getattr(env, "native_lab_memory", lambda: None)() is not None
+    ):
+        apply_telemetry(env, kinds)
+    return env
+
+
 @functools.cache
 def _platform_nodes(params_json: str) -> tuple[int, int]:
     """Routers of the variant's ``device_profile``, and the remaining nodes."""
-    from nika.net_env.net_env_pool import get_net_env_instance
-
-    params = json.loads(params_json)
-    profile = params["device_profile"]
-    kwargs = {key: value for key, value in params.items() if key != "scenario"}
-    env = get_net_env_instance(params["scenario"], **kwargs)
+    profile = json.loads(params_json).get("device_profile")
+    env = _platform_environment(params_json)
     nodes = env.machine_identities
     routers = sum(profile in identity.capabilities for identity in nodes.values())
     return routers, len(nodes) - routers
 
 
+@functools.cache
 def _platform_memory_mib(params_json: str) -> int:
+    from nika.runtime.spec import NodeRole
+
     routers, others = _platform_nodes(params_json)
-    need = _router_attr(json.loads(params_json)["device_profile"], "ROUTER_MEMORY_MIB")
+    need = (
+        _router_attr(json.loads(params_json).get("device_profile"), "ROUTER_MEMORY_MIB")
+        or NODE_MEMORY_MIB
+    )
     total = GUEST_BASE_MIB + routers * need + others * NODE_MEMORY_MIB
+    env = _platform_environment(params_json)
+    if env.backend == "kathara":
+        for node, identity in env.machine_identities.items():
+            if identity.role not in {NodeRole.CONTROLLER, NodeRole.INFRASTRUCTURE}:
+                continue
+            memory = env.lab.machines[node].get_mem()
+            if memory:
+                units = {"b": 1, "k": 1024, "m": 2**20, "g": 2**30}
+                mib = -(-(int(memory[:-1]) * units[memory[-1]]) // 2**20)
+                total += max(mib - NODE_MEMORY_MIB, 0)
+    estimate = getattr(env, "native_lab_memory", lambda: None)()
+    if estimate is not None:
+        # Deployment checks MemAvailable after the guest has booted.
+        total = max(total, GUEST_BASE_MIB + -(-estimate // 2**20))
     return -(-total // 1024) * 1024
 
 

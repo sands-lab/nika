@@ -8,6 +8,8 @@ import threading
 from collections.abc import Iterator
 from typing import Optional
 
+from nika.runtime.shared.containers import patch_closed_pool_return
+
 _logger = logging.getLogger(__name__)
 
 
@@ -130,5 +132,6 @@ def patch_kathara_privileged_without_root() -> None:
     DockerMachine.create = create  # type: ignore[method-assign]
 
 
+patch_closed_pool_return()
 patch_kathara_file_conversion()
 patch_kathara_privileged_without_root()

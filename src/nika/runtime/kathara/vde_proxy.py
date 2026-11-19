@@ -6,8 +6,9 @@ relays to a hub port. To impair a point-to-point link without touching
 either node, a small helper container (outside the lab inventory) takes over
 the hub's two ports and bridges them through its own TAPs, where ``tc``
 applies the fault (see :mod:`nika.runtime.kathara.vde_splice`). The lab
-interfaces are never re-created: ifindex, MAC, counters, qdiscs and carrier
-stay as they were, and no protocol session or dataplane restarts. Recovery
+interfaces are never re-created: ifindex, MAC, counters and qdiscs stay as
+they were, and no protocol session or dataplane restarts. A link flap only
+toggles the carrier of both lab interfaces. Recovery
 hands the ports back to the hub and removes the helper.
 """
 
@@ -88,11 +89,13 @@ class KatharaVdeFaultProxy:
         self._lab = runtime._net_env.lab
         self._client = docker_client()
 
-    def insert(self, node: str, intf: str) -> VdeFaultProxyState:
+    def insert(
+        self, node: str, intf: str, *, allow_shared: bool = False
+    ) -> VdeFaultProxyState:
         existing = self.discover(node, intf)
         if existing is not None:
             return existing
-        endpoint, peer = self._link_ends(node, intf)
+        endpoint, peer = self._link_ends(node, intf, allow_shared=allow_shared)
         hub = self._hub_ctl(endpoint)
         container = self.runtime.get_container(endpoint.node)
         node_pid = isolated_container_pid(container)
@@ -175,6 +178,29 @@ class KatharaVdeFaultProxy:
                 f"could not configure controller-side VDE proxy: {result.output.decode(errors='ignore')}"
             )
 
+    def set_netem_delay(self, state: VdeFaultProxyState, delay_ms: int) -> None:
+        """Delay frames on the controller port toward the peer."""
+        proxy = self._client.containers.get(state.proxy_id)
+        result = proxy.exec_run(
+            [
+                "tc",
+                "qdisc",
+                "replace",
+                "dev",
+                "eth1",
+                "root",
+                "netem",
+                "delay",
+                f"{delay_ms}ms",
+                "limit",
+                "10000",
+            ]
+        )
+        if result.exit_code:
+            raise RuntimeCapabilityError(
+                f"could not configure VDE proxy delay: {result.output.decode(errors='ignore')}"
+            )
+
     def qdisc_show(self, state: VdeFaultProxyState) -> str:
         """``tc qdisc show`` of the proxy port toward the peer."""
         proxy = self._client.containers.get(state.proxy_id)
@@ -251,24 +277,21 @@ class KatharaVdeFaultProxy:
     def start_link_flap(
         self, state: VdeFaultProxyState, down_time: int, up_time: int
     ) -> None:
-        """Flap a proxy port while keeping the controller implementation hidden."""
+        """Take the carrier of both lab interfaces down and up in turn."""
         self.stop_link_flap(state)
         pid_path = self._flap_pid_path(state)
-        script = f"""PID_FILE={shlex.quote(pid_path)}
-cleanup() {{
-    ip link set dev eth1 up >/dev/null 2>&1 || true
-    rm -f "$PID_FILE"
-}}
-trap cleanup EXIT
-trap 'exit 0' INT TERM
-{shlex.join(process_command("record", pid_path))} $$ || exit 1
-while true; do
-    ip link set dev eth1 down
-    sleep {down_time}
-    ip link set dev eth1 up
-    sleep {up_time}
-done
-"""
+        args = shlex.join(
+            [
+                "python3",
+                "-c",
+                _SPLICE_SOURCE,
+                "flap",
+                _READY,
+                str(down_time),
+                str(up_time),
+            ]
+        )
+        script = f"{shlex.join(process_command('record', pid_path))} $$ && exec {args}"
         proxy = self._client.containers.get(state.proxy_id)
         result = proxy.exec_run(
             [
@@ -298,7 +321,16 @@ done
             raise RuntimeCapabilityError(
                 "could not stop verified controller-side flap worker"
             )
-        proxy.exec_run(["ip", "link", "set", "dev", "eth1", "up"])
+        # A worker killed mid-cycle cannot restore the carrier itself.
+        if proxy.exec_run(["test", "-s", _READY]).exit_code == 0:
+            result = proxy.exec_run(
+                ["python3", "-c", _SPLICE_SOURCE, "carrier-on", _READY]
+            )
+            if result.exit_code:
+                raise RuntimeCapabilityError(
+                    "could not restore the link carrier: "
+                    f"{result.output.decode(errors='ignore').strip()}"
+                )
 
     def remove(
         self, state: VdeFaultProxyState, *, suppress_errors: bool = False
@@ -452,7 +484,9 @@ Path(path).unlink(missing_ok=True)
         except docker.errors.NotFound:
             pass
 
-    def _link_ends(self, node: str, intf: str) -> tuple[LinkEnd, LinkEnd]:
+    def _link_ends(
+        self, node: str, intf: str, *, allow_shared: bool = False
+    ) -> tuple[LinkEnd, LinkEnd]:
         try:
             number = int(intf.removeprefix("eth"))
             link = self._lab.machines[node].interfaces[number].link
@@ -461,7 +495,7 @@ Path(path).unlink(missing_ok=True)
                 for machine in link.machines.values()
                 if machine.name != node
             ]
-            if len(peers) != 1:
+            if not peers or (len(peers) != 1 and not allow_shared):
                 raise ValueError("link is not point-to-point")
             peer_interface = next(
                 item

@@ -73,12 +73,23 @@ def _probe_ips(runtime: LabRuntime, node: str) -> list[str]:
     use eth1, and SR Linux / SONiC routers use platform ports plus a routed
     loopback; eth0/mgmt0 are the Containerlab management network.
     """
+    from nika.problems.support.oracle import is_service_ipv4, management_networks
+
+    excluded_networks = management_networks(runtime)
     found: list[str] = []
     seen: set[str] = set()
 
     def add(ip: str) -> None:
         ip = _valid_ipv4(ip)
-        if ip and ip not in seen and not ip.startswith(_MGMT_PREFIXES):
+        if (
+            ip
+            and ip not in seen
+            and not ip.startswith(_MGMT_PREFIXES)
+            and is_service_ipv4(ip)
+            and not any(
+                ipaddress.ip_address(ip) in network for network in excluded_networks
+            )
+        ):
             seen.add(ip)
             found.append(ip)
 
@@ -108,10 +119,23 @@ def _probe_ips(runtime: LabRuntime, node: str) -> list[str]:
 
 def lab_addresses(runtime: LabRuntime) -> dict[str, list[tuple[str, str]]]:
     """Global IPv4 ``(interface, address/prefix)`` pairs of every lab node."""
+    from nika.problems.support.oracle import (
+        containerlab_data_eth0,
+        management_interfaces,
+        management_networks,
+        service_addresses,
+    )
+
+    data_eth0 = containerlab_data_eth0(runtime)
+    excluded_networks = management_networks(runtime)
     found: dict[str, list[tuple[str, str]]] = {}
     for node in sorted(runtime.list_nodes()):
         output = exec_or_empty(runtime, node, "ip -4 -o addr show scope global")
-        found[node] = re.findall(r"^\d+:\s+(\S+)\s+inet\s+(\S+)", output, re.M)
+        found[node] = service_addresses(
+            output,
+            excluded_interfaces=management_interfaces(data_eth0, node),
+            excluded_networks=excluded_networks,
+        )
     return found
 
 
@@ -259,21 +283,37 @@ def _mac_conflict_ends(problem: Any, params: Any) -> dict[str, Any]:
     if not claimant_ip or ipaddress.ip_address(claimant_ip) not in network:
         return {"error": "pair_not_on_one_segment", "network": str(network)}
     roles = problem.net_env.machine_identities
+    addresses = lab_addresses(runtime)
+    from nika.problems.support.router_ops import router_fault_ops
+
+    for node, identity in roles.items():
+        if identity.role is not NodeRole.ROUTER:
+            continue
+        ops = router_fault_ops(problem, node)
+        if ops is not None and ops.supports("ipv4_addresses"):
+            addresses.setdefault(node, []).extend(
+                ("", address) for address in ops.ipv4_addresses()
+            )
     members = sorted(
-        (
-            getattr(roles.get(node), "role", None)
-            not in {NodeRole.HOST, NodeRole.SERVICE},
-            node,
-            str(ipaddress.ip_interface(address).ip),
-        )
-        for node, rows in lab_addresses(runtime).items()
-        if node not in {claimant, owner}
-        for _intf, address in rows
-        if ipaddress.ip_interface(address).ip in network
+        {
+            (
+                getattr(roles.get(node), "role", None)
+                not in {NodeRole.HOST, NodeRole.SERVICE},
+                node,
+                str(ipaddress.ip_interface(address).ip),
+            )
+            for node, rows in addresses.items()
+            if node not in {claimant, owner}
+            for _intf, address in rows
+            if ipaddress.ip_interface(address).ip in network
+        }
     )
-    if len(members) < 2:
+    control_member = next(
+        (member for member in members[1:] if member[1] != members[0][1]), None
+    )
+    if not members or control_member is None:
         return {"error": "no_third_node_on_the_segment", "network": str(network)}
-    (_r, observer, _ip), (_c, control, control_ip) = members[:2]
+    (_r, observer, _ip), (_c, control, control_ip) = members[0], control_member
     return {
         "observer": observer,
         "owner": owner,
@@ -434,6 +474,16 @@ def _netmask_ends(problem: Any, params: Any) -> dict[str, Any]:
         (n for n in end_hosts_first(sibling) if _reachable(runtime, n, target_ip)),
         None,
     )
+    control_ip = target_ip
+    if control is None:
+        gateway = _valid_ipv4(runtime.get_default_gateway(host) or "")
+        if (
+            gateway
+            and gateway != target_ip
+            and ipaddress.ip_address(gateway) in real.network
+            and _reachable(runtime, host, gateway)
+        ):
+            control, control_ip = host, gateway
     return {
         "target_host": host,
         "target_ip": target_ip,
@@ -441,6 +491,7 @@ def _netmask_ends(problem: Any, params: Any) -> dict[str, Any]:
         "wide_network": str(wide),
         "observer": observer,
         "control_observer": control,
+        "control_ip": control_ip,
     }
 
 
@@ -453,7 +504,7 @@ def netmask_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
         return False, {**ends, "error": "no_sibling_in_the_real_subnet"}
     runtime = problem.runtime
     target_loss = _healthy_loss(runtime, ends["observer"], ends["target_ip"])
-    control_loss = _healthy_loss(runtime, ends["control_observer"], ends["target_ip"])
+    control_loss = _healthy_loss(runtime, ends["control_observer"], ends["control_ip"])
     ok = target_loss == 0.0 and control_loss == 0.0
     return ok, {
         **ends,
@@ -471,7 +522,7 @@ def netmask_offsubnet_unreachable(
         return False, {"error": "no_baseline_observer"}
     runtime = problem.runtime
     target_loss = _loss(runtime, ends["observer"], ends["target_ip"])
-    control_loss = _loss(runtime, ends["control_observer"], ends["target_ip"])
+    control_loss = _loss(runtime, ends["control_observer"], ends["control_ip"])
     control_ok = control_loss == 0.0
     verified = target_loss == 100.0 and control_ok
     return verified, build_verify_result(

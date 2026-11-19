@@ -19,10 +19,17 @@ from typing import Any
 
 from nika.net_env.verify import exec_or_empty, ping_stats
 from nika.problems.base import build_verify_result
-from nika.problems.support.oracle import srl_cli
+from nika.problems.support.oracle import (
+    containerlab_data_eth0,
+    management_interfaces,
+    management_networks,
+    service_addresses,
+    srl_cli,
+)
 from nika.problems.support.router_ops import router_fault_ops, profile_routes_with_frr
 from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.runtime.base import LabRuntime
+from nika.service.containerlab.srl_api import srl_json
 from nika.validation.symptom.addressing_probes import _HOST_PREFIXES
 
 # OSPF dead (40 s) and IS-IS hold (30 s) intervals, plus SPF and polling slack.
@@ -54,9 +61,14 @@ def host_addresses(runtime: LabRuntime, node: str) -> set[str]:
         timeout=15,
     )
     return {
-        addr
-        for addr in re.findall(r"inet (\d+\.\d+\.\d+\.\d+)/", out)
-        if not addr.startswith("127.")
+        cidr.split("/", 1)[0]
+        for _, cidr in service_addresses(
+            out,
+            excluded_interfaces=management_interfaces(
+                containerlab_data_eth0(runtime), node
+            ),
+            excluded_networks=management_networks(runtime),
+        )
     }
 
 
@@ -168,37 +180,55 @@ def bgp_neighbors(runtime: LabRuntime, router: str) -> dict[str, dict] | None:
                         "reset": peer.get("lastResetDueTo"),
                         "connect_retry": peer.get("connectRetryTimer"),
                     }
+                    sent = (peer.get("messageStats") or {}).get("notificationsSent")
+                    if isinstance(sent, int):
+                        # FRR keeps the last notification after a session
+                        # recovers; the sent count shows whether a new one
+                        # went out during a probe.
+                        peers[key]["sent_notification_count"] = sent
+                        peers[key]["sent_notification"] = peer.get(
+                            "lastNotificationReason"
+                        )
         return peers
     if router.startswith("pod:"):
         return None
     out = exec_or_empty(
         runtime,
         router,
-        'sr_cli "show network-instance default protocols bgp neighbor" 2>/dev/null',
+        'sr_cli "info from state network-instance default protocols bgp neighbor '
+        '* | as json" 2>/dev/null',
         timeout=30,
     )
-    if not re.search(r"\d+ configured sessions", out, re.IGNORECASE):
+    try:
+        data = srl_json(out)
+        neighbors = data["network-instance"][0]["protocols"]["bgp"].get("neighbor", [])
+    except (ValueError, KeyError, IndexError, TypeError):
         return None
     peers = {}
-    for line in out.splitlines():
-        cells = [cell.strip() for cell in line.split("|")]
-        if len(cells) > 6 and re.fullmatch(r"\d+\.\d+\.\d+\.\d+", cells[2]):
-            peers[cells[2]] = {"state": cells[6], "notification": None}
-    # SR Linux keeps the last NOTIFICATION per neighbor in its state tree.
-    state = exec_or_empty(
-        runtime,
-        router,
-        'sr_cli "info flat from state network-instance default protocols bgp '
-        'neighbor *" 2>/dev/null | grep -i notification',
-        timeout=30,
-    )
-    for line in state.splitlines():
-        match = re.search(r"neighbor (\d+\.\d+\.\d+\.\d+) (.*notification.*)$", line)
-        if match and match.group(1) in peers:
-            text = " ".join(
-                filter(None, [peers[match.group(1)]["notification"], match.group(2)])
+    for neighbor in neighbors:
+        sent = neighbor.get("sent-messages", {})
+        received = neighbor.get("received-messages", {})
+        reasons = [
+            "/".join(
+                str(messages[key])
+                for key in (
+                    "last-notification-error-code",
+                    "last-notification-error-subcode",
+                )
+                if key in messages
             )
-            peers[match.group(1)]["notification"] = text
+            for messages in (sent, received)
+        ]
+        timers = neighbor.get("timers", {})
+        hold = timers.get("negotiated-hold-time", timers.get("hold-time"))
+        peers[neighbor["peer-address"]] = {
+            "state": neighbor["session-state"],
+            "notification": "; ".join(filter(None, reasons)) or None,
+            "sent_notification": reasons[0] or None,
+            "sent_notification_count": sent.get("total-notifications"),
+            "hold_ms": hold * 1000 if isinstance(hold, int) else None,
+            "connect_retry": timers.get("connect-retry"),
+        }
     return peers
 
 
@@ -599,22 +629,55 @@ def _bad_peer_as(lost: list[str], kept: list[str], notes: dict) -> bool:
     # A peer that expects the router's old AS refuses its OPEN with
     # "Bad Peer AS" and the session stays down. Peers configured with
     # ``remote-as external`` accept any AS and may stay up.
-    return any(
-        "bad peer as"
-        in re.sub(
-            r"[-_]", " ", str(notes.get(key, {}).get("notification") or "")
-        ).lower()
-        for key in lost
-    )
+    for key in lost:
+        note = notes.get(key, {})
+        if "new_open_rejections" in note:
+            if note["new_open_rejections"]:
+                return True
+        elif (
+            "bad peer as"
+            in re.sub(r"[-_]", " ", str(note.get("notification") or "")).lower()
+        ):
+            return True
+    return False
 
 
 def bgp_bad_peer_as(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Remote peers refuse the router's OPEN with "Bad Peer AS"; sessions stay down."""
+    initial_rejections: dict[str, set[str]] = {}
+    initial_sent: dict[str, int] = {}
+
+    def refused(lost, kept, notes):
+        for key in lost:
+            _protocol, observer, peer = key.split("|")
+            ops = router_fault_ops(problem, observer)
+            if ops is not None and ops.supports("bgp_open_rejections"):
+                note = notes.setdefault(key, {})
+                events = set(ops.bgp_open_rejections(peer))
+                note["open_rejections"] = sorted(events)
+                initial = initial_rejections.setdefault(key, events)
+                # A retained log entry cannot expose an AS mismatch through
+                # a transport filter. Require an OPEN refused during this probe.
+                note["new_open_rejections"] = sorted(events - initial)
+            elif isinstance(notes.get(key, {}).get("sent_notification_count"), int):
+                note = notes[key]
+                count = note["sent_notification_count"]
+                initial_count = initial_sent.setdefault(key, count)
+                sent = {key: {"notification": note["sent_notification"]}}
+                note["new_open_rejections"] = (
+                    [f"{note['sent_notification']} (sent count {count})"]
+                    if count > 0
+                    and count != initial_count
+                    and _bad_peer_as([key], [], sent)
+                    else []
+                )
+        return _bad_peer_as(lost, kept, notes)
+
     # The injector restarts bgpd, so the loss must outlast a normal restart.
     return watch_adjacencies(
         problem,
         params.host_name,
-        _bad_peer_as,
+        refused,
         expect="peers_refuse_the_router_with_bad_peer_as",
         confirm_sec=30.0,
         reconnect=True,
@@ -640,54 +703,6 @@ def _customer_reach(problem: Any, params: Any) -> dict[str, Any] | None:
     host, target = str(site["host"]), str(site["service_address"])
     stats = ping_stats(problem.runtime, host, target, count=5, interval_sec=0.2)
     return {"customer_host": host, "service": target, "received": stats.received}
-
-
-def max_prefix_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The flooding peer's session is up and the customer site reaches its service."""
-    ok, details = adjacency_baseline(
-        problem, params.receiver_name, ("bgp",), bgp_observers=[params.peer_name]
-    )
-    reach = _customer_reach(problem, params)
-    if reach is not None:
-        details["customer_reach"] = reach
-        ok = ok and reach["received"] > 0
-    return ok, details
-
-
-def _max_prefix_cease(lost: list[str], kept: list[str], notes: dict) -> bool:
-    # Only an exceeded limit makes the receiver send this Cease subcode.
-    return _all_lost(lost, kept, notes) and all(
-        "maximum number of prefixes"
-        in str(notes.get(key, {}).get("notification") or "").lower()
-        for key in lost
-    )
-
-
-def max_prefix_cease(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The peer's session is down with the receiver's max-prefix Cease notification.
-
-    The customer site whose route rode only that session loses its service.
-    """
-    ok, result = watch_adjacencies(
-        problem,
-        params.receiver_name,
-        _max_prefix_cease,
-        expect="peer_receives_cease_maximum_prefixes_and_session_stays_down",
-    )
-    reach = _customer_reach(problem, params)
-    if reach is None:
-        return ok, result
-    # Withdrawals reach the far end of the receiver's AS within seconds.
-    deadline = time.monotonic() + 30.0
-    while reach["received"] and time.monotonic() < deadline:
-        time.sleep(_POLL_SEC)
-        reach = _customer_reach(problem, params) or reach
-    ok = ok and reach["received"] == 0
-    details = dict(result.get("details") or {})
-    details["customer_reach"] = reach
-    return ok, build_verify_result(
-        fault_type=problem.root_cause_name, verified=ok, details=details
-    )
 
 
 def _ospf_routes(problem: Any, router: str) -> set[str]:
@@ -760,10 +775,10 @@ def ospf_stub_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
 
 
 def ospf_stubs_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The subnets of the router, or of the router whose ID it took, leave OSPF.
+    """Repeated loss of a previously learned stub route at an observer.
 
-    Two routers with one router ID keep only one router-LSA between them, so
-    every other router drops the subnets of one of the two.
+    Observers can retain different router-LSAs during an ID collision. The
+    withdrawn prefix can change while the competing LSAs keep routes unstable.
     """
     audit = getattr(problem, "_audit_ospf_stubs", None) or {}
     stubs = audit.get("stubs") or {}
@@ -771,6 +786,8 @@ def ospf_stubs_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, Any
     if host not in stubs:
         return False, {"error": "no_healthy_stub_routes", "host": host}
     router_id = _ospf_router_id(problem, host)
+    if router_id is None:
+        raise ValueError(f"Unreadable OSPF router ID on {host!r}")
     twin = next(
         (
             owner
@@ -780,31 +797,36 @@ def ospf_stubs_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, Any
         None,
     )
     owners = [owner for owner in (host, twin) if owner]
+    if twin is None:
+        return False, build_verify_result(
+            fault_type=problem.root_cause_name,
+            verified=False,
+            details={"host": host, "router_id": router_id, "same_id_router": None},
+        )
     observers = sorted(
         {r for owner in owners for obs in stubs[owner].values() for r in obs}
     )
 
-    def withdrawn_owner() -> str | None:
+    def withdrawn_routes() -> list[dict[str, str]]:
         routed = {router: _ospf_routes(problem, router) for router in observers}
-        return next(
-            (
-                owner
-                for owner in owners
-                if not any(
-                    prefix in routed[r]
-                    for prefix, obs in stubs[owner].items()
-                    for r in obs
-                )
-            ),
-            None,
-        )
+        return [
+            {"owner": owner, "prefix": prefix, "observer": router}
+            for owner in owners
+            for prefix, watched in stubs[owner].items()
+            for router in watched
+            if prefix not in routed[router]
+        ]
 
     confirm_sec = 10.0
     started = time.monotonic()
     held_since: float | None = None
+    observations = []
     while True:
-        withdrawn = withdrawn_owner()
+        withdrawn = withdrawn_routes()
         elapsed = time.monotonic() - started
+        observations.append(
+            {"elapsed_sec": round(elapsed, 1), "withdrawn_routes": withdrawn}
+        )
         if withdrawn:
             held_since = elapsed if held_since is None else held_since
             if elapsed - held_since >= confirm_sec:
@@ -812,10 +834,10 @@ def ospf_stubs_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, Any
         else:
             held_since = None
         if elapsed >= _DUPLICATE_ID_WAIT_SEC + confirm_sec:
-            withdrawn = None
+            withdrawn = []
             break
         time.sleep(_POLL_SEC)
-    verified = withdrawn is not None
+    verified = bool(withdrawn)
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
@@ -823,7 +845,8 @@ def ospf_stubs_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, Any
             "host": host,
             "router_id": router_id,
             "same_id_router": twin,
-            "withdrawn_owner": withdrawn,
+            "withdrawn_routes": withdrawn,
+            "observations": observations,
             "stub_routes": {owner: stubs[owner] for owner in owners},
         },
     )
@@ -865,7 +888,16 @@ def _ospf_cut_edge_ends(problem: Any, host: str, intf: str) -> dict[str, Any]:
 
     stub = ospf_stub_router(problem.net_env, host, intf)
     if stub is None:
-        return {"error": "not_a_cut_edge", "host": host, "intf": intf}
+        # Combined placements may use a redundant link. Its own adjacency
+        # remains observable; the declared path measures the joint outage.
+        path = get_probe_path(
+            problem.scenario_name,
+            topo_size=getattr(problem.net_env, "topo_size", None) or "s",
+            net_env=problem.net_env,
+        )
+        if path is None or not path.src_host or not path.dst_ip:
+            return {"error": "no_probe_path", "host": host, "intf": intf}
+        return {"src": path.src_host, "dst": path.dst_ip, "stub": None, "behind": []}
     from nika.problems.support.benchmark_targets import hosts_behind_router
 
     behind = hosts_behind_router(problem.net_env, stub)
@@ -985,7 +1017,7 @@ def ospf_cut_edge_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, A
     ).loss_percent
     ok = (
         all(row["full"] and row["interface_up"] for row in health.values())
-        and any(prefixes.values())
+        and (ends["stub"] is None or any(prefixes.values()))
         and loss == 0.0
     )
     base = {
@@ -1005,11 +1037,11 @@ def ospf_timer_mismatch(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
     """Both adjacencies expire, the destination route withdraws, and host pings fail."""
     if not getattr(problem, "_audit_ospf_cut_link", None):
         return False, {"error": "no_healthy_cut_edge_baseline"}
-    return _ospf_cut_edge_lost(
-        problem,
-        params,
-        max(problem._original_timers[1], problem.injected_timers[1]) + 60,
-    )
+    original = getattr(problem, "_original_timers", None)
+    if original is None:
+        original = problem._timers(params.host_name, params.intf_name)
+    injected = getattr(problem, "injected_timers", original)
+    return _ospf_cut_edge_lost(problem, params, max(original[1], injected[1]) + 60)
 
 
 def ospf_stub_area_mismatch(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -1402,8 +1434,11 @@ def isis_authentication_baseline(
     circuits = sorted(modes)
     problem._audit_isis_hello_circuits = circuits
     details.update({"hello_authentication": modes, "circuit_states": states})
+    local_ok, local_view = problem.capture_hello_routing(params)
+    details["local_routing"] = local_view
     return (
         ok
+        and local_ok
         and bool(circuits)
         and all(modes[c] == "none" and states.get(c) == "Up" for c in circuits),
         details,
@@ -1414,7 +1449,7 @@ def isis_authentication_lost(problem: Any, params: Any) -> tuple[bool, dict[str,
     circuits = getattr(problem, "_audit_isis_hello_circuits", [])
     if not circuits:
         return False, {"error": "no_healthy_circuit_baseline", "host": params.host_name}
-    ok, result = isis_adj_and_stubs_lost(problem, params)
+    ok, result = problem.hello_routing_lost(params)
     states = _isis_live_interfaces(problem, params.host_name)
     running = bool(circuits) and all(states.get(c) == "Up" for c in circuits)
     result.setdefault("details", {})["circuit_states"] = states

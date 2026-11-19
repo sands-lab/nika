@@ -249,6 +249,27 @@ def handle_fault_artifact(session_id: str) -> dict[str, Any]:
     return recheck_bound_artifact(session_id)
 
 
+def handle_symptom_baseline(session_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Read a failure's healthy symptom baseline before a case image injects it."""
+    from nika.validation.symptom.snapshot import capture_baseline, capture_task_baseline
+
+    if body.get("task") is not None:
+        return capture_task_baseline(session_id, body["task"])
+    return capture_baseline(
+        session_id, str(body["fault"]), dict(body.get("inject") or {})
+    )
+
+
+def handle_symptom(session_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Check the symptom of the failure a restored case image carries."""
+    from nika.validation.symptom.snapshot import evaluate_on_snapshot
+
+    meta = SessionStore().get_session(session_id)
+    if meta.get("status") != "running":
+        raise ValueError(f"Session '{session_id}' is not running.")
+    return evaluate_on_snapshot(session_id, str(body["baseline_session"]))
+
+
 def handle_mcp_attach(session_id: str, request: McpAttachRequest) -> McpAttachResponse:
     meta = SessionStore().get_session(session_id)
     if meta.get("status") != "running":
@@ -478,22 +499,78 @@ def handle_session_rebind(
     return SessionRebindResponse(session_id=new_id, session=session_public_dict(new_id))
 
 
-def handle_session_verify(session_id: str) -> dict[str, Any]:
+def handle_session_verify(
+    session_id: str, *, initial_baseline: bool = False
+) -> dict[str, Any]:
     """Verify a running environment before failure injection.
 
-    Protocol recovery requires full checks. Other sessions use the configured depth.
+    Initial baselines and protocol recovery require full checks.
     """
     from nika.net_env.verify import verify_lab_with_retry
+    from nika.telemetry import (
+        PINGMESH,
+        telemetry_for_session,
+        telemetry_ready_timeout,
+        telemetry_running,
+    )
     from nika.workflows.session.close import session_net_env
 
     meta = SessionStore().get_session(session_id)
     if meta.get("status") != "running":
         raise ValueError(f"Session '{session_id}' is not running.")
+    if initial_baseline and bound_injected_problem(session_id) is not None:
+        raise ValueError("Cannot seal an initial baseline with an injected failure")
     bind_session_dir(str(meta["session_dir"]))
     net_env = session_net_env(meta)
     started = time.monotonic()
-    result = verify_lab_with_retry(net_env, full=bool(meta.get("runtime_restored")))
+    result = verify_lab_with_retry(
+        net_env, full=initial_baseline or bool(meta.get("runtime_restored"))
+    )
+    if PINGMESH in telemetry_for_session(meta):
+        from nika.net_env.probe_intent import ProbeIntent
+        from nika.problems.support.polling import wait_until
+        from nika.service.kathara.prometheus_api import prometheus_query_for
+        from nika.service.lab.host_api import create_host_api
+        from nika.service.pingmesh.baseline import read_latency_baseline
+        from nika.service.pingmesh.recorded import recorded_mesh
+
+        metadata = meta.get("metadata") or {}
+        plan = metadata.get("telemetry")
+        if not isinstance(plan, dict) or "devices" not in plan:
+            raise RuntimeError("Declared Pingmesh has no deployed telemetry plan.")
+        api = create_host_api(
+            lab_name=meta["lab_name"], backend=resolve_backend(meta), session_meta=meta
+        )
+        intent = ProbeIntent.from_metadata(metadata)
+        baselines = read_latency_baseline(meta["session_dir"])
+        runtime = net_env._build_runtime()
+        fresh_after = time.time()
+        observed: dict[str, Any] = {}
+
+        def mesh_ready() -> bool:
+            observed.clear()
+            if not telemetry_running(runtime, plan):
+                return False
+            fresh = prometheus_query_for(
+                api, query='min(timestamp(up{job="pingmesh"}))', limit=1
+            )
+            if not (
+                bool(fresh)
+                and isinstance(fresh[0].get("value"), (int, float))
+                and fresh[0]["value"] >= fresh_after
+            ):
+                return False
+            observed.update(recorded_mesh(api, intent=intent, baselines=baselines))
+            return not observed["anomalies"]
+
+        if not wait_until(mesh_ready, telemetry_ready_timeout(plan), interval_s=5):
+            raise RuntimeError(
+                "Restored Pingmesh is not ready: "
+                f"{observed.get('summary', 'no recorded samples')}"
+            )
     verified = result is not None  # None: the scenario has no startup verification
+    if initial_baseline and verified:
+        net_env.seal_baseline()
     outcome = "passed again" if verified else "skipped (no startup verification)"
     log_event(
         "env_reverify",

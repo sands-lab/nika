@@ -716,7 +716,7 @@ def ingress_class_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, A
 def ingress_class_broken(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """The selected Ingress returns 404; its Services still answer directly."""
     before = getattr(problem, "_audit_ingress_class", None) or {}
-    original = problem._original
+    original = getattr(problem, "_original", None) or problem.target_ingress(params)
     targets = {
         f"http://{rule.get('host', '')}{path.get('path', '/')}"
         for rule in original["spec"].get("rules", [])
@@ -972,6 +972,15 @@ def readiness_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
 
 
 def readiness_broken(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    # This symptom requires unchanged Service and Ingress configuration. A
+    # different active fault can violate that invariant before Pods settle.
+    if _readiness_invariants(problem, params) != problem._audit_readiness_invariants:
+        return False, build_verify_result(
+            fault_type=problem.root_cause_name,
+            verified=False,
+            details={"services_and_ingresses_unchanged": False},
+        )
+
     def check():
         sample = readiness_sample(problem, params)
         ok = (

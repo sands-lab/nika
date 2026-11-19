@@ -5,8 +5,7 @@
 Firecracker restores 2 MiB huge-page memory only through a page server: it
 connects to ``socket`` and passes the userfaultfd plus the guest memory
 layout. This server answers page faults from ``memory_file`` and, in the
-background, copies the file's data into guest memory, so the guest stops
-faulting shortly after it resumes. Holes in the (sparse) file are skipped.
+background, copies the file's data into guest memory before the guest resumes. Holes in the (sparse) file are skipped.
 
 With ``memory_diff`` (a case image, see ``nika.firecracker.memdiff``), the
 server first reads ``memory_file`` sequentially and writes the diff's pages
@@ -112,6 +111,9 @@ def _with_diff_blocks(
 
 
 def serve(socket_path: str, memory_file: str, memory_diff: str | None = None) -> None:
+    ready_path = socket_path + ".ready"
+    if os.path.exists(ready_path):
+        os.unlink(ready_path)
     if os.path.exists(socket_path):
         os.unlink(socket_path)
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -177,7 +179,20 @@ def serve(socket_path: str, memory_file: str, memory_diff: str | None = None) ->
                     )
                     pos += done or size  # a fault filled that page first
 
-    threading.Thread(target=prefetch, daemon=True).start()
+    def prefetch_before_resume() -> None:
+        try:
+            prefetch()
+            with open(ready_path, "w"):
+                pass
+        except BaseException:
+            # A failed prefetch must stop the server, so its owner can close
+            # the paused VM instead of waiting for a marker that cannot arrive.
+            import traceback
+
+            traceback.print_exc()
+            os._exit(1)
+
+    threading.Thread(target=prefetch_before_resume, daemon=True).start()
     poller = select.poll()
     poller.register(uffd, select.POLLIN)
     while True:

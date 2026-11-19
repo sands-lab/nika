@@ -147,7 +147,7 @@ def _observe(problem: Any, params: Any) -> tuple[dict | None, dict]:
     return base, {"client": client, "baseline_state": base["state"], "state": state}
 
 
-def dhcp_spoofed_gateway(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+def dhcp_option_gateway(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """The client routes via the leased gateway and loses off-subnet hosts."""
     base, details = _observe(problem, params)
     if base is None:
@@ -173,7 +173,7 @@ def dhcp_spoofed_gateway(problem: Any, params: Any) -> tuple[bool, dict[str, Any
     )
 
 
-def dhcp_spoofed_dns(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+def dhcp_option_dns(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """The client queries the leased resolver and names stop resolving."""
     base, details = _observe(problem, params)
     if base is None:
@@ -198,7 +198,7 @@ def dhcp_spoofed_dns(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     )
 
 
-def dhcp_spoofed_subnet(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+def dhcp_option_subnet(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """The leased prefix no longer covers the gateway, so it is unreachable."""
     base, details = _observe(problem, params)
     if base is None:

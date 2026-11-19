@@ -1,0 +1,22 @@
+------------------------------ show bgp summary -------------------------------
+BGP router identifier 172.16.0.1, local AS number 65001
+BGP generic scan interval 5 secs
+Non-stop routing is enabled
+BGP table state: Active
+Table ID: 0xe0000000   RD version: 6
+BGP main routing table version 6
+BGP NSR Initial initsync version 6 (Not Reached)
+BGP NSR/ISSU Sync-Group versions 0/0
+BGP scan interval 5 secs
+
+BGP is operating in STANDALONE mode.
+
+
+Process    RcvTblVer     bRIB/RIB     LabelVer    ImportVer    SendTblVer   StandbyVer
+Speaker            6             6             6             6             6             0
+
+Neighbor        Spk    AS MsgRcvd MsgSent       TblVer  InQ OutQ  Up/Down  St/PfxRcd
+172.16.0.0        0 65003       8       7            6    0    0 00:01:00          4
+172.16.0.4        0 65004       8       7            6    0    0 00:01:00          4
+172.16.0.8        0 65005       7       7            6    0    0 00:00:59          4
+172.16.0.12       0 65006       7       7            6    0    0 00:00:59          4

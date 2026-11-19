@@ -27,9 +27,9 @@ from scripts.benchmark_audit.environment import (
     StageResult,
     identity_from_row,
 )
-from scripts.benchmark_audit.live import audit_case, declared_probe
+from scripts.benchmark_audit.live import audit_case, audit_case_image, declared_probe
 from scripts.benchmark_audit.provenance import provenance_current
-from nika.config import RUNTIME_DIR
+from nika.config import REPO_ROOT, RUNTIME_DIR
 from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
 )
@@ -41,6 +41,9 @@ from nika.workflows.benchmark.release import read_git_commit
 _ROW_KEYS = (
     "scenario",
     "problem",
+    "problems",
+    "schedule",
+    "telemetry",
     "topo_size",
     "inject",
     "topo",
@@ -50,6 +53,9 @@ _ROW_KEYS = (
     "backend",
     "device_profile",
     "traffic",
+    "objectives",
+    "root_causes",
+    "root_causes_status",
 )
 
 
@@ -57,6 +63,21 @@ RESULTS_DIR = Path(
     os.environ.get("NIKA_AUDIT_RESULTS_DIR")
     or RUNTIME_DIR / "environment-audit-results"
 )
+# Audit the Firecracker case images trials restore instead of fresh labs. An
+# environment variable, so spawned workers inherit the mode.
+CASE_IMAGES_ENV = "NIKA_AUDIT_CASE_IMAGES"
+
+
+def case_image_mode() -> bool:
+    return os.environ.get(CASE_IMAGES_ENV) == "1"
+
+
+def results_dir() -> Path:
+    return RESULTS_DIR / "case-images" if case_image_mode() else RESULTS_DIR
+
+
+# The release whose cases the matrix audits; labs deploy its environments.
+AUDITED_RELEASE = "0.3.0"
 
 
 def _release_rows() -> list[dict[str, Any]]:
@@ -65,7 +86,7 @@ def _release_rows() -> list[dict[str, Any]]:
     return [
         row
         for split in ("dev", "test")
-        for row in load_release("0.3.0", split=split).cases
+        for row in load_release(AUDITED_RELEASE, split=split).cases
     ]
 
 
@@ -105,7 +126,8 @@ def result_path(row: dict[str, Any], repeat: int = 0) -> Path:
     identity = identity_from_row(row)
     digest = hashlib.sha256(identity.key().encode()).hexdigest()[:10]
     return (
-        RESULTS_DIR / f"{identity.scenario}__{identity.fault}__{digest}__r{repeat}.json"
+        results_dir()
+        / f"{identity.scenario}__{identity.fault}__{digest}__r{repeat}.json"
     )
 
 
@@ -135,7 +157,8 @@ def result_current(
         if is_healthy_case(str(row["problem"]))
         else declared_probe(str(row["problem"]))
     )
-    if (agent_view_stages(row) | {"oracle"}) - {s.stage for s in audit.stages}:
+    expected = {"oracle"} if case_image_mode() else agent_view_stages(row) | {"oracle"}
+    if expected - {s.stage for s in audit.stages}:
         return False
     return (
         audit.identity.key() == identity_from_row(row).key()
@@ -145,7 +168,6 @@ def result_current(
 
 
 _MEMORY_FLOOR_GIB = admission.MEMORY_FLOOR_GIB
-_ADMISSION_SPACING_SEC = admission.SPACING_SEC
 # Labs keep growing after admission, so heavy classes also hold a slot for the whole case.
 _CLASS_SLOTS = {"light": 8, "large": 3, "clab": 1, "k8s": 2}
 _LOAD_CEILING = 2 * (os.cpu_count() or 1)
@@ -164,10 +186,35 @@ def _hold_class_slot(resource_class: str) -> IO[str]:
 
 def wait_for_slot(row: dict[str, Any]) -> None:
     """Keep a per-class memory floor and a load ceiling while other NIKA workloads run."""
+    resource_class = effective_class(row)
+    floors = dict(_MEMORY_FLOOR_GIB)
+    if not case_image_mode() and row.get("device_profile") in {"iosxr", "routeros"}:
+        from nika.net_env.net_env_pool import (
+            get_net_env_instance,
+            scenario_requires_topo_size,
+        )
+
+        kwargs = {
+            key: row[key]
+            for key in ("backend", "device_profile", "topo", "igp", "bgp_mode", "rpki")
+            if row.get(key) is not None
+        }
+        if scenario_requires_topo_size(row["scenario"]):
+            kwargs["topo_size"] = row.get("topo_size") or "s"
+        env = get_net_env_instance(row["scenario"], **kwargs)
+        from nika.telemetry import TELEMETRY_KINDS, apply_telemetry, normalize_telemetry
+
+        kinds = normalize_telemetry(row.get("telemetry", TELEMETRY_KINDS))
+        if kinds:
+            apply_telemetry(env, kinds)
+        required = env.native_lab_memory()
+        if required is not None:
+            floors[resource_class] = max(floors[resource_class], required / 1024**3)
     admission.wait_for_admission(
-        effective_class(row),
+        resource_class,
         lock_path=_ADMISSION_LOCK,
         ceiling=_LOAD_CEILING,
+        floors=floors,
         on_wait=lambda info: print(
             f"waiting memory={info['memory_gib']}GiB floor={info['floor_gib']}GiB "
             f"load={info['load']:.0f} ceiling={_LOAD_CEILING} scenario={row['scenario']}",
@@ -187,6 +234,11 @@ def diagnose(audit: CaseAudit, error: str | None = None) -> str:
     """Say whether a bad result comes from the fault or from the check."""
     if error:
         text = error.lower()
+        if "xrd control plane image" in text and "not found locally" in text:
+            return (
+                "verify: the licensed IOS XR image is missing; "
+                "nika images prepare excludes licensed images"
+            )
         if "not found locally" in text or "build it with" in text:
             return "verify: the scenario image is not installed on this host"
         if "cpu-sensitive http server failed" in text or "exceeded 20s" in text:
@@ -333,7 +385,15 @@ def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
         started = time.monotonic()
         error: str | None = None
         try:
-            audit = audit_case(row)
+            from nika.net_env.utils.native_admission import NativeLabMemoryError
+
+            run = audit_case_image if case_image_mode() else audit_case
+            while True:
+                try:
+                    audit = run(row, release=AUDITED_RELEASE)
+                    break
+                except NativeLabMemoryError:
+                    wait_for_slot(row)
         except Exception as exc:  # noqa: BLE001 - one case must not stop the matrix
             error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=8)}"
             audit = _failed_audit(row, f"{type(exc).__name__}: {exc}")
@@ -348,8 +408,8 @@ def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _store(row: dict[str, Any], repeat: int, record: dict[str, Any]) -> None:
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     path = result_path(row, repeat)
+    path.parent.mkdir(parents=True, exist_ok=True)
     write_json_atomic(path, record)
     audit = CaseAudit.model_validate(record["audit"])
     print(
@@ -357,6 +417,25 @@ def _store(row: dict[str, Any], repeat: int, record: dict[str, Any]) -> None:
         f"{audit.admission()} {record['diagnosis']}",
         flush=True,
     )
+
+
+def case_id(row: dict[str, Any]) -> str:
+    """Stable case name shared by result files and ``--cases`` lists."""
+    return result_path(row, 0).name.removesuffix("__r0.json")
+
+
+def _shard_of(row: dict[str, Any], count: int) -> int:
+    """Stable shard index of a case, independent of host and catalog order."""
+    digest = hashlib.sha256(result_path(row, 0).name.encode()).hexdigest()
+    return int(digest, 16) % count
+
+
+def _parse_shard(value: str) -> tuple[int, int]:
+    index, _, count = value.partition("/")
+    shard = (int(index), int(count))
+    if not 0 <= shard[0] < shard[1]:
+        raise argparse.ArgumentTypeError("--shard expects K/N with 0 <= K < N")
+    return shard
 
 
 def run_matrix(
@@ -369,24 +448,42 @@ def run_matrix(
     force: bool = False,
     repeats: int = 1,
     allow_dirty: bool = False,
+    shard: tuple[int, int] | None = None,
+    cases: set[str] | None = None,
 ) -> bool:
     """Audit missing cases, or also rerun recorded non-passing cases.
 
     Each case runs ``repeats`` times on a fresh lab. A case passes only when
     every repeat passes.
     """
+    if Path(__file__).resolve().parents[2] != REPO_ROOT.resolve():
+        raise SystemExit(
+            "the audit scripts and NIKA runtime come from different checkouts; "
+            "run from the runtime checkout using its uv environment"
+        )
     if not allow_dirty and read_git_commit()[1]:
         raise SystemExit(
             "the working tree has uncommitted changes; commit them or pass --allow-dirty"
         )
+    if repeats < 1:
+        raise ValueError("repeats must be at least 1")
+    plan = audit_plan()
+    if cases is not None:
+        unknown = cases - {case_id(row) for row in plan}
+        if unknown:
+            raise ValueError(f"Unknown audit cases: {sorted(unknown)}")
     pending: list[tuple[dict[str, Any], int]] = []
     selected: list[dict[str, Any]] = []
-    for row in audit_plan():
+    for row in plan:
         if scenario and row["scenario"] != scenario:
             continue
         if fault and row["problem"] != fault:
             continue
         if resource_class and effective_class(row) != resource_class:
+            continue
+        if shard and _shard_of(row, shard[1]) != shard[0]:
+            continue
+        if cases is not None and case_id(row) not in cases:
             continue
         selected.append(row)
         if force:
@@ -473,11 +570,28 @@ if __name__ == "__main__":
         "--repeats", type=int, default=1, help="Fresh-lab runs per case"
     )
     parser.add_argument(
+        "--shard",
+        type=_parse_shard,
+        help="Audit only cases in shard K of N (K/N), to split work across hosts",
+    )
+    parser.add_argument(
+        "--cases",
+        type=Path,
+        help="File listing case names (one per line) to audit; other cases are skipped",
+    )
+    parser.add_argument(
+        "--case-images",
+        action="store_true",
+        help="Audit the Firecracker case images trials restore (needs Firecracker)",
+    )
+    parser.add_argument(
         "--allow-dirty",
         action="store_true",
         help="Run on uncommitted edits; such records never count for a release report",
     )
     args = parser.parse_args()
+    if args.case_images:
+        os.environ[CASE_IMAGES_ENV] = "1"
     ok = run_matrix(
         jobs=args.jobs,
         retry_failed=args.retry_failed,
@@ -487,5 +601,15 @@ if __name__ == "__main__":
         force=args.force,
         repeats=args.repeats,
         allow_dirty=args.allow_dirty,
+        shard=args.shard,
+        cases=(
+            {
+                line.strip()
+                for line in args.cases.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.startswith("#")
+            }
+            if args.cases
+            else None
+        ),
     )
     raise SystemExit(0 if ok else 1)

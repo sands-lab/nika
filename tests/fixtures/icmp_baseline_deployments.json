@@ -1,0 +1,38 @@
+[
+  {
+    "id": "enterprise_frr",
+    "scenario": "enterprise_branch",
+    "topo_size": "s",
+    "device_profile": "frr",
+    "inject": {
+      "host_name": "br1_edge"
+    }
+  },
+  {
+    "id": "clos_routeros",
+    "scenario": "dc_clos",
+    "topo_size": "s",
+    "device_profile": "routeros",
+    "inject": {
+      "host_name": "leaf_1"
+    }
+  },
+  {
+    "id": "clos_frr",
+    "scenario": "dc_clos",
+    "topo_size": "s",
+    "device_profile": "frr",
+    "inject": {
+      "host_name": "leaf_1"
+    }
+  },
+  {
+    "id": "enterprise_iosxr",
+    "scenario": "enterprise_branch",
+    "topo_size": "s",
+    "device_profile": "iosxr",
+    "inject": {
+      "host_name": "br1_edge"
+    }
+  }
+]

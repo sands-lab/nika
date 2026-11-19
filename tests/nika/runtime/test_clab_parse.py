@@ -28,35 +28,15 @@ class ClabParseTest:
             with pytest.raises(ValueError):
                 parse_clab_topology(path)
 
-    def test_min3clos_template_parses(self) -> None:
-        template = (
-            Path(__file__).resolve().parents[3]
-            / "src/nika/net_env/min3clos/min3clos.clab.yml.tmpl"
-        )
-        spec = parse_clab_topology(template)
-
-        assert spec.name == "__LAB_NAME__"
-        node_names = [node.name for node in spec.nodes]
-
-        assert len(node_names) == 5
-
-        assert "leaf1" in node_names
-
-        assert "spine" in node_names
-
-        assert "client2" in node_names
-
-        assert len(spec.links) == 4
-
-    def test_min3clos_env_uses_parsed_topology(self) -> None:
-        env = get_net_env_instance("min3clos", backend="containerlab")
+    def test_dc_clos_env_uses_parsed_topology(self) -> None:
+        env = get_net_env_instance("dc_clos", backend="containerlab")
         spec = env.get_lab_spec()
 
-        assert spec.name == "min3clos"
+        assert spec.name == "dc_clos"
 
-        assert len(spec.nodes) == 5
+        assert len(spec.nodes) == 18
 
-        assert "leaf1" in env.get_info()
+        assert "leaf_1" in env.get_info()
 
 
 def test_in_memory_document_matches_yaml_roundtrip(tmp_path):

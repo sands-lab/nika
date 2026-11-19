@@ -10,7 +10,6 @@ from nika.net_env.native_routers import router_sketches
 from nika.net_env.verify import ping_stats
 from nika.problems.base import build_verify_result
 from nika.problems.routing_control_plane.ospf import ospf_networks
-from nika.problems.support.benchmark_targets import hosts_behind_router
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import native_fault_ops
 from nika.validation.symptom.routing_probes import (
@@ -28,6 +27,14 @@ def _probe_ends(problem, branch, abr):
         for prefix, area in ospf_networks(config)
         if area in {"0", "0.0.0.0"}
     }
+    design = getattr(problem.net_env, "routing_design", None)
+    if design is not None:
+        backbone.update(
+            ipaddress.IPv4Network(prefix)
+            for router in design.routers.values()
+            for prefix, area in router.ospf_networks
+            if str(area) in {"0", "0.0.0.0"}
+        )
     src = None
     for name in sorted(problem.net_env.lab.machines):
         if name in sketches:
@@ -61,18 +68,18 @@ def _probe_ends(problem, branch, abr):
         for host in branch["members"]
         if str(gateway) in re.findall(r"ip addr add ([0-9./]+) dev", sketches[host][1])
     )
-    inside = hosts_behind_router(problem.net_env, distribution)
     abr_addresses = [
         ipaddress.IPv4Interface(address)
         for address in re.findall(r"ip addr add ([0-9./]+) dev", sketches[abr][1])
         if str(ipaddress.IPv4Interface(address).network) in branch["prefixes"]
     ]
-    if not inside or not abr_addresses:
-        raise ValueError("No intra-area host and ABR address for OSPF range probe")
+    if not abr_addresses:
+        raise ValueError("No intra-area ABR address for OSPF range probe")
     return {
         "src": src,
         "dst": str(gateway.ip),
-        "control_src": inside[0],
+        # DHCP clients can lose their leases when the central server is isolated.
+        "control_src": distribution,
         "control_dst": str(min(abr_addresses, key=lambda a: int(a.ip)).ip),
     }
 

@@ -21,6 +21,7 @@ def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
     profiles = benchmark_isp_profiles(
         [
             root / "benchmark/working/cases.yaml",
+            root / "tests/fixtures/benchmark/routing_profiles.yaml",
             root / "benchmark/releases/0.3.0/dev.yaml",
             root / "benchmark/releases/0.3.0/test.yaml",
         ]
@@ -110,7 +111,7 @@ def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
             failure = next(
                 check
                 for check in spec.failure_checks
-                if check.problem == case["problem"]
+                if check.problem == case["problem"] and check.params == case["inject"]
             )
             assert failure.params == case["inject"]
             assert set(failure.expected_failed_ids) <= healthy_ids
@@ -226,5 +227,5 @@ def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
                 assert any("ip route del local" in command for command in cleanup)
                 assert any("ip addr del" in command for command in cleanup)
 
-    # The fixed release examples retain coverage of non-endpoint session loss.
+    # The authored regression retains non-endpoint session-loss coverage.
     assert transit_acl_seen

@@ -1,0 +1,8 @@
+{
+  "source": "nika01 results-r2/auth-diagnostic/receipt.json, session adm2-auth-diagnostic-1794884386",
+  "healthy_neighbors": "Area CORE:\n System Id           Interface   L  State         Holdtime SNPA\n brussels            eth0        2  Up            29       2020.2020.2020\n glasgow             eth1        2  Up            29       2020.2020.2020\n hamburg             eth2        2  Up            29       2020.2020.2020\n london              eth3        2  Up            30       2020.2020.2020",
+  "fault_neighbors": "Area CORE:\n System Id           Interface   L  State         Holdtime SNPA",
+  "healthy_routes": "10.0.0.2/31 nhid 23 via 10.0.0.67 dev eth3 metric 20 \n10.0.0.4/31 nhid 15 via 10.0.0.45 dev eth2 metric 20 ",
+  "fault_routes": "",
+  "peer_still_up": "Area CORE:\n System Id           Interface   L  State         Holdtime SNPA\n amsterdam           eth0        2  Up            29       2020.2020.2020\n dusseldorf          eth1        2  Up            27       2020.2020.2020\n paris               eth2        2  Up            29       2020.2020.2020"
+}

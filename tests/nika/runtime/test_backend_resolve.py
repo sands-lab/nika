@@ -20,6 +20,17 @@ class BackendResolveTest:
             "nika.agents.sandbox.backend.prepare_configured_sandbox_templates",
             lambda: [],
         )
+        monkeypatch.setattr(
+            "nika.workflows.env.start.apply_telemetry", lambda env, kinds: {}
+        )
+        monkeypatch.setattr(
+            "nika.workflows.env.start._configure_telemetry",
+            lambda *args, **kwargs: None,
+        )
+        monkeypatch.setattr(
+            "nika.workflows.env.start._calibrate_pingmesh",
+            lambda *args, **kwargs: None,
+        )
 
     def test_legacy_session_defaults_to_kathara(self) -> None:
         meta = {
@@ -44,9 +55,12 @@ class BackendResolveTest:
     def test_containerlab_only_scenario_infers_backend(self) -> None:
         meta = {
             "session_id": "clab-1",
-            "lab_name": "min3clos__abc123",
-            "scenario_name": "min3clos",
-            "scenario_params": {"lab_name": "min3clos__abc123"},
+            "lab_name": "dc_clos__abc123",
+            "scenario_name": "dc_clos",
+            "scenario_params": {
+                "lab_name": "dc_clos__abc123",
+                "backend": "containerlab",
+            },
         }
 
         assert resolve_backend(meta) == "containerlab"
@@ -61,11 +75,11 @@ class BackendResolveTest:
             session.store = store
             session.init_session(
                 session_id="20260706-120000-abc123",
-                scenario_name="min3clos",
-                lab_name="min3clos__tag",
+                scenario_name="dc_clos",
+                lab_name="dc_clos__tag",
                 scenario_topo_size=None,
                 scenario_params={
-                    "lab_name": "min3clos__tag",
+                    "lab_name": "dc_clos__tag",
                     "backend": "containerlab",
                 },
                 result_dir=results_root,
@@ -90,12 +104,12 @@ class BackendResolveTest:
             runtime_for_session(
                 {
                     "backend": "containerlab",
-                    "lab_name": "min3clos__x",
-                    "scenario_name": "min3clos",
+                    "lab_name": "dc_clos__x",
+                    "scenario_name": "dc_clos",
                 }
             )
 
-    def test_start_net_env_infers_containerlab_for_min3clos(self) -> None:
+    def test_start_net_env_uses_selected_containerlab_for_dc_clos(self) -> None:
         from unittest.mock import patch
 
         from nika.workflows.env.start import start_net_env
@@ -103,7 +117,7 @@ class BackendResolveTest:
         with tempfile.TemporaryDirectory() as tmp:
             with patch("nika.workflows.env.start.get_net_env_instance") as mock_env:
                 mock_env.return_value.lab_exists.return_value = True
-                mock_env.return_value.name = "min3clos__tag"
+                mock_env.return_value.name = "dc_clos__tag"
                 mock_env.return_value.deploy = lambda: None
                 mock_env.return_value.undeploy = lambda: None
                 with patch(
@@ -114,7 +128,7 @@ class BackendResolveTest:
                         # Real path required: MagicMock.session_dir is PathLike and
                         # would mkdir MagicMock/Session().session_dir/<id> under CWD.
                         session.session_dir = str(Path(tmp) / "session")
-                        start_net_env("min3clos", None)
+                        start_net_env("dc_clos", "s", backend="containerlab")
                         _, kwargs = mock_env.call_args
 
                         assert kwargs.get("backend") == "containerlab"

@@ -67,19 +67,41 @@ def _echo_train(
     *,
     count: int = TRAIN_COUNT,
     separate_pings: bool = False,
+    carrier_interface: str | None = None,
 ) -> dict[str, Any]:
     """Answered (``!``) and lost (``.``) echoes in send order, and their runs."""
     deadline = round(count * TRAIN_INTERVAL_SEC) + 2
     if separate_pings:
-        # A long-lived ping socket can stop after an interface reports a local
-        # unreachable error. Reopen it for each sample while keeping one exec.
+        # A long-lived ping socket can stop after a carrier loss reports a
+        # local unreachable error. Reopen it for each sample in one exec.
+        carrier_read = ""
+        answered, lost = "printf '!'", "printf '.'"
+        if carrier_interface is not None:
+            path = shlex.quote(f"/sys/class/net/{carrier_interface}/carrier")
+            carrier_read = f"carrier=$(cat {path} 2>/dev/null) || carrier=?; "
+            answered = "printf '%s!\\n' \"$carrier\""
+            lost = "printf '%s.\\n' \"$carrier\""
         command = (
             f"end=$(($(date +%s)+{deadline})); "
             'while [ "$(date +%s)" -lt "$end" ]; do '
+            f"{carrier_read}"
             f"if ping -n -c 1 -W 0.2 {shlex.quote(dst)} >/dev/null 2>&1; "
-            "then printf '!'; else printf '.'; fi; sleep 0.1; done"
+            f"then {answered}; else {lost}; fi; sleep 0.1; done"
         )
         output = exec_or_empty(runtime, src, command, timeout=deadline + 15.0)
+        carrier = None
+        if carrier_interface is not None:
+            samples = output.splitlines()
+            if not samples or any(
+                not re.fullmatch(r"[01?][!.]", row) for row in samples
+            ):
+                return {
+                    "src": src,
+                    "dst": dst,
+                    "error": output[:300] or "no_ping_samples",
+                }
+            carrier = "".join(row[0] for row in samples)
+            output = "".join(row[1] for row in samples)
         if not output or any(char not in "!." for char in output):
             return {"src": src, "dst": dst, "error": output[:300] or "no_ping_samples"}
         pattern = output
@@ -99,7 +121,7 @@ def _echo_train(
         answered = {int(seq) for seq in re.findall(r"icmp_seq=(\d+) ttl=", output)}
         pattern = "".join("!" if seq in answered else "." for seq in range(1, sent + 1))
     runs = [match.group(0) for match in re.finditer(r"!+|\.+", pattern)]
-    return {
+    result = {
         "src": src,
         "dst": dst,
         "sent": sent,
@@ -108,6 +130,15 @@ def _echo_train(
         "down_runs": sum(1 for run in runs if run[0] == "." and len(run) >= MIN_RUN),
         "up_runs": sum(1 for run in runs if run[0] == "!" and len(run) >= MIN_RUN),
     }
+    if separate_pings and carrier_interface is not None:
+        result["carrier"] = {
+            "interface": carrier_interface,
+            "pattern": carrier,
+            "valid": set(carrier) <= {"0", "1"},
+            "down_runs": sum(len(run) >= MIN_RUN for run in re.findall("0+", carrier)),
+            "up_runs": sum(len(run) >= MIN_RUN for run in re.findall("1+", carrier)),
+        }
+    return result
 
 
 def flap_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -142,12 +173,25 @@ def evaluate_link_flap_symptom(
             (MIN_CYCLES + 1) * (params.down_time + params.up_time) / TRAIN_INTERVAL_SEC
         ),
     )
+    carrier_interface = None
+    identity = problem.net_env.machine_identities.get(params.host_name)
+    if (
+        params.host_name == before["src"]
+        and identity
+        and "linux" in identity.capabilities
+    ):
+        from nika.problems.rca.inventory import kernel_data_interface
+
+        carrier_interface = kernel_data_interface(
+            problem.net_env, params.host_name, params.intf_name
+        )
     train = _echo_train(
         problem.runtime,
         before["src"],
         before["dst"],
         count=count,
-        separate_pings=problem.lab_backend == "containerlab",
+        separate_pings=True,
+        carrier_interface=carrier_interface,
     )
     if "error" in train:
         return False, {"error": "flap_probe_failed", "after": train}
@@ -159,6 +203,15 @@ def evaluate_link_flap_symptom(
         and train["down_runs"] >= MIN_CYCLES
         and train["up_runs"] >= MIN_CYCLES
     )
+    # Short up intervals can leave ARP unresolved, so IP replies need not recover.
+    # Require actual periodic carrier observations alongside the sustained outage.
+    carrier = train.get("carrier") or {}
+    periodic_carrier_outage = (
+        train["loss_percent"] > 80.0
+        and carrier.get("valid", False)
+        and carrier.get("down_runs", 0) >= MIN_CYCLES
+        and carrier.get("up_runs", 0) >= MIN_CYCLES
+    )
     # A 1 s / 1 s flap on a meshed IGP link drops the adjacency and the
     # probe sticks to a longer detour, so later cycles are not lost.
     after_echo = echo(problem.runtime, before["src"], before["dst"])
@@ -169,7 +222,7 @@ def evaluate_link_flap_symptom(
         and max(after_echo["ttls"]) < min(before_ttls)
         and train["down_runs"] >= 1
     )
-    verified = periodic_loss or rerouted
+    verified = periodic_loss or periodic_carrier_outage or rerouted
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
@@ -178,6 +231,7 @@ def evaluate_link_flap_symptom(
             "after": {**train, "ttls": after_echo["ttls"]},
             "comparison": {
                 "periodic_loss": periodic_loss,
+                "periodic_carrier_outage": periodic_carrier_outage,
                 "rerouted": rerouted,
             },
         },

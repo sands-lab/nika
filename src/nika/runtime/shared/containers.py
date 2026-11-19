@@ -7,10 +7,49 @@ from typing import Any
 
 _client: Any = None
 _client_lock = threading.Lock()
+_pool_patch_lock = threading.Lock()
 
 # Privileged netns helpers must not sit on the shared host if netlink blocks.
 _HELPER_WAIT_SEC = 60.0
 _HELPER_STOP_SEC = 10
+
+
+def patch_closed_pool_return() -> None:
+    """Handle urllib3's closed-pool logging race after a connection is discarded."""
+    from functools import wraps
+
+    from urllib3.connectionpool import HTTPConnectionPool
+
+    with _pool_patch_lock:
+        original = HTTPConnectionPool._put_conn
+        if getattr(original, "_nika_closed_pool_return", False):
+            return
+
+        @wraps(original)
+        def put_connection(pool: Any, connection: Any) -> None:
+            try:
+                original(pool, connection)
+            except AttributeError as error:
+                trace = error.__traceback__
+                while trace is not None and trace.tb_next is not None:
+                    trace = trace.tb_next
+                if (
+                    error.name != "qsize"
+                    or error.obj is not None
+                    or pool.pool is not None
+                    or (
+                        connection is not None
+                        and not getattr(connection, "is_closed", False)
+                    )
+                    or trace is None
+                    or trace.tb_frame.f_code is not original.__code__
+                ):
+                    raise
+                # The full-pool path already closed this connection. Only its
+                # size logging failed after concurrent pool eviction.
+
+        put_connection._nika_closed_pool_return = True  # type: ignore[attr-defined]
+        HTTPConnectionPool._put_conn = put_connection
 
 
 def docker_client() -> Any:
@@ -26,6 +65,7 @@ def docker_client() -> Any:
             if _client is None:
                 import docker
 
+                patch_closed_pool_return()
                 _client = docker.from_env()
     return _client
 

@@ -148,9 +148,14 @@ def test_netlab_frr_ebgp_keeps_native_intra_as_next_hop_and_export_scope():
     "scenario,topo_size,deployment",
     [
         (
-            "isp_abilene_ebgp_rpki",
+            "isp_abilene",
             None,
-            {"backend": "kathara", "device_profile": "frr"},
+            {
+                "backend": "kathara",
+                "device_profile": "frr",
+                "igp": "ospf",
+                "bgp_mode": "ebgp",
+            },
         ),
         ("dc_clos", "s", {}),
     ],

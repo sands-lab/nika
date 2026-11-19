@@ -32,6 +32,8 @@ _SWEEP_SOURCES = [10007 + 211 * index for index in range(256)]
 _SWEEP_PORT = 19411
 _SWEEP_LOG = "/tmp/probe-sweep.log"
 _SWEEP_PID = "/tmp/probe-sweep.pid"
+_SWEEP_CAPTURE_LOG = "/tmp/probe-sweep-port.log"
+_SWEEP_CAPTURE_PID = "/tmp/probe-sweep-port.pid"
 _SWEEP_MIN_DELIVERED = 0.98
 # BMv2 paths carry about 5 Mbit/s, so a 2 MB transfer the kernel already holds
 # drains within a few seconds of its program stopping.
@@ -89,6 +91,11 @@ def _sweep_ends(problem: Any, params: Any) -> dict[str, Any]:
         "target_ip": target.ip,
         "prefix": prefix,
         "member_port": ports[member_id],
+        "member_interface": next(
+            port.name
+            for port in problem.net_env.model.ports[params.host_name]
+            if port.bmv2_port == ports[member_id]
+        ),
         "other_ports": sorted(
             ports[int(m)] for m in group["member_ids"] if int(m) != member_id
         ),
@@ -152,6 +159,20 @@ def _sweep_counted(
     try:
         if started.strip() != "listening":
             return {"error": f"sweep listener did not start: {started[:300]}"}
+        # Monitoring still uses physical ports while workloads are paused.
+        # Count only this sweep's UDP packets on the original member port.
+        packet_filter = f"udp dst port {_SWEEP_PORT} and dst host {ends['target_ip']}"
+        capture = runtime.exec(
+            ends["switch"],
+            f"rm -f {_SWEEP_CAPTURE_LOG}; nohup timeout 120 tcpdump -Q out -lni "
+            f"{shlex.quote(ends['member_interface'])} {shlex.quote(packet_filter)} "
+            f">{_SWEEP_CAPTURE_LOG} 2>/dev/null </dev/null & "
+            f"echo $! > {_SWEEP_CAPTURE_PID}; sleep 0.5; "
+            f"kill -0 $(cat {_SWEEP_CAPTURE_PID}) && echo capturing",
+            timeout=20,
+        )
+        if capture.strip() != "capturing":
+            return {"error": f"member capture did not start: {capture[:300]}"}
         before = _egress_packets(problem, ends["switch"])
         hops_before = _next_hop_packets(problem, ends) if next_hops else {}
         sent = runtime.exec(
@@ -164,9 +185,23 @@ def _sweep_counted(
         after = _egress_packets(problem, ends["switch"])
         hops_after = _next_hop_packets(problem, ends) if next_hops else {}
         received = runtime.exec(ends["target"], f"cat {_SWEEP_LOG}", timeout=20)
+        captured = runtime.exec(
+            ends["switch"],
+            f"kill $(cat {_SWEEP_CAPTURE_PID}) 2>/dev/null; sleep 0.5; "
+            f"grep -c . {_SWEEP_CAPTURE_LOG}",
+            timeout=20,
+        )
+        if not captured.strip().isdigit():
+            return {"error": f"member capture unreadable: {captured[:300]}"}
     except RuntimeError as exc:
         return {"error": f"sweep failed: {exc}"}
     finally:
+        runtime.exec(
+            ends["switch"],
+            f"kill $(cat {_SWEEP_CAPTURE_PID}) 2>/dev/null; "
+            f"rm -f {_SWEEP_CAPTURE_LOG} {_SWEEP_CAPTURE_PID}",
+            timeout=20,
+        )
         runtime.exec(
             ends["target"],
             f"kill $(cat {_SWEEP_PID}) 2>/dev/null; rm -f {_SWEEP_LOG} {_SWEEP_PID}",
@@ -185,6 +220,7 @@ def _sweep_counted(
         "lost_sources": lost,
         "egress_delta": {p: after.get(p, 0) - before.get(p, 0) for p in ports},
     }
+    sample["member_probe_packets"] = int(captured.strip())
     if next_hops:
         sample["next_hop_delta"] = {
             p: hops_after.get(p, 0) - hops_before.get(p, 0) for p in hops_after
@@ -206,7 +242,8 @@ def _sweep_baseline(
         delta.get(p, 0) > 0 for p in [ends["member_port"], *ends["other_ports"]]
     )
     delivered = sample["delivered"] >= _SWEEP_MIN_DELIVERED * sample["flows"]
-    ok = spread and delivered and sample["egress_delta"][_BAD_PORT] == 0
+    member_used = sample["member_probe_packets"] > 0
+    ok = spread and delivered and member_used and sample["egress_delta"][_BAD_PORT] == 0
     return ok, {**ends, **sample, "spread": spread}
 
 
@@ -241,7 +278,7 @@ def ecmp_member_missing(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
     if "error" in sample:
         return False, {**ends, **sample}
     delta = sample["next_hop_delta"]
-    removed_idle = delta.get(ends["member_port"], 0) <= _IDLE_MAX_PACKETS
+    removed_idle = sample["member_probe_packets"] == 0
     control_ok = (
         all(delta.get(p, 0) > _IDLE_MAX_PACKETS for p in ends["other_ports"])
         and sample["delivered"] >= _SWEEP_MIN_DELIVERED * sample["flows"]
@@ -268,7 +305,7 @@ def selector_member_blackhole(problem: Any, params: Any) -> tuple[bool, dict[str
     lost = sample["flows"] - sample["delivered"]
     share = sample["flows"] / (1 + len(ends["other_ports"]))
     partial_loss = share / 2 <= lost < sample["flows"]
-    bad_port_drops = delta[_BAD_PORT] > 0 and delta[ends["member_port"]] == 0
+    bad_port_drops = delta[_BAD_PORT] > 0 and sample["member_probe_packets"] == 0
     control_ok = all(delta[p] > 0 for p in ends["other_ports"])
     verified = partial_loss and bad_port_drops and control_ok
     return verified, build_verify_result(

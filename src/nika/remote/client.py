@@ -25,6 +25,7 @@ from nika.remote.protocol import (
     SessionLogResponse,
     SessionRebindRequest,
     SessionRebindResponse,
+    SessionVerifyRequest,
 )
 
 
@@ -140,6 +141,39 @@ class RemoteClient:
             raise RemoteError("Unexpected fault-artifact response shape")
         return payload
 
+    def symptom_baseline(
+        self,
+        session_id: str,
+        *,
+        fault: str = "",
+        inject: dict[str, Any] | None = None,
+        task: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Read a failure's healthy symptom baseline before it is injected."""
+        return self._request(
+            "POST",
+            f"/v1/sessions/{session_id}/symptom/baseline",
+            body={"task": task}
+            if task is not None
+            else {"fault": fault, "inject": inject},
+            timeout=600.0,
+        )
+
+    def symptom(
+        self,
+        session_id: str,
+        *,
+        baseline_session: str,
+        timeout: float = 600.0,
+    ) -> dict[str, Any]:
+        """Check the symptom of the failure a restored case image carries."""
+        return self._request(
+            "POST",
+            f"/v1/sessions/{session_id}/symptom",
+            body={"baseline_session": baseline_session},
+            timeout=timeout,
+        )
+
     def mcp_attach(
         self,
         session_id: str,
@@ -202,9 +236,14 @@ class RemoteClient:
             self._request("POST", f"/v1/sessions/{session_id}/rebind", body=body)
         )
 
-    def verify_session(self, session_id: str) -> dict[str, Any]:
+    def verify_session(
+        self, session_id: str, *, initial_baseline: bool = False
+    ) -> dict[str, Any]:
         return self._request(
-            "POST", f"/v1/sessions/{session_id}/verify", body={}, timeout=None
+            "POST",
+            f"/v1/sessions/{session_id}/verify",
+            body=SessionVerifyRequest(initial_baseline=initial_baseline).model_dump(),
+            timeout=None,
         )
 
     def read_log(self, session_id: str, name: str, offset: int) -> SessionLogResponse:

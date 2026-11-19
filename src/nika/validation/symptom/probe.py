@@ -55,10 +55,6 @@ _SCENARIO_PEER_HOST: dict[str, dict[str, str]] = {
         "client_1": "client_2",
         "client_2": "client_1",
     },
-    "min3clos": {
-        "client_1_1": "client_2_1",
-        "client_2_1": "client_1_1",
-    },
     "k8s_lab": {
         "client": "as2r1",
     },
@@ -170,7 +166,7 @@ def _resolve_path(
         dst_ip = f"{base}.2"
     old_ip = _params_get(params, "original_ip") or path.old_ip
     http_url = _params_get(params, "probe_url") or path.http_url
-    # Silent destination drop (p4_tcam_entry_corruption): probe the corrupted
+    # Silent destination drop (p4_table_entry_misconfig): probe the corrupted
     # target, not the scenario default VIP which remains reachable.
     target_ip = _params_get(params, "target_ip")
     if target_ip:
@@ -289,8 +285,19 @@ def _probe_snapshot(
         return snap
     if probe_kind in {"path_http", "degradation_http"} and path.http_url:
         if probe_kind == "path_http":
-            snap.http_ok = http_ok(runtime, src, path.http_url)
-            snap.http_time_ms = http_time_ms(runtime, src, path.http_url)
+            result = http_download_stats(
+                runtime,
+                src,
+                path.http_url,
+                max_time_sec=20,
+                connect_timeout_sec=5,
+            )
+            snap.http_ok = result.ok and result.exit_code == 0
+            snap.http_time_ms = (
+                result.time_total_s * 1000.0
+                if snap.http_ok and result.time_total_s is not None
+                else None
+            )
             return snap
         samples_raw = _params_get(params, "probe_samples", "1") or "1"
         timeout_raw = _params_get(params, "probe_timeout_sec", "20") or "20"

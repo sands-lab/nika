@@ -71,7 +71,7 @@ def _sample(problem, params):
         return {**sample, "error": "No existing in-cluster application checks."}
     observer = min(agents, key=lambda pod: pod["metadata"]["name"])["metadata"]["name"]
     command = (
-        'printf "last_success_age_sec=%s\\n" "$(($(date +%s) - $(cat /tmp/last-ok)))"; '
+        'printf "last_success_age_sec=%s\\n" "$(($(cut -d. -f1 /proc/uptime) - $(cat /tmp/last-ok)))"; '
         "timeout 10 nslookup kubernetes.default.svc.cluster.local"
     )
     lookup = k8s.kubectl(

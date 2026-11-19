@@ -1,8 +1,9 @@
-"""Case images: a lab image copy saved right after its case's failure injection.
+"""Case images: a task snapshot with healthy baselines for restored checks.
 
-With ``nika.execution.firecracker.case_images``, each failure case is injected once:
-restore its lab image, adopt the lab session, verify it, inject the case's
-failure (the same ``inject_failure`` path as a trial), then snapshot the VM.
+With ``nika.execution.firecracker.case_images``, untimed tasks are injected once:
+restore the lab image, adopt and verify its session, capture healthy member
+baselines, inject the task, then snapshot the VM. Timed tasks save the healthy
+baselines and run their timeline on each restored copy.
 The case image in ``<root>/cases/<key>/`` keeps:
 
 * ``mem.zdiff``: the memory pages that differ from the lab image, compressed
@@ -10,8 +11,8 @@ The case image in ``<root>/cases/<key>/`` keeps:
 * ``vm.state`` and ``disk.img`` (a copy-on-write clone: only changed blocks);
 * ``case.json``: the lab image key and the injected session's id.
 
-Trials of the case restore it, adopt the injected session (its ground truth
-moves with it) and skip verification and injection. The key covers the lab
+Untimed trials adopt the injected session and skip verification and injection.
+Timed trials verify their healthy copy and execute the authored schedule. The key covers the lab
 image key and the case row, so a new lab image builds new case images.
 """
 
@@ -57,6 +58,7 @@ class CaseImage:
     path: Path
     image: LabImage
     session_id: str
+    injected: bool = True
 
 
 def cases_dir() -> Path:
@@ -67,10 +69,8 @@ def wants_case_image(row: dict[str, Any]) -> bool:
     """Case images are on and the row injects a failure."""
     from nika.workflows.benchmark.healthy import is_healthy_case
 
-    return (
-        row.get("schedule") is None
-        and firecracker_settings().case_images
-        and not is_healthy_case(row.get("problem"))
+    return firecracker_settings().case_images and not is_healthy_case(
+        row.get("problem")
     )
 
 
@@ -96,7 +96,13 @@ def _ready_case(key: str) -> CaseImage | None:
     # Its memory diff applies only to the lab image build it was taken from.
     if image is None or meta.get("image_created") != image.created:
         return None
-    return CaseImage(key=key, path=path, image=image, session_id=meta["session_id"])
+    return CaseImage(
+        key=key,
+        path=path,
+        image=image,
+        session_id=meta["session_id"],
+        injected=meta.get("injected", True),
+    )
 
 
 def ensure_case(row: dict[str, Any]) -> CaseImage:
@@ -132,6 +138,7 @@ def ensure_case(row: dict[str, Any]) -> CaseImage:
 
 def _build_case(build: Path, key: str, row: dict[str, Any]) -> None:
     from nika.firecracker.trial import TrialLab
+    from nika.remote.workflows import _client
     from nika.utils.session_store import SessionStore
     from nika.workflows.benchmark.multi_fault import nested_inject_map, row_problems
     from nika.workflows.failure.inject import inject_failure
@@ -143,7 +150,13 @@ def _build_case(build: Path, key: str, row: dict[str, Any]) -> None:
     results = build / "results"
     problems = row_problems(row)
     overrides = (
-        nested_inject_map(row) if len(problems) > 1 else dict(row.get("inject") or {})
+        {}
+        if row.get("schedule") is not None
+        else (
+            nested_inject_map(row)
+            if len(problems) > 1
+            else dict(row.get("inject") or {})
+        )
     )
     expected = (
         None
@@ -159,13 +172,21 @@ def _build_case(build: Path, key: str, row: dict[str, Any]) -> None:
             session_dir=str(results / session_id),
         )
         try:
+            # Timelines start on each restored copy, after all healthy baselines
+            # have been captured. No scheduler thread or wall clock is snapshotted.
+            baseline = _client().symptom_baseline(session_id, task=row)
+            if not baseline.get("ok"):
+                raise RuntimeError(
+                    f"Case image has no healthy member baseline: {baseline}"
+                )
             started = time.monotonic()
-            inject_failure(
-                problem_names=problems,
-                session_id=session_id,
-                param_overrides=overrides,
-                expected_root_causes=expected,
-            )
+            if row.get("schedule") is None:
+                inject_failure(
+                    problem_names=problems,
+                    session_id=session_id,
+                    param_overrides=overrides,
+                    expected_root_causes=expected,
+                )
             timings["inject_sec"] = round(time.monotonic() - started, 1)
             started = time.monotonic()
             vm = Firecracker(lab.dir, firecracker_binary())
@@ -191,6 +212,7 @@ def _build_case(build: Path, key: str, row: dict[str, Any]) -> None:
                 "image_created": image.created,
                 "session_id": session_id,
                 "problem": row.get("problem"),
+                "injected": row.get("schedule") is None,
                 "variant": variant_for_row(row),
                 "diff_pages": sizes["pages"],
                 "diff_bytes": sizes["bytes"],

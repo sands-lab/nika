@@ -43,7 +43,7 @@ def test_route_expectations_distinguish_best_and_accepted_origins():
 @pytest.mark.integration
 @pytest.mark.live
 @pytest.mark.skipif(not docker_available(), reason="Docker unavailable")
-@pytest.mark.parametrize("scenario", ["isp_abilene_ebgp_rpki", "isp_geant_ebgp_rpki"])
+@pytest.mark.parametrize("scenario", ["isp_abilene", "isp_geant"])
 def test_fixed_vrp_projection_with_batfish_route_policy_evaluation(scenario, tmp_path):
     import docker
     from docker.errors import NotFound
@@ -54,7 +54,7 @@ def test_fixed_vrp_projection_with_batfish_route_policy_evaluation(scenario, tmp
         ensure_batfish_service,
     )
 
-    env = load_offline_net_env(scenario)
+    env = load_offline_net_env(scenario, igp="ospf", bgp_mode="ebgp")
     contract = ValidationContract(
         contract_id=scenario + ".vrp-regression",
         scenario=scenario,

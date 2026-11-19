@@ -199,6 +199,18 @@ def largest_df_packet(runtime: LabRuntime, src: str, dst: str) -> int | None:
 
 def _link_ipv4(problem: Any, node: str, intf: str) -> str:
     """Data-plane IPv4 on ``node``'s topology interface ``intf``."""
+    from nika.problems.support.router_ops import router_fault_ops
+
+    ops = router_fault_ops(problem, node)
+    if ops is not None and ops.supports("interface_addresses"):
+        return next(
+            (
+                str(address.ip)
+                for cidr in ops.interface_addresses(intf)
+                if (address := ipaddress.ip_interface(cidr)).version == 4
+            ),
+            "",
+        )
     return iface_ipv4(
         problem.runtime, node, kernel_data_interface(problem.net_env, node, intf)
     )
@@ -223,8 +235,69 @@ def _mtu_ends(problem: Any, params: Any) -> dict[str, str] | None:
         ),
         [],
     )
+    from nika.problems.support.benchmark_targets import attached_end_hosts
+    from nika.problems.support.router_ops import (
+        profile_routes_with_frr,
+        router_fault_ops,
+    )
+
+    ops = router_fault_ops(problem, host)
+    native = ops is not None and not profile_routes_with_frr(ops.profile)
+    facing = [
+        (node, port)
+        for node, port in map(parse_endpoint, members)
+        if node != host and _is_end_host(problem, node)
+    ]
+    if native and facing:
+        # A bridged router port need not own an IP; cross it between real hosts.
+        behind = set(attached_end_hosts(problem.net_env, host))
+        on_link = {parse_endpoint(tp)[0] for tp in members}
+        identities = problem.net_env.machine_identities
+        sources = sorted(identities, key=lambda node: (node in behind, node))
+        src = next(
+            (
+                node
+                for node in sources
+                if node not in on_link
+                and identities[node].role in {NodeRole.HOST, NodeRole.SERVICE}
+            ),
+            None,
+        )
+        address = _link_ipv4(problem, *facing[0])
+        return (
+            {"src": src, "dst": address, "probe": "forward_df"}
+            if src and address
+            else None
+        )
     if len(members) == 2:
         peer, peer_intf = parse_endpoint(next(m for m in members if m != endpoint))
+        if native:
+            # Native routers forward inside their own stack; originate on a host.
+            sources = attached_end_hosts(problem.net_env, host)
+            if sources:
+                address = _link_ipv4(problem, peer, peer_intf)
+                if not address:
+                    return None
+                # Attached hosts can belong to different routing domains. Pick
+                # one that can reach the peer before measuring its path MTU.
+                source = next(
+                    (
+                        candidate
+                        for candidate in sources
+                        if echo(problem.runtime, candidate, address, count=1)[
+                            "received"
+                        ]
+                    ),
+                    sources[0],
+                )
+                return {"src": source, "dst": address, "probe": "forward_df"}
+            sources = attached_end_hosts(problem.net_env, peer)
+            address = _link_ipv4(problem, host, intf)
+            return (
+                {"src": sources[0], "dst": address, "probe": "reply_size"}
+                if sources and address
+                else None
+            )
         address = _link_ipv4(problem, peer, peer_intf) if peer else ""
         if not address:
             return None

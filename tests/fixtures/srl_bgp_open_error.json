@@ -1,0 +1,50 @@
+{
+  "network-instance": [
+    {
+      "name": "default",
+      "protocols": {
+        "bgp": {
+          "neighbor": [
+            {
+              "peer-address": "10.255.0.1",
+              "session-state": "active",
+              "timers": {
+                "connect-retry": 10,
+                "hold-time": 90,
+                "keepalive-interval": 30,
+                "minimum-advertisement-interval": 1,
+                "prefix-limit-restart-timer": 0,
+                "negotiated-hold-time": 90,
+                "negotiated-keepalive-interval": 30
+              },
+              "sent-messages": {
+                "queue-depth": 0,
+                "total-updates": "0",
+                "total-non-updates": "11",
+                "route-refresh": "0",
+                "total-messages": "11",
+                "last-notification-time": "2026-11-13T08:34:48.900Z (now)",
+                "last-notification-error-code": "Open Message Error",
+                "last-notification-error-subcode": "Bad Peer As",
+                "total-notifications": 1
+              },
+              "received-messages": {
+                "queue-depth": 0,
+                "total-updates": "0",
+                "total-non-updates": "1",
+                "malformed-updates": "0",
+                "route-refresh": "0",
+                "total-messages": "1",
+                "last-update-time": "2026-11-13T08:32:30.900Z (2 minutes ago)",
+                "last-notification-time": "2026-11-13T08:33:18.900Z (a minute ago)",
+                "last-notification-error-code": "Cease",
+                "last-notification-error-subcode": "Other Configuration Change",
+                "total-notifications": 1
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

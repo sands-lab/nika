@@ -201,7 +201,11 @@ class Firecracker:
         self.api(
             "PUT",
             "/snapshot/load",
-            {"snapshot_path": str(state), "mem_backend": backend, "resume_vm": True},
+            {
+                "snapshot_path": str(state),
+                "mem_backend": backend,
+                "resume_vm": uffd_socket is None,
+            },
         )
 
     def kill(self) -> None:

@@ -196,3 +196,68 @@ def test_queue_helper_rechecks_exact_tap_and_foreign_alias(tmp_path) -> None:
     )
     assert result.returncode != 0
     assert not log.exists()
+
+
+def test_large_host_cleanup_can_execute_each_shell_argument():
+    links = [
+        {"ifname": f"tap{index}", "ifalias": tap.tap_owner(LAB), "ifindex": index + 1}
+        for index in range(2048)
+    ]
+    commands = []
+
+    def run(command, mode, lab_name, error):
+        assert mode == "host" and lab_name == LAB
+        # Exercise execve's real argument limit without modifying interfaces.
+        subprocess.run(["/bin/sh", "-n", "-c", command[2]], check=True, timeout=5)
+        commands.append(command[2])
+
+    with (
+        patch.object(tap, "owned_host_taps", side_effect=[links, []]),
+        patch.object(tap, "_run_net_admin_helper", side_effect=run),
+    ):
+        tap.cleanup_host_taps(LAB)
+    script = "\n".join(commands)
+    assert script.count("ip link delete dev ") == len(links)
+    for link in links:
+        assert f"cat /sys/class/net/{link['ifname']}/ifalias" in script
+        assert (
+            f'cat /sys/class/net/{link["ifname"]}/ifindex)" = {link["ifindex"]} '
+            in script
+        )
+
+
+def test_host_cleanup_preserves_reassigned_aliases_and_indices(tmp_path):
+    links = []
+    for index, name in enumerate(("own", "foreign", "reused", "last"), start=1):
+        links.append({"ifname": name, "ifalias": tap.tap_owner(LAB), "ifindex": index})
+        dev = tmp_path / name
+        dev.mkdir()
+        (dev / "ifalias").write_text(
+            tap.tap_owner("other") if name == "foreign" else tap.tap_owner(LAB)
+        )
+        (dev / "ifindex").write_text(str(99 if name == "reused" else index))
+    binary = tmp_path / "ip"
+    log = tmp_path / "ip.log"
+    binary.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$NIKA_TEST_IP_LOG"\n')
+    binary.chmod(0o755)
+
+    def run(command, *_):
+        subprocess.run(
+            [*command[:2], command[2].replace("/sys/class/net", str(tmp_path))],
+            env={
+                **os.environ,
+                "PATH": f"{tmp_path}:{os.environ['PATH']}",
+                "NIKA_TEST_IP_LOG": str(log),
+            },
+            check=True,
+        )
+
+    with (
+        patch.object(tap, "owned_host_taps", side_effect=[links, []]),
+        patch.object(tap, "_run_net_admin_helper", side_effect=run),
+    ):
+        tap.cleanup_host_taps(LAB)
+    assert log.read_text().splitlines() == [
+        "link delete dev own",
+        "link delete dev last",
+    ]

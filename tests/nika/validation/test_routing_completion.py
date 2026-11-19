@@ -192,9 +192,7 @@ def test_runtime_requirements_cannot_redefine_a_static_predicate(tmp_path):
 
 @pytest.mark.e2e
 @pytest.mark.parametrize("config_generator", [None, "netlab"])
-@pytest.mark.parametrize(
-    "specimen", ["clos", "clos-m", "campus", "enterprise", "min3clos"]
-)
+@pytest.mark.parametrize("specimen", ["clos", "clos-m", "campus", "enterprise"])
 def test_completion_configuration_execution_and_registered_failures(
     specimen, config_generator, tmp_path, netcomplete_image, batfish_verifier
 ):

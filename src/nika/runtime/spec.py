@@ -8,6 +8,7 @@ from enum import StrEnum
 
 class NodeRole(StrEnum):
     HOST = "host"
+    SERVER = "server"
     ROUTER = "router"
     SWITCH = "switch"
     CONTROLLER = "controller"

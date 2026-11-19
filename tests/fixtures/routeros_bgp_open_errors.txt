@@ -1,0 +1,3 @@
+2026-11-13 07:45:36 route,bgp,info peer-0-1 {l_addr: 172.16.0.0, r_addr: 172.16.0.1} Idle
+2026-11-13 07:45:37 route,bgp,error peer-0-1 {l_addr: 172.16.0.0, r_addr: 172.16.0.1} Starter {openOk: false} Invalid remote AS (65601), expected 65001
+2026-11-13 07:45:46 route,bgp,error peer-0-1 {l_addr: 172.16.0.0, r_addr: 172.16.0.1} Starter {openOk: false} Invalid remote AS (65601), expected 65001

@@ -46,7 +46,7 @@ def _problem(net_env: SimpleNamespace) -> SimpleNamespace:
     return SimpleNamespace(
         runtime=SimpleNamespace(),
         net_env=net_env,
-        scenario_name="min3clos",
+        scenario_name="dc_clos",
     )
 
 

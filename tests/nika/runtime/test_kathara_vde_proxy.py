@@ -79,7 +79,19 @@ def test_vde_proxy_preserves_point_to_point_link_identity_and_connectivity() -> 
             runtime.exec("router1", "test -e /tmp/link_flap_eth0.pid; echo $?").strip()
             == "1"
         )
+        # Both lab interfaces lose carrier, as on a failing cable.
+        peer, peer_intf = state.peer.node, state.peer.intf
+        sample = (
+            "for i in $(seq 1 16); do cat /sys/class/net/{}/operstate; "
+            "sleep 0.25; done | sort -u"
+        )
+        for node, intf in (("router1", "eth0"), (peer, peer_intf)):
+            seen = set(runtime.exec(node, sample.format(intf), timeout=15).split())
+            assert seen == {"up", "down"}, (node, intf, seen)
         proxy.stop_link_flap(state)
+        for node, intf in (("router1", "eth0"), (peer, peer_intf)):
+            link = json.loads(runtime.exec(node, f"ip -j link show dev {intf}"))[0]
+            assert "LOWER_UP" in link["flags"], (node, link["flags"])
 
         proxy.set_netem_corrupt(state, 5)
         assert proxy.netem_configured(state)

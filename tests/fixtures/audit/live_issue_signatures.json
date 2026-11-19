@@ -1,0 +1,54 @@
+[
+  {
+    "id": "HARNESS-CASE-SYMPTOM-READINESS",
+    "output": "{\"stage\": \"image_symptom\", \"status\": \"fail\"}, {\"stage\": \"image_persistence_symptom\", \"status\": \"pass\"}"
+  },
+  {
+    "id": "HARNESS-RTP-DEGRADATION-WITNESS",
+    "output": "{\"stage\": \"image_symptom\", \"status\": \"pass\", \"intervals\": [{\"rx\": 0, \"lost\": 10, \"loss\": 100}, {\"rx\": 0, \"lost\": 10, \"loss\": 100}, {\"rx\": 0, \"lost\": 10, \"loss\": 100}]}"
+  },
+  {
+    "id": "LURE-RESTORED-PROBE-HISTORY",
+    "output": "{\"stage\": \"agent_view\", \"status\": \"fail\", \"reason\": \"pingmesh unreachable\", \"mode\": \"case_image\"}"
+  },
+  {
+    "id": "HARNESS-BMV2-PORTS-UNCHECKED-JSON",
+    "output": "Expecting value: line 1 column 2 (char 1)"
+  },
+  {
+    "id": "HARNESS-CORRUPTION-TCP-RECOVERY-REJECTED",
+    "output": "ok=24 failed=0 local_errors=0"
+  },
+  {
+    "id": "HARNESS-LB-CONTROL-IO-TIMEOUT",
+    "output": "{\"flows\": {\"0\": \"broken\", \"1\": \"broken\", \"2\": \"broken\", \"3\": \"broken\", \"4\": \"broken\", \"5\": \"broken\", \"6\": \"broken\", \"7\": \"broken\", \"8\": \"broken\", \"9\": \"broken\", \"10\": \"broken\", \"11\": \"broken\", \"12\": \"broken\", \"13\": \"broken\", \"14\": \"broken\", \"15\": \"broken\"}}"
+  },
+  {
+    "id": "HARNESS-CAPTURE-PRIVATE-MOUNT-COPY",
+    "output": "404 Client Error archive?path=/tmp/capture-ab.pcapng Could not find the file"
+  },
+  {
+    "id": "HARNESS-IOSXR-CAPTURE-PORT-NAME",
+    "output": "Interface 'GigabitEthernet0/0/0/0' does not exist. Available interfaces: eth0"
+  },
+  {
+    "id": "NATIVE-HEALTHY-WARNING-HISTORY",
+    "output": "2026-11-17 16:47:50 system,error,critical kernel failure in previous boot"
+  },
+  {
+    "id": "NATIVE-HEALTHY-WARNING-HISTORY",
+    "output": "2026-11-17 16:48:26 system,error,critical Automatic supout.rif file generated due to service malfunction, please contact MikroTik support and supply the generated file"
+  },
+  {
+    "id": "NATIVE-HEALTHY-WARNING-HISTORY",
+    "output": "[VQK5M-9G0V1][EC 100663315] CPU starvation: {(event *)0x7ffd1a08d090 arg=0x60ef3efe94d0 ready               wheel_timer_thread() &wheel->timer from ../lib/wheel.c:50} getting executed 181084ms late, warning threshold 4000ms. System load: 6.18, 4.93, 2.36"
+  },
+  {
+    "id": "LEAK-ROUTEROS-CONFIGURATION-LOG",
+    "output": " 2026-11-17 16:42:36 system,info peer-0 added by ftp-auto-run:vrnetlab@:: (*1 = /routing bgp connection add afi=ip connect=yes input.filter=BGP-IN instance=CORE listen=yes local.address=10.255.0.12 .role=ibgp name=peer-0 output.filter-chain=BGP-OUT .network=BGP-ORIGINS remote.address=10.255.0.1 .as=65000)\n 2026-11-17 16:42:36 system,info peer-1 added by ftp-auto-run:vrnetlab@:: (*2 = /routing bgp connection add afi=ip connect=yes input.filter=BGP-IN instance=CORE listen=yes local.address=10.255.0.12 .role=ibgp name=peer-1 output.filter-chain=BGP-OUT .network=BGP-ORIGINS remote.address=10.255.0.2 .as=65000)\n 2026-11-17 16:49:34 system,info peer-0 changed by ssh-cmd:vrnetlab@172.31.255.29/action:3 (/routing bgp connection set peer-0 afi=ipv6)"
+  },
+  {
+    "id": "HARNESS-ROUTEROS-FLOW-TARGET-SETUP",
+    "output": "0"
+  }
+]

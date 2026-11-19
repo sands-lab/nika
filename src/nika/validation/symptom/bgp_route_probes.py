@@ -281,6 +281,35 @@ def hijack_attracts(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 # ---------------------------------------------------------------- RPKI leak
 
 
+def rov_policy_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Observe invalid-origin rejection in the attached import policy."""
+    reading = problem._policy_reading(params)
+    ok = bool(
+        reading["invalid_deny"]
+        and reading["imports_attached"]
+        and reading["cache_connected"]
+    )
+    if ok:
+        problem._audit_rov_policy = reading
+    return ok, reading
+
+
+def rov_policy_missing(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Observe the missing rejection step without requiring invalid traffic."""
+    baseline = getattr(problem, "_audit_rov_policy", None)
+    reading = problem._policy_reading(params)
+    ok = bool(
+        baseline
+        and reading["policy"]
+        == tuple(e for e in baseline["policy"] if e not in baseline["invalid_deny"])
+        and reading["policy"]
+        and not reading["invalid_deny"]
+        and reading["imports_attached"]
+        and reading["cache_connected"]
+    )
+    return ok, build_verify_result(problem.root_cause_name, ok, reading)
+
+
 def _rpki_reading(problem: Any) -> dict[str, Any]:
     runtime = problem.runtime
     bgp = problem._rpki_bgp_inventory()
@@ -475,14 +504,29 @@ def advertisement_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, 
 # ------------------------------------------------- session policy missing
 
 
-def _policy_probe_ends(problem: Any, router: str) -> dict[str, Any]:
-    """A remote client and the address of an end host behind ``router``."""
+def _policy_probe_ends(
+    problem: Any, router: str, peer: str | None = None
+) -> dict[str, Any]:
+    """A remote client and an endpoint behind the router or its scoped peer."""
     from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
     from nika.problems.support.benchmark_targets import attached_end_hosts
     from nika.runtime.spec import NodeRole
     from nika.validation.symptom.addressing_probes import lab_addresses
 
     behind = attached_end_hosts(problem.net_env, router)
+    if not behind and peer is not None:
+        intf = problem.session_interfaces(problem.net_env, router).get(str(peer))
+        neighbors = {
+            parse_endpoint(str(tp))[0]
+            for _key, tps in iter_link_termination_points(problem.net_env)
+            if f"{router}:{intf}" in tps
+            for tp in tps
+            if parse_endpoint(str(tp))[0] != router
+        }
+        # A peer-scoped transit router can observe the peer's attached endpoint.
+        if len(neighbors) == 1:
+            router = neighbors.pop()
+            behind = attached_end_hosts(problem.net_env, router)
     if not behind:
         return {"error": "no_end_host_behind_router"}
     topo_size = getattr(problem.net_env, "topo_size", None) or "s"
@@ -530,31 +574,43 @@ def _policy_probe_ends(problem: Any, router: str) -> dict[str, Any]:
 
 
 def session_policy_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Established sessions on the router and a reachable host behind it."""
+    """Established eBGP sessions receiving routes and a reachable endpoint."""
     from nika.problems.support.router_ops import router_fault_ops
 
     ops = router_fault_ops(problem, params.host_name)
-    ends = _policy_probe_ends(problem, params.host_name)
+    ends = _policy_probe_ends(problem, params.host_name, params.peer)
     if "error" in ends:
         return False, ends
+    targets = set(problem.session_interfaces(problem.net_env, params.host_name))
+    if params.peer is not None:
+        targets &= {str(params.peer)}
+    if not ops or not targets:
+        return False, {"error": "no_ebgp_policy_peers", **ends}
     # A freshly started lab may still be resolving neighbors; read again.
     deadline = time.monotonic() + _ROUTE_WAIT_SEC
     while True:
-        peers = sorted(ops.bgp_established_peers()) if ops else []
+        peers = sorted(ops.bgp_established_peers())
+        received = {
+            peer: ops.bgp_accepted_prefix_count(peer)
+            for peer in sorted(targets & set(peers))
+        }
         loss = ping_stats(
             problem.runtime, ends["src"], ends["dst"], count=10
         ).loss_percent
-        if (peers and loss == 0.0) or time.monotonic() >= deadline:
+        ready = targets <= set(peers) and any(received.values()) and loss == 0.0
+        if ready or time.monotonic() >= deadline:
             break
         time.sleep(_POLL_SEC)
-    problem._audit_session_policy = {"peers": peers, "ends": ends}
-    return bool(peers) and loss == 0.0, {**ends, "peers": peers, "loss": loss}
+    problem._audit_session_policy = (
+        {"peers": peers, "ends": ends, "received": received} if ready else None
+    )
+    return ready, {**ends, "peers": peers, "received": received, "loss": loss}
 
 
 def session_policy_drops_routes(
     problem: Any, params: Any
 ) -> tuple[bool, dict[str, Any]]:
-    """The sessions stay Established while the host behind the router goes dark."""
+    """Affected eBGP sessions stay Established while their received routes vanish."""
     from nika.problems.support.router_ops import router_fault_ops
 
     base = getattr(problem, "_audit_session_policy", None)
@@ -568,12 +624,28 @@ def session_policy_drops_routes(
             problem.runtime, ends["src"], ends["dst"], count=5
         ).loss_percent
         peers = sorted(ops.bgp_established_peers()) if ops else []
-        verified = loss == 100.0 and set(base["peers"]) <= set(peers)
+        received = {
+            peer: ops.bgp_accepted_prefix_count(peer)
+            for peer in base["received"]
+            if peer in peers
+        }
+        verified = (
+            set(base["peers"]) <= set(peers)
+            and received.keys() == base["received"].keys()
+            and not any(received.values())
+        )
         if verified or time.monotonic() >= deadline:
             break
         time.sleep(_POLL_SEC)
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
-        details={**ends, "loss": loss, "peers_before": base["peers"], "peers": peers},
+        details={
+            **ends,
+            "loss": loss,
+            "peers_before": base["peers"],
+            "peers": peers,
+            "received_before": base["received"],
+            "received": received,
+        },
     )

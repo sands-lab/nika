@@ -8,7 +8,7 @@ import pytest
 
 from nika.net_env.contract import AdjacencyExpectation, ValidationIntent
 from nika.net_env.isp.containerlab.lab import Isp
-from nika.net_env.min3clos.lab import ContainerlabMin3Clos
+from nika.net_env.dc_clos.containerlab import ContainerlabDCClos
 from nika.net_env.utils.sonic.render import node_files
 from nika.validation.base import ValidationSnapshot
 from nika.validation.batfish.sonic import build_sonic_snapshot, design_frr
@@ -23,10 +23,10 @@ def _isp(igp: str, bgp_mode: str) -> Isp:
 
 
 def test_native_snapshot_holds_deployed_files_ports_and_outages(tmp_path):
-    env = ContainerlabMin3Clos(device_profile="sonic")
+    env = ContainerlabDCClos(device_profile="sonic")
     contract = env.get_validation_contract()
     snapshot = build_sonic_snapshot(
-        env, contract, tmp_path, shutdown=[("leaf1", "eth1")]
+        env, contract, tmp_path, shutdown=[("leaf_1", "eth1")]
     )
 
     for name, router in env.sonic_routers.items():
@@ -35,7 +35,7 @@ def test_native_snapshot_holds_deployed_files_ports_and_outages(tmp_path):
         assert (folder / "frr.conf").read_text() == deployed["frr.conf"]
         db = json.loads((folder / "config_db.json").read_text())
         expected = json.loads(deployed["config_db.json"])
-        if name == "leaf1":
+        if name == "leaf_1":
             assert db["PORT"]["Ethernet0"]["admin_status"] == "down"
             db["PORT"]["Ethernet0"]["admin_status"] = "up"
         assert db == expected
@@ -43,11 +43,10 @@ def test_native_snapshot_holds_deployed_files_ports_and_outages(tmp_path):
     assert {
         (e["interface1"]["hostname"], e["interface1"]["interfaceName"])
         for e in edges["edges"]
-    } == {("leaf1", "Ethernet0"), ("leaf2", "Ethernet0")}
+    } >= {("leaf_1", "Ethernet0"), ("leaf_2", "Ethernet0")}
     assert snapshot.metadata["native_config_analysis"] is True
-    # min3clos runs IS-IS next to OSPF; Batfish's FRR model has no IS-IS.
-    assert snapshot.metadata["unmodeled_protocols"] == ["isis"]
-    assert snapshot.metadata["interface_aliases"]["leaf1"]["Ethernet0"] == "eth1"
+    assert snapshot.metadata["unmodeled_protocols"] == []
+    assert snapshot.metadata["interface_aliases"]["spine_1"]["Ethernet0"] == "eth1"
 
 
 def test_isis_only_design_uses_the_ios_xr_projection_of_the_same_design(tmp_path):
@@ -80,7 +79,7 @@ def test_design_frr_inverts_the_sonic_rendering():
 
 
 def test_unmodeled_protocol_adjacency_is_unsupported(tmp_path):
-    env = ContainerlabMin3Clos(device_profile="sonic")
+    env = ContainerlabDCClos(device_profile="sonic")
     intent = ValidationIntent(
         id="adj.isis.leaf1.spine",
         description="IS-IS adjacency.",
@@ -88,7 +87,7 @@ def test_unmodeled_protocol_adjacency_is_unsupported(tmp_path):
         expected="established",
         adjacency=AdjacencyExpectation(
             protocol="isis",
-            local_node="leaf1",
+            local_node="leaf_1",
             remote_node="spine",
             local_address="10.0.0.0",
             remote_address="10.0.0.1",
@@ -128,9 +127,9 @@ def test_sonic_experiments_reject_unbound_capabilities(tmp_path):
     srl_isp = Isp(topo="abilene", igp="ospf", bgp_mode="none")
     assert _batfish_snapshot_builder(srl_isp, srl_isp.get_validation_contract()) is None
 
-    env = ContainerlabMin3Clos(device_profile="sonic")
+    env = ContainerlabDCClos(device_profile="sonic")
     spec = ScenarioExperiment(
-        scenario="min3clos",
+        scenario="dc_clos",
         routing_model="sonic",
         deployment={"backend": "containerlab", "device_profile": "sonic"},
         healthy=env.get_validation_contract(),
@@ -147,5 +146,7 @@ def test_sonic_experiments_reject_unbound_capabilities(tmp_path):
     )
     with pytest.raises(ValueError, match="requires a SONiC deployment"):
         validate_scenario_design(srl, tmp_path)
-    with pytest.raises(ValueError, match="no routing model"):
-        ContainerlabMin3Clos(device_profile="sonic", routing_parameters={})
+    with pytest.raises(ValueError, match="netlab does not generate SONiC"):
+        from nika.workflows.validation.netlab import check_netlab_scope
+
+        check_netlab_scope(spec, env)

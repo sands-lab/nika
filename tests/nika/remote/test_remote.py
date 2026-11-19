@@ -103,6 +103,75 @@ def test_recovered_protocols_require_complete_verification(restored):
     verify.assert_called_once_with(env, full=restored)
 
 
+@pytest.mark.parametrize(
+    "snapshot,exporters_ready,scrape_at,ready",
+    [
+        ({"summary": {"observed_targets": 2}, "anomalies": []}, True, 11, True),
+        ({"summary": {"observed_targets": 2}, "anomalies": []}, True, 9, False),
+        ({"summary": {"observed_targets": 2}, "anomalies": []}, False, 11, False),
+        (
+            {"summary": {"anomaly_count": 1}, "anomalies": ["unreachable"]},
+            True,
+            11,
+            False,
+        ),
+        (RuntimeError("No recorded probe samples are available yet."), True, 11, False),
+    ],
+)
+def test_restored_mesh_requires_readable_healthy_history(
+    snapshot, exporters_ready, scrape_at, ready
+):
+    from nika.remote import handlers
+
+    api = object()
+    with (
+        patch.object(handlers, "SessionStore") as store,
+        patch.object(handlers, "bind_session_dir"),
+        patch.object(handlers, "log_event"),
+        patch.object(handlers.time, "time", return_value=10),
+        patch("nika.workflows.session.close.session_net_env"),
+        patch("nika.net_env.verify.verify_lab_with_retry", return_value={}),
+        patch("nika.telemetry.telemetry_ready_timeout", return_value=0),
+        patch("nika.telemetry.telemetry_running", return_value=exporters_ready),
+        patch("nika.service.pingmesh.baseline.read_latency_baseline", return_value={}),
+        patch("nika.service.lab.host_api.create_host_api", return_value=api),
+        patch(
+            "nika.service.kathara.prometheus_api.prometheus_query_for",
+            return_value=[{"value": scrape_at}],
+        ) as fresh,
+        patch("nika.service.pingmesh.recorded.recorded_mesh") as read,
+    ):
+        store.return_value.get_session.return_value = {
+            "status": "running",
+            "session_dir": "/owned",
+            "lab_name": "owned-lab",
+            "backend": "kathara",
+            "runtime_restored": True,
+            "scenario_params": {"telemetry": ["pingmesh"]},
+            "metadata": {"telemetry": {"devices": {}}},
+        }
+        # A new completed scrape can report failure after saved successes were read.
+        read.return_value = {"anomalies": []}
+
+        def completed_scrape(*_args, **_kwargs):
+            if isinstance(snapshot, Exception):
+                read.side_effect = snapshot
+            else:
+                read.return_value = snapshot
+            return [{"value": scrape_at}]
+
+        fresh.side_effect = completed_scrape
+        if ready:
+            assert handlers.handle_session_verify("owned")["verified"]
+        else:
+            with pytest.raises(RuntimeError, match="Pingmesh is not ready"):
+                handlers.handle_session_verify("owned")
+        if exporters_ready and scrape_at >= 10:
+            assert read.call_args.args == (api,)
+        else:
+            read.assert_not_called()
+
+
 @pytest.fixture(autouse=True)
 def _clear_run_config(monkeypatch: pytest.MonkeyPatch) -> None:
     reset_run_config()
@@ -482,3 +551,66 @@ def test_attach_preserves_controller_policy_and_budget():
     }
     with pytest.raises(ValueError):
         McpAttachRequest(tool_call_limits={"diagnosis": -1})
+
+
+@pytest.mark.parametrize("initial_baseline", [False, True])
+@pytest.mark.parametrize("verified", [False, True])
+def test_verification_seals_only_an_initial_verified_baseline(
+    initial_baseline, verified
+):
+    from nika.remote import handlers
+
+    env = MagicMock()
+    with (
+        patch.object(handlers, "SessionStore") as store,
+        patch.object(handlers, "bind_session_dir"),
+        patch.object(handlers, "log_event"),
+        patch.object(handlers, "bound_injected_problem", return_value=None),
+        patch("nika.workflows.session.close.session_net_env", return_value=env),
+        patch(
+            "nika.net_env.verify.verify_lab_with_retry",
+            return_value={} if verified else None,
+        ) as verify,
+    ):
+        store.return_value.get_session.return_value = {
+            "status": "running",
+            "session_dir": "/owned",
+            "runtime_restored": False,
+        }
+        handlers.handle_session_verify("owned", initial_baseline=initial_baseline)
+    verify.assert_called_once_with(env, full=initial_baseline)
+    assert env.seal_baseline.call_count == int(initial_baseline and verified)
+
+
+def test_initial_baseline_verification_preserves_an_injected_episode():
+    from nika.remote import handlers
+
+    with (
+        patch.object(handlers, "SessionStore") as store,
+        patch.object(
+            handlers, "bound_injected_problem", return_value=(object(), object())
+        ),
+        patch("nika.workflows.session.close.session_net_env") as get_env,
+        patch("nika.net_env.verify.verify_lab_with_retry") as verify,
+    ):
+        store.return_value.get_session.return_value = {"status": "running"}
+        with pytest.raises(ValueError, match="injected failure"):
+            handlers.handle_session_verify("owned", initial_baseline=True)
+    verify.assert_not_called()
+    get_env.assert_not_called()
+
+
+@pytest.mark.parametrize("body", [None, {}, {"initial_baseline": True}])
+def test_session_verification_api_accepts_initial_baseline_and_empty_requests(body):
+    from nika.remote import api
+
+    with patch.object(
+        api, "handle_session_verify", return_value={"verified": True}
+    ) as verify:
+        with TestClient(create_remote_app()) as client:
+            kwargs = {} if body is None else {"json": body}
+            response = client.post("/v1/sessions/owned/verify", **kwargs)
+    assert response.status_code == 200
+    verify.assert_called_once_with(
+        "owned", initial_baseline=bool(body and body.get("initial_baseline"))
+    )

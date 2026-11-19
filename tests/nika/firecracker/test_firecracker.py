@@ -35,7 +35,7 @@ def test_restored_images_resume_protocols_and_keep_case_fault_checks(injected, v
     lab = TrialLab({}, trial_key="owned", owner="test")
     lab.image = SimpleNamespace(session_id="image")
     if injected:
-        lab.case = SimpleNamespace(session_id="injected", key="case")
+        lab.case = SimpleNamespace(session_id="injected", key="case", injected=True)
     with (
         patch(
             "nika.remote.workflows.remote_rebind_session", return_value="trial"
@@ -44,10 +44,84 @@ def test_restored_images_resume_protocols_and_keep_case_fault_checks(injected, v
         patch("nika.firecracker.trial._record_trial_timings"),
     ):
         client.return_value.fault_artifact.return_value = {"present": True}
+        client.return_value.symptom.return_value = {"ok": True}
         assert lab.attach(session_id="trial") == "trial"
     assert rebind.call_args.kwargs["restore_runtime"] is True
     assert client.return_value.fault_artifact.call_count == int(injected)
+    assert client.return_value.symptom.call_count == int(injected)
     assert client.return_value.verify_session.call_count == int(verify and not injected)
+    if verify and not injected:
+        client.return_value.verify_session.assert_called_once_with(
+            "trial", initial_baseline=True
+        )
+
+
+@pytest.mark.parametrize("ready", [False, True])
+def test_case_symptom_readiness_retries_with_a_finite_remote_deadline(
+    monkeypatch, ready
+):
+    from types import SimpleNamespace
+    from nika.firecracker import trial
+
+    clock = [0.0]
+    calls = []
+
+    def observe(session_id, *, baseline_session, timeout):
+        assert session_id == "trial" and baseline_session == "source"
+        calls.append(timeout)
+        clock[0] += min(40.0, timeout)
+        return {"ok": ready and len(calls) == 2, "payload": "live observation"}
+
+    monkeypatch.setattr(trial, "CASE_SYMPTOM_READY_SEC", 100.0)
+    monkeypatch.setattr(trial.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        trial.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds)
+    )
+    monkeypatch.setattr(
+        "nika.remote.workflows._client", lambda: SimpleNamespace(symptom=observe)
+    )
+    case = SimpleNamespace(session_id="source", key="case")
+    if ready:
+        trial._wait_for_case_symptom("trial", case)
+        assert calls == [100.0, 58.0]
+    else:
+        with pytest.raises(trial.VmmError, match="declared symptom not ready"):
+            trial._wait_for_case_symptom("trial", case)
+        assert calls == [100.0, 58.0, 16.0]
+        assert clock[0] == 100.0
+
+
+def test_case_symptom_readiness_failure_closes_only_the_rebound_session():
+    from types import SimpleNamespace
+    from nika.firecracker.trial import TrialLab, VmmError
+
+    lab = TrialLab({}, trial_key="owned", owner="test")
+    lab.image = SimpleNamespace(session_id="healthy")
+    lab.case = SimpleNamespace(session_id="source", key="case", injected=True)
+    with (
+        patch("nika.remote.workflows.remote_rebind_session", return_value="trial"),
+        patch("nika.remote.workflows._client") as client,
+        patch(
+            "nika.firecracker.trial._wait_for_case_symptom",
+            side_effect=VmmError("not ready"),
+        ),
+        patch("nika.workflows.session.close.close_session") as close,
+    ):
+        client.return_value.fault_artifact.return_value = {"present": True}
+        with pytest.raises(VmmError, match="not ready"):
+            lab.attach(session_id="trial")
+    close.assert_called_once_with(session_id="trial", undeploy=False, status="error")
+
+
+def test_remote_symptom_request_uses_the_remaining_readiness_budget():
+    from nika.remote.client import RemoteClient
+
+    client = RemoteClient(
+        RemoteConfig(enabled=True, url="http://127.0.0.1:1", artifact_root="")
+    )
+    with patch.object(client, "_request", return_value={"ok": True}) as request:
+        client.symptom("trial", baseline_session="source", timeout=36.5)
+    assert request.call_args.kwargs["timeout"] == 36.5
 
 
 def test_scheduled_trials_restore_uninjected_workloads_at_their_planned_start():
@@ -76,7 +150,7 @@ def test_scheduled_trials_restore_uninjected_workloads_at_their_planned_start():
             ],
         },
     }
-    assert not wants_case_image(row)
+    assert wants_case_image(row)
     params = image.variant_for_row(row)
     assert params["defer_business_traffic"] is True
     assert params["defer_background_traffic"] is True
@@ -98,12 +172,7 @@ def _clean_run_config():
     reset_run_config()
 
 
-@pytest.mark.parametrize("sync_fails", [False, True])
-def test_restored_vm_synchronizes_utc_before_lab_exposure(
-    tmp_path, monkeypatch, sync_fails
-):
-    import re
-    import time
+def test_restored_vm_preserves_guest_clock_before_lab_exposure(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from nika.firecracker import trial
 
@@ -116,37 +185,29 @@ def test_restored_vm_synchronizes_utc_before_lab_exposure(
     lab.timings = {}
     lab.sandbox_backend = None
     calls = []
-    before = time.time()
 
-    def synchronize(uds, command, *, timeout):
-        assert calls == ["ready"]
-        assert uds == lab.dir / trial.VSOCK
-        timestamp = float(re.search(r"@([0-9.]+)", command)[1])
-        assert before <= timestamp <= time.time()
-        calls.append("synchronized")
-        if sync_fails:
-            raise trial.VmmError("Clock synchronization failed")
+    def reject_clock_change(*args, **kwargs):
+        raise AssertionError("Restore must preserve the snapshot's guest clock")
 
     def expose(backend):
-        assert calls == ["ready", "synchronized"]
+        assert calls == ["ready"]
         raise RuntimeError("Lab exposure reached")
 
     monkeypatch.setattr(
         trial, "firecracker_settings", lambda: SimpleNamespace(huge_pages=False)
     )
-    monkeypatch.setattr(trial, "_clone", lambda *args: None)
+    clone = MagicMock()
+    monkeypatch.setattr(trial, "_clone", clone)
     monkeypatch.setattr(trial, "firecracker_binary", lambda: "firecracker")
     monkeypatch.setattr(trial, "Firecracker", MagicMock())
     monkeypatch.setattr(
         trial, "wait_http_ok", lambda *args, **kw: calls.append("ready")
     )
-    monkeypatch.setattr(trial, "guest_exec", synchronize)
+    monkeypatch.setattr(trial, "guest_exec", reject_clock_change, raising=False)
     monkeypatch.setattr(trial, "gateway_route", expose)
-    with pytest.raises(
-        RuntimeError,
-        match="Clock synchronization failed" if sync_fails else "Lab exposure reached",
-    ):
+    with pytest.raises(RuntimeError, match="Lab exposure reached"):
         lab._restore()
+    clone.assert_called_once_with(lab.image.path / trial.DISK, lab.dir / trial.DISK)
 
 
 def test_firecracker_settings_default_off_and_validated() -> None:
@@ -161,6 +222,8 @@ def test_firecracker_settings_default_off_and_validated() -> None:
     assert FirecrackerSettings().vm_cpus_overrides == {}
     set_run_config(RunConfig())
     assert image.vm_memory_mib({"scenario": "dc_clos"}) == 8192
+    # Large P4 gateway labs otherwise lose BMv2 processes to the guest OOM killer.
+    assert image.vm_memory_mib({"scenario": "p4_dc_gateway", "topo_size": "l"}) == 8192
     assert image.vm_cpus({"scenario": "isp_pdh"}) == 12
     assert image.vm_cpus({"scenario": "campus_lan"}) == 4
     set_run_config(
@@ -182,25 +245,32 @@ def test_vm_memory_follows_the_router_platform_a_variant_deploys() -> None:
     sonic = {**pdh, "device_profile": "sonic"}
     srl = {**pdh, "device_profile": "nokia_srlinux"}
     set_run_config(RunConfig())
-    # 11 routers and 11 hosts: 1 GiB + 11 x 256 MiB + 11 x 64 MiB -> 5 GiB.
-    assert image.vm_memory_mib(sonic) == 5 * 1024
+    # 11 routers and 11 hosts: 2 GiB + 11 x 256 MiB + 11 x 64 MiB -> 6 GiB.
+    assert image.vm_memory_mib(sonic) == 6 * 1024
     # The same graph on SR Linux needs 11 x 1.5 GiB.
-    assert image.vm_memory_mib(srl) == 19 * 1024
-    assert image.vm_memory_mib({"scenario": "min3clos"}) == 8 * 1024
+    assert image.vm_memory_mib(srl) == 20 * 1024
+    assert image.vm_memory_mib({"scenario": "dc_clos"}) == 8 * 1024
     # 1 guest vCPU + 11 x 250 millicores -> 4; SR Linux 11 x 1 vCPU -> 12.
     assert image.vm_cpus(sonic) == 4
     assert image.vm_cpus(srl) == 12
-    assert image.vm_cpus({"scenario": "min3clos"}) == 4
-    min3clos_sonic = {"scenario": "min3clos", "device_profile": "sonic"}
-    min3clos_srl = {"scenario": "min3clos", "device_profile": "nokia_srlinux"}
-    # Three routers plus two hosts: the platform formula is under the 8 GiB /
-    # 4 vCPU min3clos floor, so named profiles keep that floor.
-    assert image._platform_nodes(json.dumps(min3clos_sonic, sort_keys=True)) == (3, 2)
-    assert image._platform_nodes(json.dumps(min3clos_srl, sort_keys=True)) == (3, 2)
-    assert image.vm_memory_mib(min3clos_sonic) == 8 * 1024
-    assert image.vm_memory_mib(min3clos_srl) == 8 * 1024
-    assert image.vm_cpus(min3clos_sonic) == 4
-    assert image.vm_cpus(min3clos_srl) == 4
+    assert image.vm_cpus({"scenario": "dc_clos"}) == 4
+    dc_clos_sonic = {
+        "scenario": "dc_clos",
+        "backend": "containerlab",
+        "device_profile": "sonic",
+    }
+    dc_clos_srl = {
+        "scenario": "dc_clos",
+        "backend": "containerlab",
+        "device_profile": "nokia_srlinux",
+    }
+    # Six routers plus twelve endpoints use each platform's resource formula.
+    assert image._platform_nodes(json.dumps(dc_clos_sonic, sort_keys=True)) == (6, 12)
+    assert image._platform_nodes(json.dumps(dc_clos_srl, sort_keys=True)) == (6, 12)
+    assert image.vm_memory_mib(dc_clos_sonic) == 8 * 1024
+    assert image.vm_memory_mib(dc_clos_srl) == 12 * 1024
+    assert image.vm_cpus(dc_clos_sonic) == 4
+    assert image.vm_cpus(dc_clos_srl) == 7
     run_config = RunConfig()
     run_config.nika.execution.firecracker.vm_memory_overrides = {
         "isp_pdh": "12GiB",
@@ -215,6 +285,118 @@ def test_vm_memory_follows_the_router_platform_a_variant_deploys() -> None:
     assert image.vm_memory_mib(srl) == 12 * 1024
     assert image.vm_cpus(sonic) == 2
     assert image.vm_cpus(srl) == 8
+
+
+@pytest.mark.parametrize("profile", ["sonic", "nokia_srlinux"])
+@pytest.mark.parametrize("scenario", ["dc_clos", "isp_pdh"])
+def test_monitored_containerlab_variants_can_be_sized_before_render(scenario, profile):
+    from nika.telemetry import TELEMETRY_KINDS
+
+    params = image.variant(
+        scenario=scenario,
+        backend="containerlab",
+        device_profile=profile,
+        telemetry=TELEMETRY_KINDS,
+    )
+    assert image.vm_memory_mib(params) > image.GUEST_BASE_MIB
+    assert image.vm_cpus(params) > 0
+
+
+@pytest.mark.parametrize(
+    "scenario", ["isp_pioro40", "isp_sun", "isp_cost266", "isp_zib54", "isp_geant"]
+)
+def test_monitored_frr_vm_outgrows_the_small_lab_default(scenario):
+    """Large FRR labs with exporters exhausted the 4 GiB guest after verification."""
+    from nika.telemetry import TELEMETRY_KINDS
+
+    params = image.variant(
+        scenario=scenario,
+        backend="kathara",
+        device_profile="frr",
+        igp="ospf",
+        bgp_mode="ebgp",
+        telemetry=TELEMETRY_KINDS,
+    )
+    set_run_config(RunConfig())
+    assert image.vm_memory_mib(params) > 4 * 1024
+    run_config = RunConfig()
+    run_config.nika.execution.firecracker.vm_memory_overrides = {scenario: "3GiB"}
+    set_run_config(run_config)
+    assert image.vm_memory_mib(params) == 3 * 1024
+
+
+@pytest.mark.parametrize("size", ["s", "m", "l"])
+def test_controller_memory_budget_is_preserved_in_the_vm(size):
+    from nika.telemetry import TELEMETRY_KINDS
+
+    params = image.variant(
+        scenario="sdn_l3_clos", topo_size=size, telemetry=TELEMETRY_KINDS
+    )
+    set_run_config(RunConfig())
+    env = image._platform_environment(json.dumps(params, sort_keys=True))
+    required = image.GUEST_BASE_MIB + 3072 + (len(env.machine_identities) - 1) * 64
+    assert image.vm_memory_mib(params) >= required
+    run_config = RunConfig()
+    run_config.nika.execution.firecracker.vm_memory_overrides = {"sdn_l3_clos": "3GiB"}
+    set_run_config(run_config)
+    assert image.vm_memory_mib(params) == 3 * 1024
+
+
+def test_telemetry_infrastructure_memory_budget_is_preserved_in_the_vm():
+    from nika.runtime.spec import NodeRole
+    from nika.telemetry import TELEMETRY_KINDS
+
+    params = image.variant(scenario="isp_geant", telemetry=TELEMETRY_KINDS)
+    set_run_config(RunConfig())
+    env = image._platform_environment(json.dumps(params, sort_keys=True))
+    infrastructure = [
+        name
+        for name, identity in env.machine_identities.items()
+        if identity.role == NodeRole.INFRASTRUCTURE
+    ]
+    assert len(infrastructure) == 2
+    required = image.GUEST_BASE_MIB + 1024 + 256
+    required += (
+        len(env.machine_identities) - len(infrastructure)
+    ) * image.NODE_MEMORY_MIB
+    assert image.vm_memory_mib(params) >= required
+    assert image.vm_memory_mib(params) > 4 * 1024
+
+
+@pytest.mark.parametrize("profile", ["routeros", "iosxr"])
+@pytest.mark.parametrize("scenario", ["isp_polska", "dc_clos", "enterprise_branch"])
+def test_platform_vm_has_room_for_native_deployment_admission(scenario, profile):
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.telemetry import TELEMETRY_KINDS, apply_telemetry
+
+    params = {"scenario": scenario, "device_profile": profile, "backend": "kathara"}
+    if scenario.startswith("isp_"):
+        params.update(igp="ospf", bgp_mode="ebgp")
+    else:
+        params["topo_size"] = "s"
+    env = get_net_env_instance(
+        scenario, **{key: value for key, value in params.items() if key != "scenario"}
+    )
+    apply_telemetry(env, TELEMETRY_KINDS)
+    params = image.variant(**params)
+    set_run_config(RunConfig())
+    usable = (image.vm_memory_mib(params) - image.GUEST_BASE_MIB) * 2**20
+    assert usable >= env.native_lab_memory()
+    assert image.vm_memory_mib(params) * 2**20 - env.native_lab_memory() >= 2 * 1024**3
+
+
+@pytest.mark.parametrize("telemetry", [None, [], ["syslog", "prometheus", "syslog"]])
+def test_lab_image_deployment_keeps_task_telemetry(telemetry):
+    from nika.remote.protocol import EnvStartRequest
+    from nika.telemetry import TELEMETRY_KINDS
+
+    row = {"scenario": "campus_lan", "topo_size": "s"}
+    if telemetry is not None:
+        row["telemetry"] = telemetry
+    request = EnvStartRequest(**image.variant_for_row(row))
+    assert request.telemetry == sorted(
+        TELEMETRY_KINDS if telemetry is None else set(telemetry)
+    )
 
 
 def test_override_routes_lab_ops_and_maps_gateway_port() -> None:
@@ -254,9 +436,15 @@ def test_disposable_lab_closes_without_undeploy() -> None:
 
 
 def test_image_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nika.telemetry import TELEMETRY_KINDS
+
     set_run_config(RunConfig())
     params = image.variant(scenario="dc_clos", topo_size="s", igp=None)
-    assert params == {"scenario": "dc_clos", "topo_size": "s"}
+    assert params == {
+        "scenario": "dc_clos",
+        "topo_size": "s",
+        "telemetry": sorted(TELEMETRY_KINDS),
+    }
     monkeypatch.setattr(image, "base_manifest", lambda: {"id": "base-1"})
     monkeypatch.setattr(image, "code_fingerprint", lambda: "a")
     monkeypatch.setattr(image, "firecracker_binary", lambda: "/fc")
@@ -264,6 +452,7 @@ def test_image_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> N
     key = image.image_key(params)
     assert key == image.image_key(dict(params))
     assert key != image.image_key({**params, "topo_size": "m"})
+    assert key != image.image_key({**params, "telemetry": []})
     monkeypatch.setattr(image, "code_fingerprint", lambda: "b")
     assert key != image.image_key(params)
     # A rebuilt base image gets a new id and invalidates every lab image.
@@ -287,6 +476,33 @@ def test_image_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> N
         )
     )
     assert key != image.image_key(params)
+
+
+@pytest.mark.parametrize(
+    "telemetry", [None, [], ["pingmesh"], ["netflow", "prometheus", "syslog"]]
+)
+def test_image_deployment_keeps_native_telemetry_semantics(telemetry, monkeypatch):
+    from nika.remote.protocol import EnvStartRequest
+    from nika.telemetry import TELEMETRY_KINDS, normalize_telemetry
+
+    row = {"scenario": "campus_lan", "topo_size": "s", "telemetry": telemetry}
+    params = image.variant_for_row(row)
+    request = EnvStartRequest(**params)
+    expected = normalize_telemetry(TELEMETRY_KINDS if telemetry is None else telemetry)
+    assert request.telemetry == list(expected)
+    assert EnvStartRequest(scenario="campus_lan").telemetry is None
+    assert (
+        normalize_telemetry(
+            TELEMETRY_KINDS if request.telemetry is None else request.telemetry
+        )
+        == expected
+    )
+    monkeypatch.setattr(image, "base_manifest", lambda: {"id": "base-1"})
+    monkeypatch.setattr(image, "code_fingerprint", lambda: "a")
+    monkeypatch.setattr(image, "firecracker_binary", lambda: "/fc")
+    monkeypatch.setattr(image, "binary_id", lambda path: "fc-1")
+    other = image.variant_for_row({**row, "telemetry": ["pingmesh", "prometheus"]})
+    assert image.image_key(params) != image.image_key(other)
 
 
 def test_image_build_liveness_protects_running_builds() -> None:
@@ -429,7 +645,8 @@ def test_hugepage_need_reserves_the_whole_vm() -> None:
             }
         )
     )
-    assert schedule.hugepage_need_mib(row) == 1024
+    # Nodes and declared infrastructure budgets exceed the configured floor.
+    assert schedule.hugepage_need_mib(row) == 5 * 1024
     assert schedule.hugepage_need_mib({"scenario": "k8s_lab"}) == 8192
 
 
@@ -593,3 +810,81 @@ def test_guest_plugin_does_not_require_activation_in_image_only_store(monkeypatc
         lambda *a, **k: SimpleNamespace(stdout="kathara/katharanp_vde:pinned true\n"),
     )
     assert base._host_plugins() == ["kathara/katharanp_vde:pinned"]
+
+
+def test_trial_disk_writes_do_not_change_image_or_next_trial(tmp_path):
+    source = tmp_path / "image.ext4"
+    first, second = tmp_path / "trial1.ext4", tmp_path / "trial2.ext4"
+    source.write_bytes(b"default device configuration\n")
+    try:
+        image._clone(source, first)
+    except RuntimeError as exc:
+        if "Operation not supported" in str(exc):
+            pytest.skip("Requires a filesystem with reflink support")
+        raise
+    first.write_bytes(b"agent-selected flows and device configuration\n")
+    image._clone(source, second)
+    assert (
+        source.read_bytes() == second.read_bytes() == b"default device configuration\n"
+    )
+
+
+def test_uffd_guest_stays_paused_until_prefetch_is_ready(tmp_path):
+    import threading
+    from unittest.mock import Mock
+    from nika.firecracker.trial import _wait_prefetch
+
+    ready = tmp_path / "uffd.ready"
+    started, finished = threading.Event(), threading.Event()
+    server = Mock()
+    server.poll.return_value = None
+
+    def wait():
+        started.set()
+        _wait_prefetch(server, ready, timeout=2)
+        finished.set()
+
+    worker = threading.Thread(target=wait)
+    worker.start()
+    assert started.wait(1)
+    assert not finished.wait(0.03)
+    ready.touch()
+    assert finished.wait(1)
+    worker.join(1)
+    assert not worker.is_alive()
+
+
+def test_failed_prefetch_does_not_resume_a_partial_guest(tmp_path):
+    from unittest.mock import Mock
+    from nika.firecracker.trial import _wait_prefetch
+    from nika.firecracker.vmm import VmmError
+
+    server = Mock()
+    server.poll.return_value = 1
+    with pytest.raises(VmmError, match="exited before"):
+        _wait_prefetch(server, tmp_path / "missing")
+    server.poll.return_value = None
+    with pytest.raises(VmmError, match="timed out"):
+        _wait_prefetch(server, tmp_path / "missing", timeout=0)
+
+
+def test_only_uffd_snapshot_load_defers_guest_execution(tmp_path):
+    from unittest.mock import Mock
+    from nika.firecracker.vmm import Firecracker
+
+    vm = Firecracker(tmp_path, "unused")
+    vm.api = Mock()
+    for uffd, resume in [(tmp_path / "uffd.sock", False), (None, True)]:
+        vm.load(state=tmp_path / "vm.state", memory=tmp_path / "mem", uffd_socket=uffd)
+        assert vm.api.call_args.args[2]["resume_vm"] is resume
+
+
+@pytest.mark.parametrize(("size", "cpus"), [("s", 4), ("m", 4), ("l", 8)])
+def test_software_dataplane_cpu_minimum_follows_deployed_scale(size, cpus):
+    set_run_config(RunConfig())
+    params = {"scenario": "p4_dc_gateway", "topo_size": size}
+    assert image.vm_cpus(params) == cpus
+    configured = RunConfig()
+    configured.nika.execution.firecracker.vm_cpus_overrides = {"p4_dc_gateway": 2}
+    set_run_config(configured)
+    assert image.vm_cpus(params) == 2

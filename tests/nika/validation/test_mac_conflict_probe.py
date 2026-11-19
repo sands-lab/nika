@@ -19,6 +19,54 @@ ENDS = {
 }
 
 
+@pytest.mark.parametrize("native_control", [True, False])
+def test_mac_conflict_keeps_a_distinct_native_bridge_control(
+    monkeypatch, native_control
+):
+    from nika.problems.support import router_ops
+    from nika.runtime.spec import NodeRole
+
+    roles = {
+        node: SimpleNamespace(role=role)
+        for node, role in {
+            "a": NodeRole.HOST,
+            "b": NodeRole.HOST,
+            "web": NodeRole.SERVICE,
+            "gateway": NodeRole.ROUTER,
+        }.items()
+    }
+    problem = SimpleNamespace(
+        net_env=SimpleNamespace(machine_identities=roles),
+        runtime=SimpleNamespace(get_host_ip=lambda *a, **k: "10.0.0.3/24"),
+    )
+    monkeypatch.setattr(addressing_probes, "_eth0_ip", lambda *_: "10.0.0.4")
+    monkeypatch.setattr(
+        addressing_probes,
+        "lab_addresses",
+        lambda _: {"web": [("eth0", "10.0.0.5/24"), ("eth0", "10.0.0.6/24")]},
+    )
+    monkeypatch.setattr(
+        router_ops,
+        "router_fault_ops",
+        lambda *_: SimpleNamespace(
+            supports=lambda operation: native_control,
+            ipv4_addresses=lambda: {"10.0.0.1", "198.51.100.1"},
+        ),
+    )
+    result = addressing_probes._mac_conflict_ends(
+        problem, SimpleNamespace(host_name="b", host_name_2="a")
+    )
+    if native_control:
+        assert (result["observer"], result["control"], result["control_ip"]) == (
+            "web",
+            "gateway",
+            "10.0.0.1",
+        )
+    else:
+        # Two addresses on one observer do not supply an independent control.
+        assert result["error"] == "no_third_node_on_the_segment"
+
+
 def _verify(monkeypatch, losses, macs):
     reading = {
         "owner_loss_percent": losses[0],

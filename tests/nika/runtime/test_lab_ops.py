@@ -400,3 +400,19 @@ class LabOpsTest:
         assert "iperf3 -c 10.0.0.2 -p 5201 -b 20M -t 10" in by_node["pc1"][0]
         assert "iperf3 -c 10.0.0.3 -p 5201 -b 10M -t 10" in by_node["pc1"][0]
         assert "iperf3 -c 10.0.0.2 -p 5202 -b 30M -t 10" in by_node["pc3"][1]
+
+
+def test_host_addresses_exclude_telemetry_vrf():
+    links = [
+        {"ifname": "eth0", "addr_info": [{"family": "inet", "local": "10.1.1.10"}]},
+        {
+            "ifname": "eth1",
+            "master": "mgmt",
+            "addr_info": [{"family": "inet", "local": "172.28.0.7"}],
+        },
+    ]
+    runtime = _StubRuntime({("pc1", "ip -j addr"): json.dumps(links)})
+    assert runtime.get_data_plane_host_ip("pc1") == "10.1.1.10"
+    assert runtime.get_host_ip("pc1", iface="eth1") == "10.1.1.10"
+    runtime._responses[("pc1", "ip -j addr")] = json.dumps(links[1:])
+    assert runtime.get_data_plane_host_ip("pc1") is None

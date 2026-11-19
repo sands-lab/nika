@@ -36,3 +36,16 @@ def test_plain_route_keeps_its_interface():
         }
     )
     assert _egress_device(runtime, "leaf", "10.0.2.11") == "eth1"
+
+
+def test_oracle_selects_endpoints_across_redundant_clos_egress():
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.problems.forwarding_encapsulation_policy.switch_internal_corruption import (
+        _tcp_probe_pair,
+    )
+
+    env = get_net_env_instance("dc_clos", backend="kathara", topo_size="s")
+    client, server, upload = _tcp_probe_pair(env, "spine_1", "eth0")
+    assert client != server
+    assert server in env.servers["web"]
+    assert isinstance(upload, bool)

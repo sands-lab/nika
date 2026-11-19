@@ -12,6 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from scripts.benchmark_audit.provenance import AuditProvenance
 from nika.workflows.benchmark.resume import benchmark_row_fingerprint
+from nika.workflows.benchmark.multi_fault import row_problems
+from nika.problems.multi import fault_instance_keys
 
 AuditStatus = Literal[
     "pass",
@@ -55,9 +57,14 @@ class CaseIdentity(BaseModel):
     rpki: str = ""
     device_profile: str = ""
     fault: str
+    problems: list[str] = Field(default_factory=list)
+    objectives: list[str] | None = None
+    schedule: dict[str, Any] | None = None
     inject: dict[str, Any] = Field(default_factory=dict)
     # Background traffic profile of the case; empty when it runs without one.
     traffic: dict[str, Any] = Field(default_factory=dict)
+    # Telemetry kinds the case deploys; empty when it runs without telemetry.
+    telemetry: list[str] = Field(default_factory=list)
 
     def key(self) -> str:
         """The benchmark row fingerprint of this case."""
@@ -73,6 +80,10 @@ class CaseIdentity(BaseModel):
                 "device_profile": self.device_profile,
                 "inject": self.inject,
                 "traffic": self.traffic or None,
+                "objectives": self.objectives,
+                **({"problems": self.problems} if self.problems else {}),
+                **({"schedule": self.schedule} if self.schedule is not None else {}),
+                **({"telemetry": self.telemetry} if self.telemetry else {}),
             }
         )
 
@@ -95,37 +106,89 @@ class CaseAudit(BaseModel):
     stages: list[StageResult] = Field(default_factory=list)
     symptom_probe: str = ""
     provenance: AuditProvenance | None = None
+    # "native": a fresh deployment with injection; "case_image": the restored
+    # Firecracker case image that trials start from.
+    mode: Literal["native", "case_image"] = "native"
 
     def admission(self) -> AuditStatus:
         required_stages = (
             {"baseline_lab", "agent_view", "oracle", "final_lab"}
             if self.identity.fault == "healthy"
             else {
+                "image_artifact",
+                "image_symptom",
+                "oracle",
+                "neighbor_oracle",
+                "image_persistence_artifact",
+                "image_persistence_symptom",
+                "image_final_artifact",
+                "image_final_symptom",
+            }
+            if self.mode == "case_image"
+            else {
                 "baseline_lab",
                 "baseline_path",
                 "sham_symptom",
+                "sham_oracle",
                 "baseline_agent_view",
                 "inject_artifact",
                 "leak_scan",
                 "symptom",
                 "oracle",
+                "neighbor_oracle",
                 "persistence_artifact",
                 "persistence_symptom",
                 "final_artifact",
                 "final_symptom",
             }
         )
+        if len(self.identity.problems) > 1 and self.mode == "native":
+            required_stages = {
+                "baseline_lab",
+                "baseline_agent_view",
+                "combination_matrix",
+                "sham_oracle",
+                *(
+                    f"neighbor_oracle:{key}"
+                    for key in fault_instance_keys(self.identity.problems)
+                ),
+                "timeline",
+                "inject_artifact",
+                "leak_scan",
+                "symptom",
+                "oracle",
+                "recovery",
+                "final_lab",
+            }
+        if len(self.identity.problems) > 1 and self.mode == "case_image":
+            required_stages.discard("neighbor_oracle")
+            required_stages.update(
+                f"neighbor_oracle:{key}"
+                for key in fault_instance_keys(self.identity.problems)
+            )
+        if self.mode == "case_image" and self.identity.schedule is not None:
+            required_stages.add("timeline")
         # A control path is required when the topology has one. When every
         # peer path crosses the root cause, the stage records no_control_path
         # with the reason, and the baseline, negative control, and repeated
-        # symptom reads still establish the effect.
+        # symptom reads still establish the effect. Likewise a scenario may
+        # support none of the failure's look-alikes.
+        exempt = {
+            ("control_path", "no_control_path"),
+            ("neighbor_oracle", "no_confusable_on_scenario"),
+        }
         required = [
             stage.status
             for stage in self.stages
             if not (
-                stage.stage == "control_path"
-                and stage.status == "unsupported"
-                and stage.reason == "no_control_path"
+                stage.status == "unsupported"
+                and (
+                    (stage.stage, stage.reason) in exempt
+                    or (
+                        stage.stage.startswith("neighbor_oracle:")
+                        and stage.reason == "no_confusable_on_scenario"
+                    )
+                )
             )
         ]
         if (
@@ -196,7 +259,13 @@ def identity_from_row(row: dict[str, Any]) -> CaseIdentity:
         bgp_mode=str(row.get("bgp_mode") or ""),
         rpki="" if rpki is None else str(rpki),
         device_profile=str(row.get("device_profile") or ""),
-        fault=str(row.get("problem") or row.get("fault") or ""),
+        fault=str(
+            row.get("problem") or row.get("fault") or "+".join(row_problems(row))
+        ),
+        problems=row_problems(row) if len(row_problems(row)) > 1 else [],
+        schedule=row.get("schedule"),
+        objectives=row.get("objectives"),
         inject=dict(inject) if isinstance(inject, dict) else {},
         traffic=dict(row.get("traffic") or {}),
+        telemetry=list(row.get("telemetry") or []),
     )

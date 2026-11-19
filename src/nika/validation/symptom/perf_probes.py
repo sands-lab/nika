@@ -21,9 +21,6 @@ from nika.net_env.verify import (
     ping_stats,
 )
 from nika.problems.base import build_verify_result
-from nika.problems.service_networking.load_balancer import (
-    _CONTROL_VS_VIP_MAX_RATIO,
-)
 from nika.problems.endpoint_application.transport import (
     _THROUGHPUT_MAX_RATIO as SENDER_MAX_RATIO,
 )
@@ -33,7 +30,6 @@ _SLOWDOWN_FACTOR = 5.0
 _SLOWDOWN_MIN_MS = 25.0
 _ERROR_RATE_MIN = 0.4
 _HEALTHY_ERROR_RATE_MAX = 0.2
-_THROUGHPUT_MAX_RATIO = 0.5
 _CONTROL_MIN_RATIO = 0.5
 _MAX_LOSS_PERCENT = 5.0
 
@@ -178,7 +174,9 @@ def web_dos(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 
 def sender_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Measure a healthy bulk download from the existing HTTP service."""
+    """Measure transfer performance before constraining either endpoint."""
+    if params.host_name == params.client_host:
+        return _receiver_cpu_baseline(problem, params)
     ping = ping_stats(
         problem.runtime, params.client_host, params.dst_ip, count=10, interval_sec=0.2
     )
@@ -205,7 +203,9 @@ def sender_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 
 def sender_contention(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Bulk downloads from the sender slow down; small objects and the path do not."""
+    """Bulk transfers slow down while the peer confirms path health."""
+    if params.host_name == params.client_host:
+        return _receiver_cpu_contention(problem, params)
     baseline_bps = problem._baseline_throughput_bps
     baseline_time = problem._baseline_time_s
     if not baseline_bps or not baseline_time:
@@ -331,41 +331,6 @@ def _start_sink(runtime: Any, host: str) -> None:
     )
 
 
-def receiver_baseline(problem: Any, params: Any) -> tuple[bool, dict] | None:
-    if problem.scenario_name == "campus_lan":
-        bps, seconds = problem._median_large_stats(
-            params, problem._resolve_large_url(params), max_time_sec=120
-        )
-        return bool(bps and seconds), {"downloads": problem._last_downloads}
-    runtime = problem.runtime
-    peers = problem._resolve_peer_hosts(params)
-    receiver_ip = runtime.get_host_ip(params.host_name, with_prefix=False)
-    if not peers or not receiver_ip:
-        return False, {"error": "no_sender_peer_or_receiver_ip"}
-    _start_sink(runtime, params.host_name)
-    streams = [_stream(runtime, peers[0], receiver_ip) for _ in range(_STREAM_RUNS)]
-    rates = [s["bps"] for s in streams if s.get("bps")]
-    ping = ping_stats(runtime, peers[0], receiver_ip, count=10, interval_sec=0.2)
-    sample = {
-        "sender": peers[0],
-        "receiver_ip": receiver_ip,
-        "streams": streams,
-        "median_bps": median_float(rates),
-        "rwnd_limited_share": _median_rwnd_share(streams),
-        "ping_loss_percent": ping.loss_percent,
-        "ping_rtt_ms": ping.rtt_avg_ms,
-    }
-    problem._audit_receiver_baseline = sample
-    healthy = bool(
-        len(rates) == len(streams)
-        and ping.loss_percent == 0.0
-        and sample["median_bps"]
-        and sample["rwnd_limited_share"] is not None
-        and sample["rwnd_limited_share"] <= _HEALTHY_RWND_SHARE_MAX
-    )
-    return healthy, sample
-
-
 def _median_rwnd_share(streams: list[dict[str, Any]]) -> float | None:
     shares = [s.get("rwnd_limited_share") for s in streams]
     if any(share is None for share in shares):
@@ -373,66 +338,54 @@ def _median_rwnd_share(streams: list[dict[str, Any]]) -> float | None:
     return median_float(shares)
 
 
-def _receiver_campus(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    url = problem._resolve_large_url(params)
-    bps, seconds = problem._median_large_stats(params, url, max_time_sec=120)
-    samples = list(problem._last_downloads)
-    baseline = problem._baseline_throughput_bps
-    ratio = bps / baseline if bps and baseline else None
-    control_bps, _ = problem._median_large_stats(
-        params, url, max_time_sec=120, host=problem._control_host(params)
+def _receiver_cpu_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    runtime = problem.runtime
+    receiver_ip = runtime.get_host_ip(params.host_name, with_prefix=False)
+    if not params.server_host or not receiver_ip:
+        return False, {"error": "no_sender_peer_or_receiver_ip"}
+    _start_sink(runtime, params.host_name)
+    streams = [
+        _stream(runtime, params.server_host, receiver_ip) for _ in range(_STREAM_RUNS)
+    ]
+    ping = ping_stats(
+        runtime, params.server_host, receiver_ip, count=40, interval_sec=0.2
     )
-    control_base = problem._control_baseline_bps
-    control_ratio = control_bps / control_base if control_bps and control_base else None
-    # The download is CPU-bound by design, so shared-host load slows the
-    # control PC too; only a slowdown twice the control's is receiver-local.
-    control_ok = (
-        ratio is not None and control_ratio is not None and ratio <= 0.5 * control_ratio
+    sample = {
+        "sender": params.server_host,
+        "receiver_ip": receiver_ip,
+        "streams": streams,
+        "median_bps": median_float([s["bps"] for s in streams if s.get("bps")]),
+        "rwnd_limited_share": _median_rwnd_share(streams),
+        "ping_loss_percent": ping.loss_percent,
+    }
+    problem._audit_receiver_baseline = sample
+    healthy = bool(
+        all(s["ok"] for s in streams)
+        and sample["median_bps"]
+        and sample["rwnd_limited_share"] is not None
+        and sample["rwnd_limited_share"] <= _HEALTHY_RWND_SHARE_MAX
+        and ping.loss_percent is not None
+        and ping.loss_percent <= _MAX_LOSS_PERCENT
     )
-    ok = ratio is not None and ratio <= 0.50 and control_ok
-    return ok, build_verify_result(
-        fault_type=problem.root_cause_name,
-        verified=ok,
-        details={
-            "host": params.host_name,
-            "large_url": url,
-            "baseline_throughput_bps": baseline,
-            "injected_throughput_bps": bps,
-            "injected_time_s": seconds,
-            "throughput_ratio": ratio,
-            "downloads": samples,
-            "control_host": problem._control_host(params),
-            "control_throughput_ratio": control_ratio,
-            "control_ok": control_ok,
-        },
-    )
+    return healthy, sample
 
 
-def receiver_contention(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The receiver's closed window holds a TCP stream back; its path is healthy.
-
-    Throughput against the healthy reading is reported but not judged: host
-    load and the scenario's own traffic into the receiver move it both ways.
-    """
-    if problem.scenario_name == "campus_lan":
-        return _receiver_campus(problem, params)
+def _receiver_cpu_contention(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Observe socket-drain starvation entirely from the healthy peer."""
     base = getattr(problem, "_audit_receiver_baseline", None)
     if not base or not base.get("median_bps"):
         return False, {"error": "no_healthy_baseline"}
-    runtime = problem.runtime
     streams = [
-        _stream(runtime, base["sender"], base["receiver_ip"])
+        _stream(problem.runtime, base["sender"], base["receiver_ip"])
         for _ in range(_STREAM_RUNS)
     ]
     if not all(s["ok"] for s in streams):
         return False, {"error": "stream_failed", "streams": streams}
-    bps = median_float([s["bps"] or 0.0 for s in streams])
+    bps = median_float([s["bps"] for s in streams])
     ratio = bps / base["median_bps"] if bps is not None else None
     rwnd_share = _median_rwnd_share(streams)
-    # A path-loss gate needs a sample where one lost probe under shared-host
-    # load stays below it (1 of 10 is 10%; 1 of 40 is 2.5%).
     ping = ping_stats(
-        runtime, base["sender"], base["receiver_ip"], count=40, interval_sec=0.2
+        problem.runtime, base["sender"], base["receiver_ip"], count=40, interval_sec=0.2
     )
     control_ok = (
         ping.loss_percent is not None and ping.loss_percent <= _MAX_LOSS_PERCENT
@@ -447,7 +400,7 @@ def receiver_contention(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
             "host": params.host_name,
             "baseline": base,
             "streams": streams,
-            "median_bps": bps,
+            "injected_throughput_bps": bps,
             "throughput_ratio": ratio,
             "rwnd_limited_share": rwnd_share,
             "ping_loss_percent": ping.loss_percent,
@@ -462,9 +415,18 @@ def receiver_contention(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
 _IPERF_RUNS = 3
 
 
-def _iperf_median(runtime: Any, sender: str, receiver: str, ip: str) -> dict:
+def _iperf_median(
+    runtime: Any,
+    sender: str,
+    receiver: str,
+    ip: str,
+    *,
+    timeout_sec: float | None = None,
+) -> dict:
     runs = [
-        iperf_throughput_bps(runtime, sender, receiver, ip, duration_sec=3)
+        iperf_throughput_bps(
+            runtime, sender, receiver, ip, duration_sec=3, timeout_sec=timeout_sec
+        )
         for _ in range(_IPERF_RUNS)
     ]
     measured = [bps for bps in runs if bps]
@@ -543,11 +505,22 @@ def rwnd_limited(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     if not base:
         return False, {"error": "no_healthy_baseline"}
     runtime = problem.runtime
+    # A restricted receive window and a congested path delay connection setup
+    # and the final control exchange beyond the timed transfer itself.
+    fault_timeout_sec = 180.0
     path = _iperf_median(
-        runtime, params.sender_host, params.host_name, base["receiver_ip"]
+        runtime,
+        params.sender_host,
+        params.host_name,
+        base["receiver_ip"],
+        timeout_sec=fault_timeout_sec,
     )
     control = _iperf_median(
-        runtime, params.sender_host, base["control"], base["control_ip"]
+        runtime,
+        params.sender_host,
+        base["control"],
+        base["control_ip"],
+        timeout_sec=fault_timeout_sec,
     )
     small = http_download_stats(
         runtime, params.host_name, params.small_url, max_time_sec=30
@@ -590,80 +563,6 @@ def rwnd_limited(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             "streams": streams,
             "rwnd_limited_share": rwnd_share,
             "small_http_ok": small.ok,
-            "control_ok": control_ok,
-        },
-    )
-
-
-# -------------------------------------------------- load balancer overload
-
-_LB_SAMPLES = 10
-_LB_TIMEOUT_SEC = 10
-
-
-def _lb_sample(problem: Any, params: Any) -> dict[str, Any]:
-    return {
-        name: _http_samples(
-            problem.runtime,
-            params.client_host,
-            url,
-            samples=_LB_SAMPLES,
-            timeout_sec=_LB_TIMEOUT_SEC,
-        )
-        for name, url in (("vip", params.vip_url), ("control", params.control_url))
-    }
-
-
-def _median_with_timeouts(sample: dict[str, Any]) -> float | None:
-    """Median latency counting each failed request as the request timeout."""
-    failures = sample["attempts"] - sample["successes"]
-    values = [*(sample.get("samples_ms") or []), *[_LB_TIMEOUT_SEC * 1000.0] * failures]
-    return median_float(values)
-
-
-def lb_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The VIP and the parallel web server both answer before the surge."""
-    sample = _lb_sample(problem, params)
-    problem._audit_lb_baseline = sample
-    healthy = all(
-        part["error_rate"] <= _HEALTHY_ERROR_RATE_MAX for part in sample.values()
-    )
-    return healthy, sample
-
-
-def lb_overload(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Requests through the VIP slow down or fail; the parallel server does not."""
-    base = getattr(problem, "_audit_lb_baseline", None)
-    if not base:
-        return False, {"error": "no_healthy_baseline"}
-    after = _lb_sample(problem, params)
-    degraded = _slower(base["vip"], after["vip"])
-    # Judge the control relative to the VIP: under business load its absolute
-    # latency jitters, but it must stay well below the degraded VIP.
-    vip_median = _median_with_timeouts(after["vip"])
-    control_median = after["control"].get("median_ms")
-    control_ok = bool(
-        after["control"]["error_rate"] <= _HEALTHY_ERROR_RATE_MAX
-        and control_median is not None
-        and vip_median is not None
-        and control_median < _CONTROL_VS_VIP_MAX_RATIO * vip_median
-    )
-    lb_cpu = problem._cpu_ratio_of_quota(
-        params.host_name,
-        quota_cpus=problem._applied_quota(params),
-        sample_sec=params.cpu_sample_sec,
-    )
-    verified = degraded and control_ok
-    return verified, build_verify_result(
-        fault_type=problem.root_cause_name,
-        verified=verified,
-        details={
-            "baseline": base,
-            "after": after,
-            "degraded": degraded,
-            "vip_median_ms_with_timeouts": vip_median,
-            "lb_cpu_ratio_of_quota": lb_cpu,
-            "applied_cpu_quota": problem._applied_quota(params),
             "control_ok": control_ok,
         },
     )

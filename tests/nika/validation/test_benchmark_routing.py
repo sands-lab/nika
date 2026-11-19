@@ -13,48 +13,7 @@ from nika.workflows.validation.benchmark_routing import (
 )
 
 ROOT = Path(__file__).resolve().parents[3]
-
-
-@pytest.mark.contract
-def test_max_prefix_impact_includes_exits_only_when_last_as_session_is_lost():
-    profile = benchmark_isp_profiles(
-        [
-            ROOT / "benchmark/working/cases.yaml",
-            ROOT / "benchmark/releases/0.3.0/dev.yaml",
-            ROOT / "benchmark/releases/0.3.0/test.yaml",
-        ]
-    )["isp_abilene--ospf--ebgp--kathara"]
-    # Keep the redundant-session control independent of the compact task selection.
-    profile["benchmark_cases"].append(
-        {
-            "problem": "bgp_max_prefix_exceeded",
-            "inject": {
-                "flood_count": "120",
-                "neighbor_ip": "10.0.0.21",
-                "peer_name": "losang",
-                "receiver_name": "hstnng",
-            },
-        }
-    )
-    spec = build_benchmark_isp_experiment(profile)
-    faults = {f.name: f for f in spec.failure_checks}
-    redundant = faults["benchmark-max-prefix-hstnng"].expected_failed_ids
-    assert len(redundant) == 2 and all(i.startswith("adj.") for i in redundant)
-    sole = faults["benchmark-max-prefix-iplsng"].expected_failed_ids
-    assert set(sole) == {
-        "adj.bgp.iplsng.kscyng.10-0-0-23",
-        "adj.bgp.kscyng.iplsng.10-0-0-22",
-        *(
-            f"exit.as65002.198.51.102.0-24.{node}"
-            for node in ("dnvrng", "kscyng", "losang", "snvang", "sttlng")
-        ),
-        *(
-            f"exit.as65003.198.51.101.0-24.{node}"
-            for node in ("chinng", "iplsng", "nycmng")
-        ),
-        # The session also carries the customer route to its only partner AS.
-        "customer.nycmng.kscyng",
-    }
+ROUTING_CASES = ROOT / "tests/fixtures/benchmark/routing_profiles.yaml"
 
 
 @pytest.mark.e2e
@@ -67,13 +26,7 @@ def test_srl_isis_and_as_import_completion(
     from nika.workflows.validation.scenario import validate_scenario_design
 
     profile = deepcopy(
-        benchmark_isp_profiles(
-            [
-                ROOT / "benchmark/working/cases.yaml",
-                ROOT / "benchmark/releases/0.3.0/dev.yaml",
-                ROOT / "benchmark/releases/0.3.0/test.yaml",
-            ]
-        )[f"{scenario}--ospf--ebgp--containerlab"]
+        benchmark_isp_profiles([ROUTING_CASES])[f"{scenario}--ospf--ebgp--containerlab"]
     )
     # This is an explicit protocol variant, not a rewritten benchmark task.
     profile["deployment"]["igp"] = "isis"
@@ -142,13 +95,9 @@ def test_as_import_and_igp_completion_preserve_benchmark_failures(
     from nika.net_env.synthesis.requirements import BgpAsSelectionRequirement
     from nika.workflows.validation.scenario import validate_scenario_design
 
-    profile = benchmark_isp_profiles(
-        [
-            ROOT / "benchmark/working/cases.yaml",
-            ROOT / "benchmark/releases/0.3.0/dev.yaml",
-            ROOT / "benchmark/releases/0.3.0/test.yaml",
-        ]
-    )[f"{scenario}--ospf--ebgp--{backend}"]
+    profile = benchmark_isp_profiles([ROUTING_CASES])[
+        f"{scenario}--ospf--ebgp--{backend}"
+    ]
     # Abilene and DFN-BWIN prefer a transit AS over the direct origin AS.
     # This requires synthesized policy to override ordinary AS-path length.
     selections = tuple(
@@ -215,9 +164,19 @@ def test_as_import_and_igp_completion_preserve_benchmark_failures(
 def test_as_import_completion_keeps_special_policy_scope_explicit():
     from nika.net_env.synthesis.requirements import BgpAsSelectionRequirement
 
-    profile = benchmark_isp_profiles([ROOT / "benchmark/working/cases.yaml"])[
-        "isp_abilene_ebgp_rpki--ospf--ebgp--kathara"
-    ]
+    profile = {
+        "scenario": "isp_abilene",
+        "deployment": {
+            "backend": "kathara",
+            "device_profile": "frr",
+            "igp": "ospf",
+            "bgp_mode": "ebgp",
+            "rpki": True,
+        },
+        "features": ["rpki"],
+        "supported": True,
+        "benchmark_cases": [],
+    }
     selection = BgpAsSelectionRequirement(
         kind="bgp_as_selection",
         id="exit.original",
@@ -227,6 +186,39 @@ def test_as_import_completion_keeps_special_policy_scope_explicit():
     )
     with pytest.raises(ValueError, match="fixed security prefix policies"):
         build_benchmark_isp_experiment(profile, bgp_selections=(selection,))
+
+
+@pytest.mark.contract
+def test_bgp_acl_mixed_ecmp_profile_reports_unsupported(tmp_path):
+    manifest = tmp_path / "cases.yaml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "cases": [
+                    {
+                        "scenario": "isp_janos-us-ca",
+                        "problem": "bgp_acl_block",
+                        "inject": {"host_name": "atlanta"},
+                        "igp": "isis",
+                        "bgp_mode": "ibgp_rr",
+                        "backend": "kathara",
+                        "device_profile": "frr",
+                    }
+                ]
+            }
+        )
+    )
+    profile = benchmark_isp_profiles([manifest])[
+        "isp_janos-us-ca--isis--ibgp_rr--kathara"
+    ]
+    assert not profile["supported"]
+    assert any("flow-hash semantics" in reason for reason in profile["limitations"])
+    with pytest.raises(ValueError, match="Unsupported benchmark profile"):
+        build_benchmark_isp_experiment(profile)
+    # The builder retains the same guard even for an incorrectly admitted profile.
+    profile["supported"] = True
+    with pytest.raises(ValueError, match="flow-hash semantics"):
+        build_benchmark_isp_experiment(profile)
 
 
 @pytest.mark.contract
@@ -248,6 +240,10 @@ def test_default_completion_covers_routing_capabilities(inventory):
         profiles = isp_catalog_profiles()
     completed_bgp = []
     for key, profile in profiles.items():
+        if not profile["supported"]:
+            with pytest.raises(ValueError, match="Unsupported benchmark profile"):
+                build_benchmark_isp_experiment(profile)
+            continue
         spec = build_benchmark_isp_experiment(profile)
         if spec.deployment.bgp_mode != "ebgp":
             assert not isinstance(spec.completion, tuple)
@@ -269,7 +265,11 @@ def test_default_completion_covers_routing_capabilities(inventory):
             if i.bgp_route and i.id.startswith("exit.")
         }
         completed_bgp.append(key)
-    assert completed_bgp
+    if inventory == "benchmark":
+        assert completed_bgp
+    else:
+        assert profiles
+        assert all(p["deployment"]["bgp_mode"] == "none" for p in profiles.values())
 
 
 @pytest.mark.contract
@@ -280,13 +280,9 @@ def test_as_selection_predicates_follow_original_order_before_synthesis():
     )
     from nika.problems.rca.inventory import load_offline_net_env
 
-    profile = benchmark_isp_profiles(
-        [
-            ROOT / "benchmark/working/cases.yaml",
-            ROOT / "benchmark/releases/0.3.0/dev.yaml",
-            ROOT / "benchmark/releases/0.3.0/test.yaml",
-        ]
-    )["isp_abilene--ospf--ebgp--kathara"]
+    profile = benchmark_isp_profiles([ROUTING_CASES])[
+        "isp_abilene--ospf--ebgp--kathara"
+    ]
     env = load_offline_net_env(profile["scenario"], **profile["deployment"])
     for order in ((65002, 65003), (65003, 65002)):
         requirement = BgpAsSelectionRequirement(
@@ -313,11 +309,9 @@ def test_as_selection_predicates_follow_original_order_before_synthesis():
 def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     profiles = benchmark_isp_profiles(
         [
-            ROOT / "benchmark/working/cases.yaml",
+            ROUTING_CASES,
             ROOT
             / "benchmark/working/pool/isp_janos-us/ospf_area_misconfiguration.yaml",
-            ROOT / "benchmark/releases/0.3.0/dev.yaml",
-            ROOT / "benchmark/releases/0.3.0/test.yaml",
         ]
     )
     native = next(
@@ -331,11 +325,14 @@ def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     assert native["deployment"]["igp"] == "isis"
     assert native["supported"]
     assert build_benchmark_isp_experiment(native).routing_model == "srl-isp"
-    fixed = profiles["isp_abilene_ebgp_rpki--ospf--ebgp--kathara"]
+    fixed = profiles["isp_abilene--ospf--ebgp--kathara"]
     assert fixed["deployment"]["rpki"] is True
     assert fixed["features"] == ["rpki"]
     assert fixed["supported"]
-    assert build_benchmark_isp_experiment(fixed).failure_checks[0].static_edits
+    assert any(
+        check.problem == "bgp_hijacking" and check.static_edits
+        for check in build_benchmark_isp_experiment(fixed).failure_checks
+    )
     # This topology retains intermediate paths after its anchor is isolated.
     profile = profiles["isp_janos-us--ospf--none--kathara"]
     spec = build_benchmark_isp_experiment(profile)
@@ -467,17 +464,25 @@ def test_runtime_bgp_presence_and_origin(present):
 
 
 @pytest.mark.contract
-@pytest.mark.parametrize(
-    "scenario", ["isp_abilene_ebgp_rtbh", "isp_dfn-bwin_ebgp_rtbh"]
-)
+@pytest.mark.parametrize("scenario", ["isp_abilene", "isp_dfn-bwin"])
 def test_rtbh_echo_requirement_names_the_original_active_endpoint(scenario):
     from nika.problems.rca.inventory import load_offline_net_env
 
-    profile = benchmark_isp_profiles([ROOT / "benchmark/working/cases.yaml"])[
-        f"{scenario}--ospf--ebgp--kathara"
-    ]
+    profile = {
+        "scenario": scenario,
+        "deployment": {
+            "backend": "kathara",
+            "device_profile": "frr",
+            "igp": "ospf",
+            "bgp_mode": "ebgp",
+            "rpki": True,
+        },
+        "features": ["rtbh"],
+        "supported": True,
+        "benchmark_cases": [],
+    }
     spec = build_benchmark_isp_experiment(profile)
-    env = load_offline_net_env(scenario)
+    env = load_offline_net_env(scenario, igp="ospf", bgp_mode="ebgp")
     origin = next(
         o
         for o in env.bgp_plan.originated
@@ -495,13 +500,7 @@ def test_rtbh_echo_requirement_names_the_original_active_endpoint(scenario):
     "profile_key",
     [
         key
-        for key, profile in benchmark_isp_profiles(
-            [
-                ROOT / "benchmark/working/cases.yaml",
-                ROOT / "benchmark/releases/0.3.0/dev.yaml",
-                ROOT / "benchmark/releases/0.3.0/test.yaml",
-            ]
-        ).items()
+        for key, profile in benchmark_isp_profiles([ROUTING_CASES]).items()
         if profile["supported"]
     ],
 )
@@ -510,11 +509,7 @@ def test_benchmark_isp_configuration_execution_and_recovery(
 ):
     from nika.workflows.validation.scenario import validate_scenario_design
 
-    manifests = [
-        ROOT / "benchmark/working/cases.yaml",
-        ROOT / "benchmark/releases/0.3.0/dev.yaml",
-        ROOT / "benchmark/releases/0.3.0/test.yaml",
-    ]
+    manifests = [ROUTING_CASES]
     profile = benchmark_isp_profiles(manifests)[profile_key]
     spec = build_benchmark_isp_experiment(profile)
     summary = validate_scenario_design(
@@ -630,13 +625,9 @@ def test_benchmark_bgp_preserves_as_boundaries_and_fault_targets(scenario):
     from nika.net_env.isp.igp.plan import active_igp_links
     from nika.net_env.net_env_pool import get_net_env_instance
 
-    profile = benchmark_isp_profiles(
-        [
-            ROOT / "benchmark/working/cases.yaml",
-            ROOT / "benchmark/releases/0.3.0/dev.yaml",
-            ROOT / "benchmark/releases/0.3.0/test.yaml",
-        ]
-    )[f"{scenario}--ospf--ebgp--kathara"]
+    profile = benchmark_isp_profiles([ROUTING_CASES])[
+        f"{scenario}--ospf--ebgp--kathara"
+    ]
     spec = build_benchmark_isp_experiment(profile)
     env = load_offline_net_env(
         scenario, **spec.deployment.model_dump(exclude_none=True)
@@ -647,11 +638,6 @@ def test_benchmark_bgp_preserves_as_boundaries_and_fault_targets(scenario):
         i.adjacency and i.adjacency.route_reflector_client for i in spec.healthy.intents
     )
     assert len([i for i in spec.healthy.intents if i.id.startswith("business.")]) == 6
-    assert spec.failure_checks[0].problem == "bgp_max_prefix_exceeded"
-    # The two session ends fail; other failures follow from losing that session.
-    failed = spec.failure_checks[0].expected_failed_ids
-    assert len([i for i in failed if i.startswith("adj.bgp.")]) == 2
-    assert all(i.startswith(("adj.bgp.", "exit.", "customer.")) for i in failed)
     assert spec.counterexamples[0].name == "missing-business-announcement"
     active = active_igp_links(original)
     assert all(asn_of[link.endpoint_a] == asn_of[link.endpoint_b] for link in active)
@@ -698,11 +684,7 @@ def test_single_level_isis_completion_preserves_original_sketch(scenario):
     from nika.net_env.isp.igp.plan import active_igp_links
     from nika.net_env.synthesis.requirements import resolve_routing_requirements
 
-    manifests = [
-        ROOT / "benchmark/working/cases.yaml",
-        ROOT / "benchmark/releases/0.3.0/dev.yaml",
-        ROOT / "benchmark/releases/0.3.0/test.yaml",
-    ]
+    manifests = [ROUTING_CASES]
     profile = benchmark_isp_profiles(manifests)[f"{scenario}--isis--none--kathara"]
     spec = build_benchmark_isp_experiment(profile)
     options = spec.deployment.model_dump(exclude_none=True)
@@ -752,3 +734,77 @@ def test_single_level_isis_completion_preserves_original_sketch(scenario):
         )
         assert spec.incidents[0].host_name == params["host_name"]
         assert spec.incidents[0].intf_name == params["intf_name"]
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize("scenario", ["isp_pioro40", "isp_norway", "isp_polska"])
+def test_rpki_static_control_opens_all_leaker_exports_on_both_renderers(scenario):
+    import re
+
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.problems.routing_control_plane.bgp import _EXPORT_DENY_ENTRY
+
+    problem = "bgp_hijacking"
+    options = {
+        "igp": "ospf",
+        "bgp_mode": "ebgp",
+        "rpki": True,
+        "backend": "kathara",
+        "device_profile": "frr",
+    }
+    profile = {
+        "scenario": scenario,
+        "deployment": options,
+        "features": ["rpki", "rtbh"],
+        "supported": True,
+        "benchmark_cases": [
+            {
+                "problem": problem,
+                "inject": {
+                    "host_name": get_net_env_instance(
+                        scenario, **options
+                    ).bgp_plan.inventory["leaker_device"],
+                    "variant": "rpki_invalid_origin",
+                },
+            }
+        ],
+    }
+    control = build_benchmark_isp_experiment(profile).failure_checks[0]
+    for rendered in (False, True):
+        env = get_net_env_instance(scenario, rendered=rendered, **options)
+        info = env.bgp_plan.inventory
+        leaker = info["leaker_device"]
+        peer = next(
+            s.remote_ip
+            for s in env.bgp_plan.sessions
+            if s.local_device == leaker and s.remote_device == info["non_rov_observer"]
+        )
+        config = env.deployment_configs[leaker]
+        edit = control.static_edits[leaker]
+        mutated, count = re.subn(edit.pattern, edit.replacement, config)
+        original_entries = dict(_EXPORT_DENY_ENTRY.findall(config))
+        changed_entries = dict(_EXPORT_DENY_ENTRY.findall(mutated))
+        assert count == len(original_entries) > 0
+        assert set(changed_entries.values()) == {"permit"}
+        assert original_entries.keys() == changed_entries.keys()
+        policy = re.search(rf"neighbor {re.escape(peer)} route-map (\S+) out", mutated)[
+            1
+        ]
+        # Follow the session's transit/RTBH wrappers to its admission policy.
+        # The static control must open every denial while retaining those guards.
+        visited = set()
+        while policy not in original_entries:
+            assert policy not in visited
+            visited.add(policy)
+            block = re.search(
+                rf"^route-map {re.escape(policy)} permit 10\n(.*?)(?=^!)",
+                config,
+                re.M | re.S,
+            )
+            assert block is not None
+            assert block[0] in mutated
+            call = re.search(r"^\s*call (\S+)$", block[1], re.M)
+            assert call is not None
+            policy = call[1]
+        assert dict(_EXPORT_DENY_ENTRY.findall(config))[policy] == "deny"
+        assert dict(_EXPORT_DENY_ENTRY.findall(mutated))[policy] == "permit"

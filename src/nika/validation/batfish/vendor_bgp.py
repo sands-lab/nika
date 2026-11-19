@@ -134,7 +134,7 @@ def build_vendor_snapshot(
     env, contract, root: Path, *, configs=None, shutdown=(), routing_model
 ):
     """Snapshot concrete IOS XR routers with their routed Linux hosts."""
-    if routing_model not in {"iosxr-bgp", "iosxr-isp"}:
+    if routing_model != "iosxr-isp":
         raise ValueError("Unsupported native BGP platform")
     root = prepare_snapshot(root)
     (root / "configs").mkdir(parents=True, exist_ok=True)
@@ -142,18 +142,16 @@ def build_vendor_snapshot(
     configs = vendor_configs(env) if configs is None else configs
     if set(configs) != set(env.BGP_ROUTERS):
         raise ValueError("Candidate configurations must cover the declared routers")
-    isp = routing_model.endswith("-isp")
     aliases = {}
     for node, config in configs.items():
         disabled = [env.BGP_INTERFACE_MAP[i] for n, i in shutdown if n == node]
         (root / "configs" / f"{node}.cfg").write_text(
             iosxr_batfish_config(config, disabled)
         )
-        if isp:
-            aliases[node] = {
-                native_name: logical_name
-                for logical_name, native_name in env.BGP_INTERFACE_MAP.items()
-            }
+        aliases[node] = {
+            native_name: logical_name
+            for logical_name, native_name in env.BGP_INTERFACE_MAP.items()
+        }
     # Linux hosts are concrete routed endpoints with their original default routes.
     for node in set(env.lab.machines) - set(configs):
         startup = (
@@ -202,9 +200,7 @@ def build_vendor_snapshot(
         metadata={
             "routing_model": routing_model,
             "native_config_analysis": True,
-            **({"interface_aliases": aliases} if isp else {}),
-            "scope": "Native IOS-XR IPv4 OSPF/BGP configuration with routed Linux hosts"
-            if isp
-            else "Native IOS-XR IPv4 BGP configuration with routed Linux hosts",
+            "interface_aliases": aliases,
+            "scope": "Native IOS-XR IPv4 OSPF/BGP configuration with routed Linux hosts",
         },
     )

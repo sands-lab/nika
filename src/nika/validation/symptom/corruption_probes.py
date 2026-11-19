@@ -11,6 +11,7 @@ import ipaddress
 import json
 import re
 import time
+from uuid import uuid4
 from typing import Any
 
 from nika.net_env.verify import (
@@ -23,6 +24,7 @@ from nika.problems.base import build_verify_result
 from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.runtime.base import LabRuntime
 from nika.runtime.spec import NodeRole
+from nika.service.lab.checked_exec import checked_exec
 from nika.validation.symptom.addressing_probes import healthy_read, lab_addresses
 from nika.validation.symptom.probe import _resolve_path
 
@@ -31,6 +33,8 @@ ECHO_COUNT = 300
 ECHO_INTERVAL_SEC = 0.03
 LOSS_MIN_PERCENT = 2.0
 IPERF_SECONDS = 5
+# Bound the diagnostic load so a healthy virtual fabric does not drop unrelated probes.
+CORRUPTION_PROBE_RATE = "20M"
 THROUGHPUT_MAX_RATIO = 0.5
 # Healthy-path echo loss the baseline tolerates.
 _HEALTHY_ECHO_LOSS_MAX = 0.5
@@ -53,16 +57,37 @@ def _ends(problem: Any, params: Any) -> dict[str, Any]:
     if path is None or not path.dst_ip:
         return {"error": "no_probe_path"}
     dst_ip = ipaddress.ip_address(path.dst_ip)
+    addresses = lab_addresses(problem.runtime)
     owner = next(
         (
             node
-            for node, rows in lab_addresses(problem.runtime).items()
+            for node, rows in addresses.items()
             if any(ipaddress.ip_interface(addr).ip == dst_ip for _i, addr in rows)
         ),
         None,
     )
     if owner is None:
         return _host_behind(problem, path.src_host, path.dst_ip)
+    if owner == path.src_host:
+        # The fault sits on the scenario destination's own link: measure from
+        # it to an end host. The reading counts every byte the receiver takes
+        # in, so skip hosts that the business workload sends to.
+        workload = problem.net_env.business_workload()
+        busy = {
+            name
+            for exercise in (workload.exercises if workload else ())
+            for name in exercise.target
+        }
+        for node in sorted(addresses):
+            role = getattr(problem.net_env.machine_identities.get(node), "role", None)
+            if node == owner or node in busy or not addresses[node]:
+                continue
+            address = str(ipaddress.ip_interface(addresses[node][0][1]).ip)
+            if role == NodeRole.HOST and problem.runtime.ping_ok(
+                owner, address, count=2
+            ):
+                return {"src": owner, "dst": address, "dst_host": node}
+        return {"error": "no_probe_path"}
     return {"src": path.src_host, "dst": path.dst_ip, "dst_host": owner}
 
 
@@ -132,7 +157,9 @@ def _goodput(runtime: LabRuntime, ends: dict[str, Any], port: int) -> dict[str, 
 
     With ``ends["reverse"]`` the data flows from ``dst`` back to ``src``.
     """
-    args = f"-t {IPERF_SECONDS}" + (" -R" if ends.get("reverse") else "")
+    args = f"-t {IPERF_SECONDS} -b {CORRUPTION_PROBE_RATE}" + (
+        " -R" if ends.get("reverse") else ""
+    )
     return _iperf(runtime, ends, port=port, args=args, seconds=15)
 
 
@@ -389,45 +416,46 @@ def evaluate_device_forwarding_corruption_symptom(
     )
 
 
-_RX_BYTES = (
-    'for i in /sys/class/net/*; do [ "${i##*/}" = lo ] || '
-    "cat $i/statistics/rx_bytes; done"
-)
-
-
-def _rx_bytes(runtime: LabRuntime, host: str) -> int | None:
-    values = exec_or_empty(runtime, host, _RX_BYTES).split()
-    return (
-        sum(int(v) for v in values)
-        if values and all(v.isdigit() for v in values)
-        else None
+def _probe_rx_bytes(runtime: LabRuntime, host: str, tag: str) -> int:
+    """Read the destination's counter for this probe without counting other flows."""
+    output = checked_exec(
+        runtime.exec, host, "iptables -w -L INPUT -v -x -n", timeout=15
     )
+    matches = [
+        re.match(r"^\s*\d+\s+(\d+)\s+", line)
+        for line in output.splitlines()
+        if f"/* {tag} */" in line
+    ]
+    if len(matches) != 1 or matches[0] is None:
+        raise RuntimeError(f"Capacity probe counter is unavailable on {host}")
+    return int(matches[0].group(1))
 
 
 def _delivered_rate(runtime: LabRuntime, ends: dict[str, Any]) -> dict[str, Any]:
-    """Bytes per second the receiver takes in while ``src`` sends TCP for 5 s.
-
-    The receiver's interface counters are read around the transfer, so the
-    reading does not depend on iperf3 exchanging results, which a deep queue
-    at a bottleneck can hold back for minutes.
-    """
-    pid = _start_iperf3_server(runtime, ends["dst_host"], 15201)
+    """Measure only the probe's TCP bytes received while the source sends."""
+    host = ends["dst_host"]
+    tag = uuid4().hex
+    rule = f"-p tcp -d {ends['dst']} --dport 15201 -m comment --comment {tag}"
+    # A rule without a target only counts; packet traversal continues unchanged.
+    checked_exec(runtime.exec, host, f"iptables -w -I INPUT 1 {rule}", timeout=15)
     try:
-        start = _rx_bytes(runtime, ends["dst_host"])
-        clock = time.monotonic()
-        exec_or_empty(
-            runtime,
-            ends["src"],
-            f"timeout {IPERF_SECONDS + 3} iperf3 -c {ends['dst']} -p 15201 "
-            f"-t {IPERF_SECONDS} >/dev/null 2>&1",
-            timeout=IPERF_SECONDS + 15,
-        )
-        end = _rx_bytes(runtime, ends["dst_host"])
-        elapsed = time.monotonic() - clock
+        pid = _start_iperf3_server(runtime, host, 15201)
+        try:
+            start = _probe_rx_bytes(runtime, host, tag)
+            clock = time.monotonic()
+            exec_or_empty(
+                runtime,
+                ends["src"],
+                f"timeout {IPERF_SECONDS + 3} iperf3 -c {ends['dst']} -p 15201 "
+                f"-t {IPERF_SECONDS} >/dev/null 2>&1",
+                timeout=IPERF_SECONDS + 15,
+            )
+            end = _probe_rx_bytes(runtime, host, tag)
+            elapsed = time.monotonic() - clock
+        finally:
+            _stop_iperf3_server(runtime, host, pid)
     finally:
-        _stop_iperf3_server(runtime, ends["dst_host"], pid)
-    if start is None or end is None:
-        return {"error": "no_rx_counters", "received_bps": None}
+        checked_exec(runtime.exec, host, f"iptables -w -D INPUT {rule}", timeout=15)
     return {
         "received_bytes": end - start,
         "seconds": round(elapsed, 1),
@@ -438,7 +466,16 @@ def _delivered_rate(runtime: LabRuntime, ends: dict[str, Any]) -> dict[str, Any]
 def capacity_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     ends = _ends(problem, params)
     if "error" in ends:
-        return False, ends
+        from nika.problems.link_interface.link import _probe_ends
+
+        pair = _probe_ends(problem.net_env, params.host_name, params.intf_name)
+        if pair is None:
+            return False, ends
+        source, (target, interface) = pair
+        address = problem.runtime.get_host_ip(target, interface, with_prefix=False)
+        if not address:
+            return False, ends
+        ends = {"src": source, "dst": address, "dst_host": target}
     reading = _delivered_rate(problem.runtime, ends)
     problem._audit_capacity = {"ends": ends, "before": reading}
     return bool(reading["received_bps"]), {**ends, **reading}

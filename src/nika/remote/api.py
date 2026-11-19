@@ -24,6 +24,8 @@ from nika.remote.handlers import (
     handle_session_rebind,
     handle_session_verify,
     handle_schedule,
+    handle_symptom,
+    handle_symptom_baseline,
 )
 from nika.remote.protocol import (
     EnvStartRequest,
@@ -33,6 +35,7 @@ from nika.remote.protocol import (
     McpAttachRequest,
     SessionCloseRequest,
     SessionRebindRequest,
+    SessionVerifyRequest,
     SchedulePrepareRequest,
 )
 
@@ -95,6 +98,30 @@ async def fault_artifact(request: Request) -> JSONResponse:
     try:
         result = await run_in_threadpool(
             handle_fault_artifact, request.path_params["session_id"]
+        )
+        return JSONResponse(result)
+    except FileNotFoundError as exc:
+        return _error_response(exc, status=404)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(exc, status=400)
+
+
+async def symptom_baseline(request: Request) -> JSONResponse:
+    try:
+        result = await run_in_threadpool(
+            handle_symptom_baseline,
+            request.path_params["session_id"],
+            await request.json(),
+        )
+        return JSONResponse(result)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(exc, status=400)
+
+
+async def symptom(request: Request) -> JSONResponse:
+    try:
+        result = await run_in_threadpool(
+            handle_symptom, request.path_params["session_id"], await request.json()
         )
         return JSONResponse(result)
     except FileNotFoundError as exc:
@@ -230,7 +257,14 @@ async def session_rebind(request: Request) -> JSONResponse:
 async def session_verify(request: Request) -> JSONResponse:
     session_id = request.path_params["session_id"]
     try:
-        return JSONResponse(await run_in_threadpool(handle_session_verify, session_id))
+        body = SessionVerifyRequest.model_validate_json(await request.body() or b"{}")
+        return JSONResponse(
+            await run_in_threadpool(
+                handle_session_verify,
+                session_id,
+                initial_baseline=body.initial_baseline,
+            )
+        )
     except FileNotFoundError as exc:
         return _error_response(exc, status=404)
     except Exception as exc:  # noqa: BLE001
@@ -253,6 +287,12 @@ def create_remote_app() -> Starlette:
             fault_artifact,
             methods=["GET"],
         ),
+        Route(
+            "/v1/sessions/{session_id}/symptom/baseline",
+            symptom_baseline,
+            methods=["POST"],
+        ),
+        Route("/v1/sessions/{session_id}/symptom", symptom, methods=["POST"]),
         Route("/v1/sessions", sessions_list, methods=["GET"]),
         Route("/v1/sessions/wipe", sessions_wipe, methods=["POST"]),
         Route("/v1/sessions/{session_id}", session_get, methods=["GET"]),

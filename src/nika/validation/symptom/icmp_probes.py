@@ -15,7 +15,8 @@ from nika.problems.base import build_verify_result
 from nika.problems.rca.inventory import kernel_data_interface
 from nika.problems.support.benchmark_targets import attached_end_hosts
 from nika.runtime.base import LabRuntime
-from nika.validation.symptom.addressing_probes import _HOST_PREFIXES, iface_ipv4
+from nika.runtime.spec import NodeRole
+from nika.validation.symptom.addressing_probes import iface_ipv4
 
 _COUNT = 5
 
@@ -60,12 +61,14 @@ def _endpoints(problem: Any, node: str) -> dict[str, str]:
     capture_iface = kernel_data_interface(problem.net_env, receiver)
     if not receiver_ip:
         raise RuntimeError(f"no data-plane address on {receiver}:{capture_iface}")
-    for sender in sorted(runtime.list_nodes()):
-        if (
-            sender in neighbors
-            or sender == node
-            or not sender.startswith(_HOST_PREFIXES)
-        ):
+    identities = problem.net_env.machine_identities
+    senders = {
+        name
+        for name, identity in identities.items()
+        if identity.role in {NodeRole.HOST, NodeRole.SERVER, NodeRole.SERVICE}
+    }
+    for sender in sorted(set(runtime.list_nodes()) & senders):
+        if sender in neighbors or sender == node:
             continue
         stats = ping_stats(runtime, sender, receiver_ip, count=2, interval_sec=0.2)
         if stats.loss_percent == 0.0:
@@ -84,31 +87,76 @@ def _endpoints(problem: Any, node: str) -> dict[str, str]:
 
 def _delivered(runtime: LabRuntime, ends: dict[str, str]) -> dict[str, int]:
     """Count code 4 and code 3 messages that reach the receiver."""
-    capture = "/tmp/probe-icmp.pcap"
-    iface = shlex.quote(ends["capture_iface"])
-    runtime.exec(
-        ends["receiver"],
-        f"rm -f {capture}; (timeout 8 tcpdump -ni {iface} -w {capture} "
-        "'icmp[0] == 3' >/dev/null 2>&1 &)",
+    import uuid
+
+    from nika.service.packet_capture.capture_backend import (
+        remote_paths,
+        start_capture,
+        stop_capture,
     )
-    runtime.exec(ends["receiver"], "sleep 1")
-    for code in (4, 3):
-        runtime.exec(
-            ends["sender"],
-            f"python3 -c {shlex.quote(_SENDER)} {ends['receiver_ip']} {code} {_COUNT} "
-            f"{ends['sender_ip']}",
-            timeout=15,
+    from nika.service.packet_capture.models import CaptureLimits
+    from nika.service.lab.checked_exec import checked_exec
+
+    capture_id = uuid.uuid4().hex
+    capture, pid_path = remote_paths(capture_id)
+    receiver = ends["receiver"]
+    running = None
+    stopped = False
+    try:
+        running = start_capture(
+            runtime,
+            capture_id=capture_id,
+            device=receiver,
+            interface=ends["capture_iface"],
+            capture_filter="icmp[0] == 3",
+            limits=CaptureLimits(max_duration_sec=8),
         )
-    runtime.exec(ends["receiver"], "sleep 8")
-    counts = {}
-    for code in (4, 3):
-        out = runtime.exec(
-            ends["receiver"],
-            f"tcpdump -nr {capture} 'icmp[0] == 3 and icmp[1] == {code}' "
-            "2>/dev/null | wc -l",
+        runtime.exec(receiver, "sleep 1")
+        for code in (4, 3):
+            runtime.exec(
+                ends["sender"],
+                f"python3 -c {shlex.quote(_SENDER)} {ends['receiver_ip']} {code} {_COUNT} "
+                f"{ends['sender_ip']}",
+                timeout=15,
+            )
+        runtime.exec(receiver, "sleep 8")
+        stop_capture(
+            runtime,
+            device=receiver,
+            pid_path=pid_path,
+            remote_path=capture,
+            capture_backend=running.capture_backend,
         )
-        counts[f"code{code}"] = int((out.strip().splitlines() or ["0"])[-1])
-    return counts
+        stopped = True
+        counts = {}
+        for code in (4, 3):
+            out = runtime.exec(
+                receiver,
+                f"tcpdump -nr {shlex.quote(capture)} 'icmp[0] == 3 and icmp[1] == {code}' "
+                "2>/dev/null | wc -l",
+            )
+            counts[f"code{code}"] = int((out.strip().splitlines() or ["0"])[-1])
+        return counts
+    finally:
+        try:
+            if not stopped:
+                try:
+                    stop_capture(
+                        runtime,
+                        device=receiver,
+                        pid_path=pid_path,
+                        remote_path=capture,
+                        capture_backend=running.capture_backend if running else None,
+                    )
+                except FileNotFoundError:
+                    pass
+        finally:
+            paths = (capture, pid_path, f"/tmp/capture-{capture_id}.log")
+            checked_exec(
+                runtime.exec,
+                receiver,
+                "rm -f -- " + " ".join(shlex.quote(path) for path in paths),
+            )
 
 
 def frag_needed_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:

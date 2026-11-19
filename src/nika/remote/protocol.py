@@ -40,7 +40,7 @@ class EnvStartRequest(BaseModel):
     device_profile: str | None = None
     release: str | None = None
     static_validation: bool = False
-    telemetry: list[str] = Field(default_factory=list)
+    telemetry: list[str] | None = None
     traffic: dict[str, Any] | None = None
     defer_background_traffic: bool = False
     defer_business_traffic: bool = False
@@ -110,6 +110,12 @@ class SessionRebindRequest(BaseModel):
 class SessionRebindResponse(BaseModel):
     session_id: str
     session: dict[str, Any] = Field(default_factory=dict)
+
+
+class SessionVerifyRequest(BaseModel):
+    """Verify a session and optionally establish its initial healthy baseline."""
+
+    initial_baseline: bool = False
 
 
 class SessionLogResponse(BaseModel):

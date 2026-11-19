@@ -47,14 +47,37 @@ from nika.firecracker.vmm import (
     VmmError,
     VsockForwarder,
     firecracker_binary,
-    guest_exec,
     kill_pid_file,
     pid_alive,
     wait_http_ok,
 )
 
 TRIAL_META = "trial.json"
+CASE_SYMPTOM_READY_SEC = 600.0
 _active: TrialLab | None = None
+
+
+def _wait_for_case_symptom(session_id: str, case: CaseImage) -> None:
+    """Wait for the restored workload to realize the declared task symptom."""
+    from nika.remote.workflows import _client
+
+    deadline = time.monotonic() + CASE_SYMPTOM_READY_SEC
+    client = _client()
+    while True:
+        result = client.symptom(
+            session_id,
+            baseline_session=case.session_id,
+            timeout=max(0.1, deadline - time.monotonic()),
+        )
+        if result.get("ok"):
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise VmmError(
+                f"case image {case.key}: declared symptom not ready after restore: "
+                f"{result}"
+            )
+        time.sleep(min(2.0, remaining))
 
 
 def trials_dir() -> Path:
@@ -146,6 +169,9 @@ class TrialLab:
             memory=self.image.path / MEMORY,
             uffd_socket=uffd,
         )
+        if server is not None:
+            _wait_prefetch(server, Path(str(uffd) + ".ready"))
+            vm.api("PATCH", "/vm", {"state": "Resumed"})
         self.timings["restore_sec"] = round(time.monotonic() - started, 2)
         uds = self.dir / VSOCK
         try:
@@ -164,8 +190,6 @@ class TrialLab:
                 raise
             log = (self.dir / "uffd.log").read_text(errors="replace").strip()
             raise VmmError(f"{err}; page server log: {log.splitlines()[-1:]}") from err
-        # Snapshot time is stale; align UTC logs before exposing the restored lab.
-        guest_exec(uds, f"date --set=@{time.time():.6f} >/dev/null", timeout=30)
         self.timings["ready_sec"] = round(time.monotonic() - started, 2)
         if server is not None:
             _watch_page_server(server, vm, self.trial_key, self._released)
@@ -204,20 +228,24 @@ class TrialLab:
             session_dir=session_dir,
             restore_runtime=True,
         )
-        if self.case is not None:
+        if self.case is not None and self.case.injected:
             # The lab carries its failure: check the injected artifact instead.
             # Right after a restore (several copies at once, a loaded lab) the
             # check can take much longer than during the agent's run.
-            check = _client().fault_artifact(new_id, timeout=180.0)
-            if not check.get("present"):
+            try:
+                check = _client().fault_artifact(new_id, timeout=180.0)
+                if not check.get("present"):
+                    raise VmmError(
+                        f"case image {self.case.key}: injected fault not present "
+                        f"after restore: {check}"
+                    )
+                _wait_for_case_symptom(new_id, self.case)
+            except BaseException:
                 close_session(session_id=new_id, undeploy=False, status="error")
-                raise VmmError(
-                    f"case image {self.case.key}: injected fault not present "
-                    f"after restore: {check}"
-                )
+                raise
         elif firecracker_settings().verify_after_restore:
             try:
-                _client().verify_session(new_id)
+                _client().verify_session(new_id, initial_baseline=True)
             except BaseException:
                 # As a failed cold start does: leave no running session behind.
                 close_session(session_id=new_id, undeploy=False, status="error")
@@ -261,6 +289,19 @@ def _start_page_server(
             raise VmmError(f"page server did not start; see {run_dir}/uffd.log")
         time.sleep(0.01)
     return proc
+
+
+def _wait_prefetch(
+    server: subprocess.Popen, ready: Path, *, timeout: float = 600
+) -> None:
+    """Keep the guest paused until its saved working memory is populated."""
+    deadline = time.monotonic() + timeout
+    while not ready.exists():
+        if server.poll() is not None:
+            raise VmmError("page server exited before memory prefetch completed")
+        if time.monotonic() >= deadline:
+            raise VmmError("page server memory prefetch timed out")
+        time.sleep(0.01)
 
 
 def _watch_page_server(

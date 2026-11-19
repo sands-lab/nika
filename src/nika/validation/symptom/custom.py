@@ -6,6 +6,16 @@ import time
 from typing import Any
 
 from nika.problems.base import build_verify_result
+from nika.validation.symptom.link_latency_probes import latency_baseline, link_delayed
+from nika.validation.symptom.route_leak_probes import (
+    route_leak_baseline,
+    route_leak_detour,
+)
+from nika.validation.symptom.bgp_surge_probes import (
+    prefix_session_baseline,
+    low_prefix_headroom,
+    prefix_tables_grow,
+)
 from nika.validation.symptom.wireguard_probes import (
     peer_key_baseline,
     peer_key_unreachable,
@@ -33,14 +43,13 @@ from nika.validation.symptom.addressing_probes import (
 from nika.validation.symptom.dhcp_probes import (
     dhcp_client_baseline,
     dhcp_offer_baseline,
-    dhcp_spoofed_dns,
-    dhcp_spoofed_gateway,
-    dhcp_spoofed_subnet,
+    dhcp_option_dns,
+    dhcp_option_gateway,
+    dhcp_option_subnet,
     dhcp_unleased,
 )
 from nika.validation.symptom.dns_probes import (
     dns_baseline,
-    dns_lookup_slow,
     dns_name_unresolvable,
     dns_wrong_record,
 )
@@ -55,6 +64,8 @@ from nika.validation.symptom.bgp_route_probes import (
     hijack_baseline,
     rpki_leak_baseline,
     rpki_leak_split,
+    rov_policy_baseline,
+    rov_policy_missing,
     session_policy_baseline,
     session_policy_drops_routes,
 )
@@ -69,18 +80,13 @@ from nika.validation.symptom.icmp_probes import (
 from nika.validation.symptom.p4_gateway_probes import (
     ecn_marking,
     ecn_marking_baseline,
-    int_headroom,
-    int_headroom_baseline,
     lb_race,
     lb_race_baseline,
     silent_loss,
     silent_loss_baseline,
     syn_flood,
     syn_flood_baseline,
-    tcam_drop,
-    tcam_drop_baseline,
 )
-from nika.validation.symptom.queueing_probes import incast_baseline, incast_queueing
 from nika.validation.symptom.p4_runtime_probes import (
     crossed_routes,
     crossed_routes_baseline,
@@ -100,8 +106,6 @@ from nika.validation.symptom.routing_probes import (
     bgp_bad_peer_as,
     bgp_baseline,
     bgp_some_lost,
-    max_prefix_baseline,
-    max_prefix_cease,
     ospf_all_lost,
     ospf_baseline,
     ospf_full_unrouted,
@@ -122,10 +126,6 @@ from nika.validation.symptom.routing_probes import (
     routing_baseline,
 )
 from nika.validation.symptom.perf_probes import (
-    lb_baseline,
-    lb_overload,
-    receiver_baseline,
-    receiver_contention,
     rwnd_baseline,
     rwnd_limited,
     sender_baseline,
@@ -155,8 +155,8 @@ from nika.validation.symptom.k8s_probes import (
     ingress_class_broken,
     clusterip_baseline,
     clusterip_broken,
-    coredns_baseline,
     coredns_isolated,
+    coredns_baseline,
     lb_advertisement_baseline,
     lb_advertisement_withdrawn,
     noexecute_taint_baseline,
@@ -212,7 +212,7 @@ _RTP_WAIT_SEC = 50.0
 def _rtp_quality(problem: Any, params: Any) -> dict[str, Any]:
     """Call statistics the receiving softphone logs for the sender's stream.
 
-    Reads only intervals that start after the probe does. The scenario's own
+    Reads intervals whose logged end time follows the probe. The scenario's own
     call carries the traffic, so the probe adds no load of its own.
     """
     from nika.net_env.enterprise_branch.workload import MEDIA_LOG
@@ -233,6 +233,7 @@ def _rtp_quality(problem: Any, params: Any) -> dict[str, Any]:
         if len(fresh) >= _RTP_INTERVALS or time.monotonic() > deadline:
             break
         time.sleep(5.0)
+    fresh = fresh[-_RTP_INTERVALS:]
     rx = sum(int(r["rx"]) for r in fresh)
     lost = sum(int(r["lost"]) for r in fresh)
     return {
@@ -283,11 +284,26 @@ def _vrf_dscp_remarking(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
     sham = getattr(problem, "_audit_rtp_sham", None)
     current = _rtp_quality(problem, params)
     loss = current["loss_percent"]
+    intervals = current["intervals"][-_RTP_INTERVALS:]
+    received_media = any(int(row["rx"]) > 0 for row in intervals)
+    if not received_media:
+        current["error"] = "no_received_media"
+    sustained = (
+        len(intervals) == _RTP_INTERVALS
+        and len({row["time"] for row in intervals}) == _RTP_INTERVALS
+        and all(
+            int(row["rx"]) > 0
+            and 100.0 * int(row["lost"]) / (int(row["rx"]) + int(row["lost"]))
+            >= _RTP_LOSS_PERCENT
+            for row in intervals
+        )
+    )
     if sham is None and isinstance(loss, float):
         problem._audit_rtp_sham = loss
     reference = base if sham is None else min(base, sham)
     verified = (
-        isinstance(loss, float)
+        sustained
+        and isinstance(loss, float)
         and loss >= _RTP_LOSS_PERCENT
         and loss - reference >= _RTP_LOSS_DELTA
     )
@@ -387,14 +403,37 @@ def _overlay_ef_undersized(problem: Any, params: Any) -> tuple[bool, dict]:
     )
 
 
+def host_acl_symptom(problem, params):
+    from nika.validation.symptom.probe import run_probe_snapshot
+
+    path = problem.probe_path(params)
+    if path is None:
+        return False, {"error": "no_probe_path"}
+    probe = "path_http" if params.protocol == "http" else "path_ping"
+    observed = run_probe_snapshot(problem.runtime, probe, path, params=params)
+    failed = (
+        observed.http_ok is False
+        if params.protocol == "http"
+        else observed.ping_ok is False
+    )
+    return failed, observed.as_dict()
+
+
+def host_acl_baseline(problem, params):
+    failed, observed = host_acl_symptom(problem, params)
+    key = "http_ok" if params.protocol == "http" else "ping_ok"
+    return observed.get(key) is True, observed
+
+
 _CUSTOM: dict[str, Any] = {
+    "host_acl_block": host_acl_symptom,
+    "link_latency": link_delayed,
+    "bgp_route_leak": route_leak_detour,
     "wireguard_peer_key_misconfiguration": peer_key_unreachable,
     "rib_fib_inconsistency": rib_fib_diverged,
     "overlay_qos_ef_undersized": _overlay_ef_undersized,
     "ospf_area_range_suppression": area_range_suppressed,
-    "incast_traffic_network_limitation": incast_queueing,
     "link_down": link_path_lost,
-    "link_detach": link_path_lost,
     "link_flap": evaluate_link_flap_symptom,
     "mtu_mismatch": mtu_reduced,
     "host_static_blackhole": blackhole_dropped,
@@ -406,8 +445,7 @@ _CUSTOM: dict[str, Any] = {
     "device_forwarding_packet_corruption": evaluate_device_forwarding_corruption_symptom,
     "device_flow_blackhole": flow_blackhole,
     "web_dos_attack": web_dos,
-    "sender_resource_contention": sender_contention,
-    "receiver_resource_contention": receiver_contention,
+    "endpoint_cpu_contention": sender_contention,
     "tcp_receive_window_limited": rwnd_limited,
     "vrf_dscp_remarking": _vrf_dscp_remarking,
     "southbound_port_block": controller_lost,
@@ -415,40 +453,36 @@ _CUSTOM: dict[str, Any] = {
     "sdn_controller_crash": controller_lost,
     "switch_datapath_id_conflict": switch_controller_conflict,
     "flow_rule_loop": flow_loop,
-    "k8s_clusterip_routing_broken": clusterip_broken,
+    "k8s_node_firewall_drop": clusterip_broken,
     "k8s_vxlan_neighbor_stale": vxlan_neighbor_stale,
     "k8s_service_target_port_mismatch": target_port_broken,
     "k8s_service_selector_mismatch": selector_broken,
     "k8s_ingress_class_mismatch": ingress_class_broken,
     "k8s_ingress_rate_limit_misconfig": ingress_rate_limited,
     "lb_advertisement_missing": lb_advertisement_withdrawn,
-    "k8s_coredns_isolated": coredns_isolated,
     "k8s_coredns_forward_loop": forward_loop_broken,
     "k8s_worker_apiserver_partition": worker_partition,
     "k8s_readiness_probe_misconfig": readiness_broken,
     "k8s_deployment_replicas_zero": replicas_zero_broken,
     "k8s_node_noexecute_taint": noexecute_taint_broken,
     "silent_egress_packet_loss": silent_loss,
-    "load_balancer_overload": lb_overload,
     "lb_connection_state_exhaustion": lb_race,
     "snat_port_pool_exhaustion": snat_pool_exhaustion,
     "nat_mapping_removed_without_drain": nat_mapping_removed,
     "mac_address_conflict": mac_conflict,
     "host_ip_conflict": ip_conflict,
     "icmp_frag_needed_filter_misconfiguration": frag_needed_filtered,
-    "int_insufficient_mtu_headroom": int_headroom,
     "tcp_syn_flood_attack": syn_flood,
     "lb_pending_connection_update_race": lb_race,
     "flow_rule_shadowing": flow_shadow,
-    "p4_ecn_threshold_misconfiguration": ecn_marking,
-    "p4_tcam_entry_corruption": tcam_drop,
+    "p4_ecn_marking_disabled": ecn_marking,
     "p4_ecmp_group_member_missing": ecmp_member_missing,
     "p4_action_selector_member_misconfig": selector_member_blackhole,
     "p4_table_resource_exhaustion": table_exhaustion,
     "p4runtime_partial_write": crossed_routes,
-    "dhcp_spoofed_gateway": dhcp_spoofed_gateway,
-    "dhcp_spoofed_dns": dhcp_spoofed_dns,
-    "dhcp_spoofed_subnet": dhcp_spoofed_subnet,
+    "dhcp_option_gateway": dhcp_option_gateway,
+    "dhcp_option_dns": dhcp_option_dns,
+    "dhcp_option_subnet": dhcp_option_subnet,
     "bgp_acl_block": bgp_all_lost,
     "bgp_ttl_security_mismatch": bgp_some_lost,
     "bgp_md5_password_mismatch": md5_paths_withdrawn,
@@ -457,46 +491,54 @@ _CUSTOM: dict[str, Any] = {
     "bgp_prefix_list_length_mismatch": prefix_length_drops_routes,
     "bgp_address_family_not_activated": ipv4_family_missing,
     "bgp_asn_misconfig": bgp_bad_peer_as,
-    "bgp_max_prefix_exceeded": max_prefix_cease,
     "routing_service_down": routing_all_lost,
+    "bgp_max_prefix_limit_low": low_prefix_headroom,
+    "bgp_prefix_surge": prefix_tables_grow,
     "ospf_acl_block": ospf_all_lost,
     "ospf_area_misconfiguration": ospf_some_lost,
-    "ospf_neighbor_missing": ospf_one_lost,
+    "ospf_interface_not_enabled": ospf_one_lost,
     "ospf_duplicate_router_id": ospf_stubs_withdrawn,
     "ospf_network_type_mismatch": ospf_full_unrouted,
     "ospf_hello_interval_mismatch": ospf_timer_mismatch,
     "ospf_stub_area_mismatch": ospf_stub_area_mismatch,
     "isis_metric_style_mismatch": isis_stubs_withdrawn,
-    "isis_circuit_level_mismatch": isis_adj_and_stubs_lost,
+    "isis_router_level_mismatch": isis_adj_and_stubs_lost,
     "isis_authentication_mismatch": isis_authentication_lost,
-    "bgp_hijacking": hijack_attracts,
-    "bgp_rpki_invalid_route_leak": rpki_leak_split,
+    "bgp_hijacking": lambda p, q: (
+        rpki_leak_split(p, q)
+        if q.variant == "rpki_invalid_origin"
+        else hijack_attracts(p, q)
+    ),
+    "bgp_rov_not_enforced": rov_policy_missing,
     "bgp_missing_route_advertisement": advertisement_withdrawn,
     "dhcp_missing_subnet": dhcp_unleased,
     "dhcp_service_down": dhcp_unleased,
-    "dns_port_blocked": dns_name_unresolvable,
+    "dns_port_blocked": lambda p, q: (
+        coredns_isolated(p, q)
+        if getattr(p.net_env, "kubernetes_nodes", None)
+        else dns_name_unresolvable(p, q)
+    ),
     "dns_service_down": dns_name_unresolvable,
-    "dns_lookup_latency": dns_lookup_slow,
     "dns_record_error": dns_wrong_record,
 }
 
 # Pre-inject measurements of the same signal a custom probe reads after inject.
 _CUSTOM_BASELINE: dict[str, Any] = {
+    "host_acl_block": host_acl_baseline,
+    "link_latency": latency_baseline,
+    "bgp_route_leak": route_leak_baseline,
     "wireguard_peer_key_misconfiguration": peer_key_baseline,
     "rib_fib_inconsistency": rib_fib_baseline,
     "overlay_qos_ef_undersized": _overlay_ef_baseline,
     "ospf_area_range_suppression": area_range_baseline,
-    "receiver_resource_contention": receiver_baseline,
     "web_dos_attack": web_dos_baseline,
-    "load_balancer_overload": lb_baseline,
-    "sender_resource_contention": sender_baseline,
+    "endpoint_cpu_contention": sender_baseline,
     "tcp_receive_window_limited": rwnd_baseline,
     "southbound_port_block": controller_serving,
     "southbound_port_mismatch": controller_serving,
     "sdn_controller_crash": controller_serving,
     "switch_datapath_id_conflict": controller_serving,
     "link_down": link_path_baseline,
-    "link_detach": link_path_baseline,
     "link_flap": flap_baseline,
     "link_packet_corruption": link_corruption_baseline,
     "device_forwarding_packet_corruption": forwarding_corruption_baseline,
@@ -512,36 +554,32 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "mac_address_conflict": mac_conflict_baseline,
     "host_ip_conflict": ip_conflict_baseline,
     "icmp_frag_needed_filter_misconfiguration": frag_needed_baseline,
-    "int_insufficient_mtu_headroom": int_headroom_baseline,
     "tcp_syn_flood_attack": syn_flood_baseline,
     "lb_pending_connection_update_race": lb_race_baseline,
     "lb_connection_state_exhaustion": lb_race_baseline,
     "flow_rule_shadowing": flow_shadow_baseline,
     "flow_rule_loop": flow_loop_baseline,
-    "p4_ecn_threshold_misconfiguration": ecn_marking_baseline,
-    "p4_tcam_entry_corruption": tcam_drop_baseline,
+    "p4_ecn_marking_disabled": ecn_marking_baseline,
     "p4_ecmp_group_member_missing": ecmp_sweep_baseline,
     "p4_action_selector_member_misconfig": selector_sweep_baseline,
     "p4_table_resource_exhaustion": table_exhaustion_baseline,
     "p4runtime_partial_write": crossed_routes_baseline,
     "silent_egress_packet_loss": silent_loss_baseline,
-    "incast_traffic_network_limitation": incast_baseline,
     "k8s_worker_apiserver_partition": worker_partition_baseline,
     "k8s_readiness_probe_misconfig": readiness_baseline,
     "k8s_deployment_replicas_zero": replicas_zero_baseline,
     "k8s_node_noexecute_taint": noexecute_taint_baseline,
-    "k8s_clusterip_routing_broken": clusterip_baseline,
+    "k8s_node_firewall_drop": clusterip_baseline,
     "k8s_vxlan_neighbor_stale": vxlan_neighbor_baseline,
     "k8s_service_target_port_mismatch": target_port_baseline,
     "k8s_service_selector_mismatch": target_port_baseline,
     "k8s_ingress_class_mismatch": ingress_class_baseline,
     "k8s_ingress_rate_limit_misconfig": ingress_rate_baseline,
     "lb_advertisement_missing": lb_advertisement_baseline,
-    "k8s_coredns_isolated": coredns_baseline,
     "k8s_coredns_forward_loop": forward_loop_baseline,
-    "dhcp_spoofed_gateway": dhcp_client_baseline,
-    "dhcp_spoofed_dns": dhcp_client_baseline,
-    "dhcp_spoofed_subnet": dhcp_client_baseline,
+    "dhcp_option_gateway": dhcp_client_baseline,
+    "dhcp_option_dns": dhcp_client_baseline,
+    "dhcp_option_subnet": dhcp_client_baseline,
     "dhcp_missing_subnet": dhcp_offer_baseline,
     "dhcp_service_down": dhcp_offer_baseline,
     "bgp_acl_block": bgp_baseline,
@@ -552,25 +590,33 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "bgp_prefix_list_length_mismatch": prefix_length_baseline,
     "bgp_address_family_not_activated": ipv4_family_baseline,
     "bgp_asn_misconfig": bgp_baseline,
-    "bgp_max_prefix_exceeded": max_prefix_baseline,
     "routing_service_down": routing_baseline,
+    "bgp_max_prefix_limit_low": prefix_session_baseline,
+    "bgp_prefix_surge": prefix_session_baseline,
     "ospf_acl_block": ospf_baseline,
     "ospf_area_misconfiguration": ospf_baseline,
-    "ospf_neighbor_missing": ospf_baseline,
+    "ospf_interface_not_enabled": ospf_baseline,
     "ospf_duplicate_router_id": ospf_stub_baseline,
     "ospf_network_type_mismatch": ospf_full_unrouted_baseline,
     "ospf_hello_interval_mismatch": ospf_cut_edge_baseline,
     "ospf_stub_area_mismatch": ospf_cut_edge_baseline,
     "isis_metric_style_mismatch": isis_stub_baseline,
-    "isis_circuit_level_mismatch": isis_stub_baseline,
+    "isis_router_level_mismatch": isis_stub_baseline,
     "isis_authentication_mismatch": isis_authentication_baseline,
-    "bgp_hijacking": hijack_baseline,
-    "bgp_rpki_invalid_route_leak": rpki_leak_baseline,
+    "bgp_hijacking": lambda p, q: (
+        rpki_leak_baseline(p, q)
+        if q.variant == "rpki_invalid_origin"
+        else hijack_baseline(p, q)
+    ),
+    "bgp_rov_not_enforced": rov_policy_baseline,
     "bgp_missing_route_advertisement": advertisement_baseline,
     "vrf_dscp_remarking": _vrf_dscp_baseline,
-    "dns_port_blocked": dns_baseline,
+    "dns_port_blocked": lambda p, q: (
+        coredns_baseline(p, q)
+        if getattr(p.net_env, "kubernetes_nodes", None)
+        else dns_baseline(p, q)
+    ),
     "dns_service_down": dns_baseline,
-    "dns_lookup_latency": dns_baseline,
     "dns_record_error": dns_baseline,
 }
 

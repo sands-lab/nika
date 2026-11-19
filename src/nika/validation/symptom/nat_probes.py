@@ -1,14 +1,13 @@
-"""SNAT symptom probes for edge NAT failures (test-path only).
+"""NAT symptom checks against the declared public HTTP workload.
 
-Each probe runs a TCP echo listener on an outside server and drives
-connections from an inside host in ``source_prefix``. The listener logs the
-translated source address of every accepted connection. The server is the one
-the scenario declares (``NetworkEnvBase.nat_probe_server``), else the edge's
-WAN next hop.
+Healthy baselines read existing long-lived sessions or make a bounded
+concurrency request. They leave no listener, client process or probe files
+in a case image.
 """
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import ipaddress
 import json
 import re
@@ -17,77 +16,10 @@ import time
 from typing import Any
 
 from nika.problems.base import build_verify_result
-from nika.runtime.base import LabRuntime
+from nika.runtime.base import LabRuntime, RuntimeCapabilityError
+from nika.traffic.workload import NAT_SESSIONS
 
-_PORT = 18080
-_SERVER_LOG = "/tmp/probe-nat-peers.log"
-_FLOW_STATUS = "/tmp/probe-nat-flow.status"
-
-_SERVER = rf"""
-import socket, threading
-log = open({_SERVER_LOG!r}, "a", buffering=1)
-def serve(conn, peer):
-    log.write(peer[0] + "\n")
-    try:
-        while True:
-            data = conn.recv(1024)
-            if not data:
-                break
-            conn.sendall(data)
-    except OSError:
-        pass
-srv = socket.socket()
-srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-srv.bind(("0.0.0.0", {_PORT}))
-srv.listen(4096)
-while True:
-    conn, peer = srv.accept()
-    threading.Thread(target=serve, args=(conn, peer), daemon=True).start()
-"""
-
-# Opens ``count`` concurrent connections and holds them until all attempts end.
-_BURST = r"""
-import json, socket, sys, threading
-target, port, count = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
-held, failed, lock = [], [0], threading.Lock()
-def attempt():
-    sock = socket.socket()
-    sock.settimeout(2)
-    try:
-        sock.connect((target, port))
-        sock.sendall(b"x")
-        sock.recv(1)
-        with lock:
-            held.append(sock)
-    except OSError:
-        with lock:
-            failed[0] += 1
-threads = [threading.Thread(target=attempt) for _ in range(count)]
-for thread in threads:
-    thread.start()
-for thread in threads:
-    thread.join()
-print(json.dumps({"connected": len(held), "failed": failed[0]}))
-"""
-
-# One long-lived flow that exchanges a byte every 0.5 s.
-_FLOW = rf"""
-import socket, sys, time
-def status(text):
-    open({_FLOW_STATUS!r}, "w").write(text)
-try:
-    sock = socket.create_connection((sys.argv[1], {_PORT}), timeout=3)
-    sock.settimeout(3)
-    deadline = time.time() + 1800
-    while time.time() < deadline:
-        sock.sendall(b"k")
-        if sock.recv(1) != b"k":
-            raise OSError("closed")
-        status("alive")
-        time.sleep(0.5)
-except OSError:
-    status("broken")
-"""
+from nika.problems.support.nat_sessions import TCP_BURST as _BURST
 
 
 def _addresses(
@@ -108,6 +40,11 @@ def _endpoints(problem: Any, edge: str, source_prefix: str) -> dict[str, str]:
     Addresses are read on the hosts, so the edge may run any router platform.
     """
     runtime = problem.runtime
+    workload = problem.net_env.business_workload()
+    if workload is None or not workload.covers(NAT_SESSIONS, (edge, source_prefix)):
+        raise RuntimeCapabilityError(
+            "NAT validation requires declared NAT session traffic"
+        )
     prefix = ipaddress.IPv4Network(source_prefix)
     declared = problem.net_env.nat_probe_server()
     if declared is not None:
@@ -122,7 +59,12 @@ def _endpoints(problem: Any, edge: str, source_prefix: str) -> dict[str, str]:
         if inside is None:
             raise RuntimeError(f"no inside host in {source_prefix} next to {edge}")
         server, server_ip = declared
-        return {"inside": inside, "server": server, "server_ip": server_ip}
+        return {
+            "inside": inside,
+            "server": server,
+            "server_ip": server_ip,
+            "port": str(_service_port(problem, server)),
+        }
     inside_intf = next(
         (intf for intf, addr in _addresses(runtime, edge) if addr.ip in prefix), None
     )
@@ -147,7 +89,12 @@ def _endpoints(problem: Any, edge: str, source_prefix: str) -> dict[str, str]:
         raise RuntimeError(
             f"no inside host or WAN peer next to {edge}: inside={inside} server={server}"
         )
-    return {"inside": inside, "server": server, "server_ip": via.group(1)}
+    return {
+        "inside": inside,
+        "server": server,
+        "server_ip": via.group(1),
+        "port": str(_service_port(problem, server)),
+    }
 
 
 def _host_addresses(
@@ -160,26 +107,45 @@ def _host_addresses(
         return []
 
 
-def _start_server(runtime: LabRuntime, server: str) -> None:
-    running = runtime.exec(server, f"ss -ltn 'sport = :{_PORT}' | tail -n +2")
-    if running.strip():
-        return
-    runtime.exec(
-        server,
-        f"nohup python3 -u -c {shlex.quote(_SERVER)} >/dev/null 2>&1 </dev/null &",
+def _service_port(problem: Any, server: str) -> int:
+    workload = problem.net_env.business_workload()
+    for process in workload.processes if workload else ():
+        if process.node == server and process.app == "web_service":
+            args = list(process.args)
+            return int(args[args.index("--port") + 1]) if "--port" in args else 80
+    raise RuntimeCapabilityError("NAT validation requires a declared HTTP service")
+
+
+def _connections(
+    runtime: LabRuntime, ends: dict[str, str], address: str
+) -> dict[str, int]:
+    output = runtime.exec(
+        ends["server"],
+        f"ss -Htn state established '( sport = :{ends['port']} and dst {address} )'",
+        timeout=10,
     )
-    time.sleep(0.5)
-
-
-def _peer_count(runtime: LabRuntime, server: str, address: str) -> int:
-    out = runtime.exec(server, f"grep -cx {shlex.quote(address)} {_SERVER_LOG} || true")
-    return int((out.strip().splitlines() or ["0"])[-1])
+    peers = {}
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split()
+        try:
+            peer = fields[-1]
+            peer_address = ipaddress.ip_address(peer.rsplit(":", 1)[0].strip("[]"))
+            if isinstance(peer_address, ipaddress.IPv6Address):
+                peer_address = peer_address.ipv4_mapped or peer_address
+            if str(peer_address) != address:
+                raise ValueError("unexpected peer")
+            peers[peer] = int(fields[-3])
+        except (ValueError, IndexError) as error:
+            raise ValueError("Unrecognized public-service TCP socket state") from error
+    return peers
 
 
 def _burst(runtime: LabRuntime, ends: dict[str, str], count: int) -> dict[str, int]:
     out = runtime.exec(
         ends["inside"],
-        f"python3 -c {shlex.quote(_BURST)} {ends['server_ip']} {_PORT} {count}",
+        f"python3 -c {shlex.quote(_BURST)} {ends['server_ip']} {ends['port']} {count}",
         timeout=60,
     )
     return json.loads(out.strip().splitlines()[-1])
@@ -193,7 +159,6 @@ def snat_pool_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
     """Before inject, more concurrent flows than the pool size all connect."""
     ends = _endpoints(problem, params.host_name, params.source_prefix)
     problem._audit_nat_ends = ends
-    _start_server(problem.runtime, ends["server"])
     count = _snat_pool_size(params) + 16
     burst = _burst(problem.runtime, ends, count)
     ok = burst["connected"] == count
@@ -205,7 +170,6 @@ def snat_pool_exhaustion(problem: Any, params: Any) -> tuple[bool, dict[str, Any
     ends = getattr(problem, "_audit_nat_ends", None) or _endpoints(
         problem, params.host_name, params.source_prefix
     )
-    _start_server(problem.runtime, ends["server"])
     pool = _snat_pool_size(params)
     count = pool + 16
     burst = _burst(problem.runtime, ends, count)
@@ -218,55 +182,78 @@ def snat_pool_exhaustion(problem: Any, params: Any) -> tuple[bool, dict[str, Any
 
 
 def nat_flow_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Start one long-lived flow through ``nat_ip_a`` before the mapping moves."""
-    runtime = problem.runtime
+    """Read the workload's established sessions through the original address."""
     ends = _endpoints(problem, params.host_name, params.source_prefix)
     problem._audit_nat_ends = ends
-    _start_server(runtime, ends["server"])
-    before = _peer_count(runtime, ends["server"], params.nat_ip_a)
-    runtime.exec(ends["inside"], f"rm -f {_FLOW_STATUS}")
-    runtime.exec(
-        ends["inside"],
-        f"nohup python3 -c {shlex.quote(_FLOW)} {ends['server_ip']} "
-        ">/dev/null 2>&1 </dev/null &",
-    )
-    status = ""
     deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and status != "alive":
+    while True:
+        peers = _connections(problem.runtime, ends, params.nat_ip_a)
+        if peers or time.monotonic() >= deadline:
+            break
         time.sleep(0.5)
-        status = runtime.exec(ends["inside"], f"cat {_FLOW_STATUS} 2>/dev/null").strip()
-    via_a = _peer_count(runtime, ends["server"], params.nat_ip_a) > before
-    return status == "alive" and via_a, {
+    problem._audit_nat_old_peers = sorted(peers)
+    return bool(peers), {
         "endpoints": ends,
-        "flow_status": status,
-        "flow_translated_to_nat_ip_a": via_a,
+        "established_sessions": len(peers),
+        "flow_translated_to_nat_ip_a": bool(peers),
     }
 
 
 def nat_mapping_removed(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The pre-inject flow breaks and new flows leave through ``nat_ip_b``."""
+    """Old workload sessions stall while a fresh HTTP request uses the new address."""
+    # A restored mapping must not be judged from sockets left by the incident.
+    if not problem.verify_fault(params).get("verified"):
+        return False, build_verify_result(
+            fault_type=problem.root_cause_name,
+            verified=False,
+            details={"artifact_present": False},
+        )
     runtime = problem.runtime
     ends = getattr(problem, "_audit_nat_ends", None) or _endpoints(
         problem, params.host_name, params.source_prefix
     )
-    status = ""
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline:
-        status = runtime.exec(ends["inside"], f"cat {_FLOW_STATUS} 2>/dev/null").strip()
-        if status == "broken":
-            break
-        time.sleep(0.5)
-    before_b = _peer_count(runtime, ends["server"], params.nat_ip_b)
-    fresh = _burst(runtime, ends, 1)
-    via_b = _peer_count(runtime, ends["server"], params.nat_ip_b) > before_b
-    verified = status == "broken" and fresh["connected"] == 1 and via_b
+    old_peers = set(getattr(problem, "_audit_nat_old_peers", ()))
+    if not old_peers:
+        return False, build_verify_result(
+            fault_type=problem.root_cause_name,
+            verified=False,
+            details={"error": "No healthy workload sessions were recorded"},
+        )
+    before_b = set(_connections(runtime, ends, params.nat_ip_b))
+    fresh_peers, blocked_peers = set(), set()
+    pending_since = {}
+    url = f"http://{ends['server_ip']}:{ends['port']}/events"
+    command = (
+        f"curl -f -s -m 35 -o /dev/null {shlex.quote(url)}; "
+        "printf 'request_exit=%s\\n' \"$?\""
+    )
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        request = pool.submit(runtime.exec, ends["inside"], command, timeout=40)
+        while not request.done():
+            now = time.monotonic()
+            pending = {
+                peer
+                for peer, queued in _connections(runtime, ends, params.nat_ip_a).items()
+                if peer in old_peers and queued > 0
+            }
+            pending_since = {peer: pending_since.get(peer, now) for peer in pending}
+            blocked_peers.update(
+                peer for peer, started in pending_since.items() if now - started >= 1
+            )
+            fresh_peers.update(
+                set(_connections(runtime, ends, params.nat_ip_b)) - before_b
+            )
+            time.sleep(0.5)
+        output = request.result()
+    connected = bool(re.search(r"request_exit=0\b", output))
+    verified = bool(blocked_peers) and bool(fresh_peers) and connected
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
         details={
             "endpoints": ends,
-            "old_flow_status": status,
-            "new_flow_connected": fresh["connected"] == 1,
-            "new_flow_translated_to_nat_ip_b": via_b,
+            "stalled_old_sessions": sorted(blocked_peers),
+            "new_sessions_from_nat_ip_b": sorted(fresh_peers),
+            "new_flow_connected": connected,
         },
     )

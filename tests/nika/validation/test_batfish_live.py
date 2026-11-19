@@ -306,7 +306,7 @@ def test_kathara_ospf_defaults_to_runtime_validation_only(tmp_path) -> None:
 @pytest.mark.parametrize(
     "deployment",
     [
-        {"scenario": "min3clos"},
+        {"scenario": "dc_clos"},
         {"scenario": "isp_abilene", "igp": "ospf", "bgp_mode": "ebgp"},
         {"scenario": "isp_abilene", "igp": "isis", "bgp_mode": "ibgp_rr"},
     ],

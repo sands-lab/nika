@@ -1,0 +1,3 @@
+Flags: X - disabled, I - invalid; D - dynamic
+ #    CHAIN             ACTION                            BYTES         PACKETS
+ 0    postrouting       change-dscp                     336 040             271

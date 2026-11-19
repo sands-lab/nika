@@ -10,6 +10,119 @@ from nika.validation.symptom import bgp_route_probes as probes
 pytestmark = pytest.mark.unit
 
 
+def test_peer_scoped_policy_baseline_supports_transit_routers(monkeypatch):
+    from nika.runtime.spec import NodeIdentity, NodeRole
+    from nika.validation.symptom import addressing_probes
+
+    links = [
+        ("core:eth0", "edge:eth0"),
+        ("core:eth1", "remote:eth0"),
+        ("edge:eth1", "server:eth0"),
+        ("remote:eth1", "client:eth0"),
+    ]
+    env = SimpleNamespace(
+        inventory={
+            "links": [
+                {
+                    key: dict(zip(("device", "iface"), endpoint.split(":")))
+                    for key, endpoint in zip(("endpoint_a", "endpoint_b"), link)
+                }
+                for link in links
+            ]
+        },
+        machine_identities={
+            node: NodeIdentity(
+                role=role, service_type="web" if role is NodeRole.SERVICE else None
+            )
+            for node, role in {
+                "core": NodeRole.ROUTER,
+                "edge": NodeRole.ROUTER,
+                "remote": NodeRole.ROUTER,
+                "server": NodeRole.SERVICE,
+                "client": NodeRole.HOST,
+            }.items()
+        },
+    )
+    problem = SimpleNamespace(
+        net_env=env,
+        runtime=object(),
+        scenario_name="example",
+        session_interfaces=lambda *_: {"192.0.2.0": "eth0"},
+    )
+    monkeypatch.setattr(
+        probes,
+        "get_probe_path",
+        lambda *a, **k: SimpleNamespace(src_host="client", dst_ip="10.0.1.2"),
+    )
+    monkeypatch.setattr(
+        addressing_probes,
+        "lab_addresses",
+        lambda _: {
+            "server": [("eth0", "10.0.1.2/24")],
+            "client": [("eth0", "10.0.2.1/24")],
+        },
+    )
+    assert probes._policy_probe_ends(problem, "core", "192.0.2.0") == {
+        "src": "client",
+        "dst_host": "server",
+        "dst": "10.0.1.2",
+    }
+    # An unscoped or undeclared peer must not choose an unrelated path.
+    for peer in (None, "192.0.2.99"):
+        assert probes._policy_probe_ends(problem, "core", peer) == {
+            "error": "no_end_host_behind_router"
+        }
+
+
+@pytest.mark.parametrize("peer", [None, "192.0.2.1"])
+@pytest.mark.parametrize(
+    ("received", "session_down", "loss", "all_expected", "scoped_expected"),
+    [
+        ({"192.0.2.1": 0, "192.0.2.2": 0}, False, 0.0, True, True),
+        ({"192.0.2.1": 3, "192.0.2.2": 2}, False, 100.0, False, False),
+        ({"192.0.2.1": 0, "192.0.2.2": 0}, True, 100.0, False, False),
+        ({"192.0.2.1": 0, "192.0.2.2": 2}, False, 0.0, False, True),
+    ],
+)
+def test_session_policy_checks_route_exchange_on_affected_peers(
+    monkeypatch, peer, received, session_down, loss, all_expected, scoped_expected
+):
+    from nika.problems.support import router_ops
+
+    state = SimpleNamespace(
+        received={"192.0.2.1": 3, "192.0.2.2": 2},
+        peers={"192.0.2.1", "192.0.2.2", "192.0.2.3"},
+        loss=0.0,
+    )
+    ops = SimpleNamespace(
+        bgp_established_peers=lambda: state.peers,
+        bgp_accepted_prefix_count=lambda address: state.received[address],
+    )
+    problem = SimpleNamespace(
+        net_env=object(),
+        runtime=object(),
+        root_cause_name="bgp_session_policy_missing",
+        session_interfaces=lambda *_: {"192.0.2.1": "eth0", "192.0.2.2": "eth1"},
+    )
+    params = SimpleNamespace(host_name="border", peer=peer)
+    monkeypatch.setattr(router_ops, "router_fault_ops", lambda *_: ops)
+    monkeypatch.setattr(
+        probes, "_policy_probe_ends", lambda *_: {"src": "client", "dst": "10.0.0.1"}
+    )
+    monkeypatch.setattr(
+        probes, "ping_stats", lambda *a, **k: SimpleNamespace(loss_percent=state.loss)
+    )
+    monkeypatch.setattr(probes, "_ROUTE_WAIT_SEC", 0)
+    assert probes.session_policy_baseline(problem, params)[0]
+    # Healthy sessions and routes must not satisfy the symptom.
+    assert not probes.session_policy_drops_routes(problem, params)[0]
+    state.received, state.loss = received, loss
+    if session_down:
+        state.peers.remove("192.0.2.1")
+    ok, _ = probes.session_policy_drops_routes(problem, params)
+    assert ok is (scoped_expected if peer else all_expected)
+
+
 def _problem(profile, output):
     return SimpleNamespace(
         net_env=SimpleNamespace(

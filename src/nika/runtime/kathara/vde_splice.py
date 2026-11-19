@@ -7,10 +7,14 @@ it uses the standard library only.
 Kathara's VDE network plugin gives every collision domain one ``vde_switch``
 hub. Each lab interface is a TAP inside the node; the plugin relays its frames
 over a connected datagram socket to one hub port. This script duplicates the
-hub's two port sockets (``pidfd_getfd``), pauses the hub with ``SIGSTOP`` and
+hub's port sockets (``pidfd_getfd``), pauses the hub with ``SIGSTOP`` and
 relays each port into a local TAP (``eth0`` toward the endpoint, ``eth1``
 toward the peer) joined by ``br0``. ``tc`` on those TAPs then impairs the
 wire while the lab interfaces, their ifindexes and counters stay untouched.
+The ``flap`` mode cuts the wire by taking the carrier of both lab TAPs down
+(``TUNSETCARRIER``), as a cable or a peer port that loses signal would.
+On a shared LAN only the selected attachment crosses the bridge; other
+members exchange traffic directly through the native forwarder.
 A second instance of the installed VDE binary forwards the relayed frames,
 using the same port capacity as the original hub. This preserves the native
 forwarding cost in both directions. ``SIGTERM`` resumes the hub and exits.
@@ -39,6 +43,7 @@ _SYS_PPOLL = {"x86_64": 271, "aarch64": 73}
 _TUNSETIFF = 0x400454CA
 _TUNGETIFF = 0x800454D2
 _TUNGETDEVNETNS = 0x54E3
+_TUNSETCARRIER = 0x400454E2
 _IFF_TAP = 0x0002
 _IFF_NO_PI = 0x1000
 _BUF = 65536
@@ -49,12 +54,16 @@ _libc = ctypes.CDLL(None, use_errno=True)
 def _steal(pid: int, fd: int) -> int:
     pidfd = os.pidfd_open(pid)
     try:
-        stolen = _libc.syscall(_SYS_PIDFD_GETFD, pidfd, fd, 0)
-        if stolen < 0:
-            raise OSError(ctypes.get_errno(), f"pidfd_getfd({pid}, {fd})")
-        return stolen
+        return _steal_pinned(pidfd, fd)
     finally:
         os.close(pidfd)
+
+
+def _steal_pinned(pidfd: int, fd: int) -> int:
+    stolen = _libc.syscall(_SYS_PIDFD_GETFD, pidfd, fd, 0)
+    if stolen < 0:
+        raise OSError(ctypes.get_errno(), f"pidfd_getfd({fd})")
+    return stolen
 
 
 def _switch_pid(ctl: str) -> int:
@@ -151,7 +160,7 @@ def _ip(*args: str) -> None:
 class _NativeForwarder:
     """Keep the installed VDE forwarding implementation in the impaired path."""
 
-    def __init__(self, switch: int):
+    def __init__(self, switch: int, names=("eth0", "eth1")):
         self.namespace = os.open(f"/proc/{switch}/ns/mnt", os.O_RDONLY)
         self.directory = f"/tmp/nika-vde-{uuid.uuid4().hex}"
         native_directory = self.directory
@@ -185,7 +194,7 @@ class _NativeForwarder:
                 if self.process.poll() is not None or time.monotonic() > deadline:
                     raise RuntimeError("Native VDE forwarder did not start")
                 time.sleep(0.02)
-            for name in ("eth0", "eth1"):
+            for name in names:
                 data = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
                 self.data[name] = data
                 data.bind(("\0nika-vde-" + uuid.uuid4().hex).encode().ljust(108, b"\0"))
@@ -261,18 +270,21 @@ def main() -> None:
         raise SystemExit("Refusing a VDE splice in the host network namespace")
     sockets = _unix_dgram_sockets(switch)
     ports = [row for row in sockets if row[0] == switch]
-    if len(ports) != 2:
-        raise SystemExit(f"hub {ctl} has {len(ports)} ports, expected 2")
+    if len(ports) < 2:
+        raise SystemExit(f"hub {ctl} has {len(ports)} ports, expected at least 2")
     owners = {inode: (pid, fd) for pid, fd, inode, _peer in sockets}
     endpoint_port = None
+    lab_taps = []
     for _pid, fd, _inode, peer in ports:
         plugin, data_fd = owners[peer]
-        identity = _tap_identity(plugin, _tap_fd_for(plugin, data_fd))
+        tap_fd = _tap_fd_for(plugin, data_fd)
+        lab_taps.append([_PROCESS_HELPERS["process_identity"](plugin), tap_fd])
+        identity = _tap_identity(plugin, tap_fd)
         if identity == (netns_ino, ifname):
             endpoint_port = fd
     if endpoint_port is None:
         raise SystemExit(f"hub {ctl} has no port for {ifname}")
-    peer_port = next(fd for _pid, fd, _i, _p in ports if fd != endpoint_port)
+    peer_ports = sorted(fd for _pid, fd, _i, _p in ports if fd != endpoint_port)
 
     taps = {"eth0": _open_tap("eth0"), "eth1": _open_tap("eth1")}
     _ip("link", "add", "br0", "type", "bridge", "stp_state", "0", "forward_delay", "0")
@@ -281,13 +293,13 @@ def main() -> None:
     _ip("link", "set", "dev", "br0", "up")
 
     wires = {
-        "eth0": socket.socket(fileno=_steal(switch, endpoint_port)),
-        "eth1": socket.socket(fileno=_steal(switch, peer_port)),
+        f"eth{index}": socket.socket(fileno=_steal(switch, fd))
+        for index, fd in enumerate([endpoint_port, *peer_ports])
     }
-    native = _NativeForwarder(switch)
+    native = _NativeForwarder(switch, names=tuple(wires))
     flags = socket.MSG_DONTWAIT
     route = {}
-    for name, tap in taps.items():
+    for name, tap in taps.items() if len(wires) == 2 else ():
         wire = wires[name]
         data = native.data[name]
         opposite = native.data["eth1" if name == "eth0" else "eth0"]
@@ -303,6 +315,37 @@ def main() -> None:
             lambda data=data: data.recv(_BUF, flags),
             lambda frame, wire=wire: wire.send(frame, flags),
         )
+    if len(wires) > 2:
+        # Isolate only the selected attachment. Other LAN members keep
+        # exchanging frames through the installed VDE forwarder directly.
+        endpoint = wires["eth0"]
+        data = native.data["eth0"]
+        route[endpoint.fileno()] = (
+            lambda: endpoint.recv(_BUF, flags),
+            lambda frame: os.write(taps["eth0"], frame),
+        )
+        route[taps["eth0"]] = (
+            lambda: os.read(taps["eth0"], _BUF),
+            lambda frame: endpoint.send(frame, flags),
+        )
+        route[taps["eth1"]] = (
+            lambda: os.read(taps["eth1"], _BUF),
+            lambda frame: data.send(frame, flags),
+        )
+        route[data.fileno()] = (
+            lambda: data.recv(_BUF, flags),
+            lambda frame: os.write(taps["eth1"], frame),
+        )
+        for name in tuple(wires)[1:]:
+            wire, peer = wires[name], native.data[name]
+            route[wire.fileno()] = (
+                lambda wire=wire: wire.recv(_BUF, flags),
+                lambda frame, peer=peer: peer.send(frame, flags),
+            )
+            route[peer.fileno()] = (
+                lambda peer=peer: peer.recv(_BUF, flags),
+                lambda frame, wire=wire: wire.send(frame, flags),
+            )
 
     def stop(*_args) -> None:
         raise SystemExit(0)
@@ -325,6 +368,7 @@ def main() -> None:
                             native.process.pid
                         ),
                         "directory": native.directory,
+                        "lab_taps": lab_taps,
                     },
                     handle,
                 )
@@ -347,5 +391,68 @@ def main() -> None:
         os.close(switch_fd)
 
 
+def _lab_taps(ready: str) -> list[int]:
+    """Duplicate the plugin fds of both lab TAPs recorded by the splice."""
+    import json
+
+    with open(ready) as handle:
+        record = json.load(handle)
+    fds = []
+    try:
+        for identity, tap_fd in record["lab_taps"]:
+            pidfd = _PROCESS_HELPERS["owned_pidfd"](identity)
+            if pidfd is None:
+                raise SystemExit("VDE plugin exited; its lab TAP is gone")
+            try:
+                fds.append(_steal_pinned(pidfd, tap_fd))
+            finally:
+                os.close(pidfd)
+    except BaseException:
+        for fd in fds:
+            os.close(fd)
+        raise
+    return fds
+
+
+def _set_carrier(fds: list[int], on: bool) -> None:
+    for fd in fds:
+        fcntl.ioctl(fd, _TUNSETCARRIER, struct.pack("i", int(on)))
+
+
+def carrier_on(ready: str) -> None:
+    fds = _lab_taps(ready)
+    try:
+        _set_carrier(fds, True)
+    finally:
+        for fd in fds:
+            os.close(fd)
+
+
+def flap(ready: str, down_time: str, up_time: str) -> None:
+    """Take the link's carrier down and up until ``SIGTERM``."""
+    fds = _lab_taps(ready)
+
+    def stop(*_args) -> None:
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    try:
+        while True:
+            _set_carrier(fds, False)
+            time.sleep(float(down_time))
+            _set_carrier(fds, True)
+            time.sleep(float(up_time))
+    finally:
+        _set_carrier(fds, True)
+        for fd in fds:
+            os.close(fd)
+
+
 if __name__ == "__main__":
-    main()
+    if sys.argv[1] == "flap":
+        flap(*sys.argv[2:5])
+    elif sys.argv[1] == "carrier-on":
+        carrier_on(sys.argv[2])
+    else:
+        main()

@@ -1,20 +1,27 @@
 from __future__ import annotations
 
 import pytest
-from pathlib import Path
+from nika.net_env.net_env_pool import get_net_env_instance
 from nika.runtime.containerlab.runtime import ContainerlabRuntime
 
 pytestmark = pytest.mark.unit
 
 
 class ClabConnectedDevicesTest:
-    def test_min3clos_neighbors(self) -> None:
-        template = (
-            Path(__file__).resolve().parents[3]
-            / "src/nika/net_env/min3clos/min3clos.clab.yml.tmpl"
-        )
-        runtime = ContainerlabRuntime(lab_name="min3clos__test", topology_file=template)
+    def test_dc_clos_neighbors(self, tmp_path) -> None:
+        env = get_net_env_instance("dc_clos", backend="containerlab", topo_size="s")
+        import yaml
 
-        assert runtime.get_connected_devices("leaf1") == ["client1", "spine"]
+        template = tmp_path / "dc_clos.clab.yml"
+        template.write_text(yaml.safe_dump(env._document()))
+        runtime = ContainerlabRuntime(lab_name="dc_clos__test", topology_file=template)
 
-        assert runtime.get_connected_devices("client1") == ["leaf1"]
+        assert set(runtime.get_connected_devices("leaf_1")) == {
+            "client_1_1",
+            "client_1_2",
+            "spine_1",
+            "spine_2",
+            "web_1",
+        }
+
+        assert runtime.get_connected_devices("client_1_1") == ["leaf_1"]
