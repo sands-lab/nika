@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from nika.config import BENCHMARK_DIR
+from nika.problems.support.benchmark_targets import CARRIER_FLAP_UP_SEC
 from nika.workflows.benchmark.inject_enumerate import enumerate_inject_params
 from nika.workflows.benchmark.inject_resolve import (
     resolve_inject_params,
@@ -122,6 +123,13 @@ def test_bgp_missing_route_advertisement_isp_targets_originator(seed: int) -> No
     )
     assert inject.get("symptom_host")
     assert inject.get("probe_dst_ip")
+    options = enumerate_inject_params(
+        "bgp_missing_route_advertisement", "isp_abilene", isp_options=isp_opts
+    )
+    business = {(o["device"], o["prefix"]) for o in bgp.inventory["originated"]}
+    assert options
+    assert all((o["host_name"], o["prefix"]) in business for o in options)
+    assert not {o["prefix"] for o in options} & {"203.0.113.0/24", "203.0.114.0/24"}
     validate_benchmark_case(
         "isp_abilene",
         "bgp_missing_route_advertisement",
@@ -366,8 +374,33 @@ def test_selected_scenario_mapping_includes_wireguard() -> None:
     )
     assert resolve_inject_params("p4_table_resource_exhaustion", "p4_dc_fabric", "")
     assert resolve_inject_params(
-        "bgp_rpki_invalid_route_leak", "isp_abilene_ebgp_rpki", ""
+        "bgp_hijacking",
+        "isp_abilene",
+        "",
+        isp_options={"igp": "ospf", "bgp_mode": "ebgp"},
     )
+
+
+@pytest.mark.parametrize(
+    "scenario,observer,non_rov",
+    [
+        ("isp_abilene", "iplsng", "hstnng"),
+        ("isp_geant", "cz1_cz", "it1_it"),
+    ],
+)
+def test_rov_policy_targets_only_enforcing_router(scenario, observer, non_rov):
+    inject = resolve_inject_params(
+        "bgp_rov_not_enforced",
+        scenario,
+        "",
+        isp_options={"bgp_mode": "ebgp", "igp": "ospf"},
+    )
+    assert inject == {"host_name": observer}
+    validate_benchmark_case(scenario, "bgp_rov_not_enforced", inject, "", combined=True)
+    with pytest.raises(ValueError, match="ROV-enforcing router"):
+        validate_benchmark_case(
+            scenario, "bgp_rov_not_enforced", {"host_name": non_rov}, "", combined=True
+        )
 
 
 @pytest.mark.parametrize("topo_size", ["s", "m", "l"])
@@ -618,10 +651,16 @@ def test_bundled_benchmark_yaml_cases_validate(yaml_name: str) -> None:
 
     from nika.workflows.benchmark.healthy import is_healthy_case
     from nika.workflows.benchmark.load_config import load_benchmark_yaml
-    from nika.workflows.benchmark.isp_options import isp_options_from_row
+    from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
+
+    from nika.problems.combinations import check_multi_fault_task
+    from nika.workflows.benchmark.multi_fault import row_problems
 
     path = BENCHMARK_DIR / yaml_name
     for row in load_benchmark_yaml(path):
+        if len(row_problems(row)) > 1:
+            check_multi_fault_task(row)
+            continue
         if is_healthy_case(row["problem"]):
             continue
         admission = (
@@ -637,11 +676,11 @@ def test_bundled_benchmark_yaml_cases_validate(yaml_name: str) -> None:
                 row["problem"],
                 dict(row.get("inject") or {}),
                 str(row.get("topo_size") or ""),
-                isp_options=isp_options_from_row(row),
+                isp_options={k: row[k] for k in ISP_DEPLOY_KEYS if k in row} or None,
             )
 
 
-# --- link_flap / link_detach / incast / bmv2 / tcp_rwnd inject param contracts ---
+# --- link_flap / link_down / incast / bmv2 / tcp_rwnd inject param contracts ---
 
 TOPO_SIZE = "s"
 FABRIC_SCENARIOS = ("sdn_l3_clos", "p4_dc_fabric")
@@ -651,7 +690,6 @@ CORE_FLAP_SCENARIOS = (
     "campus_lan",
     "enterprise_branch",
     "p4_dc_gateway",
-    "min3clos",
 )
 
 
@@ -674,20 +712,15 @@ def test_link_flap_fabric_inject_aligns_probe_path(scenario: str, seed: int) -> 
 def test_link_flap_core_inject_timing_and_probe_fields(
     scenario: str, seed: int
 ) -> None:
-    topo = "" if scenario in {"simple_bgp", "min3clos"} else TOPO_SIZE
+    topo = "" if scenario == "simple_bgp" else TOPO_SIZE
     params = resolve_inject_params("link_flap", scenario, topo, seed=seed)
     assert params["down_time"] == "1"
-    assert params["up_time"] == ("12" if scenario == "min3clos" else "1")
+    assert params["up_time"] == "1"
     assert params.get("host_name")
 
     if scenario == "p4_dc_gateway":
         assert params.get("probe_dst_ip", "").startswith("10.")
         assert params["probe_dst_ip"] != "20.0.0.1"
-    elif scenario == "min3clos":
-        assert params["host_name"] == "leaf1"
-        assert params["intf_name"] == "e1-2"
-        assert params["probe_dst_ip"] == "10.0.0.27"
-        assert params["observer_device"] == "client1"
     elif scenario == "dc_clos":
         assert params["host_name"] == "client_1_1"
         assert params["probe_dst_ip"] == "10.0.2.11"
@@ -695,12 +728,6 @@ def test_link_flap_core_inject_timing_and_probe_fields(
         assert params["probe_dst_ip"] == "10.0.20.2"
     elif scenario == "simple_bgp":
         assert params["host_name"] == "pc1"
-
-
-def test_min3clos_link_flap_pool_uses_recovering_access_port() -> None:
-    assert enumerate_inject_params("link_flap", "min3clos", "") == [
-        resolve_inject_params("link_flap", "min3clos", "", seed=42)
-    ]
 
 
 def test_link_flap_isp_inject_uses_one_second_flap() -> None:
@@ -714,8 +741,10 @@ def test_link_flap_isp_inject_uses_one_second_flap() -> None:
         "link_flap", "isp_abilene", "", seed=1, isp_options=isp_options
     )
     assert params["down_time"] == "1"
-    assert params["up_time"] == "1"
-    assert params.get("symptom_host")
+    assert params["up_time"] == CARRIER_FLAP_UP_SEC
+    # A flapping backbone link is rerouted around; the access link is not.
+    assert params["symptom_host"] == f"pc_{params['host_name']}"
+    assert params["intf_name"] == "eth1"
     assert params.get("probe_dst_ip")
 
 
@@ -728,40 +757,13 @@ def test_link_flap_isp_inject_uses_one_second_flap() -> None:
         ("dc_clos", None),
     ],
 )
-def test_link_detach_inject_params_pin_probe_path(
+def test_link_down_inject_params_pin_probe_path(
     scenario: str, expected_host: str | None
 ) -> None:
-    params = resolve_inject_params("link_detach", scenario, TOPO_SIZE, seed=0)
+    params = resolve_inject_params("link_down", scenario, TOPO_SIZE, seed=0)
     if expected_host is not None:
         assert params["host_name"] == expected_host
     assert params.get("intf_name")
-
-
-@pytest.mark.parametrize("seed", (0, 1, 4, 7))
-@pytest.mark.parametrize("scenario", ["p4_dc_fabric", "p4_dc_gateway"])
-def test_incast_receiver_is_the_workload_fan_in_target(
-    scenario: str, seed: int
-) -> None:
-    from nika.net_env.net_env_pool import get_net_env_instance, get_probe_path
-    from nika.traffic.workload import FAN_IN_BURSTS
-
-    params = resolve_inject_params(
-        "incast_traffic_network_limitation", scenario, TOPO_SIZE, seed=seed
-    )
-    workload = get_net_env_instance(scenario, topo_size=TOPO_SIZE).business_workload()
-    assert workload.covers(FAN_IN_BURSTS, (params["host_name"],))
-    probe_dst = params.get("probe_dst_ip")
-    assert probe_dst and probe_dst != "20.0.0.1", params
-    path = get_probe_path(scenario, topo_size=TOPO_SIZE)
-    assert path is not None
-    assert params.get("observer_device") == path.src_host
-
-
-def test_incast_is_compatible_only_where_the_workload_fans_in() -> None:
-    from nika.problems.registry import compatible_columns
-
-    cols = set(compatible_columns("incast_traffic_network_limitation"))
-    assert cols == {"p4_dc_fabric", "p4_dc_gateway"}
 
 
 @pytest.mark.parametrize("seed", range(5))
@@ -776,8 +778,8 @@ def test_bmv2_switch_down_inject_params_prefer_path_critical_switch(seed: int) -
     assert gateway["host_name"] == "gateway_1"
 
 
-def test_sender_resource_contention_inject_params_target_dc_clos_http_server() -> None:
-    params = resolve_inject_params("sender_resource_contention", "dc_clos", "s", seed=1)
+def test_endpoint_cpu_contention_inject_params_target_dc_clos_http_server() -> None:
+    params = resolve_inject_params("endpoint_cpu_contention", "dc_clos", "s", seed=1)
     assert params["host_name"] == "web_1"
     assert params["client_host"] == "client_2_1"
     assert params["large_url"].endswith("/large.bin")
@@ -806,46 +808,6 @@ def test_tcp_receive_window_limited_inject_params_target_http_client() -> None:
     assert params["host_name"] == "br1_corp_pc"
     assert params["sender_host"] == "hq_srv"
     assert params["large_url"].endswith("/large.bin")
-
-
-def test_load_balancer_overload_inject_params_target_campus_lan_vip() -> None:
-    params = resolve_inject_params("load_balancer_overload", "campus_lan", "s", seed=1)
-    assert params["host_name"] == "load_balancer"
-    assert params["client_host"].startswith("pc_")
-    assert params["vip_url"].endswith("/small")
-    assert "web99.local" in params["vip_url"]
-    assert "web0.local" in params["control_url"]
-    assert "20.200.0.2" in params["backend_url"]
-    assert float(params["cpu_quota"]) > 0
-    assert int(params["concurrency"]) >= 1
-    assert int(params["load_workers"]) >= 1
-    load_hosts = [h for h in params["load_client_hosts"].split(",") if h]
-    assert len(load_hosts) == 1
-    assert params["client_host"] not in load_hosts
-
-
-@pytest.mark.parametrize(
-    "options", [None, {"backend": "containerlab", "device_profile": "sonic"}]
-)
-def test_dns_lookup_latency_pins_probe_resolver(options) -> None:
-    dc = resolve_inject_params(
-        "dns_lookup_latency", "dc_clos", "l", seed=42, isp_options=options
-    )
-    assert dc["host_name"] == "web_1"
-    assert enumerate_inject_params(
-        "dns_lookup_latency", "dc_clos", "l", isp_options=options
-    ) == [dc]
-    from nika.workflows.benchmark.generate import build_failure_cases
-
-    cases, _ = build_failure_cases(
-        problem="dns_service_down",
-        scenario="dc_clos",
-        topo_size="l",
-        isp_options=options,
-    )
-    assert [case["inject"] for case in cases] == [{"host_name": "web_1"}]
-    campus = resolve_inject_params("dns_lookup_latency", "campus_lan", "m", seed=42)
-    assert campus["host_name"] == "dns_server"
 
 
 @pytest.mark.parametrize("topo_size", ["s", "m", "l"])
@@ -882,3 +844,27 @@ def test_device_flow_blackhole_targets_server_facing_port(topo_size: str) -> Non
     validate_benchmark_case(
         "enterprise_branch", "device_flow_blackhole", inject, topo_size
     )
+
+
+@pytest.mark.parametrize(
+    ("problem", "column", "profile", "expected"),
+    [
+        # Every FRR eBGP deployment carries RPKI/ROV.
+        ("bgp_hijacking", "isp_polska/ebgp", None, True),
+        ("bgp_hijacking", "isp_geant/ebgp", None, True),
+        ("bgp_hijacking", "isp_polska/ibgp_rr", None, True),
+        # RTBH needs the leaker AS to peer the provider AS.
+        ("bgp_blackhole_community_leak", "isp_polska/ebgp", None, True),
+        ("bgp_blackhole_community_leak", "isp_geant/ebgp", None, False),
+        # The profiles are rendered for FRR on Kathara only.
+        ("bgp_hijacking", "isp_polska", "iosxr", True),
+        ("bgp_hijacking", "isp_polska", "sonic", True),
+        ("bgp_blackhole_community_leak", "isp_polska", "routeros", False),
+    ],
+)
+def test_ebgp_security_failures_follow_deployed_profiles(
+    problem, column, profile, expected
+):
+    from nika.problems.registry import get_problem_class
+
+    assert get_problem_class(problem).is_compatible(column, profile) is expected

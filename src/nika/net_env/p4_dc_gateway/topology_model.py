@@ -5,13 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 from nika.net_env.utils.kathara.docker_files.docker_images import (
-    KATHARA_P4_IMAGE,
     nika_image,
 )
 
 TopoSize = Literal["s", "m", "l"]
 
-SWITCH_IMAGE = KATHARA_P4_IMAGE
+SWITCH_IMAGE = nika_image("p4-gateway")
 BASE_IMAGE = nika_image("base")
 NGINX_IMAGE = nika_image("nginx")
 CONTROLLER_IMAGE = nika_image("fabric-controller")

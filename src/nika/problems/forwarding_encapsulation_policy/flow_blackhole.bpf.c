@@ -9,6 +9,9 @@ static long (*bpf_skb_load_bytes)(struct __sk_buff *skb, __u32 offset,
 #ifndef SEED
 #define SEED 0
 #endif
+#ifndef LOCAL_UDP_PORT
+#define LOCAL_UDP_PORT(port) 0
+#endif
 
 static __always_inline __u32 mix(__u32 value, __u32 byte) {
     return (value ^ byte) * 16777619u;
@@ -25,8 +28,7 @@ static __always_inline __u32 avalanche(__u32 value) {
 }
 
 /* Drop every forwarded packet of one quarter of TCP and UDP five-tuples.
- * Packets the device sends itself (routing protocols, ICMP errors) and ICMP
- * echo pass, as a forwarding-table fault leaves the CPU path alone. The
+ * Routing protocols, CPU tunnel transport and ICMP echo pass. The
  * program and object names show in `tc filter show` and `bpftool prog`, so
  * they read like an ordinary egress classifier. */
 SEC("classifier")
@@ -36,8 +38,7 @@ int tc_egress(struct __sk_buff *skb) {
     __u16 ethertype;
     __u8 ihl;
 
-    if (!skb->ingress_ifindex ||
-        bpf_skb_load_bytes(skb, 12, &ethertype, sizeof(ethertype)) ||
+    if (bpf_skb_load_bytes(skb, 12, &ethertype, sizeof(ethertype)) ||
         __builtin_bswap16(ethertype) != 0x0800 ||
         bpf_skb_load_bytes(skb, 14, ip, sizeof(ip)))
         return TC_ACT_OK;
@@ -48,6 +49,12 @@ int tc_egress(struct __sk_buff *skb) {
     if ((ip[6] & 0x1f) || ip[7])
         return TC_ACT_OK;
     if (bpf_skb_load_bytes(skb, 14 + ihl, ports, sizeof(ports)))
+        return TC_ACT_OK;
+    __u16 sport = ((__u16)ports[0] << 8) | ports[1];
+    __u16 dport = ((__u16)ports[2] << 8) | ports[3];
+    /* Control transport is outside the modeled faulty data pipeline. */
+    if ((ip[9] == 6 && (sport == 179 || dport == 179)) ||
+        (ip[9] == 17 && (LOCAL_UDP_PORT(sport) || dport == 3784 || dport == 3785 || dport == 4784)))
         return TC_ACT_OK;
     #pragma unroll
     for (int index = 12; index < 20; index++)

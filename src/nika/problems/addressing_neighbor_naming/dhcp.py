@@ -30,6 +30,7 @@ from nika.problems.support.oracle import (
     lacks,
 )
 from nika.problems.support.recovery import DHCPRecovery
+from nika.problems.support.file_metadata import preserve_mtime
 from nika.utils.logger import system_logger
 
 
@@ -54,6 +55,7 @@ class DHCPMissingSubnet(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "dhcp_missing_subnet"
+    CONFUSABLE_WITH = ("dhcp_service_down",)
 
     description = "DHCP server is missing a subnet configuration."
     TAGS: str = ["dhcp"]
@@ -81,7 +83,8 @@ class DHCPMissingSubnet(ProblemBase):
             f"Injecting DHCP missing subnet fault: DHCP server {dhcp_server}, affected host {client_host}"
         )
         subnet = params.subnet or client_subnet(self.runtime, client_host, dhcp_server)
-        self.runtime.dhcp_delete_subnet(dhcp_server, subnet)
+        with preserve_mtime(self.runtime, dhcp_server, DHCPD_CONF):
+            self.runtime.dhcp_delete_subnet(dhcp_server, subnet)
         time.sleep(1.0)
         self._injected_subnet = subnet
         # Renew now so clients do not keep a valid lease until it expires.

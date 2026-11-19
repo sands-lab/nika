@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from nika.problems.support.benchmark_targets import (
         InjectTargetContext,
         InjectValidationContext,
-        MultiInjectContext,
     )
     from nika.runtime.base import LabRuntime
 
@@ -84,8 +83,9 @@ class ProblemBase:
 
     failure_domain: ClassVar[FailureDomain | str | None] = None
     root_cause_name: ClassVar[str] = ""
-    # Submission owner kind ("interface" / "link" / "node_or_k8s") when it
-    # differs from the failure-domain default; must match root_cause_resources().
+    # Submission owner kind ("node", "k8s", "interface", "link", "node_or_k8s", or
+    # "node_or_interface") when it differs from the failure-domain default.
+    # It must cover the kinds returned by root_cause_resources().
     root_cause_owner: ClassVar[str | None] = None
     # A distributed fault may be localized at any of its participating resources.
     root_cause_resource_match: ClassVar[Literal["all", "any"]] = "all"
@@ -109,8 +109,8 @@ class ProblemBase:
     INCOMPATIBLE_SCENARIOS: ClassVar[dict[str, str]] = {}
     # ISP protocol stack (``igp`` / ``bgp_mode`` / ``rpki``) this failure needs on
     # a base ``isp_<topo>`` scenario. ``None`` derives it from TAGS (``ospf`` ->
-    # OSPF only, ``bgp`` -> iBGP route reflection, else the default stack). An
-    # ``rpki`` profile is only deployable on named RPKI scenarios.
+    # OSPF only, ``bgp`` -> iBGP route reflection, else the default stack).
+    # Kathara FRR ``ebgp`` deployments carry the RPKI/ROV profile themselves.
     isp_protocol: ClassVar[dict[str, Any] | None] = None
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
     # Backends the failure implements. ``containerlab`` means it has an SR Linux
@@ -141,6 +141,12 @@ class ProblemBase:
     symptom_class: ClassVar[str | None] = None
     # The fault lives as a running worker, flap, or quota rather than static state.
     dynamic_artifact: ClassVar[bool] = False
+    # Fault-name regex phrases that are native configuration keywords.
+    NATIVE_CONFIG_KEYWORDS: ClassVar[tuple[str, ...]] = ()
+    # Native log phrases masked before counting leak tokens, as ERE patterns.
+    NATIVE_LOG_KEYWORDS: ClassVar[tuple[str, ...]] = ()
+    # Vendor log rotation pairs (source, copy); content tokens are still checked.
+    NATIVE_LOG_COPIES: ClassVar[tuple[tuple[str, str], ...]] = ()
     # Instance attributes recorded in session injection metadata when present.
     RECORDED_ATTRS: ClassVar[tuple[str, ...]] = ()
     # Benchmark target enumeration: swap the root-cause node within its role
@@ -152,11 +158,6 @@ class ProblemBase:
     BENCHMARK_POINT_TO_POINT: ClassVar[bool] = False
     # ``intf_name`` is a tunnel iface, not a topology link endpoint.
     BENCHMARK_TUNNEL_IFACE: ClassVar[bool] = False
-    # Co-injected failures whose params ``coordinate_benchmark_inject`` adjusts
-    # when a multi-fault case is exactly this failure plus these.
-    BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
-    # Retain this fault before injecting the next fault, to record its history.
-    MULTI_INJECT_DWELL_SEC: ClassVar[float] = 0.0
     # Exercise kind (``nika.traffic.workload``) of scenario business traffic the
     # symptom needs. In a scenario that declares a workload, benchmark targets
     # must be ones that traffic exercises (``symptom_workload_target``).
@@ -166,6 +167,11 @@ class ProblemBase:
     # Any difference from the baseline hints at the failure class, so set it
     # only when the symptom cannot show under the baseline.
     TRAFFIC_PROFILE: ClassVar[dict[str, Any] | None] = None
+    # Failures whose symptoms are closest to this one. The benchmark audit runs
+    # their Oracle playbooks on this failure's task, and none may confirm.
+    # The relation is symmetric.
+    CONFUSABLE_WITH: ClassVar[tuple[str, ...]] = ()
+    combination_only: ClassVar[bool] = False
 
     @classmethod
     def symptom_workload_target(
@@ -267,7 +273,7 @@ class ProblemBase:
         bgp_mode = (cls.isp_protocol or {}).get("bgp_mode")
         if bgp_mode and parse_column(target)[1] in {"ibgp_rr", "ebgp"} - {bgp_mode}:
             return False
-        tags = effective_tags(target)
+        tags = effective_tags(target, device_profile)
         if profile_routes_with_frr(device_profile):
             # The scenario tags name its default routers; this platform's
             # routers run FRR.
@@ -338,11 +344,16 @@ class ProblemBase:
         """Raise ``ValueError`` when ``inject`` is not a legal target."""
 
     @classmethod
-    def coordinate_benchmark_inject(
-        cls, ctx: MultiInjectContext, params_by_problem: dict[str, dict[str, str]]
-    ) -> dict[str, dict[str, str]]:
-        """Adjust co-injected params (keyed by failure) so the faults compose."""
-        return params_by_problem
+    def validate_combined_inject(
+        cls, ctx: InjectValidationContext, inject: dict[str, str]
+    ) -> None:
+        """Validate ``inject`` as one member of a failure combination.
+
+        Override when ``validate_benchmark_inject`` demands a symptom the
+        failure shows only on its own, such as an outage on a cut link, so a
+        combination can place the failure where another failure exposes it.
+        """
+        cls.validate_benchmark_inject(ctx, inject)
 
     net_env: NetworkEnvBase
     runtime: LabRuntime
@@ -465,6 +476,10 @@ class ProblemBase:
         raise UnresolvedRootCauseError(
             f"{type(self).__name__} must implement root_cause_resources()."
         )
+
+    def affected_prefixes(self, params: Any = None) -> tuple[str, ...]:
+        """Inventory-derived prefixes whose reachability this fault can change."""
+        return ()
 
     def recover_fault(self, params: Any = None) -> dict:
         """Undo this instance's injection and verify the restored state."""

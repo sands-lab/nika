@@ -4,7 +4,7 @@ vrnetlab boots a RouterOS CHR QEMU VM inside each container. Its data NICs map
 to container interfaces ``<prefix>1`` onwards (RouterOS ``ether2``…), and
 RouterOS ``ether1`` is vrnetlab's internal management port. Two layouts use it:
 
-* A router built for RouterOS (ISP, ``routeros_simple_bgp``) reserves
+* An ISP router built for RouterOS reserves
   container ``eth0``, so container ``ethN`` is RouterOS ``ether{N+1}``.
 * A router converted from an FRR sketch keeps the environment's ``ethN``
   names, which tasks and failures address. Each ``ethN`` is bridged to a
@@ -61,10 +61,10 @@ while true; do
     [ "${{applied[$nic]}}" = "$link" ] && continue
     # vrnetlab names the QEMU netdev of data NIC N pNN.
     printf 'set_link p%02d %s\n' "$nic" "$link" \
-      | socat -t1 - TCP:127.0.0.1:{LINK_MONITOR_PORT} >/dev/null 2>&1 \
+      | socat -t0.1 - TCP:127.0.0.1:{LINK_MONITOR_PORT} >/dev/null 2>&1 \
       && applied[$nic]=$link
   done
-  sleep 1
+  sleep 0.1
 done
 """
 # The VM itself uses 256 MiB; the remainder covers QEMU and vrnetlab.
@@ -122,7 +122,7 @@ def require_routeros_image(image: str = IMAGE) -> None:
         "  ./scripts/install.sh --with-vendor-images\n"
         "That downloads CHR, clones hellt/vrnetlab into "
         ".nika_cache/vendor/vrnetlab, and tags the image. See "
-        "docs/operations/network-scenarios.md#routeros-simple-bgp-scenario "
+        "docs/operations/network-scenarios.md#install-the-routeros-image "
         "for the manual fallback under the same cache path."
     )
 
@@ -284,7 +284,13 @@ def set_routeros_startup(
 
 def set_routeros_config(machine: Machine, config: str) -> None:
     """Install the startup script vrnetlab uploads after the VM boots."""
-    machine.create_file_from_string(config, CONFIG_FILE_PATH)
+    # Keep protocol events and the import receipt; omit configuration command logs.
+    script = (
+        '/system logging set [find where topics~"info"] topics=info,!system\n'
+        + config.rstrip()
+        + '\n/file remove [find where name="config.auto.rsc"]\n'
+    )
+    machine.create_file_from_string(script, CONFIG_FILE_PATH)
 
 
 def routeros_config_check(runtime, routers: Iterable[str]) -> bool:
@@ -336,6 +342,7 @@ def _config_log_pending(text: str) -> bool:
 _RESTORED_MENUS = (
     ("/ip firewall address-list",),
     ("/ip firewall filter",),
+    ("/ip firewall nat",),
     ("/routing filter rule",),
     ("/ip route",),
     (
@@ -353,8 +360,9 @@ def routeros_restore_script(saved: str, current: str) -> str:
 
     Both arguments are ``/export terse`` outputs. For each menu group whose
     static items differ, the script removes those items and re-adds the saved
-    ones. Unchanged groups, addresses, interfaces and management settings are
-    left alone. An empty script means nothing changed.
+    ones. Static address changes use selectors for the changed address and
+    interface; unchanged management addresses are left alone. An empty script
+    means nothing changed.
     """
 
     def lines(export: str) -> list[str]:
@@ -374,6 +382,19 @@ def routeros_restore_script(saved: str, current: str) -> str:
                 f"{menu} remove [find where !dynamic]" for menu in reversed(menus)
             )
             commands.extend(old)
+    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+    old_addresses = [line for line in before if line.startswith("/ip address add ")]
+    new_addresses = [line for line in after if line.startswith("/ip address add ")]
+    for line in new_addresses:
+        if line not in old_addresses:
+            row = routeros_terse_rows(line)[0]
+            address, interface = row["address"], row["interface"]
+            commands.append(
+                "/ip address remove [find where !dynamic "
+                f'and address="{address}" and interface="{interface}"]'
+            )
+    commands.extend(line for line in old_addresses if line not in new_addresses)
     if any("'" in command for command in commands):
         raise ValueError("RouterOS export contains a single quote")
     return "; ".join(commands)

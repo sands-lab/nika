@@ -22,10 +22,6 @@ from nika.problems.base import (
 from nika.problems.support.oracle import (
     p4rt,
     OraclePlaybook,
-    all_of,
-    contains,
-    lacks,
-    shell,
 )
 
 
@@ -40,6 +36,7 @@ class Bmv2SwitchDown(ProblemBase):
     symptom_probe = "path_http"
     symptom_class = "unreachable"
     root_cause_name = "bmv2_switch_down"
+    CONFUSABLE_WITH = ("p4runtime_pipeline_mismatch",)
     description = "BMv2 switch dataplane process is down."
     TAGS: str = ["p4"]
 
@@ -125,33 +122,25 @@ class Bmv2SwitchDown(ProblemBase):
 
     def oracle_playbook(self, params: Bmv2SwitchDownParams) -> OraclePlaybook:
         switch = params.host_name
+        from nika.problems.support.p4_oracle import p4rt_json
+
         return OraclePlaybook(
-            finding=(
-                f"The BMv2 dataplane process on {switch} is gone: its links stay "
-                "up but nothing forwards and its P4Runtime server does not answer."
-            ),
+            finding=f"The controller is reachable but {switch}'s P4Runtime endpoint is unavailable.",
             steps=[
                 p4rt(
-                    f"read --switch {switch}",
-                    f"Query {switch}'s P4Runtime state through the controller.",
-                    lacks(r'"ok":\s*true', f"{switch} does not answer P4Runtime"),
-                ),
-                shell(
-                    switch,
-                    "ip -br link | grep -E '^eth'",
-                    f"Check the data-port link states on {switch}.",
-                    all_of(
-                        contains(r"^eth\S*\s+UP\b", "the data ports are up"),
-                        lacks(r"^eth\S*\s+(DOWN|LOWERLAYERDOWN)", "no port is down"),
+                    f"probe --switch {switch}",
+                    "Read controller and switch liveness independently.",
+                    p4rt_json(
+                        "the controller responds and the switch is unavailable",
+                        lambda row: (
+                            row.get("controller_reachable") is True
+                            and row.get("switch") == switch
+                            and row.get("reachable") is False
+                            and row.get("status")
+                            in {"UNAVAILABLE", "DEADLINE_EXCEEDED"}
+                        ),
                     ),
-                ),
-                shell(
-                    switch,
-                    "pgrep -af '[s]imple_switch' "
-                    "| grep -v -e '<defunct>' -e '^[0-9]* \\[' || echo NO_PROCESS",
-                    f"Look for the BMv2 simple_switch process on {switch}.",
-                    contains(r"^NO_PROCESS$", "no simple_switch process is running"),
                     evidence=True,
-                ),
+                )
             ],
         )

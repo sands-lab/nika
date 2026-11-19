@@ -286,7 +286,6 @@ def load_offline_net_env(
     netlab configurations, for scenarios that store them.
     """
     from nika.net_env.isp.identity import (
-        is_isp_named_special,
         is_isp_scenario,
     )
 
@@ -296,16 +295,12 @@ def load_offline_net_env(
         kwargs["topo_size"] = topo_size
     if topo is not None and not is_isp_scenario(scenario):
         kwargs["topo"] = topo
-    if is_isp_named_special(scenario):
-        # Fixed protocol profile; ignore optional overrides.
-        pass
-    else:
-        if igp is not None:
-            kwargs["igp"] = igp
-        if bgp_mode is not None:
-            kwargs["bgp_mode"] = bgp_mode
-        if rpki is not None:
-            kwargs["rpki"] = bool(rpki)
+    if igp is not None:
+        kwargs["igp"] = igp
+    if bgp_mode is not None:
+        kwargs["bgp_mode"] = bgp_mode
+    if rpki is not None:
+        kwargs["rpki"] = bool(rpki)
     kwargs["backend"] = resolve_scenario_backend(
         scenario,
         backend=backend,
@@ -313,8 +308,6 @@ def load_offline_net_env(
     )
     if device_profile is not None:
         kwargs["device_profile"] = device_profile
-    if release is not None:
-        kwargs["environment_release"] = release
     if not rendered:
         kwargs["rendered"] = False
     net_env = get_net_env_instance(scenario, **kwargs)
@@ -339,5 +332,5 @@ def load_session_offline_net_env(row: dict):
         rpki=params.get("rpki"),
         backend=params.get("backend"),
         device_profile=params.get("device_profile"),
-        release=params.get("environment_release") or row.get("benchmark_version"),
+        release=row.get("benchmark_version"),
     )

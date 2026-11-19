@@ -11,7 +11,7 @@ from nika.workflows.benchmark.healthy import healthy_task_description
 pytestmark = pytest.mark.contract
 
 _K8S_LABS = ("k8s_lab", "llmd_lab")
-_FAULTS = ("k8s_coredns_isolated", "k8s_networkpolicy_deny", "link_down")
+_FAULTS = ("dns_port_blocked", "k8s_networkpolicy_deny", "link_down")
 
 
 @pytest.mark.parametrize("scenario", _K8S_LABS)

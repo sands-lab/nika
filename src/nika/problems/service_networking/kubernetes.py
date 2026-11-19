@@ -11,6 +11,7 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
+from nika.problems.support.recovery import recovery_checks_health
 from nika.problems.rca import (
     UnresolvedRootCauseError,
     node_resource,
@@ -232,7 +233,7 @@ def _oracle_selector_mismatch(output: str, params) -> bool:
     return False
 
 
-class ClusterIPRoutingBrokenParams(K8sParams):
+class NodeFirewallDropParams(K8sParams):
     """Parameters for breaking ClusterIP Service routing on one node."""
 
     node_name: str = Field(
@@ -268,11 +269,12 @@ def _as_port(value: Any) -> int | None:
         return None
 
 
-class ClusterIPRoutingBroken(K8sProblemBase):
+class NodeFirewallDrop(K8sProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
     symptom_probe = "custom"
     symptom_class = "unreachable"
-    root_cause_name: str = "k8s_clusterip_routing_broken"
+    root_cause_name: str = "k8s_node_firewall_drop"
+    CONFUSABLE_WITH = ("k8s_vxlan_neighbor_stale",)
     description = "Kubernetes ClusterIP forwarding is broken on a node."
     symptom_desc = (
         "Pods scheduled on one Kubernetes node cannot reach any ClusterIP Service, "
@@ -282,7 +284,7 @@ class ClusterIPRoutingBroken(K8sProblemBase):
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "kube_proxy"]
 
-    Params = ClusterIPRoutingBrokenParams
+    Params = NodeFirewallDropParams
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -296,7 +298,7 @@ class ClusterIPRoutingBroken(K8sProblemBase):
         self.target_device: str | None = None
         self.blocked_target: str | None = None
 
-    def _target_device(self, params: ClusterIPRoutingBrokenParams) -> str | None:
+    def _target_device(self, params: NodeFirewallDropParams) -> str | None:
         if params.node_name:
             self.target_device = params.node_name
             return params.node_name
@@ -314,7 +316,7 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             self.target_device = min(candidates)
         return self.target_device
 
-    def _block_target(self, params: ClusterIPRoutingBrokenParams, k8s: Any) -> str:
+    def _block_target(self, params: NodeFirewallDropParams, k8s: Any) -> str:
         control = self.control_node(params)
         if params.service_name:
             namespace = params.namespace or DEFAULT_PROBE_NAMESPACE
@@ -329,9 +331,7 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             return cluster_ip
         return params.service_cidr or k8s.k8s_service_cidr(control)
 
-    def _probe_plan(
-        self, params: ClusterIPRoutingBrokenParams, k8s: Any
-    ) -> dict[str, Any]:
+    def _probe_plan(self, params: NodeFirewallDropParams, k8s: Any) -> dict[str, Any]:
         control = self.control_node(params)
         if params.service_name:
             service = params.service_name
@@ -366,15 +366,15 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             plan["backend_address"] = addresses[0]
         return plan
 
-    def root_cause_resources(self, params: ClusterIPRoutingBrokenParams):
+    def root_cause_resources(self, params: NodeFirewallDropParams):
         node = (params.node_name or "").strip()
         if not node:
             raise UnresolvedRootCauseError(
-                "k8s_clusterip_routing_broken needs node_name for a unique resource."
+                "k8s_node_firewall_drop needs node_name for a unique resource."
             )
         return [node_resource(node)]
 
-    def oracle_playbook(self, params: ClusterIPRoutingBrokenParams) -> OraclePlaybook:
+    def oracle_playbook(self, params: NodeFirewallDropParams) -> OraclePlaybook:
         control = self.control_node(params)
         node = params.node_name or control
         peer = next(
@@ -504,7 +504,7 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             ],
         )
 
-    def inject_fault(self, params: ClusterIPRoutingBrokenParams) -> None:
+    def inject_fault(self, params: NodeFirewallDropParams) -> None:
         k8s = self.runtime.lab_api
         device = self._target_device(params)
         target = self._block_target(params, k8s)
@@ -531,14 +531,14 @@ class ClusterIPRoutingBroken(K8sProblemBase):
             "traffic is unaffected."
         )
 
-    def recover_fault(self, params: ClusterIPRoutingBrokenParams) -> dict:
+    def recover_fault(self, params: NodeFirewallDropParams) -> dict:
         node_filter = getattr(self, "_recovery_filter", None)
         if node_filter is None:
             return {"verified": False, "details": {"error": "injection_state_missing"}}
         removed = node_filter.recover()
         return {"verified": removed, "details": {"owned_rules_removed": removed}}
 
-    def verify_fault(self, params: ClusterIPRoutingBrokenParams) -> dict:
+    def verify_fault(self, params: NodeFirewallDropParams) -> dict:
         k8s = self.runtime.lab_api
         control = self.control_node(params)
         device = self._target_device(params)
@@ -610,7 +610,7 @@ class ClusterIPRoutingBroken(K8sProblemBase):
 
         return self.poll_verify(check)
 
-    def recheck_artifact(self, params: ClusterIPRoutingBrokenParams) -> dict:
+    def recheck_artifact(self, params: NodeFirewallDropParams) -> dict:
         """Re-read the raw-table drops. Does not open a TCP connection."""
         k8s = self.runtime.lab_api
         device = self._target_device(params)
@@ -645,12 +645,12 @@ class ServiceTargetPortMismatchParams(K8sParams):
 
 
 class ServiceTargetPortMismatch(K8sProblemBase):
-    """A Service's ``targetPort`` no longer matches the port its Pods serve.
+    """A Service's ``targetPort`` points at the wrong listener on its Pods.
 
     The Service keeps its selector, so its endpoints list every Ready Pod,
-    but each endpoint carries the wrong port and connections to it are
-    refused. Traffic that reaches the Service through its ClusterIP or an
-    Ingress fails; the Pods themselves answer on their own port. See
+    but each endpoint carries the wrong port. Connections can be refused
+    or reach a different application, such as a health server. Traffic
+    through the Service fails while the Pods' intended application works. See
     "Debug Services" in the Kubernetes documentation:
     https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
     """
@@ -659,7 +659,10 @@ class ServiceTargetPortMismatch(K8sProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "k8s_service_target_port_mismatch"
-    description = "A Kubernetes Service forwards to a port its Pods do not serve."
+    CONFUSABLE_WITH = ("k8s_readiness_probe_misconfig", "k8s_service_selector_mismatch")
+    description = (
+        "A Kubernetes Service forwards traffic to the wrong port on its selected Pods."
+    )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s"]
     Params = ServiceTargetPortMismatchParams
     RECORDED_ATTRS = (*K8sProblemBase.RECORDED_ATTRS, "service_ref")
@@ -682,8 +685,7 @@ class ServiceTargetPortMismatch(K8sProblemBase):
         )
 
     def root_cause_resources(self, params: ServiceTargetPortMismatchParams):
-        # The Service object is not a catalog resource; the cluster that
-        # serves it is localized at its control-plane node.
+        # Cluster configuration is localized at its control-plane device.
         control = params.control_node or self.control_node(params)
         if not control:
             raise UnresolvedRootCauseError("No Kubernetes control-plane node.")
@@ -835,7 +837,11 @@ class ServiceTargetPortMismatch(K8sProblemBase):
         port = original["spec"]["ports"][0]["targetPort"]
 
         def check():
-            healthy, details = target_port_baseline(self, params)
+            healthy, details = (
+                target_port_baseline(self, params)
+                if recovery_checks_health()
+                else (True, {})
+            )
             return self._target_port(params) == port and healthy, {
                 "service": self.service_ref,
                 **details,
@@ -870,6 +876,10 @@ class ServiceSelectorMismatch(K8sProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "k8s_service_selector_mismatch"
+    CONFUSABLE_WITH = (
+        "k8s_deployment_replicas_zero",
+        "k8s_service_target_port_mismatch",
+    )
     description = "A Kubernetes Service selector no longer matches its Pods' labels."
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s"]
     Params = ServiceSelectorMismatchParams
@@ -965,7 +975,11 @@ class ServiceSelectorMismatch(K8sProblemBase):
         restore_spec(self.runtime.lab_api, self.control_node(params), original)
 
         def check():
-            healthy, details = target_port_baseline(self, params)
+            healthy, details = (
+                target_port_baseline(self, params)
+                if recovery_checks_health()
+                else (True, {})
+            )
             restored = self._selector(params) == original["spec"]["selector"]
             return restored and healthy, {"service": self.service_ref, **details}
 
@@ -995,6 +1009,7 @@ class LoadBalancerAdvertisementMissing(K8sProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "lb_advertisement_missing"
+    CONFUSABLE_WITH = ("bgp_missing_route_advertisement",)
     description = "The load balancer announces no route for its service addresses."
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "metallb"]
     Params = LoadBalancerAdvertisementMissingParams
@@ -1161,6 +1176,7 @@ class IngressClassMismatch(K8sProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "k8s_ingress_class_mismatch"
+    CONFUSABLE_WITH = ("k8s_ingress_rate_limit_misconfig",)
     description = "A Kubernetes Ingress references an undefined IngressClass."
     symptom_desc = "Requests for application paths return HTTP 404."
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "ingress"]
@@ -1228,16 +1244,22 @@ class IngressClassMismatch(K8sProblemBase):
             ],
         )
 
-    def inject_fault(self, params: K8sParams) -> None:
-        k8s = self.runtime.lab_api
-        control = self.control_node(params)
-        items = k8s.kubectl_json(control, "get ingress -A").get("items", [])
+    def target_ingress(self, params: K8sParams) -> dict[str, Any]:
+        """Select the Ingress for both healthy probes and injection."""
+        items = self.runtime.lab_api.kubectl_json(
+            self.control_node(params), "get ingress -A"
+        ).get("items", [])
         if not items:
             raise ValueError("No Ingress to change.")
-        ingress = min(
+        return min(
             items,
             key=lambda obj: (obj["metadata"]["namespace"], obj["metadata"]["name"]),
         )
+
+    def inject_fault(self, params: K8sParams) -> None:
+        k8s = self.runtime.lab_api
+        control = self.control_node(params)
+        ingress = self.target_ingress(params)
         # A list response omits the individual object's kind.
         ingress["kind"] = "Ingress"
         self._original = ingress
@@ -1292,7 +1314,11 @@ class IngressClassMismatch(K8sProblemBase):
         if not original:
             return {"verified": False, "details": {"error": "No saved Ingress."}}
         restore_spec(self.runtime.lab_api, self.control_node(params), original)
-        healthy, details = ingress_class_baseline(self, params)
+        healthy, details = (
+            ingress_class_baseline(self, params)
+            if recovery_checks_health()
+            else (True, {})
+        )
         restored = self._ingress(params)["spec"].get("ingressClassName") == original[
             "spec"
         ].get("ingressClassName")

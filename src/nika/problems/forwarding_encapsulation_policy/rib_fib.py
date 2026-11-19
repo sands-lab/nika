@@ -133,6 +133,7 @@ class RibFibInconsistency(ProblemBase):
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     root_cause_name = "rib_fib_inconsistency"
+    CONFUSABLE_WITH = ("bgp_missing_route_advertisement", "host_static_blackhole")
     description = "The forwarding table disagrees with the selected routing-table path."
     symptom_desc = "Some destinations are unreachable while routing sessions remain up."
     symptom_probe = "custom"
@@ -397,19 +398,21 @@ class RibFibInconsistency(ProblemBase):
         )
         if not transit:
             raise RuntimeCapabilityError("No router-facing link in the target topology")
-        # Reduce output inside the router before the MCP output limit applies.
-        script = (
-            "import json,sys; rows=json.load(sys.stdin); "
-            f"transit={transit!r}; "
-            "print(json.dumps([r for r in rows "
-            "if r.get('protocol') in ('bgp','ospf','isis') "
-            "and any(h.get('gateway') and h.get('dev') not in transit "
-            "for h in r.get('nexthops') or [r])]))"
-        )
         observed = {}
 
+        def endpoint_routes(output):
+            return [
+                row
+                for row in json.loads(output)
+                if row.get("protocol") in {"bgp", "ospf", "isis"}
+                and any(
+                    hop.get("gateway") and hop.get("dev") not in transit
+                    for hop in row.get("nexthops") or [row]
+                )
+            ]
+
         def rib_args(outputs):
-            rows = json.loads(outputs["fib"])
+            rows = endpoint_routes(outputs["fib"])
             row = sorted(rows, key=lambda item: item["dst"])[0]
             prefix = str(ipaddress.ip_network(row["dst"]))
             observed["fib"] = [row]
@@ -424,12 +427,11 @@ class RibFibInconsistency(ProblemBase):
             steps=[
                 shell(
                     params.host_name,
-                    "ip -j -4 route show table main | python3 -c "
-                    + shlex.quote(script),
+                    "ip -j -4 route show table main",
                     "Inspect dynamic FIB entries that send traffic toward endpoint links.",
                     Check(
                         "a dynamic FIB entry points toward an endpoint-facing link",
-                        lambda out: bool(json.loads(out)),
+                        lambda out: bool(endpoint_routes(out)),
                     ),
                     save_as="fib",
                 ),

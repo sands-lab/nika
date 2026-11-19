@@ -3,7 +3,7 @@
 import pytest
 
 from nika.problems.routing_control_plane.bgp import bgp_neighbors_by_instance
-from nika.problems.routing_control_plane.ospf import router_lsa_origins
+from nika.problems.support.ospf import router_lsa_origins
 from nika.problems.routing_control_plane.isis import _hello_authentication
 from nika.problems.routing_control_plane.vrf import _frr_imports
 

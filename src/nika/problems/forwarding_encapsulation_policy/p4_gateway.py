@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ipaddress
 import re
 
 from pydantic import BaseModel, Field
@@ -10,11 +9,8 @@ from pydantic import BaseModel, Field
 from nika.problems.support.nft_recovery import NftDropRecovery
 from nika.problems.support.p4runtime_writes import p4runtime_write, require_ok
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
-from nika.problems.rca import interface_resource, node_resource
+from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import (
-    NoValidTargetError,
-    p4_gateway_port_target,
-    p4_port_options,
     resolve_path_mtu_target,
 )
 from nika.problems.support.compatible_columns import (
@@ -23,13 +19,11 @@ from nika.problems.support.compatible_columns import (
 )
 from nika.problems.support.p4_oracle import (
     table_read,
-    bmv2_ports,
 )
 from nika.problems.support.oracle import (
     FILTER_DUMP,
     any_of,
     iptables_rule,
-    Check,
     OraclePlaybook,
     OracleStep,
     contains,
@@ -39,9 +33,6 @@ from nika.problems.support.oracle import (
 from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.problems.support.p4_gateway import (
     set_icmp_frag_needed_filter,
-    set_int_mtu,
-    ternary_miss_row,
-    read_table,
 )
 from nika.runtime.base import LabRuntime
 
@@ -117,6 +108,7 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "icmp_frag_needed_filter_misconfiguration"
+    CONFUSABLE_WITH = ("mtu_mismatch",)
     description = "ICMP Fragmentation Needed messages are filtered."
     symptom_desc = (
         "ICMP Fragmentation Needed is filtered, so PMTUD cannot shrink the path "
@@ -135,7 +127,6 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
     COMPATIBLE_PLATFORMS = LINUX_PMTU_PLATFORMS
     Params = IcmpFragNeededFilterMisconfigurationParams
     BENCHMARK_TARGETS = "canonical"
-    BENCHMARK_COORDINATES = frozenset({"mtu_mismatch"})
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -146,32 +137,6 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
             ctx.scenario, ctx.net_env, ctx.rng, list(ctx.router_pool), ctx.backend
         )
         return {"host_name": mtu_target["host_name"]}
-
-    @classmethod
-    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
-        # PMTUD black hole: filter Frag Needed on the router that lowered the MTU.
-        mtu = dict(params_by_problem["mtu_mismatch"])
-        frag = dict(params_by_problem["icmp_frag_needed_filter_misconfiguration"])
-        if native_router_profile(ctx.net_env, mtu["host_name"]) == "iosxr":
-            eligible = [
-                node
-                for node in ctx.net_env.routers or []
-                if native_router_profile(ctx.net_env, node) != "iosxr"
-            ]
-            if not eligible:
-                raise NoValidTargetError(
-                    "The PMTU combination needs a router whose filter covers "
-                    "locally generated ICMP."
-                )
-            mtu.update(
-                resolve_path_mtu_target(
-                    ctx.scenario, ctx.net_env, ctx.rng, eligible, ctx.backend
-                )
-            )
-            params_by_problem["mtu_mismatch"] = mtu
-        frag["host_name"] = mtu["host_name"]
-        params_by_problem["icmp_frag_needed_filter_misconfiguration"] = frag
-        return params_by_problem
 
     def root_cause_resources(self, params: IcmpFragNeededFilterMisconfigurationParams):
         return [node_resource(params.host_name)]
@@ -200,8 +165,7 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
             self._native_saved = (ops, ops.save_config())
             self._native_blocked = ops.icmp_frag_needed_blocked()
             ops.block_icmp_frag_needed()
-            if ops.profile == "iosxr":
-                _age_out_path_mtus(self.runtime, self.net_env)
+            _age_out_path_mtus(self.runtime, self.net_env)
             self._result = f"{ops.profile}-filter-frag-needed"
             return
         self._nft_recovery = NftDropRecovery()
@@ -293,6 +257,18 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
             {"host": params.host_name, "nft_rule": _FRAG_NEEDED_NFT_RULE},
         )
 
+    @classmethod
+    def is_compatible(cls, target, device_profile=None, *, backend=None):
+        if device_profile == "sonic":
+            return False
+        return super().is_compatible(target, device_profile, backend=backend)
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile):
+        return device_profile != "sonic" and super().runs_on_device_profile(
+            device_profile
+        )
+
     def oracle_playbook(
         self, params: IcmpFragNeededFilterMisconfigurationParams
     ) -> OraclePlaybook:
@@ -363,7 +339,7 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
                 "routeros_exec",
                 {
                     "router_name": host,
-                    "command": "/ip firewall filter print terse where protocol=icmp",
+                    "command": "/ip firewall filter print terse",
                 },
                 contains(
                     r"icmp-options=3:4.*action=drop|action=drop.*icmp-options=3:4",
@@ -374,7 +350,10 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
         else:
             step = shell(
                 host,
-                FILTER_DUMP,
+                "nft list ruleset"
+                if self.net_env.machine_identities[host].role.value
+                in {"router", "switch"}
+                else FILTER_DUMP,
                 f"Inspect the packet filter on {host} for ICMP rules.",
                 any_of(
                     contains(r"frag-needed.*drop", "a filter drops ICMP frag-needed"),
@@ -386,353 +365,3 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
                 evidence=True,
             )
         return OraclePlaybook(finding=finding, steps=[step])
-
-
-class P4TcamEntryCorruptionParams(BaseModel):
-    host_name: str = Field(description="Gateway or spine whose route entry is corrupt.")
-    target_ip: str = Field(
-        description="Destination that the corrupted entry stops matching."
-    )
-    control_source: str = Field(description="Client used for the healthy control flow.")
-
-
-def _tcam_row(intent: dict, params: P4TcamEntryCorruptionParams) -> dict:
-    """The intended prefix, selector group, and changed device mask for the target."""
-    switch = intent["switches"][params.host_name]
-    target = ipaddress.IPv4Address(params.target_ip)
-    covering = [
-        entry
-        for entry in switch["ipv4_lpm"]
-        if target in ipaddress.IPv4Network(entry["prefix"], strict=False)
-    ]
-    if not covering:
-        raise RuntimeError(f"{params.host_name} has no route to {params.target_ip}")
-    entry = max(
-        covering,
-        key=lambda e: ipaddress.IPv4Network(e["prefix"], strict=False).prefixlen,
-    )
-    others = [str(item["ip"]) for item in intent["endpoints"]]
-    _, mask = ternary_miss_row(entry["prefix"], params.target_ip, others)
-    return {
-        "prefix": entry["prefix"],
-        "group_id": int(entry["group_id"]),
-        "mask": mask,
-    }
-
-
-def tcam_row(runtime: LabRuntime, params: P4TcamEntryCorruptionParams) -> dict:
-    from nika.net_env.p4_dc_fabric.fabric_manager.apply import load_intent
-
-    return _tcam_row(load_intent(runtime), params)
-
-
-class P4TcamEntryCorruption(ProblemBase):
-    """A route's ternary mask gains one care bit while controller intent stays intact.
-
-    The injector writes the switch table directly through a separate P4Runtime
-    client. The changed match is visible in device reads and absent from intent.
-    """
-
-    failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    symptom_probe = "custom"
-    symptom_class = "unreachable"
-    root_cause_name = "p4_tcam_entry_corruption"
-    description = "A ternary forwarding route has an incorrect match mask."
-    symptom_desc = "One destination loses its route on a switch whose table differs from controller intent."
-    TAGS = ["p4_runtime", "telemetry", "flow_tracking"]
-    COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
-    supported_backends = ("kathara",)
-    Params = P4TcamEntryCorruptionParams
-    BENCHMARK_TARGETS = "canonical"
-
-    @classmethod
-    def benchmark_inject_params(cls, ctx):
-        if ctx.scenario != "p4_dc_gateway":
-            return {"host_name": ctx.host0}
-        rng = ctx.rng
-        model = ctx.net_env.model
-        service = rng.choice(model.services)
-        target = rng.choice(model.gateways + model.spines)
-        control = (
-            next(
-                client.name
-                for client in model.clients
-                if client.name != model.clients[0].name
-            )
-            if len(model.clients) > 1
-            else model.clients[0].name
-        )
-        return {"host_name": target, "target_ip": service.ip, "control_source": control}
-
-    def root_cause_resources(self, params: P4TcamEntryCorruptionParams):
-        return [node_resource(params.host_name)]
-
-    def _write_row(self, params: P4TcamEntryCorruptionParams, *, corrupt: bool) -> None:
-        row = tcam_row(self.runtime, params)
-        network = ipaddress.IPv4Network(row["prefix"])
-        original = {"prefix": row["prefix"], "group_id": row["group_id"]}
-        changed = {
-            **original,
-            "value": str(network.network_address),
-            "mask": row["mask"],
-        }
-        before, after = (original, changed) if corrupt else (changed, original)
-        # A match key cannot be modified in place. Recovery also handles a
-        # failed insertion after the original row was deleted.
-        entries = read_table(self.runtime, params.host_name, "ipv4_lpm")
-        if entries is None:
-            raise RuntimeError("Cannot read the route table before updating its mask")
-        expected = [
-            int(network.network_address),
-            int(ipaddress.IPv4Address(before.get("mask", str(network.netmask)))),
-        ]
-        updates = []
-        if any(entry.get("match", {}).get("dstAddr") == expected for entry in entries):
-            updates.append({"type": "DELETE", "lpm": before})
-        wanted = [
-            int(network.network_address),
-            int(ipaddress.IPv4Address(after.get("mask", str(network.netmask)))),
-        ]
-        if not any(
-            entry.get("match", {}).get("dstAddr") == wanted for entry in entries
-        ):
-            updates.append({"lpm": after})
-        require_ok(
-            p4runtime_write(self.runtime, params.host_name, updates, sequential=True),
-            "route mask update",
-        )
-
-    def inject_fault(self, params: P4TcamEntryCorruptionParams):
-        self._write_row(params, corrupt=True)
-
-    def _verify_row(
-        self, params: P4TcamEntryCorruptionParams, *, corrupt: bool
-    ) -> dict:
-        row = tcam_row(self.runtime, params)
-        network = ipaddress.IPv4Network(row["prefix"])
-        normal = [int(network.network_address), int(network.netmask)]
-        changed = [normal[0], int(ipaddress.IPv4Address(row["mask"]))]
-        wanted, absent = (changed, normal) if corrupt else (normal, changed)
-        entries = read_table(self.runtime, params.host_name, "ipv4_lpm")
-        verified = (
-            entries is not None
-            and any(
-                entry.get("match", {}).get("dstAddr") == wanted
-                and entry.get("priority") == network.prefixlen + 1
-                and entry.get("group_id") == row["group_id"]
-                for entry in entries
-            )
-            and not any(
-                entry.get("match", {}).get("dstAddr") == absent for entry in entries
-            )
-        )
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=verified,
-            details={
-                "switch": params.host_name,
-                "expected_match": wanted,
-                "group_id": row["group_id"],
-            },
-        )
-
-    def verify_fault(self, params: P4TcamEntryCorruptionParams) -> dict:
-        return self._verify_row(params, corrupt=True)
-
-    def recover_fault(self, params: P4TcamEntryCorruptionParams) -> dict:
-        self._write_row(params, corrupt=False)
-        return self._verify_row(params, corrupt=False)
-
-    def oracle_playbook(self, params: P4TcamEntryCorruptionParams) -> OraclePlaybook:
-        switch, target = params.host_name, params.target_ip
-        model = self.net_env.model
-        on_gateway = switch in model.gateways
-        sources = (
-            [model.client_on_gateway(switch).name]
-            if on_gateway
-            else [client.name for client in model.clients]
-        )
-        traffic = [
-            shell(
-                src,
-                f"ping -c 5 -i 0.2 -W 1 {target} 2>&1 | tail -2; "
-                "for i in $(seq 8); do curl -s -o /dev/null -m 1 "
-                f"-w '%{{http_code}} ' http://{target}/; done",
-                f"Send ICMP and HTTP probes from {src} to {target}.",
-                timeout=40,
-            )
-            for src in sources
-        ]
-        if on_gateway and params.control_source not in sources:
-            traffic.append(
-                shell(
-                    params.control_source,
-                    f"ping -c 3 -W 1 {target} 2>&1 | tail -2",
-                    f"Control: reach {target} from {params.control_source}, "
-                    f"which does not cross {switch}.",
-                    contains(r"\b[1-9][0-9]* received", "probes get replies"),
-                )
-            )
-
-        from nika.problems.forwarding_encapsulation_policy.p4_runtime import (
-            declared_intent,
-        )
-
-        row = _tcam_row(declared_intent(self.net_env), params)
-        expected = [
-            int(ipaddress.IPv4Network(row["prefix"]).network_address),
-            int(ipaddress.IPv4Address(row["mask"])),
-        ]
-
-        return OraclePlaybook(
-            finding=(
-                f"{switch}'s ternary route stops matching part of the prefix "
-                f"that covers {target}: packets to {target} miss the lookup on {switch}, "
-                "while the device route differs from controller intent and other "
-                "destinations on that route forward."
-            ),
-            steps=[
-                *traffic,
-                table_read(
-                    switch,
-                    "ipv4_lpm",
-                    "The route mask contains an extra care bit",
-                    lambda entries: (
-                        any(
-                            entry.get("match", {}).get("dstAddr") == expected
-                            and entry.get("priority")
-                            == ipaddress.IPv4Network(row["prefix"]).prefixlen + 1
-                            and entry.get("group_id") == row["group_id"]
-                            for entry in entries
-                        )
-                        and not any(
-                            entry.get("match", {}).get("dstAddr")
-                            == [
-                                expected[0],
-                                int(ipaddress.IPv4Network(row["prefix"]).netmask),
-                            ]
-                            for entry in entries
-                        )
-                    ),
-                    f"Read the live ternary route masks on {switch} and compare with its intended prefix.",
-                ),
-            ],
-        )
-
-
-class IntInsufficientMtuHeadroomParams(BaseModel):
-    host_name: str = Field(description="INT source gateway.")
-    intf_name: str = Field(description="Gateway egress interface.")
-    bmv2_port: int = Field(gt=0)
-    int_mtu: int = Field(default=1480, ge=576, le=1500)
-
-
-class IntInsufficientMtuHeadroom(ProblemBase):
-    failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    symptom_probe = "custom"
-    symptom_class = "unreachable"
-    root_cause_name = "int_insufficient_mtu_headroom"
-    root_cause_owner = "interface"
-    description = "INT encapsulation lacks sufficient MTU headroom."
-    symptom_desc = "Near-MTU watched packets cannot carry the fixed INT-MX header."
-    TAGS = ["p4_runtime", "int", "telemetry", "http"]
-    COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
-    Params = IntInsufficientMtuHeadroomParams
-
-    @classmethod
-    def benchmark_inject_params(cls, ctx):
-        if ctx.scenario != "p4_dc_gateway":
-            return {"host_name": ctx.host0}
-        ctx.rng.choice(ctx.net_env.model.services)  # keep the shared service draw
-        params = p4_gateway_port_target(ctx, gateways_only=True)
-        params["int_mtu"] = "1480"
-        return params
-
-    @classmethod
-    def benchmark_inject_options(cls, ctx, base):
-        return p4_port_options(ctx, base, gateways_only=True)
-
-    def root_cause_resources(self, params: IntInsufficientMtuHeadroomParams):
-        return [interface_resource(params.host_name, params.intf_name)]
-
-    def inject_fault(self, params: IntInsufficientMtuHeadroomParams):
-        self._original_int_mtu = read_runtime_config_value(
-            self.runtime, params.host_name, "int_mtu_config", params.bmv2_port
-        )
-        if self._original_int_mtu is None:
-            raise RuntimeError("Cannot read the INT MTU before injection")
-        set_int_mtu(self.runtime, params.host_name, params.bmv2_port, params.int_mtu)
-
-    def recover_fault(self, params: IntInsufficientMtuHeadroomParams) -> dict:
-        original = getattr(self, "_original_int_mtu", None)
-        if original is not None:
-            set_int_mtu(self.runtime, params.host_name, params.bmv2_port, original)
-        observed = read_runtime_config_value(
-            self.runtime, params.host_name, "int_mtu_config", params.bmv2_port
-        )
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=original is not None and observed == original,
-            details={"original_mtu": original, "observed_mtu": observed},
-        )
-
-    def verify_fault(self, params: IntInsufficientMtuHeadroomParams) -> dict:
-        observed = read_runtime_config_value(
-            self.runtime, params.host_name, "int_mtu_config", params.bmv2_port
-        )
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=observed == params.int_mtu,
-            details={
-                "interface": params.intf_name,
-                "int_mtu": params.int_mtu,
-                "observed_int_mtu": observed,
-            },
-        )
-
-    def oracle_playbook(
-        self, params: IntInsufficientMtuHeadroomParams
-    ) -> OraclePlaybook:
-        switch, intf, port = params.host_name, params.intf_name, params.bmv2_port
-
-        def lowered(rows: list[dict]) -> bool:
-            mtus = {
-                int(row["match"]["egress_spec"]): int(row["params"]["mtu"])
-                for row in rows
-            }
-            return mtus.get(port) == params.int_mtu and any(
-                mtu > params.int_mtu for p, mtu in mtus.items() if p != port
-            )
-
-        def link_mtu_above(output: str) -> bool:
-            m = re.search(r"\bmtu (\d+)", output)
-            return bool(m) and int(m.group(1)) > params.int_mtu
-
-        return OraclePlaybook(
-            finding=(
-                f"The INT MTU of {switch}:{intf} (BMv2 port {port}) is "
-                f"{params.int_mtu}, below the link MTU, so near-MTU watched packets "
-                "leave without the INT-MX header and drop out of telemetry."
-            ),
-            steps=[
-                bmv2_ports(
-                    switch,
-                    contains(rf"(^|\s){port}@{intf}\b", f"port {port} is {intf}"),
-                ),
-                table_read(
-                    switch,
-                    "int_mtu_config",
-                    f"port {port} has INT MTU {params.int_mtu} while other ports "
-                    "allow more",
-                    lowered,
-                    f"Read the per-port INT MTU on {switch}.",
-                ),
-                shell(
-                    switch,
-                    f"ip link show dev {intf} | head -1",
-                    f"Read the link MTU of {switch}:{intf}.",
-                    Check(f"the link MTU exceeds {params.int_mtu}", link_mtu_above),
-                    evidence=True,
-                ),
-            ],
-        )

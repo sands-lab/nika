@@ -70,10 +70,12 @@ class MacAddressConflictParams(BaseModel):
 
 
 class MacAddressConflict(ProblemBase):
+    root_cause_resource_match = "any"
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "mac_address_conflict"
+    CONFUSABLE_WITH = ("arp_cache_poisoning", "host_ip_conflict")
     root_cause_owner = "interface"
     description = "Two hosts share the same MAC address."
     TAGS: str = ["mac"]
@@ -107,7 +109,10 @@ class MacAddressConflict(ProblemBase):
         self.logger = system_logger
 
     def root_cause_resources(self, params: MacAddressConflictParams):
-        return [interface_on(self.net_env, params.host_name, "eth0")]
+        return [
+            interface_on(self.net_env, host, "eth0")
+            for host in (params.host_name, params.host_name_2)
+        ]
 
     def inject_fault(self, params: MacAddressConflictParams):
         device_0 = params.host_name

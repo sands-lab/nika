@@ -105,16 +105,6 @@ def test_bgp_originator_and_hijack() -> None:
             assert speaker not in originators
 
 
-def test_bgp_rpki_leak_target_from_inventory() -> None:
-    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
-    bgp = compile_bgp_plan(isp_plan, "ebgp", rpki=True)
-    assert bgp is not None
-    params = isp_inject_params(
-        "bgp_rpki_invalid_route_leak", isp_plan.inventory, bgp.inventory
-    )
-    assert params == {"host_name": bgp.inventory["leaker_device"]}
-
-
 def test_bgp_rtbh_leak_target_from_inventory() -> None:
     isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="ospf"))
     bgp = compile_bgp_plan(isp_plan, "ebgp", rtbh=True)
@@ -135,33 +125,6 @@ def test_bgp_rtbh_leak_target_from_inventory() -> None:
     assert symptoms["probe_dst_ip"] == "198.51.100.1"
 
 
-def test_bgp_max_prefix_target_ebgp() -> None:
-    isp_plan = compile_isp_plan(IspConfig(topology="abilene"))
-    bgp = compile_bgp_plan(isp_plan, "ebgp")
-    assert bgp is not None
-    params = isp_inject_params(
-        "bgp_max_prefix_exceeded", isp_plan.inventory, bgp.inventory
-    )
-    assert params["receiver_name"]
-    assert params["peer_name"]
-    assert params["neighbor_ip"]
-    assert params["receiver_name"] != params["peer_name"]
-    # The session that carries the customer route, the only way it arrives.
-    site = bgp.customer_site
-    assert (params["receiver_name"], params["peer_name"]) == (
-        site.partner,
-        site.provider,
-    )
-    pair = {params["receiver_name"], params["peer_name"]}
-    sessions = [
-        s
-        for s in bgp.inventory["sessions"]
-        if s["session_type"] == "ebgp"
-        and {s["local_device"], s["remote_device"]} == pair
-    ]
-    assert sessions
-
-
 def test_default_probe_path_stays_inside_one_as_under_ebgp() -> None:
     from nika.net_env.isp.inject_targets import isp_topology_probe_path
 
@@ -177,3 +140,82 @@ def test_default_probe_path_stays_inside_one_as_under_ebgp() -> None:
 
     env = load_offline_net_env("isp_dfn-bwin", bgp_mode="ebgp")
     assert get_probe_path("isp_dfn-bwin", net_env=env) == path
+
+
+@pytest.mark.parametrize("topology", ["nobel-us", "telecomserbia", "arpanet196912"])
+@pytest.mark.parametrize(
+    "problem", ["bgp_missing_route_advertisement", "bgp_hijacking"]
+)
+def test_security_profiles_keep_default_bgp_targets(topology, problem) -> None:
+    """The RPKI profile's content prefixes do not move other faults' targets."""
+    from nika.net_env.isp.bgp import compile_bgp_plan, default_ebgp_profiles
+    from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+    from nika.net_env.isp.inject_targets import isp_inject_params
+
+    isp_plan = compile_isp_plan(IspConfig(topology=topology, igp="ospf"))
+    plain = compile_bgp_plan(isp_plan, "ebgp").inventory
+    profiled = compile_bgp_plan(
+        isp_plan, "ebgp", **default_ebgp_profiles(isp_plan)
+    ).inventory
+    assert isp_inject_params(problem, isp_plan.inventory, profiled) == (
+        isp_inject_params(problem, isp_plan.inventory, plain)
+    )
+
+
+@pytest.mark.parametrize("scenario", ["isp_abilene", "isp_geant"])
+def test_sonic_customer_target_matches_containerlab_attachment(scenario):
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.net_env.isp.inject_targets import customer_route_session
+    from nika.net_env.utils.sonic.common import sonic_port
+    from nika.problems.routing_control_plane.bgp import _compile_isp_bgp_inventory
+
+    env = get_net_env_instance(
+        scenario,
+        igp="ospf",
+        bgp_mode="ebgp",
+        backend="containerlab",
+        device_profile="sonic",
+    )
+    _plan, inventory = _compile_isp_bgp_inventory(
+        scenario,
+        igp="ospf",
+        bgp_mode="ebgp",
+        backend="containerlab",
+        device_profile="sonic",
+    )
+    assert customer_route_session(inventory) == customer_route_session(
+        env.bgp_plan.inventory
+    )
+    site = env.bgp_plan.customer_site
+    document = env._build_clab_document(lab_name="customer-contract")
+    assert site.host_name in document["topology"]["nodes"]
+    assert site.host_name in env.hosts
+    provider = next(
+        node for node in env.plan.nodes if node.device_name == site.provider
+    )
+    interface = env.router_iface(env.bgp_plan.customer_interface(provider))
+    assert {
+        "endpoints": [f"{site.provider}:{interface}", f"{site.host_name}:eth1"]
+    } in document["topology"]["links"]
+    assert (
+        f"{site.gateway}/24"
+        in env.sonic_routers[site.provider].addresses[sonic_port(interface)]
+    )
+    assert any(host.address == site.address for host in env._linux_hosts)
+
+
+@pytest.mark.parametrize("scenario", ["isp_abilene", "isp_dfn-bwin", "isp_geant"])
+def test_rpki_and_customer_attachments_have_separate_interfaces(scenario):
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    env = get_net_env_instance(scenario, igp="ospf", bgp_mode="ebgp")
+    rtr = env._rpki_attachment
+    machine = env.lab.machines[rtr["router"]]
+    interface = machine.interfaces[int(rtr["router_iface"][3:])]
+    assert interface.link.name == env.bgp_plan.inventory["rpki_rtr"]["collision_domain"]
+    site = env.bgp_plan.customer_site
+    if site.provider == rtr["router"]:
+        provider = next(
+            node for node in env.plan.nodes if node.device_name == site.provider
+        )
+        assert rtr["router_iface"] != env.bgp_plan.customer_interface(provider)

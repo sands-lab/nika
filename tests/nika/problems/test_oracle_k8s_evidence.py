@@ -87,6 +87,32 @@ def _check(cls, **overrides):
 
 
 @pytest.mark.parametrize(
+    "scaled,remaining", [(True, False), (True, True), (False, True)]
+)
+def test_scale_zero_query_stays_parseable_with_many_unrelated_workloads(
+    monkeypatch, capsys, scaled, remaining
+):
+    _, deploy, pod, _ = _inventory()
+    deploy["spec"]["replicas"] = deploy["status"]["replicas"] = 0 if scaled else 1
+    items = [deploy] + ([pod] if remaining else [])
+    for index in range(100):
+        other = copy.deepcopy(deploy)
+        other["metadata"].update(
+            name=f"other-{index}", namespace="system", labels={"long": "x" * 1000}
+        )
+        other["spec"]["replicas"] = 1
+        items.append(other)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"items": items})))
+    problem = DeploymentReplicasZero(None)
+    step = problem.oracle_playbook(problem.Params(control_node="controller")).steps[0]
+    script = shlex.split(step.args["command"])[-1]
+    exec(compile(script, "oracle_scale_zero_query", "exec"), {})
+    output = capsys.readouterr().out
+    assert len(output) < 10000
+    assert step.expect(output) is (scaled and not remaining)
+
+
+@pytest.mark.parametrize(
     "fault", ["healthy", "port", "selector", "replicas", "readiness"]
 )
 def test_service_and_workload_faults_require_distinct_evidence(fault):

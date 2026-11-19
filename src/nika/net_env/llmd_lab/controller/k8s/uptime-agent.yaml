@@ -13,6 +13,7 @@ metadata:
   name: uptime-agent
   namespace: monitoring
 spec:
+  minReadySeconds: 20
   selector:
     matchLabels:
       app: uptime-agent
@@ -28,14 +29,12 @@ spec:
         command: [sh, -c]
         args:
         - |
-          # The first round runs right after start; count start as healthy so
-          # readiness does not fail before that round can finish.
-          date +%s > /tmp/last-ok
           url=http://llm-d-gateway.llm-d.svc.cluster.local/v1/chat/completions
           body='{"model":"llm-d-sim","max_tokens":8,"messages":[{"role":"user","content":"ping"}]}'
           while true; do
             if wget -q -T 15 -O /dev/null --header 'Content-Type: application/json' --post-data "$body" "$url"; then
-              date +%s > /tmp/last-ok
+              cut -d. -f1 /proc/uptime > /tmp/last-ok.tmp
+              mv /tmp/last-ok.tmp /tmp/last-ok
             else
               echo "$(date -u +%FT%TZ) check failed: $url" >&2
             fi
@@ -43,7 +42,8 @@ spec:
           done
         readinessProbe:
           exec:
-            command: [sh, -c, 'test $(($(date +%s) - $(cat /tmp/last-ok))) -lt 60']
+            command: [sh, -c, 'last_ok=$(cat /tmp/last-ok 2>/dev/null) && test $(($(cut -d. -f1 /proc/uptime) - last_ok)) -lt 60']
+          initialDelaySeconds: 20
           periodSeconds: 10
           # A loaded node can take over the 1 s default to start the probe shell.
           timeoutSeconds: 5

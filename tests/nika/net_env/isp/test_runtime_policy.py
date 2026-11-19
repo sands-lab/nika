@@ -146,3 +146,24 @@ def test_exit_selection_distinguishes_overall_best_from_best_per_as(multipath):
         plan=env.plan,
     )
     assert report.results[0].status == ("failed" if multipath else "passed")
+
+
+@pytest.mark.parametrize("rendered", [False, True])
+def test_high_degree_ospf_declares_namespace_multicast_capacity(rendered):
+    env = Isp(topo="brain", igp="ospf", bgp_mode="none", rendered=rendered)
+    for node in env.plan.nodes:
+        sysctls = env.lab.get_machine(node.device_name).get_sysctls()
+        active = sum(not iface.passive for iface in node.interfaces)
+        if active * 2 > 20:
+            assert sysctls["net.ipv4.igmp_max_memberships"] == active * 2
+        else:
+            assert "net.ipv4.igmp_max_memberships" not in sysctls
+
+
+def test_isis_does_not_change_ipv4_multicast_memberships():
+    env = Isp(topo="brain", igp="isis", bgp_mode="none")
+    assert all(
+        "net.ipv4.igmp_max_memberships"
+        not in env.lab.get_machine(node.device_name).get_sysctls()
+        for node in env.plan.nodes
+    )

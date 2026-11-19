@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from nika.topology.catalog import ISP_TOPOLOGY_NAMES
 
+# Historical task rows retain these names when computing published identities.
+# They have no runtime registrations.
 ISP_NAMED_SPECIALS: frozenset[str] = frozenset(
     {
         "isp_abilene_ebgp_rtbh",

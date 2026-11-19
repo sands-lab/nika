@@ -71,17 +71,6 @@ class InjectValidationContext:
     ifaces_by_device: dict[str, list[str]]
 
 
-@dataclass(frozen=True)
-class MultiInjectContext:
-    """Inputs for coordinating the per-failure params of one multi-fault case."""
-
-    scenario: str
-    topo_size: str
-    net_env: NetworkEnvBase
-    rng: random.Random
-    backend: str
-
-
 # ----------------------------------------------------------------------
 # Node selection
 # ----------------------------------------------------------------------
@@ -236,10 +225,10 @@ def first_iface(ifaces: list[str], fallback: str = "eth0") -> str:
 # ----------------------------------------------------------------------
 
 
-# A Containerlab flap takes the port's carrier down, so the routers reroute at
-# once and move traffic back only after the IGP adjacency returns (about 7 s on
-# SR Linux IS-IS). An up period longer than that makes every down period an
-# outage on the probed path.
+# A link flap takes the port's carrier down, so routers withdraw the routes
+# over it at once and restore them only after the IGP has re-advertised the
+# link (about 7 s on SR Linux IS-IS). An up period longer than that ends every
+# cycle healthy, so each down period shows as a separate outage.
 CARRIER_FLAP_UP_SEC = "12"
 
 
@@ -282,24 +271,6 @@ def resolve_link_flap_params(
                 observer_device=observer.name,
             )
             return params
-
-    if scenario == "min3clos":
-        # leaf1's port toward client1; its name depends on the router platform.
-        leaf_port = next(
-            end.split(":", 1)[1]
-            for link in net_env.get_topology()
-            if "client1:eth1" in link
-            for end in link
-            if end.startswith("leaf1:")
-        )
-        params.update(
-            host_name="leaf1",
-            intf_name=leaf_port,
-            up_time=CARRIER_FLAP_UP_SEC,
-            probe_dst_ip="10.0.0.27",
-            observer_device="client1",
-        )
-        return params
 
     if scenario == "enterprise_branch":
         corp_src = (
@@ -540,10 +511,6 @@ def endpoint_target(
         # Detach a client access link; removing fabric switch ports breaks controllers.
         params["host_name"] = prefer_named(host_pool, "client_1_1", host0)
         params["intf_name"] = "eth0"
-    elif detach and scenario == "min3clos":
-        client = prefer_named(host_pool, "client2", host0)
-        params["host_name"] = client
-        params["intf_name"] = choice_interface(rng, net_env, client, backend)
     elif detach and scenario == "campus_lan":
         # Detach web0.local (10.200.0.3); LB backends are off the default probe path.
         web_pool = list(ctx.servers.get("web") or []) or list(
@@ -561,9 +528,6 @@ def endpoint_target(
             observer_device=observer.name,
             probe_dst_ip=service.ip,
         )
-    elif scenario == "min3clos" and link:
-        params["host_name"] = ctx.router0
-        params["intf_name"] = choice_interface(rng, net_env, ctx.router0, backend)
     elif scenario == "enterprise_branch":
         if l2_endpoint:
             corp_src = arp_l2_endpoint_host(ctx.roles, fallback=host0)

@@ -1,0 +1,779 @@
+# Multi-fault tasks admitted into benchmark releases. Each task fixes its
+# deployment and every failure's parameters, and passed the live combination
+# test (each failure alone, both together, recovery of each, and the Oracle).
+# ``sources`` documents why the failures occur together and renders into
+# docs/operations/failures.md. Failures are listed in injection order;
+# ``trigger_at`` delays every failure after the first, and ``settle`` delays
+# diagnosis after the last.
+- name: bgp_transport_masks_asn
+  description: A router's BGP TCP filter keeps its sessions from reaching the OPEN exchange
+    that would reveal its misconfigured local AS.
+  failures:
+  - bgp_asn_misconfig
+  - bgp_acl_block
+  sources:
+  - source_type: rfc
+    title: RFC 4271, A Border Gateway Protocol 4 (BGP-4)
+    url: https://www.rfc-editor.org/rfc/rfc4271.html#section-8.2.2
+    locator: Section 8.2.2, Connect state
+    excerpt: If the TCP connection succeeds (Event 16 or Event 17), the local system checks
+      the DelayOpen attribute prior to processing.
+    supports: interaction
+    correspondence: A speaker sends OPEN only after its TCP connection succeeds, so a filter
+      on TCP port 179 keeps every session of the router before the OPEN exchange.
+    limitation: The RFC describes the state machine, not a filter combined with an AS error.
+    accessed: '2026-11-12'
+  - source_type: rfc
+    title: RFC 4271, A Border Gateway Protocol 4 (BGP-4)
+    url: https://www.rfc-editor.org/rfc/rfc4271.html#section-6.2
+    locator: Section 6.2, OPEN Message Error Handling
+    excerpt: If the Autonomous System field of the OPEN message is unacceptable, then the
+      Error Subcode MUST be set to Bad Peer AS.
+    supports: interaction
+    correspondence: The misconfigured local AS is reported only as an OPEN error, which the
+      transport filter prevents.
+    limitation: Same document as the state machine excerpt.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: dc_clos
+    topo_size: s
+    inject:
+      bgp_asn_misconfig:
+        host_name: spine_1
+      bgp_acl_block:
+        host_name: spine_1
+  - scenario: dc_clos
+    topo_size: s
+    device_profile: routeros
+    inject:
+      bgp_asn_misconfig:
+        host_name: spine_1
+      bgp_acl_block:
+        host_name: spine_1
+  - scenario: isp_dfn-bwin
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      bgp_asn_misconfig:
+        host_name: berlin
+      bgp_acl_block:
+        host_name: berlin
+- name: bottleneck_masks_receive_window
+  description: A bottleneck on the sender's link caps a transfer below the rate the receiver's
+    small TCP window allows.
+  failures:
+  - tcp_receive_window_limited
+  - link_capacity_bottleneck
+  sources:
+  - source_type: rfc
+    title: RFC 6349, Framework for TCP Throughput Testing
+    url: https://www.rfc-editor.org/rfc/rfc6349.html#section-3.3.1
+    locator: Section 3.3.1, Minimum TCP RWND
+    excerpt: If a smaller TCP RWND size is used, then the TCP Throughput cannot be optimal.
+    supports: interaction
+    correspondence: 'The tighter of the two limits sets throughput: the shaper on the sender''s
+      link keeps the transfer below what the receiver''s window allows, so the window never
+      fills until the shaper is removed.'
+    limitation: RFC 6349 is a test methodology; it does not report incidents with both conditions.
+    accessed: '2026-11-12'
+  - source_type: rfc
+    title: RFC 6349, Framework for TCP Throughput Testing
+    url: https://www.rfc-editor.org/rfc/rfc6349.html#section-3.2.2
+    locator: Section 3.2.2, Measuring the bottleneck bandwidth
+    excerpt: Before any TCP Throughput test can be conducted, bandwidth measurement tests
+      SHOULD be run with stateless IP streams.
+    supports: interaction
+    correspondence: The method measures the bottleneck separately from TCP, which separates
+      the two limits.
+    limitation: Same methodology document as the window guidance.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: enterprise_branch
+    topo_size: s
+    inject:
+      tcp_receive_window_limited:
+        host_name: br1_corp_pc
+        large_url: http://10.0.20.2/large.bin
+        sender_host: hq_srv
+        sender_ip: 10.0.20.2
+        small_url: http://10.0.20.2/small.bin
+      link_capacity_bottleneck:
+        burst: 16kb
+        host_name: hq_srv
+        intf_name: eth0
+        limit: 32kb
+        rate: 128kbit
+- name: ingress_class_masks_target_port
+  description: An Ingress claimed by no controller answers 404 before its Service's wrong
+    target port can show as a gateway error.
+  failures:
+  - k8s_service_target_port_mismatch
+  - k8s_ingress_class_mismatch
+  sources:
+  - source_type: vendor_documentation
+    title: Kubernetes, Ingress
+    url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+    locator: Prerequisites
+    excerpt: You must have an Ingress controller to satisfy an Ingress. Only creating an Ingress
+      resource has no effect.
+    supports: interaction
+    correspondence: An Ingress whose class no controller handles is not served, so clients
+      never reach the Service whose target port is wrong.
+    limitation: The page describes the missing controller, not an Ingress class that names
+      no installed controller; both leave the Ingress unserved.
+    accessed: '2026-11-12'
+  - source_type: vendor_documentation
+    title: Kubernetes, Debug Services
+    url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+    locator: Is the Service defined correctly?
+    excerpt: Is the `targetPort` correct for your Pods (some Pods use a different port than
+      the Service)?
+    supports: co_occurrence
+    correspondence: A wrong target port is a separate check from the Ingress path in the same
+      debugging procedure.
+    limitation: Checklist guidance, not an incident report.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: k8s_lab
+    topo_size: s
+    inject:
+      k8s_service_target_port_mismatch:
+        control_node: controller
+      k8s_ingress_class_mismatch:
+        control_node: controller
+- name: latent_adjacency_cut
+  description: An OSPF adjacency lost to a hello timer mismatch stays hidden until the other
+    link of the same cut fails.
+  failures:
+  - ospf_hello_interval_mismatch
+  - link_down
+  trigger_at: 60s
+  sources:
+  - source_type: paper
+    title: Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC
+      2016)
+    url: https://www.ece.iastate.edu/~mai/docs/papers/2016_SoCC_COS.pdf
+    locator: Section 4.3, Backups that also Fail
+    excerpt: simultaneous multiple failures of primary and backup components such as double
+      failures of power [5, 17], network [52, 87]
+    supports: co_occurrence
+    correspondence: The OSPF adjacency on one link of a two-link cut is the failed backup;
+      the later link loss is the primary failure that exposes it.
+    limitation: The study classifies outages by category; it does not describe an IGP timer
+      mismatch on a backup link.
+    accessed: '2026-11-12'
+  - source_type: paper
+    title: 'Evolve or Die: High-Availability Design Principles Drawn from Google''s Network
+      Infrastructure (SIGCOMM 2016)'
+    url: https://homepages.dcc.ufmg.br/~cunha/teaching/20221/cloudcomp/readings/03-readings/govindan16evolve.pdf
+    locator: Section 5, root-cause categories
+    excerpt: A single failure event can have more than one root cause
+    supports: co_occurrence
+    correspondence: 'Each fault is a counterfactual root cause: without either, the cut keeps
+      one working link and the network stays connected.'
+    limitation: The paper does not count multi-root-cause events or name this pair.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: campus_lan
+    topo_size: s
+    inject:
+      ospf_hello_interval_mismatch:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down:
+        host_name: router_core_1
+        intf_name: eth0
+  - scenario: campus_lan
+    topo_size: s
+    device_profile: iosxr
+    inject:
+      ospf_hello_interval_mismatch:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down:
+        host_name: router_core_1
+        intf_name: eth0
+  - scenario: campus_lan
+    topo_size: s
+    device_profile: routeros
+    inject:
+      ospf_hello_interval_mismatch:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down:
+        host_name: router_core_1
+        intf_name: eth0
+- name: latent_network_type_cut
+  description: An OSPF link whose network types disagree drops out of SPF and stays hidden
+    until the other link of the same cut fails.
+  failures:
+  - ospf_network_type_mismatch
+  - link_down
+  trigger_at: 60s
+  sources:
+  - source_type: paper
+    title: Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC
+      2016)
+    url: https://www.ece.iastate.edu/~mai/docs/papers/2016_SoCC_COS.pdf
+    locator: Section 4.3, Backups that also Fail
+    excerpt: simultaneous multiple failures of primary and backup components such as double
+      failures of power [5, 17], network [52, 87]
+    supports: co_occurrence
+    accessed: '2026-11-12'
+    correspondence: The link that the network-type mismatch removes from SPF is the failed
+      backup; the loss of the other link of the cut exposes it.
+    limitation: The study classifies outages by category; it does not describe an OSPF network-type
+      mismatch.
+  - source_type: vendor_documentation
+    title: Cisco, Troubleshoot Open Shortest Path First Route Database Issues
+    url: https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/7112-26.html
+    locator: 'Reason 1: Network Type Mismatch'
+    excerpt: network type mismatch makes the advertising router unreachable
+    supports: interaction
+    correspondence: The mismatched link carries no routes, so its loss of service is visible
+      only when no other path remains.
+    limitation: Describes the single fault.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: campus_lan
+    topo_size: s
+    inject:
+      ospf_network_type_mismatch:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down:
+        host_name: router_core_1
+        intf_name: eth0
+  - scenario: campus_lan
+    topo_size: s
+    device_profile: routeros
+    inject:
+      ospf_network_type_mismatch:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down:
+        host_name: router_core_1
+        intf_name: eth0
+- name: pmtud_black_hole
+  description: A router's lowered MTU on a routed link and its filter on ICMP Fragmentation
+    Needed together silently drop large DF packets.
+  failures:
+  - mtu_mismatch
+  - icmp_frag_needed_filter_misconfiguration
+  sources:
+  - source_type: rfc
+    title: RFC 2923, TCP Problems with Path MTU Discovery
+    url: https://www.rfc-editor.org/rfc/rfc2923.html#section-2.1
+    locator: Section 2.1, Black Hole Detection
+    excerpt: Its packets are disappearing into a PMTUD black hole.
+    supports: interaction
+    correspondence: NIKA lowers a routed interface MTU and filters ICMP Fragmentation Needed
+      on the same router, so large DF packets vanish without feedback.
+    limitation: RFC 2923 describes the filter on any device on the path; NIKA places both
+      faults on one router.
+    accessed: '2026-11-12'
+  - source_type: incident_report
+    title: Path MTU discovery in practice (Cloudflare)
+    url: https://blog.cloudflare.com/path-mtu-discovery-in-practice/
+    locator: Section Do-not-fragment bit
+    excerpt: The most common problems are caused by misconfigured firewalls that drop ICMP
+      packets.
+    supports: co_occurrence
+    correspondence: An operator reports filtered ICMP combined with a smaller path MTU as
+      the common cause of stalled transfers.
+    limitation: The post describes production patterns rather than one incident.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: dc_clos
+    topo_size: s
+    inject:
+      mtu_mismatch:
+        host_name: leaf_1
+        intf_name: eth3
+        mtu: '1400'
+      icmp_frag_needed_filter_misconfiguration:
+        host_name: leaf_1
+  - scenario: dc_clos
+    topo_size: s
+    device_profile: routeros
+    inject:
+      mtu_mismatch:
+        host_name: leaf_1
+        intf_name: eth3
+        mtu: '1400'
+      icmp_frag_needed_filter_misconfiguration:
+        host_name: leaf_1
+- name: policy_gap_exposed_by_uplink_loss
+  description: A leaf's eBGP session without usable policy stays hidden until its other uplink
+    fails.
+  failures:
+  - bgp_session_policy_missing
+  - link_down
+  trigger_at: 30s
+  sources:
+  - source_type: rfc
+    title: RFC 8212, Default External BGP Route Propagation Behavior without Policies
+    url: https://datatracker.ietf.org/doc/html/rfc8212#section-3
+    locator: Section 3, Changes to RFC 4271
+    excerpt: Routes SHALL NOT be added to an Adj-RIB-Out associated with an EBGP peer if no
+      explicit Export Policy has been applied.
+    supports: interaction
+    correspondence: A leaf's session without import and export policy carries no routes. Its
+      other session carries rack traffic until that uplink fails.
+    limitation: The RFC specifies per-session route rejection; the redundant uplink placement
+      and latent outage are the NIKA reproduction. RouterOS reproduces rejection with undefined
+      filter chains.
+    accessed: '2026-11-12'
+  - source_type: paper
+    title: 'Evolve or Die: High-Availability Design Principles Drawn from Google''s Network
+      Infrastructure (SIGCOMM 2016)'
+    url: https://cs538.github.io/readings/govindan16.pdf
+    locator: Section 5, Analysis of Failure Events
+    excerpt: if a link failure coincided with planned network maintenance operation that should
+      have been safe due to redundancy
+    supports: co_occurrence
+    correspondence: A configuration error removes one usable routing path; a later link failure
+      removes the remaining redundancy.
+    limitation: The paper describes maintenance coinciding with link loss and congestive loss,
+      not this eBGP policy fault or a complete rack partition.
+    accessed: '2026-11-12'
+  - source_type: vendor_documentation
+    title: Cisco IOS XR, Implementing BGP
+    url: https://www.cisco.com/c/en/us/td/docs/iosxr/ncs5500/bgp/710x/b-bgp-cg-ncs5500-710x/implementing-bgp.html
+    locator: Enable BGP Routing, Before you begin
+    excerpt: allow all eBGP neighbors to pass routes using the bgp unsafe-ebgp-policy command.
+    supports: interaction
+    correspondence: The healthy IOS XR rendering uses explicit pass policies and disables
+      the global unsafe bypass, so removing one session's policies invokes default rejection.
+    limitation: This documents the policy prerequisite, not the later redundant-uplink outage.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: dc_clos
+    topo_size: s
+    device_profile: iosxr
+    inject:
+      bgp_session_policy_missing:
+        host_name: spine_1
+        peer: 172.16.0.0
+      link_down:
+        host_name: leaf_1
+        intf_name: eth4
+        observer_device: client_1_1
+        probe_dst_ip: 10.0.2.11
+  - scenario: dc_clos
+    topo_size: s
+    device_profile: routeros
+    inject:
+      bgp_session_policy_missing:
+        host_name: leaf_1
+        peer: 172.16.0.1
+      link_down:
+        host_name: leaf_1
+        intf_name: eth4
+        observer_device: client_1_1
+        probe_dst_ip: 10.0.2.11
+- name: prefix_surge_trips_low_limit
+  description: A peer's prefix surge exceeds a session's latent low maximum-prefix limit and
+    disconnects its customer route.
+  failures:
+  - bgp_max_prefix_limit_low
+  - bgp_prefix_surge
+  trigger_at: 30s
+  sources:
+  - source_type: incident_report
+    title: 'Australian Senate, Chapter 2: The Optus network outage'
+    url: https://www.aph.gov.au/Parliamentary_Business/Committees/Senate/Environment_and_Communications/OptusNetworkOutage/Report/Chapter_2_-_The_Optus_network_outage
+    locator: Paragraphs 2.21 and 2.27
+    excerpt: a preset safety limit on these routers was reached or exceeded
+    supports: co_occurrence
+    correspondence: Routing changes from an interconnected network exceeded configured safety
+      limits and disconnected routers. NIKA separates the extra advertisements from the low
+      terminating limit.
+    limitation: The report does not publish router configuration or prefix counts. NIKA models
+      the mechanism with FRR sessions and an isolated additional-prefix block, not the national
+      outage scale or the upgrade.
+    accessed: '2026-11-12'
+  - source_type: rfc
+    title: RFC 7454, BGP Operations and Security
+    url: https://www.rfc-editor.org/rfc/rfc7454.html#section-8
+    locator: Section 8, Maximum Prefixes on a Peering
+    excerpt: It is important to regularly review the limits that are configured
+    supports: interaction
+    correspondence: The terminating limit needs headroom for expected route growth. NIKA sets
+      it one prefix above the normal received count.
+    limitation: The RFC recommends limit management; it does not specify the Optus configuration
+      or its actual headroom.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: isp_abilene
+    topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    inject:
+      bgp_max_prefix_limit_low:
+        neighbor_ip: 10.0.0.23
+        peer_name: kscyng
+        receiver_name: iplsng
+      bgp_prefix_surge:
+        neighbor_ip: 10.0.0.23
+        peer_name: kscyng
+        receiver_name: iplsng
+- name: redundant_links_both_lost
+  description: Two administratively disabled links that back each other up
+    are lost together, partitioning the nodes behind them.
+  failures:
+  - link_down
+  - link_down
+  sources:
+  - source_type: paper
+    title: 'Evolve or Die: High-Availability Design Principles Drawn from Google''s Network
+      Infrastructure (SIGCOMM 2016)'
+    url: https://homepages.dcc.ufmg.br/~cunha/teaching/20221/cloudcomp/readings/03-readings/govindan16evolve.pdf
+    locator: Section 5 and Figure 7, Competing drains/upgrades
+    excerpt: if a link failure coincided with planned network maintenance operation that should
+      have been safe due to redundancy
+    supports: co_occurrence
+    correspondence: NIKA disables both links of a redundant pair; each
+      is safe alone and together they partition the nodes behind them.
+    limitation: The paper's example ends in congestive loss; NIKA's pair removes all redundancy,
+      so the outcome is a partition.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: campus_lan
+    topo_size: s
+    inject:
+      link_down[1]:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down[2]:
+        host_name: router_core_1
+        intf_name: eth0
+  - scenario: campus_lan
+    topo_size: s
+    device_profile: iosxr
+    inject:
+      link_down[1]:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down[2]:
+        host_name: router_core_1
+        intf_name: eth0
+  - scenario: campus_lan
+    topo_size: s
+    device_profile: routeros
+    inject:
+      link_down[1]:
+        host_name: router_core_1
+        intf_name: eth1
+      link_down[2]:
+        host_name: router_core_1
+        intf_name: eth0
+  - scenario: isp_abilene
+    topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      link_down[1]:
+        host_name: iplsng
+        intf_name: eth3
+        peer_host: pc_kscyng
+        probe_dst_ip: 10.254.0.26
+        symptom_host: pc_iplsng
+      link_down[2]:
+        host_name: atlang
+        intf_name: eth2
+        peer_host: pc_hstnng
+        probe_dst_ip: 10.254.0.18
+        symptom_host: pc_atlang
+  - scenario: isp_dfn-gwin
+    topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      link_down[1]:
+        host_name: hannover
+        intf_name: e1-6
+        peer_host: pc_ip
+        probe_dst_ip: 10.254.0.26
+        symptom_host: pc_hannover
+      link_down[2]:
+        host_name: frankfurt
+        intf_name: e1-6
+        peer_host: pc_ip
+        probe_dst_ip: 10.254.0.26
+        symptom_host: pc_frankfurt
+- name: rov_gap_admits_hijack
+  description: A router whose import policy no longer rejects RPKI-invalid routes installs
+    routes a peer originates with an unauthorized origin.
+  failures:
+  - bgp_rov_not_enforced
+  - bgp_hijacking
+  trigger_at: 30s
+  sources:
+  - source_type: incident_report
+    title: How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today
+      (Cloudflare)
+    url: https://blog.cloudflare.com/how-verizon-and-a-bgp-optimizer-knocked-large-parts-of-the-internet-offline-today/
+    locator: Section What happened?
+    excerpt: Verizon’s lack of filtering turned this into a major incident
+    supports: co_occurrence
+    correspondence: A peer leaks routes it should not originate, and an upstream that does
+      not filter them installs and propagates them; NIKA leaks RPKI-invalid routes toward
+      a router whose invalid-route rejection is missing.
+    limitation: The 2019 leak consisted of more-specific prefixes and Verizon lacked several
+      filters; NIKA reproduces the missing filter with RPKI origin validation and an unauthorized-origin
+      leak.
+    accessed: '2026-11-12'
+  - source_type: rfc
+    title: RFC 6811, BGP Prefix Origin Validation
+    url: https://www.rfc-editor.org/rfc/rfc6811.html#section-2
+    locator: Section 2, validation states
+    excerpt: 'Invalid: At least one VRP Covers the Route Prefix, but no VRP Matches it.'
+    supports: interaction
+    correspondence: The leaked routes are Invalid; only a router whose import policy acts
+      on that state rejects them, so the missing rejection matters only once invalid routes
+      arrive.
+    limitation: RFC 6811 leaves the policy for Invalid routes to the operator.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: isp_abilene
+    topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: true
+    backend: kathara
+    device_profile: frr
+    inject:
+      bgp_rov_not_enforced:
+        host_name: iplsng
+      bgp_hijacking:
+        variant: rpki_invalid_origin
+        host_name: kscyng
+- name: selector_masks_readiness
+  description: A Service whose selector matches no Pods hides that the Pods behind it fail
+    their readiness probes.
+  failures:
+  - k8s_readiness_probe_misconfig
+  - k8s_service_selector_mismatch
+  sources:
+  - source_type: vendor_documentation
+    title: Kubernetes, Debug Services
+    url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+    locator: Does the Service have any EndpointSlices?
+    excerpt: you should check that the `spec.selector` field of your Service actually selects
+      for `metadata.labels` values on your Pods
+    supports: interaction
+    correspondence: A selector that matches no Pods leaves the Service without endpoints regardless
+      of the Pods' readiness.
+    limitation: The guide presents the checks in sequence; it does not discuss both conditions
+      at once.
+    accessed: '2026-11-12'
+  - source_type: vendor_documentation
+    title: Kubernetes, Pod Lifecycle
+    url: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+    locator: Container probes, readinessProbe
+    excerpt: If the readiness probe returns a failed state, the EndpointSlice controller removes
+      the Pod's IP address from the EndpointSlices of all Services that match the Pod.
+    supports: interaction
+    correspondence: Failing readiness shows on a Service only through the endpoints of Pods
+      it matches, so the selector mismatch hides it.
+    limitation: Describes readiness alone.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: k8s_lab
+    topo_size: s
+    inject:
+      k8s_readiness_probe_misconfig:
+        control_node: controller
+      k8s_service_selector_mismatch:
+        control_node: controller
+- name: standby_tunnel_allowed_ips_exposed
+  description: A standby tunnel's AllowedIPs omit a remote prefix, which stays hidden until
+    the primary provider link fails.
+  failures:
+  - wireguard_allowed_ips_misconfiguration
+  - link_down
+  trigger_at: 30s
+  settle: 180s
+  sources:
+  - source_type: paper
+    title: Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC
+      2016)
+    url: https://www.ece.iastate.edu/~mai/docs/papers/2016_SoCC_COS.pdf
+    locator: Section 4.3, Backups that also Fail
+    excerpt: simultaneous multiple failures of primary and backup components such as double
+      failures of power [5, 17], network [52, 87]
+    supports: co_occurrence
+    accessed: '2026-11-12'
+    correspondence: The standby tunnel's AllowedIPs omission is the failed backup; the primary
+      provider link loss exposes it.
+    limitation: The study classifies outages by category; it does not describe a WireGuard
+      AllowedIPs error.
+  - source_type: vendor_documentation
+    title: WireGuard, Cryptokey Routing
+    url: https://www.wireguard.com/#cryptokey-routing
+    locator: Cryptokey Routing, outgoing peer selection
+    excerpt: compares it to each peer's list of allowed IPs
+    supports: interaction
+    correspondence: Traffic to the omitted prefix is refused only once routing sends it into
+      the standby tunnel.
+    limitation: Describes peer selection, not standby tunnels.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: enterprise_branch
+    topo_size: s
+    inject:
+      wireguard_allowed_ips_misconfiguration:
+        host_name: br1_edge
+        intf_name: wg_hq_b
+        target_prefix: 10.0.20.0/24
+      link_down:
+        host_name: isp1_core
+        intf_name: eth2
+  - scenario: enterprise_branch
+    topo_size: s
+    device_profile: iosxr
+    inject:
+      wireguard_allowed_ips_misconfiguration:
+        host_name: br1_edge
+        intf_name: wg_hq_b
+        target_prefix: 10.0.20.0/24
+      link_down:
+        host_name: isp1_core
+        intf_name: eth2
+  - scenario: enterprise_branch
+    topo_size: s
+    device_profile: routeros
+    inject:
+      wireguard_allowed_ips_misconfiguration:
+        host_name: br1_edge
+        intf_name: wg_hq_b
+        target_prefix: 10.0.20.0/24
+      link_down:
+        host_name: isp1_core
+        intf_name: eth2
+- name: standby_tunnel_key_exposed
+  description: A standby overlay tunnel's wrong peer key stays hidden until the primary provider
+    link fails.
+  failures:
+  - wireguard_peer_key_misconfiguration
+  - link_down
+  trigger_at: 30s
+  settle: 180s
+  sources:
+  - source_type: paper
+    title: Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC
+      2016)
+    url: https://www.ece.iastate.edu/~mai/docs/papers/2016_SoCC_COS.pdf
+    locator: Section 4.3, Backups that also Fail
+    excerpt: simultaneous multiple failures of primary and backup components such as double
+      failures of power [5, 17], network [52, 87]
+    supports: co_occurrence
+    correspondence: The standby tunnel's wrong peer key is the failed backup; the primary
+      provider link loss exposes it.
+    limitation: The study classifies outages by category; it does not describe a WireGuard
+      key error.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: enterprise_branch
+    topo_size: s
+    inject:
+      wireguard_peer_key_misconfiguration:
+        host_name: br1_edge
+        intf_name: wg_hq_b
+        scope: interface
+      link_down:
+        host_name: isp1_core
+        intf_name: eth2
+  - scenario: enterprise_branch
+    topo_size: s
+    device_profile: iosxr
+    inject:
+      wireguard_peer_key_misconfiguration:
+        host_name: br1_edge
+        intf_name: wg_hq_b
+        scope: interface
+      link_down:
+        host_name: isp1_core
+        intf_name: eth2
+  - scenario: enterprise_branch
+    topo_size: s
+    device_profile: routeros
+    inject:
+      wireguard_peer_key_misconfiguration:
+        host_name: br1_edge
+        intf_name: wg_hq_b
+        scope: interface
+      link_down:
+        host_name: isp1_core
+        intf_name: eth2
+- name: undersized_backup_exposed
+  description: A branch's standby provider link is provisioned far below the branch's traffic,
+    which shows only after the primary link fails.
+  failures:
+  - link_capacity_bottleneck
+  - link_down
+  trigger_at: 30s
+  settle: 180s
+  sources:
+  - source_type: incident_report
+    title: Summary of the Amazon EC2 and Amazon RDS Service Disruption in the US East Region
+      (AWS, April 2011)
+    url: https://aws.amazon.com/message/65648/
+    locator: Primary Outage
+    excerpt: the traffic was routed onto the lower capacity redundant EBS network
+    supports: co_occurrence
+    correspondence: Traffic moved onto a backup network too small for it; NIKA shapes a branch's
+      standby provider link and then fails the primary.
+    limitation: In the AWS event a configuration change shifted the traffic; NIKA uses a primary
+      link failure as the trigger.
+    accessed: '2026-11-12'
+  - source_type: incident_report
+    title: Summary of the Amazon EC2 and Amazon RDS Service Disruption in the US East Region
+      (AWS, April 2011)
+    url: https://aws.amazon.com/message/65648/
+    locator: Overview of EBS System
+    excerpt: This network is not designed to handle all traffic from the primary network
+    supports: interaction
+    correspondence: The backup's capacity is a standing condition that matters only when the
+      primary's traffic moves onto it.
+    limitation: Same report.
+    accessed: '2026-11-12'
+  tasks:
+  - scenario: enterprise_branch
+    topo_size: s
+    inject:
+      link_capacity_bottleneck:
+        burst: 16kb
+        host_name: isp2_core
+        intf_name: eth2
+        limit: 32kb
+        rate: 512kbit
+      link_down:
+        host_name: isp1_core
+        intf_name: eth2
+  - scenario: enterprise_branch
+    topo_size: s
+    device_profile: iosxr
+    inject:
+      link_capacity_bottleneck:
+        burst: 16kb
+        host_name: isp2_core
+        intf_name: eth2
+        limit: 32kb
+        rate: 512kbit
+      link_down:
+        host_name: isp1_core
+        intf_name: eth2

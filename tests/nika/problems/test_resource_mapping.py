@@ -220,7 +220,7 @@ class ResourceMappingTest:
     def test_coredns_is_node_holding_drop_rules(self) -> None:
         env = _Env(("n1:eth0", "n2:eth0"))
         resource = _resources(
-            "k8s_coredns_isolated", {"control_node": "n1", "node_name": "n1"}, env
+            "dns_port_blocked", {"control_node": "n1", "node_name": "n1"}, env
         )
         assert resource.id == "node/n1"
 
@@ -361,15 +361,17 @@ class LinkInventoryHelpersTest:
     ) -> None:
         from nika.problems.rca.inventory import load_offline_net_env
 
-        env = load_offline_net_env("min3clos", device_profile=device_profile)
-        router_port = "e1-1" if device_profile == "nokia_srlinux" else "eth1"
-        assert resolve_default_intf("eth0", env, "leaf1") == router_port
-        assert select_host_interface(env, "spine", last=True) == router_port
-        assert resolve_default_intf("eth0", env, "client1") == "eth1"
-        assert link_containing_endpoint(env, "leaf1", "eth0") == link_resource(
-            f"leaf1:{router_port}--spine:{router_port}"
+        env = load_offline_net_env(
+            "dc_clos", backend="containerlab", device_profile=device_profile
         )
-        assert resolve_default_intf("eth2", env, "leaf1") == "eth2"
+        router_port = "e1-1" if device_profile == "nokia_srlinux" else "eth1"
+        assert resolve_default_intf("eth0", env, "leaf_1") == router_port
+        assert select_host_interface(env, "spine_1", last=False) == router_port
+        assert resolve_default_intf("eth0", env, "client_1_1") == "eth0"
+        assert link_containing_endpoint(env, "leaf_1", "eth0") == link_resource(
+            f"leaf_1:{router_port}--web_1:eth0"
+        )
+        assert resolve_default_intf("eth2", env, "leaf_1") == "eth2"
         # Kathara data interfaces start at eth0.
         assert resolve_default_intf("eth0", _Env(("pc1:eth1", "r1:eth1")), "pc1") == (
             "eth0"
@@ -422,18 +424,21 @@ def test_submission_owner_kind_matches_default_release_ground_truth(split) -> No
     from nika.problems.ownership import owner_kind_for_fault
     from nika.workflows.benchmark.release import resolve_cases
 
-    owner_for_kind = {
-        "node": "node_or_k8s",
-        "k8s": "node_or_k8s",
-        "interface": "interface",
-        "link": "link",
+    kinds_for_owner = {
+        "node": {"node"},
+        "k8s": {"k8s"},
+        "node_or_k8s": {"node", "k8s"},
+        "node_or_interface": {"node", "interface"},
+        "interface": {"interface"},
+        "link": {"link"},
     }
     mismatches = set()
     for case in resolve_cases(split=split):
         for cause in case.get("root_causes") or []:
             fault_type = cause["fault_type"]
-            gt_owner = owner_for_kind[cause["resource"]["kind"]]
-            if owner_kind_for_fault(fault_type) != gt_owner:
+            gt_owner = cause["resource"]["kind"]
+            hint = owner_kind_for_fault(fault_type)
+            if gt_owner not in kinds_for_owner.get(hint, set()):
                 mismatches.add((fault_type, gt_owner))
     assert not mismatches
 

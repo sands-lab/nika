@@ -48,6 +48,7 @@ def control_node_from_net_env(net_env: Any) -> str | None:
 
 
 class K8sProblemBase(ProblemBase):
+    root_cause_owner = "node"
     supported_backends: ClassVar[tuple[str, ...]] = ("kathara",)
     required_capabilities: ClassVar[tuple[str, ...]] = ("exec", "k8s")
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s"]

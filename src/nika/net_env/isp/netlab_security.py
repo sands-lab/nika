@@ -12,6 +12,10 @@ from nika.net_env.isp.bgp.frr import (
     _rpki_stanza,
     _rtbh_discard_static,
     _rtbh_import_route_map,
+    rpki_retry_interval,
+    rtbh_import_sequence,
+    rtbh_outbound_call_map,
+    inter_as_policy_lines,
 )
 from nika.net_env.isp.bgp.plan import BgpPlan
 
@@ -43,8 +47,8 @@ def apply_netlab_security_overlay(
         ):
             raise ValueError("BGP plan contains security fields without a profile")
         return dict(configs)
-    if plan.mode != "ebgp" or rpki == rtbh:
-        raise ValueError("netlab security overlays require one eBGP security profile")
+    if plan.mode != "ebgp":
+        raise ValueError("netlab security overlays require an eBGP security profile")
     nodes = {node.device_name: node for node in plan.nodes}
     transformed_nodes = transformed.get("nodes", {})
     if set(configs) != set(nodes) or set(transformed_nodes) != set(nodes):
@@ -71,6 +75,9 @@ def apply_netlab_security_overlay(
         if actual_peers != expected_peers:
             raise ValueError(f"netlab BGP peers differ from plan on {name}")
         expected_origins = {origin.prefix for origin in node_plan.originated}
+        site = plan.customer_site
+        if site is not None and site.provider == name:
+            expected_origins.add(site.prefix)
         actual_origins = {
             str(prefix["ipv4"])
             for prefix in model.get("bgp", {}).get("advertise", [])
@@ -94,7 +101,7 @@ def apply_netlab_security_overlay(
         lines: list[str] = []
 
         if node_plan.rpki_cache:
-            lines.extend(_rpki_stanza(node_plan.rpki_cache))
+            lines.extend(_rpki_stanza(node_plan.rpki_cache, rpki_retry_interval(plan)))
         if node_plan.rov_reject_invalid:
             maps = sorted({row["in"] for row in bindings.values() if "in" in row})
             for policy in maps:
@@ -138,6 +145,7 @@ def apply_netlab_security_overlay(
                         prefix_list="BUSINESS-ipv4",
                         blackhole_community=community,
                         discard_next_hop=discard,
+                        sequence=rtbh_import_sequence(node_plan.rov_reject_invalid),
                     )
                 )
 
@@ -154,11 +162,18 @@ def apply_netlab_security_overlay(
                         f"RTBH peer is absent from transformed BGP: {name} {peer}"
                     )
                 _require_business_list(config, name)
-                lines.extend(
-                    _leaker_outbound_route_maps(
-                        ((peer, policy),), prefix_list="BUSINESS-ipv4"
+                if node_plan.export_deny_prefixes:
+                    # Composed with RPKI: keep the session's export denial.
+                    called = bindings.get(peer, {}).get("out")
+                    if called is None:
+                        raise ValueError(f"RTBH peer has no export policy: {name}")
+                    lines.extend(rtbh_outbound_call_map(policy, called))
+                else:
+                    lines.extend(
+                        _leaker_outbound_route_maps(
+                            ((peer, policy),), prefix_list="BUSINESS-ipv4"
+                        )
                     )
-                )
                 lines.extend(
                     [
                         f"router bgp {node_plan.asn}",
@@ -184,6 +199,29 @@ def _bindings(
     if any(not {"in", "out"} <= set(actual.get(ip, {})) for ip in expected):
         raise ValueError(f"netlab eBGP policy bindings are incomplete on {node}")
     return actual
+
+
+def apply_inter_as_policy_overlay(configs, plan):
+    """Bind provider/customer export policy to netlab's existing admission maps."""
+    result = dict(configs)
+    for node in plan.nodes:
+        config = result[node.device_name]
+        bindings = {}
+        for peer, policy, direction in _BINDING.findall(config):
+            bindings.setdefault(direction, {})[peer] = policy
+        outbound = dict(bindings.get("out", {}))
+        inbound = dict(bindings.get("in", {}))
+        lines = inter_as_policy_lines(node.device_name, plan, outbound, inbound)
+        if not lines:
+            continue
+        lines.extend([f"router bgp {node.asn}", " address-family ipv4 unicast"])
+        for direction, maps in (("in", inbound), ("out", outbound)):
+            for peer, policy in maps.items():
+                if policy != bindings.get(direction, {}).get(peer):
+                    lines.append(f"  neighbor {peer} route-map {policy} {direction}")
+        lines.extend([" exit-address-family", "!"])
+        result[node.device_name] = config.rstrip() + "\n\n" + "\n".join(lines) + "\n"
+    return result
 
 
 def _require_map(config: str, policy: str, node: str) -> None:

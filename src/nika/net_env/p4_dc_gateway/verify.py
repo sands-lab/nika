@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from nika.net_env.p4_dc_fabric.fabric_manager.apply import forwarding_mismatches
+from nika.net_env.p4_dc_gateway.control import build_gateway_intent
+
 import json
 from typing import Any
 
@@ -28,10 +31,11 @@ def _p4runtime_consistent(
     live = observed.get("switches") or {}
     details: dict[str, Any] = {}
     ok = bool(observed.get("ok")) and set(live) == set(model.fabric_switches())
+    intent = build_gateway_intent(model)
     for name in model.fabric_switches():
         switch = live.get(name) or {}
         pipeline = switch.get("pipeline") or {}
-        mismatches = switch.get("mismatches") or []
+        mismatches = forwarding_mismatches(intent["switches"][name], switch)
         row = {
             "pipeline_ok": bool(pipeline.get("ok")),
             "mismatches": mismatches,
@@ -58,13 +62,8 @@ def _valid_hop(hop: object) -> bool:
         "switch_id",
         "ingress_port",
         "egress_port",
-        "ingress_timestamp",
-        "egress_timestamp",
         "hop_latency",
         "queue_occupancy",
-        "ecn",
-        "m",
-        "e",
     }
     return required <= hop.keys()
 

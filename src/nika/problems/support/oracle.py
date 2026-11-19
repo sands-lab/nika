@@ -24,15 +24,122 @@ from typing import Any
 Args = Mapping[str, Any] | Callable[[Mapping[str, str]], Mapping[str, Any]]
 
 
+def service_address_command(net_env: Any, host: str) -> str:
+    """Read the address on the host's topology data interface."""
+    from nika.problems.rca.inventory import kernel_data_interface
+
+    interface = kernel_data_interface(net_env, host)
+    return f"ip -4 -o addr show dev {shlex.quote(interface)} scope global"
+
+
+def is_service_ipv4(value: str) -> bool:
+    """Whether an IPv4 address can represent a lab service endpoint."""
+    import ipaddress
+    from nika.telemetry import TELEMETRY_SUBNET
+
+    try:
+        address = ipaddress.ip_interface(value).ip
+    except ValueError:
+        return False
+    return (
+        address.version == 4
+        and not address.is_loopback
+        and address not in ipaddress.ip_network(TELEMETRY_SUBNET)
+    )
+
+
+def containerlab_data_eth0(runtime: Any) -> set[str] | None:
+    """Return nodes with a declared eth0 data link, or None for other backends."""
+    if getattr(runtime, "backend", None) != "containerlab":
+        return None
+    topology = getattr(runtime, "topology_file", None)
+    if not topology:
+        return set()
+    from nika.runtime.containerlab.parse import parse_clab_topology
+
+    return {
+        node
+        for link in parse_clab_topology(topology).links
+        for endpoint in link.endpoints
+        for node, interface in [endpoint.split(":", 1)]
+        if interface == "eth0"
+    }
+
+
+def management_interfaces(data_eth0: set[str] | None, node: str) -> set[str]:
+    """Identify Containerlab's management interface using the data topology."""
+    if data_eth0 is None:
+        return set()
+    return {"mgmt0", "br-mgmt"} | (set() if node in data_eth0 else {"eth0"})
+
+
+def management_networks(runtime: Any) -> tuple:
+    """Return Docker bridge networks used by Kathara bridged nodes."""
+    if getattr(runtime, "backend", None) != "kathara":
+        return ()
+    from nika.service.lab.semantic_mixin import _docker_bridge_networks
+
+    return _docker_bridge_networks()
+
+
+def service_addresses(
+    output: str,
+    interface: str | None = None,
+    *,
+    excluded_interfaces: frozenset[str] | set[str] = frozenset(),
+    excluded_networks: tuple = (),
+) -> list[tuple[str, str]]:
+    """Return observed data-plane interface and IPv4 CIDR pairs."""
+    import ipaddress
+
+    addresses = []
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) < 4 or parts[2] != "inet":
+            continue
+        name = parts[1].split("@", 1)[0]
+        if name in excluded_interfaces or (interface is not None and name != interface):
+            continue
+        if is_service_ipv4(parts[3]) and not any(
+            ipaddress.ip_interface(parts[3]).ip in network
+            for network in excluded_networks
+        ):
+            addresses.append((name, parts[3]))
+    return addresses
+
+
+def service_address(output: str, interface: str) -> str:
+    """Select an address on the topology interface from a live observation."""
+    import ipaddress
+
+    addresses = [
+        ipaddress.ip_interface(cidr).ip
+        for _, cidr in service_addresses(output, interface)
+    ]
+    if not addresses:
+        raise ValueError(f"No service address observed on {interface}.")
+    return str(min(addresses))
+
+
 @dataclass(frozen=True)
 class Check:
     """Expected observation in one tool result."""
 
     description: str
     predicate: Callable[[str], bool]
+    observations: Callable[[str, Mapping[str, str]], bool] | None = None
 
-    def __call__(self, output: str) -> bool:
+    def __call__(self, output: str, outputs: Mapping[str, str] | None = None) -> bool:
+        if self.observations is not None:
+            return bool(self.observations(output, outputs or {}))
         return bool(self.predicate(output))
+
+
+def compare(
+    description: str, predicate: Callable[[str, Mapping[str, str]], bool]
+) -> Check:
+    """Compare a device observation with earlier saved observations in Python."""
+    return Check(description, lambda _: False, observations=predicate)
 
 
 def contains(pattern: str, description: str | None = None) -> Check:
@@ -113,8 +220,8 @@ def triage() -> OracleStep:
     """Measure the user-visible symptom across the endpoint mesh."""
     return OracleStep(
         "Triage: measure reachability and latency across the endpoint mesh.",
-        "run_pingmesh_snapshot",
-        {},
+        "prometheus_query",
+        {"query": "min by (source,module,expected) (avg_over_time(probe_success[2m]))"},
     )
 
 
@@ -225,6 +332,7 @@ def router_cli(
     iosxr_command: str | None = None,
     routeros_command: str | None = None,
     srl_command: str | None = None,
+    sonic_command: str | None = None,
     evidence: bool = False,
     attempts: int = 1,
     interval_sec: float = 5.0,
@@ -245,10 +353,18 @@ def router_cli(
         interval_sec=interval_sec,
         save_as=save_as,
     )
-    if getattr(net_env, "backend", None) == "containerlab" and profile is None:
+    if srl_cli(net_env, router):
         if srl_command is None:
             raise ValueError(f"No SR Linux command for {purpose!r}")
         return srl(router, srl_command, purpose, expect, **options)
+    if profile == "sonic" and sonic_command is not None:
+        return OracleStep(
+            purpose,
+            "sonic_exec_cli",
+            {"device_name": router, "command": sonic_command},
+            expect,
+            **options,
+        )
     if profile == "iosxr":
         if iosxr_command is None:
             raise ValueError(f"No IOS XR command for {purpose!r}")
@@ -258,6 +374,69 @@ def router_cli(
             raise ValueError(f"No RouterOS command for {purpose!r}")
         return routeros(router, routeros_command, purpose, expect, **options)
     return shell(router, frr, purpose, expect, **options)
+
+
+def interface_state(
+    net_env, node: str, intf: str, purpose: str, expect: Check | None = None, **options
+) -> OracleStep:
+    """Read physical carrier separately from a virtual NOS's protocol state."""
+    from nika.runtime.spec import NodeRole
+
+    identity = net_env.machine_identities.get(node)
+    if identity is not None and identity.role in {NodeRole.ROUTER, NodeRole.SWITCH}:
+        return OracleStep(
+            purpose,
+            "device_interface_state",
+            {"host_name": node, "interface": intf},
+            expect,
+            **options,
+        )
+    return interface_read(net_env, node, intf, purpose, expect, **options)
+
+
+def interface_read(
+    net_env, node: str, intf: str, purpose: str, expect: Check | None = None, **options
+) -> OracleStep:
+    """Read interface operational state through the node's declared CLI."""
+    from nika.net_env.utils.iosxr.common import iosxr_interface
+    from nika.net_env.utils.routeros.common import routeros_port
+    from nika.service.containerlab.srl_api import srl_subif
+    from nika.net_env.utils.sonic.common import sonic_port
+    from nika.problems.support.router_ops import native_router_profile
+
+    identity = net_env.machine_identities.get(node)
+    caps = set(identity.capabilities) if identity else set()
+    if "bmv2" in caps:
+        return OracleStep(
+            purpose,
+            "bmv2_get_ports",
+            {"switch": node, "interface": intf},
+            expect,
+            **options,
+        )
+    if "ovs" in caps:
+        return shell(
+            node, f"ovs-vsctl list interface {intf}", purpose, expect, **options
+        )
+    profile = native_router_profile(net_env, node)
+    return router_cli(
+        net_env,
+        node,
+        purpose,
+        expect,
+        frr=f"ip -d -s link show dev {intf}",
+        iosxr_command=f"show ipv4 interface {iosxr_interface(intf)}"
+        if profile == "iosxr"
+        else None,
+        routeros_command=f":put [/interface get [find name={routeros_port(net_env, node, intf)}] running]; /interface print detail where name={routeros_port(net_env, node, intf)}"
+        if profile == "routeros"
+        else None,
+        srl_command=f"info from state interface {srl_subif(intf).split('.')[0]}",
+        sonic_command=f"show interfaces status {sonic_port(intf) if intf.startswith('eth') else intf}"
+        if profile == "sonic"
+        else None,
+        **options,
+    )
 
 
 def vtysh(*commands: str) -> str:
@@ -341,33 +520,6 @@ def iptables_rule(rule: str, description: str) -> Check:
     """An ``iptables -S`` drop rule matches *rule* (regex) before its target."""
     return contains(
         rf"^-A \S+ .*{rule}.* -j (DROP|REJECT)", f"{description} (iptables)"
-    )
-
-
-def iface_state(
-    node: str, intf: str, expect: Check, purpose: str, *, evidence: bool = True
-) -> OracleStep:
-    return shell(
-        node,
-        f"ip -d link show dev {intf}; ip -br addr show dev {intf}",
-        purpose,
-        expect,
-        evidence=evidence,
-    )
-
-
-def iface_down(
-    node: str, intf: str, purpose: str | None = None, *, evidence: bool = True
-) -> OracleStep:
-    """*node*:*intf* has lost carrier or is administratively down."""
-    return iface_state(
-        node,
-        intf,
-        contains(
-            r"state (DOWN|LOWERLAYERDOWN)", f"{node}:{intf} is operationally down"
-        ),
-        purpose or f"Check the operational state of {node}:{intf}.",
-        evidence=evidence,
     )
 
 
@@ -541,6 +693,8 @@ def toward(
     *,
     evidence: bool = False,
     timeout: float = 30,
+    attempts: int = 1,
+    interval_sec: float = 5.0,
 ) -> OracleStep:
     """Run ``command`` on ``src`` with ``{ip}`` set to the address saved under ``key``.
 
@@ -557,28 +711,43 @@ def toward(
             "timeout": timeout,
         }
 
-    return OracleStep(purpose, "exec_shell", args, expect, evidence=evidence)
+    return OracleStep(
+        purpose,
+        "exec_shell",
+        args,
+        expect,
+        evidence=evidence,
+        attempts=attempts,
+        interval_sec=interval_sec,
+    )
 
 
 def _pingmesh_clean(output: str) -> bool:
     try:
-        summary = json.loads(output).get("summary") or {}
-    except (ValueError, AttributeError):
+        rows = json.loads(output)
+        rows = [rows] if isinstance(rows, dict) else rows
+        return (
+            isinstance(rows, list)
+            and bool(rows)
+            and all(row["value"] == 0 for row in rows)
+        )
+    except (ValueError, KeyError, TypeError):
         return False
-    return summary.get("anomaly_count") == 0 and summary.get("total_pairs", 0) > 0
 
 
 def healthy_playbook() -> OraclePlaybook:
     """No-fault control: the mesh is clean, so no root cause is reported."""
     return OraclePlaybook(
-        finding="No fault: every probed endpoint pair is reachable within its latency budget.",
+        finding="No fault: recorded endpoint probes match the environment's reachability policy.",
         steps=[
             OracleStep(
                 "Measure reachability and latency across the endpoint mesh.",
-                "run_pingmesh_snapshot",
-                {},
+                "prometheus_query",
+                {
+                    "query": 'sum(min_over_time(probe_success{expected="reachable"}[1m]) < bool 1) + (sum(max_over_time(probe_success{expected="isolated"}[1m])) or vector(0))'
+                },
                 Check(
-                    "the snapshot probes endpoint pairs and reports no anomalies",
+                    "recorded probes reach expected destinations and preserve declared isolation",
                     _pingmesh_clean,
                 ),
                 evidence=True,

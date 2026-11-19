@@ -69,6 +69,7 @@ class BGPAddressFamilyNotActivated(ProblemBase):
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name = "bgp_address_family_not_activated"
+    CONFUSABLE_WITH = ("bgp_asn_misconfig", "bgp_session_policy_missing")
     description = "A BGP neighbor lacks IPv4 unicast address-family activation."
     symptom_desc = "A BGP session exchanges no IPv4 routes."
     effect_protocol = "bgp"

@@ -152,15 +152,36 @@ def select_target_buffer_bytes(
 
 
 def primary_ipv4(runtime: "LabRuntime", host: str) -> str | None:
-    line = exec_or_empty(
-        runtime,
-        host,
-        "ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | head -1",
-        timeout=10,
-    ).strip()
-    if not line:
+    from nika.problems.support.oracle import (
+        containerlab_data_eth0,
+        management_interfaces,
+        management_networks,
+        service_addresses,
+    )
+
+    output = exec_or_empty(
+        runtime, host, "ip -4 -o addr show scope global 2>/dev/null", timeout=10
+    )
+    rows = service_addresses(
+        output,
+        excluded_interfaces=management_interfaces(
+            containerlab_data_eth0(runtime), host
+        ),
+        excluded_networks=management_networks(runtime),
+    )
+    if not rows:
         return None
-    return line.split("/")[0]
+
+    def order(row):
+        name, cidr = row
+        suffix = name.removeprefix("eth")
+        return (
+            (0, int(suffix), cidr)
+            if name.startswith("eth") and suffix.isdigit()
+            else (1, name, cidr)
+        )
+
+    return min(rows, key=order)[1].split("/", 1)[0]
 
 
 def _bytes_from(runtime: "LabRuntime", host: str, peer_ip: str) -> dict[str, int]:

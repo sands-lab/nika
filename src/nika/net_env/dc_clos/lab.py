@@ -17,6 +17,7 @@ from nika.net_env.native_routers import NativeRouterEnv
 from nika.net_env.synthesis.design import RoutingDesign
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.net_env.utils.kathara.frr_origin import ENSURE_BGP_ORIGIN_IFACE_CMD
 
 from nika.net_env.clos.design import (
     build_clos_fabric_model,
@@ -216,6 +217,19 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
         self.load_machines()
         self.desc = "Leaf-spine Clos with eBGP, one web service and client endpoints per rack. The first web endpoint also provides authoritative DNS for the fabric zone."
         self.apply_device_profile(device_profile)
+        # Only routers that remain FRR need the Linux BGP origin interface.
+        for name in self.bgp_neighbors:
+            if name not in self.native_routers:
+                path = f"{name}.startup"
+                startup = self.lab.fs.readtext(path)
+                self.lab.fs.writetext(
+                    path,
+                    startup.replace(
+                        "service frr start",
+                        f"{ENSURE_BGP_ORIGIN_IFACE_CMD}\nservice frr start",
+                        1,
+                    ),
+                )
         if rendered and routing_parameters is None:
             from nika.net_env.synthesis.rendered import use_rendered_configs
 

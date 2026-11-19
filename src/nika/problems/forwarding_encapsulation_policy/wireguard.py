@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from nika.problems.support.recovery import recovery_checks_health
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -24,14 +25,13 @@ from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace
 from nika.problems.support.oracle import (
     Check,
+    compare,
     OraclePlaybook,
     OracleStep,
     all_of,
     contains,
     lacks,
     router_cli,
-    routeros,
-    shell,
 )
 from nika.problems.support.polling import wait_until
 from nika.problems.support.wireguard import LinuxWireGuard
@@ -105,65 +105,6 @@ def _never_handshaked(output: str) -> bool:
 
 # A Curve25519 public key in WireGuard's base64 form.
 _WG_KEY = r"[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]="
-
-
-def _compare_peer_key(
-    spoke_iface: str, hub_key_slot: str, *, native: bool = False
-) -> Any:
-    """Compare the spoke's configured peer key with the Hub's own public key."""
-
-    def args(outputs: dict[str, str]) -> dict[str, Any]:
-        match = re.search(rf"^({_WG_KEY})\r?$", outputs.get(hub_key_slot) or "", re.M)
-        if match is None:
-            command = (
-                ':put "HUB_KEY_UNAVAILABLE"' if native else "echo HUB_KEY_UNAVAILABLE"
-            )
-        elif native:
-            hub_key = match.group(1)
-            command = (
-                f":local peer [/interface wireguard peers get [find interface={spoke_iface}] public-key]; "
-                ':put ("configured peer key: " . $peer); '
-                f':put "hub interface key: {hub_key}"; '
-                f':if ($peer = "{hub_key}") do={{ :put "PEER_KEY_MATCHES_HUB" }} '
-                'else={ :put "PEER_KEY_MISMATCH" }; '
-                f"/interface wireguard peers print detail where interface={spoke_iface}; "
-                f":local age [/interface wireguard peers get [find interface={spoke_iface}] last-handshake]; "
-                ':put ("handshake-unavailable=" . '
-                f"(([:len [:tostr $age]] = 0) || ($age = 0s) || ($age > {_SETTLE_SEC}s)))"
-            )
-        else:
-            hub_key = match.group(1)
-            command = (
-                f"peer=$(wg show {spoke_iface} peers); "
-                f'echo "configured peer key: $peer"; '
-                f'echo "hub interface key: {hub_key}"; '
-                f'[ "$peer" = "{hub_key}" ] && echo PEER_KEY_MATCHES_HUB '
-                "|| echo PEER_KEY_MISMATCH; "
-                f"wg show {spoke_iface} endpoints; "
-                f"wg show {spoke_iface} latest-handshakes"
-            )
-        return {"command": command, **({} if native else {"timeout": 15})}
-
-    return args
-
-
-def _initiations_unanswered(spoke_wan: str, hub_wan: str, hub_port: int) -> Any:
-    """Spoke initiations reach the Hub and neither side answers the other."""
-    spoke, hub = re.escape(spoke_wan), re.escape(hub_wan)
-    return all_of(
-        contains(
-            rf"In +IP {spoke}\.\d+ > {hub}\.{hub_port}: UDP, length 148",
-            "handshake initiations from the spoke arrive at the Hub",
-        ),
-        lacks(
-            rf"Out +IP {hub}\.{hub_port} > {spoke}\.\d+: UDP, length 92",
-            "the Hub sends no handshake response",
-        ),
-        lacks(
-            rf"In +IP {spoke}\.\d+ > {hub}\.{hub_port}: UDP, length 92",
-            "the spoke answers no Hub initiation",
-        ),
-    )
 
 
 def _hq_peer_targets(net_env: Any, scenario: str) -> list[tuple[str, str]]:
@@ -245,6 +186,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "wireguard_peer_key_misconfiguration"
+    CONFUSABLE_WITH = ("wireguard_allowed_ips_misconfiguration",)
     root_cause_owner = "interface"
     description = "WireGuard peer public key is incorrect."
     TAGS: str = ["vpn"]
@@ -258,8 +200,6 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         }
     )
     Params = WireGuardPeerKeyMisconfigParams
-    BENCHMARK_COORDINATES = frozenset({"link_down"})
-    MULTI_INJECT_DWELL_SEC = 30.0
     BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (
         "A Branch Site Edge has incorrect Hub WireGuard peer public keys on all "
@@ -299,20 +239,6 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
                 raise ValueError("Interface scope requires a branch WireGuard tunnel")
         else:
             _validate_hq_peer_target(ctx, cls.root_cause_name, inject)
-
-    @classmethod
-    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
-        targets = getattr(ctx.net_env, "wireguard_failover_targets", lambda: [])()
-        if not targets:
-            raise ValueError("No independent standby tunnel and primary WAN targets")
-        edge, iface, host, intf = ctx.rng.choice(targets)
-        params_by_problem[cls.root_cause_name] = {
-            "host_name": edge,
-            "intf_name": iface,
-            "scope": "interface",
-        }
-        params_by_problem["link_down"] = {"host_name": host, "intf_name": intf}
-        return params_by_problem
 
     def root_cause_resources(self, params: WireGuardPeerKeyMisconfigParams):
         tunnels = self._target_tunnels(params)
@@ -444,7 +370,6 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         ]
         for tunnel in tunnels:
             hub_edge, slot = edge_name_for(tunnel.hub), f"hubkey_{tunnel.spoke_iface}"
-            hub_end = f"{tunnel.hub_wan_ip}:{tunnel.listen_port_hub}"
             steps.append(
                 router_cli(
                     self.net_env,
@@ -458,85 +383,42 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
                     save_as=slot,
                 )
             )
-            compare = _compare_peer_key(tunnel.spoke_iface, slot, native=native)
-            steps.append(
-                OracleStep(
-                    f"Compare the peer key on {edge}:{tunnel.spoke_iface} with "
-                    "the Hub key and check its endpoint and handshake.",
-                    "routeros_exec" if native else "exec_shell",
-                    lambda out, compare=compare: {
-                        ("router_name" if native else "host_name"): edge,
-                        **compare(out),
-                    },
-                    all_of(
-                        contains(
-                            rf"^configured peer key: {_WG_KEY}\r?$",
-                            "a peer key is configured",
-                        ),
-                        contains(
-                            r"^PEER_KEY_MISMATCH\r?$", "the peer key is not the Hub's"
-                        ),
-                        contains(
-                            (
-                                rf"endpoint-address={re.escape(tunnel.hub_wan_ip)}\s+endpoint-port={tunnel.listen_port_hub}\b"
-                                if native
-                                else rf"\s{re.escape(hub_end)}\s*$"
-                            ),
-                            f"the peer endpoint is the Hub's {hub_end}",
-                        ),
-                        (
-                            contains(
-                                r"^handshake-unavailable=true\s*$",
-                                "the peer has no successful handshake since the key rollout",
-                            )
-                            if native
-                            else Check(
-                                "no handshake has ever completed", _never_handshaked
-                            )
-                        ),
-                    ),
-                    evidence=True,
-                )
-            )
-            if native:
-                steps.append(
-                    routeros(
-                        edge,
-                        f"/interface print count-only where name={tunnel.spoke_iface} and running",
-                        f"Check that {edge}:{tunnel.spoke_iface} remains running.",
-                        contains(
-                            r"^1\s*$",
-                            "the tunnel interface is running",
-                        ),
-                        evidence=True,
+
+            def peer_mismatch(output, outputs, slot=slot, tunnel=tunnel):
+                hub = re.search(rf"^({_WG_KEY})\r?$", outputs.get(slot, ""), re.M)
+                if not hub:
+                    return False
+                if native:
+                    keys = re.findall(r'public-key="?(' + _WG_KEY + r")", output)
+                    endpoint = f"endpoint-address={tunnel.hub_wan_ip}" in output
+                    no_handshake = not re.search(
+                        r"last-handshake=(?!0s)(?:\d+[smhd])", output
                     )
-                )
-                continue
-            udp = (
-                f"udp and host {tunnel.spoke_wan_ip} and port "
-                f"{tunnel.listen_port_hub} and (udp[4:2] = 156 or udp[4:2] = 100)"
-            )
+                else:
+                    keys = re.findall(rf"^({_WG_KEY})(?:\s|$)", output, re.M)
+                    endpoint = f"{tunnel.hub_wan_ip}:{tunnel.listen_port_hub}" in output
+                    no_handshake = _never_handshaked(output)
+                return bool(keys) and hub[1] not in keys and endpoint and no_handshake
+
             steps.append(
-                shell(
-                    hub_edge,
-                    f"timeout 15 tcpdump -lni any '{udp}' 2>&1 | head -12",
-                    f"Watch handshake packets for {edge}:{tunnel.spoke_iface} on "
-                    f"{hub_edge}: initiations must arrive and go unanswered.",
-                    _initiations_unanswered(
-                        tunnel.spoke_wan_ip, tunnel.hub_wan_ip, tunnel.listen_port_hub
+                router_cli(
+                    self.net_env,
+                    edge,
+                    f"Compare {edge}:{tunnel.spoke_iface} peer key and handshake with the Hub public key.",
+                    compare(
+                        "the endpoint is correct but the peer key differs and no handshake completes",
+                        peer_mismatch,
                     ),
+                    frr=f"wg show {tunnel.spoke_iface} peers; wg show {tunnel.spoke_iface} endpoints; wg show {tunnel.spoke_iface} latest-handshakes",
+                    routeros_command=f"/interface wireguard peers print detail where interface={tunnel.spoke_iface}",
                     evidence=True,
-                    timeout=30,
-                    attempts=2,
-                    interval_sec=1,
                 )
             )
         ifaces = ", ".join(t.spoke_iface for t in tunnels)
         return OraclePlaybook(
             finding=(
                 f"The selected WireGuard tunnels on {edge} ({ifaces}) name a peer public "
-                "key that is not its Hub's key: handshake initiations reach the "
-                "Hub but are never answered, so these tunnels stay down despite "
+                "key that is not its Hub's key, so no handshake completes despite "
                 "reachable Hub WAN endpoints."
             ),
             steps=steps,
@@ -651,7 +533,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             ops.tunnel_peer(iface).public_key == key for iface, key in original.items()
         )
         expected = set(getattr(self, "_hub_tunnel_ips", []))
-        if ok and expected:
+        if ok and expected and recovery_checks_health():
             from nika.net_env.verify import frr_bgp_established_peers
 
             def healthy():
@@ -696,6 +578,10 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
     symptom_probe = "path_ping"
     symptom_class = "unreachable"
     root_cause_name: str = "wireguard_allowed_ips_misconfiguration"
+    CONFUSABLE_WITH = (
+        "vrf_route_target_mismatch",
+        "wireguard_peer_key_misconfiguration",
+    )
     root_cause_owner = "interface"
     description = "WireGuard AllowedIPs omits a required remote prefix."
     TAGS: str = ["vpn"]
@@ -765,11 +651,35 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                     f"{spoke!r} (topo_size={ctx.topo_size!r}); remotes: {remotes}"
                 )
 
+    @classmethod
+    def validate_combined_inject(cls, ctx, inject):
+        # A combination may place the omission on a standby tunnel, which the
+        # primary hides until it fails.
+        eligible = {
+            (edge_name_for(t.spoke), t.spoke_iface)
+            for t in ctx.net_env.built_tunnels
+            if t.spoke in ctx.net_env.spec.branch_names()
+        }
+        if (inject.get("host_name"), inject.get("intf_name")) not in eligible:
+            raise ValueError(f"{cls.root_cause_name} needs a branch WireGuard tunnel")
+        spoke = _spoke_site_from_edge(inject.get("host_name") or "")
+        if inject.get("target_prefix") not in ctx.net_env.remote_prefixes_for_spoke(
+            spoke
+        ):
+            raise ValueError(f"{cls.root_cause_name} needs a remote branch prefix")
+
     def root_cause_resources(self, params: WireGuardAllowedIpsMisconfigParams):
         return [interface_resource(params.host_name, params.intf_name)]
 
     def _spoke_site(self, edge_name: str) -> str:
         return _spoke_site_from_edge(edge_name)
+
+    def _primary_tunnel(self, params: WireGuardAllowedIpsMisconfigParams) -> bool:
+        spoke = self._spoke_site(params.host_name)
+        return any(
+            t.primary and t.spoke == spoke and t.spoke_iface == params.intf_name
+            for t in getattr(self.net_env, "built_tunnels", None) or []
+        )
 
     def _resolve_hub_tunnel_ip(self, params: WireGuardAllowedIpsMisconfigParams) -> str:
         spoke = self._spoke_site(params.host_name)
@@ -1001,7 +911,8 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
             and conf_keeps_tunnel
             and handshake_ok
             and bgp_ok
-            and route_ok
+            # A standby tunnel carries the prefix only after the primary fails.
+            and (route_ok or not self._primary_tunnel(params))
         )
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -1046,7 +957,8 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
             and conf_keeps_tunnel
             and handshake_ok
             and bgp_ok
-            and route_ok
+            # A standby tunnel carries the prefix only after the primary fails.
+            and (route_ok or not self._primary_tunnel(params))
         )
         return build_verify_result(
             fault_type=self.root_cause_name,

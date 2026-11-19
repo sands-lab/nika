@@ -74,58 +74,77 @@ def test_table_full_requires_a_device_resource_error(codes, messages, accepted):
     assert not table_capacity_rejected({**result, "inserted": True})
 
 
-@pytest.mark.parametrize("size", ["s", "m", "l"])
-@pytest.mark.parametrize("switch", ["gateway_1", "spine_1"])
-def test_tcam_oracle_builds_offline_and_requires_only_the_changed_match(size, switch):
-    import ipaddress
+def test_oracle_compares_observed_forwarding_rows_without_mismatch_labels():
     import json
-    from nika.agents.oracle.plan import fault_plan
-    from nika.net_env.p4_dc_gateway.topology_model import build_gateway_fabric_model
-    from nika.net_env.p4_dc_gateway.control import build_gateway_intent
-    from nika.problems.forwarding_encapsulation_policy.p4_gateway import (
-        P4TcamEntryCorruptionParams,
-        _tcam_row,
+    from copy import deepcopy
+
+    from nika.problems.forwarding_encapsulation_policy.p4_runtime import mismatch
+
+    state = {"groups": [{"group_id": 1, "member_ids": [1, 2]}]}
+    check = mismatch("leaf_1", "groups", {"switches": {"leaf_1": state}})
+    assert not check(json.dumps({"switches": {"leaf_1": state}}))
+    changed = deepcopy(state)
+    changed["groups"][0]["member_ids"] = [1]
+    assert check(json.dumps({"switches": {"leaf_1": changed}}))
+    assert not check("tool_error: read failed")
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [None, "source", "compile", "read-json", "copy-json", "read-info", "copy-info"],
+)
+def test_pipeline_staging_cleanup_on_partial_compile_or_copy(
+    monkeypatch, tmp_path, failure
+):
+    import shlex
+
+    from nika.net_env.p4_dc_fabric.fabric_manager import apply
+    from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
+        load_blackhole_pipeline,
+        remove_staged_pipeline,
     )
 
-    model = build_gateway_fabric_model(size)
-    params = {
-        "host_name": switch,
-        "target_ip": model.services[0].ip,
-        "control_source": model.clients[1].name,
-    }
-    plan = fault_plan(
-        "p4_tcam_entry_corruption", "p4_dc_gateway", {"topo_size": size}, params
-    )
-    row = _tcam_row(build_gateway_intent(model), P4TcamEntryCorruptionParams(**params))
-    net = ipaddress.IPv4Network(row["prefix"])
-    normal = {
-        "match": {"dstAddr": [int(net.network_address), int(net.netmask)]},
-        "priority": net.prefixlen + 1,
-        "group_id": row["group_id"],
-    }
-    changed = {
-        **normal,
-        "match": {
-            "dstAddr": [
-                int(net.network_address),
-                int(ipaddress.IPv4Address(row["mask"])),
-            ]
-        },
-    }
-    check = plan.playbook.steps[-1].expect
+    files = {}
+    source = tmp_path / "program.p4"
+    source.write_text("program")
 
-    def output(entries):
-        return json.dumps({"tables": {"ipv4_lpm": entries}})
+    def fail(stage):
+        if failure == stage:
+            raise RuntimeError(stage)
 
-    assert not check(output([normal]))
-    assert check(output([changed]))
-    assert not check(output([changed, normal]))
-    assert not check(output([{**changed, "group_id": row["group_id"] + 999}]))
-    assert not check("tool_error: unreadable table")
+    def copy_in(runtime, node, path, content):
+        files[node, path] = content
+        fail(
+            "source"
+            if node == "leaf_1"
+            else "copy-json"
+            if path.endswith(".json")
+            else "copy-info"
+        )
 
+    def compile_pipeline(runtime, node, path, info_name, json_name):
+        for name in (info_name, json_name, "pipeline_candidate.p4i"):
+            files[node, f"/tmp/{name}"] = b"compiled"
+        fail("compile")
 
-def test_tcam_mask_rejects_targets_that_cannot_be_isolated_from_peers():
-    from nika.problems.support.p4_gateway import ternary_miss_row
+    def copy_out(runtime, node, path):
+        fail("read-json" if path.endswith(".json") else "read-info")
+        return files[node, path]
 
-    with pytest.raises(ValueError, match="No mask bit isolates"):
-        ternary_miss_row("10.0.1.0/24", "10.0.1.3", ["10.0.1.1", "10.0.1.2"])
+    class Runtime:
+        def exec(self, node, command):
+            for path in shlex.split(command)[2:]:
+                files.pop((node, path), None)
+
+    runtime = Runtime()
+    monkeypatch.setattr(apply, "_copy_in", copy_in)
+    monkeypatch.setattr(apply, "_copy_out", copy_out)
+    monkeypatch.setattr(apply, "compile_pipeline_on_switch", compile_pipeline)
+    if failure:
+        with pytest.raises(RuntimeError, match=failure):
+            load_blackhole_pipeline(runtime, "leaf_1", source)
+    else:
+        info, pipeline = load_blackhole_pipeline(runtime, "leaf_1", source)
+        assert set(files) == {("fabric_mgr", info), ("fabric_mgr", pipeline)}
+        remove_staged_pipeline(runtime, info, pipeline)
+    assert files == {}

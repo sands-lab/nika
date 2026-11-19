@@ -79,10 +79,12 @@ class NetworkPolicyDenyParams(K8sParams):
 
 
 class NetworkPolicyDeny(K8sProblemBase):
+    root_cause_owner = "k8s"
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "isolation_http"
     symptom_class = "isolation"
     root_cause_name: str = "k8s_networkpolicy_deny"
+    CONFUSABLE_WITH = ("dns_port_blocked", "k8s_vxlan_neighbor_stale")
     description = "Kubernetes NetworkPolicy denies ingress to selected pods."
     symptom_desc = (
         "Only the pods selected by a NetworkPolicy lose inbound connectivity — "

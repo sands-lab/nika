@@ -12,9 +12,10 @@ pytestmark = pytest.mark.contract
 def test_isp_bgp_symptom_targets_attached() -> None:
     inject = resolve_inject_params(
         "bgp_blackhole_community_leak",
-        "isp_abilene_ebgp_rtbh",
+        "isp_abilene",
         "",
         seed=42,
+        isp_options={"igp": "ospf", "bgp_mode": "ebgp"},
     )
     assert inject.get("symptom_host")
     assert inject.get("probe_dst_ip")

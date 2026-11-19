@@ -129,3 +129,44 @@ def test_isis_matches_frr_level2_domain_and_passive_edges():
     )
     assert "interfaces=ether3 levels=l2 passive\n" in config
     assert "/routing ospf" not in config
+
+
+@pytest.mark.parametrize("scenario", ["isp_abilene", "isp_polska"])
+def test_netlab_policies_keep_the_customer_route_inside_its_declared_scope(scenario):
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.net_env.isp.netlab import _routeros_policy_fragments
+
+    env = get_net_env_instance(
+        scenario, device_profile="routeros", igp="ospf", bgp_mode="ebgp", rendered=False
+    )
+    bgp = env.bgp_plan
+    site = bgp.customer_site
+    assert site is not None
+    transformed = {"nodes": {node.device_name: {} for node in bgp.nodes}}
+    configs = _routeros_policy_fragments(
+        dict.fromkeys(transformed["nodes"], ""), transformed, env.plan, bgp
+    )
+    for node in bgp.nodes:
+        config = configs[node.device_name]
+        assert (
+            f'chain=POLICY-BGP-IN rule="if (dst == {site.prefix}) {{ accept; }}"'
+            in config
+        )
+        assert (
+            f'chain=POLICY-BGP-OUT rule="if (dst == {site.prefix}) {{ accept; }}"'
+            not in config
+        )
+        for session in node.sessions:
+            peer = session.remote_ip.replace(".", "_")
+            line = next(
+                line for line in config.splitlines() if f"find name={peer}]" in line
+            )
+            expected = "POLICY-BGP-OUT"
+            if session.session_type == "ibgp":
+                expected = "POLICY-BGP-IN"
+            elif (
+                node.device_name == site.provider
+                and session.remote_ip == site.partner_ip
+            ):
+                expected = "POLICY-CUSTOMER-OUT"
+            assert f"output.filter-chain={expected} " in line

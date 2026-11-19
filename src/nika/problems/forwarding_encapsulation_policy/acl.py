@@ -1,3 +1,8 @@
+from nika.problems.addressing_neighbor_naming.kubernetes import (
+    ClusterDNSPortBlock,
+    ClusterDNSPortBlockParams,
+)
+from typing import Literal
 from nika.problems.support.nft_recovery import NftDropRecovery
 import shlex
 import json
@@ -28,6 +33,7 @@ from nika.problems.support.oracle import (
     iptables_rule,
     srl_cli,
     Check,
+    iosxr,
     OraclePlaybook,
     OracleStep,
     all_of,
@@ -36,11 +42,12 @@ from nika.problems.support.oracle import (
     lacks,
     ping_works,
     process_running,
+    routeros,
     shell,
     vtysh,
 )
 from nika.problems.support.polling import wait_until
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
 
 
@@ -133,9 +140,12 @@ def _verify_nft_drop(
 _GW = "gw=$(ip -4 route show default | awk '{print $3; exit}')"
 
 
-def _nft_drops(node: str, expect: Check, purpose: str) -> OracleStep:
+def _nft_drops(net_env, node: str, expect: Check, purpose: str) -> OracleStep:
     """Evidence: the node's packet filter rules (nftables and iptables)."""
-    return shell(node, FILTER_DUMP, purpose, expect, evidence=True)
+    identity = net_env.machine_identities.get(node)
+    device_filter = identity is not None and identity.role.value in {"router", "switch"}
+    command = "nft list ruleset" if device_filter else FILTER_DUMP
+    return shell(node, command, purpose, expect, evidence=True)
 
 
 def _nft_table_rule(family: str, rule: str, description: str) -> Check:
@@ -215,6 +225,16 @@ def _frr_bgp_all_down(output: str) -> bool:
     return bool(states) and not any(state.isdigit() for state in states)
 
 
+def _iosxr_bgp_all_down(output: str) -> bool:
+    from nika.net_env.vendor_validation import _parse_iosxr_bgp_summary
+
+    try:
+        _, peers = _parse_iosxr_bgp_summary(output)
+    except ValueError:
+        return False
+    return bool(peers) and not any(peer.established for peer in peers.values())
+
+
 def _srl_bgp_all_down(output: str) -> bool:
     """SR Linux ``show ... bgp neighbor`` lists peers and none is established."""
     states = []
@@ -236,6 +256,29 @@ def _srl_cpm_drop_179(output: str) -> bool:
         any(re.search(r"match transport \S+ value 179$", r) for r in rules)
         and "action drop" in rules
         for rules in entries.values()
+    )
+
+
+def _routeros_bgp_all_down(output: str) -> bool:
+    counts = re.search(r"CONFIGURED\s+(\d+)\s+ESTABLISHED\s+(\d+)", output)
+    return bool(counts) and int(counts[1]) > 0 and int(counts[2]) == 0
+
+
+def _routeros_bgp_drop(output: str) -> bool:
+    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+    rows = routeros_terse_rows(output)
+    return all(
+        any(
+            row.get("chain") == chain
+            and row.get("protocol") == "tcp"
+            and row.get(port) == "179"
+            and not row.get("dst-port" if port == "src-port" else "src-port")
+            and row.get("action") == "drop"
+            for row in rows
+        )
+        for chain in ("input", "forward", "output")
+        for port in ("src-port", "dst-port")
     )
 
 
@@ -268,6 +311,11 @@ class BGPAclBlock(_AclRecovery, ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "bgp_acl_block"
+    CONFUSABLE_WITH = (
+        "bgp_md5_password_mismatch",
+        "bgp_ttl_security_mismatch",
+        "bgp_asn_misconfig",
+    )
     description = "BGP control-plane traffic is blocked by an ACL."
     TAGS: str = ["bgp"]
     native_router_operations = frozenset(
@@ -372,12 +420,85 @@ class BGPAclBlock(_AclRecovery, ProblemBase):
                     f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
                 )
 
+    @classmethod
+    def is_compatible(cls, target, device_profile=None, *, backend=None):
+        if device_profile == "sonic":
+            return False
+        return super().is_compatible(target, device_profile, backend=backend)
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile):
+        return device_profile != "sonic" and super().runs_on_device_profile(
+            device_profile
+        )
+
     def oracle_playbook(self, params: BGPAclBlockParams) -> OraclePlaybook:
         host = params.host_name
         finding = (
             f"An ACL on {host} drops BGP's TCP port 179, so its BGP sessions "
             "cannot re-establish and the routes they carried are lost."
         )
+        if native_router_profile(self.net_env, host) == "iosxr":
+            return OraclePlaybook(
+                finding=finding,
+                steps=[
+                    iosxr(
+                        host,
+                        "show bgp summary",
+                        "Read BGP session state.",
+                        Check("no peer is Established", _iosxr_bgp_all_down),
+                        evidence=True,
+                        attempts=6,
+                        interval_sec=10,
+                    ),
+                    iosxr(
+                        host,
+                        "show running-config",
+                        "Read BGP ACL entries and interface attachments.",
+                        Check(
+                            "TCP/179 is denied by an attached bidirectional ACL",
+                            lambda out: (
+                                bool(re.search(r"deny tcp any any eq (?:bgp|179)", out))
+                                and bool(
+                                    re.search(r"deny tcp any eq (?:bgp|179) any", out)
+                                )
+                                and "ingress" in out
+                                and "egress" in out
+                            ),
+                        ),
+                        evidence=True,
+                    ),
+                ],
+            )
+        if native_router_profile(self.net_env, host) == "routeros":
+            return OraclePlaybook(
+                finding=finding,
+                steps=[
+                    routeros(
+                        host,
+                        ':put "CONFIGURED"; /routing/bgp/connection/print count-only; '
+                        ':put "ESTABLISHED"; /routing/bgp/session/print count-only where established=yes',
+                        f"Check BGP session state on {host}.",
+                        Check(
+                            "BGP peers are configured and none is Established",
+                            _routeros_bgp_all_down,
+                        ),
+                        evidence=True,
+                        attempts=6,
+                        interval_sec=10,
+                    ),
+                    routeros(
+                        host,
+                        "/ip/firewall/filter/print terse where !disabled",
+                        f"Inspect {host}'s enabled BGP TCP filters.",
+                        Check(
+                            "input, output and forward chains drop TCP source and destination port 179",
+                            _routeros_bgp_drop,
+                        ),
+                        evidence=True,
+                    ),
+                ],
+            )
         if srl_cli(self.net_env, host):
             return OraclePlaybook(
                 finding=finding,
@@ -431,11 +552,12 @@ class BGPAclBlock(_AclRecovery, ProblemBase):
                 ),
                 shell(
                     host,
-                    "ss -tn state all '( sport = :179 or dport = :179 )' | head -20",
+                    "ss -tn state all sport = :179 or dport = :179 | head -20",
                     f"Look at BGP TCP connections on {host}.",
                     lacks(r"^ESTAB", "no BGP TCP connection is established"),
                 ),
                 _nft_drops(
+                    self.net_env,
                     host,
                     any_of(
                         all_of(
@@ -532,6 +654,7 @@ class OSPFAclBlock(_AclRecovery, ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "ospf_acl_block"
+    CONFUSABLE_WITH = ("ospf_hello_interval_mismatch", "ospf_interface_not_enabled")
     description = "OSPF control-plane traffic is blocked by an ACL."
     TAGS: str = ["ospf"]
     native_router_operations = frozenset({"block_ospf", "ospf_blocked"})
@@ -640,8 +763,99 @@ class OSPFAclBlock(_AclRecovery, ProblemBase):
                     f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
                 )
 
+    @classmethod
+    def is_compatible(cls, target, device_profile=None, *, backend=None):
+        return device_profile != "sonic" and super().is_compatible(
+            target, device_profile, backend=backend
+        )
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile):
+        return device_profile != "sonic" and super().runs_on_device_profile(
+            device_profile
+        )
+
     def oracle_playbook(self, params: OSPFAclBlockParams) -> OraclePlaybook:
         host = params.host_name
+        profile = native_router_profile(self.net_env, host)
+        if profile == "iosxr":
+            return OraclePlaybook(
+                finding=f"An attached ACL on {host} drops OSPF.",
+                steps=[
+                    iosxr(
+                        host,
+                        "show ospf interface",
+                        "Read live OSPF adjacency counts.",
+                        Check("no OSPF adjacency remains", _xr_ospf_no_adjacencies),
+                        evidence=True,
+                        attempts=8,
+                        interval_sec=10,
+                    ),
+                    iosxr(
+                        host,
+                        "show running-config",
+                        "Read the OSPF ACL and interface bindings.",
+                        Check("the attached ACL denies OSPF", _xr_ospf_drop_applied),
+                        evidence=True,
+                    ),
+                ],
+            )
+        if profile == "routeros":
+            return OraclePlaybook(
+                finding=f"A firewall input rule on {host} drops OSPF.",
+                steps=[
+                    routeros(
+                        host,
+                        "/routing ospf neighbor print count-only",
+                        "Read the remaining OSPF adjacencies.",
+                        contains(r"^0\s*$", "no neighbor remains"),
+                        evidence=True,
+                        attempts=8,
+                        interval_sec=10,
+                    ),
+                    routeros(
+                        host,
+                        "/ip firewall filter print terse where !disabled",
+                        "Read OSPF input filtering.",
+                        Check("an enabled input rule drops OSPF", _routeros_ospf_drop),
+                        evidence=True,
+                    ),
+                ],
+            )
+        if srl_cli(self.net_env, host):
+            return OraclePlaybook(
+                finding=f"The CPM ACL on {host} drops OSPF.",
+                steps=[
+                    OracleStep(
+                        "Read OSPF adjacency state.",
+                        "srl_exec_cli",
+                        {
+                            "device_name": host,
+                            "command": "show network-instance default protocols ospf neighbor",
+                        },
+                        lacks(r"\bfull\b", "no Full adjacency"),
+                        evidence=True,
+                        attempts=8,
+                        interval_sec=10,
+                    ),
+                    OracleStep(
+                        "Read the CPM IPv4 ACL.",
+                        "srl_exec_cli",
+                        {
+                            "device_name": host,
+                            "command": "info flat from running acl acl-filter cpm type ipv4",
+                        },
+                        Check(
+                            "a CPM entry matches OSPF and drops it",
+                            lambda out: (
+                                bool(re.search(r"protocol (?:89|ospf)", out))
+                                and "action drop" in out
+                            ),
+                        ),
+                        evidence=True,
+                    ),
+                ],
+            )
         return OraclePlaybook(
             finding=(
                 f"An ACL on {host} drops OSPF (IP protocol 89), so its OSPF "
@@ -670,6 +884,7 @@ class OSPFAclBlock(_AclRecovery, ProblemBase):
                     timeout=20,
                 ),
                 _nft_drops(
+                    self.net_env,
                     host,
                     any_of(
                         _nft_table_rule(
@@ -697,10 +912,11 @@ class ARPAclBlock(_AclRecovery, ProblemBase):
     symptom_probe = "path_ping"
     symptom_class = "unreachable"
     root_cause_name = "arp_acl_block"
+    CONFUSABLE_WITH = ("arp_cache_poisoning",)
     description = "ARP is blocked by an ACL."
     TAGS: str = ["arp"]
     # k8s_lab / llmd_lab client images lack nftables and cannot apt-install offline.
-    COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS | {"iosxr_simple_bgp"}
+    COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS
 
     Params = ARPAclBlockParams
 
@@ -755,6 +971,7 @@ class ARPAclBlock(_AclRecovery, ProblemBase):
                     evidence=True,
                 ),
                 _nft_drops(
+                    self.net_env,
                     host,
                     _nft_table_rule(
                         "arp", r"^\d+:\s*drop$", "a rule drops every ARP frame"
@@ -770,40 +987,13 @@ class ARPAclBlock(_AclRecovery, ProblemBase):
 # ==================================================================
 
 
-class IcmpAclBlockParams(BaseModel):
-    """Parameters for injecting an ICMP ACL block fault."""
+class HostACLBlockParams(BaseModel):
+    host_name: str = Field(description="Host whose packet filter drops traffic.")
+    protocol: Literal["icmp", "http"] = "icmp"
 
-    host_name: str = Field(description="Target host name.")
 
-
-class IcmpAclBlock(_AclRecovery, ProblemBase):
-    failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    symptom_probe = "path_ping"
-    symptom_class = "unreachable"
-    root_cause_name = "icmp_acl_block"
-    description = "ICMP is blocked by an ACL."
-    supported_backends = ("kathara", "containerlab")
-    TAGS: str = ["icmp"]
-
-    Params = IcmpAclBlockParams
-
-    @classmethod
-    def benchmark_inject_params(cls, ctx):
-        return {"host_name": _host_acl_target(ctx)}
-
-    def root_cause_resources(self, params: IcmpAclBlockParams):
-        return [node_resource(params.host_name)]
-
-    def inject_fault(self, params: IcmpAclBlockParams):
-        self._add_drop_rule(params.host_name, "ip protocol icmp drop", family="ip")
-
-    def verify_fault(self, params: IcmpAclBlockParams) -> dict:
-        """Verify nftables has a rule blocking ICMP traffic."""
-        return _verify_nft_drop(
-            self, params.host_name, "ip protocol icmp drop", family="ip"
-        )
-
-    def oracle_playbook(self, params: IcmpAclBlockParams) -> OraclePlaybook:
+class _ICMPACL:
+    def oracle_playbook(self, params: HostACLBlockParams) -> OraclePlaybook:
         host = params.host_name
         return OraclePlaybook(
             finding=(
@@ -828,6 +1018,7 @@ class IcmpAclBlock(_AclRecovery, ProblemBase):
                 ),
                 _tcp_still_works(self, host),
                 _nft_drops(
+                    self.net_env,
                     host,
                     _nft_table_rule(
                         "ip", r"ip protocol icmp drop", "a rule drops IP protocol ICMP"
@@ -843,39 +1034,12 @@ class IcmpAclBlock(_AclRecovery, ProblemBase):
 # ==================================================================
 
 
-class HttpAclBlockParams(BaseModel):
-    """Parameters for injecting an HTTP ACL block fault."""
-
-    host_name: str = Field(description="Target host name.")
-
-
-class HttpAclBlock(_AclRecovery, ProblemBase):
-    failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
-    symptom_probe = "path_http"
-    symptom_class = "unreachable"
-    root_cause_name = "http_acl_block"
-    description = "HTTP traffic is blocked by an ACL."
-    TAGS: str = ["http", "pc"]
-
-    Params = HttpAclBlockParams
-
-    @classmethod
-    def benchmark_inject_params(cls, ctx):
-        return {"host_name": _host_acl_target(ctx)}
-
-    def root_cause_resources(self, params: HttpAclBlockParams):
-        return [node_resource(params.host_name)]
-
-    def inject_fault(self, params: HttpAclBlockParams):
-        self._add_drop_rule(params.host_name, "tcp dport 80 drop", family="inet")
-
-    def verify_fault(self, params: HttpAclBlockParams) -> dict:
-        """Verify nftables has a rule blocking HTTP (port 80) traffic."""
-        return _verify_nft_drop(self, params.host_name, "tcp dport 80 drop")
-
-    def oracle_playbook(self, params: HttpAclBlockParams) -> OraclePlaybook:
+class _HTTPACL:
+    def oracle_playbook(self, params: HostACLBlockParams) -> OraclePlaybook:
         host = params.host_name
-        path = _probe_path(self)
+        path = self.probe_path(params)
+        _, rule = self._rule(params)
+        port = rule.split()[2]
         steps = []
         if path is not None and (path.icmp_ip or path.dst_ip):
             steps.append(
@@ -899,16 +1063,17 @@ class HttpAclBlock(_AclRecovery, ProblemBase):
             )
         steps.append(
             _nft_drops(
+                self.net_env,
                 host,
                 _nft_table_rule(
-                    "inet", r"tcp dport 80 drop", "a rule drops TCP destination port 80"
+                    "inet", rule, f"a rule drops TCP destination port {port}"
                 ),
                 f"Inspect the packet filter on {host}.",
             )
         )
         return OraclePlaybook(
             finding=(
-                f"An nftables rule on {host} drops TCP port 80, so its HTTP "
+                f"An nftables rule on {host} drops TCP port {port}, so its HTTP "
                 "requests time out."
             ),
             steps=steps,
@@ -920,41 +1085,86 @@ class HttpAclBlock(_AclRecovery, ProblemBase):
 # ==================================================================
 
 
-class DNSPortBlockedParams(BaseModel):
+class DNSPortBlockedParams(ClusterDNSPortBlockParams):
     """Parameters for injecting a DNS port blocked fault."""
 
-    host_name: str = Field(description="Target DNS server host name.")
+    host_name: str | None = Field(
+        default=None, description="Target DNS server host name."
+    )
 
 
-class DNSPortBlocked(_AclRecovery, ProblemBase):
+class DNSPortBlocked(_AclRecovery, ClusterDNSPortBlock):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "dns_port_blocked"
+    CONFUSABLE_WITH = (
+        "dns_service_down",
+        "k8s_coredns_forward_loop",
+        "k8s_networkpolicy_deny",
+    )
 
     description = "DNS service port is blocked."
     TAGS: str = ["dns", "http"]
+    required_capabilities = ("exec",)
+    supported_backends = None
+    BENCHMARK_TARGETS = "node"
+
+    def resolve_params(self, params=None, **overrides):
+        if getattr(self.net_env, "kubernetes_nodes", None):
+            return super().resolve_params(params, **overrides)
+        return ProblemBase.resolve_params(self, params, **overrides)
+
+    def recheck_artifact(self, params=None):
+        if getattr(self.net_env, "kubernetes_nodes", None):
+            return ClusterDNSPortBlock.recheck_artifact(self, params)
+        return ProblemBase.recheck_artifact(self, params)
+
+    @classmethod
+    def is_compatible(cls, target, device_profile=None, *, backend=None):
+        from nika.net_env.net_env_pool import effective_tags
+
+        if "kubernetes" in effective_tags(target, device_profile):
+            return ClusterDNSPortBlock.is_compatible(
+                target, device_profile, backend=backend
+            )
+        return super().is_compatible(target, device_profile, backend=backend)
+
+    def recover_fault(self, params):
+        if getattr(self.net_env, "kubernetes_nodes", None):
+            return ClusterDNSPortBlock.recover_fault(self, params)
+        return _AclRecovery.recover_fault(self, params)
 
     Params = DNSPortBlockedParams
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
+        if getattr(ctx.net_env, "kubernetes_nodes", None):
+            return ClusterDNSPortBlock.benchmark_inject_params(ctx)
         return {"host_name": ctx.dns0}
 
     def root_cause_resources(self, params: DNSPortBlockedParams):
+        if params.node_name or getattr(self.net_env, "kubernetes_nodes", None):
+            return ClusterDNSPortBlock.root_cause_resources(self, params)
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DNSPortBlockedParams):
+        if getattr(self.net_env, "kubernetes_nodes", None):
+            return ClusterDNSPortBlock.inject_fault(self, params)
         self._add_drop_rule(params.host_name, "tcp dport 53 drop", family="inet")
         self._add_drop_rule(params.host_name, "udp dport 53 drop", family="inet")
 
     def verify_fault(self, params: DNSPortBlockedParams) -> dict:
         """Verify nftables has rules blocking DNS port 53."""
+        if getattr(self.net_env, "kubernetes_nodes", None):
+            return ClusterDNSPortBlock.verify_fault(self, params)
         return _verify_nft_drop(
             self, params.host_name, "tcp dport 53 drop", "udp dport 53 drop"
         )
 
     def oracle_playbook(self, params: DNSPortBlockedParams) -> OraclePlaybook:
+        if getattr(self.net_env, "kubernetes_nodes", None):
+            return ClusterDNSPortBlock.oracle_playbook(self, params)
         host = params.host_name
         steps = dns_client_steps(
             self.net_env,
@@ -980,6 +1190,7 @@ class DNSPortBlocked(_AclRecovery, ProblemBase):
                 evidence=True,
             ),
             _nft_drops(
+                self.net_env,
                 host,
                 all_of(
                     _nft_table_rule(
@@ -999,3 +1210,85 @@ class DNSPortBlocked(_AclRecovery, ProblemBase):
             ),
             steps=steps,
         )
+
+
+class HostACLBlock(_AclRecovery, ProblemBase):
+    def probe_path(self, params):
+        from dataclasses import replace
+        from urllib.parse import urlsplit
+
+        from nika.validation.symptom.probe import _resolve_path
+
+        path = _resolve_path(self.scenario_name, params, net_env=self.net_env)
+        if path is not None and params.protocol == "http" and not path.http_url:
+            workload = self.net_env.business_workload()
+            intent = self.net_env.probe_intent()
+            isolated = intent.isolation_matcher() if intent else lambda _a, _b: False
+            own_ip = self.runtime.get_data_plane_host_ip(params.host_name)
+            urls = [
+                urlsplit(arg)
+                for process in sorted(
+                    workload.processes if workload else (),
+                    key=lambda process: process.node != params.host_name,
+                )
+                if not isolated(params.host_name, process.node)
+                for arg in process.args
+                if arg.startswith("http://") and urlsplit(arg).hostname != own_ip
+            ]
+            if urls:
+                url = urls[0]
+                path = replace(
+                    path,
+                    dst_ip=url.hostname,
+                    http_url=f"http://{url.netloc}/",
+                    icmp_ip=None,
+                )
+        return path
+
+    def _rule(self, params):
+        from urllib.parse import urlsplit
+
+        path = self.probe_path(params) if params.protocol == "http" else None
+        port = urlsplit(path.http_url).port or 80 if path and path.http_url else 80
+        return (
+            ("inet", f"tcp dport {port} drop")
+            if params.protocol == "http"
+            else ("ip", "ip protocol icmp drop")
+        )
+
+    failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    root_cause_name = "host_acl_block"
+    description = "A host packet filter blocks the selected protocol."
+    TAGS = ["icmp"]
+    supported_backends = ("kathara", "containerlab")
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
+    CONFUSABLE_WITH = ("device_flow_blackhole",)
+    Params = HostACLBlockParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": _host_acl_target(ctx)}
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        return [
+            {**row, "protocol": protocol}
+            for row in super().benchmark_inject_options(ctx, base)
+            for protocol in ("icmp", "http")
+        ]
+
+    def root_cause_resources(self, params):
+        return [node_resource(params.host_name)]
+
+    def inject_fault(self, params):
+        family, rule = self._rule(params)
+        self._add_drop_rule(params.host_name, rule, family=family)
+
+    def verify_fault(self, params):
+        family, rule = self._rule(params)
+        return _verify_nft_drop(self, params.host_name, rule, family=family)
+
+    def oracle_playbook(self, params):
+        impl = _HTTPACL if params.protocol == "http" else _ICMPACL
+        return impl.oracle_playbook(self, params)

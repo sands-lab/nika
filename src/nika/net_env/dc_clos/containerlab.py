@@ -404,7 +404,8 @@ class ContainerlabDCClos(DCClos):
         )
         output = runtime.exec(
             node,
-            "bash /tmp/endpoint.sh; result=$?; rm /tmp/endpoint.sh; echo setup_rc=$result",
+            "bash -ex /tmp/endpoint.sh > /var/log/startup.log 2>&1; result=$?; "
+            "rm /tmp/endpoint.sh; cat /var/log/startup.log; echo setup_rc=$result",
             timeout=60,
         )
         if "setup_rc=0" not in output:
@@ -449,7 +450,13 @@ class ContainerlabDCClos(DCClos):
         return verify_dc_clos_lab(
             self._build_runtime(),
             scenario_name=self.LAB_NAME,
-            nodes=tuple(self.machine_identities),
+            # Exporter helpers share router namespaces and are checked by
+            # telemetry readiness rather than the network node inventory.
+            nodes=tuple(
+                name
+                for name, identity in self.machine_identities.items()
+                if identity.role != NodeRole.INFRASTRUCTURE
+            ),
             bgp_neighbors=self.bgp_neighbors,
             client_addresses=self.client_addresses,
             dns_servers=self.dns_servers,

@@ -99,68 +99,14 @@ def test_endpoint_faults_probe_a_remote_rack(scenario):
 
 
 @pytest.mark.contract
-@pytest.mark.parametrize("release", ["0.3.0"])
-def test_published_clos_keeps_original_resource_names(release):
-    from nika.net_env.net_env_pool import get_net_env_instance
-
-    env = get_net_env_instance("dc_clos", topo_size="s", environment_release=release)
-    env.load_machines()
-    assert "client_0" in env.hosts
-    assert "dns_pod0" in env.lab.machines
-    assert "leaf_router_0_0" in env.routers
-    from nika.problems.registry import get_problem_instance
-
-    problem = get_problem_instance(["host_missing_ip"], "dc_clos", release=release)
-    assert "client_0" in problem.net_env.hosts
-    from nika.net_env.net_env_pool import get_probe_path
-
-    assert get_probe_path("dc_clos", net_env=problem.net_env).src_host == "client_0"
-    current = get_net_env_instance("dc_clos", topo_size="s")
-    assert "client_1_1" in current.hosts
-    assert "client_0" not in current.lab.machines
-
-
-@pytest.mark.contract
-@pytest.mark.parametrize(
-    ("backend", "profile"),
-    [
-        ("containerlab", None),
-        ("containerlab", "nokia_srlinux"),
-        ("containerlab", "sonic"),
-        ("kathara", "iosxr"),
-        ("kathara", "routeros"),
-    ],
-)
-def test_published_release_preserves_backend_and_native_profile(backend, profile):
-    from nika.net_env.compat.published_clos import DCClos
-    from nika.net_env.net_env_pool import get_net_env_instance
-
-    current = get_net_env_instance(
-        "dc_clos", backend=backend, topo_size="s", device_profile=profile
-    )
-    published = get_net_env_instance(
-        "dc_clos",
-        backend=backend,
-        topo_size="s",
-        device_profile=profile,
-        environment_release="0.3.0",
-    )
-    assert type(published) is type(current)
-    assert not isinstance(published, DCClos)
-    assert published.backend == backend
-    assert published.device_profile == current.device_profile
-    assert "client_1_1" in published.hosts
-
-
-@pytest.mark.contract
-@pytest.mark.parametrize("scenario", ["sdn_l3_clos", "p4_dc_fabric"])
-def test_published_packet_fabric_keeps_original_port_order(scenario):
-    env = load_offline_net_env(scenario, "s", release="0.3.0")
-    assert env.model.endpoints_per_leaf == 2
-    assert env.model.port_to_peer("leaf_1", "spine_1").name == "eth2"
+@pytest.mark.parametrize("scenario", ["dc_clos", "sdn_l3_clos", "p4_dc_fabric"])
+def test_provisional_release_uses_current_design_and_resource_names(scenario):
     current = load_offline_net_env(scenario, "s")
-    assert current.model.endpoints_per_leaf == 3
-    assert current.model.port_to_peer("leaf_1", "spine_1").name == "eth3"
+    release = load_offline_net_env(scenario, "s", release="0.3.0")
+    assert type(release) is type(current)
+    assert release.model == current.model
+    assert release.model.ports == current.model.ports
+    assert release.lab.machines.keys() == current.lab.machines.keys()
 
 
 @pytest.mark.contract
@@ -182,3 +128,15 @@ def test_fault_targets_require_their_layer_two_semantics(scenario, failure, capa
             {"host_name": "web_1", "host_name_2": "client_1_1"},
             "s",
         )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("profile", ["frr", "iosxr", "routeros"])
+def test_dc_clos_creates_bgp_origin_interface_on_every_frr_router(profile):
+    from nika.net_env.utils.kathara.frr_origin import ENSURE_BGP_ORIGIN_IFACE_CMD
+
+    env = load_offline_net_env("dc_clos", topo_size="s", device_profile=profile)
+    for router in (*env.model.leaves, *env.model.spines):
+        if router not in env.native_routers:
+            startup = env.lab.fs.readtext(f"{router}.startup")
+            assert ENSURE_BGP_ORIGIN_IFACE_CMD in startup

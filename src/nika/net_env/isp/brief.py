@@ -29,6 +29,20 @@ def ebgp_scope_note(bgp_plan: "BgpPlan | None") -> str:
     return EBGP_SCOPE_NOTE if bgp_plan is not None and bgp_plan.mode == "ebgp" else ""
 
 
+def security_profile_notes(bgp_inventory: Mapping) -> str:
+    """Sentences on the deployment's RPKI/ROV and RTBH policy, if present."""
+    note = ""
+    if bgp_inventory.get("rpki"):
+        from nika.net_env.isp.bgp.rpki_profile import rpki_design_note
+
+        note += rpki_design_note(dict(bgp_inventory))
+    if bgp_inventory.get("rtbh"):
+        from nika.net_env.isp.bgp.rtbh_profile import rtbh_design_note
+
+        note += rtbh_design_note(dict(bgp_inventory))
+    return note
+
+
 def stub_probe_intent(
     bgp_plan: "BgpPlan | None", traffic: "IspTrafficAttachment"
 ) -> ProbeIntent | None:

@@ -1,12 +1,23 @@
 from __future__ import annotations
 
-import time
 from typing import Any
+from collections import Counter
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from nika.problems.base import ProblemBase, build_verify_result
 from nika.problems.rca import ProblemGroundTruth
+
+
+def fault_instance_keys(names: list[str] | tuple[str, ...]) -> list[str]:
+    """Stable parameter keys for repeated placements of the same failure."""
+    totals = Counter(names)
+    seen = Counter()
+    keys = []
+    for name in names:
+        seen[name] += 1
+        keys.append(f"{name}[{seen[name]}]" if totals[name] > 1 else name)
+    return keys
 
 
 class MultiFaultParams(BaseModel):
@@ -74,12 +85,14 @@ class MultiFaultProblem(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.sub_faults = sub_faults
         self._recovery_pending: list[tuple[str, ProblemBase, Any]] = []
+        self._recovery_health_pending = False
         self.problem_names = list(problem_names or [])
         if not self.problem_names:
             self.problem_names = [
                 str(getattr(fault, "root_cause_name", f"fault_{idx}"))
                 for idx, fault in enumerate(sub_faults)
             ]
+        self.problem_names = fault_instance_keys(self.problem_names)
         self._refresh_aggregates()
 
     @classmethod
@@ -151,15 +164,14 @@ class MultiFaultProblem(ProblemBase):
                 "MultiFaultProblem requires resolved parameters before injection."
             )
         pairs = self._fault_pairs()
-        for index, (name, fault) in enumerate(pairs):
+        self._recovery_health_pending = True
+        for name, fault in pairs:
             parsed = resolved.sub_params.get(name)
             self._recovery_pending.append((name, fault, parsed))
             if parsed is not None:
                 fault.inject_fault(parsed)
             else:
                 fault.inject_fault()
-            if index < len(pairs) - 1 and fault.MULTI_INJECT_DWELL_SEC:
-                time.sleep(fault.MULTI_INJECT_DWELL_SEC)
         self._refresh_aggregates()
 
     def recover_fault(self, params: MultiFaultParams | None = None) -> dict:
@@ -174,7 +186,10 @@ class MultiFaultProblem(ProblemBase):
                     raise NotImplementedError(
                         f"{name} does not implement recover_fault"
                     )
-                result = recover(parsed) if parsed is not None else recover()
+                from nika.problems.support.recovery import artifact_recovery
+
+                with artifact_recovery():
+                    result = recover(parsed) if parsed is not None else recover()
                 if not isinstance(result, dict) or result.get("verified") is not True:
                     results.append({"problem": name, "result": result})
                     break
@@ -183,6 +198,11 @@ class MultiFaultProblem(ProblemBase):
                 break
             results.append({"problem": name, "result": result})
             self._recovery_pending.pop()
+        if not self._recovery_pending and self._recovery_health_pending:
+            from nika.problems.support.recovery import verify_recovered_environment
+
+            verify_recovered_environment(self.net_env)
+            self._recovery_health_pending = False
         return build_verify_result(
             fault_type=str(self.root_cause_name),
             verified=not self._recovery_pending,

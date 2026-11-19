@@ -84,7 +84,7 @@ class P4DcGateway(NetworkEnvBase):
         self.web_urls = self.model.web_urls
         self.desc = textwrap.dedent(
             f"""\
-            P4Runtime gateway-spine-leaf fabric with 5-tuple ECMP, INT-MX,
+            P4Runtime gateway-spine-leaf fabric with 5-tuple ECMP, INT-MD,
             per-port ECN configuration, gateway flow tracking, and a minimal
             stateful L4 VIP load balancer.
             External clients attach to their gateway over a provider access
@@ -115,7 +115,7 @@ class P4DcGateway(NetworkEnvBase):
         switches = {}
         for name in self.model.fabric_switches():
             switches[name] = self.lab.new_machine(
-                name, **{"image": SWITCH_IMAGE, "cpus": 0.5, "mem": "512m"}
+                name, **{"image": SWITCH_IMAGE, "cpus": 1, "mem": "512m"}
             )
             self.declare_machine(
                 name,
@@ -164,7 +164,7 @@ class P4DcGateway(NetworkEnvBase):
         self.declare_machine(
             "collector",
             role=NodeRole.INFRASTRUCTURE,
-            capabilities=("linux", "telemetry"),
+            capabilities=("linux", "telemetry", "int_collector"),
         )
         for name in self.model.fabric_switches():
             self.lab.connect_machine_to_link(name, "oob_control")
@@ -175,23 +175,22 @@ class P4DcGateway(NetworkEnvBase):
         for name, machine in switches.items():
             info = self.model.switch_info[name]
             ports = self.model.ports[name]
-            cmds = _switch_startup(ports, info.device_id, len(ports), info.oob_ip)
             telemetry_eth = len(ports) + 1
+            cmds = _switch_startup(ports, info.device_id, len(ports), info.oob_ip)
+            cmds = [
+                command.replace(
+                    "--no-p4",
+                    f"-i {telemetry_eth}@eth{telemetry_eth} --thrift-port 9090 --no-p4",
+                )
+                if command.startswith("simple_switch_grpc ")
+                else command
+                for command in cmds
+            ]
             cmds.insert(
                 -2, f"ip addr add {info.telemetry_ip}/24 dev eth{telemetry_eth}"
             )
             cmds.insert(-2, f"ip link set eth{telemetry_eth} up")
-            machine.create_file_from_path(
-                str(_PKG / "hop_exporter.py"), "hop_exporter.py"
-            )
             port_map = {port.name: port.bmv2_port for port in ports}
-            cmds.append(
-                "python3 hop_exporter.py "
-                f"--switch-id {info.device_id} --role {info.role} "
-                f"--collector {COLLECTOR_TELEMETRY_IP} "
-                f"--ports '{json.dumps(port_map)}' "
-                ">/tmp/hop-exporter.log 2>&1 &"
-            )
             if info.role == "gateway":
                 machine.create_file_from_path(str(_PKG / "lb_agent.py"), "lb_agent.py")
                 cmds.append(
@@ -244,16 +243,34 @@ class P4DcGateway(NetworkEnvBase):
             "fabric_mgr.startup",
         )
         collector.create_file_from_path(str(_PKG / "collector.py"), "collector.py")
+        int_switches = {
+            str(info.device_id): {
+                "name": name,
+                "role": info.role,
+                "ports": [port.bmv2_port for port in self.model.ports[name]],
+                "access_ports": [
+                    port.bmv2_port
+                    for port in self.model.ports[name]
+                    if port.role in {"client", "service"}
+                ],
+            }
+            for name, info in self.model.switch_info.items()
+        }
         self.lab.create_file_from_list(
             [
                 f"ip addr add {COLLECTOR_TELEMETRY_IP}/24 dev eth0",
                 "ip link set eth0 up",
                 f"mkdir -p {os.path.dirname(INT_REPORTS)}",
-                f"python3 collector.py --output {INT_REPORTS} >/tmp/collector.log 2>&1 &",
+                f"python3 collector.py --output {INT_REPORTS} "
+                f"--switches '{json.dumps(int_switches)}' >/tmp/collector.log 2>&1 &",
             ],
             "collector.startup",
         )
         self.load_machines()
+
+    def native_lab_cpus(self) -> int:
+        """Reserve one guest vCPU per three software forwarding switches."""
+        return -(-len(self.model.switch_info) // 3)
 
     def deploy(self):
         super().deploy()
@@ -271,6 +288,7 @@ class P4DcGateway(NetworkEnvBase):
         for client in self.model.clients:
             seed = seed_for(client.name)
             processes += [
+                # Keep sixteen persistent sockets at the original aggregate cadence.
                 WorkloadProcess(
                     node=client.name,
                     app="browser",
@@ -280,9 +298,11 @@ class P4DcGateway(NetworkEnvBase):
                         f"{vip}/small.bin",
                         "--keepalive",
                         "--users",
-                        "4",
+                        "16",
                         "--pause",
-                        "2-6",
+                        "8-24",
+                        "--lifetime",
+                        "3600",
                         "--seed",
                         seed,
                     ),

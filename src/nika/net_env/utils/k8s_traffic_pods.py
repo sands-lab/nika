@@ -1,8 +1,7 @@
 """Run traffic programs on Kubernetes nodes as host-network pods.
 
-k3s nodes have no Python, so a background traffic profile
-(:mod:`nika.traffic.profiles`) cannot start its programs there with an exec.
-Each program instead runs in a pod pinned to its node with ``hostNetwork``: it
+Each background traffic program (:mod:`nika.traffic.profiles`) runs in a pod
+pinned to its node with ``hostNetwork``: it
 uses the node's addresses and routes, as a program on the node would. The
 image is one the lab already caches, so no registry access is needed.
 """
@@ -62,6 +61,7 @@ def _manifest(processes: list[WorkloadProcess], image: str) -> dict:
                     "nodeName": process.node,
                     "hostNetwork": True,
                     "dnsPolicy": "ClusterFirstWithHostNet",
+                    "automountServiceAccountToken": False,
                     "tolerations": [{"operator": "Exists"}],
                     "containers": [
                         {
@@ -100,14 +100,19 @@ def start_pod_programs(
     processes = list(processes)
     if not processes:
         return
-    encoded = base64.b64encode(
-        json.dumps(_manifest(processes, image)).encode()
-    ).decode()
-    runtime.exec(
-        controller,
-        f"printf '%s' {encoded} | base64 -d | kubectl apply -f - >/dev/null",
-        timeout=60,
-    )
+    items = _manifest(processes, image)["items"]
+    # Create the namespace and program ConfigMap before kubelets mount it.
+    for resources in (items[:2], items[2:]):
+        encoded = base64.b64encode(
+            json.dumps(
+                {"apiVersion": "v1", "kind": "List", "items": resources}
+            ).encode()
+        ).decode()
+        runtime.exec(
+            controller,
+            f"printf '%s' {encoded} | base64 -d | kubectl apply -f - >/dev/null",
+            timeout=60,
+        )
     names = [_pod_name(p) for p in processes]
     runtime.exec(
         controller,
@@ -144,6 +149,29 @@ class K8sTrafficPods:
 
     TRAFFIC_POD_IMAGE: str
     kubernetes_nodes: list[str]
+
+    def seal_baseline(self) -> None:
+        """Clear resolved bootstrap warnings after all startup programs are ready."""
+        if not self.SEAL_BASELINE:
+            return
+        from nika.net_env.verify import verify_lab_with_retry
+        from nika.service.lab.checked_exec import checked_exec
+
+        verify_lab_with_retry(self)
+        checked_exec(
+            self._build_runtime().exec,
+            "controller",
+            "kubectl --request-timeout=150s wait -A --for=condition=Ready pods --all "
+            "--field-selector='status.phase!=Succeeded' --timeout=120s",
+            timeout=160,
+        )
+        super().seal_baseline()
+        checked_exec(
+            self._build_runtime().exec,
+            "controller",
+            "kubectl --request-timeout=30s delete events -A --field-selector type=Warning",
+            timeout=60,
+        )
 
     def traffic_pod_nodes(self) -> frozenset[str]:
         return frozenset(self.kubernetes_nodes or ())

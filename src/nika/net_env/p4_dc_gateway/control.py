@@ -99,8 +99,13 @@ def build_gateway_intent(model: GatewayFabricModel) -> dict[str, Any]:
             "ecn": {str(port): DEFAULT_ECN_THRESHOLD for port in ports},
             "int": {
                 "enabled": info.role in {"gateway", "leaf"},
-                "source": info.role == "gateway",
-                "sink": info.role == "leaf",
+                "source": info.role in {"gateway", "leaf"},
+                "sink": info.role in {"gateway", "leaf"},
+                "access_ports": [
+                    p.bmv2_port
+                    for p in model.ports[switch]
+                    if p.role in {"client", "service"}
+                ],
                 "mtu": DEFAULT_INT_MTU,
             },
         }

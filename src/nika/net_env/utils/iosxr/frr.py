@@ -203,6 +203,10 @@ def retained_netlab_fragment(router, bound: set[tuple[str, str]]) -> str:
     if open_policy:
         lines.extend([f"route-policy {PASS_POLICY}", " pass", "end-policy", "!"])
     lines.append(f"router bgp {router.asn}")
+    if open_policy:
+        # Explicit pass policies preserve the design without bypassing the
+        # platform's missing-policy rejection on any neighbor.
+        lines.append(" no bgp unsafe-ebgp-policy")
     if router.bgp_multipath:
         lines.append(" bgp bestpath as-path multipath-relax")
         lines.extend(

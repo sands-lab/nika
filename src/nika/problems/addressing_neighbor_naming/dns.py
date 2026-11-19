@@ -24,6 +24,7 @@ from nika.problems.support.oracle import (
     contains,
     http_probe,
     numbers_after,
+    service_address_command,
     shell,
 )
 from nika.problems.support.recovery import FileSnapshot, checked_exec
@@ -130,6 +131,7 @@ class DNSRecordError(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "dns_record_error"
+    CONFUSABLE_WITH = ("host_incorrect_dns",)
 
     description = "DNS returns an incorrect record for a name."
     symptom_desc = "Some hosts cannot access external websites."
@@ -192,6 +194,21 @@ class DNSRecordError(ProblemBase):
     def root_cause_resources(self, params: DNSRecordErrorParams):
         return [node_resource(params.host_name)]
 
+    def _refresh_zone_metadata(self, target: str) -> None:
+        """Keep a zone edit from singling out a DNS asset or matching server."""
+        identities = self.net_env.machine_identities
+        identity = identities[target]
+        for node, peer in sorted(identities.items()):
+            if peer.role != identity.role or peer.capabilities != identity.capabilities:
+                continue
+            checked_exec(
+                self.runtime,
+                node,
+                "for file in /etc/bind/*; do "
+                'if [ -f "$file" ] && [ ! -L "$file" ]; then '
+                'touch -c -r "$file" -- "$file" || exit; fi; done',
+            )
+
     def inject_fault(self, params: DNSRecordErrorParams):
         self._zone_snapshot = FileSnapshot.capture(
             self.runtime, params.host_name, f"/etc/bind/db.{params.target_domain}"
@@ -226,6 +243,7 @@ class DNSRecordError(ProblemBase):
                 f"rndc reload {shlex.quote(params.target_domain)} 2>/dev/null "
                 "|| service named restart 2>/dev/null || true",
             )
+        self._refresh_zone_metadata(params.host_name)
         logger.info(
             f"Injecting DNS record error on {params.host_name}: mapping {params.target_website}:{params.target_domain} "
             f"to wrong IP {wrong_ip} instead of {right_ip}"
@@ -239,13 +257,15 @@ class DNSRecordError(ProblemBase):
                 verified=False,
                 details={"error": "Pre-injection DNS zone is unavailable."},
             )
-        snapshot.restore(self.runtime, params.host_name)
-        checked_exec(
-            self.runtime,
-            params.host_name,
-            f"rndc reload {shlex.quote(params.target_domain)} 2>/dev/null "
-            "|| service named restart",
-        )
+        with preserve_mtime(self.runtime, params.host_name, snapshot.path):
+            snapshot.restore(self.runtime, params.host_name)
+            checked_exec(
+                self.runtime,
+                params.host_name,
+                f"rndc reload {shlex.quote(params.target_domain)} 2>/dev/null "
+                "|| service named restart",
+            )
+        self._refresh_zone_metadata(params.host_name)
         answer = checked_exec(
             self.runtime,
             params.host_name,
@@ -342,8 +362,8 @@ class DNSRecordError(ProblemBase):
                         "curl -s -o /dev/null -m 3 -w 'http_local=%{http_code}\\n' "
                         f"-H 'Host: {name}' http://127.0.0.1/; "
                         # The server still runs the address it was provisioned with.
-                        "A=$(ip -4 -o addr show dev eth0 scope global "
-                        "| awk '{print $4}' | head -1); "
+                        f"A=$({service_address_command(self.net_env, web)} "
+                        "| awk '{print $4}' | sort -V | head -1); "
                         'grep -qF "addr add $A" /var/log/startup.log '
                         "&& echo BOOT_MATCH=$A || echo BOOT_DRIFT=$A"
                     ),

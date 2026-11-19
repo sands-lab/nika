@@ -56,6 +56,10 @@ class P4TableEntryMissing(ProblemBase):
     symptom_probe = "path_http"
     symptom_class = "unreachable"
     root_cause_name = "p4_table_entry_missing"
+    CONFUSABLE_WITH = (
+        "p4_table_entry_misconfig",
+        "p4_table_resource_exhaustion",
+    )
     description = "A required P4 forwarding table entry is missing."
     TAGS: str = ["p4", "p4_runtime"]
     Params = P4TableEntryMissingParams
@@ -183,7 +187,7 @@ class P4TableEntryMissing(ProblemBase):
             ),
             steps=[
                 *scope_ping(intent, switch, dst),
-                intent_drift(switch, "ipv4_lpm"),
+                intent_drift(switch, "ipv4_lpm", intent),
                 table_read(
                     switch,
                     "ipv4_lpm",
@@ -199,6 +203,9 @@ class P4TableEntryMisconfigParams(BaseModel):
     """Parameters for changing a P4Runtime forwarding entry."""
 
     host_name: str = Field(description="Target BMv2 switch name.")
+    target_ip: str | None = None
+    observer_device: str | None = None
+    probe_dst_ip: str | None = None
 
 
 class P4TableEntryMisconfig(ProblemBase):
@@ -206,17 +213,27 @@ class P4TableEntryMisconfig(ProblemBase):
     symptom_probe = "path_http"
     symptom_class = "unreachable"
     root_cause_name = "p4_table_entry_misconfig"
+    CONFUSABLE_WITH = ("p4_table_entry_missing", "p4runtime_partial_write")
     description = "A P4 forwarding table entry is misconfigured."
     TAGS: str = ["p4", "p4_runtime"]
     Params = P4TableEntryMisconfigParams
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
+        if ctx.scenario == "p4_dc_gateway":
+            model = ctx.net_env.model
+            target = model.services[0]
+            return {
+                "host_name": target.attached_switch,
+                "target_ip": target.ip,
+                "observer_device": model.clients[0].name,
+                "probe_dst_ip": target.ip,
+            }
         return _fabric_table_entry_target(ctx)
 
     @classmethod
     def benchmark_inject_options(cls, ctx, base):
-        if ctx.scenario == "p4_dc_fabric":
+        if ctx.scenario in {"p4_dc_fabric", "p4_dc_gateway"}:
             # Off-path leaves do not forward the default client_1_1 HTTP probe.
             return [base]
         return super().benchmark_inject_options(ctx, base)
@@ -228,9 +245,18 @@ class P4TableEntryMisconfig(ProblemBase):
     def root_cause_resources(self, params: P4TableEntryMisconfigParams):
         return [node_resource(params.host_name)]
 
+    def _prefix(self, intent, params):
+        if params.target_ip:
+            from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
+                lpm_prefix_for_dst,
+            )
+
+            return lpm_prefix_for_dst(intent, params.host_name, params.target_ip)
+        return fabric_table_entry_prefix(intent, params.host_name, self.scenario_name)
+
     def inject_fault(self, params: P4TableEntryMisconfigParams):
         intent = load_intent(self.runtime)
-        prefix = fabric_table_entry_prefix(intent, params.host_name, self.scenario_name)
+        prefix = self._prefix(intent, params)
         if prefix is None:
             raise RuntimeError(f"No IPv4 LPM prefix on {params.host_name}")
         other = fabric_misconfig_group_id(
@@ -282,9 +308,7 @@ class P4TableEntryMisconfig(ProblemBase):
         """Verify that the selected live P4Runtime entry uses the wrong group."""
         intent = load_intent(self.runtime)
         details = self._misconfig_details or {}
-        prefix = details.get("prefix") or fabric_table_entry_prefix(
-            intent, params.host_name, self.scenario_name
-        )
+        prefix = details.get("prefix") or self._prefix(intent, params)
         group_id = details.get("group_id")
         if group_id is None and prefix:
             group_id = fabric_misconfig_group_id(
@@ -317,7 +341,7 @@ class P4TableEntryMisconfig(ProblemBase):
     def oracle_playbook(self, params: P4TableEntryMisconfigParams) -> OraclePlaybook:
         switch = params.host_name
         intent = declared_intent(self.net_env)
-        prefix = fabric_table_entry_prefix(intent, switch, self.scenario_name)
+        prefix = self._prefix(intent, params)
         wrong = fabric_misconfig_group_id(intent, switch, prefix, self.scenario_name)
         intended = next(
             int(e["group_id"])
@@ -335,13 +359,13 @@ class P4TableEntryMisconfig(ProblemBase):
             ),
             steps=[
                 *scope_ping(intent, switch, dst),
-                intent_drift(switch, "ipv4_lpm"),
+                intent_drift(switch, "ipv4_lpm", intent),
                 switch_state(
                     switch,
                     f"Read the routes on {switch} (intent: {prefix} uses group "
                     f"{intended}).",
                     route_group_is(prefix, int(wrong)),
-                    mismatch(switch, "ipv4_lpm"),
+                    mismatch(switch, "ipv4_lpm", intent),
                 ),
             ],
         )

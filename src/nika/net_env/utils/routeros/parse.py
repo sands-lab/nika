@@ -9,6 +9,15 @@ _CLI_ERROR = re.compile(
 )
 
 
+def routeros_connection_address_match(field: str, address: str) -> str:
+    """Match a connection address field, with or without its port.
+
+    RouterOS 7.21 prints the port in a separate field; earlier releases append
+    it to the address (``198.18.1.10:40840``).
+    """
+    return f'{field}="{address}" or {field}~"^{address}:"'
+
+
 def routeros_properties(output: str) -> dict[str, str]:
     """Return ``key=value`` properties; ``.key`` continues the previous group."""
     return {
@@ -92,6 +101,18 @@ def routeros_bgp_received_notification(output: str) -> str | None:
     message = bytes.fromhex(match[1])
     if len(message) < 21 or message[:16] != b"\xff" * 16 or message[18] != 3:
         return None
+    if message[19:21] == b"\x02\x02":
+        return "OPEN Message Error/Bad Peer AS"
     if message[19:21] == b"\x06\x01":
         return "Cease/Maximum Number of Prefixes Reached"
     return f"BGP error {message[19]}/{message[20]}"
+
+
+def routeros_bgp_open_rejections(output: str, peer: str) -> list[str]:
+    """Read the peer's rejected OPENs from RouterOS's timestamped BGP log."""
+    pattern = re.compile(
+        r"\{l_addr: [\d.]+, r_addr: "
+        + re.escape(peer)
+        + r"\}.*Invalid remote AS \(\d+\), expected \d+"
+    )
+    return [line.strip() for line in output.splitlines() if pattern.search(line)]

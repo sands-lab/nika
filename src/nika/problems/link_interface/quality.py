@@ -19,15 +19,15 @@ from nika.problems.support.benchmark_targets import (
     isp_link_target,
     resolve_link_corruption_params,
 )
-from nika.problems.link_interface.link import _probe_ends
+from nika.problems.link_interface.link import _probe_ends, _hosts_across, _role
 from nika.problems.support.oracle import (
     addr_step,
     toward,
     Check,
+    compare,
+    interface_read,
     OraclePlaybook,
     OracleStep,
-    contains,
-    shell,
 )
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 from nika.service.containerlab.host_tc import HostTcController
@@ -63,12 +63,6 @@ def _integrity_errors(output: str) -> int | None:
     return total if seen else None
 
 
-def _errors_grew(output: str) -> bool:
-    before = re.search(r"BEFORE=(\d+)", output)
-    after = _integrity_errors(output)
-    return before is not None and after is not None and after > int(before.group(1))
-
-
 def _partial_loss(output: str) -> bool:
     match = re.search(r"(\d+(?:\.\d+)?)% packet loss", output)
     return match is not None and 0 < float(match.group(1)) < 100
@@ -101,6 +95,12 @@ class LinkPacketCorruption(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "degradation"
     root_cause_name: str = "link_packet_corruption"
+    CONFUSABLE_WITH = (
+        "device_flow_blackhole",
+        "device_forwarding_packet_corruption",
+        "silent_egress_packet_loss",
+        "link_latency",
+    )
     # Goodput collapses only where the path forwards far faster than TCP
     # sustains under the loss; a 1 Mbit/s path is already near that rate.
     minimum_path_rate_kbps = 10_000
@@ -173,14 +173,16 @@ class LinkPacketCorruption(ProblemBase):
         host = params.host_name
         intf = params.intf_name or select_host_interface(self.net_env, host, last=True)
         steps = [
-            shell(
-                host,
-                f"ip -s link show dev {intf} | head -8",
-                f"Inspect {host}:{intf}, the attachment on the lossy paths.",
-                contains(r"<[^>]*LOWER_UP", f"{host}:{intf} has carrier"),
+            interface_read(
+                self.net_env, host, intf, f"Inspect the attachment {host}:{intf}."
             )
         ]
-        ends = _probe_ends(self.net_env, host, intf)
+        across = _hosts_across(self.net_env, host, intf)
+        ends = (
+            (across[0], (across[1], "eth0"))
+            if across
+            else _probe_ends(self.net_env, host, intf)
+        )
         if ends is None:
             raise ValueError(
                 f"link_packet_corruption on {host}:{intf}: no addressed receiver "
@@ -188,23 +190,25 @@ class LinkPacketCorruption(ProblemBase):
             )
         src, (far, far_intf) = ends
 
+        router_receiver = _role(self.net_env, far) == "router"
+
         def recount(out):
-            before = _integrity_errors(out.get("corrupt_snmp", ""))
-            return {
-                "host_name": far,
-                "command": f"echo BEFORE={'unreadable' if before is None else before}; "
-                f"{_SNMP_CMD}",
-                "timeout": 15,
-            }
+            return (
+                {"host_name": far}
+                if router_receiver
+                else {"host_name": far, "command": _SNMP_CMD, "timeout": 15}
+            )
 
         steps += [
             addr_step(far, far_intf, "corrupt_peer"),
-            shell(
-                far,
-                _SNMP_CMD,
-                f"Record the IP and transport checksum error counters on {far}.",
+            OracleStep(
+                f"Record protocol integrity counters on {far}.",
+                "device_protocol_counters" if router_receiver else "exec_shell",
+                {"host_name": far}
+                if router_receiver
+                else {"host_name": far, "command": _SNMP_CMD},
                 Check(
-                    "the counters are readable",
+                    "the integrity counters are readable",
                     lambda out: _integrity_errors(out) is not None,
                 ),
                 save_as="corrupt_snmp",
@@ -219,12 +223,17 @@ class LinkPacketCorruption(ProblemBase):
             ),
             OracleStep(
                 f"Read {far}'s checksum error counters again after the probes.",
-                "exec_shell",
+                "device_protocol_counters" if router_receiver else "exec_shell",
                 recount,
-                Check(
-                    f"{far} counted new IP header or checksum errors on frames "
-                    "it received",
-                    _errors_grew,
+                compare(
+                    f"{far} counted new IP header or checksum errors on received frames",
+                    lambda out, outputs: (
+                        _integrity_errors(out) is not None
+                        and _integrity_errors(outputs.get("corrupt_snmp", ""))
+                        is not None
+                        and _integrity_errors(out)
+                        > _integrity_errors(outputs["corrupt_snmp"])
+                    ),
                 ),
                 evidence=True,
             ),

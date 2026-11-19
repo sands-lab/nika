@@ -53,6 +53,13 @@ def test_isp_benchmark_variants_deploy_current_rendered_configs(scenario, option
         assert env.routing_documents == stored
     else:
         assert env.deployment_configs == stored
+    if options.get("device_profile") == "iosxr" and env.bgp_plan:
+        for node in env.bgp_plan.nodes:
+            if any(s.session_type == "ebgp" for s in node.sessions):
+                config = stored[node.device_name]
+                assert config.rfind(" no bgp unsafe-ebgp-policy\n") > config.rfind(
+                    "\n bgp unsafe-ebgp-policy\n"
+                )
 
 
 @pytest.mark.parametrize(
@@ -73,7 +80,12 @@ def test_isp_benchmark_variants_deploy_current_rendered_configs(scenario, option
         ),
         ("campus_lan", {"topo_size": "s", "device_profile": "iosxr"}),
         ("enterprise_branch", {"topo_size": "s"}),
-        ("isp_abilene_ebgp_rpki", {}),
+        # The default eBGP security profiles (RPKI/ROV, RTBH, customer site).
+        ("isp_abilene", {"igp": "ospf", "bgp_mode": "ebgp"}),
+        (
+            "isp_pdh",
+            {"igp": "ospf", "bgp_mode": "ebgp", "device_profile": "iosxr"},
+        ),
         (
             "isp_pdh",
             {

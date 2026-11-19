@@ -235,3 +235,36 @@ def reconcile_fabric(
         len(intent["switches"]),
     )
     return {"intent": intent, "apply": result, "observed": observed}
+
+
+def forwarding_entries(state: dict[str, Any], kind: str) -> dict:
+    """Comparable forwarding fields from intent or observed P4Runtime state."""
+    if kind == "groups":
+        return {
+            int(row["group_id"]): sorted(int(i) for i in row["member_ids"])
+            for row in state.get(kind, [])
+        }
+    if kind == "members":
+        return {
+            int(row["member_id"]): (
+                str(row.get("src_mac", "")).lower(),
+                str(row.get("dst_mac", "")).lower(),
+                int(row.get("port") or 0),
+            )
+            for row in state.get(kind, [])
+        }
+    return {
+        row["prefix"]: int(row["group_id"])
+        for row in state.get(kind, [])
+        if row.get("prefix") is not None
+    }
+
+
+def forwarding_mismatches(
+    intended: dict[str, Any], observed: dict[str, Any]
+) -> list[str]:
+    return [
+        kind
+        for kind in ("groups", "ipv4_lpm", "members")
+        if forwarding_entries(intended, kind) != forwarding_entries(observed, kind)
+    ]

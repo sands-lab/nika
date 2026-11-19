@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -55,6 +56,28 @@ def container_commands(runtime: "LabRuntime", host: str) -> list[str]:
     top = runtime.get_container(host).top()
     column = top["Titles"].index("CMD")
     return [row[column] for row in top.get("Processes") or []]
+
+
+def container_tcp_listeners(runtime: "LabRuntime", host: str, port: int) -> str:
+    """Read listening sockets without consuming the container's CPU quota."""
+    from nika.runtime.shared.containers import isolated_container_pid
+    from nika.runtime.shared.processes import process_command
+
+    if not 1 <= port <= 65535:
+        raise ValueError(f"Invalid TCP port: {port}")
+    pid = isolated_container_pid(runtime.get_container(host))
+    result = subprocess.run(
+        [
+            "sudo",
+            "-n",
+            *process_command("netns", str(pid), "ss", "-Hltn", f"sport = :{port}"),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return result.stdout
 
 
 def _update_container_resources(container: Any, data: dict[str, Any]) -> None:

@@ -79,3 +79,33 @@ def test_addresses_move_to_config_db_and_routing_stays_in_frr():
     assert files["port_config.ini"] == (
         "# name lanes alias index speed\nEthernet0 1,2,3,4 eth1 0 40000\n"
     )
+
+
+def test_single_container_show_cli_selects_local_frr(tmp_path):
+    import subprocess
+
+    router = translate_frr_design("r1", DESIGN, rename)
+    prepare = node_files(router)["prepare.sh"]
+    script = prepare.split("python3 - <<'PY_SHOW'\n", 1)[1].split("\nPY_SHOW", 1)[0]
+    package = tmp_path / "show"
+    package.mkdir()
+    module = package / "main.py"
+    module.write_text(
+        "def get_routing_stack():\n"
+        "    raise AssertionError('Nested Docker discovery must not run')\n"
+        "routing_stack = get_routing_stack()\n"
+        "route_command_registered = routing_stack == 'frr'\n"
+    )
+    runner = (
+        "import sysconfig\n"
+        f"sysconfig.get_paths = lambda: {{'purelib': {str(tmp_path)!r}}}\n" + script
+    )
+    for _ in range(2):
+        subprocess.run(["python3", "-c", runner], check=True)
+    namespace = {}
+    exec(module.read_text(), namespace)
+    assert namespace["route_command_registered"] is True
+    module.write_text("routing_stack = unexpected_discovery()\n")
+    changed = subprocess.run(["python3", "-c", runner], capture_output=True, text=True)
+    assert changed.returncode != 0
+    assert "routing-stack discovery source changed" in changed.stderr

@@ -133,18 +133,14 @@ def compile_bgp_plan(
     """Build a BGP plan from a NIKA preset, or None when mode is none.
 
     ``rpki=True`` overlays the offline RPKI/ROV profile onto eBGP.
-    ``rtbh=True`` overlays the RTBH community blackhole profile onto eBGP.
-    ``customer_site`` adds a :class:`BgpCustomerSite` to plain eBGP plans
-    (backends that cannot attach it pass False).
+    ``rtbh=True`` overlays the RTBH community blackhole profile onto eBGP;
+    both together compose the two profiles (see :func:`default_ebgp_profiles`).
+    ``customer_site`` adds a :class:`BgpCustomerSite` to eBGP plans (backends
+    that cannot attach it pass False).
     """
     resolved = normalize_bgp_mode(
         mode if isinstance(mode, str) or mode is None else mode
     )
-    if rpki and rtbh:
-        raise BgpConfigError(
-            "RPKI and RTBH profiles are mutually exclusive.",
-            topology=isp_plan.topology_name,
-        )
     if rpki and resolved != "ebgp":
         raise BgpConfigError(
             f"RPKI capability requires bgp_mode 'ebgp' (got {resolved!r}).",
@@ -165,17 +161,34 @@ def compile_bgp_plan(
     if resolved == "ibgp_rr":
         return _compile_ibgp_rr(isp_plan)
     if resolved == "ebgp":
-        plan = _compile_ebgp(isp_plan, mode=resolved)
+        base = _compile_ebgp(isp_plan, mode=resolved)
+        plan = base
         if rpki:
             from nika.net_env.isp.bgp.rpki_profile import apply_rpki_profile
 
-            return apply_rpki_profile(plan)
+            plan = apply_rpki_profile(plan)
         if rtbh:
             from nika.net_env.isp.bgp.rtbh_profile import apply_rtbh_profile
 
-            return apply_rtbh_profile(plan)
-        return _with_customer_site(plan) if customer_site else plan
+            plan = apply_rtbh_profile(plan)
+        from nika.net_env.isp.bgp.relationships import with_inter_as_roles
+
+        plan = _with_customer_site(plan, base) if customer_site else plan
+        return with_inter_as_roles(plan)
     raise BgpConfigError(f"Unsupported bgp_mode {resolved!r}.")
+
+
+def default_ebgp_profiles(isp_plan: IspPlan) -> dict[str, bool]:
+    """Inter-AS security profiles of a current eBGP deployment.
+
+    Every eBGP deployment validates route origins (RPKI/ROV). It also carries
+    the RTBH community policy when the graph's AS partition has an RTBH
+    provider edge (see ``rtbh_profile.provider_edges``).
+    """
+    from nika.net_env.isp.bgp.rtbh_profile import provider_edges
+
+    plan = _compile_ebgp(isp_plan)
+    return {"rpki": True, "rtbh": bool(provider_edges(plan))}
 
 
 def _devices(isp_plan: IspPlan) -> list[str]:
@@ -609,14 +622,19 @@ def _customer_session(plan: BgpPlan) -> BgpSession | None:
     return min(ebgp, key=rank)
 
 
-def _with_customer_site(plan: BgpPlan) -> BgpPlan:
-    sess = _customer_session(plan)
-    asn_of = {node.device_name: node.asn for node in plan.nodes}
+def _with_customer_site(plan: BgpPlan, base: BgpPlan) -> BgpPlan:
+    """Attach the customer site that the plain eBGP plan ``base`` selects.
+
+    Profile overlays on ``plan`` do not move the site, so deployments with and
+    without them attach the same customer.
+    """
+    sess = _customer_session(base)
+    asn_of = {node.device_name: node.asn for node in base.nodes}
     if sess is None:
         return plan
     partner_asn = asn_of[sess.local_device]
     service = next(
-        (o for o in plan.originated if asn_of[o.device] == partner_asn), None
+        (o for o in base.originated if asn_of[o.device] == partner_asn), None
     )
     if service is None:
         return plan

@@ -5,6 +5,7 @@ from __future__ import annotations
 from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
+from nika.net_env.isp.bgp.relationships import transit_export_map
 from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 
 # Prefix-list of routes a router must not export to eBGP peers (RPKI profile).
@@ -79,13 +80,7 @@ def _route_maps(
 ) -> list[str]:
     lines: list[str] = []
     if export_deny_prefixes:
-        lines.extend(
-            [
-                "route-map BGP-OUT deny 5",
-                f" match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}",
-                "!",
-            ]
-        )
+        lines.extend(_export_deny_entry("BGP-OUT"))
     lines.extend(
         [
             "route-map BGP-OUT permit 10",
@@ -102,6 +97,7 @@ def _route_maps(
                 prefix_list="BUSINESS",
                 blackhole_community=blackhole_community,
                 discard_next_hop=discard_next_hop,
+                sequence=rtbh_import_sequence(rov_reject_invalid),
             )
         )
     if rov_reject_invalid:
@@ -140,6 +136,8 @@ def _customer_lines(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
     ]
     if node.device_name == site.provider:
         name = customer_export_route_map(site.partner_asn)
+        if node.export_deny_prefixes:
+            lines.extend(_export_deny_entry(name))
         lines.extend(
             [
                 f"route-map {name} permit 10",
@@ -177,6 +175,28 @@ def _leaker_outbound_route_maps(
     return lines
 
 
+def _export_deny_entry(name: str) -> list[str]:
+    return [
+        f"route-map {name} deny 5",
+        f" match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}",
+        "!",
+    ]
+
+
+def rtbh_outbound_call_map(name: str, called: str) -> list[str]:
+    """RTBH session export that applies the session's ordinary export policy.
+
+    Used on a leaker that also keeps the RPKI profile's prefixes internal: the
+    ordinary policy holds that denial, and the RTBH tag goes in front of it.
+    """
+    return [f"route-map {name} permit 10", f" call {called}", "!"]
+
+
+def rtbh_import_sequence(rov_reject_invalid: bool) -> int:
+    """Sequence of the RTBH import entry; it follows ROV's invalid-deny at 5."""
+    return 7 if rov_reject_invalid else 5
+
+
 def _rpki_reject_route_map(name: str, sequence: int = 5) -> list[str]:
     return [f"route-map {name} deny {sequence}", " match rpki invalid", "!"]
 
@@ -207,17 +227,26 @@ def _rtbh_discard_static(discard_next_hop: str | None) -> list[str]:
     return [f"ip route {discard_next_hop}/32 Null0", "!"]
 
 
-def _rpki_stanza(cache: tuple[str, int] | None) -> list[str]:
+def _rpki_stanza(
+    cache: tuple[str, int] | None, retry_interval: int | None = None
+) -> list[str]:
     if cache is None:
         return []
     ip, port = cache
+    retry = [f" rpki retry_interval {retry_interval}"] if retry_interval else []
     return [
         "rpki",
+        *retry,
         # FRR 10+ requires an explicit transport (tcp|ssh).
         f" rpki cache tcp {ip} {port} preference 1",
         " exit",
         "!",
     ]
+
+
+def rpki_retry_interval(plan: BgpPlan) -> int | None:
+    """The plan's RTR reconnect interval, or None for FRR's default."""
+    return (plan.inventory.get("rpki_rtr") or {}).get("retry_interval")
 
 
 def _render_ibgp(node: BgpNodePlan, plan: BgpPlan) -> str:
@@ -268,7 +297,9 @@ def _render_ibgp(node: BgpNodePlan, plan: BgpPlan) -> str:
 def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
     rpki_profile = bool(plan.inventory.get("rpki"))
     rtbh_profile = bool(plan.inventory.get("rtbh"))
-    if rpki_profile:
+    if rpki_profile and rtbh_profile:
+        title = "eBGP + RPKI + RTBH"
+    elif rpki_profile:
         title = "eBGP + RPKI"
     elif rtbh_profile:
         title = "eBGP + RTBH"
@@ -281,7 +312,7 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
             prefixlen = prefix.prefix.rsplit("/", 1)[1]
             lines.append(f" ip address {prefix.ping_address}/{prefixlen}")
         lines.append("!")
-    lines.extend(_rpki_stanza(node.rpki_cache))
+    lines.extend(_rpki_stanza(node.rpki_cache, rpki_retry_interval(plan)))
     extra = tuple(plan.inventory.get("leak_prefixes") or ()) + tuple(
         origin.prefix for origin in plan.originated
     )
@@ -290,7 +321,8 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
     discard_nh = str(plan.inventory.get("discard_next_hop") or "") or None
     community = str(plan.inventory.get("blackhole_community") or "") or None
     lines.extend(_rtbh_discard_static(discard_nh if node.rtbh_import_policy else None))
-    lines.extend(_leaker_outbound_route_maps(node.ebgp_outbound_route_maps))
+    if not node.export_deny_prefixes:
+        lines.extend(_leaker_outbound_route_maps(node.ebgp_outbound_route_maps))
     lines.extend(_customer_lines(node, plan))
     lines.extend(
         _route_maps(
@@ -302,7 +334,7 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
             customer_routes=plan.customer_site is not None,
         )
     )
-    outbound_by_neighbor = dict(node.ebgp_outbound_route_maps)
+    outbound_by_neighbor: dict[str, str] = {}
     site = plan.customer_site
     customer_originated: list[str] = []
     if site is not None and node.device_name == site.provider:
@@ -310,6 +342,15 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
             site.partner_asn
         )
         customer_originated.append(site.prefix)
+    for neighbor, name in node.ebgp_outbound_route_maps:
+        if node.export_deny_prefixes:
+            # Composed RPKI + RTBH leaker: wrap the session's ordinary policy.
+            lines.extend(
+                rtbh_outbound_call_map(
+                    name, outbound_by_neighbor.get(neighbor, "BGP-OUT")
+                )
+            )
+        outbound_by_neighbor[neighbor] = name
     inbound_by_neighbor = {}
     for index, (neighbor, terms) in enumerate(node.import_policies):
         name = f"NC-IN-{index}"
@@ -330,6 +371,11 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
             lines.append("!")
         # Preserve the original policy for all prefixes outside the sketch.
         lines.extend([f"route-map {name} permit 65535", " call BGP-IN", "!"])
+    lines.extend(
+        inter_as_policy_lines(
+            node.device_name, plan, outbound_by_neighbor, inbound_by_neighbor
+        )
+    )
     lines.extend(
         [
             f"router bgp {node.asn}",
@@ -367,3 +413,38 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
     lines.append(" exit-address-family")
     lines.append("!")
     return "\n".join(lines) + "\n"
+
+
+def inter_as_policy_lines(node_name, plan, outbound_by_neighbor, inbound_by_neighbor):
+    """Render role policy and update the session bindings it wraps."""
+    lines = []
+    # A customer exports its own routes upstream, never provider-learned routes.
+    # Keep the ordinary prefix/security policy as the called policy.
+    for relationship in plan.inventory.get("inter_as_roles", ()):
+        if relationship["node"] != node_name:
+            continue
+        neighbor = relationship["neighbor"]
+        if relationship["role"] == "provider":
+            name = transit_export_map(neighbor)
+            lines.extend(
+                [
+                    "bgp as-path access-list LOCAL-ORIGIN permit ^$",
+                    f"route-map {name} permit 10",
+                    " match as-path LOCAL-ORIGIN",
+                    f" call {outbound_by_neighbor.get(neighbor, 'BGP-OUT')}",
+                    "!",
+                ]
+            )
+            outbound_by_neighbor[neighbor] = name
+        elif relationship["role"] == "customer":
+            name = "CUSTOMER-IN-" + neighbor.replace(".", "-")
+            lines.extend(
+                [
+                    f"route-map {name} permit 10",
+                    " set local-preference 200",
+                    f" call {inbound_by_neighbor.get(neighbor, 'BGP-IN')}",
+                    "!",
+                ]
+            )
+            inbound_by_neighbor[neighbor] = name
+    return lines

@@ -2,12 +2,42 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 import base64
 from dataclasses import dataclass
 import re
 import shlex
 
 from nika.problems.support.dhcp import restart_dhcp_server
+
+
+_ARTIFACT_ONLY = ContextVar("recovery_artifact_only", default=False)
+
+
+@contextmanager
+def artifact_recovery():
+    """Defer service checks until every member of a combination is restored."""
+    token = _ARTIFACT_ONLY.set(True)
+    try:
+        yield
+    finally:
+        _ARTIFACT_ONLY.reset(token)
+
+
+def recovery_checks_health() -> bool:
+    return not _ARTIFACT_ONLY.get()
+
+
+def verify_recovered_environment(net_env):
+    """Check healthy service once after a group of artifact restorations."""
+    from nika.net_env.verify import verify_lab_with_retry
+
+    result = verify_lab_with_retry(net_env, full=True)
+    if result is None:
+        raise RuntimeError("Environment declares no recovery health verification")
+    return result
 
 
 def checked_exec(runtime, node: str, command: str) -> str:
@@ -137,7 +167,11 @@ class IPv4Snapshot:
                 if f"via {injected_gateway} " in route + " ":
                     checked_exec(runtime, node, "ip -4 route del " + route)
         for route in sorted(self.routes, key=lambda row: " via " in row):
-            checked_exec(runtime, node, "ip -4 route replace " + route)
+            # ip route show dev omits the selected device from its output.
+            words = route.split()
+            if "dev" not in words:
+                words += ["dev", self.interface]
+            checked_exec(runtime, node, "ip -4 route replace " + shlex.join(words))
         for neighbor in self.neighbors:
             match = re.match(r"(\S+) (?:dev \S+ )?lladdr (\S+)", neighbor)
             if match:

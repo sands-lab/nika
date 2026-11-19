@@ -83,6 +83,12 @@ def _collect(runtime, plan, bgp_plan, traffic, routers, *, full):
                 VerifyCommand(hosts[0].host_name, mesh_ping_command(host.address), 30)
                 for host in hosts[1:]
             )
+    if bgp_plan and (site := bgp_plan.customer_site):
+        commands.append(
+            VerifyCommand(
+                site.host_name, ping_command(site.service_address, count=3), 20
+            )
+        )
     if full and bgp_plan:
         commands.extend(
             VerifyCommand(observer, command, 20)
@@ -204,6 +210,8 @@ def verify_isp_sonic_lab(
     expected = [node.device_name for node in plan.nodes]
     if traffic is not None:
         expected.extend(h.host_name for h in traffic.hosts)
+    if bgp_plan and bgp_plan.customer_site:
+        expected.append(bgp_plan.customer_site.host_name)
     all_hosts = [host.host_name for host in traffic.hosts] if traffic else []
     traffic = sample_traffic(traffic, bgp_plan=bgp_plan)
     runtime = _collect(runtime, plan, bgp_plan, traffic, routers, full=full)
@@ -220,6 +228,10 @@ def verify_isp_sonic_lab(
         "device_profile": "sonic",
     }
     if bgp_plan is not None:
+        if site := bgp_plan.customer_site:
+            checks["customer_site_reaches_service"] = "3 received" in runtime.exec(
+                site.host_name, ping_command(site.service_address, count=3)
+            )
         checks["bgp_sessions"] = frr._bgp_sessions_ok(runtime, bgp_plan)
         checks["bgp_prefixes_propagated"] = frr._bgp_prefixes_propagated_ok(
             runtime, bgp_plan

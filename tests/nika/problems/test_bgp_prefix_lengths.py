@@ -40,3 +40,24 @@ def test_bound_import_filter_lengths(entry, expected):
         )
         == {}
     )
+
+
+@pytest.mark.parametrize("length", [8, 24])
+def test_routeros_import_range_refreshes_ipv4(monkeypatch, length):
+    from nika.net_env.native_routers import native_platform
+
+    ops = native_platform("routeros").fault_ops(object(), "br1_edge")
+    rule = "if (dst in 10.0.0.0/8 && dst-len <= 24) { set bgp-local-pref 200; accept; }"
+    monkeypatch.setattr(
+        ops,
+        "_import_prefix_rules",
+        lambda: {"BUSINESS": (rule, "10.0.0.0/8", 24)},
+    )
+    commands = []
+    monkeypatch.setattr(ops, "_cli", commands.append)
+
+    ops.set_bgp_import_prefix_range("BUSINESS", "10.0.0.0/8", length)
+
+    assert len(commands) == 1
+    assert "set bgp-local-pref 200; accept;" in commands[0]
+    assert commands[0].endswith("/routing bgp session refresh [find] afi=ip")

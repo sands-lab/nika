@@ -18,6 +18,7 @@ from nika.problems.rca.inventory import (
 )
 from nika.problems.support.frr import FRR_CONF, frr_config_command, frr_save_config
 from nika.problems.support.oracle import (
+    compare,
     Check,
     OraclePlaybook,
     OracleStep,
@@ -37,14 +38,13 @@ from nika.problems.support.router_ops import (
     native_router_profile,
     profile_routes_with_frr,
 )
-from nika.problems.support.recovery import FileSnapshot
+from nika.problems.support.recovery import FileSnapshot, recovery_checks_health
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
 from nika.service.containerlab.srl_api import srl_subif, srl_instance, srl_json
 from nika.problems.support.ospf import (
     ospf_health,
     full_frr_neighbors,
-    router_lsa_origins,
 )
 from nika.problems.support.polling import wait_until
 from nika.utils.logger import system_logger
@@ -116,7 +116,7 @@ def _ospf_interface_step(net_env, host, intf):
     if native_router_profile(net_env, host) == "sonic":
         from nika.net_env.utils.sonic.common import sonic_port
 
-        frr_interface = sonic_port(intf)
+        frr_interface = sonic_port(intf) if intf.startswith("eth") else intf
     return router_cli(
         net_env,
         host,
@@ -254,8 +254,7 @@ def _peer_ospf_args(peer: str, peer_intf: str, echo: str) -> dict:
     observation."""
     return {
         "host_name": peer,
-        "command": f"echo {echo}; "
-        + vtysh("show ip ospf neighbor")
+        "command": vtysh("show ip ospf neighbor")
         + "; "
         + vtysh(f"show ip ospf interface {peer_intf}")
         + " | grep -E '^[^ ].* is (up|down)|Area |Adjacent neighbor|Passive|"
@@ -336,6 +335,7 @@ class OSPFAreaMisconfig(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name: str = "ospf_area_misconfiguration"
+    CONFUSABLE_WITH = ("ospf_area_range_suppression", "ospf_stub_area_mismatch")
     description = "OSPF area is misconfigured between neighbors."
     effect_protocol = "ospf"
     supported_backends = ("kathara", "containerlab")
@@ -381,6 +381,53 @@ class OSPFAreaMisconfig(ProblemBase):
         if not links:
             raise RuntimeCapabilityError(f"No router linked to {host}.")
 
+        profile = native_router_profile(self.net_env, host)
+        if profile in {"iosxr", "routeros"}:
+            peer = links[0][1]
+
+            def areas(output):
+                values = re.findall(
+                    r"(?:Area(?: ID)?[: ]+|area-id=)([0-9.]+)", output, re.I
+                )
+                return {
+                    str(ipaddress.IPv4Address(int(value))) if value.isdigit() else value
+                    for value in values
+                }
+
+            return OraclePlaybook(
+                finding=f"{host} and {peer} use different OSPF areas.",
+                steps=[
+                    router_cli(
+                        self.net_env,
+                        host,
+                        "Read the local OSPF area configuration.",
+                        Check(
+                            "a local area is configured", lambda out: bool(areas(out))
+                        ),
+                        frr=_OSPF_IF_SUMMARY,
+                        iosxr_command="show ospf interface",
+                        routeros_command="/routing ospf area print detail",
+                        save_as="local_area",
+                    ),
+                    router_cli(
+                        self.net_env,
+                        peer,
+                        "Compare the peer's OSPF area configuration.",
+                        compare(
+                            "the peer and local OSPF areas differ",
+                            lambda out, outputs: (
+                                bool(areas(out))
+                                and bool(areas(outputs.get("local_area", "")))
+                                and areas(out).isdisjoint(areas(outputs["local_area"]))
+                            ),
+                        ),
+                        frr=_OSPF_IF_SUMMARY,
+                        iosxr_command="show ospf interface",
+                        routeros_command="/routing ospf area print detail",
+                        evidence=True,
+                    ),
+                ],
+            )
         if srl_cli(self.net_env, host):
             observed = {}
 
@@ -480,6 +527,13 @@ class OSPFAreaMisconfig(ProblemBase):
             area = (ifaces.get(intf) or {}).get("area") or "none"
             return _peer_ospf_args(peer, peer_intf, f"host_if={intf} host_area={area}")
 
+        def area_differs(output, outputs):
+            local = _ospf_ifaces(outputs.get("host_ospf", ""))
+            lone = lone_ifaces(outputs.get("host_ospf", ""))
+            intf = next((link[0] for link in links if link[0] in lone), links[0][0])
+            area = (local.get(intf) or {}).get("area")
+            return bool(area) and _area_differs(f"host_area={area}\n{output}")
+
         return OraclePlaybook(
             finding=(
                 f"{host} places its OSPF interfaces in a different area than its "
@@ -506,10 +560,9 @@ class OSPFAreaMisconfig(ProblemBase):
                     "Compare the OSPF area on the neighbor's side of that link.",
                     "exec_shell",
                     peer_args,
-                    Check(
-                        "the neighbor's interface is in another area and has no "
-                        "adjacency, while its other adjacencies are Full",
-                        _area_differs,
+                    compare(
+                        "the neighbor's interface is in another area and has no adjacency while other adjacencies are Full",
+                        area_differs,
                     ),
                     evidence=True,
                     # The neighbor keeps the adjacency until its dead interval.
@@ -757,13 +810,13 @@ class OSPFAreaMisconfig(ProblemBase):
 _OSPF_BLOCK_RANGE = "/^router ospf/,/^[^[:space:]]/"
 
 
-class OSPFNeighborMissingParams(BaseModel):
+class OSPFInterfaceNotEnabledParams(BaseModel):
     """Parameters for injecting an OSPF neighbor missing fault."""
 
     host_name: str = Field(description="Target router host name.")
 
 
-class OSPFNeighborMissing(ProblemBase):
+class OSPFInterfaceNotEnabled(ProblemBase):
     """One OSPF interface loses its protocol binding and stops sending Hellos.
 
     RFC 2328 section 9.2 describes interface activation; section 10.3 expires
@@ -777,7 +830,12 @@ class OSPFNeighborMissing(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     symptom_probe = "custom"
     symptom_class = "control_plane"
-    root_cause_name: str = "ospf_neighbor_missing"
+    root_cause_name: str = "ospf_interface_not_enabled"
+    CONFUSABLE_WITH = (
+        "ospf_acl_block",
+        "ospf_duplicate_router_id",
+        "routing_service_down",
+    )
     description = "Expected OSPF neighbor adjacency is missing."
     effect_protocol = "ospf"
 
@@ -795,7 +853,7 @@ class OSPFNeighborMissing(ProblemBase):
         }
     )
 
-    Params = OSPFNeighborMissingParams
+    Params = OSPFInterfaceNotEnabledParams
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -813,7 +871,7 @@ class OSPFNeighborMissing(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
-    def root_cause_resources(self, params: OSPFNeighborMissingParams):
+    def root_cause_resources(self, params: OSPFInterfaceNotEnabledParams):
         return [node_resource(params.host_name)]
 
     def _route_prefixes(self, host: str) -> set[str]:
@@ -864,7 +922,7 @@ class OSPFNeighborMissing(ProblemBase):
             f"{type(self).__name__}: no OSPF binding on {host!r} covers exactly one Full adjacency."
         )
 
-    def oracle_playbook(self, params: OSPFNeighborMissingParams) -> OraclePlaybook:
+    def oracle_playbook(self, params: OSPFInterfaceNotEnabledParams) -> OraclePlaybook:
         host = params.host_name
         links = linked_routers(self.net_env, host)
         if not links:
@@ -874,7 +932,44 @@ class OSPFNeighborMissing(ProblemBase):
             and native_router_profile(self.net_env, params.host_name) != "sonic"
         ):
             return self._srl_oracle_playbook(host, links)
-        if native_router_profile(self.net_env, host) is not None:
+        if native_router_profile(self.net_env, host) == "sonic":
+            from nika.net_env.utils.sonic.common import sonic_port
+
+            seen = {}
+
+            def missing(output):
+                ospf = _ospf_ifaces(seen.get("ospf", ""))
+                return bool(ospf) and any(
+                    (sonic_port(link[0]) if link[0].startswith("eth") else link[0])
+                    not in ospf
+                    for link in links
+                )
+
+            def bindings(output):
+                seen["ospf"] = output
+                return bool(_ospf_ifaces(output))
+
+            return OraclePlaybook(
+                finding=f"An addressed router link on {host} is omitted from OSPF.",
+                steps=[
+                    shell(
+                        host,
+                        _OSPF_IF_SUMMARY,
+                        "Read the enabled OSPF interfaces.",
+                        Check("OSPF runs on other interfaces", bindings),
+                    ),
+                    router_cli(
+                        self.net_env,
+                        host,
+                        "Read the routed interface inventory.",
+                        Check("a routed link is absent from OSPF", missing),
+                        frr="ip -4 -br addr show",
+                        sonic_command="show ip interfaces",
+                        evidence=True,
+                    ),
+                ],
+            )
+        if native_router_profile(self.net_env, host) not in {None, "sonic"}:
             return self._native_oracle_playbook(host, links)
 
         def uncovered(output: str) -> list[str]:
@@ -915,7 +1010,7 @@ class OSPFNeighborMissing(ProblemBase):
                 ),
                 shell(
                     host,
-                    f"{_OSPF_IF_SUMMARY}; echo ===; ip -br -4 addr",
+                    f"{_OSPF_IF_SUMMARY}; ip -br -4 addr show",
                     f"Compare {host}'s OSPF interfaces with its addressed links.",
                     Check(
                         "an up, addressed router link lacks OSPF while other interfaces run it, distinguishing an omitted binding from link loss or a stopped process",
@@ -1164,7 +1259,7 @@ class OSPFNeighborMissing(ProblemBase):
             ],
         )
 
-    def inject_fault(self, params: OSPFNeighborMissingParams):
+    def inject_fault(self, params: OSPFInterfaceNotEnabledParams):
         if (
             getattr(self.net_env, "backend", None) == "containerlab"
             and native_router_profile(self.net_env, params.host_name) != "sonic"
@@ -1269,7 +1364,7 @@ class OSPFNeighborMissing(ProblemBase):
             f"(removed {kind} binding {binding} area {area})."
         )
 
-    def verify_fault(self, params: OSPFNeighborMissingParams) -> dict:
+    def verify_fault(self, params: OSPFInterfaceNotEnabledParams) -> dict:
         """Verify one OSPF binding is gone while the other bindings remain."""
         if (
             getattr(self.net_env, "backend", None) == "containerlab"
@@ -1356,7 +1451,7 @@ class OSPFNeighborMissing(ProblemBase):
             },
         )
 
-    def recover_fault(self, params: OSPFNeighborMissingParams) -> dict:
+    def recover_fault(self, params: OSPFInterfaceNotEnabledParams) -> dict:
         """Restore the binding and wait for Full neighbors and OSPF-learned routes."""
         if (
             getattr(self.net_env, "backend", None) == "containerlab"
@@ -1457,10 +1552,10 @@ class OSPFDuplicateRouterId(ProblemBase):
     """The router takes the OSPF router ID of another router in its area.
 
     With a non-adjacent router, both originate a router-LSA under the same
-    ID. They may re-flood it against each other for a few minutes, and in
-    the end every router keeps one of the two LSAs, so the links and subnets
-    of one of the two routers drop out of every routing table while all
-    adjacencies stay Full. Which router loses depends on LSA timing. With a
+    ID. They may re-flood it against each other for a few minutes. Different
+    observers can retain different versions while the LSAs compete. Routes
+    to the two routers' subnets can withdraw or change repeatedly while
+    adjacencies stay Full. Which routes disappear depends on LSA timing. With a
     neighbor, the neighbor ignores hellos that carry its own ID and the
     adjacency never forms. Inject prefers the lowest non-adjacent router ID
     in the target's areas and otherwise takes the lowest neighbor ID, so the
@@ -1471,10 +1566,13 @@ class OSPFDuplicateRouterId(ProblemBase):
     https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/ospf.html
     """
 
+    root_cause_resource_match = "any"
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "ospf_duplicate_router_id"
+    NATIVE_CONFIG_KEYWORDS = ("router[-_]id",)
+    CONFUSABLE_WITH = ("ospf_interface_not_enabled",)
     description = "OSPF router ID duplicates the router ID of another router."
     effect_protocol = "ospf"
     TAGS = ["ospf"]
@@ -1502,6 +1600,12 @@ class OSPFDuplicateRouterId(ProblemBase):
             return {"host_name": ctx.router0}
         targets = [r for r in ctx.routers if cls._has_declared_stub(ctx.net_env, r)]
         return {"host_name": choice(ctx.rng, targets, ctx.router0)}
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        from nika.problems.support.benchmark_targets import node_target_options
+
+        return node_target_options(cls, ctx, base, node=base["host_name"])
 
     @staticmethod
     def _has_declared_stub(net_env, host: str) -> bool:
@@ -1563,13 +1667,67 @@ class OSPFDuplicateRouterId(ProblemBase):
             raise ValueError(
                 f"{cls.root_cause_name} needs a router with an OSPF stub subnet"
             )
+        try:
+            cls._declared_twin(ctx.net_env, host)
+        except RuntimeCapabilityError as exc:
+            raise ValueError(str(exc)) from exc
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
     def root_cause_resources(self, params: OSPFDuplicateRouterIdParams):
-        return [node_resource(params.host_name)]
+        peer = self._declared_twin(self.net_env, params.host_name)
+        return [node_resource(params.host_name), node_resource(peer)]
+
+    @staticmethod
+    def _declared_twin(net_env, host):
+        from nika.net_env.native_routers import router_sketches
+
+        links = ospf_router_links(net_env)
+        peers = {
+            right if left == host else left
+            for (left, _), (right, _) in links
+            if host in {left, right}
+        }
+        plan = getattr(net_env, "plan", None)
+        if plan is not None:
+            ids = {node.device_name: node.router_id for node in plan.nodes}
+            component = {host}
+            pending = [host]
+            graph = {}
+            for (left, _), (right, _) in links:
+                graph.setdefault(left, set()).add(right)
+                graph.setdefault(right, set()).add(left)
+            while pending:
+                current = pending.pop()
+                for peer in graph.get(current, set()) - component:
+                    component.add(peer)
+                    pending.append(peer)
+            candidates = component - {host}
+        else:
+            sketches = router_sketches(net_env)
+            areas, ids = {}, {}
+            for name, (config, _) in sketches.items():
+                networks, interfaces = _ospf_area_bindings(config)
+                areas[name] = {
+                    str(ipaddress.IPv4Address(int(area) if area.isdigit() else area))
+                    for _, area in networks + interfaces
+                }
+                match = re.search(r"(?:ospf )?router-id ([0-9.]+)", config)
+                if match:
+                    ids[name] = match[1]
+            candidates = {
+                name
+                for name in ids
+                if name != host and areas.get(host, set()) & areas[name]
+            }
+        candidates = (candidates - peers) or (candidates & peers)
+        if not candidates:
+            raise RuntimeCapabilityError(
+                f"No declared OSPF router shares an area with {host!r}"
+            )
+        return min(candidates, key=lambda name: ipaddress.ip_address(ids[name]))
 
     def oracle_playbook(self, params: OSPFDuplicateRouterIdParams) -> OraclePlaybook:
         from nika.net_env.native_routers import router_sketches
@@ -1643,60 +1801,6 @@ class OSPFDuplicateRouterId(ProblemBase):
             self.runtime.exec(host, "vtysh -c 'show ip ospf json' 2>/dev/null")
         )
 
-    def _duplicate_candidate(self, host: str, own: str) -> str:
-        ops = native_fault_ops(self, host, "ospf_router_lsa_ids")
-        if ops is not None:
-            neighbors = ops.ospf_neighbor_ids()
-            candidates = (ops.ospf_router_lsa_ids() - neighbors - {own}) or (
-                neighbors - {own}
-            )
-            if not candidates:
-                raise RuntimeCapabilityError(
-                    f"No other OSPF router shares an area with {host!r}."
-                )
-            return min(candidates, key=ipaddress.ip_address)
-        if getattr(self.net_env, "backend", None) == "containerlab":
-            instance = self.runtime.lab_api.srl_protocol_instance(host, "ospf")
-            neighbors = {
-                n["router-id"]
-                for area in instance.get("area", [])
-                for interface in area.get("interface", [])
-                for n in interface.get("neighbor", [])
-            }
-            in_area = {
-                lsa["advertising-router"]
-                for area in instance.get("area", [])
-                for kind in area.get("lsdb", {})
-                .get("lsa-types", {})
-                .get("lsa-type", [])
-                if kind["type"].split(":")[-1] == "router-lsa"
-                for lsa in kind.get("lsas", {}).get("lsa", [])
-            } - {own}
-            candidates = (in_area - neighbors) or (neighbors - {own})
-            if not candidates:
-                raise RuntimeCapabilityError(
-                    f"No other OSPF router shares an area with {host!r}."
-                )
-            return min(candidates, key=ipaddress.ip_address)
-        database = self.runtime.exec(
-            host, "vtysh -c 'show ip ospf database' 2>/dev/null"
-        )
-        raw = self.runtime.exec(
-            host, "vtysh -c 'show ip ospf neighbor json' 2>/dev/null"
-        )
-        try:
-            neighbors = set((json.loads(raw).get("neighbors") or {}).keys())
-        except (ValueError, AttributeError):
-            neighbors = set()
-        in_area = set().union(*router_lsa_origins(database).values()) - {own}
-        candidates = (in_area - neighbors) or (neighbors - {own})
-        if not candidates:
-            raise RuntimeCapabilityError(
-                f"{type(self).__name__}: no other OSPF router shares an area "
-                f"with {host!r}."
-            )
-        return min(candidates, key=lambda rid: ipaddress.ip_address(rid))
-
     def _set_router_id(self, host: str, router_id: str | None) -> None:
         """Apply ``router_id`` (``None``: derive it) to ospfd and frr.conf."""
         if (
@@ -1728,16 +1832,12 @@ class OSPFDuplicateRouterId(ProblemBase):
             raise RuntimeCapabilityError(
                 f"{type(self).__name__}: OSPF is not running on {params.host_name!r}."
             )
-        self.duplicate_router_id = self._duplicate_candidate(params.host_name, own)
-        self._twin_host = next(
-            (
-                router
-                for router in self.net_env.routers or []
-                if router != params.host_name
-                and self._router_id(router) == self.duplicate_router_id
-            ),
-            None,
-        )
+        self._twin_host = self._declared_twin(self.net_env, params.host_name)
+        self.duplicate_router_id = self._router_id(self._twin_host)
+        if not self.duplicate_router_id:
+            raise RuntimeCapabilityError(
+                f"OSPF router ID unavailable on {self._twin_host}"
+            )
         self._healthy_router_id = own
         self._healthy_routing = {
             host: ospf_health(self, host)
@@ -1979,10 +2079,14 @@ class OSPFNetworkTypeMismatch(ProblemBase):
     https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/ospf.html
     """
 
+    root_cause_resource_match = "any"
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "ospf_network_type_mismatch"
+    root_cause_owner = "interface"
+
+    CONFUSABLE_WITH = ("ospf_hello_interval_mismatch",)
     description = "OSPF interface network type does not match the neighbor."
     effect_protocol = "ospf"
     TAGS = ["ospf"]
@@ -2024,12 +2128,21 @@ class OSPFNetworkTypeMismatch(ProblemBase):
                 f"not {host!r} {intf!r}"
             )
 
+    @classmethod
+    def validate_combined_inject(cls, ctx, inject):
+        host, intf = inject.get("host_name"), inject.get("intf_name")
+        if ospf_link_peer(ctx.net_env, host, intf) is None:
+            raise ValueError(f"{cls.root_cause_name} needs an OSPF router link")
+
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
-    def root_cause_resources(self, params: OSPFNetworkTypeMismatchParams):
-        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+    def root_cause_resources(self, params):
+        peer = ospf_link_peer(self.net_env, params.host_name, params.intf_name)
+        return [interface_on(self.net_env, params.host_name, params.intf_name)] + (
+            [interface_on(self.net_env, *peer)] if peer else []
+        )
 
     def oracle_playbook(self, params: OSPFNetworkTypeMismatchParams) -> OraclePlaybook:
         host, intf = params.host_name, params.intf_name
@@ -2139,7 +2252,9 @@ class OSPFNetworkTypeMismatch(ProblemBase):
                     return False
             return True
 
-        restored = wait_until(healthy, 120, interval_s=3)
+        restored = not recovery_checks_health() or wait_until(
+            healthy, 120, interval_s=3
+        )
         running = (
             normalize_ospf_network_type(ops.ospf_network_type(intf))
             if ops is not None
@@ -2226,8 +2341,11 @@ class OSPFHelloIntervalMismatch(ProblemBase):
     https://documentation.nokia.com/srlinux/24-10/books/data-model-reference/srl_nokia-network-instance_0.html#d4839
     """
 
+    root_cause_resource_match = "any"
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name = "ospf_hello_interval_mismatch"
+    NATIVE_CONFIG_KEYWORDS = ("hello[-_]interval",)
+    CONFUSABLE_WITH = ("ospf_acl_block", "ospf_network_type_mismatch")
     description = "OSPF interface hello and dead intervals differ from the neighbor."
     symptom_probe = "custom"
     symptom_class = "control_plane"
@@ -2270,8 +2388,20 @@ class OSPFHelloIntervalMismatch(ProblemBase):
                 f"{cls.root_cause_name} needs an OSPF cut edge serving hosts"
             )
 
-    def root_cause_resources(self, params: OSPFHelloIntervalMismatchParams):
-        return [node_resource(params.host_name)]
+    @classmethod
+    def validate_combined_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        host, intf = inject.get("host_name"), inject.get("intf_name")
+        require_node_capability(ctx, cls.root_cause_name, host, "ospf")
+        if ospf_link_peer(ctx.net_env, host, intf) is None:
+            raise ValueError(f"{cls.root_cause_name} needs an OSPF router link")
+
+    def root_cause_resources(self, params):
+        peer = ospf_link_peer(self.net_env, params.host_name, params.intf_name)
+        return [node_resource(params.host_name)] + (
+            [node_resource(peer[0])] if peer else []
+        )
 
     def oracle_playbook(
         self, params: OSPFHelloIntervalMismatchParams
@@ -2337,11 +2467,13 @@ class OSPFHelloIntervalMismatch(ProblemBase):
 
     def inject_fault(self, params: OSPFHelloIntervalMismatchParams):
         host, intf = params.host_name, params.intf_name
-        if (host, intf) not in self._targets(self.net_env):
-            raise RuntimeCapabilityError(
-                "OSPF timer mismatch needs a cut edge serving hosts"
-            )
+        # Single-failure tasks also need a cut edge (``validate_benchmark_inject``);
+        # a combination can place the mismatch on a redundant link.
         peer = ospf_link_peer(self.net_env, host, intf)
+        if peer is None:
+            raise RuntimeCapabilityError(
+                "OSPF timer mismatch needs an OSPF router link"
+            )
         original = self._timers(host, intf)
         if original != self._timers(*peer):
             raise RuntimeCapabilityError("OSPF interface timers already disagree")
@@ -2353,7 +2485,7 @@ class OSPFHelloIntervalMismatch(ProblemBase):
                 "OSPF timer mismatch needs a healthy Full adjacency"
             )
         if not any(row["routes"] for row in self._healthy_link.values()):
-            raise RuntimeCapabilityError("OSPF cut edge has no learned routes")
+            raise RuntimeCapabilityError("OSPF link has no learned routes")
         self._original_timers = original
         self.injected_timers = next(
             timers
@@ -2397,7 +2529,9 @@ class OSPFHelloIntervalMismatch(ProblemBase):
                 for node, row in health.items()
             )
 
-        restored = wait_until(healthy, 120, interval_s=3)
+        restored = not recovery_checks_health() or wait_until(
+            healthy, 120, interval_s=3
+        )
         running = self._timers(params.host_name, params.intf_name)
         return {
             "verified": restored and running == original,
@@ -2562,6 +2696,7 @@ class OspfStubAreaMismatch(ProblemBase):
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name = "ospf_stub_area_mismatch"
+    CONFUSABLE_WITH = ("ospf_area_misconfiguration",)
     description = "OSPF neighbors disagree on whether their area is stub."
     symptom_probe = "custom"
     symptom_class = "control_plane"
@@ -2783,6 +2918,7 @@ class OspfAreaRangeSuppression(ProblemBase):
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name = "ospf_area_range_suppression"
+    CONFUSABLE_WITH = ("ospf_area_misconfiguration",)
     description = "An OSPF area border router has suppressing area address ranges."
     symptom_desc = "Hosts in one distribution branch cannot reach other areas."
     symptom_probe = "custom"

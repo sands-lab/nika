@@ -12,9 +12,7 @@ LINUX_PMTU_COLUMNS = frozenset(
         "isp_abilene/isis",
         "isp_abilene/ospf",
         "isp_abilene/ibgp_rr",
-        "isp_abilene_ebgp_rpki",
-        "isp_geant_ebgp_rpki",
-        "isp_abilene_ebgp_rtbh",
+        "isp_abilene/ebgp",
     }
 )
 

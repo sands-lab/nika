@@ -16,7 +16,7 @@ def test_mgmt_subnet_is_unique_per_lab() -> None:
     b = mgmt_ipv4_subnet("isp_abilene__lab2")
     assert a != b
     assert a.endswith(".0/24")
-    assert mgmt_ipv4_address("min3clos__x", 2).startswith("172.100.")
+    assert mgmt_ipv4_address("dc_clos__x", 2).startswith("172.100.")
 
 
 def test_large_labs_get_a_separate_mgmt_22() -> None:
@@ -32,3 +32,22 @@ def test_large_labs_get_a_separate_mgmt_22() -> None:
     assert str(network[1]) not in addresses
     with pytest.raises(ValueError):
         mgmt_ipv4_network("isp_huge", 1022)
+
+
+def test_mgmt_subnet_skips_networks_of_other_labs(monkeypatch) -> None:
+    from nika.net_env.utils.containerlab import mgmt_subnet
+
+    lab = "isp_dfn-gwin__lab1"
+    mgmt_subnet.mgmt_third_octet.cache_clear()
+    monkeypatch.setattr(mgmt_subnet, "_docker_subnets", lambda: {})
+    hashed = mgmt_subnet.mgmt_ipv4_subnet(lab)
+    mgmt_subnet.mgmt_third_octet.cache_clear()
+    monkeypatch.setattr(
+        mgmt_subnet, "_docker_subnets", lambda: {hashed: "br-isp_other__lab9"}
+    )
+    moved = mgmt_subnet.mgmt_ipv4_subnet(lab)
+    assert moved != hashed
+    mgmt_subnet.mgmt_third_octet.cache_clear()
+    monkeypatch.setattr(mgmt_subnet, "_docker_subnets", lambda: {hashed: f"br-{lab}"})
+    assert mgmt_subnet.mgmt_ipv4_subnet(lab) == hashed
+    mgmt_subnet.mgmt_third_octet.cache_clear()

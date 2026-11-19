@@ -70,7 +70,9 @@ def ground_truth_for_multi_case(
             rpki=rpki,
         )
     sub_faults: list[Any] = []
-    for problem in problems:
+    from nika.problems.multi import fault_instance_keys
+
+    for problem, key in zip(problems, fault_instance_keys(problems), strict=True):
         cls = get_problem_class(problem)
         if cls is None:
             raise UnresolvedRootCauseError(f"Unknown failure {problem!r}.")
@@ -80,7 +82,7 @@ def ground_truth_for_multi_case(
         instance.net_env = env
         instance.scenario_name = scenario
         instance._resolved_params = None
-        instance.parse_params(params[problem])
+        instance.parse_params(params[key])
         sub_faults.append(instance)
     return build_multi_ground_truth(sub_faults, failure_domain="multiple_faults")
 

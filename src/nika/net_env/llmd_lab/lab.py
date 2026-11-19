@@ -211,12 +211,12 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
             "The gateway address (llmd) is a MetalLB Layer 2 LoadBalancer IP "
             "that kube-proxy serves on TCP port 80 only, so ping to it gets "
             "no echo reply, only ICMP redirects; test it over HTTP. "
-            # kubectl is only usable on the k3s server. Resource ids use device names or Kubernetes objects.
             "`kubectl` works only on controller (the k3s server); the worker "
-            "devices ship the binary but have no kubeconfig. Resources are lab "
-            "devices (identified by device name) or Kubernetes objects "
-            "(identified by kind, namespace and name, as listed in the "
-            "resource inventory)."
+            "devices ship the binary but have no kubeconfig. Report Service, "
+            "Deployment, Ingress and load-balancer configuration faults on "
+            "controller, and node networking or taint faults on the affected "
+            "device. NetworkPolicy faults name the policy object; use the "
+            "submission inventory and ontology for resource IDs and kinds."
         )
         self.kubernetes_nodes = []
 
@@ -242,9 +242,7 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
             mount_workload_cache(m, self.LAB_NAME)
             self.declare_machine(
                 name,
-                role=(
-                    NodeRole.CONTROLLER if is_controller else NodeRole.INFRASTRUCTURE
-                ),
+                role=(NodeRole.CONTROLLER if is_controller else NodeRole.SERVER),
                 capabilities=("linux", "k3s"),
                 reachability_target=True,
             )
@@ -516,6 +514,20 @@ class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
         from nika.net_env.utils.k8s_client_hosts import sync_llmd_client_hosts
 
         sync_llmd_client_hosts(self._build_runtime())
+
+    def seal_baseline(self) -> None:
+        """Remove startup manifest copies after the cluster and workloads are ready."""
+        if not self.SEAL_BASELINE:
+            return
+        from nika.service.lab.checked_exec import checked_exec
+
+        super().seal_baseline()
+        checked_exec(
+            self._build_runtime().exec,
+            "controller",
+            "rm -f /k8s/*.yaml /k8s/*.yml",
+            timeout=30,
+        )
 
     def post_deploy(self):
         self.sync_client_hosts()

@@ -4,7 +4,6 @@
   "captures": {
     "routeros-ebgp-detail.txt": {
       "session_id": "20261103-153234-test-7976b1",
-      "scenario": "routeros_simple_bgp",
       "node": "router1",
       "command": "/routing/route/print detail where bgp and afi=ip",
       "image": "vrnetlab/mikrotik_routeros:7.21.5",
@@ -12,7 +11,6 @@
     },
     "iosxr-table.txt": {
       "session_id": "20261103-153423-test-116427",
-      "scenario": "iosxr_simple_bgp",
       "node": "router1",
       "command": "show bgp ipv4 unicast",
       "image": "ios-xr/xrd-control-plane:26.2.1",
@@ -20,7 +18,6 @@
     },
     "iosxr-summary.txt": {
       "session_id": "20261103-153423-test-116427",
-      "scenario": "iosxr_simple_bgp",
       "node": "router1",
       "command": "show bgp summary",
       "image": "ios-xr/xrd-control-plane:26.2.1",
@@ -28,7 +25,6 @@
     },
     "iosxr-absent.txt": {
       "session_id": "20261103-153423-test-116427",
-      "scenario": "iosxr_simple_bgp",
       "node": "router1",
       "command": "show bgp ipv4 unicast 192.168.3.0/24",
       "image": "ios-xr/xrd-control-plane:26.2.1",
@@ -36,7 +32,6 @@
     },
     "iosxr-invalid-command.txt": {
       "session_id": "20261103-153423-test-116427",
-      "scenario": "iosxr_simple_bgp",
       "node": "router1",
       "command": "show bgp ipv4 unicast detail",
       "image": "ios-xr/xrd-control-plane:26.2.1",

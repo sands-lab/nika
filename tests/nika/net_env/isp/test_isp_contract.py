@@ -233,9 +233,10 @@ def test_isp_backend_resolution() -> None:
 def test_clab_rejects_kathara_only_rpki_mode() -> None:
     with pytest.raises(ValueError, match="backend"):
         get_net_env_instance(
-            "isp_abilene_ebgp_rpki",
+            "isp_abilene",
             backend="containerlab",
             device_profile="nokia_srlinux",
+            rpki=True,
         )
 
 

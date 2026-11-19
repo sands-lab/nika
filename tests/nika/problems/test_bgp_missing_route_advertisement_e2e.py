@@ -81,19 +81,15 @@ COMPAT_CASES: tuple[CompatCase, ...] = (
         expect_verify_mode="redistribute",
     ),
     CompatCase(
-        id="min3clos",
-        scenario="min3clos",
-        topo_size="",
-        env_args=(),
-        isp_options=None,
+        id="dc_clos-srlinux",
+        scenario="dc_clos",
+        topo_size="s",
+        env_args=("-s", "s", "--backend", "containerlab"),
+        isp_options={"backend": "containerlab", "device_profile": "nokia_srlinux"},
         expect_verify_mode="srl_prefix",
         require_clab=True,
-        # Actual min3clos names/IPs (default probe paths previously used fabric placeholders).
-        probe_src="client2",
-        probe_dst="10.0.0.25",
-        # Export-policy artifact verifies, but client2→client1 can stay up in this
-        # fabric (policy may not bind the leaf-spine group). Keep artifact gate.
-        symptom_mode="artifact",
+        probe_src="client_1_1",
+        probe_dst="10.0.2.11",
     ),
     CompatCase(
         id="isp-abilene-ebgp",

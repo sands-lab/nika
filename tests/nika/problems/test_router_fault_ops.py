@@ -13,6 +13,19 @@ from nika.runtime.base import RuntimeCapabilityError
 pytestmark = pytest.mark.unit
 
 
+def test_session_policy_peers_include_native_isp_inventory():
+    from nika.problems.routing_control_plane.bgp import BGPSessionPolicyMissing
+
+    env = get_net_env_instance(
+        "isp_pdh", device_profile="iosxr", igp="ospf", bgp_mode="ebgp"
+    )
+    assert set(BGPSessionPolicyMissing.session_interfaces(env, "n10")) == {
+        "10.0.0.45",
+        "10.0.0.57",
+        "10.0.0.59",
+    }
+
+
 def test_dispatch_follows_node_device_profile() -> None:
     env = get_net_env_instance("campus_lan", topo_size="s", device_profile="iosxr")
     problem = SimpleNamespace(net_env=env, runtime=object())
@@ -25,21 +38,22 @@ def test_dispatch_follows_node_device_profile() -> None:
     assert router_fault_ops(frr, "leaf_router_0_0") is None
 
 
-def test_min3clos_srlinux_keeps_default_failure_ops() -> None:
-    """``nokia_srlinux`` on min3clos is for VM sizing, not fault-ops dispatch."""
-    srl = get_net_env_instance("min3clos", device_profile="nokia_srlinux")
-    sonic = get_net_env_instance("min3clos", device_profile="sonic")
-    assert srl.machine_identities["leaf1"].capabilities == (
-        "bgp",
-        "linux",
-        "nokia_srlinux",
-        "srl",
+def test_dc_clos_srlinux_keeps_default_failure_ops() -> None:
+    """SR Linux uses its Containerlab implementation; SONiC uses FRR operations."""
+    srl = get_net_env_instance(
+        "dc_clos", backend="containerlab", device_profile="nokia_srlinux"
     )
-    assert sonic.machine_identities["leaf1"].capabilities == ("bgp", "linux", "sonic")
+    sonic = get_net_env_instance(
+        "dc_clos", backend="containerlab", device_profile="sonic"
+    )
+    assert {"nokia_srlinux", "srl", "bgp"} <= set(
+        srl.machine_identities["leaf_1"].capabilities
+    )
+    assert {"sonic", "bgp"} <= set(sonic.machine_identities["leaf_1"].capabilities)
     problem_srl = SimpleNamespace(net_env=srl, runtime=object())
     problem_sonic = SimpleNamespace(net_env=sonic, runtime=object())
-    assert router_fault_ops(problem_srl, "leaf1") is None
-    ops = router_fault_ops(problem_sonic, "leaf1")
+    assert router_fault_ops(problem_srl, "leaf_1") is None
+    ops = router_fault_ops(problem_sonic, "leaf_1")
     assert ops is not None and ops.profile == "sonic"
 
 
@@ -158,8 +172,22 @@ def test_iosxr_reads_ip_mtu_instead_of_frame_mtu(output, expected):
     assert ops.interface_mtu("eth3") == expected
 
 
+def test_iosxr_reads_native_interface_address():
+    from nika.net_env.utils.iosxr.fault_ops import IosxrFaultOps
+
+    commands = []
+
+    def execute(node, command, **kwargs):
+        commands.append(command)
+        return "Internet address is 100.64.0.18/30\n"
+
+    ops = IosxrFaultOps(SimpleNamespace(exec=execute), "r1")
+    assert ops.interface_addresses("eth2") == ["100.64.0.18/30"]
+    assert "show ipv4 interface GigabitEthernet0/0/0/2" in commands[0]
+
+
 @pytest.mark.parametrize(
-    "failure", ["ospf_neighbor_missing", "ospf_hello_interval_mismatch"]
+    "failure", ["ospf_interface_not_enabled", "ospf_hello_interval_mismatch"]
 )
 def test_ospf_recovery_retries_transient_observation_errors(monkeypatch, failure):
     from unittest.mock import Mock
@@ -180,7 +208,7 @@ def test_ospf_recovery_retries_transient_observation_errors(monkeypatch, failure
     problem = cls.__new__(cls)
     problem.net_env = SimpleNamespace(backend="kathara")
     params = cls.Params(host_name="r1", intf_name="eth0")
-    if failure == "ospf_neighbor_missing":
+    if failure == "ospf_interface_not_enabled":
         neighbors = [OspfNeighbor("1.1.1.1", "10.0.0.2", "eth0", "Full")]
         ops = SimpleNamespace(
             restore_config=Mock(),
@@ -242,7 +270,7 @@ def test_sonic_containerlab_dispatch_uses_frr_for_fault_state():
     from nika.problems.routing_control_plane.bgp import BGPMd5PasswordMismatch
     from nika.problems.routing_control_plane.isis import (
         IsisAuthenticationMismatch,
-        IsisCircuitLevelMismatch,
+        IsisRouterLevelMismatch,
     )
     from nika.problems.routing_control_plane.ospf import OSPFDuplicateRouterId
     from nika.problems.support.ospf import ospf_health
@@ -278,7 +306,7 @@ def test_sonic_containerlab_dispatch_uses_frr_for_fault_state():
     runtime = SimpleNamespace(backend="containerlab", exec=execute)
     for cls, method, expected in [
         (BGPMd5PasswordMismatch, "_established", {"10.0.0.1"}),
-        (IsisCircuitLevelMismatch, "_level", "level-2-only"),
+        (IsisRouterLevelMismatch, "_level", "level-2-only"),
         (IsisAuthenticationMismatch, "_authentication", {"eth1": "none"}),
         (OSPFDuplicateRouterId, "_router_id", "10.255.0.1"),
     ]:
@@ -384,3 +412,300 @@ def test_xr_mtu_recovery_preserves_explicit_configuration(monkeypatch, configure
     assert router.save_config() == before
     assert problem.recover_fault(params)["verified"]
     assert router.save_config() == before
+
+
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+def test_bgp_policy_scope_and_recovery_preserve_other_session(monkeypatch, profile):
+    from nika.net_env.native_routers import native_platform
+
+    selected, other = "172.16.0.1", "172.16.0.3"
+    ops = native_platform(profile).fault_ops(object(), "leaf_1")
+    writes = []
+    if profile == "iosxr":
+        monkeypatch.setattr(ops, "_show", lambda _: "")
+        original = ["route-policy PASS in", "route-policy PASS out"]
+        bindings = {selected: original.copy(), other: original.copy()}
+        monkeypatch.setattr(ops, "_ebgp_policies", lambda: bindings)
+        monkeypatch.setattr(ops, "bgp_asn", lambda: 65003)
+
+        def apply(*lines):
+            writes.append(lines)
+            neighbor = next(
+                line.strip().split()[1]
+                for line in lines
+                if line.startswith(" neighbor ")
+            )
+            bindings[neighbor] = (
+                []
+                if any("no route-policy" in line for line in lines)
+                else original.copy()
+            )
+
+        monkeypatch.setattr(ops, "_apply", apply)
+        saved = (
+            "router bgp 65003\n neighbor "
+            + selected
+            + "\n  address-family ipv4 unicast\n   route-policy PASS in\n   route-policy PASS out\n  !\n !\n!\n"
+        )
+
+        def other_state():
+            return bindings[other]
+    else:
+        bindings = [
+            {
+                "name": "peer1",
+                "remote.address": selected,
+                "local.role": "ebgp",
+                "input.filter": "PASS-IN",
+                "output.filter-chain": "PASS-OUT",
+            },
+            {
+                "name": "peer2",
+                "remote.address": other,
+                "local.role": "ebgp",
+                "input.filter": "PASS-IN",
+                "output.filter-chain": "PASS-OUT",
+            },
+        ]
+        monkeypatch.setattr(ops, "_rows", lambda _: bindings)
+
+        def cli(command):
+            if "count-only" in command:
+                return "1" if "PASS" in command else "0"
+            writes.append(command)
+            if "/routing bgp session " in command:
+                assert f'remote.address="{selected}"' in command
+                assert other not in command
+                assert command.endswith(" afi=ip")
+                return ""
+            assert 'name="peer1"' in command and 'name="peer2"' not in command
+            bindings[0]["input.filter"] = (
+                "PASS-IN" if "PASS-IN" in command else "bgp-in"
+            )
+            bindings[0]["output.filter-chain"] = (
+                "PASS-OUT" if "PASS-OUT" in command else "bgp-out"
+            )
+            return ""
+
+        monkeypatch.setattr(ops, "_cli", cli)
+        saved = "/routing bgp connection add name=peer1 remote.address=172.16.0.1 input.filter=PASS-IN output.filter-chain=PASS-OUT\n"
+
+        def other_state():
+            return dict(bindings[1])
+
+    before_other = other_state().copy()
+    for _ in range(2):
+        ops.drop_bgp_session_policy(selected)
+        assert ops.bgp_session_policy_dropped(selected)
+        assert not ops.bgp_session_policy_dropped(other)
+        assert not ops.bgp_session_policy_dropped()
+        assert other_state() == before_other
+        assert ops.restore_bgp_session_policy(saved, selected)
+        assert not ops.bgp_session_policy_dropped(selected)
+        assert other_state() == before_other
+        assert ops.restore_bgp_session_policy(saved, selected)
+        assert not ops.bgp_session_policy_dropped(selected)
+        assert other_state() == before_other
+
+
+def test_routeros_policy_checks_exclude_rejected_prefixes(monkeypatch):
+    from nika.net_env.native_routers import native_platform
+
+    ops = native_platform("routeros").fault_ops(object(), "r1")
+
+    def cli(command):
+        if "/routing/bgp/session/print" in command:
+            return "0 E remote.address=192.0.2.1 prefix-count=3"
+        assert "where bgp and afi=ip and !filtered" in command
+        return (
+            "0 Ab dst-address=198.51.100.0/24 belongs-to=bgp-IP-192.0.2.1@main\n"
+            "1 Ab dst-address=198.51.101.0/24 belongs-to=bgp-IP-192.0.2.2@main\n"
+        )
+
+    monkeypatch.setattr(ops, "_cli", cli)
+    assert ops.bgp_received_prefix_count("192.0.2.1") == 3
+    assert ops.bgp_accepted_prefix_count("192.0.2.1") == 1
+
+
+@pytest.mark.parametrize("unsafe", [False, True])
+def test_iosxr_policy_verification_requires_default_reject(unsafe):
+    from nika.net_env.utils.iosxr.fault_ops import IosxrFaultOps
+
+    config = (
+        "router bgp 65001\n"
+        + (" bgp unsafe-ebgp-policy\n" if unsafe else "")
+        + " neighbor 172.16.0.4\n  remote-as 65004\n  address-family ipv4 unicast\n  !\n !\n!\n"
+    )
+    ops = IosxrFaultOps(SimpleNamespace(exec=lambda *a, **k: config), "spine_1")
+    assert ops.bgp_session_policy_dropped("172.16.0.4") is (not unsafe)
+    assert ops.bgp_session_policy_dropped() is (not unsafe)
+
+
+@pytest.mark.parametrize(
+    "notification,expected",
+    [
+        ("OPEN Message Error/Bad Peer AS", True),
+        ("Cease/Other Configuration Change", False),
+        (None, False),
+    ],
+)
+def test_sonic_observer_reads_frr_notification(notification, expected):
+    import json
+
+    from nika.validation.symptom.routing_probes import _bad_peer_as, _read_view
+
+    env = get_net_env_instance(
+        "dc_clos", topo_size="s", backend="containerlab", device_profile="sonic"
+    )
+    output = json.dumps(
+        {
+            "default": {
+                "10.0.0.1": {
+                    "bgpState": "Active",
+                    "lastNotificationReason": notification,
+                }
+            }
+        }
+    )
+    runtime = SimpleNamespace(exec=lambda *a, **kw: output)
+    problem = SimpleNamespace(net_env=env, runtime=runtime)
+    states, notes, errors = _read_view(
+        problem,
+        "leaf_1",
+        {"host_addresses": ["10.0.0.1"], "facing": {}, "bgp": ["spine_1"]},
+    )
+    key = "bgp|spine_1|10.0.0.1"
+    assert states == {key: "Active"}
+    assert errors == []
+    assert _bad_peer_as([key], [], notes) is expected
+
+
+@pytest.mark.parametrize("fresh,expected", [(False, False), (True, True)])
+def test_routeros_asn_symptom_requires_a_new_open_rejection(
+    monkeypatch, fresh, expected
+):
+    from pathlib import Path
+
+    from nika.validation.symptom import routing_probes as probes
+
+    raw = (
+        (Path(__file__).parents[2] / "fixtures/routeros_bgp_open_errors.txt")
+        .read_text()
+        .splitlines()
+    )
+    env = get_net_env_instance("dc_clos", topo_size="s", device_profile="routeros")
+    reads = 0
+
+    def execute(node, command, **kwargs):
+        nonlocal reads
+        if "/log/print" in command:
+            reads += 1
+            return "\n".join(raw if fresh and reads > 1 else raw[:2])
+        if "/session/print terse where remote.address=" in command:
+            wire = b"\xff" * 16 + b"\x00\x15\x03\x02\x02"
+            return f"input.procid=1 .last-notification={wire.hex()}"
+        return ""
+
+    key = "bgp|leaf_1|172.16.0.1"
+    problem = SimpleNamespace(
+        net_env=env,
+        runtime=SimpleNamespace(exec=execute),
+        root_cause_name="bgp_asn_misconfig",
+        _audit_routing_plan={
+            "host": "spine_1",
+            "host_addresses": ["172.16.0.1"],
+            "facing": {},
+            "bgp": ["leaf_1"],
+            "up": [key],
+        },
+    )
+    ticks = iter(range(0, 1000, 31))
+    monkeypatch.setattr(probes.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(probes.time, "sleep", lambda _: None)
+    ok, details = probes.bgp_bad_peer_as(problem, SimpleNamespace(host_name="spine_1"))
+    assert ok is expected, details
+    assert details["details"]["peer_notes"][key]["new_open_rejections"] == (
+        raw[2:] if fresh else []
+    )
+
+
+@pytest.mark.parametrize(
+    "fresh,sent_bad_as,expected",
+    [(True, True, True), (False, True, False), (True, False, False)],
+)
+def test_srl_asn_symptom_requires_a_new_sent_bad_as(
+    monkeypatch, fresh, sent_bad_as, expected
+):
+    import json
+    from pathlib import Path
+
+    from nika.validation.symptom import routing_probes as probes
+
+    data = json.loads(
+        (Path(__file__).parents[2] / "fixtures/srl_bgp_open_error.json").read_text()
+    )
+    neighbor = data["network-instance"][0]["protocols"]["bgp"]["neighbor"][0]
+    if not sent_bad_as:
+        neighbor["sent-messages"]["last-notification-error-code"] = "Cease"
+        neighbor["sent-messages"]["last-notification-error-subcode"] = (
+            "Other Configuration Change"
+        )
+        neighbor["received-messages"]["last-notification-error-code"] = (
+            "Open Message Error"
+        )
+        neighbor["received-messages"]["last-notification-error-subcode"] = "Bad Peer As"
+    reads = 0
+
+    def execute(node, command, **kwargs):
+        nonlocal reads
+        if "as json" not in command:
+            return ""
+        assert "bgp neighbor * | as json" in command
+        reads += 1
+        neighbor["sent-messages"]["total-notifications"] = (
+            2 if fresh and reads > 1 else 1
+        )
+        return json.dumps(data)
+
+    key = "bgp|frankfurt|10.255.0.1"
+    problem = SimpleNamespace(
+        net_env=SimpleNamespace(machine_identities={}),
+        runtime=SimpleNamespace(exec=execute),
+        root_cause_name="bgp_asn_misconfig",
+        _audit_routing_plan={
+            "host": "berlin",
+            "host_addresses": ["10.255.0.1"],
+            "facing": {},
+            "bgp": ["frankfurt"],
+            "up": [key],
+            "bgp_hold_sec": 90,
+            "bgp_connect_retry_sec": 10,
+        },
+    )
+    ticks = iter(range(0, 1000, 31))
+    monkeypatch.setattr(probes.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(probes.time, "sleep", lambda _: None)
+    ok, details = probes.bgp_bad_peer_as(problem, SimpleNamespace(host_name="berlin"))
+    assert ok is expected, details
+    peer = details["details"]["peer_notes"][key]
+    assert peer["hold_ms"] == 90000
+    assert peer["connect_retry"] == 10
+
+
+def test_routeros_address_inventory_is_stable_after_readdition():
+    from nika.net_env.utils.routeros.fault_ops import RouterOsFaultOps
+
+    addresses = ["100.64.0.17/30", "198.18.1.10/32", "198.18.1.11/32"]
+
+    def execute(node, command, **kwargs):
+        return "\n".join(
+            f"{index} address={address} interface=ether4"
+            for index, address in enumerate(addresses)
+        )
+
+    ops = RouterOsFaultOps(SimpleNamespace(exec=execute), "br1_edge")
+    before = ops.interface_addresses("ether4")
+    addresses.append(addresses.pop(1))
+    assert ops.interface_addresses("ether4") == before
+    addresses.pop()
+    assert ops.interface_addresses("ether4") != before

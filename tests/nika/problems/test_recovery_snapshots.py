@@ -99,3 +99,23 @@ def test_stopped_dhcp_server_does_not_hide_lost_client_state(monkeypatch):
     )
     assert saved.restore(runtime, "server") is False
     assert renewed == []
+
+
+def test_ipv4_recovery_restores_device_omitted_from_route_snapshot(monkeypatch):
+    saved = IPv4Snapshot(
+        "eth0",
+        ("10.0.1.12/32",),
+        ("default via 10.0.1.1", "10.0.1.1 scope link"),
+        ("10.0.1.1 lladdr 02:00:00:00:00:01 PERMANENT",),
+    )
+    commands = []
+    runtime = SimpleNamespace(
+        exec=lambda node, command: (
+            commands.append(command) or "NIKA_RECOVERY_COMMAND_OK\n"
+        )
+    )
+    monkeypatch.setattr(IPv4Snapshot, "capture", classmethod(lambda cls, *args: saved))
+    saved.restore(runtime, "client")
+    routes = [command for command in commands if "ip -4 route replace" in command]
+    assert "10.0.1.1 scope link dev eth0" in routes[0]
+    assert "default via 10.0.1.1 dev eth0" in routes[1]

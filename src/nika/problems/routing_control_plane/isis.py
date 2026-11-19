@@ -1,4 +1,5 @@
 import re
+import time
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,7 @@ from nika.problems.support.oracle import (
     OraclePlaybook,
     contains,
     router_cli,
+    srl_cli,
     vtysh,
 )
 from nika.problems.support.router_ops import native_fault_ops, native_router_profile
@@ -293,6 +295,8 @@ class IsisMetricStyleMismatch(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "isis_metric_style_mismatch"
+    NATIVE_CONFIG_KEYWORDS = ("metric[-_]style",)
+    CONFUSABLE_WITH = ("isis_router_level_mismatch",)
     description = "IS-IS metric style is inconsistent with neighboring routers."
     effect_protocol = "isis"
     TAGS = ["isis"]
@@ -386,13 +390,13 @@ class IsisMetricStyleMismatch(ProblemBase):
         }
 
 
-class IsisCircuitLevelMismatchParams(BaseModel):
+class IsisRouterLevelMismatchParams(BaseModel):
     """Parameters for injecting an IS-IS level mismatch."""
 
     host_name: str = Field(description="Target router host name.")
 
 
-class IsisCircuitLevelMismatch(ProblemBase):
+class IsisRouterLevelMismatch(ProblemBase):
     """One router runs IS-IS at a level its neighbors do not.
 
     The ISP design is Level-2 only. Setting the instance to Level-1 (FRR and
@@ -409,14 +413,15 @@ class IsisCircuitLevelMismatch(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     symptom_probe = "custom"
     symptom_class = "control_plane"
-    root_cause_name = "isis_circuit_level_mismatch"
+    root_cause_name = "isis_router_level_mismatch"
+    CONFUSABLE_WITH = ("isis_authentication_mismatch", "isis_metric_style_mismatch")
     description = "IS-IS level is inconsistent with neighboring routers."
     effect_protocol = "isis"
     TAGS = ["isis"]
     isp_protocol = {"igp": "isis", "bgp_mode": "none", "rpki": False}
     supported_backends = ("kathara", "containerlab")
     native_router_operations = frozenset({"isis_level", "set_isis_level"})
-    Params = IsisCircuitLevelMismatchParams
+    Params = IsisRouterLevelMismatchParams
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -434,10 +439,10 @@ class IsisCircuitLevelMismatch(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
 
-    def root_cause_resources(self, params: IsisCircuitLevelMismatchParams):
+    def root_cause_resources(self, params: IsisRouterLevelMismatchParams):
         return [node_resource(params.host_name)]
 
-    def oracle_playbook(self, params: IsisCircuitLevelMismatchParams) -> OraclePlaybook:
+    def oracle_playbook(self, params: IsisRouterLevelMismatchParams) -> OraclePlaybook:
         return _isis_oracle(self, params.host_name, "level")
 
     def _set_level(self, host: str, level: str) -> None:
@@ -509,7 +514,7 @@ class IsisCircuitLevelMismatch(ProblemBase):
         config = self.runtime.exec(host, "vtysh -c 'show running-config' 2>/dev/null")
         return _is_type(config)
 
-    def inject_fault(self, params: IsisCircuitLevelMismatchParams):
+    def inject_fault(self, params: IsisRouterLevelMismatchParams):
         current = self._level(params.host_name)
         if (
             getattr(self.net_env, "backend", None) == "containerlab"
@@ -527,7 +532,7 @@ class IsisCircuitLevelMismatch(ProblemBase):
         self._set_level(params.host_name, _LEVEL1)
         self.logger.info(f"Injected IS-IS is-type {_LEVEL1} on {params.host_name}.")
 
-    def verify_fault(self, params: IsisCircuitLevelMismatchParams) -> dict:
+    def verify_fault(self, params: IsisRouterLevelMismatchParams) -> dict:
         level = self._level(params.host_name)
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -535,7 +540,7 @@ class IsisCircuitLevelMismatch(ProblemBase):
             details={"host": params.host_name, "isis_level": level},
         )
 
-    def recover_fault(self, params: IsisCircuitLevelMismatchParams) -> dict:
+    def recover_fault(self, params: IsisRouterLevelMismatchParams) -> dict:
         orig = getattr(self, "_orig_level", None)
         baseline = getattr(self, "_healthy_routing", None)
         if not orig or not baseline:
@@ -579,6 +584,7 @@ class IsisAuthenticationMismatch(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "isis_authentication_mismatch"
+    CONFUSABLE_WITH = ("isis_router_level_mismatch",)
     description = "IS-IS hello authentication is inconsistent with neighboring routers."
     effect_protocol = "isis"
     TAGS = ["isis"]
@@ -692,6 +698,82 @@ class IsisAuthenticationMismatch(ProblemBase):
             and all(mode == "md5" for mode in modes.values()),
             details={"host": params.host_name, "hello_authentication": modes},
         )
+
+    def capture_hello_routing(self, params: IsisAuthenticationMismatchParams):
+        from nika.validation.symptom.routing_probes import (
+            _isis_neighbors,
+            _isis_routes,
+            _native_profile,
+        )
+
+        host = params.host_name
+        self._audit_isis_hello_local = None
+        neighbors = _isis_neighbors(
+            self.runtime,
+            host,
+            profile="nokia_srlinux"
+            if srl_cli(self.net_env, host)
+            else _native_profile(self, host),
+        )
+        routes = _isis_routes(self, host)
+        if neighbors is None or routes is None:
+            return False, {"error": "local_isis_query_failed", "host": host}
+        baseline = {
+            "neighbors": [
+                [row["system"], row["intf"]]
+                for row in neighbors
+                if row["state"].lower() == "up"
+            ],
+            "routes": sorted(routes),
+        }
+        self._audit_isis_hello_local = baseline
+        return bool(baseline["neighbors"] and baseline["routes"]), baseline
+
+    def hello_routing_lost(self, params: IsisAuthenticationMismatchParams):
+        """Require local routing loss; unauthenticated peers can retain their view."""
+        from nika.validation.symptom.routing_probes import (
+            _IGP_WAIT_SEC,
+            _POLL_SEC,
+            _isis_neighbors,
+            _isis_routes,
+            _native_profile,
+        )
+
+        host = params.host_name
+        baseline = getattr(self, "_audit_isis_hello_local", None) or {}
+        if not baseline.get("neighbors") or not baseline.get("routes"):
+            return False, {"error": "no_local_isis_baseline", "host": host}
+        held_since = None
+        details = {"host": host, "local_routing_before": baseline}
+
+        def lost():
+            nonlocal held_since
+            neighbors = _isis_neighbors(
+                self.runtime,
+                host,
+                profile="nokia_srlinux"
+                if srl_cli(self.net_env, host)
+                else _native_profile(self, host),
+            )
+            routes = _isis_routes(self, host)
+            if neighbors is None or routes is None:
+                held_since = None
+                details["error"] = "local_isis_query_failed"
+                return False
+            details.pop("error", None)
+            up = [row for row in neighbors if row["state"].lower() == "up"]
+            remaining = sorted(set(baseline["routes"]) & routes)
+            details.update(local_adjacencies_up=up, remaining_local_routes=remaining)
+            if up or remaining:
+                held_since = None
+                return False
+            now = time.monotonic()
+            if held_since is None:
+                held_since = now
+            return now - held_since >= 10
+
+        verified = wait_until(lost, _IGP_WAIT_SEC + 10, interval_s=_POLL_SEC)
+        return verified, build_verify_result(self.root_cause_name, verified, details)
 
     def recover_fault(self, params: IsisAuthenticationMismatchParams) -> dict:
         baseline = getattr(self, "_healthy_routing", None)

@@ -60,6 +60,7 @@ class IngressRateLimitMisconfig(K8sProblemBase):
 
     failure_domain = FailureDomain.SERVICE_NETWORKING
     root_cause_name = "k8s_ingress_rate_limit_misconfig"
+    CONFUSABLE_WITH = ("k8s_ingress_class_mismatch",)
     description = "A Kubernetes Ingress request-rate limit is below application demand."
     symptom_desc = "Application requests intermittently return HTTP 503."
     symptom_probe = "custom"

@@ -710,7 +710,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         # probe it; its provider link can still fail.
         self.declare_machine(
             PUBLIC_SERVICE_HOST,
-            role=NodeRole.INFRASTRUCTURE,
+            role=NodeRole.SERVER,
             capabilities=("linux", "http"),
         )
         self._connect(isp.name, PUBLIC_SERVICE_HOST, f"{isp.name}_public")

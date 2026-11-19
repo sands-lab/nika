@@ -5,7 +5,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from nika.problems.endpoint_application import transport
 from nika.problems.routing_control_plane import bgp
 from nika.problems.service_networking import gateway
 
@@ -35,6 +34,37 @@ def test_cpu_quota_round_trip_preserves_unlimited_and_limited_containers(
     assert cpu.read_nano_cpus(runtime, "host") == 50_000_000
     cpu.set_nano_cpus(runtime, "host", original)
     assert cpu.read_nano_cpus(runtime, "host") == original
+
+
+def test_rov_recovery_retains_snapshot_after_partial_injection(monkeypatch):
+    problem = object.__new__(bgp.BGPROVNotEnforced)
+    problem.net_env = SimpleNamespace(
+        inventory={"bgp": {"rpki": True, "rov_observer": "r1"}}
+    )
+    problem.runtime = SimpleNamespace(backend="kathara", exec=Mock())
+    params = bgp.BGPROVNotEnforcedParams(host_name="r1")
+    assert not problem.recover_fault(params)["verified"]
+    deny = "route-map BGP-IN deny 5\n match rpki invalid"
+    permit = "route-map BGP-IN permit 10\n match ip address prefix-list BUSINESS"
+    reading = {
+        "host": "r1",
+        "policy": (deny, permit),
+        "invalid_deny": (deny,),
+        "imports_attached": True,
+        "cache_connected": True,
+    }
+    monkeypatch.setattr(problem, "_policy_reading", lambda params: dict(reading))
+    problem.runtime.exec.side_effect = RuntimeError("Configuration interrupted")
+    with pytest.raises(RuntimeError, match="interrupted"):
+        problem.inject_fault(params)
+    problem.runtime.exec.side_effect = None
+    assert problem.recover_fault(params)["verified"]
+    assert problem.recover_fault(params)["verified"]
+    reading["policy"] = (deny,)
+    assert not problem.recover_fault(params)["verified"]
+    reading["policy"] = (deny, permit)
+    reading["cache_connected"] = False
+    assert not problem.recover_fault(params)["verified"]
 
 
 def test_bgp_recovery_retains_all_vrf_network_options(monkeypatch):
@@ -97,30 +127,6 @@ def test_snat_recovery_preserves_rules_added_before_and_after_injection(monkeypa
     gateway.SnatPortPoolExhaustion.inject_fault.__wrapped__(problem, params)
     assert problem.recover_fault(params)["verified"]
     assert removed == ["nft delete rule ip nat POSTROUTING handle 9"]
-
-
-def test_receiver_quota_failure_is_reported_after_workload_cleanup(monkeypatch):
-    problem = object.__new__(transport.ReceiverResourceContention)
-    problem.scenario_name = "other"
-    problem.runtime = object()
-    problem._receiver_quota_applied = True
-    problem._original_nano_cpus = 0
-    problem._archive = {}
-    cleanup = Mock()
-    monkeypatch.setattr(
-        transport,
-        "set_nano_cpus",
-        Mock(side_effect=RuntimeError("quota update rejected")),
-    )
-    monkeypatch.setattr(transport, "_remove_archive_job", cleanup)
-    monkeypatch.setattr(transport, "container_commands", lambda *args: [])
-    monkeypatch.setattr(transport.time, "sleep", lambda *args: None)
-    params = transport.ReceiverResourceContentionParams(host_name="host")
-    result = problem.recover_fault(params)
-    assert result["verified"] is False
-    assert result["details"]["workload_gone"] is True
-    assert result["details"]["quota_error"] == "quota update rejected"
-    cleanup.assert_called_once()
 
 
 def test_service_recovery_requires_own_injection_snapshot():

@@ -14,6 +14,7 @@ import re
 import time
 
 from nika.net_env.synthesis.configuration import NETLAB_SCRIPT_DIR
+from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import TunnelPeer
 
 SCRIPT = f"{NETLAB_SCRIPT_DIR}/tunnel.wireguard.sh"
@@ -31,13 +32,20 @@ class LinuxWireGuard:
     def _peer_row(self, interface: str) -> list[str]:
         # ``wg show <if> dump``: the interface line, then one line per peer:
         # public-key preshared-key endpoint allowed-ips latest-handshake rx tx keepalive
-        rows = [
-            line.split("\t")
-            for line in self.runtime.exec(
-                self.node, f"wg show {interface} dump 2>/dev/null || true"
-            ).splitlines()[1:]
-            if line.strip()
-        ]
+        rows: list[list[str]] = []
+
+        def read() -> bool:
+            rows[:] = [
+                line.split("\t")
+                for line in self.runtime.exec(
+                    self.node, f"wg show {interface} dump 2>/dev/null || true"
+                ).splitlines()[1:]
+                if line.strip()
+            ]
+            return len(rows) == 1
+
+        # The edge can rebuild its tunnels after a provider link returns.
+        wait_until(read, 30, interval_s=2)
         if len(rows) != 1:
             raise ValueError(f"Expected one WireGuard peer on {self.node}:{interface}")
         return rows[0]

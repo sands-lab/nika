@@ -57,6 +57,20 @@ def test_redundant_abr_rejected():
     assert ("router_core_2", "0.0.0.1") in branches
 
 
+@pytest.mark.parametrize("profile", [None, "iosxr", "routeros"])
+def test_range_probe_selects_backbone_host_from_routing_design(profile):
+    from types import SimpleNamespace
+
+    from nika.validation.symptom.ospf_range_probes import _probe_ends
+
+    env = CampusLan(device_profile=profile)
+    branch = ospf_area_branches(env)["router_core_1", "0.0.0.1"]
+    ends = _probe_ends(SimpleNamespace(net_env=env), branch, "router_core_1")
+    assert ends["src"] == "dhcp_server"
+    assert ends["dst"] == "10.1.1.1"
+    assert ends["control_src"] == "router_dist_1_1"
+
+
 def test_frr_summary_lsdb_excludes_maxage_and_other_areas():
     import json
 

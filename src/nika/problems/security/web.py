@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 import random
 import re
-import shlex
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -31,6 +31,7 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.support.benchmark_targets import choice
+from nika.runtime.shared.processes import process_source
 from nika.utils.logger import system_logger
 
 # ==================================================================
@@ -42,7 +43,6 @@ from nika.utils.logger import system_logger
 # targets content the scenario already publishes at baseline (never content
 # created by this failure), so file existence does not itself signal inject.
 _SLOW_HTTP_CLIENT = "http-client"
-_SLOW_HTTP_PATTERN = "^http-client "
 _SLOW_HTTP_SOURCE = """#!/usr/bin/env python3
 import socket
 import sys
@@ -138,6 +138,7 @@ class WebDoS(ProblemBase):
     symptom_class = "degradation"
     dynamic_artifact = True
     root_cause_name: str = "web_dos_attack"
+    CONFUSABLE_WITH = ("tcp_syn_flood_attack",)
     description = "Web service is under a denial-of-service attack."
     symptom_desc: str = "Users reports high latency when accessing some web services."
     TAGS: list[str] = ["http"]
@@ -150,6 +151,7 @@ class WebDoS(ProblemBase):
         "p4_dc_gateway": "Flooding through the BMv2 VIP degrades the symptom erratically.",
     }
 
+    RECORDED_ATTRS = ("_slow_process",)
     Params = WebDoSParams
 
     @classmethod
@@ -282,15 +284,40 @@ class WebDoS(ProblemBase):
             return 0
 
     def _slow_client_count(self, params: WebDoSParams) -> int:
+        return int(self._slow_process_action(params, "check"))
+
+    def _slow_process_action(self, params, action, host=None, port=None):
+        identity = getattr(self, "_slow_process", None)
+        if action != "start" and identity is None:
+            return False
+        script = process_source()
+        if action == "start":
+            script += f"""
+import subprocess
+fd = os.memfd_create({_SLOW_HTTP_CLIENT!r})
+os.write(fd, {_SLOW_HTTP_SOURCE!r}.encode())
+os.lseek(fd, 0, os.SEEK_SET)
+with open(os.devnull, 'r+b') as null:
+    child = subprocess.Popen(
+        [{_SLOW_HTTP_CLIENT!r}, '/dev/fd/' + str(fd), {host!r}, {str(port)!r}, {str(params.slow_connections)!r}],
+        executable=sys.executable, pass_fds=(fd,), stdin=null, stdout=null,
+        stderr=null, start_new_session=True,
+    )
+print(json.dumps(process_identity(child.pid)))
+"""
+        elif action == "stop":
+            script += f"\nstop_owned({identity!r})\nprint('false')\n"
+        else:
+            script += f"""
+fd = owned_pidfd({identity!r})
+print(json.dumps(fd is not None))
+if fd is not None:
+    os.close(fd)
+"""
         output = self.runtime.exec(
-            params.attacker_device,
-            f"ps -eo args 2>/dev/null | grep -c '{_SLOW_HTTP_PATTERN}' || true",
-            timeout=10,
-        ).strip()
-        try:
-            return int(output.splitlines()[-1])
-        except (IndexError, ValueError):
-            return 0
+            params.attacker_device, "python3 - <<'PY'\n" + script + "\nPY", timeout=15
+        )
+        return json.loads(output.strip().splitlines()[-1])
 
     def _slow_client_running(self, params: WebDoSParams) -> bool:
         return params.slow_connections == 0 or self._slow_client_count(params) >= 1
@@ -355,6 +382,7 @@ class WebDoS(ProblemBase):
                         f"{attacker} keeps at least {_FLOOD_CONNECTIONS} connections open",
                     ),
                     evidence=True,
+                    attempts=3,
                 ),
             ],
         )
@@ -397,20 +425,9 @@ class WebDoS(ProblemBase):
             timeout=15,
         )
         if params.slow_connections:
-            self.runtime.exec(
-                attacker,
-                f"pkill -f '{_SLOW_HTTP_PATTERN}' 2>/dev/null || true",
-                timeout=10,
-            )
-            self.runtime.exec(
-                attacker,
-                "nohup bash -c "
-                + shlex.quote(
-                    f"exec -a {_SLOW_HTTP_CLIENT} python3 -c {shlex.quote(_SLOW_HTTP_SOURCE)} "
-                    f"{shlex.quote(attack_host)} {attack_port} {params.slow_connections}"
-                )
-                + " </dev/null >/dev/null 2>&1 &",
-                timeout=10,
+            self._slow_process_action(params, "stop")
+            self._slow_process = self._slow_process_action(
+                params, "start", attack_host, attack_port
             )
 
         deadline = time.monotonic() + 12.0
@@ -483,11 +500,7 @@ class WebDoS(ProblemBase):
 
     def recover_fault(self, params: WebDoSParams) -> dict:
         stop_ab_workers(self.runtime, params.attacker_device)
-        self.runtime.exec(
-            params.attacker_device,
-            f"pkill -f '{_SLOW_HTTP_PATTERN}' 2>/dev/null || true",
-            timeout=10,
-        )
+        self._slow_process_action(params, "stop")
         time.sleep(0.3)
         workers, ab_processes, _ = self._worker_state(params)
         slow_clients = self._slow_client_count(params)

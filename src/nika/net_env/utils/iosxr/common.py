@@ -144,6 +144,7 @@ def build_xr_startup_script(
         wait_ready,
         "source /pkg/bin/ztp_helper.sh; ztp_disable; ztp_kill_all; killall -9 pyztp2",
         apply_with_retry,
+        f"rm -f -- {shlex.quote(config_path)}",
     ]
 
 

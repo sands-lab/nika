@@ -19,6 +19,7 @@ from nika.net_env.isp.bgp.plan import (
     BgpPlan,
     BgpSession,
     compile_bgp_plan,
+    default_ebgp_profiles,
     scope_igp_to_bgp_as,
 )
 
@@ -35,6 +36,7 @@ __all__ = [
     "BgpConfigError",
     "BgpError",
     "compile_bgp_plan",
+    "default_ebgp_profiles",
     "scope_igp_to_bgp_as",
     "merge_frr_conf",
     "normalize_bgp_mode",

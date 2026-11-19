@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections import defaultdict, deque
 from dataclasses import replace
+from functools import lru_cache
 from ipaddress import IPv4Network
 from typing import Any
 
@@ -21,7 +22,6 @@ from nika.net_env.isp.bgp.plan import (
     BgpSession,
 )
 
-PROFILE_NAME = "isp_rpki"
 
 # Roles (ASNs follow generic eBGP partition: seed order → ASN index).
 LEGITIMATE_ORIGIN_ASN = EBGP_BASE_ASN  # 65001
@@ -41,6 +41,10 @@ RPKI_ROUTER_ADDRESS = "10.255.254.1"
 RPKI_ROUTINATOR_ADDRESS = "10.255.254.2"
 RPKI_PREFIXLEN = 30
 RPKI_RTR_PORT = 3323
+# Seconds between RTR reconnect attempts in current deployments. FRR waits its
+# default 600 s after a failed first connect, which happens on large labs
+# whose Routinator starts after bgpd.
+RPKI_RETRY_INTERVAL_SEC = 10
 ROUTINATOR_MACHINE = "routinator"
 
 
@@ -180,6 +184,7 @@ def apply_rpki_profile(plan: BgpPlan) -> BgpPlan:
             non_rov_observer=non_rov_observer,
         )
     )
+    refreshed["rpki_rtr"]["retry_interval"] = RPKI_RETRY_INTERVAL_SEC
 
     return BgpPlan(
         mode="ebgp",
@@ -193,9 +198,34 @@ def apply_rpki_profile(plan: BgpPlan) -> BgpPlan:
     )
 
 
+@lru_cache(maxsize=None)
+def supports_route_leak(topology: str) -> bool:
+    """Whether the AS partition gives the leaker a direct non-ROV observer."""
+    from nika.net_env.isp.bgp.plan import _compile_ebgp
+    from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+
+    plan = _compile_ebgp(compile_isp_plan(IspConfig(topology=topology, igp="ospf")))
+    return any(
+        s.local_asn == LEAKER_ASN
+        and s.remote_asn == LEGITIMATE_ORIGIN_ASN
+        and s.session_type == "ebgp"
+        for s in plan.sessions
+    )
+
+
 def _pick_leaker(members: list[str], ebgp_by_local: dict[str, list[BgpSession]]) -> str:
+    """A border router, preferably one that peers the legitimate origin AS.
+
+    Its leaked routes then reach a router without ROV over a direct session
+    (the non-ROV observer), rather than only through the ROV observer's AS.
+    """
     borders = [d for d in members if ebgp_by_local.get(d)]
-    pool = borders if borders else members
+    peers_origin = [
+        d
+        for d in borders
+        if any(s.remote_asn == LEGITIMATE_ORIGIN_ASN for s in ebgp_by_local[d])
+    ]
+    pool = peers_origin or borders or members
     return sorted(pool)[0]
 
 
@@ -301,7 +331,6 @@ def _profile_inventory(
     non_rov_observer: str,
 ) -> dict[str, Any]:
     return {
-        "inter_as_profile": PROFILE_NAME,
         "rpki": True,
         "legitimate_origin_asn": LEGITIMATE_ORIGIN_ASN,
         "legitimate_origin_device": origin_device,
@@ -334,7 +363,7 @@ def slurm_document() -> dict[str, Any]:
             "maxPrefixLength": int(prefix.split("/")[1]),
             "comment": f"local VRP for {prefix}",
         }
-        for prefix in LEAK_PREFIXES
+        for prefix in (*LEAK_PREFIXES, "198.51.100.0/24")
     ]
     return {
         "slurmVersion": 1,

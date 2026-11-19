@@ -277,7 +277,7 @@ class CampusLanDhcp(NetworkEnvBase):
             )
             self.declare_machine(
                 backend_name,
-                role=NodeRole.INFRASTRUCTURE,
+                role=NodeRole.SERVER,
                 capabilities=("linux", "http"),
             )
             backend_meta = HostMeta(

@@ -16,3 +16,21 @@ def preserve_mtime(runtime, node: str, path: str):
         yield
     finally:
         runtime.exec(node, f"touch -d @{epoch} -- {quoted}")
+
+
+def refresh_peer_metadata(runtime, identities, target: str, paths) -> None:
+    """Refresh matching peers without changing file contents or access/modification times."""
+    from nika.service.lab.checked_exec import checked_exec
+
+    identity = identities[target]
+    for node, peer in sorted(identities.items()):
+        if peer.role != identity.role or peer.capabilities != identity.capabilities:
+            continue
+        for path in paths:
+            quoted = shlex.quote(path)
+            checked_exec(
+                runtime.exec,
+                node,
+                f"if [ -f {quoted} ]; then touch -c -r {quoted} -- {quoted}; fi",
+                timeout=20,
+            )

@@ -17,7 +17,7 @@ from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import workload_exercises
 from nika.problems.support.oracle import (
-    Check,
+    compare,
     OraclePlaybook,
     contains,
     router_cli,
@@ -84,6 +84,7 @@ class OverlayQosEfUndersized(ProblemBase):
 
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
     root_cause_name = "overlay_qos_ef_undersized"
+    CONFUSABLE_WITH = ("link_capacity_bottleneck", "vrf_dscp_remarking")
     description = (
         "Overlay egress EF class bandwidth is below its realtime traffic demand."
     )
@@ -241,12 +242,20 @@ class OverlayQosEfUndersized(ProblemBase):
                 router_cli(
                     self.net_env,
                     host,
+                    "Record EF queue counters before the next observation.",
+                    frr=f"tc -j -s class show dev {iface}; tc filter show dev {iface}; tc -s class show dev {iface} classid 1:10",
+                    routeros_command=f'/queue tree print terse where name="{iface}-ef"; /ip firewall mangle print terse where out-interface="{iface}"; /queue tree print stats terse where name="{iface}-ef"',
+                    save_as="ef_before",
+                ),
+                router_cli(
+                    self.net_env,
+                    host,
                     "Confirm EF classification and growing drops in the EF queue.",
-                    Check(
+                    compare(
                         "EF retains classification, its guarantee and ceiling are undersized, and its drops grow",
-                        lambda o: (
+                        lambda o, outputs: (
                             low_rate(o)
-                            and drops_grow(o)
+                            and drops_grow(outputs.get("ef_before", "") + "\n" + o)
                             and (
                                 ("00b80000/00fc0000" in o and "flowid 1:10" in o)
                                 or any(
@@ -257,9 +266,10 @@ class OverlayQosEfUndersized(ProblemBase):
                             )
                         ),
                     ),
-                    frr=f"tc -j -s class show dev {iface}; tc filter show dev {iface}; tc -s class show dev {iface} classid 1:10; sleep 5; tc -s class show dev {iface} classid 1:10",
-                    routeros_command=f'/queue tree print terse where name="{iface}-ef"; /ip firewall mangle print terse where out-interface="{iface}"; /queue tree print stats terse where name="{iface}-ef"; :delay 5s; /queue tree print stats terse where name="{iface}-ef"',
+                    frr=f"tc -j -s class show dev {iface}; tc filter show dev {iface}; tc -s class show dev {iface} classid 1:10",
+                    routeros_command=f'/queue tree print terse where name="{iface}-ef"; /ip firewall mangle print terse where out-interface="{iface}"; /queue tree print stats terse where name="{iface}-ef"',
                     evidence=True,
+                    attempts=3,
                 ),
             ],
         )

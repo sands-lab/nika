@@ -26,8 +26,8 @@ _PRIO = 10
 class SwitchEgressClassifier:
     """Attach the failure's TC classifier without exposing build state to agents.
 
-    On Kathara the classifier sits on the device's own interface, in the node's
-    network namespace. On Containerlab it sits on the host-side wire end that
+    On Kathara the classifier sits on the VDE proxy port toward the peer.
+    On Containerlab it sits on the host-side wire end that
     carries what the device sends out of that interface (see
     ``nika.runtime.containerlab.wires``), outside every node, so it works the
     same whatever datapath the router runs.
@@ -44,28 +44,70 @@ class SwitchEgressClassifier:
 
         return HostTcController(self.runtime)
 
-    def attach(self, node: str, intf: str, seed: int) -> None:
+    def _proxy(self):
+        from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+
+        return KatharaVdeFaultProxy(self.runtime)
+
+    def attach(
+        self,
+        node: str,
+        intf: str,
+        seed: int,
+        local_udp_ports: set[int] = frozenset(),
+    ) -> None:
         """Attach the classifier to the selected egress."""
         if self._host_wires:
             dev = self._wire().egress_dev(node, intf)
             # Wire ends already carry a clsact qdisc for their redirect.
-            self._load(dev, seed, network_mode="host", qdisc=False)
+            self._load(
+                dev,
+                seed,
+                local_udp_ports,
+                network_mode="host",
+                qdisc=False,
+            )
             return
-        node_container = self.runtime.get_container(node)
-        self._load(
-            intf, seed, network_mode=f"container:{node_container.id}", qdisc=True
-        )
+        proxy = self._proxy()
+        state = proxy.insert(node, intf, allow_shared=True)
+        try:
+            self._load(
+                "eth1",
+                seed,
+                local_udp_ports,
+                network_mode=f"container:{state.proxy_id}",
+                qdisc=True,
+            )
+        except Exception:
+            proxy.remove(state)
+            raise
 
-    def _load(self, dev: str, seed: int, *, network_mode: str, qdisc: bool) -> None:
+    def _load(
+        self,
+        dev: str,
+        seed: int,
+        local_udp_ports: set[int],
+        *,
+        network_mode: str,
+        qdisc: bool,
+    ) -> None:
         source = Path(__file__).with_name(self.SOURCE)
         archive = io.BytesIO()
+        ports = (
+            " || ".join(f"(port) == {port}u" for port in sorted(local_udp_ports)) or "0"
+        )
+        content = (
+            f"#define LOCAL_UDP_PORT(port) ({ports})\n".encode() + source.read_bytes()
+        )
         with tarfile.open(fileobj=archive, mode="w") as tar:
-            tar.add(source, arcname=f"{_OBJECT}.c")
+            entry = tarfile.TarInfo(f"{_OBJECT}.c")
+            entry.size = len(content)
+            tar.addfile(entry, io.BytesIO(content))
         # nika/tc-bpf is built for the host architecture.
         machine = platform.machine()
         # Lab images ship tc without libelf or clang, so a short-lived loader
-        # container builds the object and joins the target network namespace
-        # to attach it.
+        # container builds the object and joins the external proxy or host
+        # network namespace to attach it.
         ensure_nika_docker_images([TC_BPF_IMAGE])
         steps = [
             "clang -O2 -target bpf "
@@ -107,7 +149,17 @@ class SwitchEgressClassifier:
                 wire.egress_dev(node, intf),
                 "egress",
             )
-        return self.runtime.exec(node, f"tc -j filter show dev {intf} egress")
+        state = self._proxy().discover(node, intf)
+        if state is None:
+            return "[]"
+        result = (
+            docker_client()
+            .containers.get(state.proxy_id)
+            .exec_run(["tc", "-j", "filter", "show", "dev", "eth1", "egress"])
+        )
+        if result.exit_code:
+            raise RuntimeCapabilityError("Cannot read VDE proxy egress filters")
+        return result.output.decode()
 
     def attached(self, node: str, intf: str) -> bool:
         output = self._filters(node, intf)
@@ -133,10 +185,10 @@ class SwitchEgressClassifier:
             if "bpf" in wire.egress_filters(dev):
                 wire.delete_egress_filter(dev, _PRIO)
             return
-        self.runtime.exec(
-            node,
-            f"tc filter del dev {intf} egress prio {_PRIO} 2>/dev/null || true",
-        )
+        proxy = self._proxy()
+        state = proxy.discover(node, intf)
+        if state is not None:
+            proxy.remove(state)
 
 
 class SwitchNamespaceBitflip(SwitchEgressClassifier):

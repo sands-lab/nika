@@ -35,8 +35,11 @@ if TYPE_CHECKING:
 # diagnosis (Dockerfile.k3s).
 K3S_NODE_IMAGE = nika_image("k3s")
 
-# System images used by rancher/k3s:v1.34.1-k3s1.
+# System images for rancher/k3s:v1.34.1-k3s1 and the endpoint prober.
+BLACKBOX_EXPORTER_IMAGE = "prom/blackbox-exporter:v0.23.0@sha256:ca04aa9d90934a2a4d29861d1ebf0e9802e1119ae68690a461e7f6648f6967e2"
+
 K3S_SYSTEM_IMAGES = (
+    BLACKBOX_EXPORTER_IMAGE,
     "rancher/mirrored-pause:3.6@sha256:74c4244427b7312c5b901fe0f67cbc53683d06f4f24c6faee65d4182bf0fa893",
     "rancher/mirrored-coredns-coredns:1.12.3@sha256:1391544c978029fcddc65068f6ad67f396e55585b664ecccd7fefba029b9b706",
     "rancher/mirrored-metrics-server:v0.8.0@sha256:89258156d0e9af60403eafd44da9676fd66f600c7934d468ccc17e42b199aee2",

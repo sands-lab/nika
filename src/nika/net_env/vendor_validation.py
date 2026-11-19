@@ -13,7 +13,7 @@ from nika.net_env.contract import (
     ValidationReport,
     ValidationResult,
 )
-from nika.net_env.routeros_simple_bgp.verify import CLI_COMMAND
+from nika.service.lab.routeros_api import CLI_COMMAND
 from nika.net_env.utils.routeros.parse import routeros_properties as _ros_properties
 from nika.net_env.verify_collection import (
     VerifyCommand,

@@ -20,7 +20,7 @@ def _env(scenario: str, size: str = "", **options: str):
     [
         ("isp_abilene", "s", {"igp": "isis", "bgp_mode": "none"}),
         ("isp_geant", "m", {"igp": "ospf", "bgp_mode": "ebgp"}),
-        ("isp_abilene_ebgp_rpki", "", {}),
+        ("isp_abilene", "", {"igp": "ospf", "bgp_mode": "ebgp"}),
     ],
 )
 def test_workload_stays_inside_designed_reachability(scenario, size, options) -> None:
@@ -94,7 +94,7 @@ def test_abilene_backhaul_tunnel_has_reduced_mtu_on_both_ends() -> None:
 
 
 def test_rpki_content_prefixes_have_a_legitimate_origin() -> None:
-    bgp = _env("isp_abilene_ebgp_rpki").bgp_plan
+    bgp = _env("isp_abilene", igp="ospf", bgp_mode="ebgp").bgp_plan
     inventory = bgp.inventory
     leak = set(inventory["leak_prefixes"])
     announced = {p.device for p in bgp.originated if p.prefix in leak}

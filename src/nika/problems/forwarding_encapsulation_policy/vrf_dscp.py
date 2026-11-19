@@ -24,8 +24,8 @@ from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace, workload_exercises
 from nika.problems.support.oracle import (
     Check,
+    compare,
     OraclePlaybook,
-    all_of,
     contains,
     routeros,
     shell,
@@ -40,7 +40,7 @@ _NFT_TABLE = "mangle"
 _NFT_CHAIN = "POSTROUTING"
 # The scenario's EF media crosses the egress many times a second.
 _MATCH_WAIT_SEC = 10.0
-_COUNTER_RE = re.compile(r"counter packets (\d+)")
+_COUNTER_RE = re.compile(r"(?:counter packets |packets=)(\d+)")
 
 
 def _remark_targets(cls: type, net_env: Any, scenario: str) -> list[Any]:
@@ -59,7 +59,19 @@ def _remark_targets(cls: type, net_env: Any, scenario: str) -> list[Any]:
 
 def _counter_grows(output: str) -> bool:
     """Two counter readings taken a few seconds apart, the second higher."""
-    readings = [int(n) for n in _COUNTER_RE.findall(output)]
+    readings = []
+    packet_column = None
+    for line in output.splitlines():
+        readings.extend(int(n) for n in _COUNTER_RE.findall(line))
+        if line.lstrip().startswith("#") and "ACTION" in line and "PACKETS" in line:
+            packet_column = line.index("PACKETS")
+        elif packet_column is not None and re.match(
+            r"^\s*\d+\s+postrouting\s+change-dscp\b", line
+        ):
+            # RouterOS prints stats as columns even with terse, grouping thousands.
+            packets = "".join(line[packet_column:].split())
+            if packets.isdigit():
+                readings.append(int(packets))
     return len(readings) >= 2 and readings[-1] > readings[0] > 0
 
 
@@ -96,6 +108,7 @@ class VrfDscpRemarking(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "degradation"
     root_cause_name: str = "vrf_dscp_remarking"
+    CONFUSABLE_WITH = ("overlay_qos_ef_undersized",)
     root_cause_owner = "interface"
     description = "VRF edge incorrectly remarks high-priority DSCP."
     TAGS: list[str] = ["vpn"]
@@ -265,6 +278,15 @@ class VrfDscpRemarking(ProblemBase):
             rf'oifname "{iface}" ip saddr {re.escape(prefix)} ip dscp (ef|0x2e|46) '
             r".*ip dscp set (cs0|0x00|0)\b"
         )
+
+        def rewrite_packets(output):
+            counters = [
+                int(match[1])
+                for line in output.splitlines()
+                if re.search(rule, line) and (match := _COUNTER_RE.search(line))
+            ]
+            return sum(counters) if counters else None
+
         remark_counter = (
             f"nft -a list ruleset 2>/dev/null | grep -F 'oifname \"{iface}\"' "
             "| grep -E 'dscp set' | head -4"
@@ -284,12 +306,13 @@ class VrfDscpRemarking(ProblemBase):
                 )
 
             counter = (
-                ":foreach r in=[/ip firewall mangle find where action=change-dscp] do={ "
-                f':if (([/ip firewall mangle get $r out-interface] = "{iface}") && '
-                f'([/ip firewall mangle get $r src-address] = "{prefix}") && '
-                f"([/ip firewall mangle get $r dscp] = {DSCP_EF}) && "
-                f"([/ip firewall mangle get $r new-dscp] = {DSCP_CS0})) do={{ "
-                ':put ("counter packets " . [/ip firewall mangle get $r packets]) } }'
+                ":foreach id in=[/ip firewall mangle find where action=change-dscp] do={"
+                ':if (([:tostr [/ip firewall mangle get $id chain]]="postrouting") && '
+                f'([:tostr [/ip firewall mangle get $id out-interface]]="{iface}") && '
+                f'([:tostr [/ip firewall mangle get $id src-address]]="{prefix}") && '
+                f'([:tostr [/ip firewall mangle get $id dscp]]="{DSCP_EF}") && '
+                f'([:tostr [/ip firewall mangle get $id new-dscp]]="{DSCP_CS0}")) '
+                "do={/ip firewall mangle print stats terse from=$id; }; }"
             )
             steps = [
                 routeros(
@@ -306,9 +329,20 @@ class VrfDscpRemarking(ProblemBase):
                 ),
                 routeros(
                     edge,
-                    f"{counter}; :delay 5s; {counter}",
+                    counter,
+                    "Record the rewrite counter.",
+                    save_as="remark_before",
+                ),
+                routeros(
+                    edge,
+                    counter,
                     "Check that live EF traffic keeps hitting the rewrite rule.",
-                    Check("its packet counter grows", _counter_grows),
+                    compare(
+                        "its packet counter grows",
+                        lambda out, outputs: _counter_grows(
+                            outputs.get("remark_before", "") + "\n" + out
+                        ),
+                    ),
                     evidence=True,
                     attempts=2,
                 ),
@@ -329,11 +363,24 @@ class VrfDscpRemarking(ProblemBase):
                 ),
                 shell(
                     edge,
-                    f"{remark_counter}; sleep 5; {remark_counter}",
+                    remark_counter,
+                    "Record the rewrite counter.",
+                    save_as="remark_before",
+                ),
+                shell(
+                    edge,
+                    remark_counter,
                     "Check that live EF traffic keeps hitting the rewrite rule.",
-                    all_of(
-                        contains(rule, "the rewrite rule matches"),
-                        Check("its packet counter grows", _counter_grows),
+                    compare(
+                        "the rewrite rule matches and its packet counter grows",
+                        lambda out, outputs: (
+                            bool(re.search(rule, out))
+                            and rewrite_packets(out) is not None
+                            and rewrite_packets(outputs.get("remark_before", ""))
+                            is not None
+                            and rewrite_packets(out)
+                            > rewrite_packets(outputs["remark_before"])
+                        ),
                     ),
                     evidence=True,
                     timeout=25,

@@ -54,6 +54,17 @@ def exec_or_empty(
         return ""
 
 
+def exec_for_discovery(
+    runtime: "LabRuntime", host: str, command: str, timeout: float = 10.0
+) -> str:
+    """Retry timed-out discovery and fail rather than infer a missing capability."""
+    for _ in range(3):
+        output = runtime.exec(host, command, timeout=timeout)
+        if not output.startswith("[TIMEOUT] "):
+            return output
+    raise TimeoutError(f"Telemetry discovery timed out on {host}: {command}")
+
+
 def nodes_deployed(runtime: "LabRuntime", expected: Iterable[str]) -> bool:
     return set(expected).issubset(set(runtime.list_nodes()))
 
@@ -478,10 +489,17 @@ def iperf_throughput_bps(
     *,
     duration_sec: int = 3,
     port: int = 5201,
+    timeout_sec: float | None = None,
 ) -> float | None:
     """Run a short iperf3 TCP transfer and return bits/sec (or None on failure)."""
     bps, _ = iperf_tcp_metrics(
-        runtime, src_host, dst_host, dst_ip, duration_sec=duration_sec, port=port
+        runtime,
+        src_host,
+        dst_host,
+        dst_ip,
+        duration_sec=duration_sec,
+        port=port,
+        timeout_sec=timeout_sec,
     )
     return bps
 
@@ -494,6 +512,7 @@ def iperf_tcp_metrics(
     *,
     duration_sec: int = 3,
     port: int = 5201,
+    timeout_sec: float | None = None,
 ) -> tuple[float | None, int | None]:
     """Run iperf3 and return (bits_per_second, retransmits) or (None, None)."""
     pid = _start_iperf3_server(runtime, dst_host, port)
@@ -506,7 +525,9 @@ def iperf_tcp_metrics(
             runtime,
             src_host,
             f"iperf3 -c {dst_ip} -p {port} -t {duration_sec} -J 2>/dev/null || true",
-            timeout=float(duration_sec + 15),
+            timeout=timeout_sec
+            if timeout_sec is not None
+            else float(duration_sec + 15),
         )
     finally:
         _stop_iperf3_server(runtime, dst_host, pid)

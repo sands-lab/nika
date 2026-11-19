@@ -10,7 +10,6 @@ from nika.problems.routing_control_plane.ospf import linked_routers
 from nika.problems.support.oracle import (
     OraclePlaybook,
     contains,
-    process_absent,
     router_cli,
     shell,
     vtysh,
@@ -40,6 +39,7 @@ class RoutingServiceDown(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name: str = "routing_service_down"
+    CONFUSABLE_WITH = ("ospf_interface_not_enabled",)
     description = "The router's routing service is unavailable."
     TAGS = []
     native_router_operations = frozenset(
@@ -90,15 +90,15 @@ class RoutingServiceDown(ProblemBase):
     def oracle_playbook(self, params: RoutingServiceDownParams) -> OraclePlaybook:
         host = params.host_name
         steps = [
-            shell(
+            router_cli(
+                self.net_env,
                 host,
-                "ip -br link; ip route | head -40",
-                f"List {host}'s interfaces and the routes it still has.",
-            ),
-            process_absent(
-                host,
-                "zebra|bgpd|ospfd|ospf6d|isisd|staticd|watchfrr",
-                f"Check whether FRR's daemons run on {host}.",
+                f"Read {host}'s interface and route inventory.",
+                frr="ip -br link; ip route show",
+                sonic_command="show interfaces status",
+                iosxr_command="show ipv4 interface brief",
+                routeros_command="/interface print detail",
+                srl_command="show interface",
             ),
             shell(
                 host,
@@ -111,7 +111,17 @@ class RoutingServiceDown(ProblemBase):
                 evidence=True,
             ),
         ]
-        for _intf, peer, _peer_intf in linked_routers(self.net_env, host)[:1]:
+        for _intf, peer, _peer_intf in linked_routers(self.net_env, host):
+            identity = self.net_env.machine_identities.get(peer)
+            if identity is not None and not set(identity.capabilities) & {
+                "frr",
+                "iosxr",
+                "routeros",
+                "srl",
+                "nokia_srlinux",
+                "sonic",
+            }:
+                continue
             steps.append(
                 router_cli(
                     self.net_env,

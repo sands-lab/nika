@@ -57,7 +57,7 @@ def _first_ipv4(text: str, *, line: bool = False) -> str | None:
     return match.group(1) if match else None
 
 
-class CoreDNSIsolationParams(K8sParams):
+class ClusterDNSPortBlockParams(K8sParams):
     """Parameters for isolating CoreDNS from the rest of the cluster."""
 
     node_name: str = Field(
@@ -96,11 +96,12 @@ class CoreDNSIsolationParams(K8sParams):
     )
 
 
-class CoreDNSIsolation(K8sProblemBase):
+class ClusterDNSPortBlock(K8sProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
     symptom_probe = "custom"
     symptom_class = "isolation"
-    root_cause_name: str = "k8s_coredns_isolated"
+    root_cause_name: str = ""
+    CONFUSABLE_WITH = ("k8s_coredns_forward_loop", "k8s_networkpolicy_deny")
     description = "Path to cluster DNS (CoreDNS) is isolated/blocked."
     symptom_desc = (
         "Applications cannot resolve Kubernetes service names such as "
@@ -110,7 +111,7 @@ class CoreDNSIsolation(K8sProblemBase):
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "coredns"]
 
-    Params = CoreDNSIsolationParams
+    Params = ClusterDNSPortBlockParams
 
     BENCHMARK_TARGETS = "canonical"
 
@@ -133,7 +134,7 @@ class CoreDNSIsolation(K8sProblemBase):
         self.target_devices: list[str] = []
         self.blocked_specs: list[str] = []
 
-    def _dns_pod_nodes(self, params: CoreDNSIsolationParams, k8s: Any) -> list[str]:
+    def _dns_pod_nodes(self, params: ClusterDNSPortBlockParams, k8s: Any) -> list[str]:
         control = self.control_node(params)
         pods = k8s.k8s_pods(
             control, namespace=params.dns_namespace, selector=params.dns_selector
@@ -149,7 +150,7 @@ class CoreDNSIsolation(K8sProblemBase):
                 devices.append(device)
         return devices
 
-    def _target_devices(self, params: CoreDNSIsolationParams, k8s: Any) -> list[str]:
+    def _target_devices(self, params: ClusterDNSPortBlockParams, k8s: Any) -> list[str]:
         if params.node_name:
             self.target_devices = [params.node_name]
             return self.target_devices
@@ -165,7 +166,7 @@ class CoreDNSIsolation(K8sProblemBase):
         return self.target_devices
 
     def _dns_destinations(
-        self, params: CoreDNSIsolationParams, k8s: Any
+        self, params: ClusterDNSPortBlockParams, k8s: Any
     ) -> dict[str, Any]:
         control = self.control_node(params)
         cluster_ip = k8s.k8s_service_cluster_ip(
@@ -185,7 +186,7 @@ class CoreDNSIsolation(K8sProblemBase):
 
     @staticmethod
     def _drop_specs(
-        params: CoreDNSIsolationParams, destinations: dict[str, Any]
+        params: ClusterDNSPortBlockParams, destinations: dict[str, Any]
     ) -> list[DropSpec]:
         addresses = [destinations["cluster_ip"], *destinations["pod_ips"]]
         return [
@@ -201,7 +202,7 @@ class CoreDNSIsolation(K8sProblemBase):
                 return node
         return self.target_devices[0]
 
-    def root_cause_resources(self, params: CoreDNSIsolationParams):
+    def root_cause_resources(self, params: ClusterDNSPortBlockParams):
         # The fault is the filter rules, which live on the node(s) they were
         # installed on; the Service and CoreDNS pods are unchanged.
         # Offline ground truth skips __init__, so target_devices may be unset.
@@ -212,12 +213,12 @@ class CoreDNSIsolation(K8sProblemBase):
         )
         if not devices:
             raise UnresolvedRootCauseError(
-                "k8s_coredns_isolated needs node_name to name the device that "
+                "dns_port_blocked needs node_name to name the device that "
                 "holds the DNS drop rules before injection."
             )
         return [node_resource(device) for device in devices]
 
-    def oracle_playbook(self, params: CoreDNSIsolationParams) -> OraclePlaybook:
+    def oracle_playbook(self, params: ClusterDNSPortBlockParams) -> OraclePlaybook:
         control = self.control_node(params)
         target = params.node_name or control
         probe = params.symptom_host or next(
@@ -308,7 +309,7 @@ class CoreDNSIsolation(K8sProblemBase):
             ],
         )
 
-    def inject_fault(self, params: CoreDNSIsolationParams) -> None:
+    def inject_fault(self, params: ClusterDNSPortBlockParams) -> None:
         k8s = self.runtime.lab_api
         devices = self._target_devices(params, k8s)
         destinations = self._dns_destinations(params, k8s)
@@ -335,7 +336,7 @@ class CoreDNSIsolation(K8sProblemBase):
             "IP connectivity and the CoreDNS pods themselves stay healthy."
         )
 
-    def recover_fault(self, params: CoreDNSIsolationParams) -> dict:
+    def recover_fault(self, params: ClusterDNSPortBlockParams) -> dict:
         filters = getattr(self, "_recovery_filters", None)
         if filters is None:
             return {"verified": False, "details": {"error": "injection_state_missing"}}
@@ -345,7 +346,7 @@ class CoreDNSIsolation(K8sProblemBase):
             "details": {"owned_rules_removed": all(removed)},
         }
 
-    def verify_fault(self, params: CoreDNSIsolationParams) -> dict:
+    def verify_fault(self, params: ClusterDNSPortBlockParams) -> dict:
         k8s = self.runtime.lab_api
         control = self.control_node(params)
         devices = self._target_devices(params, k8s)
@@ -421,7 +422,7 @@ class CoreDNSIsolation(K8sProblemBase):
 
         return self.poll_verify(check)
 
-    def recheck_artifact(self, params: CoreDNSIsolationParams) -> dict:
+    def recheck_artifact(self, params: ClusterDNSPortBlockParams) -> dict:
         """Re-read the DNS drop rules. Does not query DNS or open a TCP port."""
         k8s = self.runtime.lab_api
         devices = self._target_devices(params, k8s)

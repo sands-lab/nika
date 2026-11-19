@@ -168,26 +168,31 @@ def load_blackhole_pipeline(
     stem = _STAGED_PIPELINE_STEM
     p4info = f"{FABRIC_DIR}/{stem}.p4info.txt"
     json_path = f"{FABRIC_DIR}/{stem}.json"
-    _copy_in(runtime, switch, f"/tmp/{stem}.p4", source.read_bytes())
-    compile_pipeline_on_switch(
-        runtime, switch, f"/tmp/{stem}.p4", f"{stem}.p4info.txt", f"{stem}.json"
-    )
-    _copy_in(
-        runtime,
-        "fabric_mgr",
-        json_path,
-        _copy_out(runtime, switch, f"/tmp/{stem}.json"),
-    )
-    _copy_in(
-        runtime,
-        "fabric_mgr",
-        p4info,
-        _copy_out(runtime, switch, f"/tmp/{stem}.p4info.txt"),
-    )
-    runtime.exec(
-        switch,
-        f"rm -f /tmp/{stem}.p4 /tmp/{stem}.p4i /tmp/{stem}.json /tmp/{stem}.p4info.txt",
-    )
+    try:
+        _copy_in(runtime, switch, f"/tmp/{stem}.p4", source.read_bytes())
+        compile_pipeline_on_switch(
+            runtime, switch, f"/tmp/{stem}.p4", f"{stem}.p4info.txt", f"{stem}.json"
+        )
+        _copy_in(
+            runtime,
+            "fabric_mgr",
+            json_path,
+            _copy_out(runtime, switch, f"/tmp/{stem}.json"),
+        )
+        _copy_in(
+            runtime,
+            "fabric_mgr",
+            p4info,
+            _copy_out(runtime, switch, f"/tmp/{stem}.p4info.txt"),
+        )
+    except BaseException:
+        remove_staged_pipeline(runtime, p4info, json_path)
+        raise
+    finally:
+        runtime.exec(
+            switch,
+            f"rm -f /tmp/{stem}.p4 /tmp/{stem}.p4i /tmp/{stem}.json /tmp/{stem}.p4info.txt",
+        )
     return p4info, json_path
 
 

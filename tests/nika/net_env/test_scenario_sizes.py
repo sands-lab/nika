@@ -94,14 +94,6 @@ def test_kubernetes_inventory_storage_and_addresses_scale_together(
 
 
 @pytest.mark.parametrize("size", ["s", "m", "l"])
-def test_min3clos_rejects_scaling(size):
-    from nika.net_env.net_env_pool import resolve_scenario_topo_size
-
-    with pytest.raises(ValueError, match="does not use topology sizes"):
-        resolve_scenario_topo_size("min3clos", size)
-
-
-@pytest.mark.parametrize("size", ["s", "m", "l"])
 def test_kubernetes_hijack_has_a_remote_observer_and_live_destination(size):
     env = environment("k8s_lab", topo_size=size)
     for target in env.bgp_hijack_targets():
@@ -147,16 +139,6 @@ def test_inference_access_link_probe_targets_the_affected_node(size):
         )
         assert path.src_host == "client"
         assert path.dst_ip == env.topology.addresses[node]
-
-
-@pytest.mark.parametrize("profile", ["nokia_srlinux", "sonic"])
-def test_min3clos_keeps_fixed_fabric(profile):
-    env = environment("min3clos", device_profile=profile)
-    spec = env.get_lab_spec()
-    assert set(env.routers) == {"leaf1", "leaf2", "spine"}
-    assert len(spec.nodes) == 5
-    assert len(spec.links) == 4
-    assert len(env.validation_contract.intents) == 8
 
 
 @pytest.mark.parametrize("size", ["s", "m", "l"])

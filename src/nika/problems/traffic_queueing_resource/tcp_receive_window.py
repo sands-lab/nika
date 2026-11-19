@@ -107,6 +107,7 @@ class TcpReceiveWindowLimited(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "degradation"
     root_cause_name: str = "tcp_receive_window_limited"
+    CONFUSABLE_WITH = ("endpoint_cpu_contention", "link_capacity_bottleneck")
     description = "Receiver TCP window/buffer is too small for the path."
     TAGS: list[str] = ["http"]
     # Temporary: needs privileged hosts + enough path BDP (WAN RTT).

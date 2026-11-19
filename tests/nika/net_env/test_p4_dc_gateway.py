@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ipaddress
 import json
 from types import SimpleNamespace
 
@@ -26,7 +25,6 @@ from nika.net_env.p4_dc_gateway.verify import (
     _p4runtime_consistent,
 )
 from nika.net_env.net_env_pool import list_all_net_envs
-from nika.problems.support.p4_gateway import ternary_miss_row
 from nika.service.kathara.telemetry_api import KatharaTelemetryAPI
 
 pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("stub_verify_collection")]
@@ -46,7 +44,11 @@ def test_gateway_inventory_and_full_mesh(size: str) -> None:
     assert len(model.gateway_spine_links) == model.gateway_count * model.spine_count
     assert len(model.spine_leaf_links) == model.spine_count * model.leaf_count
     assert all(len(model.services_on_leaf(leaf)) == 2 for leaf in model.leaves)
-    assert all(model.client_on_gateway(gateway) for gateway in model.gateways)
+    assert all(
+        len([client for client in model.clients if client.attached_switch == gateway])
+        == 1
+        for gateway in model.gateways
+    )
 
 
 def test_gateway_intent_has_roles_ecmp_telemetry_and_ecn() -> None:
@@ -82,9 +84,8 @@ def test_public_registry_contains_gateway() -> None:
     "problem",
     [
         "silent_egress_packet_loss",
-        "int_insufficient_mtu_headroom",
-        "p4_ecn_threshold_misconfiguration",
-        "p4_tcam_entry_corruption",
+        "p4_ecn_marking_disabled",
+        "p4_table_entry_misconfig",
         "tcp_syn_flood_attack",
     ],
 )
@@ -114,7 +115,11 @@ def test_burst_and_telemetry_share_five_tuple_flow_id() -> None:
     )
 
 
-def test_telemetry_query_aligns_unix_second_event_times(monkeypatch) -> None:
+def test_telemetry_query_aligns_unix_second_event_times(tmp_path, monkeypatch) -> None:
+    import subprocess
+
+    from nika.service.kathara import telemetry_api
+
     api = KatharaTelemetryAPI.__new__(KatharaTelemetryAPI)
     api.lab = SimpleNamespace(name="p4_dc_gateway_a1b2c3")
     row = {
@@ -122,34 +127,34 @@ def test_telemetry_query_aligns_unix_second_event_times(monkeypatch) -> None:
         "flow_id": "flow-a",
         "hop_sequence": [],
     }
-    # The query reads the collector clock first, then the report lines.
-    collector_now_ns = 1_750_000_010_000_000_000
-    monkeypatch.setattr(
-        api,
-        "exec_cmd",
-        lambda *_args, **_kwargs: f"{collector_now_ns}\n{json.dumps(row)}\n__rc=0\n",
+    reports = tmp_path / "reports.jsonl"
+    reports.write_text(
+        "\n".join(
+            json.dumps(record)
+            for record in [
+                row,
+                {
+                    **row,
+                    "packet_timestamp": 1_750_000_002_000_000_000,
+                    "packet_id": "later",
+                },
+                {**row, "flow_id": "another-flow"},
+            ]
+        )
+        + "\n"
     )
+    monkeypatch.setattr(telemetry_api, "INT_REPORTS", str(reports))
+
+    def execute(host, command, *, timeout):
+        assert host == "collector" and timeout == 20
+        return subprocess.run(
+            ["sh", "-c", command], capture_output=True, text=True, check=True
+        ).stdout
+
+    monkeypatch.setattr(api, "exec_cmd", execute)
     assert api.int_query_telemetry(
         "1750000000", end_time="1750000001", flow_id="flow-a"
     ) == [row]
-
-
-@pytest.mark.parametrize(
-    ("prefix", "target", "others", "row"),
-    [
-        # dev and test release rows: only the target loses its route.
-        ("10.0.4.0/24", "10.0.4.11", ["10.0.4.12"], ("10.0.4.1", "255.255.255.1")),
-        ("10.0.1.0/24", "10.0.1.12", ["10.0.1.11"], ("10.0.1.4", "255.255.255.4")),
-    ],
-)
-def test_tcam_corruption_flips_one_mask_bit_that_spares_peers(
-    prefix: str, target: str, others: list[str], row: tuple[str, str]
-) -> None:
-    assert ternary_miss_row(prefix, target, others) == row
-    value, mask = (int(ipaddress.IPv4Address(item)) for item in row)
-    hit = int(ipaddress.IPv4Address(target))
-    assert hit & mask == value
-    assert all(int(ipaddress.IPv4Address(ip)) & mask != value for ip in others)
 
 
 def test_gateway_client_access_ports_have_lower_mtu() -> None:
@@ -169,7 +174,11 @@ def test_gateway_client_access_ports_have_lower_mtu() -> None:
 def test_p4_mcp_servers_expose_only_live_interfaces() -> None:
     from nika.mcp.servers.kathara import bmv2_server, telemetry_server
 
-    assert set(bmv2_server.mcp._tool_manager._tools) == {"p4rt_exec"}
+    assert set(bmv2_server.mcp._tool_manager._tools) == {
+        "p4rt_exec",
+        "lb_get_state",
+        "bmv2_get_ports",
+    }
     assert set(telemetry_server.mcp._tool_manager._tools) == {"int_query_telemetry"}
 
 
@@ -186,13 +195,8 @@ def _hop(switch_id: int) -> dict:
         "switch_id": switch_id,
         "ingress_port": 1,
         "egress_port": 2,
-        "ingress_timestamp": 100,
-        "egress_timestamp": 120,
         "hop_latency": 20,
         "queue_occupancy": 0,
-        "ecn": 0,
-        "m": 0,
-        "e": 0,
     }
 
 
@@ -243,20 +247,16 @@ def test_int_probe_uses_service_address_instead_of_vip() -> None:
 
 def test_gateway_p4runtime_verification_checks_programmed_state() -> None:
     model = build_gateway_fabric_model("s")
+    from copy import deepcopy
+
+    intent = build_gateway_intent(model)
     live = {
-        name: {
-            "pipeline": {"ok": True},
-            "mismatches": [],
-            "ipv4_lpm": [{}],
-            "groups": [{}],
-            "members": [{}],
-        }
-        for name in model.fabric_switches()
+        name: {**deepcopy(state), "pipeline": {"ok": True}}
+        for name, state in intent["switches"].items()
     }
     ok, _details = _p4runtime_consistent({"ok": True, "switches": live}, model)
     assert ok
-
-    live[model.gateways[0]]["mismatches"] = ["ipv4_lpm"]
+    live[model.gateways[0]]["ipv4_lpm"][0]["group_id"] += 100
     ok, _details = _p4runtime_consistent({"ok": True, "switches": live}, model)
     assert not ok
 
@@ -287,3 +287,26 @@ def test_int_pages_preserve_middle_evidence_within_tool_budget(monkeypatch):
         offset = page["next_offset"]
     assert len(seen) == len(set(seen)) == len(records)
     assert set(seen) == {row["packet_id"] for row in records}
+
+
+@pytest.mark.parametrize("size", ["s", "m", "l"])
+def test_int_boundaries_preserve_cross_leaf_service_isolation(size):
+    from nika.net_env.p4_dc_gateway.lab import P4DcGateway
+
+    model = build_gateway_fabric_model(size)
+    intent = build_gateway_intent(model)
+    for name, switch in intent["switches"].items():
+        assert switch["int"]["access_ports"] == [
+            p.bmv2_port for p in model.ports[name] if p.role in {"client", "service"}
+        ]
+        if name in model.leaves:
+            prefixes = {r["prefix"] for r in switch["ipv4_lpm"]}
+            for leaf_id, leaf in enumerate(model.leaves, 1):
+                if leaf != name:
+                    assert f"10.0.{leaf_id}.0/24" not in prefixes
+    env = P4DcGateway.__new__(P4DcGateway)
+    env.model = model
+    isolated = env.probe_intent().isolation_matcher()
+    assert isolated(model.clients[0].name, model.clients[1].name)
+    assert isolated(model.services[0].name, model.services[-1].name)
+    assert not isolated(model.services[0].name, model.clients[0].name)

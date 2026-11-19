@@ -8,6 +8,7 @@ import json
 import random
 import re
 import shlex
+from dataclasses import replace
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -133,10 +134,21 @@ def route_group_is(prefix: str, group_id: int) -> Check:
     )
 
 
-def mismatch(switch: str, kind: str) -> Check:
-    return contains(
-        summary_regex(switch, rf'"mismatches":\s*\[[^\]]*"{kind}"'),
-        f"the read flags an intent mismatch in {kind}",
+def mismatch(switch: str, kind: str, intent: dict) -> Check:
+    from nika.net_env.p4_dc_fabric.fabric_manager.apply import forwarding_entries
+
+    def differs(output):
+        try:
+            data = json.loads(output[output.index("{") :])
+            observed = (data.get("switches") or {}).get(switch, data)
+            return kind in observed and forwarding_entries(
+                observed, kind
+            ) != forwarding_entries(intent["switches"][switch], kind)
+        except (ValueError, KeyError, TypeError):
+            return False
+
+    return Check(
+        f"the observed {kind} differ from the declared forwarding entries", differs
     )
 
 
@@ -146,9 +158,7 @@ def mismatch(switch: str, kind: str) -> Check:
 # state; the lock serializes it with ``p4rt_exec`` like every manager client.
 _FORWARDING_VIEW = (
     'import json, sys; s = sys.argv[1]; v = json.load(sys.stdin)["switches"][s]; '
-    'print(json.dumps({s: {"mismatches": v["mismatches"]}, '
-    '"members": [{"member_id": m["member_id"], "port": m["port"]} '
-    'for m in v["members"]], "groups": v["groups"], "ipv4_lpm": v["ipv4_lpm"]}))'
+    'print(json.dumps({k: v[k] for k in ("members", "groups", "ipv4_lpm")}))'
 )
 
 
@@ -168,25 +178,54 @@ def switch_state(switch: str, purpose: str, *checks: Check) -> OracleStep:
     )
 
 
-def bmv2_running(switch: str) -> OracleStep:
+_INTENT_COMPARISON_VIEW = (
+    "import json, runpy, sys; "
+    "s, manager, intent_path = sys.argv[1:]; "
+    "helpers = runpy.run_path(manager); "
+    "observed = json.load(sys.stdin)['switches'][s]; "
+    "desired = json.load(open(intent_path))['switches'][s]; "
+    "print(json.dumps({'summary': {s: helpers['switch_summary'](observed)}, "
+    "'mismatches': {s: helpers['intent_vs_observed'](desired, observed)}}))"
+)
+
+
+def controller_comparison(switch: str, purpose: str, expect: Check) -> OracleStep:
+    """Compare live state with the controller's current intent under one lock."""
+    from nika.net_env.p4_dc_fabric.fabric_manager.apply import INTENT_PATH, MANAGER
+    from nika.service.kathara.bmv2_api import LOCK_FILE
+
+    command = (
+        f"python3 {MANAGER} read --switch {shlex.quote(switch)} | "
+        f"python3 -c {shlex.quote(_INTENT_COMPARISON_VIEW)} "
+        f"{shlex.quote(switch)} {shlex.quote(MANAGER)} {shlex.quote(INTENT_PATH)}"
+    )
     return shell(
-        switch,
-        "pgrep -af '[s]imple_switch' | grep -v -e '<defunct>' -e '^[0-9]* \\[' "
-        "|| echo NO_PROCESS",
-        f"Check that the BMv2 dataplane on {switch} is running.",
-        all_of(
-            contains(r"simple_switch", "a simple_switch process is running"),
-            lacks(r"^NO_PROCESS$"),
-        ),
+        CONTROLLER,
+        f"flock -w 80 {LOCK_FILE} sh -c {shlex.quote(command)}",
+        purpose,
+        expect,
+        evidence=True,
+        timeout=90,
     )
 
 
-def intent_drift(switch: str, kind: str) -> OracleStep:
-    """The ``read`` summary flags *switch* as diverging from the intent in *kind*."""
+def bmv2_running(switch: str) -> OracleStep:
     return p4rt(
-        "read",
-        "Compare every switch's live P4Runtime state with the controller intent.",
-        mismatch(switch, kind),
+        f"probe --switch {switch}",
+        f"Check {switch}'s P4Runtime liveness.",
+        contains(r'"reachable":\s*true', "the switch management endpoint responds"),
+    )
+
+
+def intent_drift(switch: str, kind: str, intent: dict) -> OracleStep:
+    """Compare one switch's forwarding state within the agent output limit."""
+    return replace(
+        switch_state(
+            switch,
+            f"Compare {switch}'s live forwarding state with the controller intent.",
+            mismatch(switch, kind, intent),
+        ),
+        evidence=False,
     )
 
 
@@ -241,6 +280,7 @@ class P4ActionSelectorMemberMisconfig(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "loss"
     root_cause_name = "p4_action_selector_member_misconfig"
+    CONFUSABLE_WITH = ("p4_ecmp_group_member_missing",)
     description = "A P4 ActionSelector member is misconfigured."
     TAGS = ["p4", "p4_runtime"]
     Params = P4ActionSelectorMemberMisconfigParams
@@ -352,18 +392,18 @@ class P4ActionSelectorMemberMisconfig(ProblemBase):
                 "dropped."
             ),
             steps=[
-                intent_drift(switch, "members"),
+                intent_drift(switch, "members", declared_intent(self.net_env)),
                 switch_state(
                     switch,
                     f"Read the ActionSelector members and groups on {switch}.",
                     member_port_is(member_id, _BAD_PORT),
                     group_has(group_id, member_id),
-                    mismatch(switch, "members"),
+                    mismatch(switch, "members", declared_intent(self.net_env)),
                 ),
                 bmv2_ports(
                     switch,
                     lacks(
-                        rf"(^|\s){_BAD_PORT}@",
+                        rf'"port":\s*{_BAD_PORT}\b',
                         f"no interface is bound to BMv2 port {_BAD_PORT}",
                     ),
                 ),
@@ -380,6 +420,7 @@ class P4EcmpGroupMemberMissing(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "degradation"
     root_cause_name = "p4_ecmp_group_member_missing"
+    CONFUSABLE_WITH = ("p4_action_selector_member_misconfig",)
     description = "A member is missing from a P4 ECMP group."
     TAGS = ["p4", "p4_runtime"]
     Params = P4EcmpGroupMemberMissingParams
@@ -488,13 +529,13 @@ class P4EcmpGroupMemberMissing(ProblemBase):
                 "programmed, so its traffic shares the remaining paths."
             ),
             steps=[
-                intent_drift(switch, "groups"),
+                intent_drift(switch, "groups", declared_intent(self.net_env)),
                 switch_state(
                     switch,
                     f"Read the ActionSelector groups and members on {switch}.",
                     group_has(group_id, member_id, present=False),
                     member_defined(member_id),
-                    mismatch(switch, "groups"),
+                    mismatch(switch, "groups", declared_intent(self.net_env)),
                 ),
             ],
         )
@@ -509,6 +550,7 @@ class P4RuntimePipelineMismatch(ProblemBase):
     symptom_probe = "path_ping"
     symptom_class = "unreachable"
     root_cause_name = "p4runtime_pipeline_mismatch"
+    CONFUSABLE_WITH = ("bmv2_switch_down",)
     description = "Loaded P4 pipeline does not match the intended program."
     TAGS = ["p4", "p4_runtime"]
     Params = P4RuntimePipelineMismatchParams
@@ -713,6 +755,7 @@ class P4RuntimePartialWrite(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "p4runtime_partial_write"
+    CONFUSABLE_WITH = ("p4_table_entry_misconfig",)
     description = "A P4Runtime update was only partially applied."
     TAGS = ["p4", "p4_runtime"]
     Params = P4RuntimePartialWriteParams
@@ -776,7 +819,7 @@ class P4RuntimePartialWrite(ProblemBase):
         ]
         result = p4runtime_write(self.runtime, params.host_name, batch, logged=True)
         codes = [status["code"] for status in result["statuses"]]
-        if codes[:2] != ["OK", "OK"] or "OK" in codes[2:]:
+        if codes != ["OK", "OK", "ALREADY_EXISTS", "ALREADY_EXISTS"]:
             raise RuntimeError(
                 f"batch on {params.host_name} was not partially applied: {result}"
             )
@@ -807,9 +850,15 @@ class P4RuntimePartialWrite(ProblemBase):
         )
 
     def recheck_artifact(self, params: P4RuntimePartialWriteParams) -> dict:
-        pair = self._pair or partial_write_routes(
-            load_intent(self.runtime), params.host_name
-        )
+        pair = self._pair
+        if pair is None:
+            pair = partial_write_routes(load_intent(self.runtime), params.host_name)
+            # The installed intent already exchanges the IDs while preserving
+            # each route's next hops. Recover the original IDs for comparison.
+            pair["victim_group"], pair["host_group"] = (
+                pair["host_group"],
+                pair["victim_group"],
+            )
         observed = run_manager(
             self.runtime, "read", "--switch", params.host_name, timeout=30
         )
@@ -862,7 +911,6 @@ class P4RuntimePartialWrite(ProblemBase):
                 "groups and forward to the wrong next hops."
             ),
             steps=[
-                intent_drift(switch, "ipv4_lpm"),
                 shell(
                     CONTROLLER,
                     f"grep -n -A6 -E 'Write device=.* failed=[1-9]' {CONTROLLER_LOG} "
@@ -884,14 +932,18 @@ class P4RuntimePartialWrite(ProblemBase):
                     ),
                     evidence=True,
                 ),
-                p4rt(
-                    f"read --switch {switch}",
-                    f"Compare {switch}'s live groups and routes with the intent.",
-                    contains(
-                        summary_regex(switch, r'"mismatches":\s*\[\s*"ipv4_lpm"\s*\]'),
-                        "groups and members match the intent; only the routes differ",
+                controller_comparison(
+                    switch,
+                    f"Compare {switch}'s live groups and routes with current controller intent.",
+                    p4rt_json(
+                        "the intended groups were applied but the routes differ",
+                        lambda data: (
+                            data["summary"][switch]["pipeline_ok"]
+                            and data["summary"][switch]["pipeline_matches_intent"]
+                            and "groups" not in data["mismatches"][switch]
+                            and "ipv4_lpm" in data["mismatches"][switch]
+                        ),
                     ),
-                    evidence=True,
                 ),
             ],
         )
@@ -936,6 +988,7 @@ class P4TableResourceExhaustion(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "p4_table_resource_exhaustion"
+    CONFUSABLE_WITH = ("p4_table_entry_missing",)
     description = "A P4 table has exhausted its capacity."
     TAGS = ["p4", "p4_runtime"]
     RECORDED_ATTRS = ("_filler_prefixes",)
@@ -1048,7 +1101,6 @@ class P4TableResourceExhaustion(ProblemBase):
 
         switch = params.host_name
         capacity = lpm_capacity(declared_intent(self.net_env))
-        lpm_count = summary_regex(switch, r'"ipv4_lpm":\s*(\d+),')
         return OraclePlaybook(
             finding=(
                 f"The ipv4_lpm table on {switch} is full ({capacity} of {capacity} "
@@ -1066,7 +1118,6 @@ class P4TableResourceExhaustion(ProblemBase):
                     ),
                     evidence=True,
                 ),
-                intent_drift(switch, "ipv4_lpm"),
                 shell(
                     CONTROLLER,
                     f"awk '/alias: \"ipv4_lpm\"/{{f=1}} f&&/size:/{{print; exit}}' "
@@ -1075,21 +1126,18 @@ class P4TableResourceExhaustion(ProblemBase):
                     contains(rf"size:\s*{capacity}\b", f"ipv4_lpm holds {capacity}"),
                     evidence=True,
                 ),
-                p4rt(
-                    f"read --switch {switch}",
-                    f"Count the live ipv4_lpm entries on {switch}.",
-                    all_of(
-                        Check(
-                            f"{switch} holds at least {capacity} routes",
-                            lambda out: (
-                                (m := re.search(lpm_count, out, re.IGNORECASE))
-                                is not None
-                                and int(m.group(1)) >= capacity
-                            ),
+                controller_comparison(
+                    switch,
+                    f"Count {switch}'s live routes and compare them with controller intent.",
+                    p4rt_json(
+                        f"{switch} holds at least {capacity} routes that differ from intent",
+                        lambda data: (
+                            data["summary"][switch]["pipeline_ok"]
+                            and data["summary"][switch]["pipeline_matches_intent"]
+                            and int(data["summary"][switch]["ipv4_lpm"]) >= capacity
+                            and "ipv4_lpm" in data["mismatches"][switch]
                         ),
-                        mismatch(switch, "ipv4_lpm"),
                     ),
-                    evidence=True,
                 ),
             ],
         )

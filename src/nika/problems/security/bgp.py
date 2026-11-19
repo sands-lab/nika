@@ -2,11 +2,13 @@ import ipaddress
 import json
 import re
 import shlex
-from typing import Optional
+from dataclasses import replace
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
 from nika.problems.rca import node_resource
+from nika.problems.routing_control_plane.bgp import RPKIInvalidOrigin
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -20,10 +22,12 @@ from nika.problems.support.frr import (
 )
 from nika.problems.support.oracle import (
     Check,
+    compare,
+    router_cli,
     OraclePlaybook,
-    OracleStep,
     all_of,
     contains,
+    lacks,
     shell,
     srl,
     srl_cli,
@@ -39,7 +43,7 @@ from nika.net_env.utils.kathara.frr_origin import (
 )
 from nika.problems.support.recovery import FileSnapshot, checked_exec
 from nika.problems.support.polling import wait_until
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.service.containerlab.srl_api import srl_json, srl_bgp_prefix_paths
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
@@ -49,9 +53,74 @@ from nika.utils.logger import system_logger
 # ==================================================================
 
 
+def hijack_prefix_permissions(
+    config: str, prefix: str, explicit: str | None = None
+) -> list[tuple[str, int]]:
+    """Missing permit entries in bound allow-lists that cover the hijacked prefix."""
+    target = ipaddress.IPv4Network(prefix)
+    # A route-map can contain several terms and call another policy.
+    bound = set(re.findall(r"neighbor \S+ route-map (\S+) (?:in|out)", config))
+    pending = list(bound)
+    while pending:
+        policy = pending.pop()
+        bodies = re.findall(
+            rf"^route-map {re.escape(policy)} (?:permit|deny) \d+\n((?:[ \t]+[^\n]*\n)*)",
+            config,
+            re.M,
+        )
+        for called in re.findall(r"\bcall (\S+)", "\n".join(bodies)):
+            if called not in bound:
+                bound.add(called)
+                pending.append(called)
+    names = set(re.findall(r"neighbor \S+ prefix-list (\S+) (?:in|out)", config))
+    for policy in bound:
+        for body in re.findall(
+            rf"^route-map {re.escape(policy)} permit \d+\n((?:[ \t]+[^\n]*\n)*)",
+            config,
+            re.M,
+        ):
+            for match in re.findall(r"match ip address prefix-list ([^\n]+)", body):
+                names.update(match.split())
+    if explicit:
+        names.add(explicit)
+    result = []
+    for name in sorted(names):
+        rows = re.findall(
+            rf"^ip prefix-list {re.escape(name)} seq (\d+) permit (\S+)([^\n]*)$",
+            config,
+            re.M,
+        )
+        covering = False
+        permitted = False
+        for _seq, network, qualifiers in rows:
+            network = ipaddress.IPv4Network(network)
+            if not target.subnet_of(network):
+                continue
+            covering = True
+            ge = re.search(r"\bge (\d+)", qualifiers)
+            le = re.search(r"\ble (\d+)", qualifiers)
+            minimum = int(ge[1]) if ge else network.prefixlen
+            maximum = int(le[1]) if le else 32 if ge else network.prefixlen
+            permitted |= minimum <= target.prefixlen <= maximum
+        if permitted or not (covering or name == explicit):
+            continue
+        used = {
+            int(n)
+            for n in re.findall(
+                rf"^ip prefix-list {re.escape(name)} seq (\d+) ", config, re.M
+            )
+        }
+        sequence = 1
+        while sequence in used:
+            sequence += 1
+        result.append((name, sequence))
+    return result
+
+
 class BGPHijackingParams(BaseModel):
     """Parameters for injecting a BGP hijacking fault."""
 
+    variant: Literal["prefix", "rpki_invalid_origin"] = "prefix"
     host_name: str = Field(description="Target router host name.")
     target_network: Optional[str] = Field(
         default=None,
@@ -102,6 +171,8 @@ def _bgp_paths(output: str) -> list[tuple[str, bool]]:
         else:
             originator = re.search(r"Originator: ([\d.]+)", block)
             hop = lines[1].split()[0] if lines[1].split() else ""
+            # FRR appends the peer's hostname, as in 10.255.0.1(atlam5).
+            hop = hop.split("(", 1)[0]
             origin = originator.group(1) if originator else hop
         best = bool(re.search(r"^\s+Origin [^\n]*\bbest\b", block, re.M))
         paths.append((origin, best))
@@ -148,6 +219,19 @@ def _scenario_targets(net_env) -> list:
     return list(targets()) if targets is not None else []
 
 
+def _invalid_origin_available(net_env):
+    bgp = (getattr(net_env, "inventory", None) or {}).get("bgp") or {}
+    return bool(
+        bgp.get("rpki")
+        and any(
+            row.get("local_device") == bgp.get("leaker_device")
+            and row.get("remote_device") == bgp.get("non_rov_observer")
+            and row.get("session_type") == "ebgp"
+            for row in bgp.get("sessions", [])
+        )
+    )
+
+
 def _target_params(target) -> dict[str, str]:
     return {
         "host_name": target.hijacker,
@@ -158,11 +242,46 @@ def _target_params(target) -> dict[str, str]:
     }
 
 
-class BGPHijacking(ProblemBase):
+def _hijack_config_state(config: str, target: str, export_list: str | None):
+    """Configuration fields the FRR injector can change."""
+    network = str(ipaddress.ip_network(target, strict=False))
+    networks = tuple(
+        re.findall(rf"^[ \t]+network {re.escape(network)}(?: .*)?$", config, re.M)
+    )
+    interface = re.search(
+        rf"^interface {BGP_ORIGIN_IFACE}\n((?:[ \t]+[^\n]*\n)*)", config, re.M
+    )
+    addresses = (
+        tuple(
+            line
+            for line in interface[1].splitlines()
+            if line.strip().startswith("ip address ")
+        )
+        if interface
+        else ()
+    )
+    export = (
+        tuple(
+            re.findall(
+                rf"^ip prefix-list {re.escape(export_list)} seq \d+ .*$", config, re.M
+            )
+        )
+        if export_list
+        else ()
+    )
+    return networks, addresses, export
+
+
+class BGPHijacking(RPKIInvalidOrigin, ProblemBase):
     failure_domain = FailureDomain.SECURITY
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name: str = "bgp_hijacking"
+    CONFUSABLE_WITH = (
+        "bgp_blackhole_community_leak",
+        "bgp_rov_not_enforced",
+        "bgp_route_leak",
+    )
     description = "An unauthorized BGP prefix is advertised (hijack)."
     TAGS: str = ["bgp"]
     native_router_operations = frozenset(
@@ -174,16 +293,11 @@ class BGPHijacking(ProblemBase):
             "bgp_networks",
         }
     )
-    INCOMPATIBLE_SCENARIOS = {
-        "min3clos": "The fabric's eBGP sessions have no route policies, so peers "
-        "accept no BGP routes and an originated prefix never leaves the router.",
-        "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
-        "configuration, which RouterOS routers do not have.",
-    }
     supported_backends = ("kathara", "containerlab")
     BENCHMARK_TARGET_ROLE = "access_routers"
 
     Params = BGPHijackingParams
+    RECORDED_ATTRS = ("export_entry_snapshot",)
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -195,12 +309,32 @@ class BGPHijacking(ProblemBase):
     @classmethod
     def benchmark_inject_options(cls, ctx, base):
         targets = _scenario_targets(ctx.net_env)
-        if targets:
-            return [_target_params(target) for target in targets]
-        return super().benchmark_inject_options(ctx, base)
+        rows = (
+            [_target_params(target) for target in targets]
+            if targets
+            else super().benchmark_inject_options(ctx, base)
+        )
+        bgp = (getattr(ctx.net_env, "inventory", None) or {}).get("bgp") or {}
+        if _invalid_origin_available(ctx.net_env):
+            rows.append(
+                {
+                    "host_name": str(bgp["leaker_device"]),
+                    "variant": "rpki_invalid_origin",
+                }
+            )
+        return rows
 
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
+        if inject.get("variant") == "rpki_invalid_origin":
+            bgp = (getattr(ctx.net_env, "inventory", None) or {}).get("bgp") or {}
+            if not _invalid_origin_available(ctx.net_env) or inject.get(
+                "host_name"
+            ) != bgp.get("leaker_device"):
+                raise ValueError(
+                    "RPKI-invalid origin requires the declared ISP origin router"
+                )
+            return
         targets = _scenario_targets(ctx.net_env)
         # Rows without a target prefix (published before the scenario declared
         # its hijacks) hijack the default target from an access router.
@@ -256,29 +390,76 @@ class BGPHijacking(ProblemBase):
             return str(net.supernet(new_prefix=24))
         return str(next(net.subnets(new_prefix=25)))
 
+    def affected_prefixes(self, params=None):
+        params = params or self._resolved_params
+        if params is not None and params.variant == "rpki_invalid_origin":
+            return RPKIInvalidOrigin.affected_prefixes(self, params)
+        prefix = getattr(params, "target_network", None) or getattr(
+            self, "_target_network", None
+        )
+        return (str(prefix),) if prefix else ()
+
     def root_cause_resources(self, params: BGPHijackingParams):
+        if params.variant == "rpki_invalid_origin":
+            return RPKIInvalidOrigin.root_cause_resources(self, params)
         return [node_resource(params.host_name)]
 
-    def _prefix_owners(self, prefix: str, hijacker: str) -> list[str]:
-        """Routers that legitimately originate ``prefix`` (scenario inventory)."""
+    def _owned_prefixes(self, prefix: str, hijacker: str) -> dict[str, str]:
+        """Routers that legitimately originate ``prefix`` or a prefix covering it.
+
+        A more-specific hijack has no exact-match owner; the owner of the
+        covering prefix is the legitimate origin of its addresses.
+        """
         bgp = (getattr(self.net_env, "inventory", None) or {}).get("bgp") or {}
-        owners = {
-            str(row.get("device"))
-            for row in bgp.get("originated") or []
-            if row.get("prefix") == prefix and row.get("device") != hijacker
-        }
-        return sorted(owners)
+        target = ipaddress.ip_network(prefix, strict=False)
+        owned: dict[str, str] = {}
+        origins = list(bgp.get("originated") or [])
+        if not origins:
+            declared = getattr(self.net_env, "bgp_origin_prefixes", lambda: {})()
+            origins.extend(
+                {"device": owner, "prefix": network}
+                for network, owner in declared.items()
+            )
+        for row in origins:
+            device, origin = str(row.get("device")), str(row.get("prefix") or "")
+            if device == hijacker or not origin:
+                continue
+            try:
+                covers = target.subnet_of(ipaddress.ip_network(origin, strict=False))
+            except (TypeError, ValueError):
+                continue
+            if covers and (
+                device not in owned
+                or ipaddress.ip_network(owned[device]).prefixlen
+                < ipaddress.ip_network(origin, strict=False).prefixlen
+            ):
+                owned[device] = origin
+        return dict(sorted(owned.items()))
+
+    def _prefix_owners(self, prefix: str, hijacker: str) -> list[str]:
+        """Routers that legitimately originate ``prefix`` or a covering prefix."""
+        return list(self._owned_prefixes(prefix, hijacker))
 
     def _node_asns(self, nodes: list[str]) -> set[str]:
         """ASNs of ``nodes`` from the scenario's BGP inventory."""
         bgp = (getattr(self.net_env, "inventory", None) or {}).get("bgp") or {}
-        return {
+        asns = {
             str(row.get("asn"))
             for row in bgp.get("nodes") or []
             if row.get("device") in nodes and row.get("asn") is not None
         }
+        design = getattr(self.net_env, "routing_design", None)
+        if design is not None:
+            asns.update(
+                str(router.asn)
+                for name, router in design.routers.items()
+                if name in nodes and router.asn is not None
+            )
+        return asns
 
     def oracle_playbook(self, params: BGPHijackingParams) -> OraclePlaybook:
+        if params.variant == "rpki_invalid_origin":
+            return RPKIInvalidOrigin.oracle_playbook(self, params)
         hijacker = params.host_name
         prefix = str(
             ipaddress.ip_network(
@@ -313,25 +494,53 @@ class BGPHijacking(ProblemBase):
                 )
             )
         steps.append(
-            shell(
+            router_cli(
+                self.net_env,
                 hijacker,
-                vtysh(f"show bgp ipv4 unicast {prefix}")
-                + "; "
-                + vtysh("show bgp summary")
-                + " | grep -m1 'local AS number'"
-                "; ip -o -4 addr show | awk '{print \"addr \" $4}'",
-                f"Check whether {hijacker} originates {prefix} into BGP.",
-                all_of(
-                    contains(
-                        r"\bsourced\b[^\n]*\bbest\b",
-                        f"{hijacker} sources {prefix} as its best path",
-                    ),
-                    contains(
-                        r"Advertised to (?:non peer-group )?peers:\n\s+\d",
-                        f"{hijacker} advertises it to its peers",
-                    ),
-                    *owner_seen,
+                "Read the originator interface addresses.",
+                frr="ip -o -4 addr show",
+                iosxr_command="show ipv4 interface brief",
+                sonic_command="show ip interfaces",
+                routeros_command=(
+                    "/ip address print terse; /routing bgp instance print terse"
                 ),
+                save_as="hijacker_addrs",
+            )
+        )
+        local_origin = all_of(
+            contains(
+                r"\bsourced\b[^\n]*\bbest\b",
+                "the prefix is locally sourced and selected",
+            ),
+            contains(
+                r"Advertised to (?:non peer-group )?peers:\n\s+\S",
+                "the prefix is advertised to peers",
+            ),
+            *owner_seen,
+        )
+        if native_router_profile(self.net_env, hijacker) == "iosxr":
+            local_origin = all_of(
+                contains(
+                    r"(?m)^\s*Local\s*$|0\.0\.0\.0 from 0\.0\.0\.0",
+                    "the BGP path has local origin",
+                ),
+                contains(r"Advertised to", "the path is advertised"),
+                lacks(r"Not advertised to any", "a peer receives the path"),
+            )
+        elif native_router_profile(self.net_env, hijacker) == "routeros":
+            local_origin = contains(
+                r"blackhole|gateway=",
+                "the originated prefix has a local forwarding entry",
+            )
+        steps.append(
+            router_cli(
+                self.net_env,
+                hijacker,
+                f"Read {prefix} and BGP state on {hijacker}.",
+                local_origin,
+                frr=vtysh(f"show bgp ipv4 unicast {prefix}", "show bgp summary"),
+                iosxr_command=f"show bgp ipv4 unicast {prefix}",
+                routeros_command=f"/routing route print detail where dst-address={prefix}",
                 evidence=True,
                 save_as="hijacker",
             )
@@ -339,42 +548,59 @@ class BGPHijacking(ProblemBase):
         observer = params.symptom_host
         if observer and observer != hijacker:
 
-            def observer_view(outputs) -> dict:
-                text = outputs.get("hijacker", "")
-                ids = re.findall(r"^addr ([^/\s]+)", text, re.M)
-                asn = re.search(r"local AS number (\d+)", text)
-                # The AS identifies the hijacker only when the owner sits in
-                # another AS; otherwise match its addresses alone.
-                owner_origins = {o for o, _ in _bgp_paths(text)} - {"0.0.0.0"}
-                if asn and not (
-                    f"AS{asn.group(1)}" in owner_origins or asn.group(1) in owner_asns
-                ):
-                    ids.append(f"AS{asn.group(1)}")
-                command = f"echo hijacker={','.join(ids)}; " + vtysh(
-                    f"show bgp ipv4 unicast {prefix}"
-                )
-                return {"host_name": observer, "command": command, "timeout": 15}
+            def best_from_hijacker(output, outputs):
+                if native_router_profile(self.net_env, hijacker) == "routeros":
+                    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+                    from nika.net_env.vendor_validation import routeros_bgp_table
 
-            check = Check(
-                f"{observer}'s best path for {prefix} originates at {hijacker}",
-                _best_from_hijacker,
-            )
+                    asns = {
+                        row["as"]
+                        for row in routeros_terse_rows(outputs["hijacker_addrs"])
+                        if row.get("as", "").isdigit()
+                    } - owner_asns
+                    return any(
+                        path["best"] and path["aspath"].split()[-1:] == [asn]
+                        for path in routeros_bgp_table(output).get(prefix, [])
+                        for asn in asns
+                    )
+                text = outputs.get("hijacker", "")
+                ids = re.findall(
+                    r"\b(?:\d{1,3}\.){3}\d{1,3}\b", outputs.get("hijacker_addrs", "")
+                )
+                asn = re.search(r"local AS number (\d+)", text)
+                if asn and asn[1] not in owner_asns:
+                    ids.append(f"AS{asn[1]}")
+                return _best_from_hijacker(f"hijacker={','.join(ids)}\n{output}")
+
             steps.append(
-                OracleStep(
-                    f"Check which origin {observer} prefers for {prefix}.",
-                    "exec_shell",
-                    observer_view,
-                    check,
+                router_cli(
+                    self.net_env,
+                    observer,
+                    f"Read {observer}'s best path for {prefix}.",
+                    compare(
+                        f"{observer} selects a path originated by {hijacker}",
+                        best_from_hijacker,
+                    ),
+                    frr=vtysh(f"show bgp ipv4 unicast {prefix}"),
+                    iosxr_command=f"show bgp ipv4 unicast {prefix}",
+                    routeros_command=f"/routing route print detail where dst-address={prefix}",
                     evidence=True,
                 )
             )
+        owned = self._owned_prefixes(prefix, hijacker)
         for owner in owners[:1]:
             steps.append(
-                shell(
+                router_cli(
+                    self.net_env,
                     owner,
-                    vtysh(f"show bgp ipv4 unicast {prefix}"),
-                    f"Check the legitimate origin of {prefix} on {owner}.",
-                    contains(r"\bsourced\b", f"{owner} originates {prefix} as well"),
+                    f"Check the legitimate origin of {owned[owner]} on {owner}.",
+                    contains(
+                        r"\bsourced\b|Local|\b0\.0\.0\.0\b",
+                        f"{owner} originates {owned[owner]} as well",
+                    ),
+                    frr=vtysh(f"show bgp ipv4 unicast {owned[owner]}"),
+                    iosxr_command=f"show bgp ipv4 unicast {owned[owner]}",
+                    routeros_command=f"/routing route print detail where dst-address={owned[owner]}",
                     evidence=True,
                 )
             )
@@ -502,7 +728,8 @@ class BGPHijacking(ProblemBase):
             srl(
                 host,
                 "info from state network-instance default bgp-rib afi-safi "
-                "ipv4-unicast ipv4-unicast rib-in-out rib-out-post | as json",
+                "ipv4-unicast ipv4-unicast rib-in-out rib-out-post "
+                f"route {prefix} neighbor * path-id * | as json",
                 f"Check that {host} exports {prefix} to BGP peers.",
                 Check(
                     "the unauthorized prefix is advertised to a peer",
@@ -519,7 +746,8 @@ class BGPHijacking(ProblemBase):
         steps.append(
             srl(
                 host,
-                "info from state network-instance default route-table ipv4-unicast | as json",
+                "info from state network-instance default route-table ipv4-unicast "
+                f"route {prefix} id * route-type * route-owner * origin-network-instance * | as json",
                 f"Check that {host} locally originates {prefix}.",
                 Check(
                     "the business prefix is locally connected on the hijacker",
@@ -538,6 +766,50 @@ class BGPHijacking(ProblemBase):
             hijacker_asns = self._node_asns([host])
             owner_asns = self._node_asns(self._prefix_owners(prefix, host))
 
+            def selected_route(output):
+                return next(
+                    (
+                        row
+                        for row in _srl_bgp_routes(srl_json(output))
+                        if row.get("prefix") == prefix and row.get("best-route")
+                    ),
+                    None,
+                )
+
+            def attribute_args(outputs):
+                route = selected_route(outputs["observer_paths"])
+                if route is None:
+                    raise ValueError("No live best BGP path for the selected prefix")
+                index = int(route["attr-id"])
+                return {
+                    "device_name": params.symptom_host,
+                    "command": f"info from state network-instance default bgp-rib attr-sets attr-set {index} | as json",
+                }
+
+            def selected_origin(output, outputs):
+                data = srl_json(outputs["observer_paths"])
+                route = selected_route(outputs["observer_paths"])
+                if route is None:
+                    return False
+                rib = data["network-instance"][0]["bgp-rib"]
+                rib["afi-safi"][0]["ipv4-unicast"]["local-rib"]["route"] = [route]
+                rib["attr-sets"] = srl_json(output)["network-instance"][0]["bgp-rib"][
+                    "attr-sets"
+                ]
+                return any(
+                    row["best"]
+                    and (
+                        row["aspath"].split()[-1:]
+                        in [[asn] for asn in hijacker_asns - owner_asns]
+                        if hijacker_asns - owner_asns
+                        else (
+                            set(row["nexthops"]) & observed.get("addresses", set())
+                            or row["originator"] in observed.get("addresses", set())
+                        )
+                    )
+                    for row in srl_bgp_prefix_paths(json.dumps(data), prefix)
+                )
+
             def remember(output):
                 data = srl_json(output)
                 observed["addresses"] = {
@@ -554,7 +826,7 @@ class BGPHijacking(ProblemBase):
                 [
                     srl(
                         host,
-                        "info from running interface * | as json",
+                        "info from running interface * subinterface * ipv4 address * | as json",
                         f"Read {host}'s addresses to identify its BGP next hop.",
                         Check(
                             "the hijacker has an address outside the target prefix",
@@ -563,41 +835,47 @@ class BGPHijacking(ProblemBase):
                     ),
                     srl(
                         params.symptom_host,
-                        "info from state network-instance default bgp-rib | as json",
+                        "info from state network-instance default bgp-rib afi-safi "
+                        "ipv4-unicast ipv4-unicast local-rib "
+                        f"route {prefix} neighbor * origin-protocol * path-id * | as json",
                         f"Check that {params.symptom_host} prefers the unauthorized origin.",
                         Check(
-                            "the observer's best BGP path originates at the hijacker",
-                            lambda output: any(
-                                row["best"]
-                                and (
-                                    row["aspath"].split()[-1:]
-                                    in [[asn] for asn in hijacker_asns - owner_asns]
-                                    if hijacker_asns - owner_asns
-                                    else (
-                                        set(row["nexthops"])
-                                        & observed.get("addresses", set())
-                                        or row["originator"]
-                                        in observed.get("addresses", set())
-                                    )
-                                )
-                                for row in srl_bgp_prefix_paths(output, prefix)
-                            ),
+                            "the selected prefix has a live best BGP path",
+                            lambda output: selected_route(output) is not None,
                         ),
                         evidence=True,
                         attempts=6,
+                        save_as="observer_paths",
+                    ),
+                    replace(
+                        srl(
+                            params.symptom_host,
+                            "",
+                            "Read the selected best path's attributes.",
+                            compare(
+                                "the observer's best BGP path originates at the hijacker",
+                                selected_origin,
+                            ),
+                            evidence=True,
+                            attempts=6,
+                        ),
+                        args=attribute_args,
                     ),
                 ]
             )
-        for owner in self._prefix_owners(prefix, host)[:1]:
+        owned = self._owned_prefixes(prefix, host)
+        for owner in list(owned)[:1]:
+            owner_prefix = owned[owner]
             steps.append(
                 srl(
                     owner,
-                    "info from state network-instance default route-table ipv4-unicast | as json",
-                    f"Check that {owner} also owns {prefix}.",
+                    "info from state network-instance default route-table ipv4-unicast "
+                    f"route {owner_prefix} id * route-type * route-owner * origin-network-instance * | as json",
+                    f"Read the legitimate covering prefix {owner_prefix} on {owner}.",
                     Check(
-                        "the same prefix is connected at its legitimate owner",
+                        "the legitimate owner has an active connected prefix covering the hijack",
                         lambda output: any(
-                            row.get("ipv4-prefix") == prefix
+                            row.get("ipv4-prefix") == owner_prefix
                             and row.get("active")
                             and row.get("route-type", "").split(":")[-1] == "local"
                             for row in _srl_bgp_routes(srl_json(output))
@@ -612,6 +890,8 @@ class BGPHijacking(ProblemBase):
         )
 
     def inject_fault(self, params: BGPHijackingParams):
+        if params.variant == "rpki_invalid_origin":
+            return RPKIInvalidOrigin.inject_fault(self, params)
         target_network = (
             params.target_network
             if params.target_network is not None
@@ -673,6 +953,15 @@ class BGPHijacking(ProblemBase):
                         f"ip -j link show dev {BGP_ORIGIN_IFACE}",
                     )
                 )[0].get("flags", [])
+                self._origin_addresses = (
+                    checked_exec(
+                        self.runtime,
+                        params.host_name,
+                        f"ip -4 -o addr show dev {BGP_ORIGIN_IFACE}",
+                    )
+                    if self._origin_link
+                    else ""
+                )
                 self._origin_local_routes = checked_exec(
                     self.runtime,
                     params.host_name,
@@ -680,22 +969,48 @@ class BGPHijacking(ProblemBase):
                 )
                 # Off ``lo`` so the IGP does not carry it: only BGP spreads a hijack.
                 self.runtime.exec(params.host_name, ENSURE_BGP_ORIGIN_IFACE_CMD)
-                # Behind a prefix-list export policy the operator error includes
-                # admitting the prefix there, or the hijack never leaves the router.
-                export = (
-                    [
-                        f"ip prefix-list {params.export_prefix_list} seq 1 permit {target_network}"
-                    ]
-                    if params.export_prefix_list
-                    else []
-                )
+                self._hijack_permissions = {}
+                for router in self.net_env.frr_routers():
+                    config = checked_exec(
+                        self.runtime, router, "vtysh -c 'show running-config'"
+                    )
+                    additions = hijack_prefix_permissions(
+                        config,
+                        target_network,
+                        params.export_prefix_list
+                        if router == params.host_name
+                        else None,
+                    )
+                    if not additions:
+                        continue
+                    # Free sequence numbers have no original entry to overwrite.
+                    self._hijack_permissions[router] = {
+                        f"ip prefix-list {name} seq {seq}": None
+                        for name, seq in additions
+                    }
+                    checked_exec(
+                        self.runtime,
+                        router,
+                        frr_config_command(
+                            *(
+                                f"ip prefix-list {name} seq {seq} permit {target_network}"
+                                for name, seq in additions
+                            )
+                        ),
+                    )
+                    if router != params.host_name:
+                        frr_save_config(self.runtime, router)
+                    checked_exec(
+                        self.runtime,
+                        router,
+                        "vtysh -c 'clear ip bgp * soft in' -c 'clear ip bgp * soft out'",
+                    )
                 self.runtime.exec(
                     params.host_name,
                     frr_config_command(
                         f"interface {BGP_ORIGIN_IFACE}",
                         f"ip address {target_network}",
                         "exit",
-                        *export,
                         f"router bgp {asn_number}",
                         f"network {target_network}",
                     ),
@@ -708,6 +1023,12 @@ class BGPHijacking(ProblemBase):
                     f"ip route replace local {target_network} "
                     f"dev {BGP_ORIGIN_IFACE} table local",
                 )
+                if not wait_until(
+                    lambda: self.verify_fault(params)["verified"], 60, interval_s=2
+                ):
+                    raise RuntimeError(
+                        f"Hijacked prefix {target_network} did not propagate"
+                    )
                 self.logger.info(
                     f"Injected BGP hijacking on {params.host_name}: {target_network}."
                 )
@@ -717,6 +1038,8 @@ class BGPHijacking(ProblemBase):
                 )
 
     def recover_fault(self, params: BGPHijackingParams) -> dict:
+        if params.variant == "rpki_invalid_origin":
+            return RPKIInvalidOrigin.recover_fault(self, params)
         host = params.host_name
         target = getattr(self, "_target_network", None)
         if target is None:
@@ -824,16 +1147,6 @@ class BGPHijacking(ProblemBase):
                             "exit",
                         ]
                     )
-            if params.export_prefix_list:
-                name = params.export_prefix_list
-                pattern = rf"^ip prefix-list {re.escape(name)} seq 1 .*$"
-                old = re.search(pattern, running, re.M)
-                current = re.search(pattern, current_running, re.M)
-                if (old[0] if old else None) != (current[0] if current else None):
-                    if current:
-                        commands.append(f"no ip prefix-list {name} seq 1")
-                    if old:
-                        commands.append(old[0])
             if not self._origin_link:
                 # FRR rejects deleting an interface that still exists in the kernel.
                 checked_exec(
@@ -862,10 +1175,63 @@ class BGPHijacking(ProblemBase):
                 checked_exec(
                     self.runtime, host, "ip route replace " + original + " table local"
                 )
+            permissions_restored = True
+            for router, entries in self._hijack_permissions.items():
+                checked_exec(
+                    self.runtime,
+                    router,
+                    frr_config_command(*(f"no {entry}" for entry in entries)),
+                )
+                checked_exec(
+                    self.runtime,
+                    router,
+                    "vtysh -c 'clear ip bgp * soft in' -c 'clear ip bgp * soft out'",
+                )
+                if router != host:
+                    frr_save_config(self.runtime, router)
+                current_config = checked_exec(
+                    self.runtime, router, "vtysh -c 'show running-config'"
+                )
+                permissions_restored &= all(
+                    not re.search(rf"^{re.escape(entry)} .*", current_config, re.M)
+                    for entry in entries
+                )
             for snapshot in self._bgp_files:
                 snapshot.restore(self.runtime, host)
             current = checked_exec(self.runtime, host, "vtysh -c 'show running-config'")
-            verified = current == running
+            link = checked_exec(
+                self.runtime,
+                host,
+                f"if ip link show {BGP_ORIGIN_IFACE} >/dev/null 2>&1; then ip -j link show dev {BGP_ORIGIN_IFACE}; fi",
+            )
+            addresses = (
+                checked_exec(
+                    self.runtime, host, f"ip -4 -o addr show dev {BGP_ORIGIN_IFACE}"
+                )
+                if link
+                else ""
+            )
+            local_routes = checked_exec(
+                self.runtime,
+                host,
+                f"ip -4 route show table local exact {shlex.quote(target)}",
+            )
+            # Routine operator changes can alter descriptions and unrelated
+            # policies during diagnosis. Check every field the injector owns.
+            verified = (
+                permissions_restored
+                and _hijack_config_state(current, target, params.export_prefix_list)
+                == _hijack_config_state(running, target, params.export_prefix_list)
+                and bool(link) == bool(self._origin_link)
+                and (
+                    not link
+                    or ("UP" in json.loads(link)[0].get("flags", []))
+                    == self._origin_link_up
+                )
+                and re.findall(r"\binet (\S+)", addresses)
+                == re.findall(r"\binet (\S+)", self._origin_addresses)
+                and local_routes == self._origin_local_routes
+            )
         else:
             raise RuntimeCapabilityError(
                 f"BGP recovery is unsupported on {self.lab_backend!r}."
@@ -878,6 +1244,8 @@ class BGPHijacking(ProblemBase):
 
     def verify_fault(self, params: BGPHijackingParams) -> dict:
         """Verify the router is advertising the hijacked network via BGP."""
+        if params.variant == "rpki_invalid_origin":
+            return RPKIInvalidOrigin.verify_fault(self, params)
         target_network = (
             params.target_network
             if params.target_network is not None
@@ -929,7 +1297,27 @@ class BGPHijacking(ProblemBase):
                 ).strip()
                 has_origin_ip = network_prefix in origin_output
                 advertised_to = sorted(entry.get("advertisedTo") or {})
-                verified = originated and has_origin_ip and bool(advertised_to)
+                propagated = True
+                if params.symptom_host and params.symptom_host != params.host_name:
+                    identifiers = {
+                        f"AS{self.runtime.frr_get_bgp_asn_number(params.host_name)}"
+                    }
+                    identifiers.update(
+                        re.findall(
+                            r"inet ([^/\s]+)",
+                            self.runtime.exec(params.host_name, "ip -o -4 addr show"),
+                        )
+                    )
+                    observed = self.runtime.exec(
+                        params.symptom_host,
+                        vtysh(f"show bgp ipv4 unicast {target_network}"),
+                    )
+                    propagated = _best_from_hijacker(
+                        f"hijacker={','.join(identifiers)}\n{observed}"
+                    )
+                verified = (
+                    originated and has_origin_ip and bool(advertised_to) and propagated
+                )
                 return build_verify_result(
                     fault_type=self.root_cause_name,
                     verified=verified,
@@ -937,6 +1325,7 @@ class BGPHijacking(ProblemBase):
                         "host": params.host_name,
                         "target_network": target_network,
                         "originated_best": originated,
+                        "propagated": propagated,
                         "advertised_to": advertised_to,
                         "has_origin_ip": has_origin_ip,
                     },

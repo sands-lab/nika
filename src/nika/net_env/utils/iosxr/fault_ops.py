@@ -178,6 +178,9 @@ class IosxrFaultOps(RouterFaultOps):
                 )
         raise ValueError(f"IOS XR omitted BGP peer {peer}")
 
+    def bgp_accepted_prefix_count(self, peer: str) -> int:
+        return self.bgp_received_prefix_count(peer)
+
     def bgp_prefix_limit(self, peer: str) -> int | None:
         peers = dict(
             _NEIGHBOR_BLOCK.findall(self._show("show running-config router bgp"))
@@ -337,20 +340,54 @@ class IosxrFaultOps(RouterFaultOps):
             )
         return policies
 
-    def drop_bgp_session_policy(self) -> None:
+    def drop_bgp_session_policy(self, peer: str | None = None) -> None:
         # XR follows RFC 8212: an eBGP session without a policy exchanges no
         # routes, and the session itself stays up.
         lines = [f"router bgp {self.bgp_asn()}"]
-        for peer, policies in self._ebgp_policies().items():
+        bindings = self._ebgp_policies()
+        if peer is not None:
+            peer = str(ipaddress.IPv4Address(peer))
+            bindings = {peer: bindings[peer]}
+        for neighbor, policies in bindings.items():
             if policies:
-                lines += [f" neighbor {peer}", "  address-family ipv4 unicast"]
+                lines += [f" neighbor {neighbor}", "  address-family ipv4 unicast"]
                 lines += [f"   no {policy}" for policy in policies]
                 lines += ["  !", " !"]
         self._apply(*lines, "!")
 
-    def bgp_session_policy_dropped(self) -> bool:
+    def bgp_session_policy_dropped(self, peer: str | None = None) -> bool:
+        if re.search(
+            r"^ bgp unsafe-ebgp-policy$",
+            self._show("show running-config router bgp"),
+            re.M,
+        ):
+            return False
         policies = self._ebgp_policies()
+        if peer is not None:
+            return peer in policies and not policies[peer]
         return bool(policies) and not any(policies.values())
+
+    def restore_bgp_session_policy(self, saved: str, peer: str) -> bool:
+        peer = str(ipaddress.IPv4Address(peer))
+        body = dict(_NEIGHBOR_BLOCK.findall(saved))[peer]
+        unicast = re.search(
+            r"^  address-family ipv4 unicast\n(.*?)^  !$", body, re.M | re.S
+        )
+        wanted = re.findall(
+            r"^   (route-policy \S+ (?:in|out))$", unicast[1] if unicast else "", re.M
+        )
+        current = self._ebgp_policies()[peer]
+        self._apply(
+            f"router bgp {self.bgp_asn()}",
+            f" neighbor {peer}",
+            "  address-family ipv4 unicast",
+            *(f"   no {line}" for line in current if line not in wanted),
+            *(f"   {line}" for line in wanted),
+            "  !",
+            " !",
+            "!",
+        )
+        return set(self._ebgp_policies()[peer]) == set(wanted)
 
     def enable_bgp_ttl_security(self) -> None:
         # IOS XR accepts ttl-security only on external neighbors.
@@ -751,6 +788,10 @@ class IosxrFaultOps(RouterFaultOps):
         output = self._show(f"show ipv4 interface {iosxr_interface(interface)}")
         match = re.search(r"\((\d+) is available to IP\)", output)
         return int(match[1]) if match else None
+
+    def interface_addresses(self, interface: str) -> list[str]:
+        output = self._show(f"show ipv4 interface {iosxr_interface(interface)}")
+        return re.findall(r"Internet address is (\d+\.\d+\.\d+\.\d+/\d+)", output)
 
     def set_interface_mtu(self, interface: str, mtu: int) -> None:
         self._apply(

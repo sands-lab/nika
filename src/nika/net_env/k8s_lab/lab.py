@@ -94,12 +94,12 @@ class K8sFatTreeBGP(K8sTrafficPods, NetworkEnvBase):
             "every k3s node calls the apps through their Service names. "
             "The pod-2 leaves (leaf_2_*) host no Kubernetes nodes; they discard-route "
             "and announce the unused 101.0.0.0/8 and 201.0.0.0/8 aggregates. "
-            # kubectl is only usable on the k3s server. Resource ids use device names or Kubernetes objects.
             "`kubectl` works only on controller (the k3s server); the worker "
-            "devices ship the binary but have no kubeconfig. Resources are lab "
-            "devices (identified by device name) or Kubernetes objects "
-            "(identified by kind, namespace and name, as listed in the "
-            "resource inventory)."
+            "devices ship the binary but have no kubeconfig. Report Service, "
+            "Deployment, Ingress and load-balancer configuration faults on "
+            "controller, and node networking or taint faults on the affected "
+            "device. NetworkPolicy faults name the policy object; use the "
+            "submission inventory and ontology for resource IDs and kinds."
         )
         self.kubernetes_nodes = []
         # Devices whose local PersistentVolumes back the business databases.
@@ -218,11 +218,7 @@ class K8sFatTreeBGP(K8sTrafficPods, NetworkEnvBase):
             mount_workload_cache(m, self.LAB_NAME)
             self.declare_machine(
                 name,
-                role=(
-                    NodeRole.CONTROLLER
-                    if name == "controller"
-                    else NodeRole.INFRASTRUCTURE
-                ),
+                role=(NodeRole.CONTROLLER if name == "controller" else NodeRole.SERVER),
                 capabilities=("linux", "k3s"),
                 reachability_target=True,
             )
@@ -481,6 +477,19 @@ class K8sFatTreeBGP(K8sTrafficPods, NetworkEnvBase):
                 ),
                 *routine_change_processes(self.frr_routers()),
             ),
+        )
+
+    def seal_baseline(self) -> None:
+        if not self.SEAL_BASELINE:
+            return
+        from nika.service.lab.checked_exec import checked_exec
+
+        super().seal_baseline()
+        checked_exec(
+            self._build_runtime().exec,
+            "controller",
+            "rm -rf /shared /k8s",
+            timeout=30,
         )
 
     @classmethod

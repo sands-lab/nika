@@ -11,7 +11,7 @@ from nika.problems.forwarding_encapsulation_policy.acl import (
 )
 from nika.problems.routing_control_plane.isis import (
     IsisAuthenticationMismatch,
-    IsisCircuitLevelMismatch,
+    IsisRouterLevelMismatch,
     IsisMetricStyleMismatch,
 )
 from nika.problems.routing_control_plane.ospf import (
@@ -83,7 +83,7 @@ def _evidence(playbook, outputs):
                 if step.evidence:
                     evidence.append(False)
                 continue
-        passed = step.expect(output) if step.expect else None
+        passed = step.expect(output, saved) if step.expect else None
         if step.evidence:
             evidence.append(passed)
         if step.save_as:
@@ -122,23 +122,6 @@ def test_iosxr_frag_filter_oracle_requires_deny_and_interface_binding():
     assert _evidence(plan, [deny, binding])
     assert not _evidence(plan, ["20 permit ipv4 any any", binding])
     assert not _evidence(plan, [deny, "Outgoing access list is not set"])
-
-
-def test_all_xr_topology_has_no_colocated_pmtu_filter_target():
-    from nika.problems.forwarding_encapsulation_policy.p4_gateway import (
-        IcmpFragNeededFilterMisconfiguration,
-    )
-
-    from nika.problems.support.benchmark_targets import NoValidTargetError
-
-    with pytest.raises(NoValidTargetError, match="locally generated ICMP"):
-        IcmpFragNeededFilterMisconfiguration.coordinate_benchmark_inject(
-            SimpleNamespace(net_env=_env("iosxr")),
-            {
-                "mtu_mismatch": {"host_name": "r1", "intf_name": "eth1"},
-                "icmp_frag_needed_filter_misconfiguration": {"host_name": "r2"},
-            },
-        )
 
 
 @pytest.mark.parametrize("profile", ["frr", "iosxr", "routeros"])
@@ -182,7 +165,7 @@ def test_ospf_network_type_rejects_timer_mismatch(profile):
     "cls,setting,local,peer",
     [
         (IsisMetricStyleMismatch, "metric-style", "narrow", "wide"),
-        (IsisCircuitLevelMismatch, "is-type", "level-1", "level-2-only"),
+        (IsisRouterLevelMismatch, "is-type", "level-1", "level-2-only"),
     ],
 )
 def test_isis_requires_incompatible_live_peer_settings(
@@ -262,9 +245,9 @@ def test_duplicate_id_requires_two_observed_routers(profile):
 
 @pytest.mark.parametrize("profile", ["iosxr", "routeros"])
 def test_missing_ospf_binding_requires_live_process_and_addressed_link(profile):
-    from nika.problems.routing_control_plane.ospf import OSPFNeighborMissing
+    from nika.problems.routing_control_plane.ospf import OSPFInterfaceNotEnabled
 
-    plan = _playbook(OSPFNeighborMissing, profile)
+    plan = _playbook(OSPFInterfaceNotEnabled, profile)
     if profile == "iosxr":
         other = "GigabitEthernet0/0/0/0 is up, line protocol is up\n Area 0"
         address = "GigabitEthernet0/0/0/1 10.0.0.1 Up Up default"
@@ -286,9 +269,9 @@ def test_missing_ospf_binding_requires_live_process_and_addressed_link(profile):
 
 
 def test_missing_ospf_binding_matches_evidence_to_the_correct_peer_platform():
-    from nika.problems.routing_control_plane.ospf import OSPFNeighborMissing
+    from nika.problems.routing_control_plane.ospf import OSPFInterfaceNotEnabled
 
-    problem = OSPFNeighborMissing.__new__(OSPFNeighborMissing)
+    problem = OSPFInterfaceNotEnabled.__new__(OSPFInterfaceNotEnabled)
     problem.net_env = _env("iosxr")
     problem.net_env.routers.append("r3")
     problem.net_env.machine_identities["r3"] = SimpleNamespace(
@@ -420,3 +403,32 @@ def test_srl_area_oracle_requires_area_disagreement_without_full_adjacency():
     assert not _evidence(plan, [output("0.0.0.0"), output("0.0.0.0")])
     assert not _evidence(plan, [output("0.0.0.66"), output("0.0.0.0", True)])
     assert not _evidence(plan, [output("0.0.0.0", True), output("0.0.0.0", True)])
+
+
+def test_routeros_bgp_acl_oracle_requires_configured_peers_and_enabled_port_drops():
+    from nika.problems.forwarding_encapsulation_policy.acl import BGPAclBlock
+
+    state, filters = _playbook(BGPAclBlock, "routeros").steps
+    assert {state.tool, filters.tool} == {"routeros_exec"}
+    assert "where !disabled" in filters.args["command"]
+    assert state.expect("CONFIGURED\n4\nESTABLISHED\n0")
+    assert not state.expect("CONFIGURED\n0\nESTABLISHED\n0")
+    assert not state.expect("CONFIGURED\n4\nESTABLISHED\n1")
+    rows = [
+        f"{i} chain={chain} action=drop protocol=tcp {port}=179"
+        for i, (chain, port) in enumerate(
+            (chain, port)
+            for chain in ("input", "forward", "output")
+            for port in ("src-port", "dst-port")
+        )
+    ]
+    assert filters.expect("\n".join(rows))
+    assert not filters.expect("\n".join(rows[:-1]))
+    assert not filters.expect("\n".join(rows).replace("protocol=tcp", "protocol=udp"))
+    assert not filters.expect("\n".join(rows).replace("action=drop", "action=accept"))
+    assert not filters.expect(
+        "\n".join(
+            f"chain={chain} action=drop protocol=tcp src-port=179 dst-port=179"
+            for chain in ("input", "forward", "output")
+        )
+    )

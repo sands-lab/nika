@@ -19,10 +19,6 @@ from tests.support.scenario_e2e import ScenarioE2ECase, run_scenario_e2e
 
 pytestmark = [pytest.mark.e2e, pytest.mark.nightly]
 
-_VENDOR_IMAGES = {
-    "iosxr_simple_bgp": XRD_IMAGE,
-    "routeros_simple_bgp": ROUTEROS_IMAGE,
-}
 _PROFILE_IMAGES = {"iosxr": XRD_IMAGE, "routeros": ROUTEROS_IMAGE}
 
 
@@ -30,7 +26,7 @@ def _vendor_image(case: ScenarioE2ECase) -> str | None:
     args = list(case.env_run_args)
     if "--device-profile" in args:
         return _PROFILE_IMAGES.get(args[args.index("--device-profile") + 1])
-    return _VENDOR_IMAGES.get(case.scenario)
+    return None
 
 
 def _case_id(case: ScenarioE2ECase) -> str:
@@ -40,31 +36,31 @@ def _case_id(case: ScenarioE2ECase) -> str:
     return case.scenario
 
 
-_KATHARA_CASES = tuple(
-    ScenarioE2ECase(scenario, env_run_args=("-s", "s"))
-    for scenario in (
-        "dc_clos",
-        "campus_lan",
-        "enterprise_branch",
-        "sdn_l3_clos",
-        "p4_dc_fabric",
-        "p4_dc_gateway",
+_KATHARA_CASES = (
+    tuple(
+        ScenarioE2ECase(scenario, env_run_args=("-s", "s"))
+        for scenario in (
+            "dc_clos",
+            "campus_lan",
+            "enterprise_branch",
+            "sdn_l3_clos",
+            "p4_dc_fabric",
+            "p4_dc_gateway",
+        )
     )
-) + (
-    ScenarioE2ECase(
-        "iosxr_simple_bgp",
-        env_run_args=(),
-        topo_size=None,
-    ),
-    ScenarioE2ECase(
-        "routeros_simple_bgp",
-        env_run_args=(),
-        topo_size=None,
-    ),
-    *(
-        ScenarioE2ECase(scenario, env_run_args=("-s", "s", "--device-profile", "iosxr"))
-        for scenario in ("dc_clos", "campus_lan", "enterprise_branch")
-    ),
+    + (
+        *(
+            ScenarioE2ECase(
+                scenario, env_run_args=("-s", "s", "--device-profile", "iosxr")
+            )
+            for scenario in ("dc_clos", "campus_lan", "enterprise_branch")
+        ),
+    )
+    + (
+        ScenarioE2ECase(
+            "dc_clos", env_run_args=("-s", "s", "--device-profile", "routeros")
+        ),
+    )
 )
 
 _K8S_CASES = (
@@ -72,10 +68,21 @@ _K8S_CASES = (
     ScenarioE2ECase("llmd_lab", env_run_args=(), topo_size=None),
 )
 
-_CLAB_CASES = (
+_CLAB_CASES = tuple(
     ScenarioE2ECase(
-        "min3clos", env_run_args=(), backend="containerlab", topo_size=None
-    ),
+        "dc_clos",
+        env_run_args=(
+            "-s",
+            "s",
+            "--backend",
+            "containerlab",
+            "--device-profile",
+            profile,
+        ),
+        backend="containerlab",
+        topo_size="s",
+    )
+    for profile in ("nokia_srlinux", "sonic")
 )
 
 _ISP_CASES = (
@@ -152,8 +159,8 @@ class K8sScenarioE2ETest(IntegrationTestCase):
     not containerlab_prerequisites(),
     reason="containerlab, gnmic, or Docker not available",
 )
-class Min3ClosScenarioE2ETest(IntegrationTestCase):
-    @pytest.mark.parametrize("case", _CLAB_CASES, ids=lambda c: c.scenario)
+class ContainerlabScenarioE2ETest(IntegrationTestCase):
+    @pytest.mark.parametrize("case", _CLAB_CASES, ids=_case_id)
     def test_evaluate_scenario(self, case: ScenarioE2ECase) -> None:
         session_id = self._start_env(case.scenario, list(case.env_run_args))
         try:

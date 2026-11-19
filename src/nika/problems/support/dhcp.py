@@ -8,13 +8,20 @@ import shlex
 from typing import TYPE_CHECKING
 
 from nika.problems.support.file_metadata import preserve_mtime
-from nika.problems.support.oracle import Check, OracleStep, shell
+from nika.problems.support.oracle import (
+    Check,
+    OracleStep,
+    is_service_ipv4,
+    service_addresses,
+    shell,
+)
 
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
 DHCPD_CONF = "/etc/dhcp/dhcpd.conf"
 DNS_RENEWAL_HOOK = "/etc/dhcp/dhclient-enter-hooks.d/nameservers"
+ADDRESS_RENEWAL_HOOK = "/etc/dhcp/dhclient-enter-hooks.d/address"
 
 
 def restart_dhcp_server(exec_cmd, server: str, *, service="isc-dhcp-server") -> None:
@@ -23,15 +30,19 @@ def restart_dhcp_server(exec_cmd, server: str, *, service="isc-dhcp-server") -> 
     exec_cmd(server, "rm -f /var/lib/dhcp/dhcpd.leases~")
 
 
-def prepare_dns_renewal_hook(runtime, node: str, timestamp: float) -> None:
-    """Install a neutral resolver hook on hosts with DHCP client support."""
-    runtime.exec(
-        node,
-        "if test -d /etc/dhcp/dhclient-enter-hooks.d && "
-        f"! test -e {DNS_RENEWAL_HOOK}; then "
-        f"printf '# Local resolver options\\n' > {DNS_RENEWAL_HOOK}; "
-        f"touch -d @{int(timestamp)} {DNS_RENEWAL_HOOK}; fi",
-    )
+def prepare_dhcp_renewal_hooks(runtime, node: str, timestamp: float) -> None:
+    """Install neutral resolver and IPv4 hooks on hosts with DHCP client support."""
+    for path, label in (
+        (DNS_RENEWAL_HOOK, "Local resolver options"),
+        (ADDRESS_RENEWAL_HOOK, "Local IPv4 options"),
+    ):
+        runtime.exec(
+            node,
+            "if test -d /etc/dhcp/dhclient-enter-hooks.d && "
+            f"! test -e {path}; then "
+            f"printf '# {label}\\n' > {path}; "
+            f"touch -d @{int(timestamp)} {path}; fi",
+        )
 
 
 def client_subnet(
@@ -43,15 +54,17 @@ def client_subnet(
     client currently has no address (for example after its lease expired).
     """
     ip = runtime.get_host_ip(client_host, with_prefix=True)
+    if ip and not is_service_ipv4(ip):
+        ip = None
     if not ip:
         for intf in ("eth0", "eth1"):
             line = runtime.exec(
                 client_host,
-                f"ip -4 -o addr show dev {intf} scope global 2>/dev/null | head -1",
+                f"ip -4 -o addr show dev {intf} scope global 2>/dev/null",
             ).strip()
-            match = re.search(r"inet\s+(\S+)", line)
-            if match:
-                ip = match.group(1)
+            rows = service_addresses(line, intf)
+            if rows:
+                ip = rows[0][1]
                 break
     if not ip and dhcp_server:
         conf = runtime.exec(

@@ -6,6 +6,7 @@ from typing import Any
 
 from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
     load_intent,
+    forwarding_mismatches,
     run_manager,
 )
 from nika.net_env.p4_dc_fabric.topology_model import (
@@ -67,10 +68,11 @@ def _p4runtime_consistent(
     payload = run_manager(
         runtime, "read", "--switches", *names, timeout=60 * max(1, len(names))
     )
+    intent = load_intent(runtime)
     for name in names:
         switch = (payload.get("switches") or {}).get(name) or {}
         pipeline = switch.get("pipeline") or {}
-        mismatches = switch.get("mismatches") or []
+        mismatches = forwarding_mismatches(intent["switches"][name], switch)
         row = {
             "pipeline_ok": bool(pipeline.get("ok")),
             "mismatches": mismatches,

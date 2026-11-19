@@ -58,3 +58,16 @@ def test_sdn_web_traffic_stays_within_the_fabric_budget(size: str) -> None:
     ]
     assert rates and all(rate > 0 for rate in rates)
     assert sum(rates) <= 6000
+
+
+@pytest.mark.parametrize("size", ["s", "m", "l"])
+def test_persistent_vip_controls_preserve_aggregate_browsing_cadence(size):
+    workload = get_net_env_instance("p4_dc_gateway", topo_size=size).business_workload()
+    processes = [p for p in workload.processes if p.command == "vip-session"]
+    assert processes
+    for process in processes:
+        users = int(process.args[process.args.index("--users") + 1])
+        pause = process.args[process.args.index("--pause") + 1]
+        low, high = map(float, pause.split("-"))
+        assert users >= 16
+        assert (low + high) / 2 / users == pytest.approx(1.0)

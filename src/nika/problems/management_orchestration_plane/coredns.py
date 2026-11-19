@@ -40,6 +40,7 @@ class CoreDNSForwardLoop(K8sProblemBase):
 
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
     root_cause_name = "k8s_coredns_forward_loop"
+    CONFUSABLE_WITH = ("dns_port_blocked",)
     description = "CoreDNS forwards DNS queries back to itself."
     symptom_probe = "custom"
     symptom_class = "unreachable"

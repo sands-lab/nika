@@ -9,14 +9,22 @@ from nika.problems.multi import MultiFaultParams, MultiFaultProblem
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def environment_health(monkeypatch):
+    monkeypatch.setattr(
+        "nika.problems.support.recovery.verify_recovered_environment",
+        lambda env: {"verified": True},
+    )
+
+
 def composite(faults):
-    for fault in faults:
-        fault.MULTI_INJECT_DWELL_SEC = 0
     problem = object.__new__(MultiFaultProblem)
+    problem.net_env = SimpleNamespace()
     problem.sub_faults = faults
     problem.problem_names = [fault.root_cause_name for fault in faults]
     problem.root_cause_name = problem.problem_names
     problem._recovery_pending = []
+    problem._recovery_health_pending = False
     problem._resolved_params = MultiFaultParams()
     problem.check_runtime_compatible = lambda **kw: None
     problem.check_native_targets = lambda *args, **kw: None
@@ -112,3 +120,37 @@ def test_pending_composite_injection_cannot_overwrite_recovery_snapshots():
     problem.inject_fault()
     assert problem.recover_fault()["verified"]
     assert state["value"] == "healthy"
+
+
+def test_combination_defers_health_until_both_artifacts_are_restored(monkeypatch):
+    from nika.problems.support.recovery import recovery_checks_health
+
+    active, order = set(), []
+
+    def fault(name):
+        def recover():
+            assert not recovery_checks_health()
+            active.remove(name)
+            order.append(name)
+            return {"verified": True}
+
+        return SimpleNamespace(
+            root_cause_name=name,
+            inject_fault=lambda: active.add(name),
+            recover_fault=recover,
+        )
+
+    def healthy(env):
+        assert not active
+        assert recovery_checks_health()
+        order.append("healthy")
+        return {"verified": True}
+
+    monkeypatch.setattr(
+        "nika.problems.support.recovery.verify_recovered_environment", healthy
+    )
+    problem = composite([fault("first"), fault("second")])
+    problem.inject_fault()
+    assert problem.recover_fault()["verified"]
+    assert problem.recover_fault()["verified"]
+    assert order == ["second", "first", "healthy"]

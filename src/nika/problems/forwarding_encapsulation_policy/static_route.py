@@ -19,6 +19,7 @@ from nika.problems.rca import node_resource
 from nika.problems.support.oracle import (
     srl_cli,
     Check,
+    router_cli,
     OraclePlaybook,
     OracleStep,
     contains,
@@ -92,6 +93,7 @@ class StaticBlackHole(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "host_static_blackhole"
+    CONFUSABLE_WITH = ("host_incorrect_gateway", "rib_fib_inconsistency")
     description = "A static blackhole route drops traffic to a prefix locally."
     TAGS: str = ["bgp"]
     native_router_operations = frozenset(
@@ -411,6 +413,29 @@ class StaticBlackHole(ProblemBase):
             f"A locally configured static blackhole route on {host} overrides "
             "the learned route to a remote prefix and silently drops that traffic."
         )
+        from nika.problems.support.router_ops import native_router_profile
+
+        profile = native_router_profile(self.net_env, host)
+        if profile in {"sonic", "routeros", "iosxr"}:
+            return OraclePlaybook(
+                finding=finding,
+                steps=[
+                    router_cli(
+                        self.net_env,
+                        host,
+                        "Read selected discard routes and their static configuration.",
+                        contains(
+                            r"blackhole|Null0|discard",
+                            "a locally configured discard route is installed",
+                        ),
+                        frr=vtysh("show ip route"),
+                        sonic_command="vtysh -c 'show ip route'",
+                        iosxr_command="show route ipv4 unicast",
+                        routeros_command="/ip route print detail where blackhole",
+                        evidence=True,
+                    )
+                ],
+            )
         if srl_cli(self.net_env, host):
             return OraclePlaybook(
                 finding=finding,
@@ -447,11 +472,9 @@ class StaticBlackHole(ProblemBase):
 
         def rib_lookup(outputs) -> dict:
             prefixes = _blackhole_prefixes(outputs.get("blackholes", ""))
-            command = (
-                vtysh(*(f"show ip route vrf all {p}" for p in prefixes)) + " | head -60"
-                if prefixes
-                else "echo NO_BLACKHOLE_ROUTE"
-            )
+            if not prefixes:
+                raise ValueError("No blackhole prefix was observed")
+            command = vtysh(*(f"show ip route vrf all {p}" for p in prefixes))
             return {"host_name": host, "command": command, "timeout": 20}
 
         return OraclePlaybook(

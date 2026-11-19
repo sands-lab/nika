@@ -27,8 +27,8 @@ class TestKubernetesRecovery(IntegrationTestCase):
                 session_id = self._start_env("k8s_lab")
                 self._assert_session_ready(session_id, "k8s_lab")
                 for name in (
-                    "k8s_clusterip_routing_broken",
-                    "k8s_coredns_isolated",
+                    "k8s_node_firewall_drop",
+                    "dns_port_blocked",
                     "k8s_worker_apiserver_partition",
                 ):
                     params = resolve_inject_params(name, "k8s_lab", "s", seed=42)

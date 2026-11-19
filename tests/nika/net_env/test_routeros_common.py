@@ -103,3 +103,42 @@ def test_restore_script_readds_only_changed_menu_groups():
         "/routing bgp instance add as=65200 name=CORE router-id=172.16.0.5; "
         "/routing bgp connection add instance=CORE name=peer-0 remote.address=172.16.0.4 .as=65100"
     )
+
+
+def test_restore_nat_and_withdrawn_address_without_resetting_management():
+    from nika.net_env.utils.routeros.common import routeros_restore_script
+
+    management = "/ip address add address=192.0.2.1/24 interface=ether1\n"
+    active = "/ip address add address=198.18.1.10/32 interface=ether4\n"
+    standby = "/ip address add address=198.18.1.11/32 interface=ether4\n"
+    rule = "/ip firewall nat add action=src-nat chain=srcnat src-address=10.1.40.0/24 to-addresses=198.18.1.10\n"
+    saved = "/system identity set name=br1\n" + management + active + standby + rule
+    changed = saved.replace(active, "") + rule.replace("198.18.1.10", "198.18.1.11")
+    script = routeros_restore_script(saved, changed)
+    assert script == (
+        "/ip firewall nat remove [find where !dynamic]; "
+        + rule.strip()
+        + "; "
+        + active.strip()
+    )
+    assert "ether1" not in script
+    assert standby.strip() not in script
+    assert routeros_restore_script(saved, saved) == ""
+
+
+def test_address_restore_removes_only_changed_static_tuple():
+    from nika.net_env.utils.routeros.common import routeros_restore_script
+
+    saved = (
+        "/system identity set name=br1\n"
+        "/ip address add address=192.0.2.1/24 interface=ether1\n"
+        "/ip address add address=198.18.1.10/32 interface=ether4\n"
+    )
+    changed = saved.replace("198.18.1.10/32", "198.18.1.11/32")
+    script = routeros_restore_script(saved, changed)
+    assert script == (
+        '/ip address remove [find where !dynamic and address="198.18.1.11/32" '
+        'and interface="ether4"]; '
+        "/ip address add address=198.18.1.10/32 interface=ether4"
+    )
+    assert "ether1" not in script

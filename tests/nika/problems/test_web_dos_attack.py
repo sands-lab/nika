@@ -66,6 +66,9 @@ class _DeterministicWebDoS(WebDoS):
     def _target_connections(self, host):
         return 500
 
+    def _slow_process_action(self, params, action, host=None, port=None):
+        return [123, 456, "test-boot"] if action == "start" else False
+
     def _slow_client_running(self, params):
         return True
 
@@ -90,6 +93,7 @@ def test_web_dos_artifact_verify_only() -> None:
     result = problem.verify_fault(params)
 
     assert result["verified"] is True
+    assert problem._slow_process == [123, 456, "test-boot"]
     assert result["details"]["attack_ready"] is True
     assert "degradation_ok" not in result["details"]
     problem.parse_params(params.model_dump())
@@ -258,3 +262,31 @@ class TestWebDoSAttackSymptom(IntegrationTestCase):
         finally:
             if session_id is not None:
                 self._close_session(session_id)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("outputs", "expected", "attempts"),
+    [(["open 98", "open 101"], True, 2), (["open 98", "open 99", "open 99"], False, 3)],
+)
+def test_web_oracle_retries_transient_connection_counts_without_lowering_threshold(
+    outputs, expected, attempts
+):
+    import asyncio
+    from dataclasses import replace
+    from itertools import count
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from nika.agents.oracle.agent import OracleAgent
+
+    step = replace(WebDoS(None).oracle_playbook(_params()).steps[-1], interval_sec=0)
+    agent = OracleAgent.__new__(OracleAgent)
+    agent.net_env = SimpleNamespace(machine_identities={})
+    tool = SimpleNamespace(ainvoke=AsyncMock(side_effect=outputs))
+    logger = SimpleNamespace(log=lambda *args, **kwargs: None)
+    result = asyncio.run(
+        agent._run_step(1, step, {"exec_shell": tool}, {}, logger, count())
+    )
+    assert result.passed is expected
+    assert result.attempts == attempts

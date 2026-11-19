@@ -14,29 +14,28 @@ from nika.problems.support.benchmark_targets import (
     p4_port_options,
 )
 from nika.problems.support.p4_oracle import table_read, bmv2_ports
-from nika.problems.support.oracle import OraclePlaybook, contains
+from nika.problems.support.oracle import OraclePlaybook, OracleStep, contains
 from nika.problems.support.p4_gateway import set_ecn_threshold
 
 
-class P4EcnThresholdMisconfigurationParams(BaseModel):
+class P4EcnMarkingDisabledParams(BaseModel):
     host_name: str
     intf_name: str
     bmv2_port: int = Field(gt=0)
-    threshold: int = Field(default=1024, gt=0)
+    threshold: int = Field(default=1024, gt=64)
 
 
-class P4EcnThresholdMisconfiguration(ProblemBase):
+class P4EcnMarkingDisabled(ProblemBase):
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
     symptom_probe = "custom"
     symptom_class = "gray"
-    root_cause_name = "p4_ecn_threshold_misconfiguration"
-    description = "ECN marking threshold is misconfigured (marking too late)."
-    symptom_desc = (
-        "TCP incast builds a deeper queue because CE marking starts too late."
-    )
+    root_cause_name = "p4_ecn_marking_disabled"
+    CONFUSABLE_WITH = ("link_capacity_bottleneck",)
+    description = "An ECN threshold above the queue-depth cap disables marking."
+    symptom_desc = "Congested traffic receives no CE marks on the affected egress."
     TAGS = ["p4_runtime", "ecn", "queue", "http"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
-    Params = P4EcnThresholdMisconfigurationParams
+    Params = P4EcnMarkingDisabledParams
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -51,10 +50,10 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
     def benchmark_inject_options(cls, ctx, base):
         return p4_port_options(ctx, base, gateways_only=False)
 
-    def root_cause_resources(self, params: P4EcnThresholdMisconfigurationParams):
+    def root_cause_resources(self, params: P4EcnMarkingDisabledParams):
         return [interface_resource(params.host_name, params.intf_name)]
 
-    def inject_fault(self, params: P4EcnThresholdMisconfigurationParams):
+    def inject_fault(self, params: P4EcnMarkingDisabledParams):
         self._original_threshold = read_runtime_config_value(
             self.runtime, params.host_name, "ecn_config", params.bmv2_port
         )
@@ -64,7 +63,7 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
             self.runtime, params.host_name, params.bmv2_port, params.threshold
         )
 
-    def recover_fault(self, params: P4EcnThresholdMisconfigurationParams) -> dict:
+    def recover_fault(self, params: P4EcnMarkingDisabledParams) -> dict:
         original = getattr(self, "_original_threshold", None)
         if original is not None:
             set_ecn_threshold(
@@ -79,7 +78,7 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
             details={"original_threshold": original, "observed_threshold": observed},
         )
 
-    def verify_fault(self, params: P4EcnThresholdMisconfigurationParams) -> dict:
+    def verify_fault(self, params: P4EcnMarkingDisabledParams) -> dict:
         observed = read_runtime_config_value(
             self.runtime, params.host_name, "ecn_config", params.bmv2_port
         )
@@ -93,9 +92,7 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
             },
         )
 
-    def oracle_playbook(
-        self, params: P4EcnThresholdMisconfigurationParams
-    ) -> OraclePlaybook:
+    def oracle_playbook(self, params: P4EcnMarkingDisabledParams) -> OraclePlaybook:
         switch, intf, port = params.host_name, params.intf_name, params.bmv2_port
 
         def raised(rows: list[dict]) -> bool:
@@ -114,12 +111,22 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
             finding=(
                 f"The ECN marking threshold of {switch}:{intf} (BMv2 port {port}) is "
                 f"{params.threshold} packets, far above the other ports, so the "
-                "queue builds before any packet is CE-marked."
+                "queue depth cannot reach the threshold, disabling CE marking."
             ),
             steps=[
+                OracleStep(
+                    "Read the measured INT queue occupancy for this ECN egress.",
+                    "prometheus_query",
+                    {
+                        "query": f'max_over_time(p4_int_queue_depth_packets{{switch="{switch}",egress_port="{port}"}}[2m])'
+                    },
+                ),
                 bmv2_ports(
                     switch,
-                    contains(rf"(^|\s){port}@{intf}\b", f"port {port} is {intf}"),
+                    contains(
+                        rf'"port":\s*{port},\s*"interface":\s*"{intf}"',
+                        f"port {port} is {intf}",
+                    ),
                 ),
                 table_read(
                     switch,

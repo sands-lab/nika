@@ -104,6 +104,8 @@ class BGPPrefixListLengthMismatch(ProblemBase):
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name = "bgp_prefix_list_length_mismatch"
+    NATIVE_CONFIG_KEYWORDS = ("prefix[-_]list",)
+    CONFUSABLE_WITH = ("bgp_missing_route_advertisement", "bgp_session_policy_missing")
     description = "A BGP import prefix-list matches the aggregate without its required length range."
     symptom_probe = "custom"
     symptom_class = "control_plane"

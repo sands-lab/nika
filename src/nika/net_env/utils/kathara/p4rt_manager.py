@@ -13,8 +13,8 @@ import ipaddress
 import json
 import os
 import queue
-import sys
 import threading
+import time
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -29,13 +29,7 @@ ACTION_FWD = "ipv4_forward"
 PROFILE = "ecmp_selector"
 COUNTER_INGRESS = "ingress_port_counter"
 COUNTER_EGRESS = "egress_port_counter"
-ELECTION_LOW = 1
 LOG_PATH = "/var/log/p4rt/controller.log"
-
-
-def _die(msg: str, code: int = 1) -> None:
-    print(json.dumps({"ok": False, "error": msg}), file=sys.stderr)
-    raise SystemExit(code)
 
 
 def load_json(path: str) -> Any:
@@ -117,6 +111,8 @@ def encode_ipv4(addr: str) -> bytes:
 
 
 def encode_u(value: int, bitwidth: int) -> bytes:
+    if not 0 <= int(value) < (1 << bitwidth):
+        raise ValueError(f"{value} does not fit in {bitwidth} bits")
     nbytes = (bitwidth + 7) // 8
     return int(value).to_bytes(nbytes, "big")
 
@@ -136,18 +132,20 @@ def decode_prefix(value: bytes, prefix_len: int) -> str:
 
 
 class SwitchClient:
-    def __init__(self, address: str, device_id: int):
+    def __init__(self, address: str, device_id: int, *, primary: bool = True):
         self.address = address
         self.device_id = device_id
+        self.election_id = time.time_ns() if primary else 0
         self.channel = grpc.insecure_channel(address)
         self.stub = p4runtime_pb2_grpc.P4RuntimeStub(self.channel)
         self._requests: queue.Queue = queue.Queue()
         self._arbitration = threading.Event()
-        self._arbitration_error: str | None = None
-        self.stream = self.stub.StreamChannel(self._iter_requests())
-        self._listener = threading.Thread(target=self._listen, daemon=True)
-        self._listener.start()
-        self._become_master()
+        self._arbitration_error: Exception | None = None
+        if primary:
+            self.stream = self.stub.StreamChannel(self._iter_requests())
+            self._listener = threading.Thread(target=self._listen, daemon=True)
+            self._listener.start()
+            self._become_master()
 
     def _iter_requests(self):
         while True:
@@ -162,30 +160,32 @@ class SwitchClient:
                 if msg.HasField("arbitration"):
                     status = msg.arbitration.status
                     if status.code != 0:
-                        self._arbitration_error = (
+                        self._arbitration_error = RuntimeError(
                             f"arbitration lost: code={status.code} {status.message}"
                         )
                     self._arbitration.set()
         except grpc.RpcError as exc:
-            self._arbitration_error = str(exc)
+            self._arbitration_error = exc
             self._arbitration.set()
 
     def _become_master(self) -> None:
         req = p4runtime_pb2.StreamMessageRequest()
         req.arbitration.device_id = self.device_id
         req.arbitration.election_id.high = 0
-        req.arbitration.election_id.low = ELECTION_LOW
+        req.arbitration.election_id.low = self.election_id
         self._requests.put(req)
         if not self._arbitration.wait(timeout=10):
             raise TimeoutError(f"P4Runtime arbitration timeout on {self.address}")
         if self._arbitration_error:
-            raise RuntimeError(self._arbitration_error)
+            raise self._arbitration_error
 
     def set_pipeline(self, p4info: p4info_pb2.P4Info, device_config: bytes) -> None:
+        if not self.election_id:
+            raise RuntimeError("P4Runtime writes require a primary connection")
         req = p4runtime_pb2.SetForwardingPipelineConfigRequest()
         req.device_id = self.device_id
         req.election_id.high = 0
-        req.election_id.low = ELECTION_LOW
+        req.election_id.low = self.election_id
         req.action = p4runtime_pb2.SetForwardingPipelineConfigRequest.VERIFY_AND_COMMIT
         req.config.p4info.CopyFrom(p4info)
         req.config.p4_device_config = device_config
@@ -213,10 +213,12 @@ class SwitchClient:
         }
 
     def write(self, updates: list[p4runtime_pb2.Update], atomic: int) -> None:
+        if not self.election_id:
+            raise RuntimeError("P4Runtime writes require a primary connection")
         req = p4runtime_pb2.WriteRequest()
         req.device_id = self.device_id
         req.election_id.high = 0
-        req.election_id.low = ELECTION_LOW
+        req.election_id.low = self.election_id
         req.atomicity = atomic
         req.updates.extend(updates)
         self.stub.Write(req, timeout=30)
@@ -268,7 +270,12 @@ def _encode_value(value: int | str, bitwidth: int) -> bytes:
         return encode_ipv4(value)
     if isinstance(value, str) and ":" in value:
         return encode_mac(value)
-    return encode_u(int(value), bitwidth)
+    return encode_u(
+        int(value, 0)
+        if isinstance(value, str) and value.lower().startswith("0x")
+        else int(value),
+        bitwidth,
+    )
 
 
 def _fwd_action(index: P4InfoIndex, src_mac: str, dst_mac: str, port: int):
@@ -344,8 +351,10 @@ def table_entity(
     default: bool = False,
     priority: int = 0,
     kind: str = "INSERT",
+    member_id: int | None = None,
+    group_id: int | None = None,
 ):
-    """Build one direct table entry.
+    """Build one table entry from the pipeline match types.
 
     Keys are ints, dotted IPv4, ``a.b.c.d/len`` (LPM) or ``value&&&mask``
     (ternary, which also needs a *priority*).
@@ -356,19 +365,72 @@ def table_entity(
     entry.is_default_action = bool(default)
     entry.priority = int(priority)
     for field, value in (match or {}).items():
-        mf = entry.match.add()
-        mf.field_id = index.match_field_id(table_name, field)
-        width = index.match_field_bitwidth(table_name, field)
-        if isinstance(value, str) and "&&&" in value:
-            raw_value, raw_mask = value.split("&&&")
-            mf.ternary.value = _encode_value(raw_value, width)
-            mf.ternary.mask = _encode_value(raw_mask, width)
-        elif isinstance(value, str) and "/" in value:
-            network = ipaddress.IPv4Network(value, strict=False)
-            mf.lpm.value = encode_ipv4(str(network.network_address))
-            mf.lpm.prefix_len = int(network.prefixlen)
-        else:
+        field_id = index.match_field_id(table_name, field)
+        spec = next(
+            f for f in index.tables[table_name].match_fields if f.id == field_id
+        )
+        width = int(spec.bitwidth)
+        mf = p4runtime_pb2.FieldMatch(field_id=field_id)
+        if spec.match_type in {
+            p4info_pb2.MatchField.TERNARY,
+            p4info_pb2.MatchField.LPM,
+        }:
+            if isinstance(value, str) and "/" in value:
+                network = ipaddress.IPv4Network(value, strict=False)
+                if width != 32:
+                    raise ValueError("IPv4 prefixes require a 32-bit match field")
+                raw = network.network_address.packed
+                mask = network.netmask.packed
+                prefix_len = network.prefixlen
+            elif isinstance(value, str) and "&&&" in value:
+                raw_value, raw_mask = value.split("&&&")
+                raw, mask = (
+                    _encode_value(raw_value, width),
+                    _encode_value(raw_mask, width),
+                )
+                prefix_len = None
+            else:
+                raw, mask = (
+                    _encode_value(value, width),
+                    encode_u((1 << width) - 1, width),
+                )
+                prefix_len = width
+            masked = decode_u(raw) & decode_u(mask)
+            if not decode_u(mask):
+                continue
+            if spec.match_type == p4info_pb2.MatchField.TERNARY:
+                mf.ternary.value = encode_u(masked, width)
+                mf.ternary.mask = mask
+            else:
+                if prefix_len is None:
+                    raise ValueError("LPM matches require a prefix or exact value")
+                mf.lpm.value = encode_u(masked, width)
+                mf.lpm.prefix_len = prefix_len
+        elif spec.match_type == p4info_pb2.MatchField.OPTIONAL:
+            mf.optional.value = _encode_value(value, width)
+        elif spec.match_type == p4info_pb2.MatchField.RANGE:
+            low, high = str(value).split("..")
+            mf.range.low, mf.range.high = (
+                _encode_value(low, width),
+                _encode_value(high, width),
+            )
+            if decode_u(mf.range.low) > decode_u(mf.range.high):
+                raise ValueError("Range low exceeds high")
+            if (
+                decode_u(mf.range.low) == 0
+                and decode_u(mf.range.high) == (1 << width) - 1
+            ):
+                continue
+        elif spec.match_type == p4info_pb2.MatchField.EXACT:
             mf.exact.value = _encode_value(value, width)
+        else:
+            raise ValueError(f"Unsupported match type for {field}")
+        entry.match.append(mf)
+    if kind != "DELETE":
+        if member_id is not None:
+            entry.action.action_profile_member_id = member_id
+        elif group_id is not None:
+            entry.action.action_profile_group_id = group_id
     if action is not None and kind != "DELETE":
         entry.action.action.action_id = index.action_id(action)
         for name, value in (params or {}).items():
@@ -504,7 +566,7 @@ def controller_write(
     stamp = _now()
     lines = [
         f"{stamp} Write device={device} device_id={client.device_id} "
-        f"election_id={ELECTION_LOW} atomicity={atomicity} "
+        f"election_id={client.election_id} atomicity={atomicity} "
         f"updates={len(updates)} failed={failed}"
     ]
     for position, (update, status) in enumerate(zip(updates, statuses)):
@@ -518,8 +580,8 @@ def controller_write(
     return statuses
 
 
-def connect(switch: dict[str, Any]) -> SwitchClient:
-    return SwitchClient(switch["address"], int(switch["device_id"]))
+def connect(switch: dict[str, Any], *, primary: bool = True) -> SwitchClient:
+    return SwitchClient(switch["address"], int(switch["device_id"]), primary=primary)
 
 
 def apply_switch(
@@ -559,6 +621,18 @@ def apply_switch(
             kind="MODIFY",
         )
     ]
+    int_node = switch.get("int", {}).get("node_config")
+    if int_node:
+        runtime_updates.append(
+            table_entity(
+                index,
+                "int_node_config",
+                action="set_int_node",
+                params=int_node,
+                default=True,
+                kind="MODIFY",
+            )
+        )
     for raw_port, threshold in switch.get("ecn", {}).items():
         port = int(raw_port)
         runtime_updates.append(
@@ -579,6 +653,23 @@ def apply_switch(
                 params={"mtu": int(switch["int"]["mtu"])},
             )
         )
+    for port in switch.get("int", {}).get("access_ports", []):
+        runtime_updates.extend(
+            [
+                table_entity(
+                    index,
+                    "int_source_port",
+                    match={"ingress_port": port},
+                    action="int_source",
+                ),
+                table_entity(
+                    index,
+                    "int_sink_port",
+                    match={"egress_port": port},
+                    action="int_sink",
+                ),
+            ]
+        )
     for raw_port, mtu in (switch.get("egress_mtu") or {}).items():
         runtime_updates.append(
             table_entity(
@@ -596,6 +687,7 @@ def apply_switch(
                 "int_watchlist",
                 match={"dstAddr": "10.0.0.0/8"},
                 action="watch_int",
+                priority=1,
             )
         )
         # Edge ICMP hardening: drop timestamp and address-mask requests
@@ -763,6 +855,7 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
     for table_name in (
         "ecn_config",
         "int_mtu_config",
+        "int_node_config",
         "egress_mtu",
         "runtime_role",
         "icmp_acl",
@@ -795,7 +888,10 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
         "counters": counters,
         "registers": registers,
         "runtime_config": runtime_config,
-        "arbitration": {"master": True, "election_id": ELECTION_LOW},
+        "arbitration": {
+            "master": bool(client.election_id),
+            "election_id": client.election_id,
+        },
     }
 
 
@@ -840,7 +936,7 @@ def intent_vs_observed(switch: dict[str, Any], observed: dict[str, Any]) -> list
     return mismatches
 
 
-def switch_summary(observed: dict[str, Any], mismatches: list[str]) -> dict[str, Any]:
+def switch_summary(observed: dict[str, Any]) -> dict[str, Any]:
     """Compact per-switch digest printed ahead of the full read output."""
     pipeline = observed.get("pipeline") or {}
     return {
@@ -849,7 +945,6 @@ def switch_summary(observed: dict[str, Any], mismatches: list[str]) -> dict[str,
         "members": len(observed.get("members") or []),
         "groups": len(observed.get("groups") or []),
         "ipv4_lpm": len(observed.get("ipv4_lpm") or []),
-        "mismatches": mismatches,
         "nonzero_counter_ports": {
             kind: len(ports) for kind, ports in observed["counters"].items()
         },
@@ -887,6 +982,28 @@ def cmd_apply(args: argparse.Namespace) -> None:
         raise SystemExit(2)
 
 
+def cmd_probe(args: argparse.Namespace) -> None:
+    """Distinguish a reachable management controller from an unavailable switch."""
+    intent = load_json(args.intent)
+    switch = intent["switches"][args.switch]
+    channel = grpc.insecure_channel(switch["address"])
+    request = p4runtime_pb2.GetForwardingPipelineConfigRequest(
+        device_id=int(switch["device_id"])
+    )
+    request.response_type = p4runtime_pb2.GetForwardingPipelineConfigRequest.COOKIE_ONLY
+    result = {"controller_reachable": True, "switch": args.switch, "reachable": False}
+    try:
+        p4runtime_pb2_grpc.P4RuntimeStub(channel).GetForwardingPipelineConfig(
+            request, timeout=3
+        )
+        result["reachable"] = True
+    except grpc.RpcError as exc:
+        result["status"] = exc.code().name
+    finally:
+        channel.close()
+    print(json.dumps(result))
+
+
 def cmd_read(args: argparse.Namespace) -> None:
     intent = load_json(args.intent)
     p4info = load_p4info(args.p4info)
@@ -898,12 +1015,11 @@ def cmd_read(args: argparse.Namespace) -> None:
     summary = {}
     for name in names:
         switch = intent["switches"][name]
-        client = connect(switch)
+        client = connect(switch, primary=False)
         try:
             observed = observed_switch(client, index)
             payload[name] = observed
-            payload[name]["mismatches"] = intent_vs_observed(switch, observed)
-            summary[name] = switch_summary(observed, payload[name]["mismatches"])
+            summary[name] = switch_summary(observed)
         finally:
             client.close()
     # Summary first: tool output is head/tail truncated, so it must lead.
@@ -933,6 +1049,10 @@ def table_rows(
                 match[name] = decode_u(mf.exact.value)
             elif mf.HasField("lpm"):
                 match[name] = decode_prefix(mf.lpm.value, mf.lpm.prefix_len)
+            elif mf.HasField("optional"):
+                match[name] = decode_u(mf.optional.value)
+            elif mf.HasField("range"):
+                match[name] = [decode_u(mf.range.low), decode_u(mf.range.high)]
             elif mf.HasField("ternary"):
                 match[name] = [
                     decode_u(mf.ternary.value),
@@ -945,6 +1065,8 @@ def table_rows(
                 "match": match,
                 "priority": int(entry.priority),
                 "group_id": int(entry.action.action_profile_group_id),
+                "member_id": int(entry.action.action_profile_member_id),
+                "default": bool(entry.is_default_action),
                 "action": _short(action.preamble.name) if action else None,
                 "params": {
                     names.get(int(p.param_id), str(p.param_id)): decode_u(p.value)
@@ -970,7 +1092,7 @@ def cmd_read_table(args: argparse.Namespace) -> None:
             )
         )
         return
-    client = connect(intent["switches"][args.switch])
+    client = connect(intent["switches"][args.switch], primary=False)
     try:
         rows = table_rows(client, index, args.table)
     finally:
@@ -986,7 +1108,7 @@ def cmd_counters(args: argparse.Namespace) -> None:
     payload = {}
     summary = {}
     for name in names:
-        client = connect(intent["switches"][name])
+        client = connect(intent["switches"][name], primary=False)
         try:
             observed = observed_switch(client, index)
             payload[name] = observed["counters"]
@@ -1023,14 +1145,68 @@ def cmd_delete_lpm(args: argparse.Namespace) -> None:
     )
 
 
+def key_values(values: list[str]) -> dict[str, str]:
+    result = {}
+    for value in values:
+        key, sep, item = value.partition("=")
+        if not sep or not key or not item or key in result:
+            raise ValueError(f"Expected a unique name=value: {value!r}")
+        result[key] = item
+    return result
+
+
+def cmd_write_table(args: argparse.Namespace) -> None:
+    """Write a table entry and record the device's per-update status."""
+    intent = load_json(args.intent)
+    index = P4InfoIndex(load_p4info(args.p4info))
+    update = table_entity(
+        index,
+        args.table,
+        match=key_values(args.match),
+        action=args.action,
+        params=key_values(args.param),
+        priority=args.priority,
+        default=args.default,
+        kind=args.cmd.upper(),
+        member_id=args.member_id,
+        group_id=args.group_id,
+    )
+    client = connect(intent["switches"][args.switch])
+    try:
+        statuses = controller_write(client, index, args.switch, [update])
+    finally:
+        client.close()
+    print(
+        json.dumps(
+            {"ok": all(s["code"] == "OK" for s in statuses), "statuses": statuses}
+        )
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="P4Runtime fabric manager", fromfile_prefix_chars="@"
+        prog="p4rt_exec",
+        description="P4Runtime fabric manager",
+        fromfile_prefix_chars="@",
     )
     parser.add_argument("--intent", default="/tmp/p4_fabric/intent.json")
     parser.add_argument("--p4info", default="/tmp/p4_fabric/fabric.p4info.txt")
     parser.add_argument("--json", default="/tmp/p4_fabric/fabric.json")
     sub = parser.add_subparsers(dest="cmd", required=True)
+
+    for verb in ("insert", "modify", "delete"):
+        item = sub.add_parser(verb)
+        item.add_argument("--switch", required=True)
+        item.add_argument("--table", required=True)
+        item.add_argument("--match", action="append", default=[])
+        item.add_argument("--param", action="append", default=[])
+        action = item.add_mutually_exclusive_group()
+        action.add_argument("--action")
+        action.add_argument("--member-id", type=int)
+        action.add_argument("--group-id", type=int)
+        item.add_argument("--priority", type=int, default=0)
+        item.add_argument("--default", action="store_true")
+        item.set_defaults(func=cmd_write_table)
 
     p_apply = sub.add_parser("apply")
     p_apply.add_argument("--switch")
@@ -1041,6 +1217,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_delete.add_argument("--prefix", required=True)
     p_delete.set_defaults(func=cmd_delete_lpm)
 
+    p_probe = sub.add_parser("probe")
+    p_probe.add_argument("--switch", required=True)
+    p_probe.set_defaults(func=cmd_probe)
     p_read = sub.add_parser("read")
     selection = p_read.add_mutually_exclusive_group()
     selection.add_argument("--switch")
@@ -1061,7 +1240,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
-    args.func(args)
+    try:
+        args.func(args)
+    except (grpc.RpcError, TimeoutError) as exc:
+        result = {"ok": False, "command": args.cmd, "switch": args.switch}
+        if isinstance(exc, grpc.RpcError):
+            result.update(status=exc.code().name, error=exc.details())
+        else:
+            result.update(status="DEADLINE_EXCEEDED", error=str(exc))
+        print(json.dumps(result))
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":

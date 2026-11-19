@@ -206,6 +206,18 @@ class K8sLabIntegrationTest(SharedSessionTestCase):
             f"k8s_lab not ready within {cls._READY_TIMEOUT_SEC}s: {last_error}"
         )
 
+    def test_bootstrap_manifest_copies_are_not_exposed(self) -> None:
+        output = self._exec(
+            "controller", "test ! -e /shared && test ! -e /k8s && printf sealed"
+        )
+        assert output == "sealed"
+
+    def test_recovered_bootstrap_warnings_are_not_exposed(self) -> None:
+        output = self._exec(
+            "controller", "kubectl get events -A --field-selector=type=Warning -o json"
+        )
+        assert json.loads(output)["items"] == []
+
     def test_bgp_spine_neighbors_up(self) -> None:
         """Pod-1 leaf routers must peer with spine routers (AS 64514)."""
         output = self._exec("leaf_1_1", "vtysh -c 'show bgp summary'")

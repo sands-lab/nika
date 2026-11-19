@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import heapq
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 import queue
@@ -38,6 +39,7 @@ import socket
 import struct
 import threading
 import time
+import urllib.request
 
 import grpc
 from p4.v1 import p4runtime_pb2, p4runtime_pb2_grpc
@@ -59,7 +61,6 @@ _RETRYABLE = (
     grpc.StatusCode.DEADLINE_EXCEEDED,
 )
 LEARNER_ELECTION_ID = 0
-OPERATOR_ELECTION_ID = 1
 Update = p4runtime_pb2.Update
 
 
@@ -254,6 +255,53 @@ def flip_pool(switch: Switch, vip: str, vip_port: int) -> tuple[int, int]:
     return current, target
 
 
+def management_server(state: dict) -> ThreadingHTTPServer:
+    """Serve a bounded operational snapshot on the gateway management endpoint."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def respond(self, payload):
+            body = json.dumps(payload).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            if self.path != "/v1/state":
+                self.send_error(404)
+                return
+            self.respond(state.get("snapshot", {"error": "initializing"}))
+
+        def do_POST(self):
+            if self.path != "/v1/pool-update":
+                self.send_error(404)
+                return
+            try:
+                payload = json.loads(
+                    self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                )
+            except (ValueError, TypeError):
+                self.send_error(400, "pool update requires a JSON target")
+                return
+            if payload != state["target"]:
+                self.send_error(400, "pool update target differs from the learner")
+                return
+            reply = queue.Queue(maxsize=1)
+            state["updates"].put(reply)
+            try:
+                self.respond(reply.get(timeout=25))
+            except queue.Empty:
+                self.send_error(504, "pool update did not finish")
+
+        def log_message(self, *_args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 9081), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
 def serve(args: argparse.Namespace) -> None:
     interfaces = set(json.loads(args.ports))
     os.makedirs(os.path.dirname(args.config), exist_ok=True)
@@ -279,6 +327,17 @@ def serve(args: argparse.Namespace) -> None:
     stats = {"installs": 0, "insert_failures": 0, "deletes": 0, "last_learn_ms": None}
     # Table-full reports, at most one log line per FULL_LOG_SEC.
     full_log = {"at": 0.0, "suppressed": 0}
+    management = {
+        "target": {
+            "device_id": args.device_id,
+            "vip": args.vip,
+            "vip_port": args.vip_port,
+        },
+        "updates": queue.Queue(),
+    }
+    management_server(management)
+    update_events = []
+    pool_version = None
     next_status = 0.0
     reconnect_at = 0.0
     low, _, high = args.update_interval.partition("-")
@@ -289,6 +348,7 @@ def serve(args: argparse.Namespace) -> None:
     )
     drain_until: float | None = None
     last_update = 0.0
+    update_reply = None
 
     def connect() -> Switch | None:
         nonlocal switch, reconnect_at
@@ -352,6 +412,12 @@ def serve(args: argparse.Namespace) -> None:
 
     while True:
         now = time.time()
+        if update_reply is None:
+            try:
+                update_reply = management["updates"].get_nowait()
+                next_update = now
+            except queue.Empty:
+                pass
         try:
             frame, address = capture.recvfrom(65535)
         except socket.timeout:
@@ -468,6 +534,17 @@ def serve(args: argparse.Namespace) -> None:
                     next_update = now + RECONNECT_SEC
                 else:
                     last_update = time.time()
+                    pool_version = target
+                    update_events.append(
+                        {
+                            "time": last_update,
+                            "previous_version": current,
+                            "version": target,
+                            "pending": len(unlearned),
+                            "active": len(learned),
+                        }
+                    )
+                    del update_events[:-32]
                     log(
                         f"pool update: {args.vip}:{args.vip_port} "
                         f"version {current} -> {target}; "
@@ -479,7 +556,21 @@ def serve(args: argparse.Namespace) -> None:
                             f"not yet in lb_conn_table; "
                             f"they follow pool version {target}"
                         )
-                    next_update = now + rng.uniform(*interval)
+                    next_update = (
+                        now + rng.uniform(*interval)
+                        if interval[1] > 0
+                        else float("inf")
+                    )
+                    if update_reply is not None:
+                        update_reply.put(
+                            {
+                                "ok": True,
+                                "from_version": current,
+                                "to_version": target,
+                                "time": last_update,
+                            }
+                        )
+                        update_reply = None
                 drain_until = None
         if now >= next_status:
             next_status = now + 1.0
@@ -492,6 +583,14 @@ def serve(args: argparse.Namespace) -> None:
             for key in learned:
                 if now - last_seen.get(key, now) > IDLE_TIMEOUT_SEC:
                     heapq.heappush(due, (now, "forget", key, 0.0))
+            try:
+                if connect() is None:
+                    raise ConnectionError("P4Runtime unavailable")
+                pool_version = int.from_bytes(
+                    switch.read("lb_vip")[0].action.action.params[0].value, "big"
+                )
+            except (grpc.RpcError, ConnectionError, KeyError, IndexError):
+                pool_version = None
             status = {
                 "pid": os.getpid(),
                 "time": now,
@@ -501,6 +600,24 @@ def serve(args: argparse.Namespace) -> None:
                 "learned": len(learned),
                 **stats,
             }
+            management["snapshot"] = {
+                **{key: value for key, value in status.items() if key != "pid"},
+                "pool_version": pool_version,
+                "update_events": list(update_events),
+                "active_connections": [
+                    {"source": key[0], "source_port": key[1], "backend": dip}
+                    for key, dip in list(learned.items())[:256]
+                ],
+                "pending_connections": [
+                    {
+                        "source": key[0],
+                        "source_port": key[1],
+                        "age_sec": round(now - started, 3),
+                        "backend": dip,
+                    }
+                    for key, (started, dip) in list(pending.items())[:256]
+                ],
+            }
             with open(args.status + ".tmp", "w", encoding="utf-8") as handle:
                 json.dump(status, handle)
             os.replace(args.status + ".tmp", args.status)
@@ -508,21 +625,15 @@ def serve(args: argparse.Namespace) -> None:
 
 def update(args: argparse.Namespace) -> None:
     """Flip the VIP to the other pool version (a routine DIP pool update)."""
-    switch = Switch(args.device_id, OPERATOR_ELECTION_ID)
-    try:
-        current, target = flip_pool(switch, args.vip, args.vip_port)
-        print(
-            json.dumps(
-                {
-                    "ok": True,
-                    "from_version": current,
-                    "to_version": target,
-                    "time": time.time(),
-                }
-            )
-        )
-    finally:
-        switch.close()
+    request = urllib.request.Request(
+        "http://127.0.0.1:9081/v1/pool-update",
+        data=json.dumps(
+            {"device_id": args.device_id, "vip": args.vip, "vip_port": args.vip_port}
+        ).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        print(response.read().decode())
 
 
 def main() -> None:

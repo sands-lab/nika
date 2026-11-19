@@ -7,6 +7,10 @@ from pathlib import Path
 GIB = 1024**3
 
 
+class NativeLabMemoryError(RuntimeError):
+    """The host currently lacks the estimated capacity for a native lab."""
+
+
 def native_lab_memory(*, routers: int, per_router: int, hosts: int) -> int:
     """Estimated bytes a lab with native vendor routers needs, including headroom.
 
@@ -30,7 +34,7 @@ def require_native_lab_memory(
     )
     required = native_lab_memory(routers=routers, per_router=per_router, hosts=hosts)
     if required > available:
-        raise RuntimeError(
+        raise NativeLabMemoryError(
             f"{label} with {routers} routers needs an estimated "
             f"{required / GIB:.1f} GiB including headroom; only "
             f"{available / GIB:.1f} GiB is available. Use a smaller topology "

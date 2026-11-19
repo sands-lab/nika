@@ -134,6 +134,10 @@ class RouterFaultOps:
         """Return the current IPv4 prefix count received from ``peer``."""
         self._unsupported("Reading received BGP prefixes")
 
+    def bgp_accepted_prefix_count(self, peer: str) -> int:
+        """Return IPv4 prefixes from ``peer`` that pass the input route policy."""
+        self._unsupported("Reading accepted BGP prefixes")
+
     def set_bgp_ipv4_unicast(self, peer: str, enabled: bool) -> None:
         """Activate or deactivate IPv4 unicast for one BGP neighbor."""
         self._unsupported("Changing BGP IPv4 unicast activation")
@@ -161,6 +165,10 @@ class RouterFaultOps:
     def bgp_last_notification(self, peer: str) -> str | None:
         """Return the last received BGP NOTIFICATION reason from ``peer``."""
         self._unsupported("Reading a BGP notification")
+
+    def bgp_open_rejections(self, peer: str) -> list[str]:
+        """Return timestamped records of OPENs refused for a wrong AS from ``peer``."""
+        self._unsupported("Reading BGP OPEN rejections")
 
     def permit_bgp_prefixes(self, prefix: str, length: int) -> None:
         """Permit more-specifics of ``prefix`` with ``length`` in bound BGP policies."""
@@ -198,8 +206,8 @@ class RouterFaultOps:
         """Return the peers ``prefix`` is advertised to."""
         self._unsupported("Reading BGP advertisements")
 
-    def drop_bgp_session_policy(self) -> None:
-        """Leave every eBGP session without a route policy the router can apply.
+    def drop_bgp_session_policy(self, peer: str | None = None) -> None:
+        """Remove usable policies from one eBGP peer, or all peers by default.
 
         The platform default then rejects every route on those sessions.
         """
@@ -219,9 +227,13 @@ class RouterFaultOps:
         """Change an existing import filter's length match and refresh imports."""
         self._unsupported("Changing BGP import prefix ranges")
 
-    def bgp_session_policy_dropped(self) -> bool:
-        """Whether every eBGP session lacks a route policy the router can apply."""
+    def bgp_session_policy_dropped(self, peer: str | None = None) -> bool:
+        """Whether the selected eBGP sessions lack usable import and export policies."""
         self._unsupported("Reading BGP session policies")
+
+    def restore_bgp_session_policy(self, saved: str, peer: str) -> bool:
+        """Restore only this peer's policy bindings from a saved config and check them."""
+        self._unsupported("Restoring BGP session policies")
 
     def enable_bgp_ttl_security(self) -> None:
         """Enable one-hop receive TTL security and reset BGP sessions."""

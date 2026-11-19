@@ -25,6 +25,7 @@ from nika.problems.support.nft_recovery import NftDropRecovery
 from nika.problems.support.recovery import checked_exec
 from nika.problems.support.benchmark_targets import choice
 from nika.problems.support.oracle import (
+    compare,
     Check,
     OraclePlaybook,
     OracleStep,
@@ -35,6 +36,7 @@ from nika.problems.support.oracle import (
     onos,
     shell,
 )
+from nika.runtime.spec import NodeRole
 from nika.problems.base import (
     FailureDomain,
     ProblemBase,
@@ -59,6 +61,12 @@ def _benchmark_controller(ctx) -> dict[str, str]:
     """Benchmark target: one SDN controller (falls back to ``host0``)."""
     controller_pool = ctx.roles.get("controllers") or ctx.controllers
     return {"host_name": choice(ctx.rng, controller_pool, ctx.host0)}
+
+
+def _validate_sdn_target(ctx, inject, role):
+    identity = ctx.net_env.machine_identities.get(inject.get("host_name"))
+    if identity is None or identity.role != role:
+        raise ValueError(f"host_name must name a declared {role.value} node.")
 
 
 def _southbound_drop_rule(port: int) -> str:
@@ -123,8 +131,7 @@ def _switch_channel(
     """The switch's controller target, session state, and recent rconn log."""
     return shell(
         switch,
-        "ovs-vsctl --columns=target,is_connected list controller; "
-        "grep -E 'rconn' /var/log/openvswitch/ovs-vswitchd.log | tail -4",
+        "ovs-vsctl --columns=target,is_connected list controller",
         purpose,
         expect,
         evidence=evidence,
@@ -310,6 +317,7 @@ class SDNControllerCrash(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name: str = "sdn_controller_crash"
+    CONFUSABLE_WITH = ("southbound_port_block",)
     description = "SDN controller is down."
     TAGS: str = ["sdn"]
 
@@ -321,6 +329,10 @@ class SDNControllerCrash(ProblemBase):
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        _validate_sdn_target(ctx, inject, NodeRole.CONTROLLER)
 
     def root_cause_resources(self, params: SDNControllerCrashParams):
         return [node_resource(params.host_name)]
@@ -575,6 +587,7 @@ class SouthboundPortBlock(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name: str = "southbound_port_block"
+    CONFUSABLE_WITH = ("sdn_controller_crash", "southbound_port_mismatch")
     description = "Controller southbound channel port is blocked."
     TAGS: str = ["sdn"]
 
@@ -588,6 +601,10 @@ class SouthboundPortBlock(ProblemBase):
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        _validate_sdn_target(ctx, inject, NodeRole.CONTROLLER)
 
     def root_cause_resources(self, params: SouthboundPortBlockParams):
         return [node_resource(params.host_name)]
@@ -718,6 +735,7 @@ class SouthboundPortMismatch(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name: str = "southbound_port_mismatch"
+    CONFUSABLE_WITH = ("southbound_port_block", "switch_datapath_id_conflict")
     description = "Controller southbound listen port mismatches switch config."
     TAGS: str = ["sdn"]
 
@@ -733,6 +751,10 @@ class SouthboundPortMismatch(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self._original_listen_ports: list[int] | None = None
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        _validate_sdn_target(ctx, inject, NodeRole.CONTROLLER)
 
     def root_cause_resources(self, params: SouthboundPortMismatchParams):
         return [node_resource(params.host_name)]
@@ -960,6 +982,8 @@ class SwitchDatapathIdConflict(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "switch_datapath_id_conflict"
+    NATIVE_CONFIG_KEYWORDS = ("datapath[-_]id",)
+    CONFUSABLE_WITH = ("southbound_port_mismatch",)
     description = "An OpenFlow switch uses the datapath ID of another switch."
     TAGS = ["sdn"]
     Params = SwitchDatapathIdConflictParams
@@ -968,6 +992,10 @@ class SwitchDatapathIdConflict(ProblemBase):
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return {"host_name": choice(ctx.rng, ctx.switches, ctx.host0)}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        _validate_sdn_target(ctx, inject, NodeRole.SWITCH)
 
     def root_cause_resources(self, params: SwitchDatapathIdConflictParams):
         return [node_resource(params.host_name)]
@@ -986,12 +1014,14 @@ class SwitchDatapathIdConflict(ProblemBase):
                 )
             return {
                 "host_name": twin,
-                "command": f"echo target_dpid={match[1]}; ovs-vsctl get bridge {twin} datapath_id",
+                "command": f"ovs-vsctl get bridge {twin} datapath_id",
                 "timeout": 15,
             }
 
-        def duplicated(output):
-            target = re.search(r"^target_dpid=([0-9a-fA-F]{16})$", output, re.M)
+        def duplicated(output, outputs):
+            target = re.search(
+                r'^"?([0-9a-fA-F]{16})"?$', outputs.get("switch_dpid", ""), re.M
+            )
             peer = re.search(r'^"?([0-9a-fA-F]{16})"?$', output, re.M)
             return bool(target and peer and target[1].lower() == peer[1].lower())
 
@@ -1018,7 +1048,7 @@ class SwitchDatapathIdConflict(ProblemBase):
                     f"Compare the operational datapath ID on the distinct switch {twin}.",
                     "exec_shell",
                     compare_args,
-                    Check(
+                    compare(
                         "Two distinct bridges have the same operational datapath ID, distinguishing identity collision from a controller outage or southbound filter.",
                         duplicated,
                     ),

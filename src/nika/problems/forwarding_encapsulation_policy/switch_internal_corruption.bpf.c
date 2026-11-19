@@ -56,6 +56,8 @@ int tc_egress(struct __sk_buff *skb) {
         flow = mix(flow, ip[index]);
     src_port = ((__u16)tcp[0] << 8) | tcp[1];
     dst_port = ((__u16)tcp[2] << 8) | tcp[3];
+    if (src_port == 179 || dst_port == 179)
+        return TC_ACT_OK;
     flow = mix(mix(flow, src_port), dst_port);
     seq = ((__u32)tcp[4] << 24) | ((__u32)tcp[5] << 16) |
           ((__u32)tcp[6] << 8) | tcp[7];

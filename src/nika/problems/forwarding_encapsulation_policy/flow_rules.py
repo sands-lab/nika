@@ -147,6 +147,7 @@ class FlowRuleShadowing(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "flow_rule_shadowing"
+    CONFUSABLE_WITH = ("flow_rule_loop",)
     description = (
         "A higher-priority flow rule on one switch matches traffic before the "
         "intended rules and silently drops it."
@@ -324,6 +325,7 @@ class FlowRuleLoop(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "loss"
     root_cause_name: str = "flow_rule_loop"
+    CONFUSABLE_WITH = ("flow_rule_shadowing",)
     root_cause_resource_match = "any"
     description = (
         "SDN flow rules on adjacent switches send packets back and forth, so "

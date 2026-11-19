@@ -7,6 +7,7 @@ Verify-only path: inject → ``verify_fault`` → ground truth. Does not call
 from __future__ import annotations
 
 import os
+import platform
 import shutil
 
 import pytest
@@ -31,7 +32,7 @@ LINK_PARAMS = {"host_name": HOST, "intf_name": INTF}
 SIMPLE_BGP_FAILURES = (
     "link_down",
     "link_flap",
-    "link_detach",
+    "link_down",
     "link_capacity_bottleneck",
     "host_missing_ip",
     "host_incorrect_gateway",
@@ -44,7 +45,7 @@ CAMPUS_LAN_FAILURES = (
     "link_packet_corruption",
     "link_capacity_bottleneck",
     "host_incorrect_dns",
-    "ospf_neighbor_missing",
+    "ospf_interface_not_enabled",
     "dhcp_service_down",
     "dns_port_blocked",
     "mtu_mismatch",
@@ -62,11 +63,10 @@ P4_GATEWAY_LINK_FAILURES = (
     "link_capacity_bottleneck",
 )
 
-MIN3CLOS_FAILURES = (
+CLAB_CLOS_FAILURES = (
     "link_down",
-    "link_detach",
+    "link_down",
     "link_flap",
-    "link_capacity_bottleneck",
     "bgp_acl_block",
     "bgp_asn_misconfig",
     "bgp_missing_route_advertisement",
@@ -76,7 +76,7 @@ MIN3CLOS_FAILURES = (
 
 def _kathara_cases():
     for problem in SIMPLE_BGP_FAILURES:
-        if problem in {"link_down", "link_flap", "link_detach"}:
+        if problem in {"link_down", "link_flap", "link_down"}:
             params = dict(LINK_PARAMS)
         elif problem == "link_capacity_bottleneck":
             params = {
@@ -125,14 +125,27 @@ def _kathara_cases():
 
 
 def _clab_cases():
-    for problem in MIN3CLOS_FAILURES:
-        yield pytest.param(
-            "min3clos",
-            [],
-            problem,
-            None,
-            id=f"clab-min3clos-{problem}",
+    for profile in ("nokia_srlinux", "sonic"):
+        problems = (
+            tuple(
+                p for p in CLAB_CLOS_FAILURES if p not in {"link_down", "bgp_acl_block"}
+            )
+            if profile == "nokia_srlinux"
+            else ("link_down", "bgp_acl_block")
         )
+        for problem in problems:
+            yield pytest.param(
+                "dc_clos",
+                ["-s", "s", "--backend", "containerlab", "--device-profile", profile],
+                problem,
+                None,
+                id=f"clab-dc_clos-{profile}-{problem}",
+                marks=pytest.mark.skipif(
+                    profile == "sonic"
+                    and platform.machine().lower() not in {"x86_64", "amd64"},
+                    reason="docker-sonic-vs requires amd64",
+                ),
+            )
 
 
 @pytest.mark.integration
@@ -150,21 +163,26 @@ def test_kathara_failure_inject_contract(
     if scenario == "enterprise_branch" and not linux_vrf_available():
         pytest.skip("Host kernel lacks Linux VRF (required by enterprise_branch)")
     if artifact_verify_only() and problem in {
-        "link_detach",
+        "link_down",
         "link_packet_corruption",
     }:
         pytest.skip(f"{problem} is unreliable on shared artifact-depth runners")
-    topo_size = None
-    if "-s" in env_run_args:
-        topo_size = env_run_args[env_run_args.index("-s") + 1]
+    from tests.support.integration_base import _parse_env_run_args
+
+    options = _parse_env_run_args(env_run_args)
+    topo_size = options.pop("topo_size", None)
     if inject_params is None:
         inject_params = resolve_inject_params(
-            scenario, problem, topo_size=topo_size or ""
+            scenario,
+            problem,
+            topo_size=topo_size or "",
+            isp_options=options,
         )
     session_id = start_net_env(
         scenario,
         topo_size,
         session_tag=resolve_session_tag(context="test"),
+        **options,
     )
     prev = os.environ.get(SESSION_ID_ENV)
     os.environ[SESSION_ID_ENV] = session_id
@@ -190,13 +208,22 @@ def test_clab_failure_inject_contract(
     problem: str,
     inject_params: dict[str, str] | None,
 ) -> None:
+    from tests.support.integration_base import _parse_env_run_args
+
+    options = _parse_env_run_args(env_run_args)
+    topo_size = options.pop("topo_size", "s")
     if inject_params is None:
-        inject_params = resolve_inject_params(scenario, problem)
+        inject_params = resolve_inject_params(
+            scenario,
+            problem,
+            topo_size=topo_size,
+            isp_options=options,
+        )
     session_id = start_net_env(
         scenario,
-        None,
+        topo_size,
         session_tag=resolve_session_tag(context="test"),
-        backend="containerlab",
+        **options,
     )
     prev = os.environ.get(SESSION_ID_ENV)
     os.environ[SESSION_ID_ENV] = session_id

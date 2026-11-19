@@ -1,0 +1,16 @@
+FROM kathara/p4:latest@sha256:62d4511908530028e275420b644d05e45ed9b4f5d786b56a63b5fb287dcce6ef
+
+# Rebuild the pinned BMv2 revision with one Thrift ABI for its runtime and runner.
+# Thrift configures real egress queues and report mirror sessions.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      autoconf automake libtool pkg-config thrift-compiler libthrift-dev \
+      libssl-dev zlib1g-dev libgmp-dev libpcap-dev libnanomsg-dev \
+      libboost-thread1.81-dev libboost-filesystem1.81-dev libboost-program-options1.81-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN git init /tmp/bmv2 && cd /tmp/bmv2 && \
+    git remote add origin https://github.com/p4lang/behavioral-model.git && \
+    git fetch --depth 1 origin bb3ded6a9a376f74704f85e788dd41148980efcf && git checkout FETCH_HEAD && \
+    ./autogen.sh && CXXFLAGS='-O2 -g0' ./configure --with-pi --with-thrift --disable-static && \
+    make -j4 && make install && ldconfig && \
+    rm -rf /tmp/bmv2

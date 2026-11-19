@@ -55,10 +55,10 @@ def test_all_isp_briefs_share_inventory_topology_contract(
         assert "device_profile: frr" in info
 
 
-def test_min3clos_brief_still_lists_nodes() -> None:
-    env = get_net_env_instance("min3clos", backend="containerlab")
+def test_dc_clos_brief_still_lists_nodes() -> None:
+    env = get_net_env_instance("dc_clos", backend="containerlab")
     info = env.get_info()
-    assert "leaf1" in info
+    assert "leaf_1" in info
     assert "Topology:" in info
 
 

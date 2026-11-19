@@ -19,7 +19,7 @@ from nika.net_env.net_env_pool import (
     scenario_requires_topo_size,
     scenario_supported_backends,
 )
-from nika.telemetry import management
+from nika.telemetry import management, pingmesh, flow_metrics, pingmesh_targets
 
 pytestmark = pytest.mark.contract
 
@@ -68,6 +68,7 @@ def test_telemetry_device_side_does_not_name_the_host() -> None:
     ]
     device_side += [management.SCRIPT, management.LOG]
     for name, device in plan["devices"].items():
+        device = {**device, "probe_address": "10.0.0.1"}
         device_side += management.setup_lines(
             mgmt_iface=device["mgmt_iface"],
             address=addresses[name],
@@ -84,8 +85,15 @@ def test_telemetry_device_side_does_not_name_the_host() -> None:
                     device, addresses[name], version=version
                 )
     for kind in management.KINDS.values():
-        files = kind.collector_files(addresses)
+        files = (
+            kind.collector_files({})
+            if kind is pingmesh
+            else kind.collector_files(addresses)
+        )
         device_side += [*files, *files.values(), *kind.collector_lines()]
+    device_side.extend(
+        Path(module.__file__).read_text() for module in (flow_metrics, pingmesh_targets)
+    )
     assert [text for text in device_side if _HOST_NAME.search(text)] == []
 
 

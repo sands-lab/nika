@@ -75,6 +75,7 @@ class DNSServiceDown(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "dns_service_down"
+    CONFUSABLE_WITH = ("dns_port_blocked", "host_incorrect_dns")
     description = "DNS server process is down."
     symptom_desc = "Some hosts cannot access external websites."
     TAGS: str = ["dns"]
@@ -173,6 +174,7 @@ class DHCPServiceDown(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "dhcp_service_down"
+    CONFUSABLE_WITH = ("dhcp_missing_subnet", "host_missing_ip")
 
     description = "DHCP server process is down."
     TAGS: str = ["dhcp"]

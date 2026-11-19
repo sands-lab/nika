@@ -76,6 +76,7 @@ class ArpCachePoisoning(ProblemBase):
     symptom_class = "unreachable"
     dynamic_artifact = True
     root_cause_name: str = "arp_cache_poisoning"
+    CONFUSABLE_WITH = ("arp_acl_block", "mac_address_conflict")
     description = "ARP cache is poisoned with a false MAC mapping."
     TAGS: str = ["arp"]
     supported_backends = ("kathara", "containerlab")

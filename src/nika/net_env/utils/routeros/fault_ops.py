@@ -18,8 +18,10 @@ from nika.net_env.utils.routeros.common import (
 )
 from nika.net_env.utils.routeros.parse import (
     _CLI_ERROR,
+    routeros_bgp_open_rejections,
     routeros_bgp_received_notification,
     routeros_count,
+    routeros_connection_address_match,
     routeros_established_bgp_peers,
     routeros_filter_rules,
     routeros_terse_rows,
@@ -45,15 +47,6 @@ _UNDEFINED_IN_CHAIN = "bgp-in"
 _UNDEFINED_OUT_CHAIN = "bgp-out"
 _DURATION = re.compile(r"(\d+)(ms|w|d|h|m|s)")
 _UNITS = {"w": 604800, "d": 86400, "h": 3600, "m": 60, "s": 1, "ms": 0.001}
-
-
-def _address_match(field: str, address: str) -> str:
-    """Match a connection address field, with or without its port.
-
-    RouterOS 7.21 prints the port in a separate field; earlier releases append
-    it to the address (``198.18.1.10:40840``).
-    """
-    return f'{field}="{address}" or {field}~"^{address}:"'
 
 
 class RouterOsFaultOps(RouterFaultOps):
@@ -212,6 +205,20 @@ class RouterOsFaultOps(RouterFaultOps):
             )
         return int(rows[0]["prefix-count"])
 
+    def bgp_accepted_prefix_count(self, peer: str) -> int:
+        peer = str(ipaddress.IPv4Address(peer))
+        rows = self._rows(
+            "/routing/route/print terse where bgp and afi=ip and !filtered"
+        )
+        return len(
+            {
+                row["dst-address"]
+                for row in rows
+                if row.get("belongs-to", "").split("@", 1)[0] == f"bgp-IP-{peer}"
+                and "dst-address" in row
+            }
+        )
+
     def _bgp_connection(self, peer: str) -> dict[str, str]:
         peer = str(ipaddress.IPv4Address(peer))
         connections = [
@@ -297,6 +304,13 @@ class RouterOsFaultOps(RouterFaultOps):
 
     def bgp_last_notification(self, peer: str) -> str | None:
         return routeros_bgp_received_notification(self._bgp_session_output(peer))
+
+    def bgp_open_rejections(self, peer: str) -> list[str]:
+        # Rejections before Established appear in the log, not the session table.
+        return routeros_bgp_open_rejections(
+            self._cli('/log/print without-paging where topics~"bgp"'),
+            str(ipaddress.IPv4Address(peer)),
+        )
 
     def permit_bgp_prefixes(self, prefix: str, length: int) -> None:
         chains = {
@@ -425,7 +439,7 @@ class RouterOsFaultOps(RouterFaultOps):
         self._cli(
             f'/routing filter rule set [find chain="{name}" rule="{rule}"] '
             f'rule="{updated}"; '
-            "/routing bgp session refresh [find]"
+            "/routing bgp session refresh [find] afi=ip"
         )
 
     def originate_bgp_prefix(self, prefix: str) -> None:
@@ -450,10 +464,15 @@ class RouterOsFaultOps(RouterFaultOps):
                 f'/ip vrf set [find name="{vrf}"] '
                 f"interfaces={members.strip().replace(';', ',')},{BGP_ORIGIN_IFACE}"
             )
-        # The router answers for the whole prefix, as FRR's local route does.
         self._cli(
             f"/ip address add address={next(net.hosts())}/{net.prefixlen} "
             f"interface={BGP_ORIGIN_IFACE}"
+        )
+        # A connected bridge route resolves other addresses with ARP rather
+        # than delivering them locally. Match FRR's local-prefix delivery;
+        # connection tracking preserves the requested address on replies.
+        self._cli(
+            f"/ip firewall nat add chain=dstnat dst-address={net} action=redirect"
         )
         lists = self._origin_lists()
         name = next(iter(lists)) if len(lists) == 1 else "BGP-NETWORKS"
@@ -488,10 +507,23 @@ class RouterOsFaultOps(RouterFaultOps):
             if row.get("local.role") == "ebgp"
         ]
 
-    def drop_bgp_session_policy(self) -> None:
+    def _refresh_bgp_policy(self, peer: str) -> None:
+        address = str(ipaddress.IPv4Address(peer))
+        for operation in ("refresh", "resend"):
+            self._cli(
+                f'/routing bgp session {operation} [find where remote.address="{address}"] afi=ip'
+            )
+
+    def drop_bgp_session_policy(self, peer: str | None = None) -> None:
         # RouterOS rejects every route that a filter chain without rules sees,
         # so naming a chain that does not exist rejects the whole session.
-        names = [row["name"] for row in self._ebgp_connections()]
+        rows = self._ebgp_connections()
+        if peer is not None:
+            connection = self._bgp_connection(peer)
+            if connection not in rows:
+                raise ValueError(f"Not an eBGP peer: {peer}")
+            rows = [connection]
+        names = [row["name"] for row in rows]
         if names:
             selector = "[find " + " or ".join(f'name="{n}"' for n in names) + "]"
             self._cli(
@@ -499,8 +531,10 @@ class RouterOsFaultOps(RouterFaultOps):
                 f"input.filter={_UNDEFINED_IN_CHAIN} "
                 f"output.filter-chain={_UNDEFINED_OUT_CHAIN}"
             )
+            for row in rows:
+                self._refresh_bgp_policy(row["remote.address"].split("/")[0])
 
-    def bgp_session_policy_dropped(self) -> bool:
+    def bgp_session_policy_dropped(self, peer: str | None = None) -> bool:
         def defined(chain: str) -> bool:
             if not chain:
                 return True  # no filter: RouterOS accepts every route
@@ -512,11 +546,32 @@ class RouterOsFaultOps(RouterFaultOps):
             return int(count.strip()) > 0
 
         rows = self._ebgp_connections()
+        if peer is not None:
+            connection = self._bgp_connection(peer)
+            rows = [row for row in rows if row == connection]
         return bool(rows) and all(
             not defined(row.get("input.filter", ""))
             and not defined(row.get("output.filter-chain", ""))
             for row in rows
         )
+
+    def restore_bgp_session_policy(self, saved: str, peer: str) -> bool:
+        connection = self._bgp_connection(peer)
+        before = next(
+            row
+            for line in saved.splitlines()
+            if line.startswith("/routing bgp connection add ")
+            for row in routeros_terse_rows(line)
+            if row.get("name") == connection["name"]
+        )
+        fields = ("input.filter", "output.filter-chain")
+        bindings = " ".join(f'{key}="{before.get(key, "")}"' for key in fields)
+        self._cli(
+            f'/routing bgp connection set [find name="{connection["name"]}"] {bindings}'
+        )
+        self._refresh_bgp_policy(peer)
+        after = self._bgp_connection(peer)
+        return all(after.get(key, "") == before.get(key, "") for key in fields)
 
     # Running configuration
 
@@ -1021,13 +1076,13 @@ class RouterOsFaultOps(RouterFaultOps):
         return native if link and native == int(link[1]) else None
 
     def interface_addresses(self, interface: str) -> list[str]:
-        return [
+        return sorted(
             row["address"]
             for row in self._rows(
                 f"/ip/address/print terse where interface={self._port(interface)}"
             )
             if "address" in row
-        ]
+        )
 
     def remove_interface_address(self, interface: str, address: str) -> None:
         self._cli(f'/ip address remove [find address="{address}"]')
@@ -1176,16 +1231,16 @@ class RouterOsFaultOps(RouterFaultOps):
     def clear_nat_mappings(self, address: str) -> None:
         self._cli(
             "/ip firewall connection remove [find protocol=tcp and "
-            f"({_address_match('reply-dst-address', address)})]; "
+            f"({routeros_connection_address_match('reply-dst-address', address)})]; "
             "/ip firewall connection remove [find protocol=tcp and "
-            f"({_address_match('dst-address', address)})]"
+            f"({routeros_connection_address_match('dst-address', address)})]"
         )
 
     def nat_mapping_count(self, address: str) -> int:
         return routeros_count(
             self._cli(
                 "/ip/firewall/connection/print count-only where protocol=tcp and "
-                f"({_address_match('reply-dst-address', address)})"
+                f"({routeros_connection_address_match('reply-dst-address', address)})"
             )
         )
 

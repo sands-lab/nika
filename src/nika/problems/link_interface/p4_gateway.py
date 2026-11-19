@@ -1,5 +1,8 @@
 """Link-interface failures for the P4 gateway benchmark."""
 
+import json
+import shlex
+
 from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
@@ -8,20 +11,14 @@ from nika.problems.support.benchmark_targets import (
     p4_gateway_port_target,
     p4_port_options,
 )
-from nika.problems.support.p4_oracle import (
-    bmv2_ports,
-    summary_regex,
-    int_path_rows,
-    int_path_summary,
-)
 from nika.problems.support.oracle import (
     p4rt,
+    OracleStep,
     Check,
     OraclePlaybook,
-    all_of,
-    contains,
     shell,
 )
+from nika.problems.support.p4_oracle import p4rt_json
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 
 
@@ -50,6 +47,7 @@ class SilentEgressPacketLoss(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "gray"
     root_cause_name = "silent_egress_packet_loss"
+    CONFUSABLE_WITH = ("device_flow_blackhole", "link_flap", "link_packet_corruption")
     description = "Egress silently drops a subset of packets."
     symptom_desc = (
         "A fraction of packets disappears after one healthy egress interface."
@@ -126,88 +124,101 @@ class SilentEgressPacketLoss(ProblemBase):
     def oracle_playbook(self, params: SilentEgressPacketLossParams) -> OraclePlaybook:
         switch, intf, port = params.host_name, params.intf_name, params.bmv2_port
         model = self.net_env.model
-        device_id = model.switch_info[switch].device_id
         sources = (
             [model.client_on_gateway(switch).name]
             if switch in model.gateways
             else [client.name for client in model.clients]
         )
-        services = " ".join(service.ip for service in model.services)
-        traffic = [
+        egress = next(item for item in model.ports[switch] if item.bmv2_port == port)
+        peer = egress.peer
+        if egress.role == "leaf":
+            services = model.services_on_leaf(peer)
+        elif egress.role == "spine":
+            services = model.services
+        else:
+            raise ValueError(f"Unsupported loss-probe egress role: {egress.role}")
+        if not services:
+            raise ValueError(f"No declared services behind {switch}:{intf}")
+        send = """
+import socket, sys, time
+for dst in sys.argv[1:]:
+    for index in range(12):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(("0.0.0.0", 21000 + 1009 * index))
+            for repeat in range(32):
+                sock.sendto(bytes([repeat]) * 128, (dst, 19408))
+                time.sleep(0.02)
+print("probe complete")
+"""
+
+        def query_args(outputs):
+            return {
+                "start_time": outputs["loss_probe_start"].strip(),
+                "limit": 1000,
+                "view": "delivery",
+                "egress_switch": switch,
+                "egress_port": port,
+                "downstream_switch": peer,
+                "protocol": "17",
+                "dst_port": 19408,
+            }
+
+        steps = [
+            p4rt(
+                f"probe --switch {switch}",
+                "Check the switch management endpoint before probes.",
+                p4rt_json(
+                    "the switch is reachable", lambda row: row.get("reachable") is True
+                ),
+            ),
+            shell(
+                sources[0],
+                "python3 -c 'import time; print(time.time_ns())'",
+                "Read the lab kernel clock for the telemetry window.",
+                Check(
+                    "a positive Unix nanosecond timestamp",
+                    lambda out: out.strip().isdigit() and int(out.strip()) > 0,
+                ),
+                save_as="loss_probe_start",
+            ),
+        ]
+        # Preserve every flow and packet on this egress while bounding each
+        # command to 15.36 seconds of pacing, below its 60-second timeout.
+        steps += [
             shell(
                 src,
-                f"for i in $(seq 60); do for ip in {services}; do curl -s -o "
-                "/dev/null -m 3 -w '%{http_code}\\n' http://$ip/; done; done "
-                "| sort | uniq -c",
-                f"Open many short HTTP connections from {src} to every service, "
-                "so the flows hash across every uplink.",
-                timeout=240,
+                f"python3 -c {shlex.quote(send)} "
+                + shlex.join(service.ip for service in services[start : start + 2]),
+                "Send paced UDP probes across the affected egress.",
+                Check(
+                    "the paced probes completed",
+                    lambda out: out.strip() == "probe complete",
+                ),
+                timeout=60,
             )
             for src in sources
+            for start in range(0, len(services), 2)
         ]
-
-        def gray_loss_on_port(output: str) -> bool:
-            rows = [r for r in int_path_rows(output) if r[0] == device_id]
-            here = [r for r in rows if r[1] == port]
-            ok, lost = sum(r[3] for r in here), sum(r[4] for r in here)
-            rate = lost / max(1, ok + lost)
-            other_ok = sum(r[3] for r in rows if r[1] != port)
-            other_lost = sum(r[4] for r in rows if r[1] != port)
-            return (
-                lost >= 3
-                and len({r[2] for r in here if r[4]}) >= 2
-                and rate <= 0.2
-                and other_ok > 0
-                and other_lost < rate * (other_ok + other_lost) / 2
+        steps.append(
+            OracleStep(
+                "Compare post-dequeue egress reports with downstream ingress arrivals.",
+                "int_query_telemetry",
+                query_args,
+                Check(
+                    "at least three packets observed after dequeue fail to arrive before the next queue",
+                    lambda output: (
+                        lambda row: (
+                            row["observed"] >= 100
+                            and 3 <= row["missing"] <= row["observed"] * 0.2
+                        )
+                    )(json.loads(output)),
+                ),
+                evidence=True,
+                attempts=5,
+                interval_sec=3,
             )
-
+        )
         return OraclePlaybook(
-            finding=(
-                f"{switch}:{intf} (BMv2 port {port}) silently drops a small "
-                "fraction of the packets it transmits: the link is up, the "
-                "switch state is intact, and INT traces of flows to several "
-                "destinations end at that egress port."
-            ),
-            steps=[
-                shell(
-                    switch,
-                    f"ip -s link show dev {intf}",
-                    f"Check the state and error counters of {switch}:{intf}.",
-                    all_of(
-                        contains(r"state UP", "the link is up"),
-                        contains(r"<[^>]*LOWER_UP", "carrier is present"),
-                    ),
-                ),
-                bmv2_ports(
-                    switch,
-                    contains(rf"(^|\s){port}@{intf}\b", f"port {port} is {intf}"),
-                ),
-                p4rt(
-                    f"read --switch {switch}",
-                    f"Read {switch}'s programmed pipeline, routes, and groups.",
-                    contains(
-                        summary_regex(
-                            switch,
-                            r'"pipeline_matches_intent":\s*true,[^{}]*?'
-                            r'"mismatches":\s*\[\s*\]',
-                        ),
-                        f"{switch}'s P4Runtime state matches the intent",
-                    ),
-                ),
-                *traffic,
-                int_path_summary(
-                    device_id,
-                    180,
-                    Check(
-                        f"a few percent of INT traces to several destinations end "
-                        f"at switch_id {device_id} port {port}, at over twice the "
-                        "loss rate of the switch's other ports",
-                        gray_loss_on_port,
-                    ),
-                    f"Count delivered and lost INT traces per egress port (switch_id "
-                    f"{device_id} is {switch}).",
-                    attempts=4,
-                    interval_sec=30,
-                ),
-            ],
+            finding=f"INT observes packets leaving {switch}:{intf} after dequeue that never arrive at the downstream switch before its queue.",
+            steps=steps,
         )

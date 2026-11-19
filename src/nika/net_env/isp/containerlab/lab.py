@@ -45,6 +45,7 @@ from nika.net_env.isp.profiles import (
 )
 from nika.net_env.isp.traffic import (
     IspTrafficAttachment,
+    PlannedHost,
     TrafficInterval,
     TrafficMatrixSeries,
     attach_traffic_stubs,
@@ -161,7 +162,7 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
         if self.rpki:
             raise ValueError(
                 "RPKI capability is Kathara/FRR-only; use a named RPKI scenario "
-                "with --backend kathara (e.g. isp_abilene_ebgp_rpki)."
+                "with --backend kathara --bgp-mode ebgp."
             )
         profile_raw = device_profile or default_device_profile("containerlab")
         self.device_profile = normalize_device_profile(profile_raw)
@@ -180,9 +181,9 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
             constant_metric=constant_metric,
         )
         base_plan = compile_isp_plan(config)
-        # The customer site needs a Kathara host and FRR policy; not modelled here.
+        # SONiC uses the FRR customer export policy and a Linux customer host.
         self.bgp_plan: BgpPlan | None = compile_bgp_plan(
-            base_plan, self.bgp_mode, customer_site=False
+            base_plan, self.bgp_mode, customer_site=self.sonic
         )
         base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
         from nika.net_env.synthesis.parameters import (
@@ -291,17 +292,42 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
             self.plan, self.bgp_plan, self.traffic, self.business_workload()
         )
 
+    @property
+    def _linux_hosts(self) -> tuple[PlannedHost, ...]:
+        site = self.bgp_plan.customer_site if self.bgp_plan else None
+        if site is None:
+            return self.traffic.hosts
+        provider = next(n for n in self.plan.nodes if n.device_name == site.provider)
+        plen = int(site.prefix.rsplit("/", 1)[1])
+        customer = PlannedHost(
+            host_name=site.host_name,
+            router_device=site.provider,
+            router_node_id=provider.node_id,
+            collision_domain=f"cd_{site.host_name}",
+            address=site.address,
+            gateway=site.gateway,
+            subnet=site.prefix,
+            prefixlen=plen,
+            startup_commands=(
+                "ip link set eth1 up",
+                f"ip addr replace {site.address}/{plen} dev eth1",
+                f"ip route replace default via {site.gateway}",
+            ),
+            host_iface="eth1",
+        )
+        return (*self.traffic.hosts, customer)
+
     def _assign_mgmt_ips(self) -> dict[str, str]:
         names = [
             *sorted(n.device_name for n in self.plan.nodes),
-            *sorted(h.host_name for h in self.traffic.hosts),
+            *sorted(h.host_name for h in self._linux_hosts),
         ]
         addresses = mgmt_ipv4_addresses(self.name or self.scenario_id, len(names))
         return dict(zip(names, addresses, strict=True))
 
     def _populate_role_lists(self) -> None:
         self.routers = sorted(n.device_name for n in self.plan.nodes)
-        self.hosts = sorted(h.host_name for h in self.traffic.hosts)
+        self.hosts = sorted(h.host_name for h in self._linux_hosts)
         self.switches = []
         self.bmv2_switches = []
         self.ovs_switches = []
@@ -316,7 +342,7 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
                 role=NodeRole.ROUTER,
                 capabilities=tuple(capabilities),
             )
-        for host in self.traffic.hosts:
+        for host in self._linux_hosts:
             self.declare_machine(
                 host.host_name,
                 role=NodeRole.HOST,
@@ -336,7 +362,7 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
                 else {"kind": "nokia_srlinux", "type": SRL_TYPE}
             )
             nodes[node.device_name]["mgmt-ipv4"] = self._mgmt_ipv4[node.device_name]
-        for host in self.traffic.hosts:
+        for host in self._linux_hosts:
             nodes[host.host_name] = {
                 "kind": "linux",
                 "image": LINUX_IMAGE,
@@ -368,6 +394,18 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
                     "endpoints": [
                         f"{edge.router_device}:{self.router_iface(eth_name)}",
                         f"{edge.host_name}:eth1",
+                    ]
+                }
+            )
+        if self.bgp_plan and (site := self.bgp_plan.customer_site):
+            provider = next(
+                n for n in self.plan.nodes if n.device_name == site.provider
+            )
+            links.append(
+                {
+                    "endpoints": [
+                        f"{site.provider}:{self.router_iface(self.bgp_plan.customer_interface(provider))}",
+                        f"{site.host_name}:eth1",
                     ]
                 }
             )
@@ -427,7 +465,7 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
                     yaml.safe_dump(document, sort_keys=False)
                 )
 
-        for host in self.traffic.hosts:
+        for host in self._linux_hosts:
             script = "\n".join(
                 [
                     "#!/bin/bash",
@@ -464,6 +502,11 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
             if bgp_node is not None and self.bgp_plan is not None:
                 fragment = render_bgp_frr_fragment(bgp_node, self.bgp_plan)
                 frr_conf = merge_frr_conf(frr_conf, fragment)
+            if self.bgp_plan and (site := self.bgp_plan.customer_site):
+                interface = self.bgp_plan.customer_interface(node)
+                if interface:
+                    plen = site.prefix.rsplit("/", 1)[1]
+                    frr_conf += f"\ninterface {interface}\n ip address {site.gateway}/{plen}\n!\n"
             routers[node.device_name] = translate_frr_design(
                 node.device_name,
                 frr_conf,
@@ -530,7 +573,7 @@ class Isp(IspRendered, ContainerlabNetworkEnv):
         assert self.runtime_workdir is not None
         # SONiC routers boot with their configuration; SR Linux takes it over gNMI.
         routers = [] if self.sonic else sorted(n.device_name for n in self.plan.nodes)
-        clients = sorted(h.host_name for h in self.traffic.hosts)
+        clients = sorted(h.host_name for h in self._linux_hosts)
         mgmt_lines = "\n".join(
             f"  [{name}]={self._mgmt_ipv4[name]}" for name in [*routers, *clients]
         )
@@ -563,7 +606,7 @@ configure_SRL() {{
 configure_CLIENT() {{
   docker cp "$CFG_DIR/$1.sh" "clab-{lab_name}-$1:/tmp/" || return 1
   local status=0
-  docker exec "clab-{lab_name}-$1" bash "/tmp/$1.sh" || status=$?
+  docker exec "clab-{lab_name}-$1" bash -c 'bash -x "$1" > /var/log/startup.log 2>&1; status=$?; cat /var/log/startup.log; exit "$status"' bash "/tmp/$1.sh" || status=$?
   docker exec "clab-{lab_name}-$1" rm -f "/tmp/$1.sh" || return 1
   return "$status"
 }}

@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from nika.net_env.verify import ping_ok
 from nika.net_env.p4_dc_fabric.fabric_manager.apply import load_intent
 from nika.agents.oracle.agent import OracleAgent
 from nika.agents.mcp_config import engine_gateway
@@ -18,7 +17,6 @@ from nika.utils.session_store import SessionStore
 from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure, prepare_failure
 from nika.workflows.session.close import close_session
-from nika.validation.symptom.p4_gateway_probes import tcam_drop, tcam_drop_baseline
 from nika.validation.symptom.p4_runtime_probes import (
     table_exhaustion,
     table_exhaustion_baseline,
@@ -36,29 +34,12 @@ def exercise_fault(session_id: str, name: str, overrides: dict) -> dict:
     session.load_running_session(session_id=session_id)
     prepared = prepare_failure(session, [name], overrides)
     problem, params = prepared.problem, prepared.params
-    baseline, symptom = (
-        (tcam_drop_baseline, tcam_drop)
-        if name == "p4_tcam_entry_corruption"
-        else (table_exhaustion_baseline, table_exhaustion)
-    )
+    baseline, symptom = table_exhaustion_baseline, table_exhaustion
     artifacts = Path(session.session_dir) / "p4-fault-validation"
     artifacts.mkdir(exist_ok=True)
     stem = f"{name}-{params.host_name}"
     results = {"failure": name, "params": params.model_dump()}
     intent = load_intent(problem.runtime)
-    peer = None
-    if name == "p4_tcam_entry_corruption":
-        target = next(
-            service
-            for service in problem.net_env.model.services
-            if service.ip == params.target_ip
-        )
-        peer = next(
-            service
-            for service in problem.net_env.model.services
-            if service.attached_switch == target.attached_switch
-            and service.ip != target.ip
-        )
     healthy, results["baseline"] = baseline(problem, params)
     assert healthy, results
     assert not problem.verify_fault(params)["verified"]
@@ -73,8 +54,6 @@ def exercise_fault(session_id: str, name: str, overrides: dict) -> dict:
         results["artifact"] = problem.verify_fault(params)
         assert results["artifact"]["verified"], results
         assert load_intent(problem.runtime) == intent
-        if peer is not None:
-            assert ping_ok(problem.runtime, "client_1", peer.ip)
         broken, results["symptom"] = symptom(problem, params)
         assert broken, results
         oracle = OracleAgent(session_id, stream_output=False)
@@ -123,22 +102,6 @@ def test_p4_fault_state_and_oracle_recover(scenario, tmp_path):
         scenario, "s", instance_tag="p4-fault-validation", result_dir=str(tmp_path)
     )
     try:
-        if scenario == "p4_dc_gateway":
-            from nika.net_env.p4_dc_gateway.topology_model import (
-                build_gateway_fabric_model,
-            )
-
-            model = build_gateway_fabric_model("s")
-            for switch in (model.gateways[0], model.spines[0]):
-                exercise_fault(
-                    sid,
-                    "p4_tcam_entry_corruption",
-                    {
-                        "host_name": switch,
-                        "target_ip": model.services[0].ip,
-                        "control_source": model.clients[1].name,
-                    },
-                )
         exercise_fault(sid, "p4_table_resource_exhaustion", {"host_name": "leaf_1"})
     finally:
         close_session(session_id=sid)

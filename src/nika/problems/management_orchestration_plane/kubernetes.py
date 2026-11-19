@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
+from nika.problems.support.recovery import recovery_checks_health
 from nika.problems.rca import UnresolvedRootCauseError, node_resource
 from nika.problems.support.benchmark_targets import choice, k8s_control_node
 from nika.problems.support.kubernetes.objects import (
@@ -50,7 +51,9 @@ NODE_NOTREADY_TIMEOUT_SEC: float = 240.0
 LOGS_REQUEST_TIMEOUT_SEC = 10
 
 
-def _oracle_workload_query(resources: str, fields: str) -> str:
+def _oracle_workload_query(
+    resources: str, fields: str, *, zero_replicas: bool = False
+) -> str:
     """Read workload evidence without annotations or unrelated specification fields."""
     script = f"""
 import json, sys
@@ -62,6 +65,14 @@ def compact(value):
         return {{k: v if k in {{'labels', 'selector', 'matchLabels'}} else compact(v) for k, v in value.items() if k in keys}}
     return value
 data = json.load(sys.stdin)
+if {zero_replicas!r}:
+    deployments = [o for o in data['items'] if o['kind'] == 'Deployment' and o.get('spec', {{}}).get('replicas') == 0]
+    pods = [o for o in data['items'] if o['kind'] == 'Pod' and any(
+        o['metadata']['namespace'] == d['metadata']['namespace'] and all(
+            o['metadata'].get('labels', {{}}).get(k) == v
+            for k, v in d['spec']['selector']['matchLabels'].items())
+        for d in deployments)]
+    data['items'] = deployments + pods
 data['items'] = [o for o in data['items'] if o.get('kind') != 'Event' or 'readiness probe failed' in o.get('message', '').lower()]
 if 'taints' in keys:
     data['items'] = [o for o in data['items'] if o['kind'] != 'Pod' or o.get('status', {{}}).get('phase') == 'Pending']
@@ -120,6 +131,7 @@ class WorkerApiServerPartition(K8sProblemBase):
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name: str = "k8s_worker_apiserver_partition"
+    CONFUSABLE_WITH = ("k8s_node_noexecute_taint",)
     description = "Worker is partitioned from the Kubernetes API server."
     symptom_desc = (
         "One Kubernetes worker node reports NotReady and stops receiving new pods, "
@@ -670,6 +682,11 @@ class DeploymentReplicasZero(K8sProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "k8s_deployment_replicas_zero"
+    CONFUSABLE_WITH = (
+        "k8s_node_noexecute_taint",
+        "k8s_readiness_probe_misconfig",
+        "k8s_service_selector_mismatch",
+    )
     description = "A Kubernetes Deployment is scaled to zero replicas."
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s"]
     Params = DeploymentReplicasZeroParams
@@ -737,7 +754,8 @@ class DeploymentReplicasZero(K8sProblemBase):
                     self.control_node(params),
                     _oracle_workload_query(
                         "deployments,pods",
-                        "replicas observedGeneration generation selector matchLabels template",
+                        "replicas observedGeneration generation selector matchLabels",
+                        zero_replicas=True,
                     ),
                     "Read desired replica counts, controller generations, and remaining workload Pods.",
                     Check(
@@ -865,6 +883,7 @@ class NodeNoExecuteTaint(K8sProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "k8s_node_noexecute_taint"
+    CONFUSABLE_WITH = ("k8s_deployment_replicas_zero", "k8s_worker_apiserver_partition")
     description = "A Kubernetes node has a NoExecute taint."
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "k8s_storage"]
     Params = NodeNoExecuteTaintParams
@@ -1098,6 +1117,10 @@ class ReadinessProbeMisconfig(K8sProblemBase):
 
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
     root_cause_name = "k8s_readiness_probe_misconfig"
+    CONFUSABLE_WITH = (
+        "k8s_deployment_replicas_zero",
+        "k8s_service_target_port_mismatch",
+    )
     description = "A Deployment readiness probe points at an unserved endpoint."
     symptom_probe = "custom"
     symptom_class = "unreachable"
@@ -1298,15 +1321,21 @@ class ReadinessProbeMisconfig(K8sProblemBase):
             live = _deployment_object(k8s, control, meta["name"], meta["namespace"])
             wanted = self._original["spec"]["replicas"]
             namespace, service = self.service_ref.split("/", 1)
-            endpoints = k8s.k8s_service_endpoint_addresses(
-                control, service, namespace=namespace
+            endpoints = (
+                k8s.k8s_service_endpoint_addresses(
+                    control, service, namespace=namespace
+                )
+                if recovery_checks_health()
+                else None
             )
-            ok = _deployment_restored(live, self._original) and len(endpoints) >= wanted
+            ok = _deployment_restored(live, self._original) and (
+                not recovery_checks_health() or len(endpoints) >= wanted
+            )
             return ok, {
                 "deployment": self.deployment_ref,
                 "wanted_replicas": wanted,
                 "status": live.get("status") or {},
-                "ready_endpoints": len(endpoints),
+                "ready_endpoints": len(endpoints) if endpoints is not None else None,
             }
 
         return self.poll_verify(check, timeout=900)

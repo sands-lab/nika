@@ -234,6 +234,23 @@ cp {CONFIG_DIR}/start.sh /usr/bin/start.sh
 printf '#!/bin/sh\\nexec "$@"\\n' > /usr/local/bin/sudo
 printf '#!/bin/sh\\nexec vtysh "$@"\\n' > /usr/local/bin/rvtysh
 chmod +x /usr/bin/start.sh /usr/local/bin/sudo /usr/local/bin/rvtysh
+# The upstream CLI discovers FRR by inspecting a host-side BGP container.
+# This image runs FRR locally and has no nested Docker daemon. Select the
+# declared stack before importing show.main, including its route commands.
+python3 - <<'PY_SHOW'
+from pathlib import Path
+import sysconfig
+path = Path(sysconfig.get_paths()["purelib"]) / "show" / "main.py"
+source = path.read_text()
+original = "routing_stack = get_routing_stack()"
+replacement = "routing_stack = 'frr'"
+if original in source:
+    if source.count(original) != 1:
+        raise RuntimeError("Unexpected SONiC routing-stack discovery source")
+    path.write_text(source.replace(original, replacement))
+elif replacement not in source:
+    raise RuntimeError("SONiC routing-stack discovery source changed")
+PY_SHOW
 # A SONiC switch routes IPv6 as well as IPv4.
 sysctl -qw net.ipv6.conf.all.forwarding=1
 # Management stays on its subnet; a default route through it would carry

@@ -2,7 +2,8 @@
 
 Overlays deterministic inter-AS roles, provider blackhole community policy,
 and observer wiring onto a compiled eBGP plan. Named RTBH scenarios enable it
-through ``compile_bgp_plan(..., rtbh=True)``.
+through ``compile_bgp_plan(..., rtbh=True)``; current eBGP deployments compose
+it with the RPKI profile.
 """
 
 from __future__ import annotations
@@ -21,7 +22,6 @@ from nika.net_env.isp.bgp.plan import (
     BgpSession,
 )
 
-PROFILE_NAME = "isp_rtbh"
 
 LEGITIMATE_ORIGIN_ASN = EBGP_BASE_ASN  # 65001
 LEAKER_ASN = EBGP_BASE_ASN + 1  # 65002
@@ -38,8 +38,44 @@ def target_ping_address(prefix: str = TARGET_PREFIX) -> str:
     return str(net.network_address + 1)
 
 
+def rtbh_leaker(inventory: dict[str, Any]) -> str:
+    """The RTBH leaker router of a BGP inventory with the RTBH profile."""
+    return str(
+        inventory.get("rtbh_leaker_device") or inventory.get("leaker_device") or ""
+    )
+
+
+def provider_edges(plan: BgpPlan) -> list[tuple[str, str]]:
+    """Sorted ``(leaker, provider)`` eBGP edges usable by the RTBH profile.
+
+    The provider must also peer the legitimate origin AS. Its healthy route
+    to the target then leaves over that session, whose link address the
+    origin AS routes, so the provider observes the target from its own
+    address before and after the blackhole.
+    """
+    ebgp = [sess for sess in plan.sessions if sess.session_type == "ebgp"]
+    peers_origin = {
+        sess.local_device
+        for sess in ebgp
+        if sess.local_asn == RTBH_PROVIDER_ASN
+        and sess.remote_asn == LEGITIMATE_ORIGIN_ASN
+    }
+    return sorted(
+        (sess.local_device, sess.remote_device)
+        for sess in ebgp
+        if sess.local_asn == LEAKER_ASN
+        and sess.remote_asn == RTBH_PROVIDER_ASN
+        and sess.remote_device in peers_origin
+    )
+
+
 def apply_rtbh_profile(plan: BgpPlan) -> BgpPlan:
-    """Overlay RTBH roles and provider import policy onto a compiled eBGP plan."""
+    """Overlay RTBH roles and provider import policy onto a compiled eBGP plan.
+
+    On a plan that already carries the RPKI profile, the RPKI inventory is
+    kept and the RTBH leaker is recorded as ``rtbh_leaker_device`` (see
+    :func:`rtbh_leaker`), since the two profiles pick their leakers apart.
+    """
     asn_of = {n.device_name: n.asn for n in plan.nodes}
     asns = sorted(set(asn_of.values()))
     if len(asns) < 3:
@@ -54,12 +90,6 @@ def apply_rtbh_profile(plan: BgpPlan) -> BgpPlan:
                 f"(got {asns}).",
                 topology=plan.topology_name,
             )
-
-    members: dict[int, list[str]] = defaultdict(list)
-    for device, asn in asn_of.items():
-        members[asn].append(device)
-    for asn in members:
-        members[asn].sort()
 
     ebgp_by_local: dict[str, list[BgpSession]] = defaultdict(list)
     as_adj: dict[int, set[int]] = defaultdict(set)
@@ -91,9 +121,14 @@ def apply_rtbh_profile(plan: BgpPlan) -> BgpPlan:
             topology=plan.topology_name,
         )
 
-    leaker_device, rtbh_provider = _pick_leaker_provider(
-        members[LEAKER_ASN], ebgp_by_local
-    )
+    edges = provider_edges(plan)
+    if not edges:
+        raise BgpConfigError(
+            f"RTBH profile found no eBGP edge from AS{LEAKER_ASN} to an "
+            f"AS{RTBH_PROVIDER_ASN} router that peers AS{LEGITIMATE_ORIGIN_ASN}.",
+            topology=plan.topology_name,
+        )
+    leaker_device, rtbh_provider = edges[0]
     legitimate_origin_device = target.device
     leaker_to_rtbh_neighbor_ip = _leaker_to_rtbh_neighbor_ip(
         leaker_device, rtbh_provider, ebgp_by_local
@@ -143,6 +178,11 @@ def apply_rtbh_profile(plan: BgpPlan) -> BgpPlan:
         expect_reachable=plan.expect_reachable,
         deny_prefixes=plan.deny_prefixes,
     )
+    # Keep another profile's inventory (the RPKI roles) when composing.
+    refreshed.update(
+        {key: value for key, value in plan.inventory.items() if key not in refreshed}
+    )
+    composed = bool(plan.inventory.get("rpki"))
     refreshed.update(
         _profile_inventory(
             target=target,
@@ -152,6 +192,9 @@ def apply_rtbh_profile(plan: BgpPlan) -> BgpPlan:
             leaker_to_rtbh_neighbor_ip=leaker_to_rtbh_neighbor_ip,
         )
     )
+    if composed:
+        refreshed["rtbh_leaker_device"] = leaker_device
+        refreshed["leaker_device"] = plan.inventory["leaker_device"]
 
     return BgpPlan(
         mode="ebgp",
@@ -163,28 +206,6 @@ def apply_rtbh_profile(plan: BgpPlan) -> BgpPlan:
         deny_prefixes=plan.deny_prefixes,
         inventory=refreshed,
     )
-
-
-def _pick_leaker_provider(
-    leaker_members: list[str],
-    ebgp_by_local: dict[str, list[BgpSession]],
-) -> tuple[str, str]:
-    """Choose a deterministic AS2→AS3 eBGP edge for the RTBH export policy."""
-    edges = sorted(
-        (
-            session.local_device,
-            session.remote_device,
-        )
-        for device in leaker_members
-        for session in ebgp_by_local.get(device, [])
-        if session.remote_asn == RTBH_PROVIDER_ASN
-    )
-    if not edges:
-        raise BgpConfigError(
-            f"RTBH profile found no eBGP edge from AS{LEAKER_ASN} "
-            f"to AS{RTBH_PROVIDER_ASN}."
-        )
-    return edges[0]
 
 
 def _leaker_to_rtbh_neighbor_ip(
@@ -256,7 +277,6 @@ def _profile_inventory(
 ) -> dict[str, Any]:
     community = f"{BLACKHOLE_COMMUNITY[0]}:{BLACKHOLE_COMMUNITY[1]}"
     return {
-        "inter_as_profile": PROFILE_NAME,
         "rtbh": True,
         "legitimate_origin_asn": LEGITIMATE_ORIGIN_ASN,
         "leaker_asn": LEAKER_ASN,
@@ -272,3 +292,12 @@ def _profile_inventory(
         "discard_next_hop": DISCARD_NH,
         "data_plane_observer_host": rtbh_provider,
     }
+
+
+def rtbh_design_note(inventory: dict[str, Any]) -> str:
+    """Brief sentence on the provider's remote-triggered blackholing policy."""
+    return (
+        f" {inventory.get('rtbh_provider_device')} (AS{RTBH_PROVIDER_ASN}) discards"
+        " traffic to business prefixes that its eBGP neighbors tag with the"
+        f" blackhole community {inventory.get('blackhole_community')} (RFC 7999)."
+    )

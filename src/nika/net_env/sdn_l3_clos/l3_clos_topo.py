@@ -208,7 +208,7 @@ class SDNL3Clos(NetworkEnvBase):
         )
         self.declare_machine(
             fabric_mgr.name,
-            role=NodeRole.INFRASTRUCTURE,
+            role=NodeRole.SERVER,
             capabilities=("linux", "openflow"),
         )
 

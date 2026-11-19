@@ -7,6 +7,8 @@ from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
+import platform
+
 import pytest
 
 from tests.support.ci_depth import artifact_verify_only
@@ -40,7 +42,12 @@ FLAP_SCENARIOS = (
     _FlapScenarioCase("campus_lan", "campus_lan", ("-s", "s")),
     _FlapScenarioCase("enterprise_branch", "enterprise_branch", ("-s", "s")),
     _FlapScenarioCase("k8s_lab", "k8s_lab", (), "", require_privileged=True),
-    _FlapScenarioCase("min3clos", "min3clos", (), "", require_clab=True),
+    _FlapScenarioCase(
+        "dc_clos-clab",
+        "dc_clos",
+        ("-s", "s", "--backend", "containerlab"),
+        require_clab=True,
+    ),
     _FlapScenarioCase("p4_dc_fabric", "p4_dc_fabric", ("-s", "s")),
     _FlapScenarioCase("p4_dc_gateway", "p4_dc_gateway", ("-s", "s")),
     _FlapScenarioCase("sdn_l3_clos", "sdn_l3_clos", ("-s", "s")),
@@ -55,15 +62,8 @@ FLAP_SCENARIOS = (
             "rpki": False,
         },
     ),
-    _FlapScenarioCase(
-        "isp-abilene-ebgp-rpki",
-        "isp_abilene_ebgp_rpki",
-        (),
-        "s",
-        isp_options=None,
-    ),
 )
-FLAP_BY_SCENARIO = {flap.scenario: flap for flap in FLAP_SCENARIOS}
+FLAP_BY_DEPLOYMENT = {(flap.scenario, flap.env_args): flap for flap in FLAP_SCENARIOS}
 
 
 def _flap_e2e_cases() -> list[FailureE2ECase]:
@@ -80,10 +80,10 @@ def _flap_e2e_cases() -> list[FailureE2ECase]:
     ]
 
 
-def _link_detach_e2e_cases() -> list[FailureE2ECase]:
+def _link_down_e2e_cases() -> list[FailureE2ECase]:
     return [
         FailureE2ECase(
-            problem="link_detach",
+            problem="link_down",
             scenario=scenario,
             env_run_args=("-s", "s"),
             inject_seed=0,
@@ -95,7 +95,7 @@ def _link_detach_e2e_cases() -> list[FailureE2ECase]:
 def _incast_e2e_cases() -> list[FailureE2ECase]:
     return [
         FailureE2ECase(
-            problem="incast_traffic_network_limitation",
+            problem="link_capacity_bottleneck",
             scenario=scenario,
             env_run_args=("-s", "s"),
             inject_seed=1,
@@ -105,6 +105,23 @@ def _incast_e2e_cases() -> list[FailureE2ECase]:
 
 
 CORE_E2E_CASES = (
+    FailureE2ECase(
+        problem="bgp_route_leak",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "ospf", "--bgp-mode", "ebgp"),
+        isp_options={"igp": "ospf", "bgp_mode": "ebgp"},
+    ),
+    FailureE2ECase(
+        problem="link_latency",
+        scenario="dc_clos",
+        env_run_args=("-s", "s"),
+    ),
+    FailureE2ECase(
+        problem="bgp_rov_not_enforced",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "ospf", "--bgp-mode", "ebgp"),
+        isp_options={"igp": "ospf", "bgp_mode": "ebgp"},
+    ),
     *(
         FailureE2ECase(
             problem="rib_fib_inconsistency",
@@ -139,12 +156,11 @@ CORE_E2E_CASES = (
         FailureE2ECase(
             problem="rib_fib_inconsistency",
             scenario=scenario,
+            env_run_args=("--igp", "ospf", "--bgp-mode", "ebgp"),
+            isp_options={"igp": "ospf", "bgp_mode": "ebgp"},
             sleep_after_inject_sec=30,
         )
-        for scenario in (
-            "isp_abilene_ebgp_rpki",
-            "isp_abilene_ebgp_rtbh",
-        )
+        for scenario in ("isp_abilene",)
     ),
     *(
         FailureE2ECase(
@@ -278,49 +294,32 @@ CORE_E2E_CASES = (
         for scenario in ("campus_lan", "isp_abilene")
         for profile in ("frr", "iosxr", "routeros")
     ),
-    FailureE2ECase(
-        problem="bgp_max_prefix_exceeded",
-        scenario="isp_abilene",
-        env_run_args=("--igp", "ospf", "--bgp-mode", "ebgp"),
-        isp_options={"igp": "ospf", "bgp_mode": "ebgp", "rpki": False},
+    *(
+        FailureE2ECase(
+            problem=problem,
+            scenario=scenario,
+            topo_size="m" if scenario == "isp_geant" else "s",
+            env_run_args=("--igp", "ospf", "--bgp-mode", "ebgp"),
+            isp_options={"igp": "ospf", "bgp_mode": "ebgp", "rpki": False},
+        )
+        for problem in ("bgp_max_prefix_limit_low", "bgp_prefix_surge")
+        for scenario in ("isp_abilene", "isp_geant")
     ),
     FailureE2ECase(
-        problem="ospf_neighbor_missing",
+        problem="ospf_interface_not_enabled",
         scenario="campus_lan",
         env_run_args=("-s", "s"),
         inject_params={"host_name": "router_core_1"},
     ),
     FailureE2ECase(
-        problem="ospf_neighbor_missing",
+        problem="ospf_interface_not_enabled",
         scenario="isp_abilene",
         env_run_args=("--igp", "ospf"),
         isp_options={"igp": "ospf", "bgp_mode": "none", "rpki": False},
     ),
     *(
         FailureE2ECase(
-            problem="bgp_max_prefix_exceeded",
-            scenario=scenario,
-            env_run_args=(
-                "--igp",
-                "ospf",
-                "--bgp-mode",
-                "ebgp",
-                "--device-profile",
-                profile,
-            ),
-            isp_options={
-                "igp": "ospf",
-                "bgp_mode": "ebgp",
-                "rpki": False,
-                "device_profile": profile,
-            },
-        )
-        for scenario in ("isp_abilene", "isp_geant")
-        for profile in ("iosxr", "routeros")
-    ),
-    *(
-        FailureE2ECase(
-            problem="ospf_neighbor_missing",
+            problem="ospf_interface_not_enabled",
             scenario="campus_lan",
             env_run_args=("-s", "s", "--device-profile", profile),
             inject_params={"host_name": "router_core_1"},
@@ -329,7 +328,7 @@ CORE_E2E_CASES = (
     ),
     *(
         FailureE2ECase(
-            problem="ospf_neighbor_missing",
+            problem="ospf_interface_not_enabled",
             scenario=scenario,
             env_run_args=("--igp", "ospf", "--device-profile", profile),
             isp_options={
@@ -354,7 +353,7 @@ CORE_E2E_CASES = (
         },
     ),
     FailureE2ECase(
-        problem="receiver_resource_contention",
+        problem="endpoint_cpu_contention",
         scenario="dc_clos",
         env_run_args=("-s", "s"),
         param_overrides={"duration": "1"},
@@ -380,13 +379,7 @@ CORE_E2E_CASES = (
         inject_seed=1,
     ),
     FailureE2ECase(
-        problem="load_balancer_overload",
-        scenario="campus_lan",
-        env_run_args=("-s", "s"),
-        inject_seed=1,
-    ),
-    FailureE2ECase(
-        problem="sender_resource_contention",
+        problem="endpoint_cpu_contention",
         scenario="dc_clos",
         env_run_args=("-s", "s"),
         inject_seed=1,
@@ -487,11 +480,13 @@ CORE_E2E_CASES = (
     *(
         FailureE2ECase(
             problem="bgp_md5_password_mismatch",
-            scenario=scenario,
-            topo_size="",
-            inject_params={"host_name": "router1"},
+            scenario="dc_clos",
+            topo_size="s",
+            env_run_args=("-s", "s", "--device-profile", profile),
+            isp_options={"device_profile": profile},
+            inject_params={"host_name": "spine_1"},
         )
-        for scenario in ("iosxr_simple_bgp", "routeros_simple_bgp")
+        for profile in ("iosxr", "routeros")
     ),
     # The adjacent-neighbor branch (campus_lan area 1) and the LSA-shadowing
     # branch (single-area ISP).
@@ -653,9 +648,11 @@ CORE_E2E_CASES = (
     ),
     FailureE2ECase(
         problem="bgp_ttl_security_mismatch",
-        scenario="iosxr_simple_bgp",
-        topo_size="",
-        inject_params={"host_name": "router1"},
+        scenario="dc_clos",
+        topo_size="s",
+        env_run_args=("-s", "s", "--device-profile", "iosxr"),
+        isp_options={"device_profile": "iosxr"},
+        inject_params={"host_name": "spine_1"},
         sleep_after_inject_sec=30.0,
     ),
     FailureE2ECase(
@@ -716,7 +713,7 @@ CORE_E2E_CASES = (
         for profile in ("iosxr", "routeros")
     ),
     FailureE2ECase(
-        problem="isis_circuit_level_mismatch",
+        problem="isis_router_level_mismatch",
         scenario="isp_abilene",
         env_run_args=("--igp", "isis"),
         isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
@@ -724,7 +721,7 @@ CORE_E2E_CASES = (
     ),
     *(
         FailureE2ECase(
-            problem="isis_circuit_level_mismatch",
+            problem="isis_router_level_mismatch",
             scenario="isp_arpanet196912",
             env_run_args=("--igp", "isis", "--device-profile", profile),
             isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
@@ -755,10 +752,11 @@ CORE_E2E_CASES = (
     ),
     FailureE2ECase(
         problem="host_static_blackhole",
-        scenario="min3clos",
-        env_run_args=(),
-        topo_size="",
-        inject_params={"host_name": "leaf1"},
+        scenario="dc_clos",
+        env_run_args=("-s", "s", "--backend", "containerlab"),
+        topo_size="s",
+        isp_options={"backend": "containerlab", "device_profile": "nokia_srlinux"},
+        inject_params={"host_name": "leaf_1"},
         sleep_after_inject_sec=2.0,
     ),
 )
@@ -776,7 +774,70 @@ def _pipeline_mismatch_e2e_cases() -> list[FailureE2ECase]:
     ]
 
 
+# Registered failures that no benchmark release task deploys yet.
+_UNRELEASED_FAILURE_SCENARIOS = {"lb_connection_state_exhaustion": "p4_dc_gateway"}
+
+
+def _release_task_case(row: dict) -> FailureE2ECase:
+    """A case on ``row``'s environment and deployment, with fresh inject params.
+
+    Inject params resolve on the current environment, since a release may
+    bind a published variant of it. Sized environments run at size ``s``:
+    the failure mechanism does not depend on the scale.
+    """
+    from nika.net_env.isp.identity import is_isp_scenario
+    from nika.net_env.net_env_pool import scenario_requires_topo_size
+
+    scenario = str(row["scenario"])
+    isp = is_isp_scenario(scenario)
+    args: list[str] = ["-s", "s"] if scenario_requires_topo_size(scenario) else []
+    options = {
+        key: row[key]
+        for key in ("igp", "bgp_mode", "backend", "device_profile")
+        if row.get(key)
+    }
+    for key, value in options.items():
+        args += [f"--{key.replace('_', '-')}", str(value)]
+    if isp and "rpki" in row:
+        options["rpki"] = bool(row["rpki"])
+    return FailureE2ECase(
+        problem=str(row["problem"]),
+        scenario=scenario,
+        env_run_args=tuple(args),
+        topo_size="" if isp else "s",
+        isp_options=options if isp else None,
+    )
+
+
+def _release_coverage_cases(covered: set[str]) -> list[FailureE2ECase]:
+    """Cover current registered single faults from their declared deployments."""
+    from nika.workflows.benchmark.generate import iter_failure_case_specs
+
+    rows = {}
+    for problem, scenario, size, options in iter_failure_case_specs():
+        rows.setdefault(
+            problem, {"problem": problem, "scenario": scenario, **(options or {})}
+        )
+    return [
+        _release_task_case(row)
+        for problem, row in rows.items()
+        if problem not in covered
+    ]
+
+
 def _all_e2e_cases() -> list[FailureE2ECase]:
+    from nika.problems.registry import get_problem_class
+
+    cases = [
+        case
+        for case in _hand_written_e2e_cases()
+        if get_problem_class(case.problem) is not None
+        and not get_problem_class(case.problem).combination_only
+    ]
+    return [*cases, *_release_coverage_cases({case.problem for case in cases})]
+
+
+def _hand_written_e2e_cases() -> list[FailureE2ECase]:
     return [
         *CORE_E2E_CASES,
         *(
@@ -789,7 +850,7 @@ def _all_e2e_cases() -> list[FailureE2ECase]:
                 inject_params={"host_name": "berlin"},
             )
             for problem in (
-                "isis_circuit_level_mismatch",
+                "isis_router_level_mismatch",
                 "isis_authentication_mismatch",
             )
         ),
@@ -819,7 +880,7 @@ def _all_e2e_cases() -> list[FailureE2ECase]:
             for problem in (
                 "ospf_duplicate_router_id",
                 "ospf_hello_interval_mismatch",
-                "ospf_neighbor_missing",
+                "ospf_interface_not_enabled",
             )
         ),
         *(
@@ -840,7 +901,30 @@ def _all_e2e_cases() -> list[FailureE2ECase]:
             )
             for igp, mode in (("isis", "ibgp_rr"), ("ospf", "ebgp"))
         ),
-        *_link_detach_e2e_cases(),
+        *(
+            FailureE2ECase(
+                problem="bgp_acl_block",
+                scenario="dc_clos",
+                env_run_args=(
+                    "-s",
+                    "s",
+                    "--backend",
+                    backend,
+                    "--device-profile",
+                    profile,
+                ),
+                isp_options={"backend": backend, "device_profile": profile},
+                inject_params={"host_name": "spine_1"},
+                checks=frozenset({"verify", "symptom", "recover", "scenario_recovery"}),
+            )
+            for backend, profile in (
+                ("containerlab", "nokia_srlinux"),
+                ("containerlab", "sonic"),
+                ("kathara", "iosxr"),
+                ("kathara", "routeros"),
+            )
+        ),
+        *_link_down_e2e_cases(),
         *_incast_e2e_cases(),
         *_pipeline_mismatch_e2e_cases(),
         *_flap_e2e_cases(),
@@ -858,8 +942,7 @@ def _device_profile(case: FailureE2ECase) -> str | None:
     args = list(case.env_run_args)
     if "--device-profile" in args:
         return args[args.index("--device-profile") + 1]
-    standalone = case.scenario.removesuffix("_simple_bgp")
-    return standalone if standalone in _VENDOR_IMAGES else None
+    return None
 
 
 def _case_id(case: FailureE2ECase) -> str:
@@ -883,18 +966,20 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
     if case.scenario == "enterprise_branch" and not linux_vrf_available():
         return "host kernel lacks Linux VRF"
     profile = _device_profile(case)
-    if profile and not docker_image_available(_VENDOR_IMAGES[profile]):
+    if profile == "sonic" and platform.machine().lower() not in {"x86_64", "amd64"}:
+        return "docker-sonic-vs requires amd64"
+    if profile in _VENDOR_IMAGES and not docker_image_available(
+        _VENDOR_IMAGES[profile]
+    ):
         return f"{_VENDOR_IMAGES[profile]} image not installed"
-    if (
-        case.scenario == "min3clos" or "containerlab" in case.env_run_args
-    ) and not containerlab_prerequisites():
+    if ("containerlab" in case.env_run_args) and not containerlab_prerequisites():
         return "containerlab/gnmic not available"
-    # Shared GHA runners: netns move for link_detach is unreliable.
-    if case.problem == "link_detach" and artifact_verify_only():
-        return "link_detach netns move unreliable under artifact CI"
+    # Shared GHA runners: netns move for link_down is unreliable.
+    if case.problem == "link_down" and artifact_verify_only():
+        return "link_down netns move unreliable under artifact CI"
     if case.problem != "link_flap":
         return None
-    flap = FLAP_BY_SCENARIO.get(case.scenario)
+    flap = FLAP_BY_DEPLOYMENT.get((case.scenario, case.env_run_args))
     if flap is None:
         return None
     if flap.require_clab and not containerlab_prerequisites():
@@ -941,25 +1026,6 @@ class TestFailureE2E(IntegrationTestCase):
         finally:
             if session_id is not None:
                 self._close_session(session_id)
-
-
-class TestLatentBackupE2E(IntegrationTestCase):
-    @pytest.mark.parametrize(
-        "profile",
-        ["frr", "routeros"],
-        ids=lambda p: f"latent-backup-enterprise_branch-{p}",
-    )
-    def test_primary_failure_exposes_standby(self, profile):
-        from tests.support.latent_backup_e2e import run_latent_backup_e2e
-
-        case = FailureE2ECase(
-            problem="wireguard_peer_key_misconfiguration",
-            scenario="enterprise_branch",
-            env_run_args=("--device-profile", profile) if profile != "frr" else (),
-        )
-        if reason := _skip_reason(case):
-            pytest.skip(reason)
-        run_latent_backup_e2e(self, profile)
 
 
 @pytest.mark.parametrize("profile", ("frr", "routeros"))

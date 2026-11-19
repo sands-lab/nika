@@ -60,13 +60,6 @@ CORRUPTION_CASES = (
             "rpki": False,
         },
     ),
-    CorruptionScenarioCase(
-        "isp-abilene-ebgp-rpki",
-        "isp_abilene_ebgp_rpki",
-        (),
-        "s",
-        isp_options=None,
-    ),
 )
 
 
@@ -78,7 +71,6 @@ def test_failure_registers_and_contracts() -> None:
     contract = get_symptom_contract(PROBLEM)
     assert contract.symptom_class == "degradation"
     assert contract.probe == "custom"
-    assert "evaluate_symptom" not in cls.__dict__
 
 
 def _skip_reason(case: CorruptionScenarioCase) -> str | None:

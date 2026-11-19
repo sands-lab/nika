@@ -5,6 +5,8 @@ from __future__ import annotations
 import ipaddress
 from typing import Any, Mapping
 
+from nika.net_env.isp.bgp.rtbh_profile import rtbh_leaker
+
 # Synthetic prefix permitted by BGP policy but unowned in the healthy baseline.
 DEFAULT_HIJACK_PREFIX = "198.18.0.0/24"
 
@@ -12,23 +14,25 @@ LINK_INTF_PROBLEMS = frozenset(
     {
         "link_down",
         "link_flap",
-        "link_detach",
+        "link_down",
     }
 )
 LINK_BACKBONE_PROBLEMS = frozenset(
     {
+        "link_latency",
         "link_capacity_bottleneck",
         "link_packet_corruption",
     }
 )
 LINK_HOST_ONLY_PROBLEMS = frozenset(
     {
+        "link_latency",
         "link_capacity_bottleneck",
         "link_packet_corruption",
-        "icmp_acl_block",
+        "host_acl_block",
         "routing_service_down",
         "ospf_area_misconfiguration",
-        "ospf_neighbor_missing",
+        "ospf_interface_not_enabled",
         "ospf_acl_block",
     }
 )
@@ -41,9 +45,7 @@ BGP_ORIGINATOR_PROBLEMS = frozenset(
     }
 )
 BGP_HIJACK_PROBLEM = "bgp_hijacking"
-BGP_RPKI_LEAK_PROBLEM = "bgp_rpki_invalid_route_leak"
 BGP_RTBH_LEAK_PROBLEM = "bgp_blackhole_community_leak"
-BGP_MAX_PREFIX_PROBLEM = "bgp_max_prefix_exceeded"
 
 
 def link_peer_endpoint(
@@ -80,6 +82,15 @@ def stub_host_ip(isp_inventory: Mapping[str, Any], router_device: str) -> str:
             if address:
                 return address.split("/")[0]
     raise ValueError(f"ISP inventory has no stub host for router {router_device!r}")
+
+
+def edge_link_iface(isp_inventory: Mapping[str, Any], router_device: str) -> str:
+    """Router interface of the access link to ``router_device``'s stub host."""
+    want = stub_host_for_router(router_device)
+    for row in isp_inventory.get("edge_links") or []:
+        if row.get("router_device") == router_device and row.get("host_name") == want:
+            return str(row["router_iface"])
+    raise ValueError(f"ISP inventory has no access link for router {router_device!r}")
 
 
 def isp_link_symptom_targets(
@@ -185,10 +196,25 @@ def first_router(isp_inventory: Mapping[str, Any]) -> str:
     return devices[0]
 
 
+def _business_originated(
+    bgp_inventory: Mapping[str, Any] | None,
+) -> list[Mapping[str, Any]]:
+    """Originated business prefixes, without the RPKI profile's content prefixes.
+
+    Default fault targets then stay the same with and without the profile.
+    """
+    overlay = set(map(str, (bgp_inventory or {}).get("leak_prefixes") or ()))
+    return [
+        item
+        for item in (bgp_inventory or {}).get("originated") or []
+        if str(item.get("prefix") or "") not in overlay
+    ]
+
+
 def first_originator(bgp_inventory: Mapping[str, Any] | None) -> str:
     if not bgp_inventory:
         raise ValueError("bgp inventory required for BGP inject targets")
-    originated = list(bgp_inventory.get("originated") or [])
+    originated = _business_originated(bgp_inventory)
     if originated:
         rows = sorted(
             originated,
@@ -217,7 +243,7 @@ def hijack_speaker_and_prefix(
         raise ValueError("bgp inventory required for bgp_hijacking")
     originators = {
         str(item["device"])
-        for item in (bgp_inventory.get("originated") or [])
+        for item in _business_originated(bgp_inventory)
         if item.get("device")
     }
     nodes = sorted(
@@ -242,28 +268,13 @@ def customer_route_session(
     site = (bgp_inventory or {}).get("customer_site")
     if not isinstance(site, Mapping):
         raise ValueError(
-            "bgp_max_prefix_exceeded needs a plain eBGP ISP with a customer site"
+            "Prefix-limit combination needs an eBGP ISP with a customer site"
         )
     return {
         "receiver_name": str(site["partner"]),
         "peer_name": str(site["provider"]),
         "neighbor_ip": str(site["provider_ip"]),
     }
-
-
-def _router_backbone_link(
-    isp_inventory: Mapping[str, Any], router_device: str
-) -> tuple[str, str] | None:
-    """Return ``(router_device, iface)`` for the first backbone link involving ``router_device``."""
-    for link in sorted(
-        isp_inventory.get("links") or [],
-        key=lambda item: str(item.get("link_id") or ""),
-    ):
-        for side in ("endpoint_a", "endpoint_b"):
-            ep = link.get(side) or {}
-            if ep.get("device") == router_device and ep.get("iface"):
-                return str(router_device), str(ep["iface"])
-    return None
 
 
 def _originated_prefix_for_device(
@@ -274,7 +285,7 @@ def _originated_prefix_for_device(
     rows = sorted(
         (
             item
-            for item in (bgp_inventory.get("originated") or [])
+            for item in _business_originated(bgp_inventory)
             if str(item.get("device") or "") == router_device and item.get("prefix")
         ),
         key=lambda item: str(item.get("prefix") or ""),
@@ -296,7 +307,7 @@ def isp_bgp_symptom_targets(
     if problem == "bgp_blackhole_community_leak":
         observer = str(bgp_inventory.get("data_plane_observer_host") or "")
         ping_addr = str(bgp_inventory.get("target_ping_address") or "")
-        leaker = str(bgp_inventory.get("leaker_device") or router_device)
+        leaker = rtbh_leaker(bgp_inventory) or router_device
         if observer and ping_addr:
             return {
                 "symptom_host": observer,
@@ -400,24 +411,13 @@ def isp_inject_params(
     if problem == BGP_HIJACK_PROBLEM:
         host, prefix = hijack_speaker_and_prefix(bgp_inventory)
         return {"host_name": host, "target_network": prefix}
-    if problem == BGP_RPKI_LEAK_PROBLEM:
-        if not bgp_inventory or not bgp_inventory.get("rpki"):
-            raise ValueError(
-                "bgp_rpki_invalid_route_leak requires ISP eBGP RPKI inventory"
-            )
-        leaker = bgp_inventory.get("leaker_device")
-        if not leaker:
-            raise ValueError("bgp inventory missing leaker_device")
-        return {"host_name": str(leaker)}
     if problem == BGP_RTBH_LEAK_PROBLEM:
         if not bgp_inventory or not bgp_inventory.get("rtbh"):
             raise ValueError(
                 "bgp_blackhole_community_leak requires ISP eBGP RTBH inventory"
             )
-        leaker = bgp_inventory.get("leaker_device")
+        leaker = rtbh_leaker(bgp_inventory)
         if not leaker:
             raise ValueError("bgp inventory missing leaker_device")
         return {"host_name": str(leaker)}
-    if problem == BGP_MAX_PREFIX_PROBLEM:
-        return customer_route_session(bgp_inventory)
     raise ValueError(f"unsupported isp inject problem: {problem!r}")

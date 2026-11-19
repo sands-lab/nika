@@ -83,6 +83,7 @@ class VrfRouteTargetMismatch(ProblemBase):
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name = "vrf_route_target_mismatch"
+    CONFUSABLE_WITH = ("wireguard_allowed_ips_misconfiguration",)
     description = (
         "A business VRF's import source does not match the overlay routing domain."
     )
@@ -307,7 +308,7 @@ class VrfRouteTargetMismatch(ProblemBase):
                     shell(
                         params.host_name,
                         vtysh("show running-config")
-                        + f" | sed -n '/^router bgp [0-9]* vrf {lan.vrf}$/,/^exit$/p'; "
+                        + "; "
                         + vtysh(
                             "show bgp summary",
                             f"show ip route vrf {lan.vrf} {prefix}",

@@ -9,10 +9,15 @@ import time
 
 from pydantic import BaseModel, Field
 
+from nika.net_env.utils.routeros.parse import (
+    routeros_connection_address_match,
+    routeros_terse_rows,
+)
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.support.oracle import (
     Check,
+    router_cli,
     OraclePlaybook,
     OracleStep,
     all_of,
@@ -24,10 +29,8 @@ from nika.problems.support.recovery import FileSnapshot, IPv4Snapshot, checked_e
 from nika.problems.support.router_ops import native_fault_ops
 from nika.traffic.workload import NAT_SESSIONS, VIP_KEEPALIVE_SESSIONS
 
-# Gateway L4 agent files, as an operator finds them on the gateway.
-_LB_STATUS = "/var/lib/lb-agent/status.json"
+# Gateway L4 agent configuration, retained only for injection and recovery.
 _LB_CONFIG = "/etc/lb-agent/config.json"
-_LB_LOG = "/tmp/lb-agent.log"
 
 
 def _json_field(output: str, key: str) -> float | None:
@@ -84,31 +87,22 @@ def _lb_agent_steps(
     gateway: str, peer: str | None, *, status_check: Check, config_check: Check
 ) -> list[OracleStep]:
     steps = [
-        shell(
-            gateway,
-            f"cat {_LB_STATUS}; echo",
-            f"Read the L4 connection learner's live status on {gateway}.",
-            status_check,
+        OracleStep(
+            f"Read the LB management state on {gateway}.",
+            "lb_get_state",
+            {"gateway": gateway},
+            all_of(status_check, config_check),
             evidence=True,
-        ),
+            attempts=6,
+            interval_sec=5,
+        )
     ]
     if peer:
         steps.append(
-            shell(
-                peer,
-                f"cat {_LB_STATUS}; echo",
-                f"Compare with the learner on {peer}, a healthy gateway.",
+            OracleStep(
+                f"Compare LB occupancy on {peer}.", "lb_get_state", {"gateway": peer}
             )
         )
-    steps.append(
-        shell(
-            gateway,
-            f"cat {_LB_CONFIG}",
-            f"Read the learner configuration on {gateway}.",
-            config_check,
-            evidence=True,
-        )
-    )
     return steps
 
 
@@ -129,6 +123,7 @@ class LbConnectionStateExhaustion(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "gray"
     root_cause_name = "lb_connection_state_exhaustion"
+    CONFUSABLE_WITH = ("snat_port_pool_exhaustion",)
     description = "Load-balancer connection-state table is exhausted."
     symptom_desc = (
         "The gateway L4 agent's connection limit is below what its client site "
@@ -173,13 +168,14 @@ class LbConnectionStateExhaustion(ProblemBase):
             ),
         )
         steps += [
-            shell(
-                gateway,
-                f"grep -E 'lb_conn_table full|backend reset|pool update' {_LB_LOG} "
-                "| tail -15",
-                f"Read the learner log on {gateway}: new connections are not learned "
-                "because lb_conn_table is full.",
-                contains(r"lb_conn_table full", "the log reports lb_conn_table full"),
+            OracleStep(
+                f"Check connection admission failures on {gateway}.",
+                "lb_get_state",
+                {"gateway": gateway},
+                Check(
+                    "the full connection table rejects new admissions",
+                    lambda out: json.loads(out).get("insert_failures", 0) > 0,
+                ),
                 evidence=True,
                 attempts=6,
                 interval_sec=10,
@@ -189,8 +185,8 @@ class LbConnectionStateExhaustion(ProblemBase):
                 "p4rt_exec",
                 {"args": f"read-table --switch {gateway} --table lb_conn_table"},
                 Check(
-                    f"lb_conn_table holds between 1 and {limit} entries",
-                    lambda o: 1 <= o.count('"set_lb_dip"') <= limit,
+                    f"lb_conn_table occupancy is at or above its configured limit {limit}",
+                    lambda o: len(json.loads(o)["tables"]["lb_conn_table"]) >= limit,
                 ),
                 evidence=True,
             ),
@@ -272,6 +268,7 @@ class LbPendingConnectionUpdateRace(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "gray"
     root_cause_name = "lb_pending_connection_update_race"
+    CONFUSABLE_WITH = ("nat_mapping_removed_without_drain",)
     description = "Pending connection races an unsafe load-balancer pool update."
     symptom_desc = (
         "Connection learning lags, so connections opened shortly before a routine "
@@ -328,16 +325,18 @@ class LbPendingConnectionUpdateRace(ProblemBase):
             ),
         )
         steps.append(
-            shell(
-                gateway,
-                f"grep -E 'pool update|backend reset|lb_conn_table full' {_LB_LOG} "
-                "| tail -15",
-                f"Read the learner log on {gateway}: pool updates run while "
-                "connections are still pending.",
-                contains(
-                    r"WARNING pool update with \d+ connection\(s\) not yet in lb_conn_table",
-                    "a pool update ran with connections not yet learned",
+            OracleStep(
+                f"Read pool update events on {gateway}.",
+                "lb_get_state",
+                {"gateway": gateway},
+                Check(
+                    "a pool update occurred while connections were pending",
+                    lambda out: any(
+                        event["pending"] > 0
+                        for event in json.loads(out).get("update_events", [])
+                    ),
                 ),
+                evidence=True,
                 attempts=8,
                 interval_sec=15,
             )
@@ -428,6 +427,10 @@ class SnatPortPoolExhaustion(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "snat_port_pool_exhaustion"
+    CONFUSABLE_WITH = (
+        "lb_connection_state_exhaustion",
+        "nat_mapping_removed_without_drain",
+    )
     description = "SNAT source-port pool is exhausted."
     symptom_desc = "The available SNAT source-port pool is exhausted for concurrent outbound connections."
     TAGS = ["vpn", "http", "nat"]
@@ -459,51 +462,199 @@ class SnatPortPoolExhaustion(ProblemBase):
         return [node_resource(params.host_name)]
 
     def oracle_playbook(self, params: SnatPortPoolExhaustionParams) -> OraclePlaybook:
+        from nika.problems.support.nat_sessions import (
+            start_connections,
+            stop_connections,
+        )
+
         edge, public = params.host_name, params.public_ip
         first, last = params.port_start, params.port_end
         size = last - first + 1
-        ports_in_use = (
-            f"conntrack -L -p tcp --reply-dst {public} 2>/dev/null "
-            f"| grep -oE 'dst={re.escape(public)} sport=[0-9]+ dport=[0-9]+' "
-            f"| sed 's/.*dport=//' | awk '$1>={first} && $1<={last}' | sort -u "
-            "| wc -l | sed 's/^/ports_in_use /'"
+        service = self.net_env.nat_probe_server()
+        workload = self.net_env.business_workload()
+        if service is None or workload is None:
+            raise ValueError("SNAT reference requires a declared public HTTP service")
+        server, address = service
+        process = next(
+            p for p in workload.processes if p.node == server and p.app == "web_service"
+        )
+        args = list(process.args)
+        port = int(args[args.index("--port") + 1]) if "--port" in args else 80
+        candidates = [
+            name
+            for name, identity in self.net_env.machine_identities.items()
+            if getattr(identity.role, "value", identity.role) in {"host", "server"}
+            and "linux" in identity.capabilities
+        ]
+        prefix = ipaddress.ip_network(params.source_prefix)
+        key = f"snat_connections:{edge}:{public}"
+
+        def client(outputs):
+            for name in candidates:
+                for value in re.findall(
+                    r"\binet\s+(\S+)", outputs.get(f"{key}:{name}", "")
+                ):
+                    if ipaddress.ip_interface(value).ip in prefix:
+                        return name
+            raise ValueError("No observed Linux host belongs to the SNAT source prefix")
+
+        def connection_args(outputs):
+            return {
+                "host_name": client(outputs),
+                "command": start_connections(address, port, size + 16),
+                "timeout": 15,
+            }
+
+        def cleanup_args(outputs):
+            return {
+                "host_name": client(outputs),
+                "command": stop_connections(outputs[key]),
+                "timeout": 10,
+            }
+
+        address_steps = [
+            shell(
+                name,
+                "ip -4 -o addr show scope global",
+                f"Read {name} addresses to locate the SNAT client.",
+                save_as=f"{key}:{name}",
+            )
+            for name in candidates
+        ]
+        ports_in_use = f"conntrack -L -p tcp --reply-dst {public}"
+        # Project and deduplicate only pool ports inside RouterOS. Full connection
+        # rows exceed the normal tool output budget before Python can count them.
+        routeros_ports = (
+            ':local used [:toarray ""]; '
+            ":foreach row in=[/ip firewall connection print detail as-value where "
+            f"protocol=tcp and ({routeros_connection_address_match('reply-dst-address', public)})] do={{"
+            ':local address [:tostr ($row->"reply-dst-address")]; '
+            ':local port ($row->"reply-dst-port"); '
+            ':if ([:typeof $port]="nil") do={'
+            ':set port [:pick $address ([:find $address ":"]+1) [:len $address]]; }; '
+            ":set port [:tonum $port]; "
+            ':if ([:typeof $port]="num") do={'
+            f":if (($port>={first}) && ($port<={last})) do={{"
+            ":set ($used->[:tostr $port]) true; }; }; }; "
+            ":foreach port,value in=$used do={"
+            f':put ("reply-dst-address={public}:" . $port); }}'
         )
 
         def pool_full(output: str) -> bool:
-            match = re.search(r"^ports_in_use (\d+)$", output, re.M)
-            return bool(match) and int(match.group(1)) >= 0.9 * size
+            ports = set()
+            for summary in re.findall(
+                rf"^REPLY_DST_PORTS {re.escape(public)} \[([0-9,-]+)\]$",
+                output,
+                re.MULTILINE,
+            ):
+                for item in summary.split(","):
+                    bounds = item.split("-", 1)
+                    lower, upper = int(bounds[0]), int(bounds[-1])
+                    ports.update(range(max(first, lower), min(last, upper) + 1))
+            ports.update(
+                {
+                    int(match[1])
+                    for line in output.splitlines()
+                    if (
+                        match := re.search(
+                            rf"dst={re.escape(public)} sport=\d+ dport=(\d+)", line
+                        )
+                    )
+                    and first <= int(match[1]) <= last
+                }
+            )
+            ports.update(
+                int(value)
+                for value in re.findall(
+                    rf"reply-dst-address={re.escape(public)}:(\d+)", output
+                )
+                if first <= int(value) <= last
+            )
+            ports.update(
+                int(port)
+                for row in routeros_terse_rows(output)
+                if row.get("reply-dst-address") == public
+                and (port := row.get("reply-dst-port", "")).isdigit()
+                and first <= int(port) <= last
+            )
+            ports.update(
+                int(value)
+                for value in re.findall(rf"=> {re.escape(public)}:(\d+)", output)
+                if first <= int(value) <= last
+            )
+            return len(ports) >= 0.9 * size
 
         return OraclePlaybook(
             finding=(
                 f"A source NAT rule on {edge} translates {params.source_prefix} to "
-                f"{public} with only ports {first}-{last}, and the site's concurrent "
-                "sessions hold every port, so new outbound connections cannot be "
+                f"{public} with only ports {first}-{last}, and concurrent "
+                "diagnostic connections fill the pool, so excess outbound connections cannot be "
                 "translated."
             ),
             steps=[
-                shell(
+                router_cli(
+                    self.net_env,
                     edge,
-                    "nft -a list chain ip nat POSTROUTING 2>&1 | head -40",
-                    f"Read the source NAT rules on {edge}.",
-                    contains(
-                        rf"ip saddr {re.escape(params.source_prefix)} .*snat to "
-                        rf"{re.escape(public)}:{first}-{last}\b",
-                        f"{params.source_prefix} is translated to {public}:{first}-{last}",
+                    f"Read source NAT policy on {edge}.",
+                    Check(
+                        "the source prefix uses the restricted public port pool",
+                        lambda out: (
+                            bool(
+                                re.search(
+                                    rf"ip saddr {re.escape(params.source_prefix)} .*snat to {re.escape(public)}:{first}-{last}\b",
+                                    out,
+                                )
+                            )
+                            or any(
+                                f"src-address={params.source_prefix}" in line
+                                and f"to-addresses={public}" in line
+                                and f"to-ports={first}-{last}" in line
+                                and "action=src-nat" in line
+                                for line in out.splitlines()
+                            )
+                        ),
                     ),
+                    frr="nft -a list chain ip nat POSTROUTING",
+                    routeros_command="/ip firewall nat print terse",
                     evidence=True,
                 ),
-                shell(
+                *address_steps,
+                OracleStep(
+                    "Hold bounded HTTP connections while measuring the translated port pool.",
+                    "exec_shell",
+                    connection_args,
+                    Check(
+                        "some excess connections fail while at most the pool size connect",
+                        lambda out: (
+                            0 < (_json_field(out, "connected") or 0) <= size
+                            and (_json_field(out, "failed") or 0) > 0
+                        ),
+                    ),
+                    evidence=True,
+                    save_as=key,
+                ),
+                router_cli(
+                    self.net_env,
                     edge,
-                    f"echo pool_size {size}; {ports_in_use}; "
-                    "conntrack -C 2>/dev/null | sed 's/^/conntrack_entries /'",
                     f"Count the translated source ports in use on {public}.",
                     Check(
                         f"at least 90% of the {size} pool ports are mapped",
                         pool_full,
                     ),
+                    frr=ports_in_use,
+                    routeros_command=routeros_ports,
                     evidence=True,
                     attempts=3,
                     interval_sec=10,
+                ),
+                OracleStep(
+                    "Close the owned diagnostic connections and remove their private files.",
+                    "exec_shell",
+                    cleanup_args,
+                    Check(
+                        "the owned connection diagnostic is removed",
+                        lambda out: json.loads(out).get("stopped") is True,
+                    ),
                 ),
             ],
         )
@@ -646,6 +797,7 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name = "nat_mapping_removed_without_drain"
+    CONFUSABLE_WITH = ("lb_pending_connection_update_race", "snat_port_pool_exhaustion")
     description = "NAT mapping is removed before active flows drain."
     symptom_desc = (
         "An active SNAT address is removed without draining its conntrack mappings."
@@ -690,7 +842,15 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
     def oracle_playbook(
         self, params: NatMappingRemovedWithoutDrainParams
     ) -> OraclePlaybook:
+        from nika.net_env.utils.routeros.common import routeros_port
+        from nika.problems.support.router_ops import native_router_profile
+
         edge, wan = params.host_name, params.wan_interface
+        native_wan = (
+            routeros_port(self.net_env, edge, wan)
+            if native_router_profile(self.net_env, edge) == "routeros"
+            else wan
+        )
         old, new = params.nat_ip_a, params.nat_ip_b
         prefix = params.source_prefix
         server = _public_service_node(self.net_env)
@@ -701,52 +861,84 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
                 f"translated to {old} lost their mappings."
             ),
             steps=[
-                shell(
+                router_cli(
+                    self.net_env,
                     edge,
-                    f"ip -4 -br addr show dev {wan}",
-                    f"Read the WAN addresses on {edge}:{wan}.",
+                    f"Read WAN addresses on {edge}:{wan}.",
                     Check(
-                        f"{new} is configured and {old} is gone",
-                        lambda o: (
-                            bool(re.search(rf"\b{re.escape(new)}/", o))
-                            and not re.search(rf"\b{re.escape(old)}/", o)
+                        f"{new} is present and {old} is absent",
+                        lambda out: (
+                            bool(re.search(rf"\b{re.escape(new)}/", out))
+                            and not re.search(rf"\b{re.escape(old)}/", out)
                         ),
+                    ),
+                    frr=f"ip -4 -br addr show dev {wan}",
+                    routeros_command=f"/ip address print terse where interface={native_wan}",
+                    evidence=True,
+                ),
+                router_cli(
+                    self.net_env,
+                    edge,
+                    "Read the current source NAT address.",
+                    Check(
+                        f"the source prefix translates to {new}",
+                        lambda out: (
+                            bool(
+                                re.search(
+                                    rf"ip saddr {re.escape(prefix)} .*snat to {re.escape(new)}\b",
+                                    out,
+                                )
+                            )
+                            or any(
+                                f"src-address={prefix}" in line
+                                and f"to-addresses={new}" in line
+                                for line in out.splitlines()
+                            )
+                        ),
+                    ),
+                    frr="nft -a list chain ip nat POSTROUTING",
+                    routeros_command="/ip firewall nat print terse",
+                    evidence=True,
+                ),
+                router_cli(
+                    self.net_env,
+                    edge,
+                    f"Read old NAT mappings on {old}.",
+                    Check(
+                        "no mapping remains on the old address",
+                        lambda out: (
+                            bool(re.search(r"0 flow entries have been shown", out))
+                            or ("total-entries=0" in out)
+                            or bool(re.search(r"^\s*0\s*$", out))
+                        ),
+                    ),
+                    frr=f"conntrack -L -p tcp -s {prefix} --reply-dst {old}",
+                    routeros_command=(
+                        "/ip firewall connection print count-only where protocol=tcp and "
+                        f"({routeros_connection_address_match('reply-dst-address', old)})"
                     ),
                     evidence=True,
                 ),
-                shell(
+                router_cli(
+                    self.net_env,
                     edge,
-                    "nft -a list chain ip nat POSTROUTING 2>&1 | head -40",
-                    f"Read the source NAT rules on {edge}.",
-                    contains(
-                        rf"ip saddr {re.escape(prefix)} .*snat to {re.escape(new)}\b",
-                        f"{prefix} now translates to {new}",
-                    ),
-                    evidence=True,
-                ),
-                shell(
-                    edge,
-                    # conntrack reports its count on stderr, so a missing tool
-                    # or a rejected filter cannot read as "0 mappings".
-                    f"echo mappings_on_old $(conntrack -L -p tcp -s {prefix} "
-                    f"--reply-dst {old} 2>&1 >/dev/null); "
-                    f"echo mappings_on_new $(conntrack -L -p tcp -s {prefix} "
-                    f"--reply-dst {new} 2>&1 >/dev/null)",
-                    f"Inspect {prefix}'s NAT mappings: they moved to {new} and none "
-                    f"remain on {old}.",
-                    all_of(
-                        contains(
-                            r"^mappings_on_old conntrack \S+ \(conntrack-tools\): "
-                            r"0 flow entries have been shown\.$",
-                            f"conntrack lists no mapping on {old}",
-                        ),
-                        contains(
-                            r"^mappings_on_new conntrack \S+ \(conntrack-tools\): "
-                            r"[1-9]\d* flow entries have been shown\.$",
-                            f"conntrack lists the prefix's mappings on {new}",
+                    f"Read new NAT mappings on {new}.",
+                    Check(
+                        "mappings exist on the new address",
+                        lambda out: (
+                            bool(
+                                re.search(r"[1-9]\d* flow entries have been shown", out)
+                            )
+                            or bool(re.search(r"^\s*[1-9]\d*\s*$", out))
                         ),
                     ),
+                    frr=f"conntrack -L -p tcp -s {prefix} --reply-dst {new}",
+                    routeros_command=(
+                        "/ip firewall connection print count-only where protocol=tcp and "
+                        f"({routeros_connection_address_match('reply-dst-address', new)})"
+                    ),
                     evidence=True,
+                    attempts=3,
                 ),
                 *(
                     [

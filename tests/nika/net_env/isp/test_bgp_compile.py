@@ -202,6 +202,23 @@ def test_dfn_bwin_ebgp_rtbh_profile() -> None:
     assert inv.get("leaker_to_rtbh_neighbor_ip")
 
 
+@pytest.mark.parametrize("topology", ["abilene", "polska"])
+def test_composed_rpki_rtbh_profiles(topology: str) -> None:
+    """Both profiles keep their own roles and policies on one plan."""
+    isp_plan = compile_isp_plan(IspConfig(topology=topology, igp="ospf"))
+    rpki = compile_bgp_plan(isp_plan, "ebgp", rpki=True).inventory
+    rtbh = compile_bgp_plan(isp_plan, "ebgp", rtbh=True).inventory
+    plan = compile_bgp_plan(isp_plan, "ebgp", rpki=True, rtbh=True)
+    inv = plan.inventory
+    assert inv["rpki"] and inv["rtbh"]
+    for key in ("leaker_device", "rov_observer", "non_rov_observer", "leak_prefixes"):
+        assert inv[key] == rpki[key]
+    for key in ("rtbh_provider_device", "target_prefix", "leaker_to_rtbh_neighbor_ip"):
+        assert inv[key] == rtbh[key]
+    assert inv["rtbh_leaker_device"] == rtbh["leaker_device"]
+    assert plan.customer_site == compile_bgp_plan(isp_plan, "ebgp").customer_site
+
+
 def test_rpki_flag_enables_profile() -> None:
     isp_plan = compile_isp_plan(IspConfig(topology="abilene"))
     with_rpki = compile_bgp_plan(isp_plan, "ebgp", rpki=True)
@@ -394,5 +411,8 @@ def test_ebgp_customer_route_rides_one_session(topology: str) -> None:
         else:
             assert not exports
             assert f"network {site.prefix}" not in frag
-    assert compile_bgp_plan(isp_plan, "ebgp", rpki=True).customer_site is None
+    # Profile overlays keep the plain plan's customer site.
+    assert compile_bgp_plan(isp_plan, "ebgp", rpki=True).customer_site == site
     assert compile_bgp_plan(isp_plan, "ebgp", customer_site=False).customer_site is None
+    named = compile_bgp_plan(isp_plan, "ebgp", rpki=True, customer_site=False)
+    assert named.customer_site is None

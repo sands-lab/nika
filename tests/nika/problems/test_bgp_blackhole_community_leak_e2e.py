@@ -17,7 +17,7 @@ from tests.support.prerequisites import docker_available
 pytestmark = pytest.mark.e2e
 
 PROBLEM = "bgp_blackhole_community_leak"
-ENV_ARGS: list[str] = []
+ENV_ARGS: list[str] = ["--igp", "ospf", "--bgp-mode", "ebgp"]
 
 
 def _rtbh_roles(topology: str) -> dict[str, str]:
@@ -66,8 +66,8 @@ class TestBGPBlackholeCommunityLeakE2E(IntegrationTestCase):
     @pytest.mark.parametrize(
         ("scenario", "topology"),
         (
-            ("isp_abilene_ebgp_rtbh", "abilene"),
-            ("isp_dfn-bwin_ebgp_rtbh", "dfn-bwin"),
+            ("isp_abilene", "abilene"),
+            ("isp_dfn-bwin", "dfn-bwin"),
         ),
     )
     def test_rtbh_community_leak_cycle(self, scenario: str, topology: str) -> None:

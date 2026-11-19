@@ -94,16 +94,15 @@ def test_bgp_mode_ibgp_rr_accepted() -> None:
     assert "topo" not in kwargs
 
 
-def test_isp_named_rpki_rejects_overrides() -> None:
-    with pytest.raises(ValueError, match="fixed protocol profile"):
-        _resolve_isp_kwargs(
-            "isp_abilene_ebgp_rpki", **_kwargs(bgp_mode="ebgp", rpki=True)
-        )
+@pytest.mark.parametrize("rpki", [None, False, True])
+def test_isp_ebgp_records_automatic_rpki(rpki) -> None:
+    kwargs = _resolve_isp_kwargs("isp_abilene", **_kwargs(bgp_mode="ebgp", rpki=rpki))
+    assert kwargs["rpki"] is True
 
 
-def test_isp_base_rejects_rpki_flag() -> None:
-    with pytest.raises(ValueError, match="named scenario"):
-        _resolve_isp_kwargs("isp_abilene", **_kwargs(bgp_mode="ebgp", rpki=True))
+def test_isp_rejects_rpki_without_ebgp() -> None:
+    with pytest.raises(ValueError, match="ebgp"):
+        _resolve_isp_kwargs("isp_abilene", **_kwargs(bgp_mode="ibgp_rr", rpki=True))
 
 
 def test_isp_rejects_explicit_topo() -> None:

@@ -403,7 +403,7 @@ class NetworkEnvBase:
             return
         import time
 
-        from nika.problems.support.dhcp import prepare_dns_renewal_hook
+        from nika.problems.support.dhcp import prepare_dhcp_renewal_hooks
         from nika.problems.support.frr import frr_save_config
         from nika.utils.parallel import bounded_parallel_map
 
@@ -414,7 +414,7 @@ class NetworkEnvBase:
         )
         timestamp = time.time()
         bounded_parallel_map(
-            lambda host: prepare_dns_renewal_hook(runtime, host, timestamp),
+            lambda host: prepare_dhcp_renewal_hooks(runtime, host, timestamp),
             self.hosts or [],
         )
         self.align_saved_configs()
@@ -494,8 +494,8 @@ class NetworkEnvBase:
     def nat_probe_server(self) -> tuple[str, str] | None:
         """An outside ``(node, ipv4)`` Linux server that NATed hosts reach.
 
-        NAT symptom probes listen there. ``None`` makes them use the edge's
-        WAN next hop, which must then run Linux.
+        NAT checks use its declared HTTP workload service. ``None`` makes
+        them use the edge's WAN next hop.
         """
         return None
 

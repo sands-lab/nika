@@ -16,6 +16,7 @@ from nika.net_env.isp.bgp import (
     BgpPlan,
     IspBgpMode,
     compile_bgp_plan,
+    default_ebgp_profiles,
     merge_frr_conf,
     normalize_bgp_mode,
     render_bgp_frr_fragment,
@@ -23,6 +24,7 @@ from nika.net_env.isp.bgp import (
 )
 from nika.net_env.isp.brief import (
     design_notes,
+    security_profile_notes,
     ebgp_scope_note,
     format_isp_network_info,
     stub_probe_intent,
@@ -77,6 +79,9 @@ class Isp(IspRendered, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
+    # eBGP deployments carry the RPKI/ROV and RTBH profiles where the AS
+    # partition supports them (``default_ebgp_profiles``). Named profile
+    # scenarios select their own profile.
 
     def __init__(
         self,
@@ -94,9 +99,6 @@ class Isp(IspRendered, NetworkEnvBase):
         rendered: bool = True,
         **kwargs,
     ):
-        # Ignore legacy kwargs from old sessions.
-        kwargs.pop("traffic_mode", None)
-        kwargs.pop("traffic_scale", None)
         super().__init__(**kwargs)
         # Routers whose dead watchfrr startup verification re-spawned (once each).
         self._frr_healed: set[str] = set()
@@ -137,8 +139,6 @@ class Isp(IspRendered, NetworkEnvBase):
             raise ValueError(
                 f"RTBH capability requires bgp_mode 'ebgp' (got {self.bgp_mode!r})."
             )
-        if self.rpki and self.rtbh:
-            raise ValueError("RPKI and RTBH capabilities are mutually exclusive.")
         from nika.net_env.isp.profiles import (
             default_device_profile,
             normalize_device_profile,
@@ -161,8 +161,17 @@ class Isp(IspRendered, NetworkEnvBase):
             constant_metric=constant_metric,
         )
         base_plan = compile_isp_plan(config)
+        if self.bgp_mode == "ebgp":
+            profiles = default_ebgp_profiles(base_plan)
+            self.rpki = self.rpki or profiles["rpki"]
+            self.rtbh = self.rtbh or profiles["rtbh"]
         self.bgp_plan: BgpPlan | None = compile_bgp_plan(
-            base_plan, self.bgp_mode, rpki=self.rpki, rtbh=self.rtbh
+            base_plan,
+            self.bgp_mode,
+            rpki=self.rpki,
+            rtbh=self.rtbh,
+            # Named profile scenarios omit the customer site.
+            customer_site=True,
         )
         base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
         if routing_parameters is not None:
@@ -234,6 +243,8 @@ class Isp(IspRendered, NetworkEnvBase):
         self.design_note = design_notes(
             self.plan, self.bgp_plan, workload=self.business_workload()
         )
+        if self.bgp_plan is not None:
+            self.desc += security_profile_notes(self.bgp_plan.inventory)
         self.desc += self.design_note
 
         if self.bgp_plan is not None:
@@ -274,6 +285,14 @@ class Isp(IspRendered, NetworkEnvBase):
         self.deployment_configs: dict[str, str] = {}
         for node in self.plan.nodes:
             machine = self.lab.new_machine(node.device_name, **machine_opts)
+            if self.plan.igp == "ospf":
+                # ospfd can join AllSPFRouters and AllDRouters per active port.
+                # Set the namespace limit before Docker starts the router.
+                memberships = 2 * sum(not iface.passive for iface in node.interfaces)
+                if memberships > 20:
+                    machine.add_meta(
+                        "sysctl", f"net.ipv4.igmp_max_memberships={memberships}"
+                    )
             capabilities = ["linux", "frr", self.plan.igp]
             if self.bgp_plan is not None:
                 capabilities.append("bgp")
@@ -432,8 +451,6 @@ class Isp(IspRendered, NetworkEnvBase):
         router = str(rtr.get("router") or "")
         if not router:
             raise RuntimeError("RPKI inventory missing rpki_rtr.router")
-        node = next(n for n in self.plan.nodes if n.device_name == router)
-        router_iface = f"eth{len(node.interfaces)}"
         collision = str(rtr.get("collision_domain") or RPKI_COLLISION_DOMAIN)
         router_address = str(rtr.get("router_address") or RPKI_ROUTER_ADDRESS)
         routinator_address = str(rtr.get("address") or RPKI_ROUTINATOR_ADDRESS)
@@ -458,7 +475,8 @@ class Isp(IspRendered, NetworkEnvBase):
             role=NodeRole.INFRASTRUCTURE,
             capabilities=("linux", "rpki", "rtr"),
         )
-        self.lab.connect_machine_to_link(router, collision)
+        _, interface = self.lab.connect_machine_to_link(router, collision)
+        router_iface = f"eth{interface.num}"
         self.lab.connect_machine_to_link(machine_name, collision)
 
         slurm_body = json.dumps(slurm_document(), indent=2) + "\n"

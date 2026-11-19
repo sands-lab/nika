@@ -1,6 +1,6 @@
 import ipaddress
 import re
-import shlex
+from contextlib import nullcontext
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -19,7 +19,6 @@ from nika.problems.base import (
 )
 from nika.problems.support.benchmark_targets import (
     choice_distinct,
-    device_interfaces,
     endpoint_target,
     conflict_hosts,
     require_distinct_hosts,
@@ -31,7 +30,9 @@ from nika.problems.support.benchmark_targets import (
 )
 from nika.problems.support.dhcp import (
     DHCP_LEASE_CMD,
+    segment_router,
     DNS_RENEWAL_HOOK,
+    ADDRESS_RENEWAL_HOOK,
     default_gateway,
     dhcp_client_step,
     first_nameserver,
@@ -41,17 +42,18 @@ from nika.problems.support.dhcp import (
 from nika.problems.addressing_neighbor_naming.dns import (
     _parse_web_url,
 )
-from nika.problems.rca.inventory import iter_link_termination_points
 from nika.problems.support.dns import dns_host_for_domain
-from nika.problems.support.file_metadata import preserve_mtime
+from nika.problems.support.file_metadata import preserve_mtime, refresh_peer_metadata
 from nika.problems.support.oracle import (
     Check,
+    router_cli,
     OraclePlaybook,
     OracleStep,
     all_of,
     contains,
     lacks,
     shell,
+    compare,
 )
 from nika.problems.support.recovery import FileSnapshot, IPv4Snapshot, route_lines
 from nika.utils.logger import system_logger
@@ -61,8 +63,8 @@ from nika.utils.logger import system_logger
 # Oracle helpers: running interface config against the boot config
 # ------------------------------------------------------------------
 
-# Kathara runs each node's startup script under ``set -x`` into this log, so
-# it records the addresses and routes the node was provisioned with.
+# Kathara and Containerlab Linux endpoints trace their startup commands here.
+# The log records provisioning, independently of later fault injection.
 BOOT_LOG = "/var/log/startup.log"
 _BOOT_MARK = "--- boot config"
 
@@ -110,35 +112,23 @@ def running_vs_boot(
     return shell(node, running_vs_boot_cmd(intf), purpose, expect, evidence=True, **kw)
 
 
-def segment_peer(net_env, host: str, intf: str = "eth0") -> tuple[str, str] | None:
-    """A non-host node (the gateway) on the same link as *host*:*intf*."""
-    needle = f"{host}:{intf}"
-    hosts = set(getattr(net_env, "hosts", None) or [])
-    for _key, tps in iter_link_termination_points(net_env):
-        endpoints = [str(ep) for ep in tps]
-        if needle not in endpoints:
-            continue
-        peers = [ep.split(":", 1) for ep in endpoints if ep != needle]
-        peers.sort(key=lambda p: p[0] in hosts)
-        return (peers[0][0], peers[0][1]) if peers else None
-    return None
-
-
 def _read_host_ipv4(
     runtime,
     host_name: str,
     intf_name: str = "eth0",
 ) -> str | None:
     """Return host IPv4 CIDR on ``intf_name``, with exec fallback."""
+    from nika.problems.support.oracle import is_service_ipv4, service_addresses
+
     ip = runtime.get_host_ip(host_name, intf_name, with_prefix=True)
-    if ip:
+    if ip and is_service_ipv4(ip):
         return ip
-    line = runtime.exec(
+    output = runtime.exec(
         host_name,
-        f"ip -4 -o addr show dev {intf_name} scope global 2>/dev/null | head -1",
-    ).strip()
-    match = re.search(r"inet\s+(\S+)", line)
-    return match.group(1) if match else None
+        f"ip -4 -o addr show dev {intf_name} scope global 2>/dev/null",
+    )
+    rows = service_addresses(output, intf_name)
+    return rows[0][1] if rows else None
 
 
 def _inject_ip_change(
@@ -186,6 +176,36 @@ def _inject_ip_change(
         )
 
 
+def _override_address_renewal(
+    problem, host: str, **options: str
+) -> FileSnapshot | None:
+    runtime = problem.runtime
+    hook = ADDRESS_RENEWAL_HOOK
+    if (
+        runtime.exec(
+            host, "test -d /etc/dhcp/dhclient-enter-hooks.d && echo ready"
+        ).strip()
+        != "ready"
+    ):
+        return None
+    snapshot = FileSnapshot.capture(runtime, host, hook)
+    content = snapshot.content or ""
+    content += (
+        '\nif [ "$interface" = eth0 ]; then\n'
+        '  case "$reason" in BOUND|RENEW|REBIND|REBOOT|TIMEOUT)\n'
+        + "".join(f'    {key}="{value}"\n' for key, value in options.items())
+        + "    ;; esac\nfi\n"
+    )
+    with (
+        preserve_mtime(runtime, host, hook)
+        if snapshot.content is not None
+        else nullcontext()
+    ):
+        runtime.write_file(host, hook, content)
+    refresh_peer_metadata(runtime, problem.net_env.machine_identities, host, [hook])
+    return snapshot
+
+
 def _recover_ipv4(problem, host: str) -> dict:
     snapshot = getattr(problem, "_ipv4_snapshot", None)
     if snapshot is None:
@@ -222,39 +242,17 @@ class HostMissingIP(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "host_missing_ip"
+    CONFUSABLE_WITH = ("dhcp_service_down", "host_incorrect_ip")
     root_cause_owner = "interface"
     description = "Host interface has no IP address."
     TAGS: str = ["pc"]
     RECORDED_ATTRS = ("intf_name",)
 
     Params = HostMissingIPParams
-    BENCHMARK_COORDINATES = frozenset({"link_down"})
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return endpoint_target(ctx, with_intf=True)
-
-    @classmethod
-    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
-        # Keep the host fault off the downed link's endpoint so both are visible.
-        net_env = ctx.net_env
-        link = dict(params_by_problem["link_down"])
-        host = dict(params_by_problem["host_missing_ip"])
-        if link.get("host_name") == host.get("host_name"):
-            web_hosts = list((getattr(net_env, "servers", None) or {}).get("web") or [])
-            if web_hosts:
-                host["host_name"] = web_hosts[0]
-                ifaces = device_interfaces(net_env).get(web_hosts[0]) or ["eth0"]
-                host["intf_name"] = ifaces[0]
-            else:
-                hosts = list(net_env.hosts or [])
-                alt = next((h for h in hosts if h != link.get("host_name")), None)
-                if alt is not None:
-                    host["host_name"] = alt
-                    ifaces = device_interfaces(net_env).get(alt) or ["eth0"]
-                    host["intf_name"] = ifaces[0]
-        params_by_problem["host_missing_ip"] = host
-        return params_by_problem
 
     symptom_desc = (
         "Some hosts are unable to communicate with other devices in the network."
@@ -353,6 +351,7 @@ class HostIPConflict(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "host_ip_conflict"
+    CONFUSABLE_WITH = ("host_incorrect_ip", "mac_address_conflict")
     root_cause_owner = "interface"
     description = "Two hosts are configured with the same IP address."
     TAGS: str = ["pc"]
@@ -399,9 +398,17 @@ class HostIPConflict(ProblemBase):
 
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
+        require_l2_capability(ctx, cls.root_cause_name, "arp-broadcast")
+        pair = {inject.get("host_name"), inject.get("host_name_2")}
+        if not any(
+            pair <= set(group) and len(set(group)) >= 3
+            for group in getattr(ctx.net_env, "l2_endpoint_groups", ())
+        ):
+            raise ValueError(
+                "host_ip_conflict needs two hosts and a third on-segment observer"
+            )
         require_distinct_hosts(ctx, cls.root_cause_name, inject)
         require_same_segment(ctx, cls.root_cause_name, inject)
-        require_l2_capability(ctx, cls.root_cause_name, "arp-broadcast")
 
     symptom_desc = "Some hosts experience intermittent connectivity issues."
 
@@ -519,6 +526,7 @@ class HostIncorrectIP(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_ip"
+    CONFUSABLE_WITH = ("host_incorrect_netmask", "host_ip_conflict", "host_missing_ip")
     root_cause_owner = "interface"
     description = "Host IP address is incorrect."
     TAGS: str = ["pc"]
@@ -549,27 +557,13 @@ class HostIncorrectIP(ProblemBase):
             self.runtime, params.host_name
         )
         address = ipaddress.IPv4Interface(incorrect_ip)
-        hook = "/etc/dhcp/dhclient-enter-hooks.d/address"
-        if (
-            self.runtime.exec(
-                params.host_name,
-                "test -d /etc/dhcp/dhclient-enter-hooks.d && echo ready",
-            ).strip()
-            == "ready"
-        ):
-            self._address_renewal_snapshot = FileSnapshot.capture(
-                self.runtime, params.host_name, hook
-            )
-            content = self._address_renewal_snapshot.content or ""
-            content += (
-                '\nif [ "$interface" = eth0 ]; then\n'
-                '  case "$reason" in BOUND|RENEW|REBIND|REBOOT|TIMEOUT)\n'
-                f'    new_ip_address="{address.ip}"\n'
-                f'    new_subnet_mask="{address.network.netmask}"\n'
-                f'    new_broadcast_address="{address.network.broadcast_address}"\n'
-                "    ;; esac\nfi\n"
-            )
-            self.runtime.write_file(params.host_name, hook, content)
+        self._address_renewal_snapshot = _override_address_renewal(
+            self,
+            params.host_name,
+            new_ip_address=str(address.ip),
+            new_subnet_mask=str(address.network.netmask),
+            new_broadcast_address=str(address.network.broadcast_address),
+        )
         self._injected_ip = incorrect_ip
         self._recovery_injected_ip = incorrect_ip
         _inject_ip_change(
@@ -697,6 +691,7 @@ class HostIncorrectGateway(ProblemBase):
     symptom_probe = "path_ping"
     symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_gateway"
+    CONFUSABLE_WITH = ("dhcp_option_gateway", "host_static_blackhole")
     description = (
         "The host's own default route points at an incorrect gateway "
         "(set locally, not learned from DHCP)."
@@ -704,32 +699,10 @@ class HostIncorrectGateway(ProblemBase):
     TAGS: str = ["pc", "frr"]
 
     Params = HostIncorrectGatewayParams
-    BENCHMARK_COORDINATES = frozenset({"dns_record_error"})
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return endpoint_target(ctx)
-
-    @classmethod
-    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
-        # Misroute a client other than the DNS server so both faults are visible.
-        net_env = ctx.net_env
-        dns = dict(params_by_problem["dns_record_error"])
-        gw = dict(params_by_problem["host_incorrect_gateway"])
-        if ctx.scenario == "campus_lan":
-            dns["host_name"] = "dns_server"
-            gw["host_name"] = "pc_1_1_1_1"
-        elif dns.get("host_name") == gw.get("host_name"):
-            hosts = list(net_env.hosts or [])
-            corp = [h for h in hosts if h.endswith("_corp_pc")]
-            alt = next((h for h in corp if h != dns.get("host_name")), None)
-            if alt is None:
-                alt = next((h for h in hosts if h != dns.get("host_name")), None)
-            if alt is not None:
-                gw["host_name"] = alt
-        params_by_problem["dns_record_error"] = dns
-        params_by_problem["host_incorrect_gateway"] = gw
-        return params_by_problem
 
     symptom_desc = "Some hosts seem to be unreachable in the network."
 
@@ -890,6 +863,7 @@ class HostIncorrectNetmask(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_netmask"
+    CONFUSABLE_WITH = ("dhcp_option_subnet", "host_incorrect_ip")
     root_cause_owner = "interface"
     description = "Host netmask/prefix length is incorrect."
     TAGS: str = ["pc", "frr"]
@@ -930,6 +904,13 @@ class HostIncorrectNetmask(ProblemBase):
         ip_part = old_ip.split("/")[0]
         new_ip = f"{ip_part}/{params.netmask_prefix}"
         self._recovery_injected_ip = new_ip
+        address = ipaddress.IPv4Interface(new_ip)
+        self._address_renewal_snapshot = _override_address_renewal(
+            self,
+            params.host_name,
+            new_subnet_mask=str(address.network.netmask),
+            new_broadcast_address=str(address.network.broadcast_address),
+        )
         _inject_ip_change(
             self.runtime,
             host_name=params.host_name,
@@ -940,6 +921,9 @@ class HostIncorrectNetmask(ProblemBase):
         )
 
     def recover_fault(self, params: HostIncorrectNetmaskParams) -> dict:
+        renewal = getattr(self, "_address_renewal_snapshot", None)
+        if renewal is not None:
+            renewal.restore(self.runtime, params.host_name)
         return _recover_ipv4(self, params.host_name)
 
     def verify_fault(self, params: HostIncorrectNetmaskParams) -> dict:
@@ -972,12 +956,28 @@ class HostIncorrectNetmask(ProblemBase):
         host, prefix = params.host_name, int(params.netmask_prefix)
 
         def wrong_prefix(o: str) -> bool:
-            live, boot = live_ipv4(o), boot_ipv4(o)
+            live, intended = live_ipv4(o), boot_ipv4(o)
+            mask = lease_option(o, "subnet-mask")
+            if mask is not None:
+                try:
+                    leased_prefix = ipaddress.IPv4Network(f"0.0.0.0/{mask}").prefixlen
+                    if leased_prefix == prefix:
+                        return False
+                    if intended is None:
+                        leased_ip = re.search(r"fixed-address ([^;]+);", o)
+                        if leased_ip is None:
+                            return False
+                        intended = ipaddress.IPv4Interface(
+                            f"{leased_ip.group(1)}/{leased_prefix}"
+                        )
+                    elif leased_prefix != intended.network.prefixlen:
+                        return False
+                except ValueError:
+                    return False
             return (
-                bool(live and boot)
-                and live.ip == boot.ip
-                and live.network.prefixlen == prefix != boot.network.prefixlen
-                and lease_option(o, "subnet-mask") is None
+                bool(live and intended)
+                and live.ip == intended.ip
+                and live.network.prefixlen == prefix != intended.network.prefixlen
             )
 
         steps = [
@@ -987,24 +987,35 @@ class HostIncorrectNetmask(ProblemBase):
                 f"Compare the running prefix of {host}:eth0 with its boot config.",
                 Check(
                     f"eth0 runs /{prefix} instead of its provisioned prefix, "
-                    "not from a DHCP lease",
+                    "while its boot or DHCP record specifies another prefix",
                     wrong_prefix,
                 ),
                 evidence=True,
             )
         ]
-        peer = segment_peer(self.net_env, host)
-        if peer is not None:
-            node, intf = peer
+        node = segment_router(self.net_env, host)
+        if node is not None:
+            from nika.problems.support.oracle import is_service_ipv4
+
+            def other_prefix(output: str) -> bool:
+                cidrs = re.findall(r"\b\d+\.\d+\.\d+\.\d+/\d+\b", output)
+                data = [cidr for cidr in cidrs if is_service_ipv4(cidr)]
+                return bool(data) and all(
+                    ipaddress.ip_interface(cidr).network.prefixlen != prefix
+                    for cidr in data
+                )
+
             steps.append(
-                shell(
+                router_cli(
+                    self.net_env,
                     node,
-                    f"ip -4 -o addr show dev {shlex.quote(intf)} scope global",
-                    f"Read the prefix that {node}:{intf} uses on the same segment.",
-                    all_of(
-                        contains(r"inet \d+\.\d+\.\d+\.\d+/\d+", "it has an address"),
-                        lacks(rf"inet \S+/{prefix}\b", f"its prefix is not /{prefix}"),
-                    ),
+                    f"Read the segment router {node}'s interface prefixes.",
+                    Check("the segment router uses another prefix", other_prefix),
+                    frr="ip -4 -o addr show scope global",
+                    iosxr_command="show ipv4 interface",
+                    routeros_command="/ip address print terse",
+                    srl_command="show interface",
+                    sonic_command="show ip interfaces",
                     evidence=True,
                 )
             )
@@ -1040,6 +1051,7 @@ class HostIncorrectDNS(ProblemBase):
     symptom_probe = "http_by_name"
     symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_dns"
+    CONFUSABLE_WITH = ("dhcp_option_dns", "dns_record_error", "dns_service_down")
     description = "Host is configured with an incorrect DNS resolver."
     TAGS: str = ["dns"]
 
@@ -1096,6 +1108,16 @@ class HostIncorrectDNS(ProblemBase):
                 "/etc/resolv.conf",
                 "\n".join([*lines, f"nameserver {fake}"]) + "\n",
             )
+        refresh_peer_metadata(
+            self.runtime,
+            self.net_env.machine_identities,
+            params.host_name,
+            [
+                snapshot.path
+                for snapshot in self._dns_snapshots
+                if snapshot.content is not None
+            ],
+        )
 
     def recover_fault(self, params: HostIncorrectDNSParams) -> dict:
         snapshots = getattr(self, "_dns_snapshots", None)
@@ -1133,10 +1155,17 @@ class HostIncorrectDNS(ProblemBase):
     def oracle_playbook(self, params: HostIncorrectDNSParams) -> OraclePlaybook:
         host = params.host_name
         site, domain = next(
-            map(_parse_web_url, getattr(self.net_env, "web_urls", None) or []),
+            (
+                _parse_web_url(url.rstrip("/"))
+                for url in getattr(self.net_env, "web_urls", None) or []
+            ),
             ("web0", "local"),
         )
         name = f"{site}.{domain}"
+        records = getattr(self.net_env, "dns_records", None)
+        if records:
+            name = sorted(records)[0]
+            domain = name.split(".", 1)[1]
         dns = dns_host_for_domain(self.net_env, domain)
 
         def local_resolver(o: str) -> bool:
@@ -1175,6 +1204,41 @@ class HostIncorrectDNS(ProblemBase):
             ),
         ]
         if dns:
+            keys = []
+            for server in sorted(self.net_env.servers["dns"]):
+                key = f"dns_address_{server}"
+                keys.append(key)
+                steps.append(
+                    shell(
+                        server,
+                        "ip -4 -br addr show",
+                        f"Read the live interface addresses of DNS server {server}.",
+                        save_as=key,
+                    )
+                )
+
+            def wrong_resolver(output, observations):
+                ns = first_nameserver(output)
+                addresses = [
+                    re.findall(r"\b(\d+(?:\.\d+){3})/\d+", observations.get(key, ""))
+                    for key in keys
+                ]
+                return bool(ns and addresses and all(addresses)) and all(
+                    ns not in values for values in addresses
+                )
+
+            steps.append(
+                shell(
+                    host,
+                    "grep '^nameserver' /etc/resolv.conf",
+                    "Compare the configured resolver with the DNS servers' live addresses.",
+                    compare(
+                        "the configured resolver is not an address of a DNS server",
+                        wrong_resolver,
+                    ),
+                    evidence=True,
+                )
+            )
             steps.append(
                 shell(
                     dns,

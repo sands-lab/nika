@@ -8,8 +8,8 @@ from nika.net_env.isp.bgp.errors import BgpConfigError
 
 IspBgpMode = Literal["none", "ibgp_rr", "ebgp"]
 
-# Public ISP ``bgp_mode`` values (benchmark YAML / API). Use named RPKI scenarios
-# for ROV overlays rather than a separate rpki flag.
+# Public ISP ``bgp_mode`` values (benchmark YAML / API). Kathara FRR ``ebgp``
+# deployments carry the RPKI/ROV and RTBH profiles.
 ISP_BGP_MODES: tuple[IspBgpMode, ...] = (
     "none",
     "ibgp_rr",

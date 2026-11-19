@@ -41,7 +41,4 @@ stage_ready "inference workloads" -n llm-d -l app=llm-d-pd
 # Per-node monitoring agents send inference requests to the gateway by Service name.
 stage_run "apply /k8s/uptime-agent.yaml" kubectl --request-timeout=30s apply -f /k8s/uptime-agent.yaml
 stage_wait "uptime-agent rollout" 300 kubectl --request-timeout=15s rollout status -n monitoring daemonset/uptime-agent --timeout=5s
-# Bootstrap leaves transient Warning events (image pulls via the temporary mirror,
-# rollouts, readiness during boot). A long-running cluster would have aged them out.
-stage_run "clear bootstrap warning events" kubectl --request-timeout=30s delete events -A --field-selector type=Warning
 touch /var/run/startup-complete

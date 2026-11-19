@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from importlib import import_module
 import inspect
 from pathlib import Path
@@ -50,8 +51,6 @@ class NetEnvSpec:
     benchmark_excluded: bool = False
     # Reported as a major scenario in pool audits and coverage reports.
     coverage_major: bool = False
-    # Images need a licensed vendor download (``install.sh --with-vendor-images``).
-    licensed_images: bool = False
     # Kubernetes lab whose workload images are host-cached and sideloaded into k3s.
     k8s_image_cache: bool = False
     # Native router profiles selected with ``device_profile`` on Kathara. Each
@@ -266,133 +265,6 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
     ),
-    "iosxr_simple_bgp": NetEnvSpec(
-        lab_name="iosxr_simple_bgp",
-        module="nika.net_env.iosxr_simple_bgp.lab",
-        class_name="IosXrSimpleBGP",
-        heavy_lab=True,
-        benchmark_excluded=True,
-        licensed_images=True,
-        tags=("arp", "link", "bgp", "icmp", "iosxr", "pc"),
-        supported_backends=("kathara",),
-    ),
-    "routeros_simple_bgp": NetEnvSpec(
-        lab_name="routeros_simple_bgp",
-        module="nika.net_env.routeros_simple_bgp.lab",
-        class_name="RouterOsSimpleBGP",
-        licensed_images=True,
-        tags=("arp", "link", "bgp", "icmp", "routeros", "pc"),
-        supported_backends=("kathara",),
-    ),
-    "isp_abilene_ebgp_rtbh": NetEnvSpec(
-        lab_name="isp_abilene_ebgp_rtbh",
-        module="nika.net_env.isp.specials.rtbh",
-        class_name="IspAbileneEbgpRtbh",
-        family="isp",
-        coverage_major=True,
-        tags=(
-            "isp",
-            "sndlib",
-            "frr",
-            "ospf",
-            "bgp",
-            "ebgp",
-            "rtbh",
-            "igp",
-            "link",
-            "icmp",
-        ),
-        supported_backends=("kathara",),
-        topo_size="s",
-        deploy_defaults={"topo": "abilene", "scenario_id": "isp_abilene_ebgp_rtbh"},
-    ),
-    "isp_dfn-bwin_ebgp_rtbh": NetEnvSpec(
-        lab_name="isp_dfn-bwin_ebgp_rtbh",
-        module="nika.net_env.isp.specials.rtbh",
-        class_name="IspDfnBwinEbgpRtbh",
-        family="isp",
-        tags=(
-            "isp",
-            "sndlib",
-            "frr",
-            "ospf",
-            "bgp",
-            "ebgp",
-            "rtbh",
-            "igp",
-            "link",
-            "icmp",
-        ),
-        supported_backends=("kathara",),
-        topo_size="s",
-        deploy_defaults={
-            "topo": "dfn-bwin",
-            "scenario_id": "isp_dfn-bwin_ebgp_rtbh",
-        },
-    ),
-    "isp_abilene_ebgp_rpki": NetEnvSpec(
-        lab_name="isp_abilene_ebgp_rpki",
-        module="nika.net_env.isp.specials.rpki",
-        class_name="IspAbileneEbgpRpki",
-        family="isp",
-        coverage_major=True,
-        tags=(
-            "isp",
-            "sndlib",
-            "frr",
-            "ospf",
-            "bgp",
-            "ebgp",
-            "rpki",
-            "igp",
-            "link",
-            "icmp",
-        ),
-        supported_backends=("kathara",),
-        topo_size="s",
-        deploy_defaults={"topo": "abilene", "scenario_id": "isp_abilene_ebgp_rpki"},
-    ),
-    "isp_geant_ebgp_rpki": NetEnvSpec(
-        lab_name="isp_geant_ebgp_rpki",
-        module="nika.net_env.isp.specials.rpki",
-        class_name="IspGeantEbgpRpki",
-        family="isp",
-        tags=(
-            "isp",
-            "sndlib",
-            "frr",
-            "ospf",
-            "bgp",
-            "ebgp",
-            "rpki",
-            "igp",
-            "link",
-            "icmp",
-        ),
-        supported_backends=("kathara",),
-        topo_size="m",
-        deploy_defaults={"topo": "geant", "scenario_id": "isp_geant_ebgp_rpki"},
-    ),
-    "min3clos": NetEnvSpec(
-        lab_name="min3clos",
-        module="nika.net_env.min3clos.lab",
-        class_name="ContainerlabMin3Clos",
-        family="srl_clos",
-        coverage_major=True,
-        tags=(
-            "clos",
-            "srl",
-            "bgp",
-            "link",
-            "containerlab",
-            "fabric",
-            "forwarding_device",
-            "arp",
-        ),
-        supported_backends=("containerlab",),
-        containerlab_device_profiles=("nokia_srlinux", "sonic"),
-        topo_size=5,
-    ),
     "k8s_lab": NetEnvSpec(
         lab_name="k8s_lab",
         module="nika.net_env.k8s_lab.lab",
@@ -458,7 +330,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
 
 # Representative base topologies used for protocol-variant coverage columns.
 # Other SNDlib ``isp_<topo>`` IDs are omitted from the matrix (same capability
-# surface); named specials still appear as their own columns. The
+# surface). The
 # representative topologies are also the major ISP scenarios.
 _ISP_COVERAGE_SCENARIOS: tuple[str, ...] = (
     "isp_abilene",
@@ -601,9 +473,20 @@ def coverage_columns() -> list[str]:
     return columns
 
 
-def effective_tags(column: str) -> frozenset[str]:
-    """Tags exposed by one deployed scenario config (not class-level unions)."""
+def effective_tags(column: str, device_profile: str | None = None) -> frozenset[str]:
+    """Tags exposed by one deployed scenario config (not class-level unions).
+
+    Base ISP scenarios and their ``ebgp`` column add ``ebgp`` and, on FRR,
+    the eBGP security profiles (``rpki``, ``rtbh``) that deployment carries.
+    """
+    from nika.net_env.isp.identity import is_isp_base_topology
+
     scenario, config = parse_column(column)
+    profiles: frozenset[str] = frozenset()
+    if is_isp_base_topology(scenario) and config in (None, "ebgp"):
+        profiles = frozenset({"ebgp"})
+        if device_profile in (None, "", "frr"):
+            profiles |= isp_ebgp_profile_tags(scenario)
     if scenario in _ISP_COVERAGE_SCENARIOS and config is not None:
         if config == "isis":
             return _ISP_COVERAGE_BASE_TAGS | frozenset({"isis"})
@@ -612,9 +495,44 @@ def effective_tags(column: str) -> frozenset[str]:
         if config == "ibgp_rr":
             return _ISP_COVERAGE_BASE_TAGS | frozenset({"isis", "bgp"})
         if config == "ebgp":
-            return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp", "ebgp"})
+            return (
+                _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp", "ebgp"}) | profiles
+            )
         raise ValueError(f"Unknown isp config {config!r} for {scenario!r}")
-    return frozenset(scenario_tags(scenario))
+    return frozenset(scenario_tags(scenario)) | profiles
+
+
+def isp_deployment_has_profiles(
+    scenario: str,
+    *,
+    bgp_mode: str | None,
+    backend: str | None = None,
+    device_profile: str | None = None,
+) -> bool:
+    """Whether one ISP deployment carries the eBGP security profiles.
+
+    Kathara FRR eBGP deployments of base ISP graphs carry RPKI/ROV.
+    """
+    from nika.net_env.isp.identity import is_isp_base_topology
+
+    return (
+        is_isp_base_topology(scenario)
+        and bgp_mode == "ebgp"
+        and (backend or "kathara") == "kathara"
+        and device_profile in (None, "", "frr")
+    )
+
+
+@lru_cache(maxsize=None)
+def isp_ebgp_profile_tags(scenario: str) -> frozenset[str]:
+    """Security profiles (``rpki``, ``rtbh``) of the base ISP's FRR eBGP deployment."""
+    from nika.net_env.isp.bgp import default_ebgp_profiles
+    from nika.net_env.isp.identity import isp_topo_from_scenario
+    from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+
+    topo = isp_topo_from_scenario(scenario)
+    plan = compile_isp_plan(IspConfig(topology=topo, igp="ospf"))
+    return frozenset(name for name, on in default_ebgp_profiles(plan).items() if on)
 
 
 def scenario_path_bdp_limit_bytes(
@@ -696,7 +614,7 @@ def deployment_needs_licensed_images(
     with one needs them even when the scenario's default deployment does not.
     """
     spec = _require_scenario(scenario_name)
-    return spec.licensed_images or device_profile in (spec.device_profiles or {})
+    return device_profile in (spec.device_profiles or {})
 
 
 def deployment_licensed_images(
@@ -704,18 +622,12 @@ def deployment_licensed_images(
 ) -> tuple[str, ...]:
     """Licensed vendor images a deployment needs (empty for open images).
 
-    A native ``device_profile`` needs its vendor image; a licensed scenario
-    (``iosxr_simple_bgp``, ``routeros_simple_bgp``) needs the image of the
-    native profile its tags name.
+    A native ``device_profile`` needs its vendor image.
     """
-    from nika.net_env.native_routers import native_profiles
-
     spec = _require_scenario(scenario_name)
     profiles = set()
     if device_profile in (spec.device_profiles or {}):
         profiles.add(device_profile)
-    if spec.licensed_images:
-        profiles.update(set(spec.tags) & native_profiles())
     return tuple(
         sorted(
             import_module(f"nika.net_env.utils.{profile}.common").IMAGE
@@ -764,7 +676,6 @@ def get_net_env_instance(
     scenario_name: str,
     *,
     backend: str | None = None,
-    environment_release: str | None = None,
     **kwargs,
 ) -> NetworkEnvBase:
     """Get an instance of the specified network environment.
@@ -796,15 +707,6 @@ def get_net_env_instance(
     native = (spec.device_profiles or {}).get(merged.get("device_profile"))
     if resolved == "kathara" and native is not None:
         cls = getattr(import_module(native.module), native.class_name)
-    from nika.net_env.compat import release_environment_class
-
-    cls = release_environment_class(
-        canonical,
-        environment_release,
-        cls,
-        backend=resolved,
-        native_profile=native is not None,
-    )
     lab_name = merged.pop("lab_name", None)
     topology_file = merged.pop("topology_file", None)
     runtime_workdir = merged.pop("runtime_workdir", None)

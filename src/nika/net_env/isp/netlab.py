@@ -66,10 +66,10 @@ def netlab_topology(
         device_profile != "frr"
         or plan.igp != "ospf"
         or bgp.mode != "ebgp"
-        or bool(bgp.inventory.get("rpki")) == bool(bgp.inventory.get("rtbh"))
+        or not (bgp.inventory.get("rpki") or bgp.inventory.get("rtbh"))
     ):
         raise ValueError(
-            "netlab security overlays require FRR OSPF/eBGP and one security profile"
+            "netlab security overlays require FRR OSPF/eBGP and a security profile"
         )
     from nika.net_env.isp.iosxr import iosxr_interface
     from nika.net_env.isp.routeros import routeros_interface
@@ -350,6 +350,14 @@ def generate_netlab_configs(
     rendered_model = configs.model
     if bgp and render != "routeros":
         configs = _bind_ibgp_policies(configs, rendered_model, bgp.mode)
+    if bgp and render == "iosxr":
+        # netlab enables a global missing-policy bypass. The ISP design binds
+        # explicit policies, so retain XR's rejection of unbound eBGP routes.
+        for node in bgp.nodes:
+            if any(s.session_type == "ebgp" for s in node.sessions):
+                configs[node.device_name] += (
+                    f"\nrouter bgp {node.asn}\n no bgp unsafe-ebgp-policy\n!\n"
+                )
     if render == "frr" and bgp:
         # netlab requires unique virtual interface identities. NIKA already owns
         # one dummy interface with multiple origin addresses; bind those emitted
@@ -362,11 +370,15 @@ def generate_netlab_configs(
                     configs[node.device_name],
                     flags=re.M,
                 )
-        from nika.net_env.isp.netlab_security import apply_netlab_security_overlay
+        from nika.net_env.isp.netlab_security import (
+            apply_netlab_security_overlay,
+            apply_inter_as_policy_overlay,
+        )
 
         # The overlay checks the unchanged design against the plan and binds
         # its statements by peer address, which design changes keep.
         configs = apply_netlab_security_overlay(configs, transformed, bgp)
+        configs = apply_inter_as_policy_overlay(configs, bgp)
         # Existing incident injectors address these fixed admission policies.
         # Bind the upstream AF-qualified names consistently at definitions and
         # references; the generated prefix tests and actions remain unchanged.
@@ -432,6 +444,7 @@ def _routeros_policy_fragments(configs, transformed, plan, bgp):
     bgp_nodes = {node.device_name: node for node in bgp.nodes}
     result = dict(configs)
     business = business_prefixes(o.prefix for o in bgp.originated)
+    site = bgp.customer_site
     for name, node in transformed["nodes"].items():
         bnode = bgp_nodes[name]
         lines = ["# Policy bindings and business origins"]
@@ -465,8 +478,24 @@ def _routeros_policy_fragments(configs, transformed, plan, bgp):
             lines.append(
                 _filter_rule("POLICY-BGP-OUT", f"if (dst == {prefix}) {{ accept; }}")
             )
+        if site is not None:
+            lines.append(
+                _filter_rule(
+                    "POLICY-BGP-IN", f"if (dst == {site.prefix}) {{ accept; }}"
+                )
+            )
         for chain in ("POLICY-BGP-IN", "POLICY-BGP-OUT"):
             lines.append(_filter_rule(chain, "reject;"))
+        if site is not None and name == site.provider:
+            lines.extend(
+                [
+                    _filter_rule(
+                        "POLICY-CUSTOMER-OUT",
+                        f"if (dst == {site.prefix}) {{ accept; }}",
+                    ),
+                    _filter_rule("POLICY-CUSTOMER-OUT", "jump POLICY-BGP-OUT;"),
+                ]
+            )
         imports = dict(bnode.import_policies)
         for index, session in enumerate(
             sorted(bnode.sessions, key=lambda s: (s.remote_ip, s.remote_device))
@@ -483,10 +512,16 @@ def _routeros_policy_fragments(configs, transformed, plan, bgp):
                 lines.append(_filter_rule(chain, "jump POLICY-BGP-IN;"))
             else:
                 chain = "POLICY-BGP-IN"
+            outbound = "POLICY-BGP-OUT"
+            if site is not None:
+                if session.session_type == "ibgp":
+                    outbound = "POLICY-BGP-IN"
+                elif name == site.provider and session.remote_ip == site.partner_ip:
+                    outbound = "POLICY-CUSTOMER-OUT"
             peer = session.remote_ip.replace(".", "_")
             lines.append(
                 f"/routing/bgp/connection set [/routing/bgp/connection find name={peer}] "
-                f"input.filter={chain} output.filter-chain=POLICY-BGP-OUT local.address={session.local_ip}"
+                f"input.filter={chain} output.filter-chain={outbound} local.address={session.local_ip}"
             )
         result[name] += "\n" + "\n".join(lines) + "\n"
     return result

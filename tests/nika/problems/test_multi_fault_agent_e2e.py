@@ -1,4 +1,4 @@
-"""Agent E2E for multi-fault PMTUD black hole (cli.claude + DeepSeek)."""
+"""Agent E2E for a multi-fault task: both uplinks of a leaf lost (cli.claude + DeepSeek)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from nika.workflows.benchmark.inject_resolve import resolve_multi_inject_params
+from nika.problems.combinations import get_combination, task_placement
 from nika.utils.session_store import SessionStore
 from nika.workflows.eval.session import run_eval_metrics
 from nika.workflows.session.close import close_session
@@ -24,13 +24,19 @@ pytestmark = pytest.mark.e2e
 
 load_test_env()
 
-SCENARIO = "dc_clos"
-PROBLEMS = ["mtu_mismatch", "icmp_frag_needed_filter_misconfiguration"]
+SCENARIO = "campus_lan"
+COMBINATION = "redundant_links_both_lost"
+PROBLEMS = ["link_down", "link_down"]
 AGENT_MAX_STEPS = 40
 
 
 def _inject_params() -> dict[str, dict[str, str]]:
-    return resolve_multi_inject_params(PROBLEMS, SCENARIO, "s", seed=42)
+    row = next(
+        row
+        for row in get_combination(COMBINATION).rows()
+        if row["scenario"] == SCENARIO and "device_profile" not in row
+    )
+    return task_placement(row)
 
 
 def _assert_multi_root_causes_submitted(
@@ -47,7 +53,7 @@ def _assert_multi_root_causes_submitted(
     )
 
 
-class _MultiFaultPmtudAgentPipelineBase(OrderedPipelineTestCase):
+class _MultiFaultAgentPipelineBase(OrderedPipelineTestCase):
     llm_provider: str = ""
     model: str = ""
     agent_type: str = "cli.claude"
@@ -107,18 +113,18 @@ class _MultiFaultPmtudAgentPipelineBase(OrderedPipelineTestCase):
     ),
     reason="Docker, DEEPSEEK_API_KEY, and Claude CLI required for multi-fault agent e2e",
 )
-class TestMultiFaultPmtudAgentDeepseek(_MultiFaultPmtudAgentPipelineBase):
+class TestMultiFaultAgentDeepseek(_MultiFaultAgentPipelineBase):
     llm_provider = "deepseek"
     model = "deepseek-chat"
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
-class TestMultiFaultStackedLinkHostMockAgent(OrderedPipelineTestCase):
-    """Mock agent regression for link_down + host_missing_ip."""
+class TestMultiFaultMockAgent(OrderedPipelineTestCase):
+    """Mock agent regression for a generated multi-fault task."""
 
     agent_type = "mock"
     model = "mock-v1"
-    problems = ["link_down", "host_missing_ip"]
+    problems = PROBLEMS
     session_id: str | None = None
     session_dir: Path | None = None
     env_destroyed: bool = False
@@ -129,7 +135,7 @@ class TestMultiFaultStackedLinkHostMockAgent(OrderedPipelineTestCase):
 
     def test_step_02_inject_failure(self) -> None:
         assert self.session_id is not None
-        params = resolve_multi_inject_params(self.problems, SCENARIO, "s", seed=42)
+        params = _inject_params()
         self._inject_multi_failure(self.problems, params, session_id=self.session_id)
         self._assert_multi_failure_injected(self.problems, session_id=self.session_id)
         row = SessionStore().get_session(self.session_id)

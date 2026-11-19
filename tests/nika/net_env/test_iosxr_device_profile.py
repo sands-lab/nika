@@ -236,6 +236,7 @@ def test_netlab_sketch_runs_eligible_routers_as_xr() -> None:
     fragment = retained_netlab_fragment(leaf.routing_design.routers["spine_1"], set())
     assert "maximum-paths ebgp 32" in fragment
     assert "route-policy PASS in" in fragment
+    assert "no bgp unsafe-ebgp-policy" in fragment
 
 
 def test_routing_experiments_reject_uncovered_mixed_vendor_projections(

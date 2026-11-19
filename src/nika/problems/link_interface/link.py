@@ -1,5 +1,4 @@
 from nika.net_env.utils.endpoint_network import restore_endpoint_network
-import json
 import re
 import shlex
 import time
@@ -12,29 +11,24 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.support.oracle import (
+    interface_read,
+    interface_state,
     addr_step,
     is_ip_node,
     toward,
     Check,
     OraclePlaybook,
     OracleStep,
-    all_of,
-    contains,
-    iface_down,
-    iface_state,
-    lacks,
     shell,
 )
 from nika.problems.rca.inventory import (
     kernel_data_interface,
-    interface_on,
     iter_link_termination_points,
     link_containing_endpoint,
     parse_endpoint,
     resolve_default_intf,
 )
-from nika.problems.support.polling import wait_until
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.router_ops import native_router_profile
 from nika.problems.support.benchmark_targets import (
     CARRIER_FLAP_UP_SEC,
     endpoint_target,
@@ -43,126 +37,11 @@ from nika.problems.support.benchmark_targets import (
     resolve_link_flap_params,
     unique,
 )
-from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
-from nika.runtime.shared.containers import isolated_container_pid, run_labelled_helper
 from nika.service.containerlab.host_tc import HostTcController
-from nika.traffic.workload import BULK_TRANSIT
+from nika.traffic.workload import BULK_TRANSIT, FAN_IN_BURSTS
 from nika.utils.logger import system_logger
-
-
-_SKIP_ROUTE_PROTOS = frozenset(
-    {"kernel", "bgp", "ospf", "isis", "rip", "zebra", "dhcp", "ra"}
-)
-_SKIP_ROUTE_TYPES = frozenset({"multicast", "broadcast", "local", "nat"})
-_MAIN_TABLES = frozenset({None, 254, "254", "main"})
-_LOCAL_TABLES = frozenset({255, "255", "local"})
-_ROUTE_RESTORE_OK = "NIKA_ROUTE_OK"
-
-
-def parse_ip_route_json(raw: str) -> list[dict] | None:
-    """Parse ``ip -j route`` output into route objects; ``None`` if invalid."""
-    text = raw.strip()
-    if not text:
-        return []
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        return None
-    if isinstance(data, list):
-        return [row for row in data if isinstance(row, dict)]
-    if isinstance(data, dict):
-        return [data]
-    return None
-
-
-def _onlink(route: dict) -> bool:
-    flags = route.get("flags") or []
-    if isinstance(flags, str):
-        return "onlink" in flags.lower()
-    return any(str(flag).lower() == "onlink" for flag in flags)
-
-
-def _link_local_gateway(gateway: object) -> bool:
-    return str(gateway or "").lower().startswith("fe80:")
-
-
-def _nexthops_on_intf(route: dict, intf: str) -> list[dict]:
-    hops = route.get("nexthops")
-    if not isinstance(hops, list):
-        return []
-    usable: list[dict] = []
-    for hop in hops:
-        if not isinstance(hop, dict):
-            continue
-        hop_dev = hop.get("dev")
-        if hop_dev and str(hop_dev) != intf:
-            continue
-        if not hop.get("gateway"):
-            continue
-        usable.append(hop)
-    return usable
-
-
-def static_route_replace_command(family: str, route: dict, intf: str) -> str | None:
-    """Return ``ip route replace`` for a non-daemon, non-RA route on ``intf``.
-
-    Emits ``via`` / ``nexthop``, ``onlink``, ``src``, and ``table`` from the
-    ``ip -j route`` object. Returns ``None`` when the route cannot be expressed.
-    """
-    proto = str(route.get("protocol") or "")
-    if proto in _SKIP_ROUTE_PROTOS:
-        return None
-    dst = str(route.get("dst") or "")
-    if not dst or dst.lower().startswith(("fe80:", "ff00:", "ff02:")):
-        return None
-    rtype = str(route.get("type") or "")
-    if rtype in _SKIP_ROUTE_TYPES:
-        return None
-    table = route.get("table")
-    if table in _LOCAL_TABLES:
-        return None
-    hops = _nexthops_on_intf(route, intf)
-    raw_hops = route.get("nexthops")
-    if isinstance(raw_hops, list) and raw_hops and not hops:
-        return None
-    gateway = route.get("gateway")
-    parts = ["ip", family, "route", "replace"]
-    if rtype and rtype != "unicast":
-        parts.append(rtype)
-    parts.append(dst)
-    metric = route.get("metric")
-    prefsrc = route.get("prefsrc") or route.get("src")
-
-    def append_common() -> None:
-        if metric is not None:
-            parts.extend(["metric", str(metric)])
-        if proto:
-            parts.extend(["proto", proto])
-        if prefsrc:
-            parts.extend(["src", str(prefsrc)])
-        if table not in _MAIN_TABLES:
-            parts.extend(["table", str(table)])
-
-    if hops:
-        append_common()
-        for hop in hops:
-            parts.extend(["nexthop", "via", str(hop["gateway"])])
-            parts.extend(["dev", str(hop.get("dev") or intf)])
-            weight = hop.get("weight")
-            if weight is not None:
-                parts.extend(["weight", str(weight)])
-            if _onlink(hop) or _link_local_gateway(hop.get("gateway")):
-                parts.append("onlink")
-        return " ".join(parts)
-    if gateway:
-        parts.extend(["via", str(gateway)])
-    append_common()
-    parts.extend(["dev", intf])
-    if _onlink(route) or _link_local_gateway(gateway):
-        parts.append("onlink")
-    return " ".join(parts)
 
 
 # ------------------------------------------------------------------
@@ -178,9 +57,25 @@ def _role(net_env, node: str) -> str | None:
     return None if identity is None else getattr(identity.role, "value", identity.role)
 
 
+def _interface_states(output: str) -> set[str]:
+    """Operational carrier states from the platform's selected-interface read."""
+    states = set()
+    for state, pattern in {
+        "up": r"state UP|operstate[\" :]+UP|oper-state up|link_state\s*:\s*up|is up|^true\s*$|^Ethernet\d+.*\bup\s+up\b",
+        "down": r"state (?:DOWN|LOWERLAYERDOWN)|operstate[\" :]+DOWN|oper-state down|link_state\s*:\s*down|is (?:administratively )?down|^false\s*$|^Ethernet\d+.*\bdown\b",
+    }.items():
+        if re.search(pattern, output, re.I | re.M):
+            states.add(state)
+    return states
+
+
 def _single_homed(net_env, node: str) -> bool:
     """An end host: every path to or from it crosses its one data link."""
-    return is_ip_node(net_env, node) and _role(net_env, node) in ("host", "service")
+    return is_ip_node(net_env, node) and _role(net_env, node) in (
+        "host",
+        "server",
+        "service",
+    )
 
 
 def _remote_host(net_env, exclude: set[str]) -> str | None:
@@ -221,11 +116,18 @@ def _probe_ends(net_env, node: str, intf: str) -> tuple[str, tuple[str, str]] | 
     return src, (target[0], kernel_data_interface(net_env, *target))
 
 
-def _burst_loss_ping(dst: str, seconds: int = 12) -> str:
+def _burst_loss_ping(
+    dst: str, seconds: int = 12, carrier_intf: str | None = None
+) -> str:
     """Sample timely replies with a fresh socket so delayed echoes count as lost."""
+    carrier = ""
+    if carrier_intf is not None:
+        path = shlex.quote(f"/sys/class/net/{carrier_intf}/carrier")
+        carrier = f"carrier=$(cat {path} 2>/dev/null) || carrier=?; printf 'carrier=%s ' \"$carrier\"; "
     return (
         f"end=$(($(date +%s)+{seconds})); sent=0; received=0; "
         'while [ "$(date +%s)" -lt "$end" ]; do '
+        f"{carrier}"
         "sent=$((sent+1)); "
         f"if ping -n -c 1 -W 0.1 {shlex.quote(dst)} >/dev/null 2>&1; then "
         'received=$((received+1)); printf "icmp_seq=%s " "$sent"; fi; '
@@ -259,6 +161,32 @@ _ON_OFF_LOSS = Check(
     "probes are lost in at least two separate bursts of 3+ consecutive probes "
     "while the probes between bursts get replies (on/off outages)",
     lambda out: sum(run >= 3 for run in _loss_runs(out)) >= 2,
+)
+
+
+def _flap_loss_or_carrier(output: str) -> bool:
+    """Accept sustained loss only with repeated, complete carrier observations."""
+    if _ON_OFF_LOSS(output):
+        return True
+    summary = re.search(r"(\d+) packets transmitted, (\d+) received", output)
+    if summary is None:
+        return False
+    sent, received = map(int, summary.groups())
+    carrier = re.findall(r"carrier=([01?])", output)
+    return bool(
+        sent >= 10
+        and received <= sent
+        and (sent - received) / sent > 0.8
+        and len(carrier) == sent
+        and "?" not in carrier
+        and len(re.findall(r"0{3,}", "".join(carrier))) >= 3
+        and len(re.findall(r"1{3,}", "".join(carrier))) >= 3
+    )
+
+
+_FLAP_LOSS_OR_CARRIER = Check(
+    "loss in repeated bursts, or sustained loss with repeated carrier cycles",
+    _flap_loss_or_carrier,
 )
 
 
@@ -298,6 +226,8 @@ class LinkFailure(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "link_down"
+    NATIVE_LOG_KEYWORDS = ("mac_(local|remote)_fault",)
+    CONFUSABLE_WITH = ("link_flap",)
     description = "Carrier or operational link is down on the selected attachment."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
@@ -433,17 +363,42 @@ class LinkFailure(ProblemBase):
     def oracle_playbook(self, params: LinkFailureParams) -> OraclePlaybook:
         intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         host = params.host_name
+        started = None
+        observations = []
+
+        def stays_down(output):
+            nonlocal started
+            now = time.monotonic()
+            if started is None:
+                started = now
+            observations.append(_interface_states(output))
+            return now - started >= 12 and all(
+                states == {"down"} for states in observations
+            )
+
+        down = Check(
+            "the attachment stays down throughout a 12-second observation", stays_down
+        )
         steps = [
-            shell(
+            interface_state(
+                self.net_env,
                 host,
-                "ip -br link; ip route",
-                f"List interface states and routes on {host}, an endpoint of the unreachable paths.",
-            ),
-            iface_down(host, intf),
+                intf,
+                f"Sample {host}:{intf} to distinguish a sustained outage from carrier flapping.",
+                down,
+                evidence=True,
+                attempts=25,
+                interval_sec=0.5,
+            )
         ]
         peer = self._peer_endpoint(host, intf)
         if peer is not None:
-            steps.append(iface_down(*peer, evidence=False))
+            steps.append(
+                interface_state(
+                    self.net_env, *peer, "Read the far-end interface state."
+                )
+            )
+
         return OraclePlaybook(
             finding=f"The link on {host}:{intf} has no carrier, so every path across it is cut.",
             steps=steps,
@@ -513,15 +468,21 @@ class LinkFlapParams(BaseModel):
     )
 
 
+_ISP_PROBE_KEYS = ("symptom_host", "probe_dst_ip", "peer_host")
+
+
 class LinkFlap(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
     symptom_probe = "custom"
     symptom_class = "loss"
     dynamic_artifact = True
     root_cause_name: str = "link_flap"
+    NATIVE_LOG_KEYWORDS = ("mac_(local|remote)_fault",)
+    CONFUSABLE_WITH = ("link_down", "silent_egress_packet_loss")
     description = "Logical link flaps between up and down."
     TAGS: str = ["link"]
-    # Acts on the link through a controller-side proxy, outside the router OS.
+    # Takes the link's carrier down from outside the router OS, as a failing
+    # cable or transceiver would.
     native_router_operations = frozenset()
     BENCHMARK_LINK_PROXY = True
     supported_backends = ("kathara", "containerlab")
@@ -532,16 +493,27 @@ class LinkFlap(ProblemBase):
     BENCHMARK_TARGETS = "link"
     BENCHMARK_POINT_TO_POINT = True
 
+    @staticmethod
+    def _isp_access_link(ctx, row: dict[str, str]) -> dict[str, str]:
+        """Move a backbone link row to the access link of its probe source.
+
+        Routers reroute around a flapping backbone link as soon as its carrier
+        drops, so an ISP flap hits the single-homed access link instead, as a
+        failing customer port or optic would.
+        """
+        from nika.net_env.isp.inject_targets import edge_link_iface
+
+        intf = edge_link_iface(loaded_inventory(ctx.net_env), row["host_name"])
+        return {**row, "intf_name": intf}
+
     @classmethod
     def benchmark_inject_params(cls, ctx):
         from nika.net_env.isp.identity import is_isp_scenario
 
         if is_isp_scenario(ctx.scenario):
-            params = isp_link_target(ctx)
+            params = cls._isp_access_link(ctx, isp_link_target(ctx))
             params["down_time"] = "1"
-            params["up_time"] = (
-                CARRIER_FLAP_UP_SEC if ctx.backend == "containerlab" else "1"
-            )
+            params["up_time"] = CARRIER_FLAP_UP_SEC
             return params
         return resolve_link_flap_params(
             ctx.scenario,
@@ -554,9 +526,44 @@ class LinkFlap(ProblemBase):
 
     @classmethod
     def benchmark_inject_options(cls, ctx, base):
-        # Only the SR Linux client-facing port recovers between flap cycles.
-        if ctx.scenario == "min3clos":
-            return [base]
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            from nika.net_env.isp.inject_targets import isp_link_symptom_targets
+
+            # One access link per router, probed toward a backbone peer's host.
+            inventory = loaded_inventory(ctx.net_env)
+            aux = {
+                key: value
+                for key, value in base.items()
+                if key not in {"host_name", "intf_name", *_ISP_PROBE_KEYS}
+            }
+            bgp = inventory.get("bgp") or {}
+            asn_of = (
+                {node["device"]: node["asn"] for node in bgp.get("nodes") or []}
+                if bgp.get("bgp_mode") == "ebgp"
+                else {}
+            )
+            rows: dict[str, dict[str, str]] = {}
+            for link in inventory.get("links") or []:
+                ends = (link["endpoint_a"]["device"], link["endpoint_b"]["device"])
+                # Edge stubs of different ASes do not reach each other.
+                if asn_of and asn_of.get(ends[0]) != asn_of.get(ends[1]):
+                    continue
+                for side in ("endpoint_a", "endpoint_b"):
+                    device = str(link[side]["device"])
+                    if device in rows:
+                        continue
+                    row = {
+                        **aux,
+                        "host_name": device,
+                        "intf_name": str(link[side]["iface"]),
+                        **isp_link_symptom_targets(
+                            inventory, device, str(link[side]["iface"])
+                        ),
+                    }
+                    rows[device] = cls._isp_access_link(ctx, row)
+            return [rows[device] for device in sorted(rows)]
         return super().benchmark_inject_options(ctx, base)
 
     symptom_desc = "Users report connectivity issues to other hosts."
@@ -653,71 +660,96 @@ class LinkFlap(ProblemBase):
     def oracle_playbook(self, params: LinkFlapParams) -> OraclePlaybook:
         intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         host = params.host_name
-        steps = [
-            shell(
-                host,
-                f"ip -br link show dev {intf}; ip -s link show dev {intf} | head -8",
-                f"Inspect {host}:{intf}, the attachment on the lossy paths.",
-            )
-        ]
         period = params.down_time + params.up_time
-        state_seconds = max(8, 2 * period)
         probe_seconds = max(12, 3 * period)
-        if self.lab_backend == "containerlab":
-            steps.append(
-                shell(
-                    host,
-                    f"for i in $(seq 1 {state_seconds * 2}); do cat /sys/class/net/{intf}/operstate; "
-                    "sleep 0.5; done | sort | uniq -c",
-                    f"Sample the operational state of {host}:{intf} for {state_seconds} seconds.",
-                    all_of(
-                        contains(r"\bup$", f"{host}:{intf} is seen up"),
-                        contains(
-                            r"\b(lowerlayer)?down$", f"{host}:{intf} is seen down"
-                        ),
-                    ),
-                    evidence=True,
-                    timeout=state_seconds + 10,
-                )
-            )
-        else:
-            steps.append(
-                iface_state(
-                    host,
-                    intf,
-                    contains(r"<[^>]*LOWER_UP", f"{host}:{intf} has carrier"),
-                    f"Confirm {host}:{intf} itself is up, so the outages are not a "
-                    "persistently down port.",
-                )
-            )
+        states = set()
+
+        def changes(output):
+            states.update(_interface_states(output))
+            return states == {"up", "down"}
+
+        state_step = interface_state(
+            self.net_env,
+            host,
+            intf,
+            f"Sample {host}:{intf} until both carrier states are observed.",
+            Check("the interface transitions between up and down", changes),
+            evidence=True,
+            attempts=max(16, 4 * period),
+            interval_sec=0.5,
+        )
+        steps = [state_step]
         src = params.symptom_host or params.observer_device
         purpose = (
             f"Probe across the link with a 100 ms reply deadline for {probe_seconds} seconds and look at which "
             "probes are lost."
         )
         if src and params.probe_dst_ip:
+            identity = self.net_env.machine_identities.get(host)
+            carrier_intf = (
+                kernel_data_interface(self.net_env, host, intf)
+                if src == host and identity and "linux" in identity.capabilities
+                else None
+            )
             steps.append(
                 shell(
                     src,
-                    _burst_loss_ping(params.probe_dst_ip, seconds=probe_seconds),
+                    _burst_loss_ping(
+                        params.probe_dst_ip,
+                        seconds=probe_seconds,
+                        carrier_intf=carrier_intf,
+                    ),
                     purpose,
-                    _ON_OFF_LOSS,
+                    _FLAP_LOSS_OR_CARRIER if carrier_intf else _ON_OFF_LOSS,
                     evidence=True,
                     timeout=probe_seconds + 10,
                 )
             )
         elif (ends := _probe_ends(self.net_env, host, intf)) is not None:
             src, target = ends
+            router_probe = _role(self.net_env, src) == "router"
+            probe_template = _burst_loss_ping("{ip}", seconds=probe_seconds)
+            probe_check = _ON_OFF_LOSS
+            probe_attempts = 1
+            if router_probe:
+                probe_template = "ping -n -c 60 -i 0.1 -W 0.1 {ip}"
+                observations = {"sent": 0, "received": set()}
+
+                def burst_samples(output):
+                    sent = re.search(r"(\d+) packets transmitted", output)
+                    if sent is None:
+                        return False
+                    offset = observations["sent"]
+                    observations["received"].update(
+                        offset + int(match[1])
+                        for match in re.finditer(
+                            r"(?m)^\d+ bytes from .*?icmp_seq=(\d+)", output
+                        )
+                    )
+                    observations["sent"] += int(sent[1])
+                    combined = (
+                        " ".join(
+                            f"icmp_seq={seq}"
+                            for seq in sorted(observations["received"])
+                        )
+                        + f"\n{observations['sent']} packets transmitted"
+                    )
+                    return _ON_OFF_LOSS(combined)
+
+                probe_check = Check(_ON_OFF_LOSS.description, burst_samples)
+                probe_attempts = max(3, (probe_seconds + 5) // 6)
             steps += [
                 addr_step(*target, "flap_peer"),
                 toward(
                     src,
                     "flap_peer",
-                    _burst_loss_ping("{ip}", seconds=probe_seconds),
+                    probe_template,
                     purpose,
-                    _ON_OFF_LOSS,
+                    probe_check,
                     evidence=True,
                     timeout=probe_seconds + 10,
+                    attempts=probe_attempts,
+                    interval_sec=0.2,
                 ),
             ]
         elif self.lab_backend != "containerlab":
@@ -794,8 +826,8 @@ def _hosts_across(net_env, node: str, intf: str) -> tuple[str, str] | None:
     """End hosts whose traffic leaves ``node`` through ``intf``.
 
     Each side is the link end itself when it is an end host, else a host
-    attached to it. A side with neither uses a host elsewhere in the
-    environment, as for a spine.
+    attached to it. For a deeper hierarchy, choose nearby end hosts without
+    traversing the other endpoint while searching that side.
     """
     peer = _link_peer(net_env, node, intf)
     if peer is None:
@@ -807,10 +839,46 @@ def _hosts_across(net_env, node: str, intf: str) -> tuple[str, str] | None:
         return [h for h in _attached_hosts(net_env, end) if h != other]
 
     near, far = side(node, peer[0]), side(peer[0], node)
-    elsewhere = _remote_host(net_env, {node, peer[0], *near, *far})
-    near = near or ([elsewhere] if elsewhere else [])
-    far = far or ([elsewhere] if elsewhere else [])
-    return (near[0], far[0]) if near and far and near[0] != far[0] else None
+    if near and far and near[0] != far[0]:
+        return near[0], far[0]
+
+    from collections import defaultdict, deque
+
+    graph = defaultdict(set)
+    for _key, endpoints in iter_link_termination_points(net_env):
+        nodes = {parse_endpoint(str(endpoint))[0] for endpoint in endpoints}
+        if len(nodes) != 2:
+            # Keep shared segments out of the point-to-point probe graph.
+            continue
+        for end in nodes:
+            graph[end].update(nodes - {end})
+
+    def nearest(end, other):
+        queue, seen, hosts = deque([(end, 0)]), {other, end}, []
+        while queue:
+            current, distance = queue.popleft()
+            if _single_homed(net_env, current):
+                hosts.append((distance, current))
+                continue
+            for neighbor in sorted(graph[current] - seen):
+                seen.add(neighbor)
+                queue.append((neighbor, distance + 1))
+        return hosts
+
+    left_hosts = {host: distance for distance, host in nearest(node, peer[0])}
+    right_hosts = {host: distance for distance, host in nearest(peer[0], node)}
+    pairs = [
+        (left_distance + right_distance, left, right)
+        for left, left_distance in left_hosts.items()
+        for right, right_distance in right_hosts.items()
+        if left_distance < right_hosts.get(left, float("inf"))
+        and right_distance < left_hosts.get(right, float("inf"))
+        if left != right
+    ]
+    if not pairs:
+        return None
+    _, left, right = min(pairs)
+    return left, right
 
 
 def _iperf_step(src: str, dst: str, where: str) -> OracleStep:
@@ -892,6 +960,12 @@ class LinkCapacityBottleneck(ProblemBase):
     symptom_class = "degradation"
     dynamic_artifact = True
     root_cause_name: str = "link_capacity_bottleneck"
+    CONFUSABLE_WITH = (
+        "overlay_qos_ef_undersized",
+        "p4_ecn_marking_disabled",
+        "tcp_receive_window_limited",
+        "link_latency",
+    )
     description = "Logical link capacity is bottlenecked below demand."
     TAGS: str = ["link"]
     # Acts on the link through a controller-side proxy, outside the router OS.
@@ -904,9 +978,8 @@ class LinkCapacityBottleneck(ProblemBase):
 
     BENCHMARK_TARGETS = "link"
     BENCHMARK_POINT_TO_POINT = True
-    # A circuit below demand only shows under load: the shaped direction must
-    # carry the scenario's sustained bulk traffic.
-    SYMPTOM_WORKLOAD = BULK_TRANSIT
+    # Admission below checks sustained bulk traffic or a declared fan-in receiver.
+    SYMPTOM_WORKLOAD = None
 
     @classmethod
     def symptom_workload_target(cls, inject):
@@ -925,6 +998,20 @@ class LinkCapacityBottleneck(ProblemBase):
             if params is not None:
                 params.update(rate="512kbit", burst="16kb", limit="32kb")
                 return params
+            for (receiver,) in sorted(workload.targets(FAN_IN_BURSTS)):
+                peer = _link_peer(
+                    ctx.net_env,
+                    receiver,
+                    resolve_default_intf("eth0", ctx.net_env, receiver),
+                )
+                if peer is not None:
+                    return {
+                        "host_name": peer[0],
+                        "intf_name": peer[1],
+                        "rate": "128kbit",
+                        "burst": "8kb",
+                        "limit": "16kb",
+                    }
             # No loaded link: workload validation rejects every target here.
         if is_isp_scenario(ctx.scenario):
             params = isp_link_target(ctx)
@@ -946,8 +1033,11 @@ class LinkCapacityBottleneck(ProblemBase):
         # The shaper acts on traffic leaving ``host_name:intf_name``. Under a
         # business workload that loads one direction of a link, each end is a
         # distinct target.
+        workload = ctx.net_env.business_workload()
+        if workload is not None and not workload.targets(BULK_TRANSIT):
+            return [base] if workload.targets(FAN_IN_BURSTS) else []
         rows = super().benchmark_inject_options(ctx, base)
-        if ctx.net_env.business_workload() is None:
+        if workload is None:
             return rows
         reverse = []
         for row in rows:
@@ -955,6 +1045,25 @@ class LinkCapacityBottleneck(ProblemBase):
             if peer is not None:
                 reverse.append(_link_row(ctx, row, *peer))
         return unique(rows + [row for row in reverse if row is not None])
+
+    @classmethod
+    def validate_combined_inject(cls, ctx, inject):
+        """Another failure can move traffic onto an otherwise idle circuit."""
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        workload = ctx.net_env.business_workload()
+        if workload is None:
+            return
+        node, intf = inject.get("host_name"), inject.get("intf_name")
+        if workload.covers(BULK_TRANSIT, (node, intf)):
+            return
+        peer = _link_peer(ctx.net_env, node, intf)
+        if peer is not None and workload.covers(FAN_IN_BURSTS, (peer[0],)):
+            return
+        raise ValueError(
+            "link_capacity_bottleneck needs bulk transit or the egress toward a declared fan-in receiver"
+        )
 
     symptom_desc = "Users report slow throughput across a link."
 
@@ -1048,16 +1157,57 @@ class LinkCapacityBottleneck(ProblemBase):
         host = params.host_name
         peer = _link_peer(self.net_env, host, intf)
         steps = [
-            shell(
+            interface_read(
+                self.net_env,
                 host,
-                f"ip -br link show dev {intf}; ip -s link show dev {intf} | head -8",
-                f"Inspect {host}:{intf}, the attachment of the slow transfers.",
-                contains(r"<[^>]*LOWER_UP", f"{host}:{intf} has carrier"),
+                intf,
+                f"Inspect {host}:{intf}, the attachment of slow transfers.",
             )
         ]
+        identity = self.net_env.machine_identities.get(host)
+        if identity is not None and {"bmv2", "telemetry"} <= set(identity.capabilities):
+            port = next(
+                item.bmv2_port
+                for item in self.net_env.model.ports[host]
+                if item.name == intf
+            )
+            from nika.net_env.p4_dc_gateway.apply import QUEUE_DEPTH_PACKETS
+            from nika.problems.support.p4_oracle import table_read
+
+            steps.append(
+                table_read(
+                    host,
+                    "ecn_config",
+                    "the congested egress has a reachable ECN marking threshold",
+                    lambda rows: any(
+                        int(row["match"]["egress_port"]) == port
+                        and 0 < int(row["params"]["threshold"]) < QUEUE_DEPTH_PACKETS
+                        for row in rows
+                    ),
+                    "Check ECN marking configuration before attributing congestion to link capacity.",
+                )
+            )
+            steps.append(
+                OracleStep(
+                    "Read the measured INT queue occupancy on this egress.",
+                    "prometheus_query",
+                    {
+                        "query": f'max_over_time(p4_int_queue_depth_packets{{switch="{host}",egress_port="{port}"}}[2m])'
+                    },
+                )
+            )
         direction = f"leaving {host}:{intf}"
         ends = _probe_ends(self.net_env, host, intf)
         across = _hosts_across(self.net_env, host, intf)
+        if across is not None:
+            # Native router containers expose Linux tools, but their shell
+            # does not route through the NOS dataplane. Measure between hosts.
+            src, dst = across
+            ends = (src, (dst, kernel_data_interface(self.net_env, dst)))
+        elif ends is not None and any(
+            native_router_profile(self.net_env, node) for node in (ends[0], ends[1][0])
+        ):
+            ends = None
         if (
             self.lab_backend == "containerlab"
             and peer is not None
@@ -1109,7 +1259,13 @@ class LinkCapacityBottleneck(ProblemBase):
                 addr_step(dst, dst_intf, "cap_peer"),
                 shell(
                     dst,
-                    "nohup timeout 40 iperf3 -s -1 -p 5299 >/dev/null 2>&1 & "
+                    # Listen in the link interface's VRF when it has one, so
+                    # the transfer arriving on that link can connect.
+                    f"vrf=$(ip -o link show dev {dst_intf} "
+                    "| sed -n 's/.* master \\([^ ]*\\) .*/\\1/p'); "
+                    'run=""; ip vrf show "$vrf" >/dev/null 2>&1 '
+                    '&& [ -n "$vrf" ] && run="ip vrf exec $vrf"; '
+                    "nohup $run timeout 40 iperf3 -s -1 -p 5299 >/dev/null 2>&1 & "
                     "sleep 1; echo started",
                     f"Start a one-off iperf3 server on {dst}.",
                 ),
@@ -1176,281 +1332,3 @@ class LinkCapacityBottleneck(ProblemBase):
 # ==========================================
 # Problem: Link detached.
 # ==========================================
-
-
-class LinkDetachParams(BaseModel):
-    """Parameters for injecting a link-detach fault."""
-
-    host_name: str = Field(description="Target host name.")
-    intf_name: str = Field(default="eth0", description="Target interface name.")
-    probe_dst_ip: str | None = Field(
-        default=None,
-        description="ICMP-reachable destination for detach symptom probes.",
-    )
-    observer_device: str | None = Field(
-        default=None,
-        description="Optional probe source host for path symptom checks.",
-    )
-    symptom_host: str | None = Field(
-        default=None,
-        description="Optional probe source override (ISP stub hosts).",
-    )
-    peer_host: str | None = Field(
-        default=None,
-        description="Optional peer host for cross-subnet probe resolution.",
-    )
-
-
-class LinkDetach(ProblemBase):
-    failure_domain = FailureDomain.LINK_INTERFACE
-    symptom_probe = "custom"
-    symptom_class = "unreachable"
-    root_cause_name: str = "link_detach"
-    description = "Network attachment is detached; the interface is gone from the node."
-    TAGS: str = ["link"]
-    supported_backends = ("kathara", "containerlab")
-    # Moves the container interface out of the node, outside the router OS;
-    # recovery asks the router to bind its port to the returned interface.
-    native_router_operations = frozenset({"interface_up", "reattach_interface"})
-    RECORDED_ATTRS = ("faulty_intf",)
-
-    Params = LinkDetachParams
-
-    BENCHMARK_TARGETS = "link"
-
-    @classmethod
-    def benchmark_inject_params(cls, ctx):
-        from nika.net_env.isp.identity import is_isp_scenario
-
-        if is_isp_scenario(ctx.scenario):
-            return isp_link_target(ctx)
-        return endpoint_target(ctx, link=True, detach=True)
-
-    @classmethod
-    def benchmark_inject_options(cls, ctx, base):
-        rows = super().benchmark_inject_options(ctx, base)
-        if ctx.scenario == "campus_lan":
-            # LB backends are off the default pc→web0 ICMP probe path.
-            rows = [
-                row
-                for row in rows
-                if not str(row.get("host_name", "")).startswith("backend_web_")
-            ]
-        return rows
-
-    symptom_desc = "Users report connectivity issues to other hosts."
-
-    def __init__(self, scenario_name: str | None, **kwargs):
-        super().__init__(scenario_name, **kwargs)
-        self.faulty_intf = "eth0"
-        self._detach_holder: str | None = None
-        self._saved_addrs: list[str] = []
-        self._saved_routes: list[str] = []
-
-    def root_cause_resources(self, params: LinkDetachParams):
-        return [interface_on(self.net_env, params.host_name, params.intf_name)]
-
-    def _save_l3_state(self, host: str, intf: str) -> None:
-        """Remember addresses and static routes; the netns move drops them.
-
-        Routing-daemon routes are skipped because the daemons reinstall them.
-        """
-        addr_out = self.runtime.exec(
-            host, f"ip -o addr show dev {intf} 2>/dev/null || true"
-        )
-        self._saved_addrs = []
-        for line in addr_out.splitlines():
-            fields = line.split()
-            if len(fields) < 4 or fields[2] not in ("inet", "inet6"):
-                continue
-            if fields[3].lower().startswith("fe80:"):
-                continue
-            self._saved_addrs.append(fields[3])
-        # Both families: a dual-stack host also loses its IPv6 default route.
-        self._saved_routes = []
-        for family in ("-4", "-6"):
-            route_out = self.runtime.exec(host, f"ip -j {family} route show dev {intf}")
-            rows = parse_ip_route_json(route_out)
-            if rows is None:
-                raise RuntimeError(
-                    f"could not parse routes on {host}:{intf}: {route_out}"
-                )
-            for row in rows:
-                cmd = static_route_replace_command(family, row, intf)
-                if cmd:
-                    self._saved_routes.append(cmd)
-
-    def _restore_l3_state(self, host: str, intf: str) -> None:
-        for cidr in self._saved_addrs:
-            self.runtime.exec(
-                host, f"ip addr replace {cidr} dev {intf} 2>/dev/null || true"
-            )
-        for cmd in self._saved_routes:
-            out = self.runtime.exec(host, f"{cmd} && echo {_ROUTE_RESTORE_OK}")
-            if _ROUTE_RESTORE_OK not in out:
-                raise RuntimeError(f"restoring route failed: {cmd}: {out}")
-        self._saved_addrs = []
-        self._saved_routes = []
-
-    def inject_fault(self, params: LinkDetachParams):
-        """Move the attachment into a netns held outside the node.
-
-        A holder process inside the node (``unshare -n sleep infinity``) would
-        sit in its process list next to the missing interface. The holder is a
-        controller-side container labelled for the lab, so lab teardown removes
-        it even when recovery never runs. A router with a fault-operations
-        provider sees the loss as its own port going down.
-        """
-        if self.lab_backend not in ("kathara", "containerlab"):
-            raise RuntimeCapabilityError(
-                f"{type(self).__name__} cannot inject_fault: unsupported backend "
-                f"{self.lab_backend!r}."
-            )
-        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
-        self.faulty_intf = intf
-        host = params.host_name
-        native_fault_ops(self, host, "reattach_interface")
-        self._save_l3_state(host, intf)
-        node = self.runtime.get_container(host)
-        holder = node.client.containers.run(
-            nika_image("base"),
-            command=["sleep", "infinity"],
-            network_mode="none",
-            detach=True,
-            labels={"nika.lab_name": self.runtime.lab_name},
-        )
-        self._detach_holder = holder.id
-        holder.reload()
-        kept = False
-        try:
-            self._move_netns(node, f"container:{node.id}", intf, holder)
-            deadline = time.time() + 5.0
-            while self.runtime.interface_exists(host, intf):
-                if time.time() > deadline:
-                    raise RuntimeError(
-                        f"link_detach failed: {host}:{intf} still present"
-                    )
-                time.sleep(0.2)
-            kept = True
-        finally:
-            if not kept:
-                try:
-                    holder.remove(force=True)
-                except Exception:
-                    pass
-                self._detach_holder = None
-        system_logger.info(f"Injected link detach on {host}:{intf} (host-side netns)")
-
-    def _move_netns(self, node, network_mode: str, intf: str, target) -> None:
-        """Move ``intf`` from the netns of ``network_mode`` to ``target``'s."""
-        if not network_mode.startswith("container:"):
-            raise RuntimeCapabilityError("Link detach requires a container namespace")
-        source = node.client.containers.get(network_mode.partition(":")[2])
-        isolated_container_pid(source)
-        pid = isolated_container_pid(target)
-        output = run_labelled_helper(
-            node.client,
-            nika_image("base"),
-            [
-                "/bin/sh",
-                "-ec",
-                "host_ns=$(stat -Lc %i /proc/1/ns/net); "
-                'test "$(stat -Lc %i /proc/self/ns/net)" != "$host_ns"; '
-                f'test "$(stat -Lc %i /proc/{pid}/ns/net)" != "$host_ns"; '
-                f"exec ip link set dev {shlex.quote(intf)} netns {pid}",
-            ],
-            lab_name=self.runtime.lab_name,
-            network_mode=network_mode,
-            pid_mode="host",
-            privileged=True,
-        )
-        text = output.strip() if isinstance(output, bytes) else str(output).strip()
-        if text:
-            raise RuntimeError(f"moving {intf} to pid {pid}: {output!r}")
-
-    def verify_fault(self, params: LinkDetachParams) -> dict:
-        """Verify the interface is gone from the node namespace."""
-        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
-        interface_gone = not self.runtime.interface_exists(params.host_name, intf)
-        details = {
-            "host": params.host_name,
-            "intf": intf,
-            "interface_exists": not interface_gone,
-        }
-        nos_down = True
-        ops = native_fault_ops(self, params.host_name, "interface_up")
-        if ops is not None and ops.port_follows_link:
-            nos_down = not ops.interface_up(intf)
-            details["router_port_up"] = not nos_down
-        return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=interface_gone and nos_down,
-            details=details,
-        )
-
-    def oracle_playbook(self, params: LinkDetachParams) -> OraclePlaybook:
-        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
-        host = params.host_name
-        steps = [
-            shell(
-                host,
-                "ip -br link; ip -4 route",
-                f"List interfaces and routes on {host}, an endpoint of the "
-                "unreachable paths.",
-            ),
-            shell(
-                host,
-                f"ip link show dev {intf} 2>&1; ls /sys/class/net",
-                f"Look up {host}:{intf} in the node's interface list.",
-                all_of(
-                    contains(r"does not exist", f"{intf} is unknown to {host}"),
-                    lacks(rf"^{re.escape(intf)}$", f"{intf} is absent from sysfs"),
-                ),
-                evidence=True,
-            ),
-        ]
-        peer = _link_peer(self.net_env, host, intf)
-        if peer is not None and is_ip_node(self.net_env, peer[0]):
-            steps.append(
-                iface_state(
-                    *peer,
-                    contains(
-                        r"<[^>]*LOWER_UP", f"{peer[0]}:{peer[1]} still has carrier"
-                    ),
-                    f"Check the far end {peer[0]}:{peer[1]} of the attachment.",
-                    evidence=False,
-                )
-            )
-        return OraclePlaybook(
-            finding=(
-                f"{host}:{intf} no longer exists on {host}: the attachment is "
-                "detached, so the node has no path over that link."
-            ),
-            steps=steps,
-        )
-
-    def recover_fault(self, params: LinkDetachParams) -> dict:
-        """Move the detached interface back into the node namespace."""
-        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
-        host = params.host_name
-        if self._detach_holder:
-            node = self.runtime.get_container(host)
-            holder = node.client.containers.get(self._detach_holder)
-            try:
-                self._move_netns(node, f"container:{holder.id}", intf, node)
-            finally:
-                holder.remove(force=True)
-                self._detach_holder = None
-        self.runtime.exec(host, f"ip link set dev {intf} up 2>/dev/null || true")
-        self._restore_l3_state(host, intf)
-        restore_endpoint_network(self.runtime, self.net_env, host)
-        self._detach_pid = None
-        details = {"host": host, "intf": intf}
-        restored = self.runtime.interface_exists(host, intf)
-        ops = native_fault_ops(self, host, "reattach_interface")
-        if ops is not None and restored:
-            ops.reattach_interface(intf)
-            restored = wait_until(lambda: ops.interface_up(intf), 60)
-            details["router_port_up"] = restored
-        details["interface_exists"] = self.runtime.interface_exists(host, intf)
-        return {"verified": restored, "details": details}

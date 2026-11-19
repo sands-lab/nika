@@ -96,6 +96,7 @@ class VxlanNeighborStale(K8sProblemBase):
     symptom_probe = "custom"
     symptom_class = "isolation"
     root_cause_name: str = "k8s_vxlan_neighbor_stale"
+    CONFUSABLE_WITH = ("k8s_networkpolicy_deny", "k8s_node_firewall_drop")
     description = (
         "A Kubernetes node's VXLAN overlay neighbor for a remote VTEP is stale."
     )

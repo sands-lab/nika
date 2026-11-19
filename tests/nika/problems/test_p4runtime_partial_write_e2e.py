@@ -7,9 +7,6 @@ import time
 import pytest
 
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
-from nika.net_env.p4_dc_fabric.fabric_manager.apply import reconcile_fabric
-from nika.net_env.p4_dc_fabric.topology_model import build_clos_fabric_model
-from nika.net_env.p4_dc_gateway.apply import reconcile_gateway
 from nika.net_env.p4_dc_gateway.topology_model import build_gateway_fabric_model
 from nika.net_env.verify import http_ok
 from nika.problems.registry import get_problem_class, list_avail_problem_names
@@ -52,6 +49,7 @@ class P4RuntimePartialWriteE2ETest(IntegrationTestCase):
             assert params["host_name"] == "leaf_1"
 
         session_id = None
+        runtime = None
         try:
             session_id = self._start_env(scenario, ["-s", topo_size])
             self._assert_session_ready(session_id, scenario)
@@ -72,6 +70,9 @@ class P4RuntimePartialWriteE2ETest(IntegrationTestCase):
             assert verify["details"]["groups_rewritten"] is True, verify
             assert verify["details"]["routes_unchanged"] is True, verify
 
+            fresh = self._problem(cls, session_id=session_id)
+            assert fresh.verify_fault(parsed)["verified"] is True
+
             ok, symptom = evaluate_symptom(
                 runtime,
                 "p4runtime_partial_write",
@@ -85,14 +86,22 @@ class P4RuntimePartialWriteE2ETest(IntegrationTestCase):
             assert details["misdelivered"] and details["host_lost"], symptom
             assert details["control_ok"] is True, symptom
 
-            if scenario == "p4_dc_fabric":
-                reconcile_fabric(runtime, build_clos_fabric_model(topo_size))  # type: ignore[arg-type]
-            else:
-                reconcile_gateway(
-                    runtime,
-                    build_gateway_fabric_model(topo_size),  # type: ignore[arg-type]
-                )
+            recovery = instance.recover_fault(parsed)
+            assert recovery["verified"] is True, recovery
+            assert instance.verify_fault(parsed)["verified"] is False
+            assert fresh.verify_fault(parsed)["verified"] is False
             assert http_ok(runtime, path.src_host, path.http_url)
+
+            # A full pipeline reconciliation must also work on deployed switches.
+            if scenario == "p4_dc_gateway":
+                from nika.net_env.p4_dc_gateway.apply import reconcile_gateway
+
+                for _ in range(2):
+                    reconcile_gateway(runtime, instance.net_env.model)
+                    assert http_ok(runtime, path.src_host, path.http_url)
         finally:
             if session_id is not None:
                 self._close_session(session_id)
+                if runtime is not None:
+                    assert not runtime.exists()
+                    assert not runtime.has_leftover_resources()

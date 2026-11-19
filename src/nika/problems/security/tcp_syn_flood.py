@@ -12,8 +12,44 @@ from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.support.oracle import Check, OraclePlaybook, OracleStep, shell
 from nika.problems.support.process_identity import NEUTRAL_PROBE_NAME, exec_as
+from nika.service.lab.checked_exec import checked_exec
 
 _COLLECTOR_FRESH_SEC = 30.0
+
+
+def syn_queue_read_command(port: int) -> str:
+    """Read listener capacity, outstanding handshakes, and new SYN cookies."""
+    cookies = (
+        "nstat -asz TcpExtSyncookiesSent | "
+        "awk '$1 == \"TcpExtSyncookiesSent\" {print $2}'"
+    )
+    return (
+        f"echo listener_backlog $(ss -Hlnt '( sport = :{port} )' "
+        "| awk 'NR == 1 {print $3}'); "
+        f"echo cookies_before $({cookies}); sleep 2; "
+        f"echo cookies_after $({cookies}); "
+        f"echo half_open $(ss -Htn state syn-recv '( sport = :{port} )' | wc -l)"
+    )
+
+
+def parse_syn_queue_read(output: str) -> dict[str, int]:
+    fields = dict(re.findall(r"^(\w+) (\d+)$", output, re.M))
+    return {
+        "listener_backlog": int(fields["listener_backlog"]),
+        "half_open": int(fields["half_open"]),
+        "cookies_delta": max(
+            0, int(fields["cookies_after"]) - int(fields["cookies_before"])
+        ),
+    }
+
+
+def syn_queue_pressure(
+    half_open: int, listener_backlog: int, cookies_delta: int, *, minimum: int = 10
+) -> bool:
+    """Many unanswered handshakes, or a full small listener issuing SYN cookies."""
+    return half_open >= minimum or (
+        0 < listener_backlog <= half_open and cookies_delta > 0
+    )
 
 
 class TcpSynFloodAttackParams(BaseModel):
@@ -36,6 +72,7 @@ class TcpSynFloodAttack(ProblemBase):
     symptom_class = "degradation"
     dynamic_artifact = True
     root_cause_name = "tcp_syn_flood_attack"
+    CONFUSABLE_WITH = ("web_dos_attack",)
     description = "TCP SYN flood attack against a target service."
     symptom_desc = (
         "Deterministic SYN-only flows create half-open pressure on one HTTP service."
@@ -43,6 +80,7 @@ class TcpSynFloodAttack(ProblemBase):
     TAGS = ["flow_tracking", "http", "telemetry"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
     Params = TcpSynFloodAttackParams
+    RECORDED_ATTRS = ("_flow_pids", "_rst_rule_added")
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -88,16 +126,21 @@ class TcpSynFloodAttack(ProblemBase):
             steps += [
                 shell(
                     server,
-                    f"echo half_open $(ss -Htn state syn-recv '( sport = :{port} )' "
-                    f"| wc -l); {peers} | head -5; "
+                    f"{syn_queue_read_command(port)}; {peers} | head -5; "
                     f"echo top $({peers} | head -1)",
                     f"Count half-open connections on {server} ({target}:{port}) per client.",
                     Check(
-                        f"at least {min_flows} half-open connections"
+                        f"at least {min_flows} half-open connections, or a full "
+                        "listener issuing new SYN cookies"
                         + (f", mostly from {attacker_ip}" if attacker_ip else ""),
                         lambda o: (
                             bool(m := re.search(r"^top (\d+) (\S+)$", o, re.M))
-                            and int(m.group(1)) >= min_flows
+                            and syn_queue_pressure(
+                                int(m.group(1)),
+                                parse_syn_queue_read(o)["listener_backlog"],
+                                parse_syn_queue_read(o)["cookies_delta"],
+                                minimum=min_flows,
+                            )
                             and (attacker_ip is None or m.group(2) == attacker_ip)
                         ),
                     ),
@@ -106,7 +149,7 @@ class TcpSynFloodAttack(ProblemBase):
                 ),
                 shell(
                     server,
-                    f"timeout 2 tcpdump -nl -c 3000 'tcp dst port {port} and "
+                    f"timeout 2 tcpdump -i any -nl -c 3000 'tcp dst port {port} and "
                     "(tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn)' 2>/dev/null "
                     '| awk \'{for (i = 1; i < NF; i++) if ($i == "IP") '
                     '{sub(/\\.[0-9]+$/, "", $(i+1)); print $(i+1); break}}\' '
@@ -169,13 +212,25 @@ class TcpSynFloodAttack(ProblemBase):
         interval_us = max(1, 1_000_000 // params.rate_pps)
         per_flow_interval_us = max(1, round(1_000_000 * params.flows / params.rate_pps))
         base_port = 20000 + (params.seed % 20000)
+        # Raw SYNs have no kernel socket. Prevent the kernel from resetting
+        # the unanswered handshakes, only for this generator's source ports.
+        rule = self._rst_rule(params)
+        state = self.runtime.exec(
+            params.attacker_device,
+            f"iptables -C OUTPUT {rule} 2>/dev/null && echo present || "
+            f"(iptables -A OUTPUT {rule} && echo added)",
+            timeout=10,
+        )
+        if not state.strip().endswith(("present", "added")):
+            raise RuntimeError("Could not suppress resets for the SYN generator")
+        self._rst_rule_added = state.strip().endswith("added")
         # Each flow's SYN generator runs the neutrally named `latency-probe`
         # hardlink (see process_identity.py), so `ps` shows a plausible
         # host-monitoring process in both argv and kernel comm, not the raw
         # flood tool.
         flow_cmd = exec_as(
             NEUTRAL_PROBE_NAME,
-            f'{NEUTRAL_PROBE_NAME} -S -s "$1" -p {params.target_port} '
+            f'{NEUTRAL_PROBE_NAME} -S -k -s "$1" -p {params.target_port} '
             f"-i u{per_flow_interval_us} {params.target_ip}",
         )
         command = (
@@ -196,9 +251,24 @@ class TcpSynFloodAttack(ProblemBase):
                 f"if ps -p {pid} -o args= | grep -q '{NEUTRAL_PROBE_NAME} -S '; then kill {pid}; fi",
                 timeout=10,
             )
+        if getattr(self, "_rst_rule_added", False):
+            self.runtime.exec(
+                params.attacker_device,
+                f"iptables -D OUTPUT {self._rst_rule(params)}",
+                timeout=10,
+            )
+            self._rst_rule_added = False
         state = self.verify_fault(params)["details"]
         return build_verify_result(
             self.root_cause_name, state["flows_running"] == 0, state
+        )
+
+    @staticmethod
+    def _rst_rule(params: TcpSynFloodAttackParams) -> str:
+        base = 20000 + (params.seed % 20000)
+        return (
+            f"-p tcp -d {params.target_ip} --dport {params.target_port} "
+            f"--sport {base}:{base + params.flows - 1} --tcp-flags RST RST -j DROP"
         )
 
     def verify_fault(self, params: TcpSynFloodAttackParams) -> dict:
@@ -210,15 +280,15 @@ class TcpSynFloodAttack(ProblemBase):
             f"[{NEUTRAL_PROBE_NAME[0]}]{NEUTRAL_PROBE_NAME[1:]} -S "
             f".*-p {params.target_port} .*{params.target_ip}"
         )
-        output = self.runtime.exec(
+        # The selected endpoint's CPU cap also covers its existing fault
+        # processes. Preserve observation errors instead of reporting no flows.
+        output = checked_exec(
+            self.runtime.exec,
             params.attacker_device,
-            f"pgrep -fc '{pattern}' 2>/dev/null || true",
-            timeout=10,
-        ).strip()
-        try:
-            flows_running = int(output.splitlines()[-1])
-        except (IndexError, ValueError):
-            flows_running = 0
+            f"pgrep -fc '{pattern}'; rc=$?; [ \"$rc\" -le 1 ]",
+            timeout=60,
+        )
+        flows_running = int(output)
         collector_alive = (
             self.runtime.exec(
                 "collector",
