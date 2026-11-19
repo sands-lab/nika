@@ -183,14 +183,21 @@ def run_failure_e2e(
             recovered_ok = recovered["verified"] is True
             assert recovered["verified"] is True, recovered
             ctx.recovered = recovered
-            if case.problem == "load_balancer_overload":
-                assert recovered["details"]["load_gone"] is True
             if "post_recover" in hooks:
                 started = time.monotonic()
                 try:
                     hooks["post_recover"](ctx)
                 finally:
                     record("post_recover", started)
+        if "scenario_recovery" in checks:
+            from nika.net_env.verify import verify_lab_with_retry
+
+            started = time.monotonic()
+            try:
+                restored = verify_lab_with_retry(problem.net_env, full=True)
+                assert restored is not None and restored["verified"], restored
+            finally:
+                record("scenario_recovery", started)
         if stage_statuses is not None:
             stage_statuses["symptom"] = "pass"
     finally:

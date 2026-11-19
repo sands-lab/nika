@@ -27,9 +27,7 @@ class RemoteSettings(BaseModel):
     artifact_root: str | None = None
 
 
-# VM memory of labs that outgrow the default ``vm_memory``: k8s labs, the SR
-# Linux min3clos, Cisco XRd (whose build otherwise runs out of memory), and
-# dc_clos (size l uses more than 4 GiB in the guest). A variant whose routers
+# VM memory of labs that outgrow the default ``vm_memory``. A variant whose routers
 # run a router platform is sized from the platform instead (see
 # nika.firecracker.image.vm_memory_mib); ``vm_memory_overrides`` entries take
 # precedence over both.
@@ -37,8 +35,7 @@ DEFAULT_VM_MEMORY_OVERRIDES = {
     "dc_clos": "8GiB",
     "k8s_lab": "8GiB",
     "llmd_lab": "8GiB",
-    "min3clos": "8GiB",
-    "iosxr_simple_bgp": "8GiB",
+    "p4_dc_gateway": "8GiB",
 }
 # vCPUs of labs that outgrow the default ``vm_cpus``. 11-router SR Linux labs
 # use about 10 host cores natively. A variant whose routers run a router
@@ -411,6 +408,9 @@ class DiagnosisAccessPolicy(BaseModel):
     tools: list[str] = Field(default_factory=lambda: ["*"])
     node_roles: list[str] = Field(default_factory=lambda: ["*"])
     node_ids: list[str] = Field(default_factory=list)
+    shell_node_roles: list[Literal["host", "server", "service", "controller"]] = Field(
+        default_factory=lambda: ["host", "server", "service", "controller"]
+    )
 
 
 class AgentAccessSettings(BaseModel):
@@ -600,6 +600,7 @@ class BenchmarkSettings(BaseModel):
 
     release: str | None = None
     split: str | None = None
+    include_slices: bool = False
     batch_size: int = 1
     heavy_batch_size: int = 1
     case_timeout_sec: int = 2400

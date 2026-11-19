@@ -195,6 +195,7 @@ def test_create_denies_global_allows_per_sandbox(tmp_path) -> None:
             "policy",
             "rm",
             "network",
+            "--force",
             "--sandbox",
             name,
             "--resource",

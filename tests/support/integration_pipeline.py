@@ -10,14 +10,12 @@ from nika.utils.session_store import SessionStore
 from nika.workflows.eval.session import run_eval_metrics
 from nika.workflows.eval.summary import run_eval_summary
 from nika.workflows.session.close import close_session
-from tests.support.prerequisites import containerlab_prerequisites
 
 DEFAULT_SCENARIO = "simple_bgp"
 DEFAULT_PROBLEM = "link_down"
 DEFAULT_INJECT_PARAMS = {"host_name": "pc1", "intf_name": "eth0"}
-CLAB_SCENARIO = "min3clos"
-CLAB_INJECT_PARAMS = {"host_name": "leaf1", "intf_name": "e1-1"}
-_min3clos_prerequisites = containerlab_prerequisites
+CLAB_SCENARIO = "dc_clos"
+CLAB_INJECT_PARAMS = {"host_name": "leaf_1", "intf_name": "e1-2"}
 
 # Backward-compatible aliases for imports.
 SCENARIO = DEFAULT_SCENARIO
@@ -127,12 +125,16 @@ def tool_text_list(result: object) -> list[str]:
 class PipelineStepsMixin:
     """Shared ordered pipeline step helpers; subclasses set scenario/inject params."""
 
+    PIPELINE_ENV_ARGS: ClassVar[tuple[str, ...]] = ()
+
     PIPELINE_SCENARIO: ClassVar[str] = DEFAULT_SCENARIO
     PIPELINE_PROBLEM: ClassVar[str] = DEFAULT_PROBLEM
     PIPELINE_INJECT_PARAMS: ClassVar[dict[str, str]] = DEFAULT_INJECT_PARAMS
 
     def _step_start_env(self) -> None:
-        type(self).session_id = self._start_env(self.PIPELINE_SCENARIO)
+        type(self).session_id = self._start_env(
+            self.PIPELINE_SCENARIO, list(self.PIPELINE_ENV_ARGS)
+        )
         self._assert_session_ready(self.session_id, self.PIPELINE_SCENARIO)
 
     def _step_inject_failure(self) -> None:
@@ -208,6 +210,7 @@ class CommonPipelineSteps(PipelineStepsMixin):
 
 
 class ClabCommonPipelineSteps(PipelineStepsMixin):
+    PIPELINE_ENV_ARGS = ("-s", "s", "--backend", "containerlab")
     PIPELINE_SCENARIO = CLAB_SCENARIO
     PIPELINE_PROBLEM = DEFAULT_PROBLEM
     PIPELINE_INJECT_PARAMS = CLAB_INJECT_PARAMS

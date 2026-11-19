@@ -32,10 +32,6 @@ def containerlab_prerequisites() -> bool:
     return docker_available() and commands_available("clab", "gnmic")
 
 
-# Historical alias used by Containerlab API and pipeline tests.
-min3clos_prerequisites = containerlab_prerequisites
-
-
 def docker_image_available(image: str) -> bool:
     if not docker_available():
         return False

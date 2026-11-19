@@ -30,6 +30,7 @@ from nika.utils.session_artifacts import (
 )
 from nika.utils.session_store import SessionStore
 from nika.workflows.session.close import close_session
+from nika.workflows.benchmark.objectives import drop_unasked_scores
 
 logger = system_logger
 
@@ -88,10 +89,8 @@ def _iter_eval_session_ids(
 def generic_eval(gt, submission):
     """Score detection and pair-based RCA from structured ``gt`` and ``submission``."""
     detection_score = score_detection(submission, gt)
-    return {
-        "detection_score": detection_score,
-        **score_rca(submission, gt),
-    }
+    scores = {"detection_score": detection_score, **score_rca(submission, gt)}
+    return drop_unasked_scores(scores, gt)
 
 
 def build_eval_metrics_payload(

@@ -22,28 +22,8 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
 
 VRNETLAB_BASE_IMAGE = "ghcr.io/srl-labs/vrnetlab-base:0.3.0@sha256:57f36ae1cf44a78a6b2cad35a6276565c56edfd28e8160ae9a772929db28fd6d"
 
-# Repositories only NIKA uses: install prunes their local tags that the
-# current release no longer references.
-NIKA_ONLY_REPOS = frozenset(
-    {
-        "rancher/k3s",
-        "nlnetlabs/routinator",
-        "batfish/batfish",
-        "ghcr.io/nokia/srlinux",
-        "docker-sonic-vs",
-        "vrnetlab/mikrotik_routeros",
-        "ios-xr/xrd-control-plane",
-        "onosproject/onos",
-    }
-)
-NIKA_ONLY_REPO_PREFIXES = (
-    "nika/",
-    "kathara/nika-",
-    "quay.io/metallb/",
-    "ghcr.io/llm-d/",
-    "cr.agentgateway.dev/",
-    "ik2227/",
-)
+# NIKA builds these repositories. Upstream and licensed images belong to the operator.
+NIKA_ONLY_REPO_PREFIXES = ("nika/", "kathara/nika-")
 
 
 def _strip_digest(ref: str) -> str:
@@ -56,9 +36,7 @@ def _tag_ref(ref: str) -> str:
 
 
 def _is_nika_only_repo(repository: str) -> bool:
-    return repository in NIKA_ONLY_REPOS or repository.startswith(
-        NIKA_ONLY_REPO_PREFIXES
-    )
+    return repository.startswith(NIKA_ONLY_REPO_PREFIXES)
 
 
 def _k8s_workload_images() -> list[str]:
@@ -93,8 +71,8 @@ def runtime_images() -> list[str]:
         collect_images_for_scenarios(
             {
                 name
-                for name, spec in list_all_net_envs(backend="kathara").items()
-                if not spec.licensed_images and name not in K8S_SCENARIOS
+                for name in list_all_net_envs(backend="kathara")
+                if name not in K8S_SCENARIOS
             }
         )
     )
@@ -140,12 +118,9 @@ def owned_images() -> list[str]:
 def legacy_images() -> list[str]:
     """Tags created by older NIKA releases that the current layout replaces.
 
-    Includes pre-rename ``kathara/nika-*`` tags and the Docker copies of k8s
-    workload images, which now live only in ``.nika_cache/k8s-images``.
-    Docker Official Images (no namespace, e.g. ``postgres``) are excluded.
+    Includes only pre-rename ``kathara/nika-*`` tags.
     """
     legacy = {name for names in LEGACY_NIKA_IMAGE_NAMES.values() for name in names}
-    legacy.update(_tag_ref(image) for image in _k8s_workload_images() if "/" in image)
     return sorted(legacy)
 
 
@@ -153,7 +128,7 @@ def prune_stale_images() -> list[str]:
     """Remove superseded NIKA image tags and dangling NIKA builds.
 
     Only touches NIKA-only repositories, legacy NIKA tags, and dangling images
-    labeled by a NIKA build. Images used by any container are kept.
+    labeled by a NIKA build. Upstream tags and images used by containers are kept.
     """
     client = _get_client()
     owned = owned_images()
@@ -202,7 +177,10 @@ def prune_stale_images() -> list[str]:
             remaining -= 1
 
     for image in client.images.list(filters={"dangling": True, "label": IMAGE_LABEL}):
-        remove(image.id, image.id)
+        # Build labels can survive retagging or be inherited by downstream builds.
+        refs = [*image.tags, *(image.attrs.get("RepoDigests") or [])]
+        if not refs:
+            remove(image.id, image.id)
     return actions
 
 

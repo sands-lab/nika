@@ -192,14 +192,20 @@ def normalize_schedule(value: Any) -> Schedule:
 def schedule_for_task(row: dict[str, Any]) -> Schedule:
     """Supply execution defaults without changing the authored task or its identity."""
     from nika.workflows.benchmark.healthy import is_healthy_case
-    from nika.workflows.benchmark.multi_fault import nested_inject_map
+    from nika.workflows.benchmark.multi_fault import nested_inject_map, row_problems
+    from nika.problems.multi import fault_instance_keys
 
     value = row.get("schedule")
     if value is None:
         value = {
             "events": [
                 {"problem": name, "inject": params, "at": 0}
-                for name, params in nested_inject_map(row).items()
+                for name, key in zip(
+                    row_problems(row),
+                    fault_instance_keys(row_problems(row)),
+                    strict=True,
+                )
+                for params in [nested_inject_map(row)[key]]
                 if not is_healthy_case(name)
             ]
         }

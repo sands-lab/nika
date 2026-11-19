@@ -372,7 +372,7 @@ def session_net_env(session_meta: dict, *, session: Session | None = None):
     scenario = session.scenario_name
     backend = resolve_backend(session_meta)
     net_env_kwargs: dict = {"backend": backend}
-    from nika.net_env.isp.identity import is_isp_named_special, is_isp_scenario
+    from nika.net_env.isp.identity import is_isp_scenario
     from nika.net_env.isp.identity import ISP_NET_ENV_PARAM_KEYS
 
     # ISP scenarios bake topology into the scenario ID and reject topo_size.
@@ -385,9 +385,7 @@ def session_net_env(session_meta: dict, *, session: Session | None = None):
     scenario_params = getattr(session, "scenario_params", None) or {}
     if not scenario_params and isinstance(session_meta.get("scenario_params"), dict):
         scenario_params = session_meta["scenario_params"]
-    if is_isp_named_special(scenario):
-        param_keys: tuple[str, ...] = ("device_profile",)
-    elif is_isp_scenario(scenario):
+    if is_isp_scenario(scenario):
         # Topology comes from deploy_defaults; do not re-pass topo.
         param_keys = tuple(key for key in ISP_NET_ENV_PARAM_KEYS if key != "topo")
     else:

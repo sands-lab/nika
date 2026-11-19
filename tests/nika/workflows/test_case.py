@@ -17,7 +17,7 @@ from nika.validation.presence import bound_injected_problem
 from nika.workflows.case import load_example_cases
 from nika.workflows.benchmark.trials import task_id_for_row
 from nika.workflows.session.close import close_session
-from tests.support.prerequisites import docker_available, docker_image_available
+from tests.support.prerequisites import docker_available
 
 pytestmark = [
     pytest.mark.e2e,
@@ -25,19 +25,12 @@ pytestmark = [
 ]
 
 
-@pytest.mark.parametrize(
-    "scenario,host", [("dc_clos", "client_0"), ("iosxr_simple_bgp", "pc1")]
-)
+@pytest.mark.parametrize("scenario,host", [("dc_clos", "client_1_1")])
 def test_manual_case_launch_and_recovery(
     tmp_path: Path, scenario: str, host: str
 ) -> None:
     import docker
 
-    if scenario == "iosxr_simple_bgp":
-        from nika.net_env.utils.iosxr.common import IMAGE
-
-        if not docker_image_available(IMAGE):
-            pytest.skip("Licensed XRd image required")
     catalog = (
         BENCHMARK_DIR / "working" / "pool" / scenario / "link_down.yaml"
         if scenario == "dc_clos"
@@ -94,12 +87,7 @@ def test_manual_case_launch_and_recovery(
             endpoint for endpoint in endpoints if not endpoint.startswith(f"{host}:")
         )
         peer_host, peer_intf = peer.split(":", 1)
-        if scenario == "iosxr_simple_bgp":
-            from nika.net_env.iosxr_simple_bgp.lab import ROUTERS
-
-            destination = str(ROUTERS[peer_host]["pc_ip"].ip)
-        else:
-            destination = problem.runtime.get_host_ip(peer_host, peer_intf)
+        destination = problem.runtime.get_host_ip(peer_host, peer_intf)
         assert destination
         ping_args = [
             "exec",

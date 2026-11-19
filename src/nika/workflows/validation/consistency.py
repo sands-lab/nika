@@ -43,12 +43,10 @@ def consistency_snapshot_builder(env, routing_model: str | None = None):
                 if env.plan.igp == "isis"
                 else "frr"
             )
-        elif hasattr(env, "BGP_ROUTERS"):
-            (routing_model,) = sorted(
-                m for m in env.ROUTING_MODELS if m in {"iosxr-bgp", "routeros-bgp"}
-            )
         elif env.backend == "containerlab":
-            routing_model = "srl-bgp"
+            raise ValueError(
+                "Generator consistency needs a Batfish parser for SR Linux"
+            )
         elif "import_preferences" in env.ROUTING_PARAMETER_KINDS:
             routing_model = "frr-overlay"
         else:
@@ -59,9 +57,7 @@ def consistency_snapshot_builder(env, routing_model: str | None = None):
         return routing_model, build_sonic_snapshot
     if routing_model in {
         "srl-isp",
-        "srl-bgp",
         "routeros-isp",
-        "routeros-bgp",
         "frr-isis",
     }:
         # Batfish models neither platform nor FRR IS-IS; their static analysis
@@ -69,7 +65,7 @@ def consistency_snapshot_builder(env, routing_model: str | None = None):
         raise ValueError(
             f"Generator consistency needs a Batfish parser; {routing_model} has none"
         )
-    if routing_model in {"iosxr-isp", "iosxr-bgp"}:
+    if routing_model == "iosxr-isp":
         from nika.validation.batfish.vendor_bgp import build_vendor_snapshot
 
         return routing_model, partial(

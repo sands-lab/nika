@@ -235,6 +235,7 @@ class Issue(BaseModel):
     role: Literal["known", "lead"] = "known"
     exploit: bool = False
     fixed_in: str | None = None
+    fixed_in_equivalent: str | None = None
     provenance: Provenance
     evidence: list[str] = Field(default_factory=list)
     source_reads: list[SourceRead] = Field(default_factory=list, max_length=6)

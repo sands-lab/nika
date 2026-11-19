@@ -21,7 +21,6 @@ from nika.net_env.isp.bgp.config import (
 from nika.net_env.isp.bgp.errors import BgpConfigError
 from nika.net_env.isp.identity import (
     is_isp_base_topology,
-    is_isp_named_special,
     is_isp_scenario,
 )
 from nika.net_env.isp.igp.config import (
@@ -95,7 +94,11 @@ def _resolve_isp_kwargs(
     device_profile: str | None = None,
     backend: str | None = None,
 ) -> dict:
-    """Validate ISP flags; return kwargs for ``get_net_env_instance``."""
+    """Validate ISP flags; return kwargs for ``get_net_env_instance``.
+
+    ``rpki`` records whether the deployment carries RPKI/ROV, which current
+    Kathara FRR eBGP deployments do.
+    """
     provided = {
         "topo": topo,
         "igp": igp,
@@ -105,33 +108,6 @@ def _resolve_isp_kwargs(
         "rpki": rpki,
         "device_profile": device_profile,
     }
-
-    if is_isp_named_special(scenario):
-        # Case YAML / release rows often still carry device_profile=frr (and
-        # backend=kathara). Those are the baked defaults — ignore them. Reject
-        # only truly conflicting protocol knobs.
-        conflicts: list[str] = []
-        if topo is not None:
-            conflicts.append(f"topo={topo!r}")
-        if igp is not None:
-            conflicts.append(f"igp={igp!r}")
-        if metric_strategy is not None:
-            conflicts.append(f"metric_strategy={metric_strategy!r}")
-        if constant_metric is not None:
-            conflicts.append(f"constant_metric={constant_metric!r}")
-        if bgp_mode is not None:
-            conflicts.append(f"bgp_mode={bgp_mode!r}")
-        if rpki is not None:
-            conflicts.append(f"rpki={rpki!r}")
-        if device_profile not in (None, "", "-", "frr"):
-            conflicts.append(f"device_profile={device_profile!r}")
-        if conflicts:
-            raise ValueError(
-                f"Scenario '{scenario}' uses a fixed protocol profile; omit "
-                "--topo/--igp/--metric-strategy/--constant-metric/--bgp-mode/"
-                f"--rpki/--device-profile (got {', '.join(conflicts)})."
-            )
-        return {}
 
     if not is_isp_base_topology(scenario):
         profile = (
@@ -182,12 +158,6 @@ def _resolve_isp_kwargs(
         raise ValueError(
             f"Scenario '{scenario}' bakes topology into the scenario name; omit --topo."
         )
-    if rpki:
-        raise ValueError(
-            "RPKI requires a named scenario "
-            "(isp_abilene_ebgp_rpki or isp_geant_ebgp_rpki); omit --rpki."
-        )
-
     resolved_backend = resolve_scenario_backend(
         scenario,
         backend=backend,
@@ -232,13 +202,26 @@ def _resolve_isp_kwargs(
         validate_backend_profile(resolved_backend, resolved_profile)
     except ValueError as exc:
         raise ValueError(str(exc)) from exc
+    from nika.net_env.net_env_pool import isp_deployment_has_profiles
+
+    carries_rpki = isp_deployment_has_profiles(
+        scenario,
+        bgp_mode=resolved_bgp,
+        backend=resolved_backend,
+        device_profile=resolved_profile,
+    )
+    if rpki and not carries_rpki:
+        raise ValueError(
+            "--rpki needs --bgp-mode ebgp on Kathara FRR, whose deployments "
+            "carry RPKI/ROV."
+        )
 
     return {
         "igp": resolved_igp,
         "metric_strategy": resolved_strategy,
         "constant_metric": resolved_metric,
         "bgp_mode": resolved_bgp,
-        "rpki": False,
+        "rpki": carries_rpki,
         "device_profile": resolved_profile,
     }
 
@@ -293,6 +276,23 @@ def _configure_telemetry(net_env: Any, session: Session, *, scenario: str) -> No
         )
 
 
+def _calibrate_pingmesh(
+    net_env: Any, session: Session, intent: Any, backend: str
+) -> None:
+    from nika.service.lab.host_api import create_host_api
+    from nika.service.pingmesh.baseline import capture_latency_baseline
+    from nika.utils.session_store import SessionStore
+
+    meta = SessionStore().get_session(session.session_id)
+    api = create_host_api(
+        lab_name=net_env.name,
+        backend=backend,
+        runtime=net_env._build_runtime(),
+        session_meta=meta,
+    )
+    capture_latency_baseline(api, session.session_dir, intent)
+
+
 def start_net_env(
     scenario: str,
     topo_size: str | None,
@@ -329,7 +329,11 @@ def start_net_env(
     from nika.remote.config import is_remote_enabled
 
     canonical = resolve_scenario_id(scenario)
-    telemetry_kinds = normalize_telemetry(telemetry)
+    from nika.telemetry import TELEMETRY_KINDS
+
+    telemetry_kinds = normalize_telemetry(
+        TELEMETRY_KINDS if telemetry is None else telemetry
+    )
     traffic_profile = normalize_traffic(traffic)
     static_validation_enabled = (
         static_validation
@@ -422,8 +426,6 @@ def start_net_env(
         session_tag=session_tag, suffix=suffix
     )
     net_env_kwargs: dict = {"lab_name": lab_name, **isp_kwargs}
-    if release is not None:
-        net_env_kwargs["environment_release"] = release
     # Do not pass topo_size into ISP labs (topology is baked into scenario ID).
     if size is not None and not is_isp_scenario(canonical):
         net_env_kwargs["topo_size"] = size
@@ -466,8 +468,6 @@ def start_net_env(
     if is_isp_scenario(canonical):
         scenario_params["topo"] = getattr(net_env, "topo", None)
     scenario_params.update(isp_kwargs)
-    if release is not None:
-        scenario_params["environment_release"] = release
     probe_intent = net_env.probe_intent()
     if probe_intent is not None:
         net_env.metadata[PROBE_INTENT_METADATA_KEY] = probe_intent.model_dump(
@@ -666,8 +666,6 @@ def start_net_env(
                 error_type=type(post_deploy_exc).__name__,
             )
 
-        net_env.seal_baseline()
-
         # Every case of a scenario carries the same traffic, so a workload
         # that does not start fails the session start.
         workload_started = time.perf_counter()
@@ -707,6 +705,9 @@ def start_net_env(
                 node_count=len(background.nodes),
                 duration_ms=elapsed_ms(traffic_started),
             )
+        if "pingmesh" in telemetry_kinds:
+            _calibrate_pingmesh(net_env, session, probe_intent, resolved_backend)
+        net_env.seal_baseline()
     except BaseException as exc:
         # Session is registered before deploy; clean up so interrupted starts
         # do not leave a running lab (KeyboardInterrupt is not Exception).

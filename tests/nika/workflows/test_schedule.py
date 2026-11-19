@@ -454,3 +454,179 @@ def test_schedule_rejects_faults_that_finish_before_agent_dispatch(repeat):
     with pytest.raises(ValueError, match="observable"):
         Schedule(agent_start=20, events=[event])
     assert Schedule(agent_start=0, events=[event])
+
+
+def test_cleanup_restores_each_artifact_before_one_healthy_check(tmp_path, monkeypatch):
+    from nika.problems.support.recovery import recovery_checks_health
+    from nika.workflows import schedule as runtime
+    from nika.workflows.failure.inject import PreparedFailure
+
+    session = SimpleNamespace(session_dir=str(tmp_path))
+    monkeypatch.setattr(
+        runtime,
+        "Session",
+        lambda: SimpleNamespace(load_running_session=lambda **kw: session),
+    )
+    plan = Schedule(events=[{"problem": "link_down"}, {"problem": "host_acl_block"}])
+    scheduler = runtime.SessionScheduler("recovery", plan)
+    scheduler.net_env = SimpleNamespace(align_saved_configs=lambda: None)
+    order = []
+
+    def fault(name):
+        def recover():
+            assert not recovery_checks_health()
+            order.append(name)
+            return {"verified": True}
+
+        return SimpleNamespace(
+            recover_fault=recover,
+            check_runtime_compatible=lambda **kw: None,
+            net_env=scheduler.net_env,
+        )
+
+    scheduler._prepared = {
+        (i, 0): PreparedFailure(fault(e.problem), None)
+        for i, e in enumerate(plan.events)
+    }
+    scheduler._active = dict.fromkeys(scheduler._prepared)
+    monkeypatch.setattr(scheduler, "_record", lambda *args, **kw: None)
+
+    def healthy(env):
+        assert not scheduler._active
+        assert recovery_checks_health()
+        order.append("healthy")
+
+    monkeypatch.setattr(
+        "nika.problems.support.recovery.verify_recovered_environment", healthy
+    )
+    scheduler.close()
+    assert order == ["host_acl_block", "link_down", "healthy"]
+
+
+def test_restored_repeated_placements_match_persisted_record_indices(
+    tmp_path, monkeypatch
+):
+    from nika.problems.combinations import get_combination, task_placement
+    from nika.problems.registry import get_problem_instance
+    from nika.workflows import schedule as runtime
+
+    row = normalize_benchmark_row(
+        get_combination("redundant_links_both_lost").rows()[0]
+    )
+    problem = get_problem_instance(row["problems"], row["scenario"], topo_size="s")
+    params = problem.resolve_params(task_placement(row))
+    records = [
+        {"problem_name": "link_down", "injection_params": {"instance_key": key}}
+        for key in problem.problem_names
+    ]
+
+    class Store:
+        def get_session(self, sid):
+            return {"failure_injections": records}
+
+        def list_failure_injections(self, **kwargs):
+            return list(reversed(records))
+
+        def update_failure_injection(self, sid, index, values):
+            records[index].update(values)
+
+    session = SimpleNamespace(
+        session_dir=str(tmp_path),
+        scenario_name=row["scenario"],
+        scenario_params={"topo_size": "s"},
+        lab_name="lab",
+        store=Store(),
+    )
+    session.update_session = lambda key, value: setattr(session, key, value)
+    session.write_gt = lambda value: setattr(session, "ground_truth", value)
+    monkeypatch.setattr(
+        runtime,
+        "Session",
+        lambda: SimpleNamespace(load_running_session=lambda **kw: session),
+    )
+    monkeypatch.setattr("nika.remote.config.is_remote_enabled", lambda: False)
+    monkeypatch.setattr(
+        "nika.problems.context.init_problem",
+        lambda *a, **kw: (problem.net_env, SimpleNamespace(backend="kathara")),
+    )
+    monkeypatch.setattr(
+        "nika.validation.presence.bound_injected_problem", lambda sid: (problem, params)
+    )
+    scheduler = runtime.SessionScheduler(
+        "restore", schedule_for_task(row), restored=True
+    )
+    scheduler.prepare()
+    assert scheduler._failure_ids == {(0, 0): 0, (1, 0): 1}
+    assert [record["event_index"] for record in records] == [0, 1]
+    assert session.problem_names == ["link_down", "link_down"]
+
+
+def test_healthy_static_and_timed_schedules_have_identical_task_prompts(
+    tmp_path, monkeypatch
+):
+    from nika.problems import context
+    from nika.problems.rca import ProblemGroundTruth, RootCause, interface_resource
+    from nika.remote import config
+    from nika.workflows import schedule as runtime
+    from nika.workflows.benchmark.healthy import healthy_task_description
+    from nika.workflows.failure.inject import PreparedFailure
+
+    env = SimpleNamespace(get_info=lambda: "The same network description")
+    truth = ProblemGroundTruth(
+        is_anomaly=True,
+        root_causes=[
+            RootCause(
+                resource=interface_resource("client", "eth0"), fault_type="link_down"
+            )
+        ],
+    )
+    problem = SimpleNamespace(
+        get_task_description=lambda: healthy_task_description(env),
+        get_ground_truth=lambda: truth,
+        taxonomy_metadata=lambda: {},
+        is_compatible=lambda *a, **kw: True,
+    )
+    monkeypatch.setattr(config, "is_remote_enabled", lambda: False)
+    monkeypatch.setattr(
+        context,
+        "init_problem",
+        lambda *a, **kw: (env, SimpleNamespace(backend="kathara")),
+    )
+    monkeypatch.setattr(runtime, "write_schedule_owner", lambda *a: None)
+    monkeypatch.setattr(runtime, "_extract_injection_params", lambda *a: {})
+    monkeypatch.setattr(
+        runtime, "prepare_failure", lambda *a: PreparedFailure(problem, None)
+    )
+    prompts = []
+    for name, plan in [
+        ("healthy", Schedule(events=[])),
+        ("static", Schedule(events=[{"problem": "link_down"}])),
+        (
+            "timed",
+            Schedule(
+                agent_start=0, events=[{"problem": "link_down", "at": 1, "duration": 5}]
+            ),
+        ),
+    ]:
+        directory = tmp_path / name
+        directory.mkdir()
+        values = {}
+        session = SimpleNamespace(
+            session_dir=str(directory),
+            scenario_name="dc_clos",
+            scenario_params={},
+            lab_name="same-lab",
+            update_session=values.__setitem__,
+            store=SimpleNamespace(create_failure_injection=lambda record: 0),
+        )
+        monkeypatch.setattr(
+            runtime,
+            "Session",
+            lambda: SimpleNamespace(load_running_session=lambda **kw: session),
+        )
+        scheduler = runtime.SessionScheduler(name, plan)
+        monkeypatch.setattr(scheduler, "_write_truth", lambda: None)
+        scheduler.prepare()
+        prompts.append(values["task_description"])
+    assert prompts[0] == prompts[1] == prompts[2]
+    assert "including behavior that recovers" in prompts[0]

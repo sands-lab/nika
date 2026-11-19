@@ -30,7 +30,9 @@ def test_close_cleans_stopped_nodes_without_topology_and_preserves_sibling(tmp_p
     sibling_target = None
     sibling_link_inode = None
     try:
-        session_id = start_net_env("min3clos", None, result_dir=str(tmp_path))
+        session_id = start_net_env(
+            "dc_clos", "s", backend="containerlab", result_dir=str(tmp_path)
+        )
         meta = SessionStore().get_session(session_id)
         runtime = runtime_for_session(meta)
         selector = {"label": f"containerlab={meta['lab_name']}"}

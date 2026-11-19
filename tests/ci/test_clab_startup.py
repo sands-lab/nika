@@ -1,4 +1,4 @@
-"""Containerlab min3clos light-startup smoke."""
+"""Containerlab dc_clos light-startup smoke."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ pytestmark = [
 ]
 
 
-def test_min3clos_light_startup() -> None:
+def test_dc_clos_light_startup() -> None:
     helper = IntegrationTestCase()
-    session_id = helper._start_env("min3clos", [])
+    session_id = helper._start_env("dc_clos", ["-s", "s", "--backend", "containerlab"])
     try:
-        helper._assert_session_ready(session_id, "min3clos")
+        helper._assert_session_ready(session_id, "dc_clos")
     finally:
         helper._close_session(session_id)

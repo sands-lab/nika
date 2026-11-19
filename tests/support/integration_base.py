@@ -213,6 +213,9 @@ class IntegrationMixin:
             kwargs.pop("topo_size", None)
         elif row.get("scenario_topo_size") is not None:
             kwargs["topo_size"] = row["scenario_topo_size"]
+        for field in ("topology_file", "runtime_workdir"):
+            if row.get(field) is not None:
+                kwargs[field] = row[field]
         return kwargs
 
     def _problem(self, cls_, session_id: str | None = None):

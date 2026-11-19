@@ -96,14 +96,20 @@ class PreparedFailure:
     def verify(self) -> dict[str, Any]:
         return _verify_with_retry(self.problem, self.params)
 
-    def recover(self) -> dict[str, Any]:
+    def recover(self, *, artifact_only: bool = False) -> dict[str, Any]:
         self.problem.check_runtime_compatible(operation="recover_fault")
-        if self.params is None:
-            result = self.problem.recover_fault()
-        else:
-            result = self.problem.recover_fault(params=self.params)
+        from contextlib import nullcontext
+        from nika.problems.support.recovery import artifact_recovery
+
+        with artifact_recovery() if artifact_only else nullcontext():
+            if self.params is None:
+                result = self.problem.recover_fault()
+            else:
+                result = self.problem.recover_fault(params=self.params)
         if not isinstance(result, dict) or result.get("verified") is not True:
             raise RuntimeError(f"Failure recovery verification failed: {result}")
+        if artifact_only:
+            result = {**result, "scope": "artifact"}
         self.problem.net_env.align_saved_configs()
         return result
 
@@ -196,7 +202,9 @@ def inject_prepared_failure(
             sub_problem = sub_faults[idx] if idx < len(sub_faults) else inject_problem
             params_snapshot = _extract_injection_params(sub_problem)
             if isinstance(fault_params, object) and hasattr(fault_params, "sub_params"):
-                parsed = getattr(fault_params, "sub_params", {}).get(problem_name)
+                instance_key = inject_problem.problem_names[idx]
+                params_snapshot["instance_key"] = instance_key
+                parsed = getattr(fault_params, "sub_params", {}).get(instance_key)
                 if parsed is not None:
                     params_snapshot["resolved_params"] = json_safe(
                         parsed.model_dump(exclude_none=True)

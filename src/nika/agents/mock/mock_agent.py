@@ -107,8 +107,8 @@ def _mock_diagnosis_tool_calls(
     preferred: list[str],
 ) -> list[tuple[str, dict[str, Any]]]:
     calls: list[tuple[str, dict[str, Any]]] = []
-    if "pingmesh_mcp_server" in server_names:
-        calls.append(("run_pingmesh_snapshot", {}))
+    if "kathara_prometheus_mcp_server" in server_names:
+        calls.append(("prometheus_query", {"query": "probe_success"}))
 
     pair = _pick_pair(devices, preferred)
     if pair is not None:
@@ -208,6 +208,7 @@ class MockAgent(DiagnosisAgent):
             backend=backend,
             telemetry=telemetry_for_session(self.session),
             device_profile=device_profile_for(self.session),
+            deployment=self.session,
         )
         gt = _load_ground_truth(getattr(self.session, "session_dir", None))
         preferred = _preferred_devices_from_gt(gt)

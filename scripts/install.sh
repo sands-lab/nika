@@ -623,7 +623,7 @@ ensure_host_limits() {
   # k3s (k8s_lab, llmd_lab) and Cisco XRd exhaust the kernel default of 128
   # inotify instances; every running container's shim also holds one.
   ensure_sysctl_floor "${INOTIFY_CONF}" "inotify limits" \
-    "k8s_lab, llmd_lab, and iosxr_simple_bgp" \
+    "k8s_lab, llmd_lab, and IOS XR profiles" \
     fs.inotify.max_user_instances=64000 fs.inotify.max_user_watches=64000
   # One kernel neighbor (ARP/NDP) table, with one gc_thresh limit, serves
   # every container network namespace. Large or concurrent labs overflow the
@@ -770,7 +770,7 @@ ensure_xrd_image() {
   local tarball
   if ! tarball="$(find_xrd_tarball)"; then
     if ! prompt_for_xrd_tarball; then
-      warn "Skipping ${XRD_IMAGE}; iosxr_simple_bgp will fail until you load an XRd tarball"
+      warn "Skipping ${XRD_IMAGE}; IOS XR profiles will fail until you load an XRd tarball"
       return
     fi
     tarball="$(find_xrd_tarball)" \
@@ -1049,8 +1049,8 @@ ${track_note}     uv run nika benchmark run --release 0.3.0 --split test --resul
      # or: uv run nika agent run -a byo.langgraph -p openai -m gpt-5-mini --problem dc_clos_s_link_down
 
 Vendor labs (after --with-vendor-images):
-     uv run nika env run iosxr_simple_bgp
-     uv run nika env run routeros_simple_bgp
+     uv run nika env run dc_clos -s s --device-profile iosxr
+     uv run nika env run dc_clos -s s --device-profile routeros
 
 ${uv_note}New docker or clab_admins group membership: open a new login shell.
 Remote install: docs/operations/remote.md

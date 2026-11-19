@@ -33,7 +33,6 @@ XR, RouterOS, SR Linux). Pairs the scenario isolates by design
 
 from __future__ import annotations
 
-import ipaddress
 import math
 import random
 import re
@@ -364,24 +363,18 @@ def _incast_processes(
     )
 
 
-def _parse_addresses(output: str, *, skip_eth0: bool) -> str | None:
+def _parse_addresses(
+    output: str, *, skip_eth0: bool, excluded_networks: tuple = ()
+) -> str | None:
     """Pick the data-plane IPv4 address from ``ip -4 -o addr`` output."""
-    from nika.telemetry import TELEMETRY_SUBNET
+    from nika.problems.support.oracle import service_addresses
 
-    telemetry = ipaddress.ip_network(TELEMETRY_SUBNET)
     found: list[tuple[int, str]] = []
-    for line in output.splitlines():
-        parts = line.split()
-        if len(parts) < 4 or parts[2] != "inet":
-            continue
-        iface = parts[1].split("@", 1)[0]
+    for iface, cidr in service_addresses(output, excluded_networks=excluded_networks):
         match = _ETH.match(iface)
         if not match or (skip_eth0 and iface == "eth0"):
             continue
-        address = ipaddress.ip_interface(parts[3]).ip
-        if address in telemetry or address.is_loopback:
-            continue
-        found.append((int(match.group(1)), str(address)))
+        found.append((int(match.group(1)), cidr.split("/", 1)[0]))
     return min(found)[1] if found else None
 
 
@@ -402,23 +395,19 @@ def discover_endpoints(
     """
     hosts = sorted(set(hosts))
     elsewhere = set(python_elsewhere)
-    skip_eth0 = runtime.backend == "containerlab"
-    data_eth0 = set()
-    if skip_eth0 and (topology := getattr(runtime, "topology_file", None)):
-        from nika.runtime.containerlab.parse import parse_clab_topology
+    from nika.problems.support.oracle import containerlab_data_eth0, management_networks
 
-        data_eth0 = {
-            node
-            for link in parse_clab_topology(topology).links
-            for endpoint in link.endpoints
-            for node, interface in [endpoint.split(":", 1)]
-            if interface == "eth0"
-        }
+    data_eth0 = containerlab_data_eth0(runtime)
+    skip_eth0 = data_eth0 is not None
+    data_eth0 = data_eth0 or set()
+    excluded_networks = management_networks(runtime)
 
     def probe(host: str) -> Endpoint | None:
         script = _ADDRESSES if host in elsewhere else _DISCOVER
         ip = _parse_addresses(
-            runtime.exec(host, script), skip_eth0=skip_eth0 and host not in data_eth0
+            runtime.exec(host, script),
+            skip_eth0=skip_eth0 and host not in data_eth0,
+            excluded_networks=excluded_networks,
         )
         return Endpoint(host, ip) if ip else None
 

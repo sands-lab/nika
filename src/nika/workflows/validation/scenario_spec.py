@@ -50,6 +50,13 @@ class RoutingRuntimeMutation(ContractModel):
     expected_failed_ids: tuple[str, ...] = Field(min_length=1)
 
 
+class RoutingPatternEdit(ContractModel):
+    """Replace every configuration entry matching a regular expression."""
+
+    pattern: str
+    replacement: str
+
+
 class RoutingFailureCheck(ContractModel):
     """A registered configuration failure exercised against original requirements."""
 
@@ -67,7 +74,9 @@ class RoutingFailureCheck(ContractModel):
     # The fault's static model: design changes that netlab renders, and text
     # edits of the configuration that NIKA renders itself.
     changes: tuple[DesignChange, ...] = ()
-    static_edits: dict[str, tuple[str, str]] = Field(default_factory=dict)
+    static_edits: dict[str, tuple[str, str] | RoutingPatternEdit] = Field(
+        default_factory=dict
+    )
 
 
 class ScenarioDeployment(ContractModel):
@@ -81,9 +90,7 @@ class ScenarioDeployment(ContractModel):
 
 
 # Routing models whose scenario constructor takes ``routing_model`` directly.
-ENV_ROUTING_MODELS = frozenset(
-    {"srl-bgp", "iosxr-bgp", "routeros-bgp", "iosxr-isp", "routeros-isp"}
-)
+ENV_ROUTING_MODELS = frozenset({"iosxr-isp", "routeros-isp"})
 
 
 class ScenarioExperiment(ContractModel):
@@ -91,9 +98,6 @@ class ScenarioExperiment(ContractModel):
     routing_model: Literal[
         "frr",
         "linux-static",
-        "srl-bgp",
-        "iosxr-bgp",
-        "routeros-bgp",
         "frr-isis",
         "srl-isp",
         "iosxr-isp",

@@ -21,7 +21,6 @@ from nika.schedule import Burst, Schedule, ScheduledAction
 from nika.utils.logger import bind_session_dir, log_event
 from nika.utils.session import Session
 from nika.utils.session_artifacts import json_safe, write_json_atomic
-from nika.utils.session_log_summaries import summarize_injection
 from nika.workflows.failure.inject import (
     PreparedFailure,
     prepare_failure,
@@ -189,6 +188,7 @@ class SessionScheduler:
             self._prepare()
 
     def _prepare(self) -> None:
+        from nika.problems.multi import fault_instance_keys
         from nika.problems.context import init_problem
         from nika.remote.config import is_remote_enabled
 
@@ -213,30 +213,14 @@ class SessionScheduler:
                 overrides = (
                     self.plan.events[0].inject
                     if len(names) == 1
-                    else {e.problem: e.inject for e in self.plan.events}
+                    else {
+                        key: event.inject
+                        for key, event in zip(
+                            fault_instance_keys(names), self.plan.events, strict=True
+                        )
+                    }
                 )
                 self._initial_failure = prepare_failure(self.session, names, overrides)
-                if len(names) != len(set(names)):
-                    from nika.problems.multi import MultiFaultParams
-
-                    initial = self._initial_failure
-                    labels = [
-                        f"{summarize_injection(e.problem, resolved_params=e.inject)} [{i + 1}]"
-                        for i, e in enumerate(self.plan.events)
-                    ]
-                    initial.params = MultiFaultParams(
-                        sub_params={
-                            label: fault.resolve_params(event.inject)
-                            for label, fault, event in zip(
-                                labels,
-                                initial.problem.sub_faults,
-                                self.plan.events,
-                                strict=True,
-                            )
-                        }
-                    )
-                    initial.problem.problem_names = labels
-                    initial.problem._resolved_params = initial.params
             for key, value in self._initial_failure.problem.taxonomy_metadata().items():
                 self.session.update_session(key, value)
         if self.plan.activates("business"):
@@ -246,6 +230,11 @@ class SessionScheduler:
             ):
                 raise ValueError("This environment declares no business workload")
         windows = []
+        static_instance_keys = (
+            fault_instance_keys([event.problem for event in self.plan.events])
+            if self.plan.static
+            else []
+        )
         materialized_events = list(self.plan.events)
         for action in self.plan.actions():
             if action.stopping:
@@ -294,6 +283,11 @@ class SessionScheduler:
                         f"Scheduled failure {event.problem!r} has no resolved mutation scope"
                     )
                 self._prepared[key] = prepared
+                instance_key = (
+                    static_instance_keys[action.event_index]
+                    if self.plan.static
+                    else event.problem
+                )
                 record = {
                     "session_id": self.session_id,
                     "problem_name": event.problem,
@@ -304,6 +298,7 @@ class SessionScheduler:
                     "occurrence_index": action.occurrence_index,
                     "injection_params": {
                         **_extract_injection_params(prepared.problem),
+                        "instance_key": instance_key,
                         "resolved_params": json_safe(
                             prepared.params.model_dump(exclude_none=True)
                             if prepared.params is not None
@@ -313,13 +308,17 @@ class SessionScheduler:
                     "status": "pending",
                 }
                 if self.restored:
-                    existing = self.session.store.list_failure_injections(
-                        session_id=self.session_id
+                    existing = self.session.store.get_session(self.session_id).get(
+                        "failure_injections", []
                     )
                     matches = [
                         i
                         for i, row in enumerate(existing)
-                        if row.get("problem_name") == event.problem
+                        if (
+                            (row.get("injection_params") or {}).get("instance_key")
+                            or row.get("problem_name")
+                        )
+                        == instance_key
                     ]
                     if len(matches) != 1:
                         raise ScheduleError(
@@ -386,7 +385,9 @@ class SessionScheduler:
             )
         self.plan = self.plan.model_copy(update={"events": materialized_events})
         self.session.update_session("schedule", self.plan.case_value())
-        names = list(dict.fromkeys(e.problem for e in self.plan.events if e.problem))
+        names = [e.problem for e in self.plan.events if e.problem]
+        if not self.plan.static:
+            names = list(dict.fromkeys(names))
         if self.expected_root_causes is not None:
             expected = {}
             for prepared in self._prepared.values():
@@ -406,15 +407,13 @@ class SessionScheduler:
 
         self.session.update_session(
             "task_description",
-            self._initial_failure.problem.get_task_description()
-            if self._initial_failure is not None
-            else healthy_task_description(self.net_env)
-            + (
-                "\n\nObserve network changes during this task."
-                "\nReport faults observed over time, including faults that recover."
-                if not self.plan.static
-                else ""
-            ),
+            (
+                self._initial_failure.problem.get_task_description()
+                if self._initial_failure is not None
+                else healthy_task_description(self.net_env)
+            )
+            + "\n\nObserve the network throughout this task."
+            "\nReport any abnormal behavior you observe, including behavior that recovers.",
         )
         self.session.update_session(
             "failure_domain",
@@ -756,7 +755,9 @@ class SessionScheduler:
         if key not in self._active:
             raise ScheduleError("Recovery ran before successful activation")
         if key in self._prepared:
-            result = self._prepared[key].recover()
+            result = self._prepared[key].recover(
+                artifact_only=sum(bool(e.problem) for e in self.plan.events) > 1
+            )
             self._prepared[key].problem.net_env.align_saved_configs()
         else:
             self._bursts[key].stop()
@@ -811,8 +812,8 @@ class SessionScheduler:
                     record_injection_verify,
                 )
 
-                rows = self.session.store.list_failure_injections(
-                    session_id=self.session_id
+                rows = self.session.store.get_session(self.session_id).get(
+                    "failure_injections", []
                 )
                 checks = [rows[i]["verify_result"] for i in self._failure_ids.values()]
                 record_injection_verify(
@@ -879,6 +880,17 @@ class SessionScheduler:
                 errors.append(str(exc))
                 # Preserve snapshots that depend on the failed recovery step.
                 break
+        if (
+            not errors
+            and sum(bool(e.problem) for e in self.plan.events) > 1
+            and self._prepared
+        ):
+            from nika.problems.support.recovery import verify_recovered_environment
+
+            try:
+                verify_recovered_environment(self.net_env)
+            except Exception as exc:
+                errors.append(str(exc))
         for burst in self._bursts.values():
             try:
                 burst.stop()

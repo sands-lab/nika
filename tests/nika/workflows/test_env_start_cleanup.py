@@ -122,6 +122,9 @@ def test_static_validation_requires_explicit_opt_in(
     with (
         patch("nika.remote.config.is_remote_enabled", return_value=False),
         patch("nika.workflows.env.start.get_net_env_instance", return_value=env),
+        patch("nika.workflows.env.start.apply_telemetry", return_value={}),
+        patch("nika.workflows.env.start._configure_telemetry"),
+        patch("nika.workflows.env.start._calibrate_pingmesh"),
         patch("nika.workflows.env.start.verify_lab_with_retry", return_value=None),
         patch("nika.workflows.env.start.Session", return_value=session),
         patch("nika.workflows.env.start.bind_session_dir"),
@@ -165,6 +168,9 @@ def test_yaml_static_validation_setting_enables_batfish(
         patch("nika.remote.config.is_remote_enabled", return_value=False),
         patch("nika.workflows.env.start.get_run_config", return_value=config),
         patch("nika.workflows.env.start.get_net_env_instance", return_value=env),
+        patch("nika.workflows.env.start.apply_telemetry", return_value={}),
+        patch("nika.workflows.env.start._configure_telemetry"),
+        patch("nika.workflows.env.start._calibrate_pingmesh"),
         patch("nika.workflows.env.start.verify_lab_with_retry", return_value=None),
         patch("nika.workflows.env.start.Session", return_value=session),
         patch("nika.workflows.env.start.bind_session_dir"),
@@ -174,3 +180,70 @@ def test_yaml_static_validation_setting_enables_batfish(
         start_net_env("simple_bgp", None, redeploy=False)
 
     run.assert_called_once()
+
+
+@pytest.mark.parametrize("defer_background", [False, True])
+def test_baseline_is_sealed_after_started_workloads(tmp_path, defer_background):
+    from types import SimpleNamespace
+
+    from nika.traffic.profiles import normalize_traffic
+
+    actions = []
+    env = MagicMock()
+    env.name = "simple_bgp__startup"
+    env.lab_exists.return_value = True
+    env.metadata = {}
+    env.get_validation_contract.return_value = ValidationContract(
+        contract_id="simple_bgp.baseline",
+        scenario="simple_bgp",
+        design_source={},
+        intents=(),
+    )
+    env.start_business_workload.side_effect = lambda **kw: actions.append("business")
+
+    def seal():
+        assert actions == (
+            ["business", "calibrate"]
+            if defer_background
+            else ["business", "background", "calibrate"]
+        )
+        actions.append("sealed")
+
+    env.seal_baseline.side_effect = seal
+    session = MagicMock()
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    session.session_dir = str(session_dir)
+    profile = normalize_traffic({"pattern": "uniform", "load_mbps": 1.0})
+
+    def background(*args):
+        actions.append("background")
+        return profile, SimpleNamespace(processes=(), nodes=())
+
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=False),
+        patch("nika.workflows.env.start.get_net_env_instance", return_value=env),
+        patch("nika.workflows.env.start.apply_telemetry", return_value={}),
+        patch("nika.workflows.env.start._configure_telemetry"),
+        patch(
+            "nika.workflows.env.start._calibrate_pingmesh",
+            side_effect=lambda *_: actions.append("calibrate"),
+        ),
+        patch("nika.workflows.env.start.verify_lab_with_retry", return_value=None),
+        patch("nika.workflows.env.start.Session", return_value=session),
+        patch("nika.workflows.env.start.bind_session_dir"),
+        patch("nika.workflows.env.start.log_event"),
+        patch("nika.workflows.env.start.stop_background_traffic"),
+        patch(
+            "nika.workflows.env.start.start_background_traffic", side_effect=background
+        ),
+    ):
+        start_net_env(
+            "simple_bgp",
+            None,
+            redeploy=False,
+            static_validation=False,
+            traffic=profile.case_value(),
+            defer_background_traffic=defer_background,
+        )
+    assert actions[-1] == "sealed"

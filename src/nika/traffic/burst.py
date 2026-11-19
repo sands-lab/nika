@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import shlex
 import time
@@ -10,6 +11,7 @@ from dataclasses import dataclass, field, replace
 from typing import Literal
 
 from nika.runtime.base import LabRuntime
+from nika.runtime.shared.processes import process_source
 
 _RATE_RE = re.compile(r"^(\d+(?:\.\d+)?)([KMG]?)(?:/\d+)?$", re.IGNORECASE)
 
@@ -25,20 +27,20 @@ def _rate_bps(rate: str) -> int:
 
 
 _RAW_UDP_SENDER = """import socket,sys,time
-dst,port,bps,size,duration,source_port=sys.argv[1:]
-port,bps,size,source_port=map(int,(port,bps,size,source_port))
+dst,port,bps,size,duration,source_port,burst,start=sys.argv[1:]
+port,bps,size,source_port,burst=map(int,(port,bps,size,source_port,burst))
 s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 s.bind(('',source_port))
 payload=b'x'*size
-period=size*8/bps
-end=time.monotonic()+float(duration)
-next_send=time.monotonic()
+period=size*8*burst/bps
+start=float(start)
+time.sleep(max(0.0,start-time.time()))
+end=time.monotonic()+max(0.0,start+float(duration)-time.time())
 while time.monotonic()<end:
-    try: s.sendto(payload,(dst,port))
-    except OSError: pass
-    next_send+=period
-    delay=next_send-time.monotonic()
-    if delay>0: time.sleep(delay)
+    for _ in range(burst):
+        try: s.sendto(payload,(dst,port))
+        except OSError: pass
+    time.sleep(min(period,max(0.0,end-time.monotonic())))
 """
 # Without a bound socket the receiver answers every datagram with ICMP port
 # unreachable, which doubles the load on the fabric toward the senders.
@@ -139,19 +141,16 @@ class BurstTrafficGenerator:
                     raise RuntimeError(
                         f"Burst receiver {flow.destination!r} requires iperf3"
                     )
-                output = self.runtime.exec(
+                prepared.launch(
                     flow.destination,
-                    f"iperf3 -s -1 --forceflush -p {flow.destination_port} >/tmp/iperf-server-{flow.flow_id}.log 2>&1 & echo $!",
-                    timeout=10,
-                ).strip()
-                if not output.isdigit():
-                    raise RuntimeError(f"Burst receiver returned no PID: {output}")
-                prepared.processes.append(
-                    (
-                        flow.destination,
-                        int(output),
-                        f"/tmp/iperf-server-{flow.flow_id}.log",
-                    )
+                    [
+                        "iperf3",
+                        "-s",
+                        "-1",
+                        "--forceflush",
+                        "-p",
+                        str(flow.destination_port),
+                    ],
                 )
             return prepared
         except BaseException:
@@ -228,6 +227,13 @@ class BurstTrafficGenerator:
     ) -> dict:
         if raw_udp and protocol != "udp":
             raise ValueError("raw_udp requires protocol='udp'")
+        if raw_udp:
+            bitrate = _rate_bps(rate)
+            burst_packets = int(rate.split("/", 1)[1]) if "/" in rate else 1
+            if bitrate < 1 or burst_packets < 1 or packet_size < 1 or duration <= 0:
+                raise ValueError(
+                    "Raw UDP rate, burst count, packet size and duration must be positive"
+                )
         flows, destination_ip = self._resolve_flows(
             sources, destination, protocol, seed, flows_per_source
         )
@@ -240,7 +246,7 @@ class BurstTrafficGenerator:
                     destination,
                     f"python3 -c {shlex.quote(_RAW_UDP_SINK)} "
                     f"{flow.destination_port} {sink_seconds:.0f} "
-                    f">/tmp/iperf-server-{flow.flow_id}.log 2>&1 & echo $!",
+                    f">/dev/null 2>&1 & echo $!",
                     timeout=10,
                 ).strip()
                 if output.isdigit():
@@ -249,7 +255,7 @@ class BurstTrafficGenerator:
             for flow in flows:
                 self.runtime.exec(
                     destination,
-                    f"iperf3 -s -1 -p {flow.destination_port} >/tmp/iperf-server-{flow.flow_id}.log 2>&1 &",
+                    f"iperf3 -s -1 -p {flow.destination_port} >/dev/null 2>&1 &",
                     timeout=10,
                 )
         if protocol == "tcp":
@@ -262,13 +268,14 @@ class BurstTrafficGenerator:
             delay = max(0.0, start_time - time.time())
             if raw_udp:
                 command = (
-                    f"sleep {delay:.6f}; exec python3 -c {shlex.quote(_RAW_UDP_SENDER)} "
+                    f"exec python3 -c {shlex.quote(_RAW_UDP_SENDER)} "
                     f"{shlex.quote(destination_ip)} {flow.destination_port} "
-                    f"{_rate_bps(rate)} {packet_size} {duration} {flow.source_port}"
+                    f"{bitrate} {packet_size} {duration} {flow.source_port} "
+                    f"{burst_packets} {start_time:.6f}"
                 )
                 output = self.runtime.exec(
                     flow.source,
-                    f"({command}) >/tmp/burst-{flow.flow_id}.log 2>&1 & echo $!",
+                    f"({command}) >/dev/null 2>&1 & echo $!",
                     timeout=10,
                 ).strip()
                 if output.isdigit():
@@ -281,7 +288,7 @@ class BurstTrafficGenerator:
                 )
                 output = self.runtime.exec(
                     flow.source,
-                    f"({command}) >/tmp/burst-{flow.flow_id}.log 2>&1 & echo $!",
+                    f"({command}) >/dev/null 2>&1 & echo $!",
                     timeout=10,
                 ).strip()
                 if output.isdigit():
@@ -312,7 +319,28 @@ class PreparedBurst:
     runtime: LabRuntime
     flows: list[BurstFlow]
     destination_ip: str
-    processes: list[tuple[str, int, str]] = field(default_factory=list)
+    processes: list[tuple[str, list]] = field(default_factory=list)
+
+    def launch(self, host: str, command: list[str]) -> None:
+        """Discard helper output and retain the child's PID and birth identity."""
+        source = (
+            process_source()
+            + """
+child = subprocess.Popen(sys.argv[1:], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+try:
+    print(json.dumps(process_identity(child.pid)))
+except BaseException:
+    child.terminate()
+    child.wait()
+    raise
+"""
+        )
+        identity = json.loads(
+            self.runtime.exec(
+                host, shlex.join(["python3", "-c", source, *command]), timeout=10
+            )
+        )
+        self.processes.append((host, identity))
 
     def start(self, *, rate: str, packet_size: int, stop_at: float) -> None:
         _rate_bps(rate)
@@ -320,29 +348,45 @@ class PreparedBurst:
             duration = stop_at - time.monotonic()
             if duration <= 0:
                 raise RuntimeError("Burst activation missed its scheduled window")
-            udp = "-u" if flow.protocol == "udp" else ""
-            command = (
-                f"exec iperf3 --forceflush -c {shlex.quote(self.destination_ip)} -p {flow.destination_port} "
-                f"{udp} -b {shlex.quote(rate)} -l {packet_size} -t {duration:.6f} "
-                f"--cport {flow.source_port}"
-            )
-            output = self.runtime.exec(
+            self.launch(
                 flow.source,
-                f"({command}) >/tmp/burst-{flow.flow_id}.log 2>&1 & echo $!",
-                timeout=10,
-            ).strip()
-            if not output.isdigit():
-                raise RuntimeError(f"Burst sender returned no PID: {output}")
-            self.processes.append(
-                (flow.source, int(output), f"/tmp/burst-{flow.flow_id}.log")
+                [
+                    "iperf3",
+                    "--forceflush",
+                    "-c",
+                    self.destination_ip,
+                    "-p",
+                    str(flow.destination_port),
+                    *(["-u"] if flow.protocol == "udp" else []),
+                    "-b",
+                    rate,
+                    "-l",
+                    str(packet_size),
+                    "-t",
+                    f"{duration:.6f}",
+                    "--cport",
+                    str(flow.source_port),
+                ],
             )
 
     def stop(self) -> None:
-        for host, pid, logfile in list(self.processes):
-            # Guard against a finished process's PID being reused by another service.
-            self.runtime.exec(
-                host,
-                f'if [ "$(readlink /proc/{pid}/fd/1)" = {shlex.quote(logfile)} ]; then kill {pid}; fi',
-                timeout=10,
+        error = None
+        for host, identity in list(self.processes):
+            source = (
+                process_source() + f"\nstop_owned({identity!r})\nprint('stopped')\n"
             )
-            self.processes.remove((host, pid, logfile))
+            try:
+                output = self.runtime.exec(
+                    host, shlex.join(["python3", "-c", source]), timeout=15
+                )
+                if output.strip() != "stopped":
+                    raise RuntimeError(
+                        f"Could not stop owned burst process on {host!r}"
+                    )
+            except BaseException as exc:
+                if error is None:
+                    error = exc
+            else:
+                self.processes.remove((host, identity))
+        if error is not None:
+            raise error

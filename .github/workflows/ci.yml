@@ -260,7 +260,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
         case:
-          - min3clos-link_down
+          - dc_clos-clab-link_down
     steps:
       - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
@@ -315,7 +315,7 @@ jobs:
         run: uv run pytest tests/ci/test_pipeline_smoke.py tests/nika/workflows/test_schedule_live.py -q
 
   clab-startup:
-    name: clab min3clos (${{ matrix.os }})
+    name: clab dc_clos (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
@@ -345,11 +345,11 @@ jobs:
           ./scripts/install.sh --skip-images
       - name: Install (labs)
         run: uv sync --group labs --group dev
-      - name: min3clos light startup
+      - name: dc_clos light startup
         run: uv run pytest tests/ci/test_clab_startup.py -q
 
   clab-pipeline:
-    name: pipeline containerlab min3clos (${{ matrix.os }})
+    name: pipeline containerlab dc_clos (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
@@ -433,16 +433,16 @@ jobs:
         include:
           - runtime: kathara
             split: test
-            task: dc_clos__link_detach__m__h240c6b1dc30f
+            task: dc_clos__bgp_md5_password_mi__h92908efb818c
           - runtime: containerlab
-            split: dev
-            task: min3clos__link_capacity_bott__he7ee68fb5990
-          - runtime: p4
             split: test
-            task: p4_dc_gateway__p4_tcam_entry__hfd952409a6c1
+            task: dc_clos__bgp_md5_password_mi__h38580e6c850e
+          - runtime: p4
+            split: dev
+            task: p4_dc_gateway__p4_tcam_entry__h02a25cf1c892
           - runtime: sdn
             split: test
-            task: sdn_l3_clos__flow_rule_shado__he6582a3b1d4e
+            task: sdn_l3_clos__flow_rule_shado__h5a2cd7459b6e
     steps:
       - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)

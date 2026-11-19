@@ -54,6 +54,12 @@ class FaultEvidence(BaseModel):
     sources: list[Evidence] = Field(min_length=1)
 
 
+class CombinationEvidenceItem(Evidence):
+    # ``interaction``: the source explains how the conditions combine.
+    # ``co_occurrence``: the source reports them together in real failures.
+    supports: Literal["interaction", "co_occurrence"]
+
+
 def unique_object(pairs):
     result = {}
     for key, value in pairs:
@@ -82,6 +88,76 @@ def validate_catalog(catalog, registry):
         urls = [str(source.url) for source in record.sources]
         if len(set(urls)) != len(urls):
             raise ValueError(f"Duplicate source URL for {name}")
+
+
+def load_combination_catalog() -> dict[str, list[CombinationEvidenceItem]]:
+    """Validated sources of every combination in the tested catalog."""
+    from nika.problems.combinations import list_combinations
+
+    return {
+        combination.name: [
+            CombinationEvidenceItem.model_validate(source)
+            for source in combination.sources
+        ]
+        for combination in list_combinations()
+    }
+
+
+def render_combinations(catalog, combinations, reference):
+    """Replace the combination table and evidence block in failures.md."""
+    lines = [
+        "<!-- combination-sources:start -->",
+        "| Combination | Failures | Tested deployments | Description | Sources |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for name, combination in sorted(combinations.items()):
+        failures = ", ".join(f"`{failure}`" for failure in combination.failures)
+        deployments = "; ".join(
+            f"`{task['scenario']}` ({task.get('device_profile', 'default')})"
+            for task in combination.tasks
+        )
+        links = "; ".join(
+            f"[{source.title}](#combination-source-{name}-{index})"
+            for index, source in enumerate(catalog[name], 1)
+        )
+        lines.append(
+            f"| `{name}` | {failures} | {deployments} | "
+            f"{combination.description} | {links} |"
+        )
+    lines.append("")
+    for name, sources in sorted(catalog.items()):
+        lines.extend([f"#### `{name}`", ""])
+        for index, source in enumerate(sources, 1):
+            lines.extend(
+                [
+                    f'<a id="combination-source-{name}-{index}"></a>',
+                    "<details>",
+                    f"<summary>{html.escape(source.title)} "
+                    f"({source.source_type}; {source.supports})</summary>",
+                    "",
+                    f"Source: [{source.title}]({source.url}). "
+                    f"Location: {source.locator}. Accessed: {source.accessed}.",
+                    "",
+                    f"> {html.escape(source.excerpt)}",
+                    "",
+                    f"**Correspondence:** {source.correspondence}",
+                    "",
+                    f"**Evidence limits:** {source.limitation}",
+                    "",
+                    "</details>",
+                    "",
+                ]
+            )
+    lines.append("<!-- combination-sources:end -->")
+    start, end = (
+        "<!-- combination-sources:start -->",
+        "<!-- combination-sources:end -->",
+    )
+    if reference.count(start) != 1 or reference.count(end) != 1:
+        raise ValueError("Expected one combination-source block in failures.md")
+    before, rest = reference.split(start)
+    _, after = rest.split(end)
+    return before + "\n".join(lines) + after
 
 
 def report(catalog, registry):
@@ -228,13 +304,19 @@ def main():
         help="Update source columns and evidence in failures.md.",
     )
     args = parser.parse_args()
+    from nika.problems.combinations import list_combinations
+
     catalog = load_catalog()
     registry = list_avail_problem_instances()
     validate_catalog(catalog, registry)
+    combinations = {item.name: item for item in list_combinations()}
+    combination_catalog = load_combination_catalog()
     result = report(catalog, registry)
     if args.write_docs:
         reference = ROOT / "docs/operations/failures.md"
-        reference.write_text(render_markdown(catalog, registry, reference.read_text()))
+        text = render_markdown(catalog, registry, reference.read_text())
+        text = render_combinations(combination_catalog, combinations, text)
+        reference.write_text(text)
         return int(args.require_complete and bool(result["pending_faults"]))
     if args.format == "csv":
         print(render_csv(catalog, registry), end="")

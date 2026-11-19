@@ -83,11 +83,11 @@ def test_candidate_catalog_includes_healthy_scenarios() -> None:
     assert "dc_clos" in scenarios
     assert "enterprise_branch" in scenarios
     assert "isp_abilene" in scenarios
-    assert "isp_abilene_ebgp_rtbh" in scenarios
-    assert "isp_abilene_ebgp_rpki" in scenarios
+    assert "isp_abilene_ebgp_rtbh" not in scenarios
+    assert "isp_abilene_ebgp_rpki" not in scenarios
+    assert any(r["scenario"] == "isp_abilene" and r.get("rpki") for r in healthy)
     assert "k8s_lab" in scenarios
     assert "llmd_lab" in scenarios
-    assert "min3clos" in scenarios
     assert "p4_dc_fabric" in scenarios
     assert "p4_dc_gateway" in scenarios
     assert "sdn_l3_clos" in scenarios

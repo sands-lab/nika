@@ -56,6 +56,11 @@ def leaderboard_validate(
     release_source: Literal["official", "local"] = typer.Option(
         "official", "--release-source", help=_RELEASE_SOURCE_HELP
     ),
+    run_config_reference: Optional[Path] = typer.Option(
+        None,
+        "--run-config-reference",
+        help="Require the same model, harness, budgets, and trials as this scores package.",
+    ),
     output_format: Literal["text", "json", "markdown"] = typer.Option(
         "text",
         "--format",
@@ -103,6 +108,7 @@ def leaderboard_validate(
             release_source=release_source,
             trajectories_dir=trajectories,
             audit_repo=audit_repo,
+            run_config_reference=run_config_reference,
         )
         if report.audit is not None and source is not None:
             report.audit["trajectory_source"] = source
@@ -168,6 +174,11 @@ def leaderboard_submit(
         None,
         "--name",
         help="Entry name; use with --authors instead of --submission.",
+    ),
+    tuned_on_dev: Optional[bool] = typer.Option(
+        None,
+        "--tuned-on-dev/--no-tuned-on-dev",
+        help="Declare whether the agent was tuned on Dev tasks. Required for 0.3.0.",
     ),
     authors: Optional[str] = typer.Option(
         None,
@@ -275,6 +286,7 @@ def leaderboard_submit(
             submission_dir=submission,
             name=name,
             authors=authors,
+            tuned_on_dev=tuned_on_dev,
             dry_run=dry_run,
             hf_model=hf_model,
             hf_revision=hf_revision,

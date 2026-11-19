@@ -1,40 +1,46 @@
 from __future__ import annotations
 
 import pytest
+from nika.net_env.clos.design import build_clos_fabric_model
 from typing import ClassVar
 from tests.nika.workflows.integration import pipeline_case
-from tests.support.integration_pipeline import _min3clos_prerequisites
+from tests.support.prerequisites import containerlab_prerequisites
 
 pytestmark = pytest.mark.e2e
 
-MIN3CLOS_NODES = frozenset({"leaf1", "leaf2", "spine", "client1", "client2"})
+
+_model = build_clos_fabric_model("s")
+CLOS_NODES = frozenset(
+    [*_model.leaves, *_model.spines, *(e.name for e in _model.endpoints)]
+)
 
 
 @pytest.mark.skipif(
-    not _min3clos_prerequisites(), reason="containerlab, gnmic, or Docker not available"
+    not containerlab_prerequisites(),
+    reason="containerlab, gnmic, or Docker not available",
 )
 class ClabPipelineIntegrationTest(pipeline_case.PipelineCaseBase):
-    SCENARIO = "min3clos"
+    SCENARIO = "dc_clos"
     BACKEND = "containerlab"
-    ENV_RUN_ARGS: ClassVar[list[str]] = []
+    ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "s", "--backend", "containerlab"]
     PROBLEM = "link_down"
-    INJECT_PARAMS = {"host_name": "leaf1", "intf_name": "e1-1"}
-    EXPECTED_NODES = MIN3CLOS_NODES
-    EXEC_PROBE_HOST = "client1"
-    SUBMIT_FAULTY_DEVICES = ["leaf1"]
+    INJECT_PARAMS = {"host_name": "leaf_1", "intf_name": "e1-1"}
+    EXPECTED_NODES = CLOS_NODES
+    EXEC_PROBE_HOST = "client_1_1"
+    SUBMIT_FAULTY_DEVICES = ["leaf_1"]
     IMAGE_SUBSTRING = None
     DIAGNOSIS_MCP_SERVERS = ["kathara_base_mcp_server", "containerlab_srl_mcp_server"]
 
     async def _extra_diagnosis_mcp_checks(self, tools: dict) -> dict[str, str]:
         bgp_as = await tools["srl_exec_cli"].ainvoke(
             {
-                "device_name": "leaf1",
+                "device_name": "leaf_1",
                 "command": "show network-instance default protocols bgp summary",
             }
         )
         routes = await tools["srl_exec_cli"].ainvoke(
             {
-                "device_name": "leaf1",
+                "device_name": "leaf_1",
                 "command": "show network-instance default route-table ipv4-unicast summary",
             }
         )

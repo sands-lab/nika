@@ -186,6 +186,7 @@ class SandboxManager:
                 gateway_agent_url=mcp_gateway_agent_url.rstrip("/"),
                 telemetry=telemetry_for_session(session),
                 device_profile=device_profile_for(session),
+                deployment=session,
             ),
             model=model,
             llm_provider=llm_provider,

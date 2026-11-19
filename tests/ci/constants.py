@@ -29,7 +29,7 @@ CI_KATHARA_STARTUP_SCENARIOS: tuple[str, ...] = (
 # Wider inject coverage lives in tests/nika/problems/test_failure_inject_contract.py (Nightly).
 CI_FAILURE_INJECT_CASES: tuple[tuple[str, str, str, str | None, str], ...] = (
     ("dc_clos-link_down", "dc_clos", "link_down", "s", "kathara"),
-    ("min3clos-link_down", "min3clos", "link_down", None, "containerlab"),
+    ("dc_clos-clab-link_down", "dc_clos", "link_down", "s", "containerlab"),
 )
 
 CI_KATHARA_FAILURE_CASE_IDS: tuple[str, ...] = tuple(

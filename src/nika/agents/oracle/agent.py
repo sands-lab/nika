@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import count
 from pathlib import Path
 from typing import Any
@@ -58,12 +58,12 @@ _FAILED_CALL = re.compile(
 )
 
 
-def _observed(expect: Check, text: str) -> bool:
+def _observed(expect: Check, text: str, outputs: dict[str, str] | None = None) -> bool:
     """Whether *text* is a real observation that satisfies *expect*."""
     if _FAILED_CALL.match(text.lstrip()):
         return False
     try:
-        return expect(text)
+        return expect(text, outputs)
     except Exception:  # noqa: BLE001 - an unparseable output does not match
         return False
 
@@ -108,7 +108,11 @@ class OracleAgent(DiagnosisAgent):
         model: str = "oracle",
         max_steps: int = 20,
         stream_output: bool = True,
+        planned: dict[str, dict[str, Any]] | None = None,
     ) -> None:
+        """``planned`` maps fault names or indexed placements to parameters to check instead
+        of the session's injections, e.g. a playbook run on a healthy lab as a
+        negative control."""
         from nika.utils.session import Session
 
         self.session_id = session_id
@@ -124,6 +128,12 @@ class OracleAgent(DiagnosisAgent):
         self.session_dir = self.trace_dir = session.session_dir
         self.scenario_name = str(getattr(session, "scenario_name", "") or "")
         self.verdicts: list[FaultVerdict] = []
+        self.planned = planned
+        from nika.problems.rca.inventory import load_session_offline_net_env
+
+        self.net_env = load_session_offline_net_env(
+            session.store.get_session(session_id)
+        )
 
     # -- answer key ---------------------------------------------------------
 
@@ -135,17 +145,34 @@ class OracleAgent(DiagnosisAgent):
         # The store returns newest first. Keep the latest successful injection
         # when a fault was injected again with different targets.
         records = {}
-        for record in SessionStore().list_failure_injections(
-            session_id=self.session_id
-        ):
-            if record.get("status") == "injected":
-                records.setdefault(str(record.get("problem_name")), record)
+        planned = getattr(self, "planned", None)
+        if planned is not None:
+            names = [key.split("[", 1)[0] for key in planned]
+            records = {
+                name: {"injection_params": {"resolved_params": inject}}
+                for name, inject in planned.items()
+            }
+        else:
+            for record in SessionStore().list_failure_injections(
+                session_id=self.session_id
+            ):
+                if record.get("status") == "injected":
+                    key = (record.get("injection_params") or {}).get(
+                        "instance_key"
+                    ) or str(record.get("problem_name"))
+                    records.setdefault(key, record)
         scenario_params = dict(getattr(self.session, "scenario_params", None) or {})
         scenario_params.setdefault("backend", resolve_backend(self.session))
         release = getattr(self.session, "benchmark_version", None)
         faults: list[FaultVerdict] = []
-        for name in names:
-            record = records.get(name)
+        from nika.problems.multi import fault_instance_keys
+
+        for name, key in zip(
+            names,
+            planned if planned is not None else fault_instance_keys(names),
+            strict=True,
+        ):
+            record = records.get(key)
             if record is None and name != HEALTHY_PROBLEM:
                 faults.append(
                     FaultVerdict(name, "", True, [], error="no injection record")
@@ -203,6 +230,10 @@ class OracleAgent(DiagnosisAgent):
                 0,
                 f"step_error: cannot build arguments: {exc!r}",
             )
+        from nika.problems.support.oracle_access import device_step
+
+        step = device_step(replace(step, args=args), self.net_env)
+        args = dict(step.args)
         text = ""
         passed: bool | None = None
         attempt = 0
@@ -229,7 +260,9 @@ class OracleAgent(DiagnosisAgent):
                     output_type="str",
                 ),
             )
-            passed = None if step.expect is None else _observed(step.expect, text)
+            passed = (
+                None if step.expect is None else _observed(step.expect, text, outputs)
+            )
             if passed is not False or attempt >= step.attempts:
                 break
             await asyncio.sleep(step.interval_sec)

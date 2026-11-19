@@ -15,11 +15,11 @@ from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 from nika.utils.session_store import SessionStore
 from tests.agent._assertions import assert_phase_messages
+from tests.support.prerequisites import containerlab_prerequisites
 from tests.support.integration_base import OrderedPipelineTestCase
 from tests.support.integration_pipeline import (
     ClabCommonPipelineSteps,
     CommonPipelineSteps,
-    _min3clos_prerequisites,
     deepseek_api_key_available,
     load_test_env,
 )
@@ -208,7 +208,7 @@ class AutogenKatharaPipelineTest(_ByoAgentPipelineBase):
 @pytest.mark.live
 @pytest.mark.e2e
 @pytest.mark.skipif(
-    not (_min3clos_prerequisites() and deepseek_api_key_available()),
+    not (containerlab_prerequisites() and deepseek_api_key_available()),
     reason="containerlab/gnmic/Docker or DEEPSEEK_API_KEY not available",
 )
 class McpAgentClabPipelineTest(_McpAgentClabPipelineBase):

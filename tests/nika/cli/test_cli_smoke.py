@@ -250,7 +250,7 @@ class CliSmokeTest:
         assert run_from_release.call_args.kwargs["continue_on_error"] is True
 
 
-@pytest.mark.parametrize("scenario", ["k8s_lab", "llmd_lab", "min3clos"])
+@pytest.mark.parametrize("scenario", ["k8s_lab", "llmd_lab"])
 def test_benchmark_accepts_original_network_without_size(scenario, monkeypatch):
     from nika.run_config.loader import ENV_RUN_CONFIG, reset_run_config
 
@@ -271,11 +271,9 @@ def test_benchmark_accepts_original_network_without_size(scenario, monkeypatch):
                     "-m",
                     "mock-v1",
                     "--set",
-                    "host_name=client1"
-                    if scenario == "min3clos"
-                    else "host_name=client",
+                    "host_name=client",
                     "--set",
-                    "intf_name=eth1" if scenario == "min3clos" else "intf_name=eth0",
+                    "intf_name=eth0",
                 ],
             )
         assert result.exit_code == 0, result.output
@@ -284,15 +282,13 @@ def test_benchmark_accepts_original_network_without_size(scenario, monkeypatch):
         reset_run_config()
 
 
-@pytest.mark.parametrize(
-    "scenario,default", [("k8s_lab", "m"), ("llmd_lab", "m"), ("min3clos", "s")]
-)
+@pytest.mark.parametrize("scenario,default", [("k8s_lab", "m"), ("llmd_lab", "m")])
 def test_traffic_and_tui_select_original_network_without_size(scenario, default):
     from types import SimpleNamespace
     from nika.cli.commands.traffic import _net_env_kwargs_for_scenario
     from nika.tui.app import NikaTui
 
-    expected = {} if scenario == "min3clos" else {"topo_size": default}
+    expected = {"topo_size": default}
     assert _net_env_kwargs_for_scenario(scenario, None) == expected
     form = SimpleNamespace(
         command=SimpleNamespace(params=[SimpleNamespace(name="size")]), values={}
@@ -302,4 +298,4 @@ def test_traffic_and_tui_select_original_network_without_size(scenario, default)
         NikaTui._pick_scenario(tui, form, SimpleNamespace(multiple=False), None)
         == scenario
     )
-    assert form.values.get("size") == (None if scenario == "min3clos" else default)
+    assert form.values.get("size") == default

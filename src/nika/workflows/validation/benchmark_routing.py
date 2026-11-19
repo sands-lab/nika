@@ -10,7 +10,7 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
-from nika.net_env.isp.igp.frr import ISIS_PROCESS
+from nika.net_env.isp.igp.frr import ISIS_PROCESS, render_frr_conf
 from nika.net_env.isp.igp.ifaces import clab_eth_name, srl_e1_name
 from ipaddress import IPv4Address, IPv4Network
 
@@ -37,6 +37,7 @@ from nika.net_env.synthesis.requirements import (
 )
 from nika.net_env.isp.contract import bgp_adjacency_intents
 from nika.net_env.isp.identity import is_isp_scenario
+from nika.net_env.isp.bgp.rtbh_profile import rtbh_leaker
 from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 from nika.net_env.isp.igp.config import DEFAULT_IGP
 from nika.net_env.isp.profiles import default_device_profile
@@ -112,7 +113,6 @@ def _profile_key(scenario, deployment):
 
 def isp_catalog_profiles():
     """Inventory actual registered defaults, independently of benchmark selection."""
-    from nika.net_env.isp.identity import is_isp_named_special
 
     profiles = {}
     for scenario, registration in sorted(list_all_net_envs().items()):
@@ -132,15 +132,6 @@ def isp_catalog_profiles():
             rpki=False,
         )
         features = set()
-        if is_isp_named_special(scenario):
-            fixed = load_offline_net_env(
-                scenario, backend=backend, device_profile=deployment["device_profile"]
-            )
-            deployment.update(igp=fixed.igp, bgp_mode=fixed.bgp_mode, rpki=fixed.rpki)
-            if fixed.rpki:
-                features.add("rpki")
-            if fixed.rtbh:
-                features.add("rtbh")
         limitations = _profile_limitations(deployment, features)
         key = _profile_key(scenario, deployment)
         profiles[key] = dict(
@@ -159,7 +150,6 @@ def benchmark_isp_profiles(manifests: list[Path]):
     """Deduplicate actual deployment profiles; keep their benchmark provenance."""
     registered = list_all_net_envs()
     profiles = {}
-    fixed_profiles = {}
     for manifest in manifests:
         for row in load_benchmark_input(manifest):
             scenario = row["scenario"]
@@ -182,22 +172,6 @@ def benchmark_isp_profiles(manifests: list[Path]):
             ] or default_device_profile(deployment["backend"])
             deployment["rpki"] = bool(deployment["rpki"])
             features = set()
-            if row.get("igp") is None or row.get("bgp_mode") is None:
-                # Fixed scenario constructors can bake a protocol overlay that
-                # is absent from the row and registry deployment defaults.
-                binding = scenario, deployment["backend"], deployment["device_profile"]
-                if binding not in fixed_profiles:
-                    fixed_profiles[binding] = load_offline_net_env(
-                        scenario,
-                        backend=deployment["backend"],
-                        device_profile=deployment["device_profile"],
-                    )
-                fixed = fixed_profiles[binding]
-                deployment.update(
-                    igp=fixed.igp, bgp_mode=fixed.bgp_mode, rpki=fixed.rpki
-                )
-                if getattr(fixed, "rtbh", False):
-                    features.add("rtbh")
             if deployment["rpki"]:
                 features.add("rpki")
             key = _profile_key(scenario, deployment)
@@ -230,7 +204,54 @@ def benchmark_isp_profiles(manifests: list[Path]):
             ):
                 profiles[key]["limitations"].append(reason)
                 profiles[key]["supported"] = False
+    for profile in profiles.values():
+        deployment = profile["deployment"]
+        targets = sorted(
+            {
+                case["inject"]["host_name"]
+                for case in profile["benchmark_cases"]
+                if case["problem"] == "bgp_acl_block"
+            }
+        )
+        if (
+            not profile["supported"]
+            or deployment["bgp_mode"] != "ibgp_rr"
+            or deployment["device_profile"] == "nokia_srlinux"
+            or not targets
+        ):
+            continue
+        env = load_offline_net_env(profile["scenario"], **deployment, rendered=False)
+        graph = {node.device_name: [] for node in env.plan.nodes}
+        for link in active_igp_links(env.plan):
+            graph[link.endpoint_a].append((link.endpoint_b, link.metric))
+            graph[link.endpoint_b].append((link.endpoint_a, link.metric))
+        for target in targets:
+            for session in env.bgp_plan.sessions:
+                if session.session_type != "ibgp":
+                    continue
+                paths = shortest_paths(
+                    graph, session.local_device, session.remote_device
+                )
+                try:
+                    _acl_blocks_paths(paths, target)
+                except ValueError as exc:
+                    reason = str(exc)
+                    if reason not in profile["limitations"]:
+                        profile["limitations"].append(reason)
+                    profile["supported"] = False
     return dict(sorted(profiles.items()))
+
+
+def _acl_blocks_paths(paths, target):
+    """Require a definite ACL outcome across the session's ECMP paths."""
+    if not paths:
+        raise ValueError("BGP ACL requires declared session transport paths")
+    hits = [target in path for path in paths]
+    if any(hits) != all(hits):
+        raise ValueError(
+            "BGP ACL with mixed filtered/unfiltered ECMP paths requires flow-hash semantics"
+        )
+    return all(hits)
 
 
 def _transit_impact(healthy, graph, target, excluded):
@@ -627,7 +648,10 @@ def build_benchmark_isp_experiment(
                 )
         unauthorized = set()
         for case in profile["benchmark_cases"]:
-            if case["problem"] != "bgp_hijacking":
+            if (
+                case["problem"] != "bgp_hijacking"
+                or case["inject"].get("variant") == "rpki_invalid_origin"
+            ):
                 continue
             prefix = str(IPv4Network(case["inject"]["target_network"]))
             observer = case["inject"]["symptom_host"]
@@ -783,10 +807,10 @@ def build_benchmark_isp_experiment(
     link = links[0]
     fault_checks = []
     for case in profile["benchmark_cases"]:
-        if case["problem"] in {
-            "bgp_rpki_invalid_route_leak",
-            "bgp_blackhole_community_leak",
-        }:
+        if case["problem"] == "bgp_blackhole_community_leak" or (
+            case["problem"] == "bgp_hijacking"
+            and case["inject"].get("variant") == "rpki_invalid_origin"
+        ):
             if any(
                 f.problem == case["problem"] and f.params == case["inject"]
                 for f in fault_checks
@@ -794,17 +818,40 @@ def build_benchmark_isp_experiment(
                 continue
             info = env.bgp_plan.inventory
             unconstrained = ()
-            if case["problem"] == "bgp_rpki_invalid_route_leak":
+            if case["problem"] == "bgp_hijacking":
                 failed = tuple(
                     i.id
                     for i in healthy.intents
                     if i.id.startswith("rpki.non_rov_observer.")
                 )
+                # Open every leak-prefix export entry, matching runtime injection.
+                from nika.problems.routing_control_plane.bgp import _EXPORT_DENY_ENTRY
+
+                leaker = info.get("leaker_device")
+                config = env.deployment_configs.get(leaker, "")
+                if not any(
+                    session.local_device == leaker
+                    and session.remote_device == info.get("non_rov_observer")
+                    for session in env.bgp_plan.sessions
+                ):
+                    raise ValueError(
+                        "RPKI leak requires a leaker session to the non-ROV observer"
+                    )
+                entries = dict(_EXPORT_DENY_ENTRY.findall(config))
+                if not entries or any(action != "deny" for action in entries.values()):
+                    raise ValueError(
+                        "RPKI leak requires healthy EXPORT-DENY entries on the leaker"
+                    )
+                from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
+                from nika.workflows.validation.scenario_spec import RoutingPatternEdit
+
                 edits = {
-                    node: ("route-map BGP-OUT deny 5", "route-map BGP-OUT permit 5")
-                    for node in info["leaker_as_devices"]
+                    leaker: RoutingPatternEdit(
+                        pattern="(?m)" + _EXPORT_DENY_ENTRY.pattern,
+                        replacement=rf"route-map \1 permit 5\n match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}",
+                    )
                 }
-                restore_nodes = tuple(info["leaker_as_devices"])
+                restore_nodes = (leaker,)
                 positive_intents = tuple(
                     i.model_copy(
                         update={
@@ -833,11 +880,11 @@ def build_benchmark_isp_experiment(
                     f"ip prefix-list {RTBH_PREFIX_LIST} seq 5 permit {prefix} le 24\nroute-map {route_map} permit 5\n match ip address prefix-list {RTBH_PREFIX_LIST}\n set community {community} additive\n!\n"
                     + old
                 )
-                edits = {info["leaker_device"]: (old, new)}
+                edits = {rtbh_leaker(info): (old, new)}
                 failed = tuple(
                     i.id for i in healthy.intents if i.id.startswith("rtbh.provider.")
                 )
-                restore_nodes = (info["leaker_device"],)
+                restore_nodes = (rtbh_leaker(info),)
                 # Flows into the blackholed prefix fail only on paths through
                 # the provider that discards it.
                 unconstrained = tuple(
@@ -943,16 +990,7 @@ def build_benchmark_isp_experiment(
                             for path in original_paths[adjacency.remote_node]
                             if path[0] == adjacency.local_node
                         ]
-                        if not paths:
-                            raise ValueError(
-                                "BGP ACL requires declared session transport paths"
-                            )
-                        hits = [target in path for path in paths]
-                        if any(hits) != all(hits):
-                            raise ValueError(
-                                "BGP ACL with mixed filtered/unfiltered ECMP paths requires flow-hash semantics"
-                            )
-                        if all(hits):
+                        if _acl_blocks_paths(paths, target):
                             blocked.add(intent.id)
                     failed = tuple(
                         sorted(
@@ -1128,86 +1166,6 @@ def build_benchmark_isp_experiment(
                 )
             )
             continue
-        if case["problem"] == "bgp_max_prefix_exceeded":
-            receiver, peer = (
-                case["inject"]["receiver_name"],
-                case["inject"]["peer_name"],
-            )
-            session = next(
-                s
-                for s in env.bgp_plan.sessions
-                if s.local_device == receiver
-                and s.remote_device == peer
-                and s.remote_ip == case["inject"]["neighbor_ip"]
-            )
-            paired = [
-                i
-                for i in healthy.intents
-                if i.adjacency
-                and i.adjacency.protocol == "bgp"
-                and (
-                    (
-                        i.adjacency.local_node,
-                        i.adjacency.remote_node,
-                        i.adjacency.remote_address,
-                    )
-                    == (receiver, peer, session.remote_ip)
-                    or (
-                        i.adjacency.local_node,
-                        i.adjacency.remote_node,
-                        i.adjacency.local_address,
-                    )
-                    == (peer, receiver, session.remote_ip)
-                )
-            ]
-            name = f"benchmark-max-prefix-{receiver}"
-            # Losing the last session between two ASes makes their original
-            # direct exit choices impossible, even when transit preserves service.
-            alternatives = [
-                s
-                for s in env.bgp_plan.sessions
-                if s.session_type == "ebgp"
-                and (s.local_asn, s.remote_asn)
-                == (session.local_asn, session.remote_asn)
-                and (s.local_device, s.remote_device, s.local_ip, s.remote_ip)
-                != (receiver, peer, session.local_ip, session.remote_ip)
-            ]
-            lost_exits = (
-                tuple(
-                    f"{r.id}.{n.device_name}"
-                    for r in bgp_selections
-                    if (r.asn, r.candidates[0])
-                    in {
-                        (session.local_asn, session.remote_asn),
-                        (session.remote_asn, session.local_asn),
-                    }
-                    for n in env.bgp_plan.nodes
-                    if n.asn == r.asn
-                )
-                if session.session_type == "ebgp" and not alternatives
-                else ()
-            )
-            site = env.bgp_plan.customer_site
-            if site and {receiver, peer} == {site.provider, site.partner}:
-                (service,) = [
-                    o
-                    for o in env.bgp_plan.originated
-                    if o.ping_address == site.service_address
-                ]
-                lost_exits += (f"customer.{service.device}.{site.provider}",)
-            if not any(f.name == name for f in fault_checks):
-                fault_checks.append(
-                    RoutingFailureCheck(
-                        name=name,
-                        problem=case["problem"],
-                        params=case["inject"],
-                        restore_nodes=(receiver, peer),
-                        expected_failed_ids=tuple(
-                            sorted({i.id for i in paired} | set(lost_exits))
-                        ),
-                    )
-                )
-            continue
         if case["problem"] != "ospf_area_misconfiguration":
             continue
         target = case["inject"]["host_name"]
@@ -1227,7 +1185,9 @@ def build_benchmark_isp_experiment(
         )
         name = "benchmark-area-" + target
 
-        config = nodes[target].frr_conf
+        config = nodes[target].frr_conf or render_frr_conf(
+            nodes[target], igp=plan.igp, interfaces=nodes[target].interfaces
+        )
         old = (
             "router ospf\n"
             + config.split("router ospf\n", 1)[1].split("\n!", 1)[0]

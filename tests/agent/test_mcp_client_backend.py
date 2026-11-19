@@ -82,7 +82,16 @@ def test_missing_session_keeps_scenario_default(gateway_url: None) -> None:
     assert "kathara_frr_mcp_server" not in config
 
 
-def test_rpki_scenario_selects_frr_server(gateway_url: None) -> None:
-    config = load_session_mcp_config("missing-session-id", "isp_abilene_ebgp_rpki")
+def test_ebgp_session_selects_frr_server(gateway_url: None) -> None:
+    with patch(
+        "nika.utils.session_store.SessionStore.get_session",
+        return_value={
+            "scenario_name": "isp_abilene",
+            "session_id": "sess-ebgp",
+            "backend": "kathara",
+            "scenario_params": {"bgp_mode": "ebgp"},
+        },
+    ):
+        config = load_session_mcp_config("sess-ebgp", "isp_abilene")
 
     assert "kathara_frr_mcp_server" in config

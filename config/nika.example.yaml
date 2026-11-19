@@ -86,7 +86,7 @@ nika:
       vm_memory: 4GiB
       # Scenario id or <scenario>@<device_profile> -> VM memory. Overrides the
       # size NIKA derives from the variant's router platform and its 8GiB for
-      # dc_clos, k8s_lab, llmd_lab, min3clos and iosxr_simple_bgp,
+      # dc_clos, k8s_lab and llmd_lab,
       # e.g. {k8s_lab: 12GiB, isp_pdh@sonic: 6GiB}.
       vm_memory_overrides: {}
       # 2 MiB huge pages, required: reserve them on the host first (see the

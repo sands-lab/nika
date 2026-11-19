@@ -125,8 +125,8 @@ def env_run(
         False,
         "--rpki/--no-rpki",
         help=(
-            "Deprecated for base ISP scenarios; use named RPKI scenarios "
-            "isp_abilene_ebgp_rpki / isp_geant_ebgp_rpki."
+            "Record RPKI/ROV on an ISP eBGP deployment on Kathara FRR, which "
+            "carries it anyway; other deployments reject it."
         ),
     ),
     backend: str | None = typer.Option(
@@ -164,8 +164,8 @@ def env_run(
         None,
         "--telemetry",
         help=(
-            "Telemetry to attach, repeatable (supported: netflow, prometheus, syslog). "
-            "Devices without support stay unconfigured."
+            "Telemetry to attach, repeatable (supported: netflow, prometheus, syslog, pingmesh). "
+            "All kinds are enabled by default. Devices without support stay unconfigured."
         ),
     ),
     traffic: str | None = typer.Option(

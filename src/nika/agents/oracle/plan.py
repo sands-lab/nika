@@ -51,7 +51,9 @@ def fault_plan(
         [problem_name], scenario, release=release, **scenario_params
     )
     params = problem.resolve_params(dict(inject))
-    playbook = problem.oracle_playbook(params)
+    from nika.problems.support.oracle_access import device_playbook
+
+    playbook = device_playbook(problem.oracle_playbook(params), problem.net_env)
     if playbook.anomaly and not any(step.evidence for step in playbook.steps):
         raise ValueError(
             f"{problem_name} playbook has no evidence step for this target"
@@ -71,10 +73,14 @@ def row_plans(row: dict[str, Any], *, release: str | None = None) -> list[FaultP
     params = {k: row[k] for k in _DEPLOY_KEYS if row.get(k) not in (None, "")}
     if row.get("problem") == HEALTHY_PROBLEM:
         return [fault_plan(HEALTHY_PROBLEM, scenario, params, {})]
+    from nika.problems.multi import fault_instance_keys
+
     injects = nested_inject_map(row)
     return [
-        fault_plan(name, scenario, params, injects.get(name, {}), release=release)
-        for name in row_problems(row)
+        fault_plan(name, scenario, params, injects.get(key, {}), release=release)
+        for name, key in zip(
+            row_problems(row), fault_instance_keys(row_problems(row)), strict=True
+        )
     ]
 
 

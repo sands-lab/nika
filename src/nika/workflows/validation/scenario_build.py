@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-from nika.net_env.isp.identity import is_isp_named_special
 from nika.net_env.synthesis.parameters import RoutingParameters
 from nika.workflows.validation.scenario_spec import (
     ENV_ROUTING_MODELS,
@@ -21,10 +20,6 @@ def scenario_start_kwargs(
     options = spec.deployment.model_dump(exclude_none=True)
     if spec.routing_model in ENV_ROUTING_MODELS:
         options["routing_model"] = spec.routing_model
-    if is_isp_named_special(spec.scenario):
-        # These constructors retain their registered protocol stack.
-        for key in ("igp", "bgp_mode", "rpki", "device_profile"):
-            options.pop(key, None)
     return {
         **({"routing_configs": configs} if configs is not None else {}),
         "scenario": spec.scenario,

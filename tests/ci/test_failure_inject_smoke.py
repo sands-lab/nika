@@ -58,7 +58,9 @@ def test_failure_inject_smoke(
     elif not docker_available():
         pytest.skip("Docker not available")
 
-    inject_params = resolve_inject_params(scenario, problem, topo_size=topo_size or "")
+    inject_params = resolve_inject_params(
+        scenario, problem, topo_size=topo_size or "", isp_options={"backend": backend}
+    )
     session_id = start_net_env(
         scenario,
         topo_size,

@@ -210,7 +210,7 @@ def _echo_release_summary(*, as_json: bool) -> None:
         )
     )
     typer.echo(
-        "\nList task ids with: nika benchmark list --release <VERSION> [--split dev|test]"
+        "\nList task ids with: nika benchmark list --release <VERSION> [--split dev|test|dev+test]"
     )
 
 
@@ -233,7 +233,7 @@ def benchmark_list(
     split: str | None = typer.Option(
         None,
         "--split",
-        help="Release split: dev or test. Release mode only.",
+        help="Release split: dev, test, or dev+test. Release mode only.",
     ),
     run_config: str | None = typer.Option(
         None,
@@ -301,7 +301,7 @@ def benchmark_describe(
     split: str | None = typer.Option(
         None,
         "--split",
-        help="Release split: dev or test. Release mode only.",
+        help="Release split: dev, test, or dev+test. Release mode only.",
     ),
     run_config: str | None = typer.Option(
         None,
@@ -374,7 +374,7 @@ def benchmark_run(
         None,
         "--split",
         help=(
-            "Release split: dev or test. Overrides config/nika.yaml benchmark.split "
+            "Release split: dev, test, or dev+test. Overrides config/nika.yaml benchmark.split "
             "and RELEASE.yaml default_split_for_release. Release mode only."
         ),
     ),
@@ -391,8 +391,7 @@ def benchmark_run(
         "--skip-licensed",
         help=(
             "Batch mode: leave out rows that need licensed vendor images "
-            "(IOS XR, RouterOS device profiles; iosxr_simple_bgp, "
-            "routeros_simple_bgp)."
+            "(IOS XR and RouterOS device profiles)."
         ),
     ),
     device_profiles: list[str] | None = typer.Option(
@@ -465,6 +464,11 @@ def benchmark_run(
             "OpenAI-style API root, usually ending in /v1. "
             "Used only with provider=custom, where it is required."
         ),
+    ),
+    include_slices: bool | None = typer.Option(
+        None,
+        "--include-slices/--main-only",
+        help="Release mode: include vendor twins and third-size comparisons.",
     ),
     run_config: str | None = typer.Option(
         None,
@@ -772,6 +776,9 @@ def benchmark_run(
         )
         run_benchmark_from_release(
             release_ref=resolved_release,
+            include_slices=include_slices
+            if include_slices is not None
+            else bench.include_slices,
             split=resolved_split,
             agent_type=agent_type,
             llm_provider=llm_provider,
@@ -922,6 +929,48 @@ def benchmark_select(
     for key, value in summary.items():
         typer.echo(f"  {key}: {value}")
     typer.echo(f"Wrote {coverage['output']}")
+
+
+@benchmark_app.command("split")
+def benchmark_split(
+    pool: Path = typer.Option(
+        Path("benchmark/working/pool"), "--pool", help="Candidate pool directory."
+    ),
+    output: Path = typer.Option(
+        Path("benchmark/working/split"),
+        "--output",
+        help="Directory for Dev, Test, training pool and report.",
+    ),
+    seed: int = typer.Option(42, "--seed", help="Network assignment seed."),
+    legacy_retention: bool = typer.Option(
+        True,
+        "--legacy-retention/--no-legacy-retention",
+        help="Prefer 0.2.0 task identities after higher-priority objectives.",
+    ),
+    max_vm_memory_gib: int = typer.Option(
+        38,
+        "--max-vm-memory-gib",
+        min=1,
+        help="Maximum Firecracker VM memory per task in GiB.",
+    ),
+) -> None:
+    """Generate network-disjoint splits and report offline feasibility."""
+    from nika.workflows.benchmark.split_generator import write_split_catalog
+
+    try:
+        report = write_split_catalog(
+            pool=pool,
+            output=output,
+            seed=seed,
+            max_vm_memory_gib=max_vm_memory_gib,
+            legacy_retention=legacy_retention,
+        )
+    except ValueError as exc:
+        _exit_release_error(exc)
+    typer.echo(f"Wrote split candidate to {output}: {report['counts']}")
+    if not report["hard_constraints"]["passed"]:
+        typer.echo("Hard constraints failed; inspect report.json.")
+        raise typer.Exit(code=1)
 
 
 @benchmark_app.command("freeze")

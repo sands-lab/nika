@@ -30,7 +30,8 @@ def _git(cwd: Path, *args: str) -> None:
     )
 
 
-def test_git_common_dir_parent_is_state_dir() -> None:
+def test_git_common_dir_parent_is_state_dir(monkeypatch) -> None:
+    monkeypatch.delenv(config.ENV_STATE_DIR, raising=False)
     raw = subprocess.run(
         ["git", "rev-parse", "--git-common-dir"],
         cwd=config.REPO_ROOT,
@@ -45,6 +46,7 @@ def test_git_common_dir_parent_is_state_dir() -> None:
 
 
 def test_worktree_shares_main_checkout(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv(config.ENV_STATE_DIR, raising=False)
     main = tmp_path / "main"
     worktree = tmp_path / "worktree"
     main.mkdir()
@@ -56,11 +58,18 @@ def test_worktree_shares_main_checkout(tmp_path, monkeypatch) -> None:
 
 
 def test_fallback_when_not_a_git_checkout(monkeypatch) -> None:
+    monkeypatch.delenv(config.ENV_STATE_DIR, raising=False)
+
     def _no_git(*_args, **_kwargs):
         raise OSError("no git")
 
     monkeypatch.setattr(config.subprocess, "run", _no_git)
     assert config.resolve_state_dir() == config.REPO_ROOT
+
+
+def test_explicit_state_dir_overrides_checkout(monkeypatch, tmp_path):
+    monkeypatch.setenv(config.ENV_STATE_DIR, str(tmp_path))
+    assert config.resolve_state_dir() == tmp_path.resolve()
 
 
 def test_nfs_bind_path_rejected(monkeypatch, tmp_path):

@@ -64,14 +64,63 @@ def _render_headline(console: Console, report: SummaryReport) -> None:
     table.add_column("", no_wrap=True)
 
     for attr, label in (
-        ("mean_rca_f1", "rca_f1"),
+        (
+            "mean_rca_f1",
+            "main score (task mean)" if report.main_score is not None else "rca_f1",
+        ),
         ("mean_localization_f1", "localization_f1"),
         ("mean_detection_score", "detection_score"),
     ):
         value = float(getattr(report, attr))
-        marker = "  [bold](primary)[/]" if label == report.primary_metric else ""
+        marker = "  [bold](primary)[/]" if attr == "mean_rca_f1" else ""
         table.add_row(f"{label}{marker}", _score_cell(value), _bar_cell(value))
+    for label, value in (
+        ("healthy false-positive rate", report.healthy_false_positive_rate),
+        ("multi-fault RCA F1", report.multi_fault_mean_rca_f1),
+    ):
+        if value is not None:
+            table.add_row(label, f"{value:.3f}", "")
     console.print(table)
+    if report.vendor_deltas:
+        vendors = Table(title="Vendor minus paired FRR core", header_style="bold")
+        for column in (
+            "tier",
+            "vendor",
+            "delta",
+            "95% fault-clustered CI",
+            "pairs",
+            "faults",
+        ):
+            vendors.add_column(column)
+        for tier, comparisons in sorted(report.vendor_deltas.items()):
+            for vendor, stats in sorted(comparisons.items()):
+                interval = stats["ci95"]
+                vendors.add_row(
+                    tier,
+                    vendor,
+                    "n/a" if stats["delta"] is None else f"{stats['delta']:.3f}",
+                    "n/a"
+                    if interval is None
+                    else f"[{interval[0]:.3f}, {interval[1]:.3f}]",
+                    str(stats["n_pairs"]),
+                    str(stats["n_fault_clusters"]),
+                )
+        console.print(vendors)
+    for kind, families in sorted(report.size_slices.items()):
+        sizes = Table(title=kind.replace("_", " "), header_style="bold")
+        for column in ("family", "size", "tasks", "RCA F1"):
+            sizes.add_column(column)
+        for family, scales in sorted(families.items()):
+            for scale, stats in sorted(scales.items()):
+                sizes.add_row(
+                    family,
+                    scale,
+                    str(stats["n_tasks"]),
+                    "n/a"
+                    if stats["mean_rca_f1"] is None
+                    else f"{stats['mean_rca_f1']:.3f}",
+                )
+        console.print(sizes)
 
     basis = (
         f"leaderboard basis: missing trials count as 0 over "

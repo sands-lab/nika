@@ -43,6 +43,8 @@ dependencies = [
     "uvicorn>=0.47.0,<0.48",
     "zstandard>=0.25.0,<0.26",
     "prometheus-client>=0.26.0,<1",
+    # HiGHS MILP selects release tasks; pin the solver for reproducibility.
+    "scipy==1.18.1",
 ]
 
 [project.optional-dependencies]
@@ -65,7 +67,9 @@ where = ["src"]
 include = ["nika*", "agent*"]
 
 [tool.setuptools.package-data]
+"nika.workflows.benchmark" = ["legacy_020.json"]
 "nika.audit" = ["kb_data/*.yaml", "kb_data/checks/*.yaml", "kb_data/issues/*.yaml"]
+"nika.problems.combinations" = ["cases.yaml"]
 # Runtime data loaded from the installed package (lab files, images, prompts).
 "nika.validation.netkat" = ["KatchBatch.java"]
 "nika.inspect" = ["www/dist/**/*"]
@@ -78,7 +82,6 @@ include = ["nika*", "agent*"]
 "nika.net_env.dc_clos" = ["rendered/*/*"]
 "nika.net_env.enterprise_branch" = ["rendered/*/*"]
 "nika.net_env.isp" = ["rendered/*/*/*"]
-"nika.net_env.min3clos" = ["*.tmpl", "configs/*"]
 "nika.net_env.p4_dc_fabric" = ["*.p4"]
 "nika.net_env.p4_dc_gateway" = ["*.p4"]
 "nika.net_env.utils" = ["k8s_bootstrap.sh"]

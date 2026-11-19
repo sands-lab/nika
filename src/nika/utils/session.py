@@ -264,6 +264,9 @@ class Session:
             self.store.index.upsert(fields)
 
     def write_gt(self, gt: dict[str, Any]):
+        # Scoring reads the task's objectives next to its ground truth.
+        if getattr(self, "objectives", None):
+            gt = {**gt, "objectives": list(self.objectives)}
         write_json_atomic(Path(self.session_dir) / "ground_truth.json", gt, indent=4)
         if hasattr(self, "session_id"):
             self.store.index.upsert(

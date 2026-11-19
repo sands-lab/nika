@@ -13,15 +13,29 @@ def resolve_inject_params(
     *,
     topo_size: str = "",
     overrides: dict[str, str] | None = None,
+    isp_options: dict | None = None,
 ) -> dict[str, str]:
-    try:
-        params = inject_params_from_benchmark_yaml(scenario, problem, topo_size)
-    except ValueError:
-        from nika.workflows.benchmark.inject_resolve import (
-            resolve_inject_params as bench_resolve,
-        )
+    if isp_options:
+        from nika.workflows.benchmark.generate import build_failure_cases
 
-        params = bench_resolve(problem, scenario, topo_size, seed=42)
+        cases, rejected = build_failure_cases(
+            problem=problem,
+            scenario=scenario,
+            topo_size=topo_size,
+            isp_options=isp_options,
+        )
+        if not cases:
+            raise ValueError(f"No valid target for {scenario}/{problem}: {rejected}")
+        params = dict(cases[0]["inject"])
+    else:
+        try:
+            params = inject_params_from_benchmark_yaml(scenario, problem, topo_size)
+        except ValueError:
+            from nika.workflows.benchmark.inject_resolve import (
+                resolve_inject_params as bench_resolve,
+            )
+
+            params = bench_resolve(problem, scenario, topo_size, seed=42)
     if overrides:
         params.update(overrides)
     return params

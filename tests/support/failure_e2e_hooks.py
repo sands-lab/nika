@@ -80,16 +80,6 @@ def assert_link_down_recover(ctx: FailureE2EContext) -> None:
     )
 
 
-def assert_link_detach_pre(ctx: FailureE2EContext) -> None:
-    path = _require_probe_path(ctx)
-    assert ctx.runtime.interface_exists(ctx.parsed.host_name, _ctx_intf(ctx))
-    _wait_for_ping(ctx.runtime, path.src_host, path.dst_ip)
-
-
-def assert_link_detach_recover(ctx: FailureE2EContext) -> None:
-    assert ctx.runtime.interface_exists(ctx.parsed.host_name, _ctx_intf(ctx))
-
-
 def assert_link_flap_pre(ctx: FailureE2EContext) -> None:
     from nika.validation.symptom.flap_probes import assert_baseline_healthy
     from nika.validation.symptom.probe import _resolve_path
@@ -233,27 +223,7 @@ def assert_link_capacity_bottleneck_recover(ctx: FailureE2EContext) -> None:
     assert restored_bps is not None and float(restored_bps) > _LOW_BPS_MAX
 
 
-def assert_load_balancer_overload(ctx: FailureE2EContext) -> None:
-    _stash_original_nano(ctx)
-    artifact = ctx.verify["details"]
-    assert artifact["load_running"] is True
-    assert artifact["capacity_ok"] is True
-    assert artifact["nginx_running"] is True
-    details = ctx.symptom["details"]
-    assert details["degraded"] is True
-    assert details["control_ok"] is True
-
-
-def assert_load_balancer_overload_recover(ctx: FailureE2EContext) -> None:
-    from nika.problems.support.cpu_quota_helpers import read_nano_cpus
-
-    assert ctx.symptom is not None
-    original_nano = ctx.symptom.get("details", {}).get("_original_nano")
-    if original_nano is not None:
-        assert read_nano_cpus(ctx.runtime, ctx.parsed.host_name) == original_nano
-
-
-def assert_sender_resource_contention_pre(ctx: FailureE2EContext) -> None:
+def assert_endpoint_cpu_contention_pre(ctx: FailureE2EContext) -> None:
     from nika.net_env.verify import http_download_stats, ping_stats
     from nika.problems.support.cpu_quota_helpers import read_nano_cpus
 
@@ -274,7 +244,7 @@ def assert_sender_resource_contention_pre(ctx: FailureE2EContext) -> None:
     ctx.before = healthy_rtt
 
 
-def assert_sender_resource_contention(ctx: FailureE2EContext) -> None:
+def assert_endpoint_cpu_contention(ctx: FailureE2EContext) -> None:
     from nika.net_env.verify import http_download_stats, ping_stats
 
     _stash_original_nano(ctx)
@@ -284,12 +254,18 @@ def assert_sender_resource_contention(ctx: FailureE2EContext) -> None:
     assert artifact["http_running"] is True
     details = ctx.symptom["details"]
     assert details["control_ok"] is True
-    assert details["small_http_ok"] is True
     assert details["throughput_ratio"] is not None
+    receiving = ctx.parsed.host_name == ctx.parsed.client_host
+    if receiving:
+        assert details["rwnd_limited_share"] >= 0.2
+    else:
+        assert details["small_http_ok"] is True
+    ping_source = ctx.parsed.server_host if receiving else ctx.parsed.client_host
+    ping_destination = ctx.problem._endpoint_ip if receiving else ctx.parsed.dst_ip
     fault_rtt = ping_stats(
         ctx.runtime,
-        ctx.parsed.client_host,
-        ctx.parsed.dst_ip,
+        ping_source,
+        ping_destination,
         count=10,
         interval_sec=0.2,
     )
@@ -297,13 +273,14 @@ def assert_sender_resource_contention(ctx: FailureE2EContext) -> None:
     # contended host is expected to inflate and is not a path-failure signal.
     assert fault_rtt.loss_percent < 5.0
     assert fault_rtt.rtt_avg_ms is not None
-    small_fault = http_download_stats(
-        ctx.runtime, ctx.parsed.client_host, ctx.parsed.small_url, max_time_sec=30
-    )
-    assert small_fault.ok, small_fault.raw
+    if not receiving:
+        small_fault = http_download_stats(
+            ctx.runtime, ctx.parsed.client_host, ctx.parsed.small_url, max_time_sec=30
+        )
+        assert small_fault.ok, small_fault.raw
 
 
-def assert_sender_resource_contention_recover(ctx: FailureE2EContext) -> None:
+def assert_endpoint_cpu_contention_recover(ctx: FailureE2EContext) -> None:
     from nika.problems.endpoint_application.transport import (
         _RECOVER_THROUGHPUT_MIN_RATIO,
     )
@@ -377,29 +354,6 @@ def assert_bgp_hijack_recover(ctx: FailureE2EContext) -> None:
         lambda: evaluate_custom_baseline("bgp_hijacking", ctx.problem, ctx.parsed)[0],
         45,
     )
-
-
-def assert_receiver_resource_contention_pre(ctx: FailureE2EContext) -> None:
-    """Ensure the receiver can fetch a large object before contention."""
-    from nika.net_env.verify import http_download_stats
-
-    if ctx.scenario == "campus_lan":
-        url = ctx.problem._ensure_peer_large_object(ctx.parsed)
-        bps, seconds = ctx.problem._median_large_stats(
-            ctx.parsed, url, max_time_sec=120
-        )
-        assert bps and seconds, ctx.problem._last_downloads
-        return
-
-    ensure = getattr(ctx.problem, "_ensure_peer_large_object", None)
-    url = ensure(ctx.parsed) if callable(ensure) else None
-    if not url:
-        path = _require_probe_path(ctx)
-        assert path is not None and path.http_url, path
-        url = path.http_url
-    stats = http_download_stats(ctx.runtime, ctx.parsed.host_name, url, max_time_sec=60)
-    assert stats.ok, stats.raw
-    ctx.before = stats
 
 
 def assert_isolation_http_pre(ctx: FailureE2EContext) -> None:
@@ -684,14 +638,6 @@ def assert_ospf_cut_edge_recover(ctx: FailureE2EContext) -> None:
     )
 
 
-def assert_max_prefix_recover(ctx: FailureE2EContext) -> None:
-    """The customer regains reachability after the receiver relearns its route."""
-    site = ctx.problem.customer_route(ctx.parsed.receiver_name, ctx.parsed.peer_name)
-    assert site is not None
-    assert not ctx.problem._discover_flood_prefixes(ctx.parsed.peer_name)
-    _wait_for_ping(ctx.runtime, str(site["host"]), str(site["service_address"]))
-
-
 def assert_bgp_md5_recover(ctx: FailureE2EContext) -> None:
     from nika.problems.support.polling import wait_until
     from nika.validation.symptom.bgp_md5_probes import _received_prefixes
@@ -749,14 +695,9 @@ HOOKS: dict[str, dict[str, Any]] = {
         "post_recover": assert_ospf_acl_recover,
     },
     "ospf_duplicate_router_id": {"post_recover": assert_ospf_stubs_recover},
-    "bgp_max_prefix_exceeded": {"post_recover": assert_max_prefix_recover},
     "bgp_ttl_security_mismatch": {"post_recover": assert_bgp_adjacencies_recover},
     "bgp_md5_password_mismatch": {"post_recover": assert_bgp_md5_recover},
     "link_down": {"post_recover": assert_link_down_recover},
-    "link_detach": {
-        "pre_inject": assert_link_detach_pre,
-        "post_recover": assert_link_detach_recover,
-    },
     "link_flap": {
         "pre_inject": assert_link_flap_pre,
         "post_inject": assert_link_flap,
@@ -766,25 +707,14 @@ HOOKS: dict[str, dict[str, Any]] = {
         "post_inject": assert_link_capacity_bottleneck,
         "post_recover": assert_link_capacity_bottleneck_recover,
     },
-    "load_balancer_overload": {
-        "pre_inject": _capture_nano_cpus_pre,
-        "post_inject": assert_load_balancer_overload,
-        "post_recover": assert_load_balancer_overload_recover,
-    },
-    "sender_resource_contention": {
-        "pre_inject": assert_sender_resource_contention_pre,
-        "post_inject": assert_sender_resource_contention,
-        "post_recover": assert_sender_resource_contention_recover,
+    "endpoint_cpu_contention": {
+        "pre_inject": assert_endpoint_cpu_contention_pre,
+        "post_inject": assert_endpoint_cpu_contention,
+        "post_recover": assert_endpoint_cpu_contention_recover,
     },
     "bmv2_switch_down": {
         "pre_inject": assert_bmv2_switch_down_pre,
         "post_inject": assert_bmv2_switch_down,
-    },
-    "incast_traffic_network_limitation": {
-        "pre_inject": assert_incast_pre,
-    },
-    "receiver_resource_contention": {
-        "pre_inject": assert_receiver_resource_contention_pre,
     },
     "bgp_hijacking": {
         "pre_inject": resolve_bgp_hijack_target,
@@ -793,7 +723,7 @@ HOOKS: dict[str, dict[str, Any]] = {
     "k8s_networkpolicy_deny": {
         "pre_inject": assert_isolation_http_pre,
     },
-    "k8s_coredns_isolated": {
+    "dns_port_blocked": {
         "pre_inject": assert_isolation_http_pre,
     },
     "tcp_receive_window_limited": {

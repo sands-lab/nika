@@ -15,6 +15,7 @@ import urllib.request
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 from agent.protocols import SUBMISSION
 from agent.runtime.contract import SESSION_HEADER, SESSION_TOKEN_HEADER
@@ -125,6 +126,7 @@ def select_session_servers(
     backend: str | None = None,
     telemetry: Iterable[str] = (),
     device_profile: str | None = None,
+    deployment: Any = None,
 ) -> list[str]:
     """Return all MCP server names for a troubleshooting session.
 
@@ -142,6 +144,7 @@ def select_session_servers(
         backend=backend,
         telemetry=telemetry,
         device_profile=device_profile,
+        deployment=deployment,
     )
     if SUBMISSION_SERVER not in servers:
         servers.append(SUBMISSION_SERVER)
@@ -224,7 +227,7 @@ class MCPServerConfig:
         Omitted *backend*, *telemetry*, and *device_profile* come from the
         stored session so dual-backend labs keep the vendor CLI that ran.
         """
-        stored_backend, stored_telemetry, stored_profile = _session_deployment(
+        stored_backend, stored_telemetry, stored_profile, row = _session_deployment(
             self.session_id
         )
         server_names = select_session_servers(
@@ -234,22 +237,28 @@ class MCPServerConfig:
             device_profile=(
                 stored_profile if device_profile is None else device_profile
             ),
+            deployment=row,
         )
         return self.load_http_config(server_names, base_url=base_url)
 
 
 def _session_deployment(
     session_id: str,
-) -> tuple[str | None, tuple[str, ...], str | None]:
-    """Return the lab backend, telemetry and router platform of *session_id*."""
+) -> tuple[str | None, tuple[str, ...], str | None, dict | None]:
+    """Return the lab backend, telemetry, router platform and row of *session_id*."""
     try:
         from nika.runtime.factory import resolve_backend
         from nika.utils.session_store import SessionStore
 
         row = SessionStore().get_session(session_id)
     except (FileNotFoundError, OSError):
-        return None, (), None
-    return resolve_backend(row), telemetry_for_session(row), device_profile_for(row)
+        return None, (), None, None
+    return (
+        resolve_backend(row),
+        telemetry_for_session(row),
+        device_profile_for(row),
+        row,
+    )
 
 
 def load_session_mcp_config(

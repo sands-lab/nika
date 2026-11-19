@@ -116,6 +116,11 @@ class SummaryReport:
     mean_rca_f1: float = 0.0
     mean_localization_f1: float = 0.0
     mean_detection_score: float = 0.0
+    main_score: float | None = None
+    healthy_false_positive_rate: float | None = None
+    multi_fault_mean_rca_f1: float | None = None
+    vendor_deltas: dict[str, Any] = field(default_factory=dict)
+    size_slices: dict[str, Any] = field(default_factory=dict)
 
     # Fault vs. healthy (no-fault control) split, over present trials.
     fault_stats: MetricStats = field(default_factory=MetricStats)
@@ -304,9 +309,13 @@ def build_summary_report(
         problem = _primary_problem(problem_names)
         try:
             result = trial_result_from_dir(
-                trial_id=str(run_meta.get("session_id") or session_dir.name),
-                case_key=session_dir.name,
-                trial_index=1,
+                trial_id=str(
+                    run_meta.get("trial_id")
+                    or run_meta.get("session_id")
+                    or session_dir.name
+                ),
+                case_key=str(run_meta.get("case_key") or session_dir.name),
+                trial_index=int(run_meta.get("trial_index") or 1),
                 scenario=str(run_meta.get("scenario_name") or _UNKNOWN),
                 problem=problem,
                 session_dir=session_dir,
@@ -334,9 +343,29 @@ def build_summary_report(
     expected = max(int(n_trials_expected or 0), len(records))
 
     trial_results = [r.result for r in records]
-    aggregated = aggregate_trial_results(trial_results, n_trials_expected=expected)
+    run_cfg = _read_json(root / RUN_FILENAME)
+    task_rows = None
+    if run_cfg.get("version") and run_cfg.get("split"):
+        from nika.workflows.benchmark.release import load_release
 
-    fault_records = [r for r in records if not r.is_healthy]
+        release = load_release(run_cfg["version"], split=run_cfg["split"])
+        if release.manifest.get("selection"):
+            task_rows = release.select_cases(
+                include_slices=bool(run_cfg.get("include_slices", False))
+            )
+    aggregated = aggregate_trial_results(
+        trial_results,
+        n_trials_expected=expected,
+        task_rows=task_rows,
+        trials_per_task=run_cfg.get("n_trials"),
+    )
+
+    fault_records = [
+        r
+        for r in records
+        if not r.is_healthy
+        and r.result.dataset.get("slice", "core") in {"core", "multi_fault"}
+    ]
     healthy_records = [r for r in records if r.is_healthy]
 
     report = SummaryReport(
@@ -354,6 +383,11 @@ def build_summary_report(
         conditional_mean_rca_f1=aggregated.conditional_mean_rca_f1,
         conditional_mean_localization_f1=aggregated.conditional_mean_localization_f1,
         conditional_mean_detection_score=aggregated.conditional_mean_detection_score,
+        main_score=aggregated.main_score,
+        healthy_false_positive_rate=aggregated.healthy_false_positive_rate,
+        multi_fault_mean_rca_f1=aggregated.multi_fault_mean_rca_f1,
+        vendor_deltas=aggregated.vendor_deltas,
+        size_slices=aggregated.size_slices,
         mean_rca_f1=aggregated.mean_rca_f1,
         mean_localization_f1=aggregated.mean_localization_f1,
         mean_detection_score=aggregated.mean_detection_score,

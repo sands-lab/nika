@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from dataclasses import dataclass
+from textwrap import dedent
 from typing import TYPE_CHECKING, Any
 
 from agent.base import ERROR_PREFIX
@@ -35,6 +36,38 @@ if TYPE_CHECKING:
 
 # Model calls per sample: the first answer plus one corrective retry.
 _ATTEMPTS_PER_SAMPLE = 2
+
+# The mapper's prompt decides how a report becomes a scored answer, so it is
+# benchmark code: changing it or map_report_user_prompt changes scores.
+MAP_REPORT_PROMPT = dedent("""\
+    You are an expert network engineer.
+    Map a frozen network diagnosis report to the benchmark answer format.
+    You are given the report, a fault ontology, and a canonical resource
+    inventory. Do not investigate again or revise the report; answer only from
+    what it states. Reply with one JSON object and nothing else:
+    {"is_anomaly": true, "root_causes": [{"resource_id": "<inventory id>", "fault_type": "<ontology id>"}]}
+    Each fault ontology entry has an ``id``, a short ``description`` of what
+    that id means, and an ``owner_kind``. Each fault_type must be an exact
+    ontology ``id`` (never an owner_kind, description, or natural-language
+    alias), and each resource_id must be an exact inventory id. Do not invent
+    ids. If the report finds no fault, reply
+    {"is_anomaly": false, "root_causes": []}.\
+""").strip()
+
+
+def map_report_user_prompt(diagnosis_report: str, context: dict[str, Any]) -> str:
+    """User turn that gives the mapper the report and the frozen catalogs."""
+    catalogs = json.dumps(
+        {
+            "fault_ontology": context["fault_ontology"],
+            "resources": context["resources"],
+        },
+        sort_keys=True,
+    )
+    return (
+        f"Diagnosis report:\n{diagnosis_report}\n"
+        f"Frozen submission context (do not query the network):\n{catalogs}"
+    )
 
 
 def parse_answer(
@@ -220,15 +253,10 @@ class ReportMapper:
             MessageLogger,
             message_text,
         )
-        from agent.utils.submission_context import submission_prompt_context
-        from agent.utils.template import MAP_REPORT_PROMPT
 
         messages: list[Any] = [
             SystemMessage(content=MAP_REPORT_PROMPT),
-            HumanMessage(
-                content=f"Diagnosis report:\n{diagnosis_report}\n"
-                f"{submission_prompt_context(context)}"
-            ),
+            HumanMessage(content=map_report_user_prompt(diagnosis_report, context)),
         ]
         logger = MessageLogger(phase=SUBMISSION, session_dir=trace_dir)
         callbacks = [AgentCallbackLogger(phase=SUBMISSION, session_dir=trace_dir)]

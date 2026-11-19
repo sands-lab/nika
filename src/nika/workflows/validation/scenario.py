@@ -1,6 +1,8 @@
 """Construct scenario candidates and verify their original behavioral specifications."""
 
 from __future__ import annotations
+
+import re
 import json
 import shlex
 import time
@@ -108,11 +110,9 @@ def validate_scenario_design(
     (output / "summary.json").unlink(missing_ok=True)
     # Save original behavior before resolving fixed address/session bindings.
     (output / "original-spec.json").write_text(spec.model_dump_json(indent=2) + "\n")
-    native_srl = spec.routing_model in {"srl-bgp", "srl-isp"}
+    native_srl = spec.routing_model == "srl-isp"
     native_sonic = spec.routing_model == "sonic"
     native_vendor = spec.routing_model in {
-        "iosxr-bgp",
-        "routeros-bgp",
         "iosxr-isp",
         "routeros-isp",
     }
@@ -153,18 +153,7 @@ def validate_scenario_design(
     if native_srl:
         from nika.net_env.srl_validation import verify_srl_contract
 
-        # Static analysis reads the design rendering; see analysis_render.
-        if spec.routing_model != "srl-isp" and (
-            "srl-bgp" not in env.ROUTING_MODELS or spec.completion is None
-        ):
-            raise ValueError(
-                "SR Linux routing experiments require a supported completion sketch"
-            )
         runtime_verifier = verify_srl_contract
-        if spec.failure_checks and spec.routing_model != "srl-isp":
-            raise ValueError(
-                "FRR configuration-failure restoration cannot be used on SR Linux"
-            )
     elif native_vendor:
         from functools import partial
         from nika.validation.batfish.vendor_bgp import (
@@ -189,7 +178,7 @@ def validate_scenario_design(
         )
         runtime_verifier = (
             verify_iosxr_contract
-            if spec.routing_model in {"iosxr-bgp", "iosxr-isp"}
+            if spec.routing_model == "iosxr-isp"
             else verify_routeros_contract
         )
         if spec.failure_checks:
@@ -348,10 +337,6 @@ def validate_scenario_design(
         from nika.validation.batfish.snapshot import build_isp_render_snapshot
 
         snapshot_builder = partial(build_isp_render_snapshot, device=analysis_syntax)
-    elif spec.routing_model in {"srl-bgp", "routeros-bgp"}:
-        from nika.validation.batfish.snapshot import build_lab_render_snapshot
-
-        snapshot_builder = build_lab_render_snapshot
     generated_configs = None
     if config_generator == "netlab":
         from nika.net_env.synthesis.configuration import apply_routing_configs
@@ -456,9 +441,21 @@ def validate_scenario_design(
                 spec, env, parameters, output / "changes" / name / "netlab", changes
             )
             configs.update({n: rendered[n] for n in deployed})
-        for node, (old, new) in edits.items():
+        from nika.workflows.validation.scenario_spec import RoutingPatternEdit
+
+        for node, edit in edits.items():
             if node in changed and node in from_netlab:
                 continue
+            if isinstance(edit, RoutingPatternEdit):
+                configs[node], count = re.subn(
+                    edit.pattern, edit.replacement, configs[node]
+                )
+                if not count:
+                    raise ValueError(
+                        f"{name} matches no configuration entries on {node}"
+                    )
+                continue
+            old, new = edit
             if configs[node].count(old) != 1:
                 raise ValueError(
                     f"{name} must identify exactly one configuration statement"
@@ -887,13 +884,13 @@ def validate_scenario_design(
                         failure.name + "-restored-additional", spec.runtime_requirements
                     )
             if native_vendor:
-                from nika.net_env.routeros_simple_bgp.verify import (
+                from nika.service.lab.routeros_api import (
                     CLI_COMMAND as routeros_cli,
                 )
 
                 inspection_command = (
                     "/pkg/bin/xr_cli 'show route'"
-                    if spec.routing_model in {"iosxr-bgp", "iosxr-isp"}
+                    if spec.routing_model == "iosxr-isp"
                     else routeros_cli.format(command="/ip/route/print detail")
                 )
             else:
@@ -930,14 +927,14 @@ def validate_scenario_design(
                             commands
                         )
                     elif native_vendor:
-                        if spec.routing_model in {"iosxr-bgp", "iosxr-isp"}:
+                        if spec.routing_model == "iosxr-isp":
                             from nika.net_env.utils.iosxr.common import (
                                 build_xr_config_command,
                             )
 
                             command = build_xr_config_command(commands)
                         else:
-                            from nika.net_env.routeros_simple_bgp.verify import (
+                            from nika.service.lab.routeros_api import (
                                 CLI_COMMAND,
                             )
 

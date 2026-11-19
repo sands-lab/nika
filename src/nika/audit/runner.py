@@ -26,7 +26,7 @@ import yaml
 
 from nika.audit.cohort import TrialRecord, run_metrics
 from nika.audit.detectors import Hit, in_scope, run_trial, tool_stats
-from nika.audit.kb import KnowledgeBase, Policy, load_kb
+from nika.audit.kb import Issue, KnowledgeBase, Policy, load_kb
 from nika.audit.regrade import regrade_trial
 from nika.audit.source import SourceUnavailable, source_absent, verified_provider
 from nika.audit.trace import (
@@ -182,6 +182,17 @@ def _is_ancestor(commit: str, of: str, repo: Path | None) -> bool | None:
     return None
 
 
+def _fix_is_ancestor(issue: Issue, commit: str, repo: Path | None) -> bool | None:
+    """Check original and equivalent fix commits across rewritten histories."""
+    commits = [value for value in (issue.fixed_in, issue.fixed_in_equivalent) if value]
+    results = [_is_ancestor(value, commit, repo) for value in commits]
+    if True in results:
+        return True
+    if not results or None in results:
+        return None
+    return False
+
+
 def _lift(
     issue_trials: set[str], records: list[TrialRecord], fault_types: set[str]
 ) -> dict[str, Any] | None:
@@ -335,7 +346,7 @@ def audit_trajectories(
         if contrasted:
             row["prompt_contrast"] = contrast
         if issue.status == "fixed" and issue.fixed_in:
-            row["regression"] = _is_ancestor(issue.fixed_in, commit, repo)
+            row["regression"] = _fix_is_ancestor(issue, commit, repo)
         if issue.exploit or issue.issue_class == "shortcut":
             lift = _lift(trials, records, set(issue.scope.fault_types))
             if lift:

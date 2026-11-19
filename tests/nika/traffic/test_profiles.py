@@ -129,6 +129,7 @@ def test_k8s_traffic_pods_pin_programs_to_their_node() -> None:
     assert "object_sync.py" in configmap["data"]
     spec = pod["spec"]
     assert spec["nodeName"] == "worker_1" and spec["hostNetwork"]
+    assert spec["automountServiceAccountToken"] is False
     assert spec["containers"][0]["imagePullPolicy"] == "Never"
 
 
@@ -170,18 +171,6 @@ def test_fitting_a_profile_preserves_lower_requested_rates() -> None:
     effective = fit_to_rate_limit(profile, 9000)
     assert effective.load_mbps == 0.1
     assert effective.max_flow_kbps == 80
-
-
-def test_pair_replication_fits_the_routers_send_cap() -> None:
-    from nika.net_env.utils.pair_workload import build_pair_workload
-    from nika.traffic.workload import BULK_TRANSIT
-
-    hops = (("a", "eth0"),)
-    free = build_pair_workload(("a", "10.0.0.1"), ("b", "10.0.0.2"), hops)
-    capped = build_pair_workload(("a", "10.0.0.1"), ("b", "10.0.0.2"), hops, 1000)
-    rates = [a for p in capped.processes for a in p.args if "rate=" in a]
-    assert all(int(r.split("rate=")[1].rstrip("k")) <= 600 for r in rates)
-    assert free.targets(BULK_TRANSIT) and not capped.targets(BULK_TRANSIT)
 
 
 def test_containerlab_discovers_data_eth0_and_excludes_management_eth0(tmp_path):

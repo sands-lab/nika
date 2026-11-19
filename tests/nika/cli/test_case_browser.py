@@ -130,7 +130,7 @@ def test_noninteractive_browse_requires_selection() -> None:
 def test_incompatible_case_is_not_offered(tmp_path: Path) -> None:
     catalog = tmp_path / "cases.yaml"
     catalog.write_text(
-        "cases:\n- scenario: dc_clos\n  topo_size: s\n  problem: k8s_coredns_isolated\n  inject:\n    host_name: client_1_1\n"
+        "cases:\n- scenario: dc_clos\n  topo_size: s\n  problem: dhcp_option_gateway\n  inject:\n    host_name: client_1_1\n"
     )
     result = CliRunner().invoke(
         app, ["case", "browse", "--catalog", str(catalog), "--json"]
@@ -153,7 +153,11 @@ def test_malformed_catalog_reports_cli_error(tmp_path: Path, command: str) -> No
 
 def test_experimental_cases_outside_pool_can_be_discovered_and_exported(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
+    catalog = tmp_path / "empty.yaml"
+    catalog.write_text("cases: []\n")
+    monkeypatch.setattr("nika.workflows.case.DEFAULT_CATALOG", catalog)
     runner = CliRunner()
     result = runner.invoke(
         app,
@@ -161,7 +165,7 @@ def test_experimental_cases_outside_pool_can_be_discovered_and_exported(
             "case",
             "browse",
             "--env",
-            "iosxr_simple_bgp",
+            "dc_clos",
             "--failure",
             "bgp_asn_misconfig",
             "--json",
@@ -169,12 +173,12 @@ def test_experimental_cases_outside_pool_can_be_discovered_and_exported(
     )
     assert result.exit_code == 0, result.output
     entries = json.loads(result.output)
-    assert {row["inject"]["host_name"] for row in entries} == {"router1", "router2"}
+    assert {"leaf_1", "spine_1"} <= {row["inject"]["host_name"] for row in entries}
     assert all(
         row["experimental"] and row["case_source"] == "generated" for row in entries
     )
     row = entries[0]
-    assert row["task_label"] == "iosxr_simple_bgp_bgp_asn_misconfig"
+    assert row["task_label"] == f"dc_clos_{row['topo_size']}_bgp_asn_misconfig"
     output = tmp_path / "experimental.yaml"
     exported = runner.invoke(
         app, ["case", "browse", "--task-id", row["task_id"], "--output", str(output)]

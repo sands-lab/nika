@@ -83,7 +83,6 @@ SCENARIO_DISPLAY: dict[str, str] = {
     "llmd_lab": "llmd",
     "p4_dc_fabric": "p4_dc_fabric",
     "sdn_l3_clos": "sdn_l3_clos",
-    "min3clos": "min3clos",
     "isp_abilene": "isp_abilene",
     "isp_france": "isp_france",
     "isp_pioro40": "isp_pioro40",

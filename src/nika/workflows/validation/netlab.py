@@ -35,20 +35,6 @@ def render_design_for_analysis(spec, env, parameters, directory, changes=()):
             changes=changes,
         )
         return configs, device
-    if spec.routing_model == "srl-bgp":
-        from nika.net_env.synthesis.netlab_srl import generate_srl_configs
-
-        configs = generate_srl_configs(
-            env, parameters, directory, as_frr=True, changes=changes
-        )
-        return configs, "frr"
-    if spec.routing_model == "routeros-bgp":
-        from nika.net_env.synthesis.netlab_direct import generate_direct_bgp_configs
-
-        configs = generate_direct_bgp_configs(
-            env, parameters, directory, as_frr=True, changes=changes
-        )
-        return configs, "frr"
     if getattr(env, "native_routers", None) and spec.routing_model == "frr":
         from nika.net_env.native_routers import design_analyzed_routers
         from nika.net_env.synthesis.netlab_kathara import generate_kathara_configs
@@ -106,14 +92,6 @@ def check_netlab_scope(spec, env):
         if env.backend not in {"kathara", "containerlab"}:
             raise ValueError("netlab ISP construction requires a supported backend")
         netlab_topology(env.plan, env.bgp_plan, env.device_profile)
-    elif hasattr(env, "BGP_ROUTERS"):
-        from nika.net_env.synthesis.netlab_direct import direct_bgp_topology
-
-        direct_bgp_topology(env)
-    elif env.backend == "containerlab":
-        from nika.net_env.synthesis.netlab_srl import srl_topology
-
-        srl_topology(env)
     else:
         from nika.net_env.synthesis.netlab_kathara import kathara_topology
 
@@ -129,19 +107,15 @@ def retained_capabilities(spec, env) -> list[dict[str, str]]:
 
         return design_capabilities(env)
     retained = []
-    if spec.routing_model in {"srl-bgp", "srl-isp"}:
+    if spec.routing_model == "srl-isp":
         retained.append(
             (
-                "existing IPv6 interface addressing"
-                if spec.routing_model == "srl-bgp"
-                else "IGP ECMP capacity from the completed sketch",
+                "IGP ECMP capacity from the completed sketch",
                 "the pinned netlab SR Linux templates do not emit this attribute",
             )
         )
     bgp_plan = getattr(env, "bgp_plan", None)
-    if spec.routing_model == "routeros-bgp" or (
-        getattr(env, "device_profile", None) == "routeros" and bgp_plan
-    ):
+    if getattr(env, "device_profile", None) == "routeros" and bgp_plan:
         retained.append(
             (
                 "BGP origins, exact-prefix admission and local-preference filters",
@@ -178,14 +152,6 @@ def generate_configs(spec, env, parameters, directory, changes=()):
         from nika.net_env.isp.netlab import generate_isp_configs
 
         return generate_isp_configs(env, directory, changes)
-    if hasattr(env, "BGP_ROUTERS"):
-        from nika.net_env.synthesis.netlab_direct import generate_direct_bgp_configs
-
-        return generate_direct_bgp_configs(env, parameters, directory, changes=changes)
-    if env.backend == "containerlab":
-        from nika.net_env.synthesis.netlab_srl import generate_srl_configs
-
-        return generate_srl_configs(env, parameters, directory, changes=changes)
     from nika.net_env.synthesis.netlab_kathara import generate_kathara_configs
 
     return generate_kathara_configs(env, parameters, directory, changes=changes)
