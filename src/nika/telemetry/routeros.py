@@ -12,7 +12,7 @@ import re
 import time
 from typing import TYPE_CHECKING, Any
 
-from nika.net_env.verify import exec_or_empty
+from nika.net_env.verify import exec_for_discovery, exec_or_empty
 from nika.service.lab.routeros_api import CLI_COMMAND
 from nika.telemetry import CONFIG_DIR
 
@@ -63,12 +63,12 @@ def linux_to_ether(name: str) -> str:
 
 def probe(runtime: LabRuntime, name: str) -> str | None:
     """Return a ``ros-`` version when the node has the vrnetlab SSH hop."""
-    path = exec_or_empty(runtime, name, "command -v sshpass 2>/dev/null").strip()
+    path = exec_for_discovery(runtime, name, "command -v sshpass 2>/dev/null").strip()
     if not path:
         return None
     shown = ""
     for _ in range(12):
-        shown = exec_or_empty(
+        shown = exec_for_discovery(
             runtime,
             name,
             CLI_COMMAND.format(command="/system resource print"),
@@ -88,14 +88,22 @@ def probe(runtime: LabRuntime, name: str) -> str | None:
 
 
 def traffic_flow_enabled(runtime: LabRuntime, name: str) -> bool:
+    """Check that flow export is enabled and has a configured target."""
     out = exec_or_empty(
         runtime,
         name,
-        CLI_COMMAND.format(command="/ip traffic-flow print"),
+        CLI_COMMAND.format(
+            command="/ip traffic-flow print; /ip traffic-flow target print count-only"
+        ),
         timeout=20,
     )
-    lowered = out.lower()
-    return "enabled" in lowered and ("yes" in lowered or "true" in lowered)
+    lines = out.strip().splitlines()
+    return bool(
+        re.search(r"(?mi)^\s*enabled:\s*(?:yes|true)\b", out)
+        and lines
+        and lines[-1].strip().isdecimal()
+        and int(lines[-1].strip()) > 0
+    )
 
 
 def parse_interface_stats(output: str) -> list[dict[str, str | int]]:
@@ -176,7 +184,7 @@ def setup_script(device: dict[str, Any], address: str, collector: str = "") -> s
         lines.append(
             _ssh(
                 cli,
-                ":if ([:len [/ip traffic-flow target find]] = 0) do={{ "
+                ":if ([:len [/ip traffic-flow target find]] = 0) do={ "
                 f"/ip traffic-flow target add dst-address={collector} "
                 f"port={IPFIX_PORT} version=9 }}",
             )
@@ -185,12 +193,7 @@ def setup_script(device: dict[str, Any], address: str, collector: str = "") -> s
 
 
 def syslog_script(address: str, collector: str) -> str:
-    """Point the default RouterOS remote action at the collector.
-
-    RouterOS already has a ``remote`` action (``remote=0.0.0.0``). SSH
-    quoting cannot carry RouterOS ``do={...}`` braces, so this only uses
-    ``set`` / ``add`` lines.
-    """
+    """Send protocol information to the collector through the remote action."""
     from nika.telemetry.syslog import SYSLOG_PORT
 
     cli = CLI_COMMAND
@@ -204,7 +207,8 @@ def syslog_script(address: str, collector: str) -> str:
                     f"/system logging action set remote remote={collector} "
                     f"remote-port={SYSLOG_PORT} remote-log-format=syslog src-address={address}",
                 ),
-                _ssh(cli, "/system logging add action=remote topics=info") + " || true",
+                _ssh(cli, "/system logging add action=remote topics=info,!system")
+                + " || true",
             ]
         )
         + "\n"

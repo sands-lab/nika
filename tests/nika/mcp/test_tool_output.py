@@ -120,6 +120,7 @@ def test_tools_list_drops_output_schema_and_notes_truncation() -> None:
     tool = annotate_tools_list_result(result)["tools"][0]
     assert "outputSchema" not in tool
     assert "elide the middle" in tool["description"]
+    assert "Paginated rows retain a prefix" in tool["description"]
 
 
 def test_rewrite_sse_tools_call() -> None:
@@ -172,3 +173,42 @@ async def test_gateway_rewriting_send_applies_budget(monkeypatch) -> None:
     text = json.loads(messages[1]["body"])["result"]["content"][0]["text"]
     assert text.startswith("<warning>")
     assert "40 characters elided" in text
+
+
+@pytest.mark.asyncio
+async def test_row_envelopes_keep_queries_and_whole_rows_when_bounded() -> None:
+    from mcp.server.fastmcp import FastMCP
+
+    server = FastMCP("envelope")
+    rows = [{"index": i, "value": "x" * 100} for i in range(20)]
+
+    @server.tool()
+    def query() -> dict:
+        return {"command": "nfdump -R /var/lib/flows", "rows": rows}
+
+    content = await server.call_tool("query", {})
+    result = {"content": [block.model_dump() for block in content]}
+    bounded = bound_call_tool_result(result, max_chars=700)
+    envelope = json.loads(bounded["content"][1]["text"])
+    assert envelope["command"] == "nfdump -R /var/lib/flows"
+    assert envelope["rows"][0] == rows[0] and envelope["rows"][-1] == rows[-1]
+    assert envelope["omitted_rows"] == len(rows) - len(envelope["rows"])
+    assert envelope["truncated"]
+    assert len(bounded["content"][1]["text"]) <= 700
+
+
+@pytest.mark.parametrize(
+    "next_offset,total_nodes,start", [(100, 182, 0), (200, 300, 100), (None, 200, 100)]
+)
+def test_bounded_paginated_rows_resume_at_first_omitted(
+    next_offset, total_nodes, start
+):
+    rows = [{"node": f"node-{i:03d}", "data": "x" * 100} for i in range(100)]
+    payload = {"rows": rows, "next_offset": next_offset, "total_nodes": total_nodes}
+    result = {"content": [{"type": "text", "text": json.dumps(payload)}]}
+    bounded = bound_call_tool_result(result, max_chars=700)
+    page = json.loads(bounded["content"][1]["text"])
+    assert 0 < len(page["rows"]) < len(rows)
+    assert page["rows"] == rows[: len(page["rows"])]
+    assert page["next_offset"] == start + len(page["rows"])
+    assert page["omitted_rows"] == len(rows) - len(page["rows"])

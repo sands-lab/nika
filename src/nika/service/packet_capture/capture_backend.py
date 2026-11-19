@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from nika.runtime.base import LabRuntime
+from nika.net_env.utils.iosxr.common import (
+    container_interface as iosxr_container_interface,
+)
+from nika.net_env.utils.routeros.common import routeros_container_interface
 from nika.net_env.utils.sonic.common import container_iface
 from nika.service.containerlab.sonic_api import uses_sonic_router
 from nika.service.containerlab.srl_api import srl_linux_intf
@@ -61,9 +65,17 @@ def capture_device(runtime: LabRuntime, device: str, interface: str) -> str:
     (the srbase-default ``e1-N.0`` subinterfaces only see CPU traffic).
     SONiC ports ``EthernetN`` map to the container data interface ``ethK``
     that carries them. A missing device raises instead of producing an empty
-    capture.
+    capture. RouterOS physical ports use the environment's declared layout;
+    IOS XR data ports use their declared Linux interface mapping.
     """
     name = interface.strip()
+    net_env = getattr(runtime, "_net_env", None)
+    identities = getattr(net_env, "machine_identities", None) or {}
+    identity = identities.get(device)
+    if identity is not None and "routeros" in identity.capabilities:
+        name = routeros_container_interface(net_env, device, name) or name
+    elif identity is not None and "iosxr" in identity.capabilities:
+        name = iosxr_container_interface(name) or name
     if getattr(runtime, "backend", None) == "containerlab":
         if runtime.uses_srl_router(device):
             name = srl_linux_intf(name)

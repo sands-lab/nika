@@ -14,7 +14,7 @@ from typing import Any
 _DESC_NOTE = (
     " Oversized outputs keep the first and last halves of the output budget "
     "(10000 characters by default) and elide the middle; list results elide "
-    "whole items."
+    "whole items. Paginated rows retain a prefix and resume at the first omitted row."
 )
 
 _TOO_LONG_WARNING = (
@@ -102,9 +102,11 @@ def bound_call_tool_result(
     if limit <= 0 or len(combined) <= limit:
         return result
 
-    bounded = _bound_items(result, texts, limit) or [
-        {"type": "text", "text": truncate_tool_text(combined, max_chars=limit)}
-    ]
+    bounded = (
+        _bound_rows(result, texts, limit)
+        or _bound_items(result, texts, limit)
+        or [{"type": "text", "text": truncate_tool_text(combined, max_chars=limit)}]
+    )
     for item in content:
         is_text = (
             isinstance(item, dict)
@@ -116,6 +118,63 @@ def bound_call_tool_result(
     result["content"] = bounded
     result.pop("structuredContent", None)
     return result
+
+
+def _bound_rows(
+    result: dict[str, Any], texts: list[str], limit: int
+) -> list[Any] | None:
+    """Keep row envelopes, including their executed query, valid after truncation."""
+    if len(texts) != 1:
+        return None
+    structured = result.get("structuredContent")
+    if not isinstance(structured, dict) or "rows" not in structured:
+        try:
+            structured = json.loads(texts[0])
+        except ValueError:
+            return None
+    if not isinstance(structured, dict) or not isinstance(structured.get("rows"), list):
+        return None
+    rows = structured["rows"]
+    envelope = {**structured, "rows": [], "omitted_rows": len(rows), "truncated": True}
+    if len(json.dumps(envelope, indent=2)) > limit:
+        return None
+    # A paginated envelope must retain a contiguous prefix and resume at the
+    # first omitted row; head/tail elision would make its cursor skip entries.
+    next_offset = structured.get("next_offset")
+    total_nodes = structured.get("total_nodes")
+    start_offset = (
+        next_offset - len(rows)
+        if isinstance(next_offset, int)
+        else total_nodes - len(rows)
+        if "next_offset" in structured
+        and next_offset is None
+        and isinstance(total_nodes, int)
+        else None
+    )
+    kept = []
+    left, right = 0, len(rows) - 1
+    while left <= right:
+        index = left if start_offset is not None or len(kept) % 2 == 0 else right
+        proposed = sorted([*kept, index])
+        envelope["rows"] = [rows[i] for i in proposed]
+        envelope["omitted_rows"] = len(rows) - len(proposed)
+        if start_offset is not None:
+            envelope["next_offset"] = start_offset + len(proposed)
+        if len(json.dumps(envelope, indent=2)) > limit:
+            break
+        kept = proposed
+        if index == left:
+            left += 1
+        else:
+            right -= 1
+    envelope["rows"] = [rows[i] for i in kept]
+    envelope["omitted_rows"] = len(rows) - len(kept)
+    if start_offset is not None:
+        envelope["next_offset"] = start_offset + len(kept)
+    return [
+        {"type": "text", "text": _WARNING_BLOCK},
+        {"type": "text", "text": json.dumps(envelope, indent=2)},
+    ]
 
 
 def _bound_items(

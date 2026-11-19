@@ -42,7 +42,7 @@ class TestHostPingmeshCaptureMcpLive(IntegrationTestCase):
             self._assert_session_ready(session_id, "simple_bgp")
             servers = [
                 "kathara_base_mcp_server",
-                "pingmesh_mcp_server",
+                "kathara_prometheus_mcp_server",
                 "packet_capture_mcp_server",
             ]
             with mcp_gateway_for_session(session_id, scenario_name="simple_bgp"):
@@ -58,7 +58,7 @@ class TestHostPingmeshCaptureMcpLive(IntegrationTestCase):
                         "curl_web_test",
                         "iperf_test",
                         "active_tcp_probe",
-                        "run_pingmesh_snapshot",
+                        "prometheus_query",
                         "packet_capture_start",
                         "packet_capture_stop",
                         "packet_capture_inspect",
@@ -87,7 +87,9 @@ class TestHostPingmeshCaptureMcpLive(IntegrationTestCase):
                         )
                     )
                     out["mesh"] = _text(
-                        await tools["run_pingmesh_snapshot"].ainvoke({})
+                        await tools["prometheus_query"].ainvoke(
+                            {"query": "probe_success"}
+                        )
                     )
                     start = _text(
                         await tools["packet_capture_start"].ainvoke(
@@ -203,7 +205,7 @@ class TestHostPingmeshCaptureMcpLive(IntegrationTestCase):
             assert "Routing entry" in results["route"] or "Codes:" in results["route"]
             assert "router bgp" in results["config"]
             mesh = json.loads(results["mesh"])
-            assert "results" in mesh or "endpoints" in mesh
+            assert isinstance(mesh, list) and mesh
             assert json.loads(results["capture_stop"])["capture_id"]
             assert json.loads(results["capture_inspect"])["total_available"] >= 1
             assert results["curl"].count("namelookup:") == 2
@@ -325,7 +327,14 @@ def _tool_rows(name: str, raw: object) -> list[dict]:
     rows: list[dict] = []
     for text in tool_text_list(raw):
         _assert_ok(name, text)
-        rows.append(json.loads(text))
+        item = json.loads(text)
+        rows.extend(
+            item["rows"]
+            if isinstance(item, dict) and "rows" in item
+            else item
+            if isinstance(item, list)
+            else [item]
+        )
     return rows
 
 
@@ -338,7 +347,7 @@ class TestNetflowMcpLive(IntegrationTestCase):
     SRC, DST_IP = "pc_chinng", "10.254.0.22"
     FLOW_FILTER = "src ip 10.254.0.10 and dst ip 10.254.0.22"
 
-    def test_netflow_query_shows_reroute_after_link_down(self) -> None:
+    def test_flow_top_talkers_shows_reroute_after_link_down(self) -> None:
         session_id = self._start_env(self.SCENARIO, ["--telemetry", "netflow"])
         try:
             row = self._assert_session_ready(session_id, self.SCENARIO)
@@ -354,11 +363,14 @@ class TestNetflowMcpLive(IntegrationTestCase):
                 config = load_session_mcp_config(session_id, self.SCENARIO)
                 assert "kathara_netflow_mcp_server" in config
 
-                async def _query(**args) -> list[dict]:
+                async def _query(
+                    tool_name: str = "flow_top_talkers", **args
+                ) -> list[dict]:
                     client = MultiServerMCPClient(connections=config)
                     tools = {t.name: t for t in await client.get_tools()}
                     return _tool_rows(
-                        "netflow_query", await tools["netflow_query"].ainvoke(args)
+                        tool_name,
+                        await tools[tool_name].ainvoke(args),
                     )
 
                 def _exporters(start_time: str) -> set[str]:
@@ -377,6 +389,20 @@ class TestNetflowMcpLive(IntegrationTestCase):
                     time.sleep(10)
                     before = _exporters("-60")
                 assert before == {"chinng", "iplsng"}
+
+                # NetFlow alone starts Prometheus and serves the flow range tools.
+                assert "kathara_prometheus_mcp_server" in config
+                timeline = []
+                deadline = time.monotonic() + 60
+                while not timeline and time.monotonic() < deadline:
+                    timeline = asyncio.run(
+                        _query(tool_name="flow_timeline", start_time="-120", limit=5)
+                    )
+                    if not timeline:
+                        time.sleep(5)
+                assert timeline and all(row["values"] for row in timeline)
+                load = asyncio.run(_query(tool_name="flow_current_load", limit=5))
+                assert load and all(row["node"] and row["current"] >= 0 for row in load)
 
                 self._inject_failure(
                     "link_down",

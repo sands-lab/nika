@@ -10,6 +10,17 @@ from nika.telemetry import iosxr, prometheus, routeros, srl
 
 pytestmark = pytest.mark.unit
 
+
+@pytest.mark.parametrize("probe", [srl.probe, routeros.probe])
+def test_vendor_discovery_rejects_timeouts(probe):
+    class TimedOutRuntime:
+        def exec(self, host, command, *, timeout):
+            return f"[TIMEOUT] Command '{command}' on '{host}' exceeded {timeout}s."
+
+    with pytest.raises(TimeoutError, match="Telemetry discovery timed out"):
+        probe(TimedOutRuntime(), "linux-host")
+
+
 _XR_SHOW = """\
 GigabitEthernet0/0/0/0 is up, line protocol is up
   Internet address is 193.10.11.1/24
@@ -137,6 +148,23 @@ def test_routeros_setup_script_assigns_extra_ether_and_traffic_flow() -> None:
     assert "traffic-flow" in script
     assert "172.28.255.254" in script
     assert "9995" in script
+
+
+@pytest.mark.parametrize(
+    ("output", "expected"),
+    [
+        ("enabled: yes\ninterfaces: all\n0\n", False),
+        ("enabled: yes\ninterfaces: all\n1\n", True),
+        ("enabled: no\ninterfaces: all\n1\n", False),
+        ("enabled: yes\nsyntax error\n", False),
+        ("", False),
+    ],
+)
+def test_routeros_export_readiness_requires_a_target(output, expected):
+    from types import SimpleNamespace
+
+    runtime = SimpleNamespace(exec=lambda *_args, **_kwargs: output)
+    assert routeros.traffic_flow_enabled(runtime, "router") is expected
 
 
 def test_converted_router_telemetry_uses_its_declared_management_port():

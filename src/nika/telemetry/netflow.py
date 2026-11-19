@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from nika.net_env.verify import exec_or_empty, process_running
+from nika.net_env.verify import exec_for_discovery, exec_or_empty, process_running
 from nika.telemetry import CONFIG_DIR, DEVICE_EXEC_WORKERS
 from nika.utils.parallel import bounded_parallel_map
 
@@ -69,7 +69,7 @@ def pmacct_conf(collector: str, iface: str, engine: int) -> str:
             "nfprobe_version: 10",
             f"nfprobe_engine: {engine}",
             f"nfprobe_timeouts: {NFPROBE_TIMEOUTS}",
-            "aggregate: src_host,dst_host,src_port,dst_port,proto,tos,in_iface",
+            "aggregate: src_host,dst_host,src_port,dst_port,proto,tos,tcpflags,in_iface",
             # The core-to-plugin buffer defaults to ~4 MB of shared memory per
             # probe, which the container's memory limit counts: a router with
             # 75 interfaces (isp_brain zib) would run out of memory.
@@ -110,7 +110,7 @@ def ovs_netflow_script(collector: str, address: str) -> str:
 
 def probe(runtime: LabRuntime, name: str) -> str | None:
     """Return the pmacct version, or an ``ovs-`` version when only OVS is present."""
-    out = exec_or_empty(
+    out = exec_for_discovery(
         runtime,
         name,
         "pmacctd -V 2>&1 | head -n 1; ovs-vsctl --version 2>&1 | head -n 1",
@@ -166,7 +166,7 @@ def device_lines(device: dict[str, Any], address: str, version: str = "") -> lis
 def collector_files(
     targets: dict[str, str], versions: dict[str, str] | None = None
 ) -> dict[str, str]:
-    """Exporter names by address, used by ``netflow_query`` to name exporters."""
+    """Exporter names by address, used by the flow tools to name exporters."""
     del versions
     return {
         FLOW_EXPORTERS_FILE: "".join(f"{ip} {name}\n" for name, ip in targets.items())
@@ -198,10 +198,167 @@ def _exporter_running(runtime: LabRuntime, name: str) -> bool:
 
 def running(runtime: LabRuntime, collector: str, targets: dict[str, str]) -> bool:
     """The collector and every exporter probe are running."""
-    return process_running(runtime, collector, "nfcapd") and all(
-        bounded_parallel_map(
-            lambda name: _exporter_running(runtime, name),
-            sorted(targets),
-            max_workers=DEVICE_EXEC_WORKERS,
+    return (
+        process_running(runtime, collector, "nfcapd")
+        and metrics_running(runtime, collector)
+        and all(
+            bounded_parallel_map(
+                lambda name: _exporter_running(runtime, name),
+                sorted(targets),
+                max_workers=DEVICE_EXEC_WORKERS,
+            )
+        )
+    )
+
+
+def topology_peers(env) -> dict[str, dict[str, list[str]]]:
+    """Record peers from declared topology, including shared segments."""
+    segments = (
+        env._topology_segments()
+        if hasattr(env, "_topology_segments")
+        and getattr(env, "backend", None) != "containerlab"
+        else env.get_topology()
+    )
+    peers: dict[str, dict[str, list[str]]] = {}
+    for segment in segments:
+        for endpoint in segment:
+            node, iface = endpoint.split(":", 1)
+            peers.setdefault(node, {})[iface] = sorted(
+                p for p in segment if p != endpoint
+            )
+    return peers
+
+
+def interface_map(runtime, name: str, version: str) -> dict[str, str]:
+    """Poll an exporter's healthy interface table using its native index space."""
+    import json
+
+    from nika.telemetry import routeros, srl
+
+    if is_ovs(version):
+        raw = exec_or_empty(
+            runtime,
+            name,
+            'for br in $(ovs-vsctl --timeout=5 list-br); do ovs-ofctl --timeout=5 dump-ports-desc "$br"; done',
+        )
+        return dict(re.findall(r"^\s*(\d+)\(([^)]+)\):", raw, re.M))
+    if srl.is_srl(version):
+        raw = exec_or_empty(
+            runtime, name, "sr_cli 'info from state interface * | as json'"
+        )
+        maps: dict[str, str] = {}
+
+        def walk(value):
+            if isinstance(value, dict):
+                index = value.get("ifindex", value.get("if-index"))
+                if index is not None and value.get("name"):
+                    maps[str(index)] = value["name"]
+                for child in value.values():
+                    walk(child)
+            elif isinstance(value, list):
+                for child in value:
+                    walk(child)
+
+        try:
+            walk(json.loads(raw))
+        except ValueError:
+            pass
+        return maps
+    if routeros.is_ros(version):
+        from nika.service.lab.routeros_api import CLI_COMMAND
+
+        names = exec_or_empty(
+            runtime,
+            name,
+            CLI_COMMAND.format(command="/interface print terse without-paging"),
+        )
+        oids = exec_or_empty(
+            runtime,
+            name,
+            CLI_COMMAND.format(command="/interface print oid without-paging"),
+        )
+        by_row = {
+            m[1]: m[2].strip('"')
+            for m in re.finditer(r"^\s*(\d+)\s+[^\n]*?\bname=(\S+)", names, re.M)
+        }
+        return {
+            m[2]: by_row[m[1]]
+            for m in re.finditer(
+                r"^\s*(\d+)\s+[^\n]*?\.1\.3\.6\.1\.2\.1\.2\.2\.1\.\d+\.(\d+)",
+                oids,
+                re.M,
+            )
+            if m[1] in by_row
+        }
+    raw = exec_or_empty(runtime, name, "ip -o link show")
+    return {
+        index: iface.split("@", 1)[0]
+        for index, iface in re.findall(r"^(\d+): ([^:]+):", raw, re.M)
+    }
+
+
+def snapshot_inventory(
+    runtime, plan: dict, versions: dict[str, str], addresses: dict[str, str]
+) -> str:
+    """Freeze healthy exporter capabilities and interface enrichment before injection."""
+    import json
+
+    maps = bounded_parallel_map(
+        lambda name: interface_map(runtime, name, versions[name]),
+        sorted(versions),
+        max_workers=DEVICE_EXEC_WORKERS,
+    )
+    interfaces = dict(zip(sorted(versions), maps, strict=True))
+    inventory = {}
+    for name in sorted(plan["devices"]):
+        peers = plan.get("link_peers", {}).get(name, {})
+        rows = {}
+        for index, iface in interfaces.get(name, {}).items():
+            topology_iface = (
+                plan["devices"][name].get("interface_aliases", {}).get(iface, iface)
+            )
+            if iface.startswith("ethernet-1/"):
+                topology_iface = "e1-" + iface.split("/")[1]
+            rows[index] = {"name": iface, "link_peers": peers.get(topology_iface, [])}
+        inventory[name] = {
+            "supported": name in versions,
+            "address": addresses.get(name) if name in versions else None,
+            "interfaces": rows,
+        }
+    return json.dumps(inventory)
+
+
+def add_metrics(files: dict[str, str], lines: list[str], inventory: str) -> None:
+    """Add one flow exporter and its scrape job to the collector configuration."""
+    import json
+    from pathlib import Path
+
+    from nika.telemetry import flow_metrics, prometheus
+
+    files[str(flow_metrics.INVENTORY)] = inventory
+    script = f"{CONFIG_DIR}/flow_metrics.py"
+    files[script] = Path(flow_metrics.__file__).read_text()
+    config = json.loads(
+        files.get(
+            prometheus.PROMETHEUS_CONFIG,
+            '{"global":{"scrape_interval":"15s"},"scrape_configs":[]}',
+        )
+    )
+    config["scrape_configs"].append(
+        {
+            "job_name": "netflow",
+            "scrape_interval": f"{FLOW_ROTATE_SEC}s",
+            "static_configs": [{"targets": [f"127.0.0.1:{flow_metrics.PORT}"]}],
+        }
+    )
+    files[prometheus.PROMETHEUS_CONFIG] = json.dumps(config)
+    lines.append(f"(while true; do python3 {script}; sleep 1; done) &")
+
+
+def metrics_running(runtime, collector: str) -> bool:
+    """The flow metric importer answers and Prometheus runs."""
+    return process_running(runtime, collector, "prometheus") and bool(
+        exec_or_empty(
+            runtime, collector, "curl -fsS --max-time 3 http://127.0.0.1:9102/coverage"
         )
     )

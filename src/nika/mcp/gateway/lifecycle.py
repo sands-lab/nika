@@ -362,4 +362,5 @@ def session_diagnosis_servers(
         backend=backend,
         telemetry=telemetry_for_session(row),
         device_profile=device_profile_for(row),
+        deployment=row,
     )

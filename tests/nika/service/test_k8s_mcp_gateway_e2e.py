@@ -241,10 +241,10 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
     def test_04_coredns_isolated_symptom(self) -> None:
         assert self.session_id is not None
         inject_failure(
-            ["k8s_coredns_isolated"],
+            ["dns_port_blocked"],
             session_id=self.session_id,
         )
-        self._assert_failure_injected("k8s_coredns_isolated")
+        self._assert_failure_injected("dns_port_blocked")
 
         async def _check(tools):
             endpoints = await _kubectl(
@@ -284,11 +284,11 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
     def test_05_clusterip_routing_broken_symptom(self) -> None:
         assert self.session_id is not None
         inject_failure(
-            ["k8s_clusterip_routing_broken"],
+            ["k8s_node_firewall_drop"],
             session_id=self.session_id,
             param_overrides={"node_name": "worker2"},
         )
-        self._assert_failure_injected("k8s_clusterip_routing_broken")
+        self._assert_failure_injected("k8s_node_firewall_drop")
 
         async def _check(tools):
             nodes = await _kubectl(tools, "get nodes --no-headers")
@@ -357,7 +357,7 @@ class K8sMcpClaudeAgentE2ETest(SharedSessionTestCase):
     """cli.claude against k8s_lab with a real k8s fault."""
 
     SCENARIO = "k8s_lab"
-    INJECT_PROBLEM = "k8s_coredns_isolated"
+    INJECT_PROBLEM = "dns_port_blocked"
     INJECT_PARAMS: dict[str, str] | None = None
     _READY_TIMEOUT_SEC = 900
 
@@ -461,10 +461,10 @@ class LlmdMcpGatewayIntegrationTest(SharedSessionTestCase):
     def test_02_coredns_isolated_via_mcp(self) -> None:
         assert self.session_id is not None
         inject_failure(
-            ["k8s_coredns_isolated"],
+            ["dns_port_blocked"],
             session_id=self.session_id,
         )
-        self._assert_failure_injected("k8s_coredns_isolated")
+        self._assert_failure_injected("dns_port_blocked")
 
         async def _check(tools):
             endpoints = await _kubectl(
@@ -518,7 +518,7 @@ class LlmdMcpClaudeAgentE2ETest(SharedSessionTestCase):
     """cli.claude against llmd_lab with a real k8s fault."""
 
     SCENARIO = "llmd_lab"
-    INJECT_PROBLEM = "k8s_coredns_isolated"
+    INJECT_PROBLEM = "dns_port_blocked"
     INJECT_PARAMS: dict[str, str] | None = None
     _READY_TIMEOUT_SEC = 1800
 

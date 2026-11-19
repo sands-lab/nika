@@ -1,4 +1,4 @@
-"""Live Containerlab min3clos: SR Linux sFlow, gNMI metrics, and syslog."""
+"""Live Containerlab dc_clos: SR Linux sFlow, gNMI metrics, and syslog."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from tests.support.prerequisites import (
 
 pytestmark = pytest.mark.integration
 
-_CLIENT2 = "10.0.0.27"
+_CLIENT2 = "10.0.2.11"
 
 
 def _tool_rows(name: str, raw: object) -> list[dict]:
@@ -38,7 +38,13 @@ def _tool_rows(name: str, raw: object) -> list[dict]:
         for bad in ("traceback", "tool_execution_error", "nika_session_id is not set"):
             assert bad not in lowered, f"{name} looks like an error:\n{text[:800]}"
         item = json.loads(text)
-        rows.extend(item if isinstance(item, list) else [item])
+        rows.extend(
+            item.get("rows", [])
+            if isinstance(item, dict) and "rows" in item
+            else item
+            if isinstance(item, list)
+            else [item]
+        )
     return rows
 
 
@@ -62,10 +68,10 @@ def _poll(deadline: float, interval: float, probe: Callable[[], object]) -> obje
     not docker_image_available(nika_image("telemetry-collector")),
     reason="nika/telemetry-collector image not available",
 )
-class TestMin3closTelemetryYamlLive(IntegrationTestCase):
-    """min3clos YAML: SR Linux sFlow and gNMI interface metrics."""
+class TestDCClosTelemetryYamlLive(IntegrationTestCase):
+    """dc_clos YAML: SR Linux sFlow and gNMI interface metrics."""
 
-    scenario = "min3clos"
+    scenario = "dc_clos"
     telemetry = ("netflow", "prometheus", "syslog")
 
     def test_yaml_enables_srl_sflow_and_gnmi_metrics(self) -> None:
@@ -73,7 +79,9 @@ class TestMin3closTelemetryYamlLive(IntegrationTestCase):
         try:
             session_id = start_net_env(
                 self.scenario,
-                None,
+                "s",
+                backend="containerlab",
+                device_profile="nokia_srlinux",
                 session_tag=resolve_session_tag(context="test"),
                 telemetry=self.telemetry,
             )
@@ -85,13 +93,13 @@ class TestMin3closTelemetryYamlLive(IntegrationTestCase):
             runtime = runtime_for_session(session)
             netflow_versions = plan["kinds"]["netflow"]["versions"]
             prom_versions = plan["kinds"]["prometheus"]["versions"]
-            assert netflow_versions["leaf1"].startswith("srl-")
-            assert prom_versions["leaf1"].startswith("srl-")
-            assert "client1" not in netflow_versions
-            assert "client1" not in prom_versions
+            assert netflow_versions["leaf_1"].startswith("srl-")
+            assert prom_versions["leaf_1"].startswith("srl-")
+            assert "client_1_1" not in netflow_versions
+            assert "client_1_1" not in prom_versions
 
             runtime.exec(
-                "client1",
+                "client_1_1",
                 "nohup sh -c 'while true; do "
                 f"ping -f -c 400 -W 1 {_CLIENT2} || "
                 f"ping -q -c 400 -i 0.01 -W 1 {_CLIENT2}; "
@@ -108,7 +116,8 @@ class TestMin3closTelemetryYamlLive(IntegrationTestCase):
                     client = MultiServerMCPClient(connections=config)
                     tools = {t.name: t for t in await client.get_tools()}
                     return _tool_rows(
-                        "netflow_query", await tools["netflow_query"].ainvoke(args)
+                        "flow_top_talkers",
+                        await tools["flow_top_talkers"].ainvoke(args),
                     )
 
                 async def _prom(**args) -> list[dict]:
@@ -120,12 +129,12 @@ class TestMin3closTelemetryYamlLive(IntegrationTestCase):
                     )
 
                 counters = asyncio.run(
-                    _prom(query='srl_interface_in_packets{node="leaf1"}', limit=50)
+                    _prom(query='srl_interface_in_packets{node="leaf_1"}', limit=50)
                 )
                 assert counters
                 assert any(item["value"] >= 0 for item in counters)
                 runtime.exec(
-                    "leaf1",
+                    "leaf_1",
                     "sr_cli <<'EOF'\n"
                     "enter candidate\n"
                     "system information contact syslog-probe\n"
@@ -147,7 +156,7 @@ class TestMin3closTelemetryYamlLive(IntegrationTestCase):
                     lambda: asyncio.run(
                         _syslog(
                             start_time="-180",
-                            host="leaf1",
+                            host="leaf_1",
                             contains="Opened session",
                             limit=10,
                         )
@@ -162,7 +171,7 @@ class TestMin3closTelemetryYamlLive(IntegrationTestCase):
                     "srl_bgp_peer_up",
                 ):
                     series = asyncio.run(
-                        _prom(query=f'{metric}{{node="leaf1"}}', limit=50)
+                        _prom(query=f'{metric}{{node="leaf_1"}}', limit=50)
                     )
                     assert series, metric
 
@@ -180,7 +189,7 @@ class TestMin3closTelemetryYamlLive(IntegrationTestCase):
             # router.
             assert exporters is not None
             if exporters:
-                assert exporters & {"leaf1", "leaf2", "spine"}
+                assert exporters & {"leaf_1", "leaf2", "spine"}
         finally:
             if session_id:
                 self._close_session(session_id)

@@ -1,101 +1,136 @@
-"""Contracts for the IPFIX ``netflow_query`` service API."""
+"""Flow query contracts and restrictions on collector execution."""
 
 from __future__ import annotations
 
+import json
 import shlex
 
 import pytest
 
-from nika.service.kathara.netflow_api import NetflowAPIMixin
+from nika.service.kathara.netflow_api import NetflowAPIMixin, restricted_args
 
 pytestmark = pytest.mark.unit
 
-_EXPORTERS = "172.28.0.3 chinng\n172.28.0.6 iplsng\n"
 
-
-class _FakeCollector(NetflowAPIMixin):
-    def __init__(self, nfdump_output: str) -> None:
-        self.nfdump_output = nfdump_output
+class Collector(NetflowAPIMixin):
+    def __init__(self, output: str = "") -> None:
+        self.output = output
         self.commands: list[str] = []
 
     def exec_cmd(self, host_name: str, command: str, timeout: float = 10) -> str:
         assert host_name == "telemetry_collector"
         self.commands.append(command)
-        if command.startswith("cat "):
-            return _EXPORTERS
-        return self.nfdump_output
+        if "flow_inventory.json" in command:
+            return json.dumps(
+                {
+                    "edge": {
+                        "interfaces": {
+                            "2": {"name": "eth0", "link_peers": ["host:eth0"]}
+                        }
+                    }
+                }
+            )
+        if "cat /var/lib/flow_exporters" in command:
+            return "172.28.0.3 edge\n"
+        return self.output
 
 
-def _nfdump_argv(api: _FakeCollector) -> list[str]:
-    command = api.commands[-1]
-    assert command.startswith("TZ=UTC ")
-    return shlex.split(command.removeprefix("TZ=UTC "))
-
-
-def test_records_are_parsed_and_exporter_ip_is_named() -> None:
-    api = _FakeCollector(
-        "2026-10-07 15:56:13.433|2026-10-07 15:56:28.001|  172.28.0.3|     2|17   |"
-        "  10.254.0.10| 40000|  10.254.0.22|  5201|      12|   17664|    1\n"
+def test_records_have_frozen_interface_context_tos_dscp_and_flags() -> None:
+    api = Collector(
+        "t0|t1|172.28.0.3|2|6|10.0.0.1|40000|10.0.0.2|80|185|....S.|1.5|4|80|20|6|120|1\n"
     )
-    rows = api.netflow_query(start_time="-600", exporter="chinng")
-
-    assert rows == [
-        {
-            "first_seen": "2026-10-07 15:56:13.433",
-            "last_seen": "2026-10-07 15:56:28.001",
-            "exporter": "chinng",
-            "in_if": 2,
-            "proto": "udp",
-            "src_ip": "10.254.0.10",
-            "src_port": 40000,
-            "dst_ip": "10.254.0.22",
-            "dst_port": 5201,
-            "packets": 12,
-            "bytes": 17664,
-            "flows": 1,
-        }
-    ]
-    assert _nfdump_argv(api)[-1] == "router ip 172.28.0.3"
+    result = api.flow_records(exporter="edge")
+    row = result["rows"][0]
+    assert row["exporter"] == "edge"
+    assert row["in_if_name"] == "eth0"
+    assert row["link_peers"] == ["host:eth0"]
+    assert (row["tos"], row["dscp"]) == (185, 46)
+    assert row["tcp_flags"] == "....S."
+    assert row["duration_seconds"] == 1.5
+    assert "ip -o link" not in " ".join(api.commands)
+    assert "-R /var/lib/flows" in result["command"]
 
 
-def test_filter_stays_one_nfdump_argument() -> None:
-    api = _FakeCollector("No matching flows\n")
-    hostile = "proto udp' ; rm -rf / ; echo '"
+def test_subnet_and_tos_aggregation_retains_exporter() -> None:
+    api = Collector("t0|t1|172.28.0.3|10.0.0.0|184|2|3|480|20|6|120|1\n")
+    result = api.flow_top_talkers(["srcip4/24", "tos"], limit=100000)
+    assert result["rows"][0]["dscp"] == 46
+    argv = shlex.split(result["command"])
+    assert argv[argv.index("-A") + 1] == "router,srcip4/24,tos"
+    assert argv[argv.index("-n") + 1] == "1000"
 
-    assert api.netflow_query(start_time="-60", filter=hostile) == []
-    assert _nfdump_argv(api)[-1] == f"({hostile})"
 
-
-def test_aggregation_uses_whitelisted_keys() -> None:
-    api = _FakeCollector("t0|t1|172.28.0.6|3|100|150000|4\n")
-    rows = api.netflow_query(
-        start_time="-60", aggregate_by=["router", "inif"], order_by="packets", limit=500
-    )
-
-    argv = _nfdump_argv(api)
-    assert argv[argv.index("-A") + 1] == "router,inif"
-    assert argv[argv.index("-O") + 1] == "packets"
-    # The agent's limit reaches nfdump as is.
-    assert argv[argv.index("-n") + 1] == "500"
-    assert rows[0]["exporter"] == "iplsng"
-    assert rows[0]["in_if"] == 3
+def test_filter_is_one_shell_quoted_argument() -> None:
+    hostile = "proto udp' ; cat /etc/passwd ; echo '"
+    result = Collector("No matching flows\n").flow_records(filter=hostile)
+    assert f"({hostile})" in shlex.split(result["command"])
+    assert result["rows"] == []
 
 
 @pytest.mark.parametrize(
-    ("kwargs", "message"),
+    "args",
     [
-        ({"aggregate_by": ["srcmac"]}, "Unknown aggregate_by"),
-        ({"order_by": "duration"}, "order_by"),
-        ({"exporter": "nowhere"}, "Unknown exporter"),
-        ({"limit": 0}, "limit must be"),
+        ["-w", "/tmp/out"],
+        ["-r", "/etc/passwd"],
+        ["-R", "/var/lib"],
+        ["-f", "/etc/passwd"],
+        ["-C", "/etc/passwd"],
+        ["-G", "/etc/passwd"],
+        ["-M", "/tmp"],
+        ["-z"],
+        ["-x", "/var/lib/flows/a"],
+        ["-E", "/tmp/a"],
+        ["-o", "-w"],
+        ["-n100"],
+        ["--", "-r"],
+        ["-o"],
     ],
 )
-def test_invalid_arguments_are_rejected(kwargs: dict, message: str) -> None:
-    with pytest.raises(ValueError, match=message):
-        _FakeCollector("").netflow_query(start_time="-60", **kwargs)
+def test_pass_through_rejects_file_operations_and_option_smuggling(args) -> None:
+    with pytest.raises(ValueError):
+        restricted_args(args)
 
 
-def test_nfdump_errors_are_reported() -> None:
-    api = _FakeCollector("Line 1: Unknown protocol at 'bogus'\n")
+def test_pass_through_is_bounded_and_preserves_query_options() -> None:
+    result = Collector("a" * 100001).nfdump(
+        ["-B", "-o", "fmt:%sa|%opkt", "-n", "99999", "proto tcp"]
+    )
+    assert len(result["text"]) == 100000
+    assert result["truncated"]
+    assert "timeout --verbose -s KILL 25s" in result["command"]
+    assert "head -c 100001" in result["command"]
+    assert result["exporters"] == {"edge": "172.28.0.3"}
+    assert "-n 1000" in result["command"]
+
+
+def test_conversations_request_reverse_counters() -> None:
+    api = Collector()
+    result = api.flow_conversations(exporter="edge")
+    assert "-B" in result["command"]
+    assert "%opkt" in result["command"] and "%obyt" in result["command"]
+    with pytest.raises(ValueError, match="exporter"):
+        api.flow_conversations()
+
+
+def test_nfdump_errors_are_observation_errors() -> None:
     with pytest.raises(ValueError, match="Unknown protocol"):
-        api.netflow_query(start_time="-60", filter="proto bogus")
+        Collector("Line 1: Unknown protocol at 'bogus'\n").flow_records(
+            filter="proto bogus"
+        )
+
+
+def test_pass_through_selects_flow_format_without_overriding_caller() -> None:
+    args = ["-c", "3", "proto tcp"]
+    argv = restricted_args(args)
+    assert args == ["-c", "3", "proto tcp"]
+    assert argv[argv.index("-o") + 1] == "line"
+    assert argv[-1] == "proto tcp"
+    assert argv[argv.index("-c") + 1] == "3"
+
+    explicit = restricted_args(["-c", "3", "-o", "long"])
+    assert explicit.count("-o") == 1
+    assert explicit[explicit.index("-o") + 1] == "long"
+    assert "-o" not in restricted_args(["-I"])
+    bidirectional = restricted_args(["-B", "-c", "3"])
+    fmt = bidirectional[bidirectional.index("-o") + 1]
+    assert "%opkt" in fmt and "%obyt" in fmt

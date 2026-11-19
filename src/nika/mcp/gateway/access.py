@@ -23,7 +23,9 @@ TOOL_NODE_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "packet_capture_stop": (),
     "packet_capture_inspect": (),
     "exec_shell": ("host_name",),
-    "run_pingmesh_snapshot": ("sources", "targets"),
+    "device_read": ("host_name",),
+    "device_interface_state": ("host_name",),
+    "device_protocol_counters": ("host_name",),
     "frr_get_rpki_status": ("device",),
     "iosxr_exec": ("router_name",),
     "routeros_exec": ("router_name",),
@@ -31,8 +33,21 @@ TOOL_NODE_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "sonic_exec_cli": ("device_name",),
     "sdn_onos_rest": (),
     "p4rt_exec": (),
+    "lb_get_state": ("gateway",),
+    "bmv2_get_ports": ("switch",),
     "int_query_telemetry": (),
-    "netflow_query": (),
+    **{
+        name: ()
+        for name in (
+            "flow_coverage",
+            "flow_timeline",
+            "flow_current_load",
+            "flow_top_talkers",
+            "flow_conversations",
+            "flow_records",
+            "nfdump",
+        )
+    },
     "prometheus_query": (),
     "syslog_query": (),
     "k8s_list_events": (),
@@ -44,7 +59,18 @@ TOOL_IMPLICIT_TARGETS: dict[str, tuple[str, ...]] = {
     "sdn_onos_rest": ("onos",),
     "p4rt_exec": ("fabric_mgr",),
     "int_query_telemetry": ("collector",),
-    "netflow_query": ("telemetry_collector",),
+    **{
+        name: ("telemetry_collector",)
+        for name in (
+            "flow_coverage",
+            "flow_timeline",
+            "flow_current_load",
+            "flow_top_talkers",
+            "flow_conversations",
+            "flow_records",
+            "nfdump",
+        )
+    },
     "prometheus_query": ("telemetry_collector",),
     "syslog_query": ("telemetry_collector",),
     **{
@@ -56,9 +82,26 @@ TOOL_IMPLICIT_TARGETS: dict[str, tuple[str, ...]] = {
 
 # List arguments whose omission means "every discovered node".  A restricted
 # policy requires them to be explicit so the default fan-out cannot escape it.
-TOOL_DEFAULT_ALL_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "run_pingmesh_snapshot": ("sources", "targets"),
-}
+TOOL_DEFAULT_ALL_ARGUMENTS: dict[str, tuple[str, ...]] = {}
+
+
+# Direct shell and device CLI access is separate from service-backed implicit access.
+DIRECT_EXEC_DENIED_ROLES = frozenset({NodeRole.INFRASTRUCTURE.value})
+DIRECT_EXEC_TOOLS = frozenset(
+    {
+        "exec_shell",
+        "device_read",
+        "device_interface_state",
+        "device_protocol_counters",
+        "iosxr_exec",
+        "routeros_exec",
+        "srl_exec_cli",
+        "sonic_exec_cli",
+    }
+)
+
+
+SHELL_NODE_ROLES = frozenset({"host", "server", "service", "controller"})
 
 
 @dataclass(frozen=True)
@@ -75,6 +118,7 @@ def policy_snapshot(*, role: str, policy: Any, node_roles: dict[str, str]) -> di
             "tools": list(policy.tools),
             "node_roles": list(policy.node_roles),
             "node_ids": list(policy.node_ids),
+            "shell_node_roles": list(policy.shell_node_roles),
         },
         "nodes": {name: node_roles[name] for name in sorted(node_roles)},
         "submission": {"tools": ["submit"]},
@@ -111,6 +155,15 @@ def decide_diagnosis_access(
             if not _argument_targets(value):
                 return AccessDecision(False, "explicit_targets_required")
         names.extend(_argument_targets(value))
+    if tool_name in DIRECT_EXEC_TOOLS:
+        for name in names:
+            if (
+                node_roles.get(name) in DIRECT_EXEC_DENIED_ROLES
+                and name not in allowed_ids
+            ):
+                return AccessDecision(
+                    False, "node_role_direct_exec_denied", tuple(names)
+                )
     # Under ``*`` every value passes, including IP addresses and names the
     # scenario did not declare (the tool reports its own errors). A restricted
     # policy can only vouch for declared nodes, so it denies anything else,
@@ -121,6 +174,12 @@ def decide_diagnosis_access(
             return AccessDecision(False, "unknown_target", tuple(names))
         if name not in allowed_ids and not _matches(role, allowed_roles):
             return AccessDecision(False, "node_not_allowed", tuple(names))
+    if tool_name == "exec_shell":
+        shell_roles = (
+            set(policy.get("shell_node_roles", SHELL_NODE_ROLES)) & SHELL_NODE_ROLES
+        )
+        if not names or any(node_roles.get(name) not in shell_roles for name in names):
+            return AccessDecision(False, "shell_role_not_allowed", tuple(names))
     implicit = TOOL_IMPLICIT_TARGETS.get(tool_name, ())
     targets = (*names, *implicit)
     if not unrestricted:
@@ -138,7 +197,16 @@ def node_roles_for_session(session_id: str) -> dict[str, str]:
     from nika.utils.session_store import SessionStore
     from nika.problems.rca.inventory import load_session_offline_net_env
 
-    env = load_session_offline_net_env(SessionStore().get_session(session_id))
+    row = SessionStore().get_session(session_id)
+    recorded = (row.get("metadata") or {}).get("machine_identities")
+    if recorded:
+        from nika.runtime.spec import MachineInventory
+
+        return {
+            name: identity.role.value
+            for name, identity in MachineInventory.from_dict(recorded).nodes.items()
+        }
+    env = load_session_offline_net_env(row)
     return {
         name: identity.role.value
         for name, identity in getattr(env, "machine_identities", {}).items()

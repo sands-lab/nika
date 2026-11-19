@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import re
+import shlex
 
 from nika.net_env.isp.igp.ifaces import srl_e1_name
 from nika.service.containerlab.protocols import SupportsSRL
@@ -148,9 +149,8 @@ class SRLAPIMixin:
         *,
         timeout: float = 30.0,
     ) -> str:
-        script = (
-            "PYTHONDONTWRITEBYTECODE=1 sr_cli <<'EOF'\n" + "\n".join(lines) + "\nEOF"
-        )
+        body = "\n".join(lines) + "\n"
+        script = f"printf %s {shlex.quote(body)} | PYTHONDONTWRITEBYTECODE=1 sr_cli"
         return self.exec_cmd(device_name, script, timeout=timeout)
 
     def _srl_candidate(
@@ -172,11 +172,14 @@ class SRLAPIMixin:
         *,
         timeout: float = 30.0,
     ) -> str:
-        """Run a one-shot ``sr_cli`` command on ``device_name``."""
-        escaped = command.replace("\\", "\\\\").replace('"', '\\"')
+        """Run an sr_cli command or a newline-separated CLI script."""
+        if "\n" in command:
+            return self._srl_run_script(
+                device_name, command.splitlines(), timeout=timeout
+            )
         return self.exec_cmd(
             device_name,
-            f'PYTHONDONTWRITEBYTECODE=1 sr_cli "{escaped}"',
+            f"PYTHONDONTWRITEBYTECODE=1 sr_cli {shlex.quote(command)}",
             timeout=timeout,
         )
 

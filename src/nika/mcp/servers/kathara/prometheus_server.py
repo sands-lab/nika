@@ -16,6 +16,12 @@ def prometheus_query(
 ) -> list[dict]:
     """Query device metrics scraped by Prometheus, in PromQL.
 
+    The endpoint mesh exports probe_success and probe_duration_seconds, labelled source, target, module, and expected.
+    Expected is reachable or isolated, from the network design. Use avg_over_time(probe_success[2m]) for reachability history.
+    Probe duration includes connection retries. It is not a direct packet-loss measurement.
+    Flow counters netflow_flows_total, netflow_packets_total, and netflow_bytes_total carry node, proto, and in_if labels.
+    Summing flow counters across nodes counts traffic once per hop.
+
     Each exporting device is scraped every 5 seconds and labelled ``node``;
     ``device`` is an interface name. Linux nodes export node_exporter series
     for the network stack: interface counters and state (``node_network_*``),
@@ -29,6 +35,10 @@ def prometheus_query(
     errors,discards}``) labelled with the ``EthernetN`` port, plus
     ``frr_bgp_peer_*``. IOS XR nodes export ``xr_interface_*``. RouterOS
     nodes export ``routeros_interface_*`` and ``routeros_bgp_peer_up``.
+    INT-MD collectors export ``p4_int_queue_depth_packets`` and
+    ``p4_int_hop_latency_seconds`` per switch and ``egress_port``. Check
+    ``p4_int_last_report_timestamp_seconds`` for the latest report's age;
+    per-flow paths are available through ``int_query_telemetry``.
     FRR routers also export ``frr_bgp_peer_*``. ``up`` shows whether a device
     answers. For example,
     ``rate(node_network_receive_bytes_total{node="chinng"}[30s])``,

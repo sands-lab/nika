@@ -30,9 +30,9 @@ class RouterOSAPIMixin:
         return "yes" in output
 
     def routeros_exec(self: SupportsExec, device_name: str, command: str) -> str:
-        # The command is single-quoted for ssh, so it must not contain single
-        # quotes; double quotes reach RouterOS unchanged.
-        return self.exec_cmd(device_name, CLI_COMMAND.format(command=command))
+        return self.exec_cmd(
+            device_name, CLI_COMMAND.format(command=command.replace("'", "'\\''"))
+        )
 
     def routeros_show_interfaces(self: SupportsExec, device_name: str) -> str:
         return self.routeros_exec(device_name, "/interface print")

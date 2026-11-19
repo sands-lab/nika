@@ -126,6 +126,33 @@ class HostTcController:
         qdisc = self.qdisc(dev).lower()
         return "netem" in qdisc and "corrupt" in qdisc
 
+    def set_delay(self, node: str, intf: str, delay_ms: int) -> str:
+        """Delay frames on the host-side wire end carrying node egress."""
+        dev = self.egress_dev(node, intf)
+        self._run(
+            "tc",
+            "qdisc",
+            "replace",
+            "dev",
+            dev,
+            "root",
+            "netem",
+            "delay",
+            f"{delay_ms}ms",
+            "limit",
+            "10000",
+        )
+        log_network_change(
+            f"host_tc delay on {node}:{intf} dev={dev} delay={delay_ms}ms",
+            mechanism="host_tc",
+            host=node,
+            intf=intf,
+            peer=dev,
+            params={"delay_ms": delay_ms},
+            action="netem_delay",
+        )
+        return dev
+
     def egress_filters(self, dev: str) -> str:
         """``tc`` egress filters on host device ``dev``."""
         return self._run("tc", "filter", "show", "dev", dev, "egress")

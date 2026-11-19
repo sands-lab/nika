@@ -11,7 +11,7 @@ import re
 import subprocess
 from typing import TYPE_CHECKING
 
-from nika.net_env.verify import exec_or_empty
+from nika.net_env.verify import exec_for_discovery, exec_or_empty
 
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
@@ -45,10 +45,10 @@ def clab_e1(e1: int) -> str:
 
 def probe(runtime: LabRuntime, name: str) -> str | None:
     """Return an ``srl-`` version when the node has ``sr_cli``."""
-    path = exec_or_empty(runtime, name, "command -v sr_cli 2>/dev/null").strip()
+    path = exec_for_discovery(runtime, name, "command -v sr_cli 2>/dev/null").strip()
     if "sr_cli" not in path:
         return None
-    shown = exec_or_empty(
+    shown = exec_for_discovery(
         runtime, name, 'sr_cli "show version" 2>/dev/null | head -n 20'
     )
     match = _VERSION.search(shown)

@@ -9,7 +9,9 @@ from nika.service.lab.protocols import SupportsExec
 
 # Programs that make up the SONiC command line: the ``show`` and ``config``
 # CLIs, FRR's shell, and the clients of SONiC's Redis databases.
-SONIC_CLI_PROGRAMS = frozenset({"show", "config", "vtysh", "redis-cli", "sonic-db-cli"})
+SONIC_CLI_PROGRAMS = frozenset(
+    {"show", "config", "vtysh", "redis-cli", "sonic-db-cli", "ping", "traceroute"}
+)
 # Present on every SONiC image; its absence means the node is not a SONiC router.
 SONIC_MARKER = "/usr/local/bin/sonic-cfggen"
 _SHELL_OPERATORS = frozenset({"|", "||", "&", "&&", ";", ">", ">>", "<", "<<"})

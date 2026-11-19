@@ -28,15 +28,19 @@ cases:
     topo_size: s
     telemetry: [prometheus, syslog]
     inject: {}
-  - scenario: min3clos
+  - scenario: dc_clos
+    backend: containerlab
+    device_profile: nokia_srlinux
     problem: healthy
     telemetry: [netflow, prometheus, syslog]
     inject: {}
-  - scenario: iosxr_simple_bgp
+  - scenario: dc_clos
+    device_profile: iosxr
     problem: healthy
     telemetry: [prometheus, syslog]
     inject: {}
-  - scenario: routeros_simple_bgp
+  - scenario: dc_clos
+    device_profile: routeros
     problem: healthy
     telemetry: [netflow, prometheus, syslog]
     inject: {}
@@ -46,13 +50,24 @@ cases:
 def test_case_yaml_keeps_telemetry_on_sdn_p4_and_containerlab(tmp_path: Path) -> None:
     path = tmp_path / "cases.yaml"
     path.write_text(_CASES)
-    rows = {row["scenario"]: row for row in load_benchmark_yaml(path)}
-    assert rows["sdn_l3_clos"]["telemetry"] == ["netflow", "prometheus", "syslog"]
-    assert rows["p4_dc_fabric"]["telemetry"] == ["prometheus", "syslog"]
-    assert rows["p4_dc_gateway"]["telemetry"] == ["prometheus", "syslog"]
-    assert rows["min3clos"]["telemetry"] == ["netflow", "prometheus", "syslog"]
-    assert rows["iosxr_simple_bgp"]["telemetry"] == ["prometheus", "syslog"]
-    assert rows["routeros_simple_bgp"]["telemetry"] == [
+    rows = {
+        (row["scenario"], row.get("device_profile")): row
+        for row in load_benchmark_yaml(path)
+    }
+    assert rows[("sdn_l3_clos", None)]["telemetry"] == [
+        "netflow",
+        "prometheus",
+        "syslog",
+    ]
+    assert rows[("p4_dc_fabric", None)]["telemetry"] == ["prometheus", "syslog"]
+    assert rows[("p4_dc_gateway", None)]["telemetry"] == ["prometheus", "syslog"]
+    assert rows[("dc_clos", "nokia_srlinux")]["telemetry"] == [
+        "netflow",
+        "prometheus",
+        "syslog",
+    ]
+    assert rows[("dc_clos", "iosxr")]["telemetry"] == ["prometheus", "syslog"]
+    assert rows[("dc_clos", "routeros")]["telemetry"] == [
         "netflow",
         "prometheus",
         "syslog",

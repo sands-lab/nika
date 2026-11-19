@@ -16,12 +16,12 @@ from nika.mcp.gateway.session_registry import (
     get_session,
     register_session,
 )
-from nika.mcp.servers.common.pingmesh_server import mcp as pingmesh_mcp
+from nika.mcp.servers.kathara.prometheus_server import mcp as prometheus_mcp
 
 pytestmark = pytest.mark.integration
 
 _ACCEPT = {"Accept": "application/json, text/event-stream"}
-_URL = "/mcp/pingmesh_mcp_server/mcp"
+_URL = "/mcp/kathara_prometheus_mcp_server/mcp"
 _OPEN = {"tools": ["*"], "node_roles": ["*"], "node_ids": []}
 
 
@@ -38,14 +38,14 @@ def _probe_binding() -> str:
 @pytest.fixture
 def gateway() -> Iterator[TestClient]:
     clear_sessions()
-    pingmesh_mcp.add_tool(_probe_binding, name="nika_test_probe_binding")
+    prometheus_mcp.add_tool(_probe_binding, name="nika_test_probe_binding")
     try:
         with TestClient(
             create_gateway_app(), base_url="http://127.0.0.1:8000"
         ) as client:
             yield client
     finally:
-        pingmesh_mcp.remove_tool("nika_test_probe_binding")
+        prometheus_mcp.remove_tool("nika_test_probe_binding")
         clear_sessions()
 
 

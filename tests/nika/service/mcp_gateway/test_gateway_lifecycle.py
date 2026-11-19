@@ -56,7 +56,7 @@ def test_failed_sibling_preserves_an_initialized_mcp_connection() -> None:
             }
             async with httpx.AsyncClient(headers=headers) as client:
                 async with streamable_http_client(
-                    manager.base_url + "/mcp/pingmesh_mcp_server/mcp",
+                    manager.base_url + "/mcp/kathara_prometheus_mcp_server/mcp",
                     http_client=client,
                 ) as (read, write, _):
                     async with ClientSession(read, write) as session:
@@ -128,7 +128,7 @@ def test_gateway_shutdown_closes_an_open_mcp_event_stream() -> None:
             "Accept": "application/json, text/event-stream",
         }
         with httpx.Client(headers=headers) as client:
-            url = manager.base_url + "/mcp/pingmesh_mcp_server/mcp"
+            url = manager.base_url + "/mcp/kathara_prometheus_mcp_server/mcp"
             initialized = client.post(
                 url,
                 json={

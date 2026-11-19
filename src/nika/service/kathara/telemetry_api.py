@@ -1,34 +1,17 @@
 import json
+import shlex
 import time
 from datetime import datetime
+from pathlib import Path
 
 from nika.net_env.p4_dc_gateway.topology_model import INT_REPORTS
 from nika.service.lab.checked_exec import checked_exec
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
-
-
-# A trace without its sink hop is still in flight until this much time passes.
-INCOMPLETE_GRACE_NS = 2_000_000_000
-
-
-def collapse_traces(
-    records: list[dict], now_ns: int, grace_ns: int = INCOMPLETE_GRACE_NS
-) -> list[dict]:
-    """Return one record per (flow, packet id): the latest one written.
-
-    The collector appends a record per hop report, so a packet appears once
-    per hop with a growing ``hop_sequence``. Traces that have no sink yet and
-    are younger than ``grace_ns`` are still in flight and are omitted.
-    """
-    latest: dict[tuple[str, str], dict] = {}
-    for row in records:
-        latest[(str(row.get("flow_id")), str(row.get("packet_id")))] = row
-    return [
-        row
-        for row in latest.values()
-        if row.get("trace_complete")
-        or now_ns - int(row["packet_timestamp"]) >= grace_ns
-    ]
+from nika.service.lab import int_query
+from nika.service.lab.int_query import (
+    INCOMPLETE_GRACE_NS as INCOMPLETE_GRACE_NS,
+    collapse_traces as collapse_traces,
+)
 
 
 def time_bound_seconds(value: str) -> float:
@@ -43,7 +26,7 @@ def time_bound_seconds(value: str) -> float:
 
 
 class TelemetryAPIMixin:
-    """Query observed INT-MX telemetry from a Kathara collector."""
+    """Query observed INT-MD telemetry from a Kathara collector."""
 
     @staticmethod
     def _time_bound_ns(value: str) -> int:
@@ -70,39 +53,19 @@ class TelemetryAPIMixin:
         packet_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        egress_switch: str | None = None,
+        egress_port: int | None = None,
     ) -> list[dict]:
-        """Query observed INT-MX traces from the scenario collector."""
+        """Query observed INT-MD traces from the scenario collector."""
         start_ns = self._time_bound_ns(start_time)
         end_ns = self._time_bound_ns(end_time) if end_time is not None else None
-        raw = checked_exec(
-            self.exec_cmd,
-            "collector",
-            f"date +%s%N && tail -n 10000 {INT_REPORTS}",
-            timeout=20,
-        )
-        lines = raw.splitlines()
-        try:
-            now_ns = int(lines[0])
-        except (IndexError, ValueError) as exc:
-            raise RuntimeError(
-                f"INT collector returned an invalid timestamp: {raw}"
-            ) from exc
-        records: list[dict] = []
-        for line in lines[1:]:
-            try:
-                row = json.loads(line)
-                int(row["packet_timestamp"])
-            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-                continue
-            records.append(row)
-        rows: list[dict] = []
-        for row in collapse_traces(records, now_ns):
-            timestamp_ns = int(row["packet_timestamp"])
-            if timestamp_ns < start_ns or (
-                end_ns is not None and timestamp_ns > end_ns
-            ):
-                continue
-            filters = {
+        if offset < 0:
+            raise ValueError("offset must be nonnegative")
+        query = {
+            "path": INT_REPORTS,
+            "start_ns": start_ns,
+            "end_ns": end_ns,
+            "filters": {
                 "src": src,
                 "dst": dst,
                 "protocol": protocol,
@@ -110,20 +73,31 @@ class TelemetryAPIMixin:
                 "dst_port": dst_port,
                 "flow_id": flow_id,
                 "packet_id": packet_id,
-            }
-            if any(
-                value is not None and str(row.get(key)) != str(value)
-                for key, value in filters.items()
-            ):
-                continue
-            rows.append(row)
-        if offset < 0:
-            raise ValueError("offset must be nonnegative")
-        stop = max(0, len(rows) - offset)
-        return rows[max(0, stop - max(1, min(limit, 1000))) : stop]
+            },
+            "egress_switch": egress_switch,
+            "egress_port": egress_port,
+            "limit": limit,
+            "offset": offset,
+        }
+        program = Path(int_query.__file__).read_text()
+        raw = checked_exec(
+            self.exec_cmd,
+            "collector",
+            f"python3 -c {shlex.quote(program)} {shlex.quote(json.dumps(query))}",
+            timeout=20,
+        )
+        try:
+            rows = json.loads(raw)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"INT collector returned invalid query JSON: {raw}"
+            ) from exc
+        if not isinstance(rows, list):
+            raise RuntimeError(f"INT collector returned invalid query rows: {raw}")
+        return rows
 
 
 class KatharaTelemetryAPI(KatharaBaseAPI, TelemetryAPIMixin):
-    """Kathara API for observed INT-MX telemetry."""
+    """Kathara API for observed INT-MD telemetry."""
 
     pass

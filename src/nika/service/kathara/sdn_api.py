@@ -71,13 +71,18 @@ class SdnAPIMixin:
     """Operator-style SDN access: ONOS REST and OVS CLI on switches."""
 
     def sdn_onos_rest(
-        self: _SupportsBase, path: str, device: str | None = None
+        self: _SupportsBase,
+        path: str,
+        device: str | None = None,
+        offset: int | None = None,
     ) -> dict[str, Any]:
         """GET an ONOS REST path via fabric_mgr (operator-style curl).
 
         The reply leads with a compact summary (item counts, per-device counts,
         states); ``device`` keeps only items that belong to that device id.
         """
+        if offset is not None and offset < 0:
+            raise ValueError("offset must be non-negative")
         normalized = path if path.startswith("/") else f"/{path}"
         url = f"http://{ONOS_OOB_IP}:{ONOS_REST_PORT}{normalized}"
         raw = self.exec_cmd(
@@ -98,10 +103,32 @@ class SdnAPIMixin:
         except json.JSONDecodeError:
             body = {"raw": payload}
         summary, body = onos_summary(body, device)
+        pages = {}
+        if offset is not None and isinstance(body, dict):
+            # Leave space for the summary and gateway framing within 10,000 chars.
+            for key, value in body.items():
+                if not isinstance(value, list):
+                    continue
+                page = []
+                size = 0
+                for item in value[offset:]:
+                    item_size = len(json.dumps(item, indent=2, default=str))
+                    if page and size + item_size > 4000:
+                        break
+                    page.append(item)
+                    size += item_size
+                next_offset = offset + len(page)
+                pages[key] = {
+                    "offset": offset,
+                    "next_offset": next_offset if next_offset < len(value) else None,
+                    "total": len(value),
+                }
+                body[key] = page
         return {
             "path": normalized,
             "device_filter": device,
             "summary": summary,
+            **({"pagination": pages} if offset is not None else {}),
             "onos_oob": f"{ONOS_OOB_IP}:{ONOS_REST_PORT}",
             "fabric_mgr_oob": FABRIC_MGR_OOB_IP,
             "body": body,

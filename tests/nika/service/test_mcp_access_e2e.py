@@ -30,13 +30,15 @@ class McpAccessE2ETest(IntegrationTestCase):
     def test_network_admin_cannot_access_hosts_or_diagnose_after_submission(
         self,
     ) -> None:
-        session_id = self._start_env("simple_bgp")
+        session_id = self._start_env("dc_clos", ["-s", "s"])
         session_dir = SessionStore().get_session(session_id)["session_dir"]
         # A release's access policy reaches the engine's gateway through the
         # protocol, not through the run config.
         access = AgentAccess(
             role="network-admin",
-            policy=AccessPolicy(tools=["exec_shell", "submit"], node_roles=["router"]),
+            policy=AccessPolicy(
+                tools=["exec_shell", "device_read", "submit"], node_roles=["router"]
+            ),
         )
         try:
             with engine_gateway(session_id, session_dir, GatewayRequest(access=access)):
@@ -48,19 +50,26 @@ class McpAccessE2ETest(IntegrationTestCase):
                         )
                     )
                     tools = {tool.name: tool for tool in await client.get_tools()}
-                    allowed = await tools["exec_shell"].ainvoke(
-                        {"host_name": "router1", "command": "hostname"}
+                    with pytest.raises(McpError, match="shell_role_not_allowed"):
+                        await tools["exec_shell"].ainvoke(
+                            {"host_name": "spine_1", "command": "hostname"}
+                        )
+                    allowed = await tools["device_read"].ainvoke(
+                        {
+                            "host_name": "spine_1",
+                            "commands": ["vtysh -c 'show version'"],
+                        }
                     )
                     with pytest.raises(McpError, match="node_not_allowed"):
                         await tools["exec_shell"].ainvoke(
-                            {"host_name": "pc1", "command": "hostname"}
+                            {"host_name": "client_1_1", "command": "hostname"}
                         )
                     begin_submission_mcp_phase(session_id, "router evidence frozen")
                     with pytest.raises(
                         McpError, match="submission_network_access_denied"
                     ):
                         await tools["exec_shell"].ainvoke(
-                            {"host_name": "router1", "command": "hostname"}
+                            {"host_name": "spine_1", "command": "hostname"}
                         )
                     return (
                         str(allowed),
@@ -69,7 +78,7 @@ class McpAccessE2ETest(IntegrationTestCase):
                     )
 
                 allowed, denied, after_switch = asyncio.run(exercise())
-            assert "router1" in allowed
+            assert "FRRouting" in allowed
             assert denied == "node_not_allowed"
             assert after_switch == "submission_network_access_denied"
         finally:

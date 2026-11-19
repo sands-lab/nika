@@ -44,7 +44,7 @@ def _int_rows(raw: object) -> list[dict]:
         if not raw.strip():
             return []
         parsed = json.loads(raw)
-        return parsed if isinstance(parsed, list) else [parsed]
+        return parsed if isinstance(parsed, list) else parsed.get("records", [parsed])
     if (
         isinstance(raw, list)
         and raw
@@ -61,7 +61,11 @@ def _int_rows(raw: object) -> list[dict]:
         if not str(text).strip():
             continue
         item = json.loads(text)
-        rows.extend(item if isinstance(item, list) else [item])
+        rows.extend(
+            item
+            if isinstance(item, list)
+            else item.get("rows", item.get("records", [item]))
+        )
     return rows
 
 
@@ -156,7 +160,8 @@ class TestSdnTelemetryYamlLive(_YamlTelemetryLive):
                     client = MultiServerMCPClient(connections=config)
                     tools = {t.name: t for t in await client.get_tools()}
                     return _tool_rows(
-                        "netflow_query", await tools["netflow_query"].ainvoke(args)
+                        "flow_top_talkers",
+                        await tools["flow_top_talkers"].ainvoke(args),
                     )
 
                 async def _prom(**args) -> list[dict]:
@@ -251,7 +256,7 @@ class TestP4FabricTelemetryYamlLive(_YamlTelemetryLive):
     reason="kathara/p4 image not available",
 )
 class TestP4GatewayTelemetryYamlLive(_YamlTelemetryLive):
-    """p4_dc_gateway YAML: Prometheus counters plus always-on INT-MX."""
+    """p4_dc_gateway YAML: Prometheus counters plus always-on INT-MD."""
 
     scenario = "p4_dc_gateway"
     telemetry = ("prometheus", "syslog")
@@ -308,9 +313,18 @@ class TestP4GatewayTelemetryYamlLive(_YamlTelemetryLive):
                     lambda: asyncio.run(_prom(query="p4_ingress_packets", limit=100)),
                 )
                 traces = asyncio.run(_wait_traces())
+                int_metrics = _poll(
+                    time.monotonic() + 30,
+                    2,
+                    lambda: asyncio.run(
+                        _prom(query="p4_int_hop_latency_seconds", limit=100)
+                    ),
+                )
                 self._assert_syslog(runtime, config, "fabric_mgr")
             assert counters
             assert traces
+            assert int_metrics
+            assert all("flow_id" not in row["metric"] for row in int_metrics)
             assert any(
                 row.get("trace_complete") and row.get("hop_sequence") for row in traces
             )

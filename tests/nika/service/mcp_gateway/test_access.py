@@ -94,24 +94,17 @@ def test_restricted_policy_fails_closed_for_unmapped_tool() -> None:
 def test_list_arguments_and_implicit_targets_are_checked() -> None:
     assert decide_diagnosis_access(
         policy=_RESTRICTED,
-        tool_name="run_pingmesh_snapshot",
-        arguments={"sources": ["pc1"], "targets": ["pc2"]},
+        tool_name="iperf_test",
+        arguments={"client_host_name": "pc1", "server_host_name": "pc2"},
         node_roles=_ROLES,
     ).allowed
     denied = decide_diagnosis_access(
         policy=_RESTRICTED,
-        tool_name="run_pingmesh_snapshot",
-        arguments={"sources": ["pc1"], "targets": ["pc2", "router1"]},
+        tool_name="iperf_test",
+        arguments={"client_host_name": "pc1", "server_host_name": "router1"},
         node_roles=_ROLES,
     )
     assert denied.reason == "node_not_allowed"
-    omitted = decide_diagnosis_access(
-        policy=_RESTRICTED,
-        tool_name="run_pingmesh_snapshot",
-        arguments={"sources": ["pc1"]},
-        node_roles=_ROLES,
-    )
-    assert omitted.reason == "explicit_targets_required"
     implicit = decide_diagnosis_access(
         policy=_RESTRICTED,
         tool_name="sdn_onos_rest",
@@ -161,3 +154,64 @@ def test_every_scenario_selects_only_mountable_servers() -> None:
             specs = [MCP_SERVER_SPECS[name] for name in servers]
             assert all(s.backend in {None, backend} for s in specs), scenario
             assert sum(s.role == "routing" for s in specs) <= 1, scenario
+
+
+@pytest.mark.parametrize(
+    ("tool", "argument"),
+    [
+        ("exec_shell", "host_name"),
+        ("device_read", "host_name"),
+        ("iosxr_exec", "router_name"),
+        ("routeros_exec", "router_name"),
+        ("srl_exec_cli", "device_name"),
+        ("sonic_exec_cli", "device_name"),
+    ],
+)
+def test_default_denies_direct_infrastructure_execution_but_keeps_telemetry(
+    tool, argument
+) -> None:
+    policy = {"tools": ["*"], "node_roles": ["*"], "node_ids": []}
+    roles = {"telemetry_collector": "infrastructure"}
+    assert not decide_diagnosis_access(
+        policy=policy,
+        tool_name=tool,
+        arguments={argument: "telemetry_collector"},
+        node_roles=roles,
+    ).allowed
+    for name in (
+        "prometheus_query",
+        "syslog_query",
+        "flow_coverage",
+        "flow_records",
+        "nfdump",
+    ):
+        assert decide_diagnosis_access(
+            policy=policy, tool_name=name, arguments={}, node_roles=roles
+        ).allowed
+
+
+def test_session_policy_uses_recorded_inventory_including_attached_collectors(
+    monkeypatch,
+) -> None:
+    from nika.mcp.gateway.access import node_roles_for_session
+    from nika.utils.session_store import SessionStore
+
+    monkeypatch.setattr(
+        SessionStore,
+        "get_session",
+        lambda self, session: {
+            "metadata": {
+                "machine_identities": {
+                    "telemetry_collector": {
+                        "role": "infrastructure",
+                        "capabilities": ["netflow"],
+                    },
+                    "pc": {"role": "host"},
+                }
+            }
+        },
+    )
+    assert node_roles_for_session("session") == {
+        "telemetry_collector": "infrastructure",
+        "pc": "host",
+    }

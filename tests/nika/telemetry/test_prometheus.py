@@ -188,6 +188,8 @@ def test_p4_textfile_runs_beside_node_exporter() -> None:
     joined = "\n".join(lines)
     assert "prometheus-node-exporter" in joined
     assert "--collector.textfile" in joined
+    assert "--collector.disable-defaults" in joined
+    assert "--collector.qdisc" not in joined
     assert prometheus.P4_EXPORTER in joined
 
 

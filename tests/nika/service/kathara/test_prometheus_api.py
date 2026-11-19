@@ -20,7 +20,7 @@ class _FakeCollector(PrometheusAPIMixin):
     def exec_cmd(self, host_name: str, command: str, timeout: float = 10) -> str:
         assert host_name == "telemetry_collector"
         self.commands.append(command)
-        return self.response
+        return self.response + "\n__NIKA_PROMETHEUS_CURL_STATUS__=0"
 
 
 def _curl_params(api: _FakeCollector) -> tuple[str, dict[str, str]]:
@@ -111,6 +111,7 @@ def test_limit_returns_the_first_series_only() -> None:
 
     assert [row["node"] for row in rows] == [f"r{i}" for i in range(120)]
     assert len(api.prometheus_query("up", limit=500)) == 150
+    assert len(api.prometheus_query("up", limit=None)) == 150
 
 
 @pytest.mark.parametrize(
@@ -132,3 +133,31 @@ def test_prometheus_errors_are_reported() -> None:
     )
     with pytest.raises(ValueError, match="parse error"):
         api.prometheus_query("up{")
+
+
+def test_partial_prometheus_transfer_is_retried() -> None:
+    class InterruptedCollector(_FakeCollector):
+        def exec_cmd(self, host_name: str, command: str, timeout: float = 10) -> str:
+            self.commands.append(command)
+            if len(self.commands) == 1:
+                return (
+                    '{"status":"success","data":'
+                    + "\n__NIKA_PROMETHEUS_CURL_STATUS__=18"
+                )
+            return self.response + "\n__NIKA_PROMETHEUS_CURL_STATUS__=0"
+
+    api = InterruptedCollector(_vector(({"node": "a"}, "1")))
+    assert api.prometheus_query("up")[0]["value"] == 1
+    assert len(api.commands) == 2
+
+
+def test_missing_transfer_end_is_rejected() -> None:
+    class TruncatedCollector(_FakeCollector):
+        def exec_cmd(self, host_name: str, command: str, timeout: float = 10) -> str:
+            self.commands.append(command)
+            return self.response
+
+    api = TruncatedCollector(_vector())
+    with pytest.raises(ValueError, match="Prometheus is not answering"):
+        api.prometheus_query("up")
+    assert len(api.commands) == 2

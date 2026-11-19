@@ -94,6 +94,7 @@ def test_routeros_syslog_script_adds_remote_action() -> None:
     assert "action set remote" in script
     assert "remote=172.28.0.254" in script
     assert "src-address=172.28.0.1" in script
+    assert "topics=info,!system" in script
     assert "{" not in script
     assert "nika" not in script.lower()
 

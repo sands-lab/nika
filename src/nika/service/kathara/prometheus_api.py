@@ -10,6 +10,7 @@ from nika.telemetry.management import TELEMETRY_COLLECTOR
 from nika.telemetry.prometheus import PROMETHEUS_URL
 
 PROMETHEUS_MAX_QUERY_CHARS = 1024
+_CURL_STATUS = "\n__NIKA_PROMETHEUS_CURL_STATUS__="
 _STEP = re.compile(r"\d+(\.\d+)?[smh]?")
 # Labels every series carries from the scrape config; ``node`` is kept apart.
 _SCRAPE_LABELS = ("instance", "job")
@@ -24,14 +25,14 @@ class PrometheusAPIMixin:
         start_time: str | None = None,
         end_time: str | None = None,
         step: str = "15s",
-        limit: int = 50,
+        limit: int | None = 50,
     ) -> list[dict]:
         """Return one row per series: an instant query, or a range with ``start_time``."""
         if not query.strip() or len(query) > PROMETHEUS_MAX_QUERY_CHARS:
             raise ValueError(
                 f"query must be 1 to {PROMETHEUS_MAX_QUERY_CHARS} characters."
             )
-        if int(limit) < 1:
+        if limit is not None and int(limit) < 1:
             raise ValueError("limit must be at least 1.")
         if not _STEP.fullmatch(step):
             raise ValueError("step must be a duration such as 15s, 1m, or 30.")
@@ -52,11 +53,23 @@ class PrometheusAPIMixin:
         argv = ["curl", "-s", "-G", f"{PROMETHEUS_URL}{path}"]
         for key, value in params:
             argv += ["--data-urlencode", f"{key}={value}"]
-        raw = self.exec_cmd(TELEMETRY_COLLECTOR, shlex.join(argv), timeout=30)
-        try:
-            body = json.loads(raw)
-        except ValueError as exc:
-            raise ValueError(f"Prometheus is not answering: {raw[:300]}") from exc
+        # The runtime merges output and discards exit status. Mark the end of
+        # the transfer so a short HTTP or Docker stream cannot look complete.
+        command = (
+            shlex.join(argv)
+            + " 2>&1; printf '\n__NIKA_PROMETHEUS_CURL_STATUS__=%s\n' \"$?\""
+        )
+        for attempt in range(2):
+            raw = self.exec_cmd(TELEMETRY_COLLECTOR, command, timeout=30)
+            payload, marker, status = raw.rpartition(_CURL_STATUS)
+            if marker and status.strip() == "0":
+                try:
+                    body = json.loads(payload)
+                    break
+                except ValueError:
+                    pass
+            if attempt == 1:
+                raise ValueError(f"Prometheus is not answering: {raw[:300]}")
         if body.get("status") != "success":
             raise ValueError(f"Prometheus query failed: {body.get('error', raw[:300])}")
 
@@ -64,7 +77,7 @@ class PrometheusAPIMixin:
         if data["resultType"] in ("scalar", "string"):
             return [{"value": _number(data["result"][1])}]
         rows: list[dict] = []
-        for series in data["result"][: int(limit)]:
+        for series in data["result"][: int(limit) if limit is not None else None]:
             labels = dict(series["metric"])
             row: dict = {"node": labels.pop("node", None)}
             for label in _SCRAPE_LABELS:

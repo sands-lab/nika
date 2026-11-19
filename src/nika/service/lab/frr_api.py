@@ -26,7 +26,7 @@ class FRRAPIMixin:
         return self.exec_cmd(device_name, "vtysh -c 'show ip route'")
 
     def frr_exec(self: SupportsExec, device_name: str, command: str) -> str:
-        return self.exec_cmd(device_name, f"vtysh -c '{command}'")
+        return self.exec_cmd(device_name, f"vtysh -c {shlex.quote(command)}")
 
     def frr_show_running_config(self: SupportsExec, device_name: str) -> str:
         return self.exec_cmd(device_name, "vtysh -c 'show running-config'")

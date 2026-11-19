@@ -31,7 +31,9 @@ class IOSXRAPIMixin:
         self: SupportsExec, device_name: str, command: str, timeout: float = 60
     ) -> str:
         return self.exec_cmd(
-            device_name, CLI_COMMAND.format(command=command), timeout=timeout
+            device_name,
+            CLI_COMMAND.format(command=command.replace("'", "'\\''")),
+            timeout=timeout,
         )
 
     def iosxr_get_bgp_conf(self: SupportsExec, device_name: str) -> str:

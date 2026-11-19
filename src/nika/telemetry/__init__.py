@@ -14,7 +14,8 @@ if TYPE_CHECKING:
 NETFLOW = "netflow"
 PROMETHEUS = "prometheus"
 SYSLOG = "syslog"
-TELEMETRY_KINDS: tuple[str, ...] = (NETFLOW, PROMETHEUS, SYSLOG)
+PINGMESH = "pingmesh"
+TELEMETRY_KINDS: tuple[str, ...] = (NETFLOW, PROMETHEUS, SYSLOG, PINGMESH)
 # Out-of-band management LAN on Kathara, and the extra sFlow LAN on Containerlab.
 TELEMETRY_SUBNET = "172.28.0.0/16"
 # Prefix of the Kathara links of the out-of-band management network shared by

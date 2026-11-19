@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import shlex
 from unittest.mock import MagicMock
 from nika.service.containerlab.adapters import LabRuntimeContainerlabAPI
 from nika.service.containerlab.srl_api import BGP_EXPORT_POLICY, SRLAPIMixin
@@ -124,7 +125,11 @@ class SrlApiTest:
         runtime.exec.assert_called_once()
         cmd = runtime.exec.call_args[0][1]
 
-        assert 'sr_cli "show version"' in cmd
+        assert shlex.split(cmd) == [
+            "PYTHONDONTWRITEBYTECODE=1",
+            "sr_cli",
+            "show version",
+        ]
 
     def test_srl_bgp_acl_entries_precede_default_bgp_accept(self) -> None:
         api = _SRLStub()

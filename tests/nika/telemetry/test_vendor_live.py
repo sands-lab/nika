@@ -24,7 +24,7 @@ from tests.support.prerequisites import docker_available, docker_image_available
 
 pytestmark = pytest.mark.integration
 
-_PC2 = "200.1.1.2"
+_PC2 = "10.0.2.11"
 
 
 def _tool_rows(name: str, raw: object) -> list[dict]:
@@ -34,7 +34,14 @@ def _tool_rows(name: str, raw: object) -> list[dict]:
         lowered = text.lower()
         for bad in ("traceback", "tool_execution_error", "nika_session_id is not set"):
             assert bad not in lowered, f"{name} looks like an error:\n{text[:800]}"
-        rows.append(json.loads(text))
+        item = json.loads(text)
+        rows.extend(
+            item["rows"]
+            if isinstance(item, dict) and "rows" in item
+            else item
+            if isinstance(item, list)
+            else [item]
+        )
     return rows
 
 
@@ -53,14 +60,15 @@ class _VendorTelemetryLive(IntegrationTestCase):
     extra_metrics: tuple[str, ...] = ()
     log_command: str = ""
     version_prefix: str
-    routers: tuple[str, ...] = ("router1", "router2")
+    routers: tuple[str, ...] = ("spine_1", "spine_2")
 
     def test_yaml_enables_vendor_telemetry(self) -> None:
         session_id = None
         try:
             session_id = start_net_env(
                 self.scenario,
-                None,
+                "s",
+                device_profile=self.profile,
                 session_tag=resolve_session_tag(context="test"),
                 telemetry=self.telemetry,
             )
@@ -81,7 +89,7 @@ class _VendorTelemetryLive(IntegrationTestCase):
                         assert netflow_versions[router].startswith(self.version_prefix)
 
             runtime.exec(
-                "pc1",
+                "client_1_1",
                 "nohup sh -c 'while true; do "
                 f"ping -f -c 400 -W 1 {_PC2} || "
                 f"ping -q -c 400 -i 0.01 -W 1 {_PC2}; "
@@ -101,13 +109,13 @@ class _VendorTelemetryLive(IntegrationTestCase):
                     )
 
                 counters = asyncio.run(
-                    _prom(query=f'{self.metric}{{node="router1"}}', limit=50)
+                    _prom(query=f'{self.metric}{{node="spine_1"}}', limit=50)
                 )
                 assert counters
                 assert any(item["value"] >= 0 for item in counters)
                 assert "kathara_syslog_mcp_server" in config
                 if self.log_command:
-                    runtime.exec("router1", self.log_command)
+                    runtime.exec("spine_1", self.log_command)
 
                     async def _syslog(**args) -> list[dict]:
                         client = MultiServerMCPClient(connections=config)
@@ -121,13 +129,13 @@ class _VendorTelemetryLive(IntegrationTestCase):
                         time.monotonic() + 30,
                         2,
                         lambda: asyncio.run(
-                            _syslog(start_time="-180", host="router1", limit=50)
+                            _syslog(start_time="-180", host="spine_1", limit=50)
                         ),
                     )
                     assert logs
                 for metric in self.extra_metrics:
                     series = asyncio.run(
-                        _prom(query=f'{metric}{{node="router1"}}', limit=50)
+                        _prom(query=f'{metric}{{node="spine_1"}}', limit=50)
                     )
                     assert series, metric
 
@@ -139,7 +147,8 @@ class _VendorTelemetryLive(IntegrationTestCase):
                     client = MultiServerMCPClient(connections=config)
                     tools = {t.name: t for t in await client.get_tools()}
                     return _tool_rows(
-                        "netflow_query", await tools["netflow_query"].ainvoke(args)
+                        "flow_top_talkers",
+                        await tools["flow_top_talkers"].ainvoke(args),
                     )
 
                 def _exporters() -> set[str]:
@@ -165,9 +174,10 @@ class _VendorTelemetryLive(IntegrationTestCase):
     reason="RouterOS vrnetlab image not available",
 )
 class TestRouterOsTelemetryYamlLive(_VendorTelemetryLive):
-    """routeros_simple_bgp YAML: traffic-flow and SSH interface counters."""
+    """RouterOS Clos YAML: traffic-flow and SSH interface counters."""
 
-    scenario = "routeros_simple_bgp"
+    scenario = "dc_clos"
+    profile = "routeros"
     telemetry = ("netflow", "prometheus", "syslog")
     log_command = CLI_COMMAND.format(
         command="/log info message=neighbor-193.10.11.2-Up"
@@ -187,9 +197,10 @@ class TestRouterOsTelemetryYamlLive(_VendorTelemetryLive):
     reason="XRd Control Plane image not available",
 )
 class TestIosXrTelemetryYamlLive(_VendorTelemetryLive):
-    """iosxr_simple_bgp YAML: xr_cli interface counters. No IPFIX on XRd CP."""
+    """IOS XR Clos YAML: xr_cli interface counters. No IPFIX on XRd CP."""
 
-    scenario = "iosxr_simple_bgp"
+    scenario = "dc_clos"
+    profile = "iosxr"
     telemetry = ("prometheus", "syslog")
     log_command = "logger -p local7.info -t bgpd neighbor-193.10.11.2-Up || true"
     metric = "xr_interface_in_packets"

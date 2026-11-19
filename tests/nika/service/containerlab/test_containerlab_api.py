@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 import pytest
+from nika.net_env.clos.design import build_clos_fabric_model
 from typing import ClassVar
-from nika.net_env.min3clos.verify import (
-    CLIENT1,
-    CLIENT2,
-    EXPECTED_NODES,
-    LEAF1,
-)
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from nika.service.containerlab import (
     ContainerlabBaseAPI,
@@ -15,21 +10,35 @@ from nika.service.containerlab import (
     create_host_api,
 )
 from tests.support.api_smoke import ApiSmokeMixin, assert_json_payload
-from tests.support.prerequisites import min3clos_prerequisites
+from tests.support.prerequisites import containerlab_prerequisites
 from tests.support.integration_base import SharedSessionTestCase
 
 pytestmark = pytest.mark.integration
 
-CLIENT_INTF = "eth1"
+CLIENT1 = "client_1_1"
+CLIENT2 = "client_2_1"
+LEAF1 = "leaf_1"
+EXPECTED_NODES = tuple(
+    (build_clos_fabric_model("s").leaves + build_clos_fabric_model("s").spines)
+) + tuple(e.name for e in build_clos_fabric_model("s").endpoints)
+CLIENT_INTF = "eth0"
 LEAF_INTF = "e1-1"
 
 
 @pytest.mark.skipif(
-    not min3clos_prerequisites(), reason="containerlab, gnmic, or Docker not available"
+    not containerlab_prerequisites(),
+    reason="containerlab, gnmic, or Docker not available",
 )
 class ContainerlabApiSmokeTest(SharedSessionTestCase, ApiSmokeMixin):
-    SCENARIO = "min3clos"
-    ENV_RUN_ARGS: ClassVar[list[str]] = []
+    SCENARIO = "dc_clos"
+    ENV_RUN_ARGS: ClassVar[list[str]] = [
+        "-s",
+        "s",
+        "--backend",
+        "containerlab",
+        "--device-profile",
+        "nokia_srlinux",
+    ]
 
     def _runtime(self):
         return runtime_for_session(self._session_row(self.session_id))

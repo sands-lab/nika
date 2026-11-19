@@ -15,16 +15,19 @@ mcp = FastMCP("kathara_sdn_mcp_server")
 
 @safe_tool
 @mcp.tool()
-def sdn_onos_rest(path: str, device: str | None = None) -> str:
+def sdn_onos_rest(
+    path: str, device: str | None = None, offset: int | None = None
+) -> str:
     """GET an ONOS REST API path (e.g. /onos/v1/devices, /onos/v1/flows).
 
     Runs curl from fabric_mgr against the lab ONOS controller. Returns a
     compact summary first (item counts, per-device counts, states), then the
     JSON body. Pass device (e.g. of:0000000000000001) to keep only that
-    device's items.
+    device's items. Set offset to 0 to page list results. Use next_offset to
+    read the next page.
     """
     api = KatharaSdnAPI(lab_name=get_lab_name(), session_meta=get_session_meta())
-    return json.dumps(api.sdn_onos_rest(path, device), indent=2, default=str)
+    return json.dumps(api.sdn_onos_rest(path, device, offset), indent=2, default=str)
 
 
 if __name__ == "__main__":

@@ -27,10 +27,11 @@ from nika.telemetry import (
     DEVICE_EXEC_WORKERS,
     NETFLOW,
     PROMETHEUS,
+    PINGMESH,
     SYSLOG,
     TELEMETRY_SUBNET,
 )
-from nika.telemetry import management, netflow, prometheus, sonic, srl, syslog
+from nika.telemetry import management, netflow, prometheus, sonic, srl, syslog, pingmesh
 from nika.telemetry.management import SCRIPT, TELEMETRY_COLLECTOR, address_plan
 from nika.utils.parallel import bounded_parallel_map
 
@@ -114,22 +115,39 @@ def inject_collector(
             if isinstance(cfg, dict) and cfg.get("mgmt-ipv6")
         }
         node_cfg["mgmt-ipv6"] = _next_mgmt_ip(mgmt_v6, used_v6)
+    if PINGMESH in kinds:
+        from nika.telemetry.pingmesh_targets import BUDGET_DIR
+
+        node_cfg.setdefault("binds", []).append(
+            f"{pingmesh.host_budget_directory()}:{BUDGET_DIR}:rw"
+        )
     if gnmic:
-        node_cfg["binds"] = [f"{Path(gnmic).resolve()}:/usr/local/bin/gnmic:ro"]
+        node_cfg.setdefault("binds", []).append(
+            f"{Path(gnmic).resolve()}:/usr/local/bin/gnmic:ro"
+        )
     nodes[TELEMETRY_COLLECTOR] = node_cfg
 
     srl_names = _srl_node_names(nodes)
+    isolated_hosts = sorted(
+        name
+        for name, cfg in nodes.items()
+        if PINGMESH in kinds
+        and cfg.get("kind") == "linux"
+        and cfg.get("network-mode") == "none"
+        and name != TELEMETRY_COLLECTOR
+    )
     devices: dict[str, Any] = {}
     collector_ifaces: list[str] = []
     flow_collector = ""
     flow_prefixlen = 0
     flow_addresses: dict[str, str] = {}
-    if NETFLOW in kinds and srl_names:
+    flow_names = srl_names if NETFLOW in kinds else []
+    if flow_names or isolated_hosts:
         flow_collector, flow_prefixlen, flow_addresses = address_plan(
-            TELEMETRY_SUBNET, srl_names
+            TELEMETRY_SUBNET, [*flow_names, *isolated_hosts]
         )
         eth_index = 1
-        for name in srl_names:
+        for name in flow_names:
             e1 = next_e1_port(name, links)
             collector_iface = f"eth{eth_index}"
             links.append(
@@ -146,6 +164,33 @@ def inject_collector(
                 "mgmt_ip": str(nodes[name].get("mgmt-ipv4") or ""),
                 "srl_e1": e1,
                 "data_e1": sorted(used_e1_ports(name, links) - {e1}),
+                "collector_iface": collector_iface,
+            }
+            eth_index += 1
+        for name in isolated_hosts:
+            used = [
+                int(match[1])
+                for link in links
+                for endpoint in link.get("endpoints", [])
+                if (match := re.fullmatch(rf"{re.escape(name)}:eth(\d+)", endpoint))
+            ]
+            iface = f"eth{max(used, default=-1) + 1}"
+            collector_iface = f"eth{eth_index}"
+            links.append(
+                {
+                    "endpoints": [
+                        f"{name}:{iface}",
+                        f"{TELEMETRY_COLLECTOR}:{collector_iface}",
+                    ]
+                }
+            )
+            collector_ifaces.append(collector_iface)
+            devices[name] = {
+                "kind": "linux",
+                "mgmt_ip": flow_addresses[name],
+                "mgmt_iface": iface,
+                "srl_e1": None,
+                "data_e1": [],
                 "collector_iface": collector_iface,
             }
             eth_index += 1
@@ -216,7 +261,11 @@ def attach(net_env: Any, kinds: tuple[str, ...]) -> dict[str, Any]:
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
         raise ValueError(f"Invalid Containerlab topology at {path}")
+    peers = netflow.topology_peers(net_env)
+    probe_plan = pingmesh.topology_plan(net_env)
     plan = inject_collector(doc, kinds, gnmic=shutil.which("gnmic"))
+    plan["link_peers"] = peers
+    plan["probe_plan"] = probe_plan
     path.write_text(
         yaml.safe_dump(doc, sort_keys=False, default_flow_style=False),
         encoding="utf-8",
@@ -249,6 +298,42 @@ def configure(runtime: Any, plan: dict[str, Any]) -> dict[str, Any]:
     for (name, kind), version in zip(pairs, found, strict=True):
         if version:
             versions[kind][name] = version
+    probe_plan = plan.get("probe_plan", {})
+    probe_endpoints = {}
+    if PINGMESH in kinds:
+        for name in list(versions[PINGMESH]):
+            endpoint = probe_plan.get("endpoints", {}).get(name)
+            address = (
+                pingmesh.endpoint_address(runtime, name, endpoint["interfaces"])
+                if endpoint
+                else None
+            )
+            if address:
+                probe_endpoints[name] = {
+                    **endpoint,
+                    "address": address,
+                    "management": plan["devices"][name]["mgmt_ip"],
+                }
+            else:
+                del versions[PINGMESH][name]
+        for name, endpoint in probe_endpoints.items():
+            device = {**plan["devices"][name], "probe_address": endpoint["address"]}
+            setup = (
+                management.setup_lines(
+                    mgmt_iface=device["mgmt_iface"],
+                    address=endpoint["management"],
+                    prefixlen=plan["flow_prefixlen"],
+                    collector=plan["collector_flow_ip"],
+                )
+                if device.get("mgmt_iface")
+                else []
+            )
+            _run(
+                runtime,
+                name,
+                pingmesh.device_files(device, endpoint["management"], ""),
+                setup + pingmesh.device_lines(device, endpoint["management"]),
+            )
     flow_addresses = dict(plan.get("flow_addresses") or {})
     addresses = {
         name: flow_addresses.get(name)
@@ -292,6 +377,10 @@ def configure(runtime: Any, plan: dict[str, Any]) -> dict[str, Any]:
 
     files: dict[str, str] = {}
     lines: list[str] = []
+    if plan.get("collector_ifaces"):
+        lines += _collector_network_lines(
+            plan["collector_ifaces"], collector_flow, prefixlen
+        )
     hidden = ",".join(
         srl.yang_ethernet(int(plan["devices"][name]["srl_e1"]))
         for name, device in plan["devices"].items()
@@ -303,10 +392,8 @@ def configure(runtime: Any, plan: dict[str, Any]) -> dict[str, Any]:
                 {name: addresses[name] for name in versions.get(NETFLOW, {})}
             )
         )
-        if plan.get("collector_ifaces"):
-            lines += _sflow_collector_lines(
-                plan["collector_ifaces"], collector_flow, prefixlen
-            )
+        if any(device.get("srl_e1") for device in plan["devices"].values()):
+            lines += _sflow_collector_lines(collector_flow)
         if sonic_versions[NETFLOW]:
             lines += _ipfix_collector_lines()
     if PROMETHEUS in kinds:
@@ -340,6 +427,31 @@ def configure(runtime: Any, plan: dict[str, Any]) -> dict[str, Any]:
             syslog.collector_files(syslog_targets, versions=versions.get(SYSLOG))
         )
         lines += syslog.collector_lines(syslog_targets, versions=versions.get(SYSLOG))
+    if NETFLOW in kinds:
+        netflow.add_metrics(
+            files,
+            lines,
+            netflow.snapshot_inventory(runtime, plan, versions[NETFLOW], addresses),
+        )
+    if PINGMESH in kinds:
+        files.update(
+            pingmesh.collector_files(
+                probe_endpoints,
+                probe_plan.get("isolation_partitions", []),
+                probe_plan.get("endpoints", {}),
+            )
+        )
+        config = json.loads(
+            files.get(
+                prometheus.PROMETHEUS_CONFIG,
+                '{"global":{"scrape_interval":"15s"},"scrape_configs":[]}',
+            )
+        )
+        config["scrape_configs"].extend([pingmesh.scrape_job(), pingmesh.status_job()])
+        files[prometheus.PROMETHEUS_CONFIG] = json.dumps(config)
+        lines += pingmesh.collector_lines()
+    if PROMETHEUS not in kinds and (NETFLOW in kinds or PINGMESH in kinds):
+        lines += prometheus.collector_lines()
     _run(runtime, plan["collector"], files, lines)
     return {
         **plan,
@@ -396,6 +508,10 @@ def running(runtime: Any, plan: dict[str, Any]) -> bool:
         }
         if not prometheus.running(runtime, plan["collector"], targets):
             return False
+    if PINGMESH in kinds and not pingmesh.running(
+        runtime, plan["collector"], kinds[PINGMESH]["versions"]
+    ):
+        return False
     if SYSLOG in kinds:
         versions = kinds[SYSLOG]["versions"]
         sonic_names = sorted(
@@ -420,6 +536,8 @@ def running(runtime: Any, plan: dict[str, Any]) -> bool:
 
 
 def _probe(runtime: Any, device: dict[str, Any], name: str, kind: str) -> str | None:
+    if kind == PINGMESH:
+        return pingmesh.probe(runtime, name)
     if sonic.is_sonic_kind(str(device.get("kind") or "")):
         if kind == NETFLOW:
             probe = str(device.get("flow_probe") or "")
@@ -436,11 +554,10 @@ def _probe(runtime: Any, device: dict[str, Any], name: str, kind: str) -> str | 
     return prometheus.probe(runtime, name)
 
 
-def _sflow_collector_lines(
+def _collector_network_lines(
     ifaces: list[str], address: str, prefixlen: int
 ) -> list[str]:
     lines = [
-        f"mkdir -p {netflow.FLOW_DIR}",
         "ip link add br-sflow type bridge stp_state 0 2>/dev/null || true",
     ]
     for iface in ifaces:
@@ -451,12 +568,16 @@ def _sflow_collector_lines(
     if address:
         lines.append(f"ip addr replace {address}/{prefixlen} dev br-sflow")
         lines.append("ip link set br-sflow up")
-    bind = f"-b {address} " if address else ""
-    lines.append(
-        f"sfcapd -D -w {netflow.FLOW_DIR} -t {netflow.FLOW_ROTATE_SEC} "
-        f"{bind}-p {srl.SFLOW_PORT} -P /run/sfcapd.pid"
-    )
     return lines
+
+
+def _sflow_collector_lines(address: str) -> list[str]:
+    bind = f"-b {address} " if address else ""
+    return [
+        f"mkdir -p {netflow.FLOW_DIR}",
+        f"sfcapd -D -w {netflow.FLOW_DIR} -t {netflow.FLOW_ROTATE_SEC} "
+        f"{bind}-p {srl.SFLOW_PORT} -P /run/sfcapd.pid",
+    ]
 
 
 def _ipfix_collector_lines() -> list[str]:
@@ -501,14 +622,16 @@ def _netflow_running(
     from nika.net_env.verify import process_running
 
     collector = plan["collector"]
+    if not netflow.metrics_running(runtime, collector):
+        return False
     probes = {
         name: str(plan["devices"][name]["flow_probe"])
         for name in targets
         if plan["devices"][name].get("flow_probe")
     }
-    if plan.get("collector_ifaces") and not process_running(
-        runtime, collector, "sfcapd"
-    ):
+    if any(
+        device.get("srl_e1") for device in plan["devices"].values()
+    ) and not process_running(runtime, collector, "sfcapd"):
         return False
     if probes and not process_running(runtime, collector, "nfcapd"):
         return False

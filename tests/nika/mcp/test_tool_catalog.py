@@ -24,7 +24,18 @@ pytestmark = pytest.mark.contract
 @pytest.mark.asyncio
 async def test_generic_and_specialized_tool_catalog() -> None:
     expected = (
-        (host_mcp, {"exec_shell", "curl_web_test", "iperf_test", "active_tcp_probe"}),
+        (
+            host_mcp,
+            {
+                "exec_shell",
+                "device_read",
+                "device_interface_state",
+                "device_protocol_counters",
+                "curl_web_test",
+                "iperf_test",
+                "active_tcp_probe",
+            },
+        ),
         (k8s_mcp, {"k8s_list_events"}),
         (frr_mcp, {"frr_get_rpki_status"}),
         (iosxr_mcp, {"iosxr_exec"}),
@@ -32,7 +43,18 @@ async def test_generic_and_specialized_tool_catalog() -> None:
         (srl_mcp, {"srl_exec_cli"}),
         (sonic_mcp, {"sonic_exec_cli"}),
         (sdn_mcp, {"sdn_onos_rest"}),
-        (netflow_mcp, {"netflow_query"}),
+        (
+            netflow_mcp,
+            {
+                "flow_coverage",
+                "flow_timeline",
+                "flow_current_load",
+                "flow_top_talkers",
+                "flow_conversations",
+                "flow_records",
+                "nfdump",
+            },
+        ),
         (prometheus_mcp, {"prometheus_query"}),
         (syslog_mcp, {"syslog_query"}),
     )
@@ -47,7 +69,7 @@ def test_containerlab_routers_get_their_platform_cli_server() -> None:
         )
         return {s for s in servers if s.startswith("containerlab_")}
 
-    for scenario in ("min3clos", "isp_dfn-bwin"):
+    for scenario in ("dc_clos", "isp_dfn-bwin"):
         assert vendor(scenario, None) == {"containerlab_srl_mcp_server"}
         assert vendor(scenario, "nokia_srlinux") == {"containerlab_srl_mcp_server"}
         assert vendor(scenario, "sonic") == {"containerlab_sonic_mcp_server"}
@@ -59,14 +81,44 @@ def test_frr_server_only_selected_for_rpki() -> None:
         "simple_bgp", backend="kathara"
     )
     assert "kathara_frr_mcp_server" in select_diagnosis_servers(
-        "isp_abilene_ebgp_rpki", backend="kathara"
+        "isp_abilene", backend="kathara", deployment={"bgp_mode": "ebgp"}
     )
+
+
+@pytest.mark.parametrize(
+    ("deployment", "device_profile", "expected"),
+    [
+        # Current FRR eBGP deployments carry RPKI/ROV.
+        ({"scenario_params": {"bgp_mode": "ebgp"}}, None, True),
+        ({"scenario_params": {"bgp_mode": "ibgp_rr"}}, None, False),
+        ({"scenario_params": {"bgp_mode": "ebgp"}}, "iosxr", False),
+        # Release metadata does not change deployment-based tool selection.
+        (
+            {"scenario_params": {"bgp_mode": "ebgp"}},
+            None,
+            True,
+        ),
+    ],
+)
+def test_frr_server_follows_the_deployed_rpki_profile(
+    deployment, device_profile, expected
+) -> None:
+    servers = select_diagnosis_servers(
+        "isp_polska",
+        backend="kathara",
+        device_profile=device_profile,
+        deployment=deployment,
+    )
+    assert ("kathara_frr_mcp_server" in servers) is expected
 
 
 def test_telemetry_servers_only_selected_with_session_telemetry() -> None:
     def telemetry_servers(telemetry: tuple[str, ...]) -> set[str]:
         servers = select_diagnosis_servers(
-            "isp_abilene", backend="kathara", telemetry=telemetry
+            "isp_abilene",
+            backend="kathara",
+            deployment={"bgp_mode": "ebgp"},
+            telemetry=telemetry,
         )
         return {
             s
@@ -77,7 +129,11 @@ def test_telemetry_servers_only_selected_with_session_telemetry() -> None:
         }
 
     assert telemetry_servers(()) == set()
-    assert telemetry_servers(("netflow",)) == {"kathara_netflow_mcp_server"}
+    assert telemetry_servers(("netflow",)) == {
+        "kathara_netflow_mcp_server",
+        "kathara_prometheus_mcp_server",
+    }
+    assert telemetry_servers(("pingmesh",)) == {"kathara_prometheus_mcp_server"}
     assert telemetry_servers(("prometheus",)) == {"kathara_prometheus_mcp_server"}
     assert telemetry_servers(("syslog",)) == {"kathara_syslog_mcp_server"}
     assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
@@ -90,17 +146,17 @@ def test_telemetry_servers_only_selected_with_session_telemetry() -> None:
         "p4_dc_gateway", backend="kathara"
     )
     assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
-        "min3clos", backend="containerlab", telemetry=("netflow",)
+        "dc_clos", backend="containerlab", telemetry=("netflow",)
     )
     assert "kathara_prometheus_mcp_server" in select_diagnosis_servers(
-        "min3clos", backend="containerlab", telemetry=("prometheus",)
+        "dc_clos", backend="containerlab", telemetry=("prometheus",)
     )
     assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
         "isp_abilene", backend="containerlab", telemetry=("netflow",)
     )
     assert "kathara_prometheus_mcp_server" in select_diagnosis_servers(
-        "iosxr_simple_bgp", backend="kathara", telemetry=("prometheus",)
+        "dc_clos", device_profile="iosxr", backend="kathara", telemetry=("prometheus",)
     )
     assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
-        "routeros_simple_bgp", backend="kathara", telemetry=("netflow",)
+        "dc_clos", device_profile="routeros", backend="kathara", telemetry=("netflow",)
     )

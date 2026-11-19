@@ -13,7 +13,10 @@ from Kathara.manager.Kathara import Kathara, Lab
 from Kathara.model.Machine import Machine
 
 from nika.runtime.shared.execution import merge_exec_output
-from nika.runtime.shared.containers import isolated_container_pid
+from nika.runtime.shared.containers import (
+    isolated_container_pid,
+    patch_closed_pool_return,
+)
 from nika.runtime.spec import MachineInventory, NodeRole
 from nika.service.kathara.docker_utils import link_members, link_neighbors
 from nika.service.lab.reachability import PingReachabilityMixin
@@ -65,6 +68,7 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
     """
 
     def __init__(self, lab_name: str, *, session_meta: dict | None = None):
+        patch_closed_pool_return()
         self.instance = Kathara.get_instance()
         if session_meta is None:
             from nika.utils.session_store import SessionStore
@@ -215,6 +219,10 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
                             if False, return only "ip" (e.g. 192.168.1.10)
         """
 
+        from nika.problems.support.oracle import is_service_ipv4
+        from nika.service.lab.semantic_mixin import _docker_bridge_networks
+        import ipaddress
+
         cmd = "ip -j addr"
         # checked: a slow container right after deploy must retry, not hand a
         # "[TIMEOUT] ..." string to json.loads below.
@@ -248,7 +256,14 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
                     continue
                 ip = addr.get("local")
                 prefix = addr.get("prefixlen")
-                if ip and not ip.startswith("127."):
+                if (
+                    ip
+                    and is_service_ipv4(ip)
+                    and not any(
+                        ipaddress.ip_address(ip) in network
+                        for network in _docker_bridge_networks()
+                    )
+                ):
                     return format_ip(ip, prefix)
 
         for link in ifaces:
@@ -259,7 +274,14 @@ class KatharaBaseAPI(TCMixin, SemanticOpsMixin, PingReachabilityMixin):
                     continue
                 ip = addr.get("local")
                 prefix = addr.get("prefixlen")
-                if ip and not ip.startswith("127."):
+                if (
+                    ip
+                    and is_service_ipv4(ip)
+                    and not any(
+                        ipaddress.ip_address(ip) in network
+                        for network in _docker_bridge_networks()
+                    )
+                ):
                     return format_ip(ip, prefix)
 
         return None

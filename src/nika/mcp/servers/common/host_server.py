@@ -73,8 +73,88 @@ def active_tcp_probe(
 @safe_tool
 @mcp.tool()
 def exec_shell(host_name: str, command: str, timeout: float = 10) -> str:
-    """Execute a shell command on a lab node, with an optional timeout in seconds."""
+    """Execute a shell command on a host, server or controller (seconds timeout)."""
+    from nika.mcp.gateway.access import node_roles_for_session, SHELL_NODE_ROLES
+    from nika.mcp.session_context import require_session_id
+
+    if (
+        node_roles_for_session(require_session_id()).get(host_name)
+        not in SHELL_NODE_ROLES
+    ):
+        raise ValueError("Shell access is not allowed on this node role")
     return get_lab_api().exec_cmd(host_name, command, timeout=timeout)
+
+
+@safe_tool
+@mcp.tool()
+def device_read(host_name: str, commands: list[str]) -> str:
+    """Run router or switch CLI commands, including configuration commands.
+
+    FRR devices support vtysh and Linux networking tools. OVS devices support
+    ovs-ofctl and ovs-vsctl. Arguments are quoted at the device shell boundary.
+    Supply one to eight commands. Each command has a ten-second timeout.
+    Combined output is capped at 64 KiB. Long conntrack tables include exact
+    reply-destination port ranges before the connection rows.
+    """
+    from nika.mcp.device_read import (
+        MAX_OUTPUT,
+        TIMEOUT_MARKER,
+        bounded_command,
+        conntrack_display,
+        device_read_argv,
+        require_device,
+    )
+
+    if not 1 <= len(commands) <= 8:
+        raise ValueError("Supply one to eight device commands")
+    parsed = [device_read_argv(command) for command in commands]
+    for _, argv in parsed:
+        require_device(host_name, argv)
+    outputs = []
+    remaining = MAX_OUTPUT
+    for _, argv in parsed:
+        output = get_lab_api().exec_cmd(host_name, bounded_command(argv), timeout=12)
+        if TIMEOUT_MARKER in output or output.startswith("[TIMEOUT]"):
+            raise TimeoutError("Device command exceeded its ten-second timeout")
+        if len(output.encode()) > remaining:
+            raise ValueError("Device output exceeds 64 KiB; narrow the command")
+        if argv[:2] == ["conntrack", "-L"]:
+            output = conntrack_display(output)
+        outputs.append(output)
+        remaining -= len(output.encode()) + 1
+    return "\n".join(outputs)
+
+
+@safe_tool
+@mcp.tool()
+def device_protocol_counters(host_name: str) -> str:
+    """Read aggregate IPv4, ICMP, TCP, and UDP traffic and checksum counters on a Linux router."""
+    from nika.mcp.device_read import require_device
+
+    require_device(host_name, ["ip", "link", "show"])
+    return get_lab_api().exec_cmd(host_name, "cat /proc/net/snmp", timeout=5)
+
+
+@safe_tool
+@mcp.tool()
+def device_interface_state(host_name: str, interface: str) -> str:
+    """Read the physical carrier state of one declared router or switch attachment."""
+    import json
+    from nika.mcp.session_context import get_session_meta
+    from nika.problems.rca.inventory import (
+        interfaces_for_node,
+        load_session_offline_net_env,
+    )
+    from nika.runtime.spec import NodeRole
+
+    env = load_session_offline_net_env(get_session_meta())
+    identity = env.machine_identities.get(host_name)
+    if identity is None or identity.role not in {NodeRole.ROUTER, NodeRole.SWITCH}:
+        raise ValueError("Select a declared router or switch")
+    if interface not in interfaces_for_node(env, host_name):
+        raise ValueError("Select a declared data interface")
+    state = get_lab_runtime().get_interface_operstate(host_name, interface)
+    return json.dumps({"interface": interface, "operstate": state})
 
 
 if __name__ == "__main__":

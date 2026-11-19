@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 import re
-import io
 import shlex
 import subprocess
-import tarfile
 from typing import Any
 
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
@@ -37,13 +35,23 @@ def require_tshark(runtime: LabRuntime, device: str) -> str:
 
 
 def _read_pcap(runtime: LabRuntime, device: str, remote_path: str) -> bytes:
-    """Copy one capture file out of a lab node (Docker archive stream)."""
-    stream, _stat = runtime.get_container(device).get_archive(remote_path)
-    with tarfile.open(fileobj=io.BytesIO(b"".join(stream))) as archive:
-        member = next(m for m in archive.getmembers() if m.isfile())
-        extracted = archive.extractfile(member)
-        assert extracted is not None
-        return extracted.read()
+    """Read binary capture data from the node's live mount namespace.
+
+    Vendor init processes can mount /tmp after Docker creates the container.
+    Docker's archive endpoint cannot see those private mounts.
+    """
+    result = runtime.get_container(device).exec_run(
+        ["cat", "--", remote_path], demux=True
+    )
+    stdout, stderr = result.output
+    if result.exit_code != 0:
+        message = (stderr or b"").decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
+            f"Cannot read capture on {device!r} (rc={result.exit_code}): {message}"
+        )
+    if not stdout:
+        raise ValueError(f"Capture file is empty on {device!r}: {remote_path}")
+    return stdout
 
 
 def _host_tshark(
@@ -73,10 +81,15 @@ def _host_tshark(
 
 def tshark_version(runtime: LabRuntime, device: str) -> str | None:
     if has_tshark(runtime, device):
-        output = runtime.exec(device, "tshark -v 2>&1 | head -n 1 || true", timeout=5)
+        output = runtime.exec(
+            device, "tshark -v 2>/dev/null | head -n 1 || true", timeout=5
+        )
     else:
         output = _host_tshark(["-v"], timeout=30)
-    return output.strip().splitlines()[0] if output.strip() else None
+    return next(
+        (line.strip() for line in output.splitlines() if line.startswith("TShark ")),
+        None,
+    )
 
 
 def _run_tshark(
@@ -88,6 +101,8 @@ def _run_tshark(
     timeout: float = 60.0,
 ) -> str:
     """Run tshark on the node, or host-side on a streamed copy if it lacks tshark."""
+    if "-Y" in args and "tcp.checksum" in args[args.index("-Y") + 1]:
+        args = ["-o", "tcp.check_checksum:TRUE", *args]
     if has_tshark(runtime, device):
         quoted = " ".join(shlex.quote(part) for part in args)
         output = checked_exec(runtime.exec, device, f"tshark {quoted}", timeout=timeout)
@@ -133,7 +148,10 @@ def inspect_capture(
     if view_name is InspectView.PROTOCOL and not protocol:
         raise ValueError("protocol is required for protocol view")
 
-    total = count_packets(runtime, device, remote_path, display_filter)
+    count_filter = display_filter
+    if view_name is InspectView.PROTOCOL:
+        count_filter = _protocol_display_filter(protocol, display_filter)
+    total = count_packets(runtime, device, remote_path, count_filter)
     if view_name is InspectView.SUMMARY:
         data = _inspect_summary(runtime, device, remote_path, display_filter)
         return _envelope(
@@ -148,13 +166,14 @@ def inspect_capture(
     if view_name is InspectView.EXPERT:
         data = _inspect_expert(runtime, device, remote_path, display_filter)
         items = data.get("items", [])
+        page = items[offset : offset + page_size]
         return _envelope(
             view=view_name.value,
-            data=data,
-            returned=len(items),
+            data={"items": page},
+            returned=len(page),
             total_available=len(items),
-            offset=0,
-            truncated=False,
+            offset=offset,
+            truncated=offset + page_size < len(items),
         )
 
     if view_name is InspectView.PROTOCOL:
@@ -286,7 +305,7 @@ def _parse_endpoints(output: str) -> list[dict[str, Any]]:
                 {
                     "address": parts[0],
                     "frames": int(parts[1]),
-                    "bytes": int(parts[2]),
+                    "bytes": _stat_bytes(parts, 2)[0],
                 }
             )
         except ValueError:
@@ -294,26 +313,41 @@ def _parse_endpoints(output: str) -> list[dict[str, Any]]:
     return rows[:50]
 
 
+def _stat_bytes(parts: list[str], index: int) -> tuple[int, int]:
+    """Keep the units and rounding of native tshark statistics."""
+    scales = {"bytes": 1, "kB": 1000, "MB": 1000**2, "GB": 1000**3}
+    value = float(parts[index])
+    index += 1
+    if index < len(parts) and parts[index] in scales:
+        value *= scales[parts[index]]
+        index += 1
+    return int(value), index
+
+
 def _parse_conversations(output: str) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for line in output.splitlines():
         parts = line.split()
-        if len(parts) < 7:
+        if len(parts) < 11 or parts[1] != "<->":
             continue
         if parts[0].count(".") != 3 or parts[2].count(".") != 3:
             continue
         try:
+            _, index = _stat_bytes(parts, 4)
+            _, index = _stat_bytes(parts, index + 1)
+            frames = int(parts[index])
+            byte_count, _ = _stat_bytes(parts, index + 1)
             rows.append(
                 {
                     "address_a": parts[0],
-                    "port_a": parts[1],
+                    "port_a": None,
                     "address_b": parts[2],
-                    "port_b": parts[3],
-                    "frames": int(parts[4]),
-                    "bytes": int(parts[5]),
+                    "port_b": None,
+                    "frames": frames,
+                    "bytes": byte_count,
                 }
             )
-        except ValueError:
+        except (ValueError, IndexError):
             continue
     return rows[:50]
 
@@ -379,6 +413,10 @@ def _inspect_packets(
     return page, len(page), truncated
 
 
+def _protocol_display_filter(protocol: str, display_filter: str | None) -> str:
+    return protocol if not display_filter else f"({display_filter}) and {protocol}"
+
+
 def _inspect_protocol(
     runtime: LabRuntime,
     device: str,
@@ -389,9 +427,7 @@ def _inspect_protocol(
     limit: int,
     offset: int,
 ) -> tuple[list[dict[str, Any]], int, bool]:
-    filter_expr = (
-        protocol if not display_filter else f"({display_filter}) and {protocol}"
-    )
+    filter_expr = _protocol_display_filter(protocol, display_filter)
     args = ["-r", remote_path, "-T", "json"]
     if filter_expr:
         args.extend(["-Y", filter_expr])
@@ -413,12 +449,17 @@ def _inspect_expert(
     if display_filter:
         args.extend(["-Y", display_filter])
     output = _run_tshark(runtime, device, remote_path, args)
-    items: list[dict[str, str]] = []
+    items: list[dict[str, Any]] = []
+    severity = None
     for line in output.splitlines():
         line = line.strip()
         if not line or line.startswith("="):
             continue
-        if "Expert Info" in line:
+        heading = re.search(r"\b(Error|Warning|Note|Chat|Comment)s?\s*\(", line, re.I)
+        if heading:
+            severity = heading.group(1).lower()
+            continue
+        if "Expert Info" in line or line.startswith("Frequency"):
             continue
         match = re.match(
             r"^\s*(\d+)\s+(\S+)\s+(\S+)\s+(.+)$",
@@ -427,13 +468,12 @@ def _inspect_expert(
         if match:
             items.append(
                 {
-                    "frame": match.group(1),
-                    "severity": match.group(2),
-                    "group": match.group(3),
+                    "frequency": int(match.group(1)),
+                    "severity": severity,
+                    "group": match.group(2),
+                    "protocol": match.group(3),
                     "summary": match.group(4).strip(),
                 }
             )
             continue
-        if len(line) > 10:
-            items.append({"summary": line})
-    return {"items": items[:200]}
+    return {"items": items}

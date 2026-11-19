@@ -20,7 +20,7 @@ from tests.support.prerequisites import docker_available
 
 pytestmark = pytest.mark.integration
 
-_LEAF = "leaf_router_0_0"
+_LEAF = "leaf_1"
 
 
 def _tool_rows(name: str, raw: object) -> list[dict]:
@@ -39,7 +39,7 @@ class TestDcClosFrrTelemetryYamlLive(IntegrationTestCase):
     """dc_clos s YAML: kernel interface series and FRR BGP peer gauges."""
 
     scenario = "dc_clos"
-    telemetry = ("netflow", "prometheus", "syslog")
+    telemetry = ("netflow", "prometheus", "syslog", "pingmesh")
 
     def test_yaml_enables_frr_interface_and_bgp_metrics(self) -> None:
         session_id = None
@@ -82,6 +82,8 @@ class TestDcClosFrrTelemetryYamlLive(IntegrationTestCase):
                 )
                 assert bgp
                 assert any(item["value"] in {0, 1} for item in bgp)
+                mesh = asyncio.run(_prom(query="count(probe_success)"))
+                assert mesh and mesh[0]["value"] > 0
 
                 runtime.exec(
                     _LEAF,

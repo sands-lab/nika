@@ -27,6 +27,8 @@ from nika.telemetry import (
     MGMT_VRF,
     NETFLOW,
     PROMETHEUS,
+    PINGMESH,
+    pingmesh,
     SYSLOG,
     TELEMETRY_SUBNET,
     netflow,
@@ -42,7 +44,7 @@ if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
 
-KINDS = {NETFLOW: netflow, PROMETHEUS: prometheus, SYSLOG: syslog}
+KINDS = {NETFLOW: netflow, PROMETHEUS: prometheus, SYSLOG: syslog, PINGMESH: pingmesh}
 TELEMETRY_COLLECTOR = "telemetry_collector"
 TELEMETRY_SWITCH = "telemetry_switch"
 # Routing table of each device's ``MGMT_VRF``.
@@ -85,6 +87,8 @@ def attach(net_env: NetworkEnvBase, kinds: tuple[str, ...]) -> dict[str, Any]:
     """
     lab = net_env.lab
     devices = _exporting_devices(net_env)
+    link_peers = netflow.topology_peers(net_env)
+    probe_plan = pingmesh.topology_plan(net_env)
     _add_node(net_env, TELEMETRY_SWITCH, nika_image("base"), capabilities=("linux",))
     _add_node(
         net_env,
@@ -94,6 +98,12 @@ def attach(net_env: NetworkEnvBase, kinds: tuple[str, ...]) -> dict[str, Any]:
         # Prometheus holds every device's series in memory (~330 MB for 322).
         mem="1g",
     )
+    if PINGMESH in kinds:
+        from nika.telemetry.pingmesh_targets import BUDGET_DIR
+
+        lab.machines[TELEMETRY_COLLECTOR].add_meta(
+            "volume", f"{pingmesh.host_budget_directory()}|{BUDGET_DIR}|rw"
+        )
     collector_ip, prefixlen, _ = address_plan(TELEMETRY_SUBNET, [])
     collector_iface = _connect_last(lab, TELEMETRY_COLLECTOR)
     lab.create_file_from_list(
@@ -119,6 +129,9 @@ def attach(net_env: NetworkEnvBase, kinds: tuple[str, ...]) -> dict[str, Any]:
             append_routeros_interface(
                 lab, lab.machines[name], plan_devices[name]["mgmt_iface"]
             )
+            plan_devices[name]["interface_aliases"] = {
+                routeros_port(net_env, name, iface): iface for iface in data_ifaces
+            }
             plan_devices[name]["mgmt_port"] = routeros_port(
                 net_env, name, plan_devices[name]["mgmt_iface"]
             )
@@ -134,6 +147,8 @@ def attach(net_env: NetworkEnvBase, kinds: tuple[str, ...]) -> dict[str, Any]:
     net_env.load_machines()
     return {
         "collector": TELEMETRY_COLLECTOR,
+        "link_peers": link_peers,
+        "probe_plan": probe_plan,
         "switch": TELEMETRY_SWITCH,
         "subnet": TELEMETRY_SUBNET,
         "devices": plan_devices,
@@ -228,6 +243,20 @@ def configure(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
     for (name, kind), version in zip(pairs, found, strict=True):
         if version:
             versions[kind][name] = version
+    probe_plan = plan.get("probe_plan", {})
+    probe_endpoints = {}
+    if PINGMESH in kinds:
+        for name in list(versions[PINGMESH]):
+            endpoint = probe_plan.get("endpoints", {}).get(name)
+            address = (
+                pingmesh.endpoint_address(runtime, name, endpoint["interfaces"])
+                if endpoint
+                else None
+            )
+            if address:
+                probe_endpoints[name] = {**endpoint, "address": address}
+            else:
+                del versions[PINGMESH][name]
     configured = sorted({name for names in versions.values() for name in names})
     collector_ip, prefixlen, addresses = address_plan(plan["subnet"], configured)
 
@@ -235,6 +264,8 @@ def configure(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
         from nika.telemetry import routeros
 
         device = {**plan["devices"][name], "prefixlen": prefixlen}
+        if name in probe_endpoints:
+            device["probe_address"] = probe_endpoints[name]["address"]
         own = [
             (KINDS[kind], versions[kind][name])
             for kind in kinds
@@ -267,6 +298,10 @@ def configure(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
         _run(runtime, name, files, lines)
 
     bounded_parallel_map(start, configured, max_workers=DEVICE_EXEC_WORKERS)
+    if probe_plan.get("pod_controller") and probe_endpoints:
+        pingmesh.start_kubernetes_probers(
+            runtime, probe_plan["pod_controller"], probe_endpoints
+        )
     files: dict[str, str] = {}
     lines: list[str] = []
     from nika.telemetry import routeros
@@ -282,10 +317,43 @@ def configure(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
         )
     )
     for kind in kinds:
+        if kind == PINGMESH:
+            continue
         targets = {name: addresses[name] for name in versions[kind]}
         files.update(KINDS[kind].collector_files(targets, versions=versions[kind]))
         extra = {"hidden": ros_hidden} if kind == PROMETHEUS and ros_hidden else {}
         lines += KINDS[kind].collector_lines(targets, versions=versions[kind], **extra)
+    if NETFLOW in kinds:
+        netflow.add_metrics(
+            files,
+            lines,
+            netflow.snapshot_inventory(runtime, plan, versions[NETFLOW], addresses),
+        )
+    if PINGMESH in kinds:
+        import json
+
+        endpoints = {
+            name: {**endpoint, "management": addresses[name]}
+            for name, endpoint in probe_endpoints.items()
+        }
+        files.update(
+            pingmesh.collector_files(
+                endpoints,
+                probe_plan.get("isolation_partitions", []),
+                probe_plan.get("endpoints", {}),
+            )
+        )
+        config = json.loads(
+            files.get(
+                prometheus.PROMETHEUS_CONFIG,
+                '{"global":{"scrape_interval":"15s"},"scrape_configs":[]}',
+            )
+        )
+        config["scrape_configs"].extend([pingmesh.scrape_job(), pingmesh.status_job()])
+        files[prometheus.PROMETHEUS_CONFIG] = json.dumps(config)
+        lines += pingmesh.collector_lines()
+    if PROMETHEUS not in kinds and (NETFLOW in kinds or PINGMESH in kinds):
+        lines += prometheus.collector_lines()
     _run(runtime, plan["collector"], files, lines)
     return {
         **plan,

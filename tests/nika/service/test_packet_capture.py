@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import time
 from pathlib import Path
 from typing import ClassVar
@@ -34,6 +36,108 @@ from tests.support.prerequisites import docker_available
 
 
 # --- limits -----------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("version", ["TShark (Wireshark) 4.0.17", ""])
+def test_tshark_version_excludes_stderr_warning(tmp_path, version):
+    binary = tmp_path / "tshark"
+    binary.write_text(
+        "#!/bin/sh\n"
+        "echo 'Running as user root. This could be dangerous.' >&2\n"
+        f"echo '{version}'\n"
+    )
+    binary.chmod(0o755)
+
+    class Runtime:
+        def exec(self, device, command, **kwargs):
+            return subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                check=True,
+                env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"},
+            ).stdout
+
+    assert inspect.tshark_version(Runtime(), "node") == (version or None)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("protocol", "display_filter", "expected_filter", "offset", "total"),
+    [
+        ("tcp", None, "tcp", 0, 4),
+        ("tcp", "ip.src == 192.0.2.1", "(ip.src == 192.0.2.1) and tcp", 0, 2),
+        ("dns", None, "dns", 0, 0),
+        ("tcp", None, "tcp", 4, 4),
+    ],
+)
+def test_protocol_total_and_page_use_the_same_filter(
+    protocol, display_filter, expected_filter, offset, total
+):
+    frames = "\n".join(str(i + 1) for i in range(total))
+    packets = json.dumps([{"_source": {"layers": {}}}] * total)
+    with patch.object(inspect, "_run_tshark", side_effect=[frames, packets]) as tshark:
+        result = inspect.inspect_capture(
+            MagicMock(),
+            "node",
+            "/tmp/capture.pcapng",
+            view="protocol",
+            protocol=protocol,
+            display_filter=display_filter,
+            limit=1,
+            offset=offset,
+        )
+    for call in tshark.call_args_list:
+        args = call.args[3]
+        assert "-Y" in args
+        assert args[args.index("-Y") + 1] == expected_filter
+    assert result["total_available"] == total
+    assert result["returned"] == min(1, max(0, total - offset))
+    assert result["truncated"] is (offset + 1 < total)
+
+
+@pytest.mark.unit
+def test_ipv4_conversations_read_native_tshark_totals():
+    output = (
+        Path(__file__).resolve().parents[2]
+        / "fixtures/packet_capture/tshark_ipv4_conversations.txt"
+    ).read_text()
+    assert inspect._parse_conversations(output) == [
+        {
+            "address_a": "192.0.2.1",
+            "port_a": None,
+            "address_b": "192.0.2.2",
+            "port_b": None,
+            "frames": 2,
+            "bytes": 1516,
+        }
+    ]
+    assert inspect._parse_conversations("IPv4 Conversations\nFilter:<No Filter>") == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "row",
+    [
+        "192.0.2.1 <-> 192.0.2.2 21 18 kB 21 1655 bytes 42 20 kB 0.5 1.5",
+        "192.0.2.1 <-> 192.0.2.2 21 18000 21 1655 42 20000 0.5 1.5",
+    ],
+)
+def test_conversation_bytes_keep_native_units(row):
+    result = inspect._parse_conversations(row)
+    assert result[0]["frames"] == 42
+    assert result[0]["bytes"] == 20000
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("size", ["20 kB", "0.02 MB", "20000"])
+def test_endpoint_bytes_keep_native_units(size):
+    row = f"192.0.2.1 42 {size} 21 18000 21 1655"
+    assert inspect._parse_endpoints(row) == [
+        {"address": "192.0.2.1", "frames": 42, "bytes": 20000}
+    ]
 
 
 @pytest.mark.unit
@@ -242,6 +346,70 @@ class TestProtocolFields:
 
 @pytest.mark.unit
 class TestInspectCapture:
+    @pytest.mark.parametrize(
+        ("limit", "offset", "returned", "truncated"),
+        [(2, 0, 2, True), (2, 2, 2, True), (2, 4, 1, False), (2, 5, 0, False)],
+    )
+    def test_expert_groups_keep_their_meaning_and_paginate(
+        self, limit, offset, returned, truncated
+    ) -> None:
+        output = (
+            Path(__file__).resolve().parents[2]
+            / "fixtures/packet_capture/tshark_expert.txt"
+        ).read_text()
+        frames = "\n".join(str(number) for number in range(1, 17))
+        with patch.object(inspect, "_run_tshark", side_effect=[frames, output]):
+            payload = inspect.inspect_capture(
+                MagicMock(),
+                "pc1",
+                "/tmp/capture.pcapng",
+                view="expert",
+                limit=limit,
+                offset=offset,
+            )
+        expected = [
+            {
+                "frequency": 1,
+                "severity": "note",
+                "group": "Sequence",
+                "protocol": "TCP",
+                "summary": "This frame initiates the connection closing",
+            },
+            {
+                "frequency": 1,
+                "severity": "note",
+                "group": "Sequence",
+                "protocol": "TCP",
+                "summary": "This frame undergoes the connection closing",
+            },
+            {
+                "frequency": 1,
+                "severity": "chat",
+                "group": "Sequence",
+                "protocol": "TCP",
+                "summary": "Connection establish request (SYN): server port 64012",
+            },
+            {
+                "frequency": 1,
+                "severity": "chat",
+                "group": "Sequence",
+                "protocol": "TCP",
+                "summary": "Connection establish acknowledge (SYN+ACK): server port 64012",
+            },
+            {
+                "frequency": 2,
+                "severity": "chat",
+                "group": "Sequence",
+                "protocol": "TCP",
+                "summary": "Connection finish (FIN)",
+            },
+        ]
+        assert payload["data"]["items"] == expected[offset : offset + limit]
+        assert payload["returned"] == returned
+        assert payload["total_available"] == 5
+        assert payload["offset"] == offset
+        assert payload["truncated"] is truncated
+
     def test_packets_view_reports_truncation(self) -> None:
         runtime = MagicMock()
         with patch.object(inspect, "_run_tshark") as mock_tshark:
@@ -263,6 +431,35 @@ class TestInspectCapture:
         assert payload["truncated"] is False
         assert payload["data"]["packets"][0]["protocol"] == "Ethernet"
 
+    @pytest.mark.parametrize("display_filter", [None, "ip.src == 192.0.2.1"])
+    @pytest.mark.parametrize("offset", [0, 1, 2])
+    def test_protocol_total_counts_the_same_filtered_packets(
+        self, display_filter, offset
+    ) -> None:
+        expected_filter = (
+            "http" if display_filter is None else f"({display_filter}) and http"
+        )
+        packets = [_packet({"http": {"http.request.method": "GET"}})] * 2
+
+        def tshark(runtime, device, remote_path, args, **kwargs):
+            assert args[args.index("-Y") + 1] == expected_filter
+            return "1\n2\n" if "fields" in args else json.dumps(packets)
+
+        with patch.object(inspect, "_run_tshark", side_effect=tshark):
+            payload = inspect.inspect_capture(
+                MagicMock(),
+                "pc1",
+                "/tmp/capture.pcapng",
+                view="protocol",
+                protocol="http",
+                display_filter=display_filter,
+                limit=1,
+                offset=offset,
+            )
+        assert payload["total_available"] == 2
+        assert payload["returned"] == (1 if offset < 2 else 0)
+        assert payload["truncated"] is (offset == 0)
+
     def test_protocol_view_requires_protocol(self) -> None:
         runtime = MagicMock()
         with pytest.raises(ValueError, match="protocol is required"):
@@ -272,6 +469,22 @@ class TestInspectCapture:
                 "/tmp/capture-abc.pcapng",
                 view="protocol",
             )
+
+    @pytest.mark.parametrize(
+        ("banner", "expected"),
+        [
+            (
+                'Running as user "root" and group "root". This could be dangerous.\nTShark 4.0.17\n',
+                "TShark 4.0.17",
+            ),
+            ("TShark 4.0.17\nCopyright...", "TShark 4.0.17"),
+            ("unable to read version", None),
+        ],
+    )
+    def test_tshark_version_uses_the_banner_not_stderr(self, banner, expected) -> None:
+        runtime = MagicMock()
+        runtime.exec.side_effect = ["/usr/bin/tshark", banner]
+        assert inspect.tshark_version(runtime, "pc1") == expected
 
     def test_missing_tshark_raises(self) -> None:
         runtime = MagicMock()
@@ -304,6 +517,29 @@ class TestInspectCapture:
         host.assert_not_called()
         assert "tshark -r /tmp/x" in runtime.exec.call_args.args[1]
 
+    @pytest.mark.parametrize("native", [False, True])
+    def test_checksum_filters_enable_validation_on_both_decoders(self, native) -> None:
+        import shlex
+
+        runtime = MagicMock()
+        with (
+            patch.object(inspect, "has_tshark", return_value=native),
+            patch.object(inspect, "_read_pcap", return_value=b"PCAP"),
+            patch.object(inspect, "checked_exec", return_value="1\n") as execute,
+            patch.object(inspect, "_host_tshark", return_value="1\n") as host,
+        ):
+            assert (
+                inspect.count_packets(
+                    runtime, "receiver", "/tmp/x", "tcp.checksum.status == 0"
+                )
+                == 1
+            )
+        args = (
+            shlex.split(execute.call_args.args[2]) if native else host.call_args.args[0]
+        )
+        assert args[args.index("-o") + 1] == "tcp.check_checksum:TRUE"
+        assert args[args.index("-Y") + 1] == "tcp.checksum.status == 0"
+
 
 # --- registry / gateway -----------------------------------------------------
 
@@ -313,7 +549,7 @@ class TestPacketCaptureRegistry:
     def test_selected_by_default(self) -> None:
         servers = select_diagnosis_servers("simple_bgp", backend="kathara")
         assert DIAGNOSIS_PACKET_CAPTURE_SERVER in servers
-        assert servers.index(DIAGNOSIS_PACKET_CAPTURE_SERVER) == 2
+        assert servers.index(DIAGNOSIS_PACKET_CAPTURE_SERVER) == 1
         assert "kathara_frr_mcp_server" not in servers
 
     def test_gateway_mount_registered(self) -> None:
@@ -390,6 +626,7 @@ class TestCaptureLifecycle:
         manager = CaptureManager(runtime=EmptyCaptureRuntime())
         capture_id = manager.start(device="client1", interface="eth0")["capture_id"]
         stopped = manager.stop(capture_id)
+        assert stopped["artifact"]["tshark_version"].startswith("TShark "), stopped
         assert stopped["packet_count"] == 0
         assert stopped["captured_bytes"] == 24
         assert stopped["artifact"]["remote_path"]
@@ -510,6 +747,54 @@ def test_sonic_ports_map_to_container_data_interface(
     assert capture_device(runtime, "leaf1", name) == device
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("converted", "native", "linux"),
+    [
+        (True, "ether2", "eth0"),
+        (True, "ether5", "eth3"),
+        (False, "ether2", "eth1"),
+        (False, "ether5", "eth4"),
+    ],
+)
+def test_routeros_capture_ports_follow_declared_layout(converted, native, linux):
+    from types import SimpleNamespace
+    from nika.service.packet_capture.capture_backend import capture_device
+
+    runtime = FakeRuntime()
+    runtime._net_env = SimpleNamespace(
+        native_routers={"router1": "routeros"} if converted else {},
+        machine_identities={"router1": SimpleNamespace(capabilities={"routeros"})},
+    )
+    assert capture_device(runtime, "router1", native) == linux
+    assert capture_device(runtime, "router1", "eth2") == "eth2"
+    assert capture_device(runtime, "router1", "any") == "any"
+    assert capture_device(runtime, "client1", native) == native
+
+
+@pytest.mark.unit
+def test_missing_routeros_port_fails_before_capture():
+    from types import SimpleNamespace
+
+    class MissingPort(FakeRuntime):
+        def exec(self, node, command, timeout=10):
+            if command.startswith("[ -e /sys/class/net/eth97"):
+                self.commands.append((node, command))
+                return "missing"
+            if command.startswith("ls /sys/class/net"):
+                return "lo\neth0\n"
+            return super().exec(node, command, timeout)
+
+    runtime = MissingPort()
+    runtime._net_env = SimpleNamespace(
+        native_routers={"router1": "routeros"},
+        machine_identities={"router1": SimpleNamespace(capabilities={"routeros"})},
+    )
+    with pytest.raises(ValueError, match="ether99.*Available interfaces: lo, eth0"):
+        CaptureManager(runtime=runtime).start(device="router1", interface="ether99")
+    assert not any("nohup" in command for _node, command in runtime.commands)
+
+
 # --- live e2e ---------------------------------------------------------------
 
 
@@ -565,6 +850,7 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert "bytes from" in ping_out or "icmp_seq" in ping_out.lower(), ping_out
 
         stopped = manager.stop(capture_id)
+        assert stopped["artifact"]["tshark_version"].startswith("TShark "), stopped
         assert stopped["packet_count"] >= 1, stopped
         assert stopped["captured_bytes"] > 0, stopped
         assert stopped["artifact"]["device"] == self.CAPTURE_HOST
@@ -677,6 +963,23 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         )
         assert protocol["returned"] >= 1, protocol
         assert protocol["data"]["protocol"] == "icmp"
+
+        # The capture contains ICMP only. Other protocols must report zero.
+        absent = manager.inspect(capture_id, view="protocol", protocol="tcp", limit=1)
+        assert absent["returned"] == 0, absent
+        assert absent["total_available"] == 0, absent
+        assert absent["truncated"] is False, absent
+        filtered = manager.inspect(capture_id, view="packets", display_filter="icmp")
+        assert protocol["total_available"] == filtered["total_available"], protocol
+
+        summary = manager.inspect(capture_id, view="summary")
+        assert summary["data"]["tshark_version"].startswith("TShark "), summary
+        conversations = summary["data"]["conversations"]
+        assert conversations, summary
+        assert all(row["frames"] > 0 and row["bytes"] > 0 for row in conversations)
+        assert all(
+            row["port_a"] is None and row["port_b"] is None for row in conversations
+        )
 
         expert = manager.inspect(capture_id, view="expert")
         assert "items" in expert["data"]

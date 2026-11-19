@@ -12,6 +12,7 @@ from typing import Literal
 
 from nika.problems.support.dhcp import restart_dhcp_server
 from nika.service.lab.protocols import SupportsExec
+from nika.telemetry import MGMT_VRF
 from nika.utils.parallel import bounded_parallel_map
 
 _TIMEOUT_SENTINEL = "[TIMEOUT]"
@@ -62,15 +63,34 @@ def _is_management_ip(ip: str) -> bool:
     return any(address in network for network in _docker_bridge_networks())
 
 
-def _ipv4_by_iface(output: str, *, node: str, with_prefix: bool) -> dict[str, str]:
+def _ipv4_by_iface(
+    output: str,
+    *,
+    node: str,
+    with_prefix: bool,
+    excluded_interfaces: frozenset[str] | set[str] = frozenset(),
+    excluded_networks: tuple = (),
+) -> dict[str, str]:
     """Map each interface to its first non-loopback IPv4 address, in link order."""
+    from nika.problems.support.oracle import is_service_ipv4
+
     addresses: dict[str, str] = {}
     for link in _loads_exec_json(output, command="ip -j addr", node=node):
-        if link.get("ifname") in VM_MGMT_IFACES:
+        if (
+            link.get("ifname") in VM_MGMT_IFACES | excluded_interfaces
+            or link.get("master") == MGMT_VRF
+        ):
             continue
         for addr in link.get("addr_info", []):
             ip = addr.get("local")
-            if addr.get("family") != "inet" or not ip or ip.startswith("127."):
+            if (
+                addr.get("family") != "inet"
+                or not ip
+                or not is_service_ipv4(ip)
+                or any(
+                    ipaddress.ip_address(ip) in network for network in excluded_networks
+                )
+            ):
                 continue
             prefix = addr.get("prefixlen")
             if with_prefix and prefix is not None:
@@ -111,10 +131,32 @@ class SemanticOpsMixin:
         *,
         with_prefix: bool = False,
     ) -> str | None:
-        addresses = _ipv4_by_iface(
-            self.exec_cmd(node, "ip -j addr"), node=node, with_prefix=with_prefix
+        from nika.problems.support.oracle import (
+            containerlab_data_eth0,
+            management_interfaces,
+            management_networks,
         )
-        return addresses.get(iface) or next(iter(addresses.values()), None)
+
+        runtime = getattr(self, "_runtime", self)
+        data_eth0 = containerlab_data_eth0(runtime)
+        excluded = management_interfaces(data_eth0, node)
+        addresses = _ipv4_by_iface(
+            self.exec_cmd(node, "ip -j addr"),
+            node=node,
+            with_prefix=with_prefix,
+            excluded_interfaces=excluded,
+            excluded_networks=management_networks(runtime),
+        )
+        return addresses.get(iface) or next(
+            (
+                ip
+                for ip in addresses.values()
+                if data_eth0 is not None
+                or getattr(runtime, "backend", None) == "kathara"
+                or not _is_management_ip(ip)
+            ),
+            None,
+        )
 
     def get_data_plane_host_ip(
         self: SupportsExec,
@@ -128,25 +170,43 @@ class SemanticOpsMixin:
         Only an address on the named interface counts, so interfaces created
         inside the node (for example a k3s ``flannel.1``) never stand in for a
         missing ``eth1``. Management addresses (Containerlab management
-        bridges, Docker's default bridge on Kathara ``bridged`` nodes) count
-        only when no preferred interface has another address. Without any
-        preferred interface, return the first non-loopback IPv4 address.
+        bridges, Docker's default bridge on Kathara ``bridged`` nodes) are
+        excluded. Without any preferred interface, return a data-plane address.
         """
-        addresses = _ipv4_by_iface(
-            self.exec_cmd(node, "ip -j addr"), node=node, with_prefix=with_prefix
+        from nika.problems.support.oracle import (
+            containerlab_data_eth0,
+            management_interfaces,
+            management_networks,
         )
-        candidates: list[str] = []
+
+        runtime = getattr(self, "_runtime", self)
+        data_eth0 = containerlab_data_eth0(runtime)
+        excluded = management_interfaces(data_eth0, node)
+        addresses = _ipv4_by_iface(
+            self.exec_cmd(node, "ip -j addr"),
+            node=node,
+            with_prefix=with_prefix,
+            excluded_interfaces=excluded,
+            excluded_networks=management_networks(runtime),
+        )
         for iface in prefer_ifaces:
             ip = addresses.get(iface)
-            if not ip:
-                continue
-            if _is_management_ip(ip):
-                candidates.append(ip)
-                continue
-            return ip
-        if candidates:
-            return candidates[0]
-        return next(iter(addresses.values()), None)
+            if ip and (
+                data_eth0 is not None
+                or getattr(runtime, "backend", None) == "kathara"
+                or not _is_management_ip(ip)
+            ):
+                return ip
+        return next(
+            (
+                ip
+                for ip in addresses.values()
+                if data_eth0 is not None
+                or getattr(runtime, "backend", None) == "kathara"
+                or not _is_management_ip(ip)
+            ),
+            None,
+        )
 
     def get_default_gateway(self: SupportsExec, node: str) -> str | None:
         output = self.exec_cmd(node, "ip -j route")

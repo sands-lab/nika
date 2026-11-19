@@ -14,7 +14,7 @@ from tests.support.integration_pipeline import tool_text_list
 from tests.support.prerequisites import (
     docker_available,
     docker_image_available,
-    min3clos_prerequisites,
+    containerlab_prerequisites,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.nightly]
@@ -26,12 +26,12 @@ class TestVendorMcpLive(IntegrationTestCase):
         ("scenario", "server", "tool", "node", "command", "extra_args"),
         [
             pytest.param(
-                "iosxr_simple_bgp",
+                "dc_clos",
                 "kathara_iosxr_mcp_server",
                 "iosxr_exec",
-                "router1",
+                "spine_1",
                 "show version",
-                None,
+                ["-s", "s", "--device-profile", "iosxr"],
                 marks=pytest.mark.skipif(
                     not docker_image_available("ios-xr/xrd-control-plane:26.2.1"),
                     reason="IOS-XR image not available",
@@ -39,12 +39,12 @@ class TestVendorMcpLive(IntegrationTestCase):
                 id="iosxr",
             ),
             pytest.param(
-                "routeros_simple_bgp",
+                "dc_clos",
                 "kathara_routeros_mcp_server",
                 "routeros_exec",
-                "router1",
+                "spine_1",
                 "/system resource print",
-                None,
+                ["-s", "s", "--device-profile", "routeros"],
                 marks=pytest.mark.skipif(
                     not docker_image_available("vrnetlab/mikrotik_routeros:7.21.5"),
                     reason="RouterOS image not available",
@@ -52,14 +52,21 @@ class TestVendorMcpLive(IntegrationTestCase):
                 id="routeros",
             ),
             pytest.param(
-                "min3clos",
+                "dc_clos",
                 "containerlab_srl_mcp_server",
                 "srl_exec_cli",
-                "leaf1",
+                "leaf_1",
                 "show version",
-                None,
+                [
+                    "-s",
+                    "s",
+                    "--backend",
+                    "containerlab",
+                    "--device-profile",
+                    "nokia_srlinux",
+                ],
                 marks=pytest.mark.skipif(
-                    not min3clos_prerequisites(),
+                    not containerlab_prerequisites(),
                     reason="Containerlab, gnmic, or Docker not available",
                 ),
                 id="srlinux",
@@ -89,7 +96,7 @@ class TestVendorMcpLive(IntegrationTestCase):
                     assert tool in tools and "exec_shell" in tools
                     cli_output = await tools[tool].ainvoke(
                         {
-                            "router_name" if node == "router1" else "device_name": node,
+                            "router_name" if node == "spine_1" else "device_name": node,
                             "command": command,
                         }
                     )

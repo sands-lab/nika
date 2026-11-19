@@ -102,6 +102,8 @@ def test_running_accepts_ovs_netflow() -> None:
     runtime = _Runtime(
         {
             "pgrep -x nfcapd": "12",
+            "pgrep -x prometheus": "13",
+            "curl -fsS": "{}",
             "pgrep -x pmacctd": "",
             "list NetFlow": 'targets : ["172.28.0.254:9995"]\n',
         }
@@ -119,3 +121,35 @@ def test_pmacct_path_unchanged_without_version() -> None:
     }
     lines = netflow.device_lines({"data_ifaces": ["eth0"]}, "172.28.0.3")
     assert "pmacctd" in lines[0]
+
+
+@pytest.mark.parametrize(
+    ("version", "outputs", "expected"),
+    [
+        ("1.7.7", {"ip -o link": "42: eth0@if9: <UP> mtu 1500"}, {"42": "eth0"}),
+        (
+            "ovs-3.1.0",
+            {"dump-ports-desc": " 7(eth3): addr:00:11:22:33:44:55"},
+            {"7": "eth3"},
+        ),
+        (
+            "srl-24.10.1",
+            {
+                "info from state interface": '{"interface":[{"name":"ethernet-1/1","ifindex":8192}]}'
+            },
+            {"8192": "ethernet-1/1"},
+        ),
+        (
+            "ros-7.21.5",
+            {
+                "/interface print terse": "0 R name=ether2 type=ether",
+                "/interface print oid": "0 R name=.1.3.6.1.2.1.2.2.1.2.7",
+            },
+            {"7": "ether2"},
+        ),
+    ],
+)
+def test_interface_enrichment_uses_each_exporters_native_index_space(
+    version, outputs, expected
+):
+    assert netflow.interface_map(_Runtime(outputs), "device", version) == expected

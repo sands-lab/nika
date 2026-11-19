@@ -31,17 +31,17 @@ def test_tool_reports_failed_observation(api_type, method, kwargs, raw) -> None:
         getattr(api, method)(**kwargs)
 
 
-@pytest.mark.parametrize("raw", ["__rc=0", "not-a-clock\n__rc=0"])
-def test_int_rejects_invalid_clock(raw) -> None:
+@pytest.mark.parametrize("raw", ["__rc=0", "not-json\n__rc=0", "{}\n__rc=0"])
+def test_int_rejects_invalid_query_result(raw) -> None:
     api = TelemetryAPIMixin()
     api.exec_cmd = Mock(return_value=raw)
-    with pytest.raises(RuntimeError, match="invalid timestamp"):
+    with pytest.raises(RuntimeError, match="invalid query"):
         api.int_query_telemetry(start_time="0")
 
 
 def test_empty_int_and_controller_logs_remain_healthy() -> None:
     api = TelemetryAPIMixin()
-    api.exec_cmd = Mock(return_value="1794000000000000000\n__rc=0")
+    api.exec_cmd = Mock(return_value="[]\n__rc=0")
     assert api.int_query_telemetry(start_time="0") == []
     api = SdnAPIMixin()
     api.exec_cmd = Mock(return_value="__rc=0")

@@ -9,7 +9,10 @@ mcp = FastMCP("containerlab_srl_mcp_server")
 @safe_tool
 @mcp.tool()
 def srl_exec_cli(device_name: str, command: str) -> str:
-    """Execute an ``sr_cli`` command on an SR Linux router in the lab."""
+    """Execute SR Linux CLI commands on a router.
+
+    Separate configuration session commands with newlines. Include commit now to apply candidate changes.
+    """
     return get_srl_api().srl_exec_cli(device_name, command)
 
 

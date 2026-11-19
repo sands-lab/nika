@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from nika.telemetry import NETFLOW, PROMETHEUS, SYSLOG
 
@@ -44,12 +44,6 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         backend=None,
         role="host",
         module="nika.mcp.servers.common.host_server",
-    ),
-    "pingmesh_mcp_server": MCPServerSpec(
-        name="pingmesh_mcp_server",
-        backend=None,
-        role="host",
-        module="nika.mcp.servers.common.pingmesh_server",
     ),
     "packet_capture_mcp_server": MCPServerSpec(
         name="packet_capture_mcp_server",
@@ -146,11 +140,8 @@ CONTAINERLAB_ROUTER_SERVERS: dict[str, str] = {
     "sonic": "containerlab_sonic_mcp_server",
 }
 
-# Stable server names used in agent tool prefixes (``{name}_tool``).
-MCP_SERVER_PREFIXES: tuple[str, ...] = tuple(f"{name}_" for name in MCP_SERVER_SPECS)
 
 DIAGNOSIS_HOST_SERVER = "kathara_base_mcp_server"
-DIAGNOSIS_PINGMESH_SERVER = "pingmesh_mcp_server"
 DIAGNOSIS_PACKET_CAPTURE_SERVER = "packet_capture_mcp_server"
 SUBMISSION_SERVER = "task_mcp_server"
 K8S_MCP_SERVER = "k8s_mcp_server"
@@ -166,6 +157,25 @@ def _scenario_tokens(scenario_name: str) -> set[str]:
         pass
     combined = " ".join(parts)
     return set(combined.replace("_", " ").replace("-", " ").split())
+
+
+def _deployment_tokens(
+    scenario_name: str, backend: str, device_profile: str | None, deployment: Any
+) -> set[str]:
+    if deployment is None:
+        return set()
+    from nika.net_env.net_env_pool import isp_deployment_has_profiles
+    from nika.runtime.meta import meta_get
+
+    # Every deployment with the security profiles carries RPKI/ROV; whether it
+    # also carries RTBH (which needs a compiled plan) adds no server.
+    has_profiles = isp_deployment_has_profiles(
+        scenario_name,
+        bgp_mode=meta_get(deployment, "bgp_mode", scenario_params=True),
+        backend=backend,
+        device_profile=device_profile,
+    )
+    return {"rpki"} if has_profiles else set()
 
 
 def _resolve_diagnosis_backend(
@@ -202,6 +212,7 @@ def select_diagnosis_servers(
     backend: str | None = None,
     telemetry: Iterable[str] = (),
     device_profile: str | None = None,
+    deployment: Any = None,
 ) -> list[str]:
     """Return MCP server names needed for diagnosis on *scenario*.
 
@@ -209,16 +220,19 @@ def select_diagnosis_servers(
     ``nika.telemetry.telemetry_for_session``). ``device_profile`` is the
     session's router platform; Containerlab routers are SR Linux unless it
     names another one, and each Containerlab platform gets its vendor CLI
-    server from ``CONTAINERLAB_ROUTER_SERVERS``.
+    server from ``CONTAINERLAB_ROUTER_SERVERS``. ``deployment`` is the
+    session or task row; its ISP deploy options add the security profiles the
+    deployment carries (eBGP RPKI/ROV mounts the FRR server).
     """
     backend = _resolve_diagnosis_backend(scenario_name, backend)
 
-    tokens = _scenario_tokens(scenario_name)
+    tokens = _scenario_tokens(scenario_name) | _deployment_tokens(
+        scenario_name, backend, device_profile, deployment
+    )
     if device_profile in ("iosxr", "routeros"):
         tokens.add(device_profile)
     servers = [
         DIAGNOSIS_HOST_SERVER,
-        DIAGNOSIS_PINGMESH_SERVER,
         DIAGNOSIS_PACKET_CAPTURE_SERVER,
     ]
 
@@ -242,7 +256,7 @@ def select_diagnosis_servers(
         servers.append("kathara_telemetry_mcp_server")
     if NETFLOW in telemetry:
         servers.append("kathara_netflow_mcp_server")
-    if PROMETHEUS in telemetry:
+    if set(telemetry) & {PROMETHEUS, NETFLOW, "pingmesh"}:
         servers.append("kathara_prometheus_mcp_server")
     if SYSLOG in telemetry:
         servers.append("kathara_syslog_mcp_server")
