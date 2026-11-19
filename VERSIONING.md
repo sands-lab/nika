@@ -16,7 +16,7 @@ Classify a change by its effect, not by where it is implemented. A change made e
 
 ## Releases and reproducibility
 
-Published releases do not change. Release `0.3.0` is the first tagged release with a benchmark engine, built from `v0.3.0`. Corrections to tasks, ground truth, scoring, or agent-visible behavior require a new benchmark revision.
+Published releases do not change. Release `0.3.0` is provisional until its tag is created; its manifest pins the benchmark engine. Corrections to tasks, ground truth, scoring, or agent-visible behavior after tagging require a new benchmark revision.
 
 Reproduce releases `0.1.0` and `0.2.0` only from their published code:
 

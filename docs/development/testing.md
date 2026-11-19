@@ -74,7 +74,7 @@ Workflows live under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | When | Runners | What |
 |----------|------|---------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | PR, push to `main`, manual | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines; seven engine oracle jobs covering Kathará, Containerlab, P4, and SDN; available published-engine checks |
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR, push to `main`, manual | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `dc_clos` mock-agent pipelines; seven engine oracle jobs covering Kathará, Containerlab, P4, and SDN; available published-engine checks |
 | [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | dual-arch startup/artifact suites; amd64 benchmark shards | All dev and test tasks from the latest benchmark release through the current engine and in process. Existing startup/artifact suites remain. |
 
 PR jobs shard one environment or image per runner. The engine matrix runs Kathará, Containerlab, and P4 on amd64 and arm64, plus SDN on amd64: seven jobs. SDN stays on amd64 because its ONOS dependency needs emulation on arm64; see the [maintainer decision](https://github.com/sands-lab/nika/issues/309#issuecomment-6624618475). On PRs, the `changes` job picks jobs from the changed paths:
@@ -386,7 +386,7 @@ NIKA_LEADERBOARD_E2E=1 uv run pytest tests/leaderboard/test_e2e_submit_github.py
 | Module | Purpose |
 |--------|---------|
 | `test_pipeline_kathara.py` | Kathara pipeline: env → inject → MCP → mock agent → close → metrics → summary |
-| `test_pipeline_clab.py` | Containerlab min3clos pipeline (same steps) |
+| `test_pipeline_clab.py` | Containerlab dc_clos pipeline (same steps) |
 
 ```shell
 uv run pytest tests/nika/workflows/integration/test_pipeline_kathara.py -v   # requires Docker
@@ -419,7 +419,7 @@ uv run pytest tests/nika/service/pingmesh/test_integration.py::KatharaPingMeshIn
 | `test_failure_inject_contract.py` | Kathara + Containerlab | **Verify-only**: parametrized inject + ground-truth via `verify_fault` |
 | `test_symptom_contracts.py` | none | Symptom contract registry + gray probe unit coverage |
 | `test_scenario_failure_compat.py` | Kathara | Parametrized scenario and failure compatibility sweeps (inject + verify) |
-| `test_pmtu_blackhole_combo.py` | Kathara | MTU + Frag Needed filter black-hole combo |
+| `test_failure_combinations_e2e.py` | Kathara | Live relation check for each registered failure combination: each failure alone, both together, and recovery of each |
 | `test_failure_e2e.py` | Kathara + Containerlab | Parametrized inject, artifact verification, symptom evaluation, and recovery; core cases include sender resource contention |
 | `test_web_dos_attack.py` | Kathara | Web DoS: separate verify-only and symptom suites |
 
@@ -438,7 +438,7 @@ Startup uses fast `startup_verify_lab()`; full healthy baseline checks run in te
 | --- | --- | --- |
 | `test_kathara_verify.py` | FakeRuntime + Kathara | Unit tests for startup/full verify; test-only `simple_bgp` deploy and full verify |
 | `test_scenario_e2e.py` | Kathara, Containerlab, k8s | Parametrized Docker E2E for representative scenarios |
-| `test_clab_min3clos_verify.py` | Containerlab | min3clos backend, node inventory, and cross-leaf ping |
+| `test_clab_dc_clos_verify.py` | Containerlab | dc_clos backend, node inventory, and cross-leaf ping |
 | `isp/test_isp_integration.py` | Kathara + Containerlab | ISP matrix; includes full `verify_lab` |
 
 ```shell

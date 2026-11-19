@@ -19,11 +19,11 @@ All three must hold. Any partial response rules out `host_crash`.
 - `root_cause_name=["host_crash"]`
 - `faulty_devices=["<device>"]`
 
-## Not load_balancer_overload
+## Load balancer pressure
 
-If the unresponsive device is the load balancer and it still answers ICMP, localhost HTTP, or any partial VIP probe, that is probably `load_balancer_overload`. Use `load-balancer-skill`.
+If the unresponsive device is the load balancer and it still answers ICMP, localhost HTTP, or any partial VIP probe, inspect the VIP and backend evidence before choosing a current fault candidate. Use `load-balancer-skill`.
 
-## Not sender/receiver_resource_contention
+## Endpoint CPU contention
 
 An isolated `exec_failed`/timeout on one web/app server or one client, while ICMP still answers or same-role peers are otherwise clean, is resource contention — not crash. Use `resource-contention-skill`. `host_crash` requires full silence and a clean same-role baseline.
 

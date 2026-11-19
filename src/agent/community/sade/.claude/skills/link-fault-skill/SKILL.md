@@ -1,13 +1,12 @@
 ---
 name: link-fault-skill
-description: Identify link_flap, link_down, and link_detach faults. Use when an interface is DOWN, missing, detached, repeatedly flapping, or shows network-down history.
+description: Identify link_flap and link_down faults. Use when an interface is DOWN, missing, detached, repeatedly flapping, or shows network-down history.
 ---
 
 # Link Faults
 
 ## What These Faults Mean
 
-- `link_detach`: the expected interface is missing entirely from the device.
 - `link_down`: the interface exists but is down and there is no evidence it is intentionally flapping.
 - `link_flap`: the interface repeatedly transitions down and up, so the device may look healthy by the time it is inspected.
 

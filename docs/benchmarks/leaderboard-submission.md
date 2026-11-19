@@ -7,6 +7,8 @@ Publish the result of an official benchmark release run on the NIKA leaderboard.
 | **Scores** | Metrics for every trial | GitHub PR to [`sands-lab/nika-leaderboard`](https://github.com/sands-lab/nika-leaderboard) |
 | **Trajectories** | Each trial's agent transcript and events | Hugging Face dataset PR to [`nika-bench/nika-trajectories`](https://huggingface.co/datasets/nika-bench/nika-trajectories) |
 
+The leaderboard ranks the **Test main score**, the equal-weight task mean over core, healthy, and multi-fault tasks. Vendor twins and third-size tasks are optional comparisons for a few representative agents. They do not change the ranking score. See [scoring and comparison outputs](root-cause-evaluation.md#aggregate-leaderboard-and-nika-eval-summary).
+
 ## Before you start
 
 - A finished `nika benchmark run --release …` against a current (non-deprecated) benchmark release.
@@ -14,7 +16,7 @@ Publish the result of an official benchmark release run on the NIKA leaderboard.
 - Hugging Face authentication through `hf auth login`, or `HF_TOKEN` in the environment or the repository-root `.env`. The token must permit proposing dataset changes.
 
 > [!IMPORTANT]
-> The run must include every trial the release defines for its split. Agent failures and timeouts count as finished trials with a zero score. Retry infrastructure failures. For grading errors, repair the grading inputs and regrade the saved submissions.
+> The run must include every main-task trial the release defines for its split. If `--include-slices` was selected, it must also include every optional-slice trial. Counted agent failures, including agent-work timeouts, receive a zero score. Resume the run to retry endpoint and infrastructure failures. For grading errors, repair the grading inputs and regrade the saved submissions.
 
 **Terms** (see the [glossary](../../GLOSSARY.md)):
 
@@ -23,11 +25,34 @@ Publish the result of an official benchmark release run on the NIKA leaderboard.
 - **Scores package** and **trajectories package**: the two submissions above.
 - **`metadata.yaml`**: the entry's name, authors, model, and agent harness. See [its fields](#metadatayaml).
 
+## Run Dev and Test with a shared configuration
+
+For a zero-shot evaluation of release 0.3.0, run the main set across Dev and Test in one run. Configure the agent and model as described in [configuration](../operations/configuration.md). The main set includes core, healthy, and multi-fault tasks. Vendor twins and third-size tasks are optional; add `--include-slices` to run them too.
+
+```shell
+uv run nika benchmark run --release 0.3.0 --split dev+test --result_dir results/my-run
+```
+
+Use the same configuration and model revision for helpers running the same evaluation. In the submission metadata, declare `agent.tuned_on_dev: false` for zero-shot agents or `true` for tuned agents. Public ranking uses only Test. `--split test` runs Test alone.
+
+You can also run and package Dev and Test separately. To join those packages on the site, set the same unique `agent.extra.comparison_id` in their metadata. Use a distinct ID for each repeat or configuration. Each ID accepts at most one package per split. Use the combined run when both splits would otherwise produce the same package name on one day.
+
+The leaderboard displays Dev, Test, and Dev+Test main scores. NIKA averages each task's trials first, then averages main tasks with equal weight. Dev+Test averages all main tasks together, rather than averaging the two split means. Healthy detection, healthy false positives, and multi-fault RCA F1 appear separately. Optional slices never enter the main score. Vendor twins report per-vendor deltas against their paired FRR core tasks, with fault-clustered 95% intervals for tiers A and C and a tier-A pooled delta. Size summaries separate generator-based families from ISP graph classes.
+
+Pack the finished run with the submission command below and add `--dry-run`. Before accepting a helper's package, compare it with the maintainer's reference scores package:
+
+```shell
+uv run nika leaderboard validate <helper-scores-package> \
+  --run-config-reference <reference-scores-package>
+```
+
+The check compares model and revision metadata, harness, tools, skills, tuning declaration, budgets, sampling, access, submission settings, and trial count. It ignores run IDs, dates, host locations, tags, and `comparison_id`. A mismatch rejects validation. Existing 0.1.0 and 0.2.0 packages remain valid without the new declaration and configuration fields.
+
 ## 🚀 Submit
 
 ```shell
 uv run nika leaderboard submit --result_dir results/my-run \
-  --name "My Agent" --authors "Your Name"
+  --name "My Agent" --authors "Your Name" --no-tuned-on-dev
 ```
 
 The command:
@@ -61,6 +86,7 @@ nika leaderboard submit --result_dir results/my-run \
 | Flag | Effect |
 | --- | --- |
 | `--dry-run` | Pack and validate without opening PRs |
+| `--tuned-on-dev`, `--no-tuned-on-dev` | Declare Dev tuning when generating minimal metadata |
 | `--hf-model org/name`, `--hf-revision <commit\|branch\|tag>`, `--proprietary` | Identify the model; see [Record the open-weight model](#record-the-open-weight-model) |
 | `--draft` | Open the GitHub PR as a draft |
 | `--skip-github`, `--skip-trajectories` | Skip one of the two PRs |
@@ -100,6 +126,7 @@ info:
 agent:
   model: ""           # required
   framework: ""       # required
+  tuned_on_dev: false # required for 0.3.0; true if tuned on Dev
   tools: []
   skills: []
   # Harness optimizations (not model fine-tunes). Examples: GEPA, skills, Multi-agent
@@ -189,7 +216,7 @@ Newly proposed audit rules require maintainer review before adoption. For review
 `submit` runs the same checks as leaderboard CI. You need the details below only when a check fails. It verifies that:
 
 - Identity and trial IDs match the official release. When the run's recorded NIKA commit is available, its task definitions and release settings must match too; an unavailable commit produces a warning.
-- Every trial the release defines is present, and the package metrics match the per-trial results. Trials that are not `scored` count as 0 in primary means.
+- Every expected trial for the run’s selected task set is present, and the package metrics match the per-trial results. Trials that are not `scored` count as 0 in primary means.
 - No trial ended with a scoring error. Each trial's `score_status` in its `run.json` is `grading_error` when grading failed, or `infra_error` when the environment, LLM API, or MCP failed. Resume the run to retry `infra_error` trials; for `grading_error`, repair the grading inputs and regrade (see [trial `score_status`](root-cause-evaluation.md#trial-score_status)).
 - Each trial's transcript records model or tool activity, and harness flags meet the [per-flag rate limits](#error_run_validity).
 - The trajectories package has the required per-trial files and the same trial set.
@@ -330,3 +357,7 @@ Some trials show signs of a problem that does not block the submission. Review t
 ### `WARNING_NON_DEFAULT_PRIMARY`
 
 The release declares a primary metric other than `rca_f1`. No action is needed when the release defines it.
+
+### `ERROR_RUN_CONFIG_MISMATCH`
+
+The package's recorded model, harness, budgets, or trials differ from `--run-config-reference`, or the reference package cannot be read. Use the maintainer's shared run configuration and model revision, rerun the affected work, and pack again.

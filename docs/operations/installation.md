@@ -42,7 +42,7 @@ Some parts still live outside the repository because they belong to the host:
 
 The tools NIKA runs for fault injection and Kubernetes image preparation come in Docker images that `nika images prepare` builds: `nika/tc-bpf` compiles and attaches eBPF programs, and `nika/skopeo` fetches workload images. skopeo uses the proxy variables and the inline `docker login` credentials from `~/.docker/config.json`; credential helpers stay on the host. Every Containerlab environment uses the host's `tc`, `ip`, and `nsenter` to join node-to-node links and to inject link faults; most distributions ship those tools by default, and the installer warns if one is missing.
 
-The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and `iosxr_simple_bgp` fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
+The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and IOS XR profiles fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
 It raises the IPv4 and IPv6 neighbor table limits (`net.ipv4.neigh.default.gc_thresh1/2/3` and the IPv6 keys) to at least `8192`, `16384`, and `32768` and persists them in `/etc/sysctl.d/99-nika-neigh.conf`. All container network namespaces share one kernel neighbor table, and large or concurrent labs overflow the kernel default of `1024` entries and drop packets. If the installer cannot change them, follow [Host neighbor table overflows](troubleshooting.md#host-neighbor-table-overflows-large-or-concurrent-labs).
 
@@ -68,7 +68,7 @@ Re-run `./scripts/install.sh` after `git pull` or on a host with an older or par
 
 - Rebuilds a `nika/*` image when its Dockerfile, the files the Dockerfile copies, or a parent image changed. Builds carry an `io.nika.build-hash` label that records these inputs. Images built by older installers have no label, so they rebuild once.
 - Tags `nika/*` images with the benchmark version (for example `nika/base:0.3.0` for nika-bench 0.3.0). When the current tag is missing but a build from another version (such as `nika/base:latest`) has the same build hash, the installer renames that tag instead of rebuilding. Otherwise it removes the old tag and rebuilds.
-- Removes image tags that the current release no longer references, from repositories only NIKA uses (`nika/*`, legacy `kathara/nika-*`, `rancher/k3s`, MetalLB, llm-d, agentgateway, Routinator, Batfish, SR Linux, SONiC, and the vendor router images). It also removes the Docker copies of Kubernetes workload images that older releases pulled; those images now live only in `.nika_cache/k8s-images/`. Images used by any container are kept. Generic images such as `postgres` or `debian` are never pruned.
+- Removes superseded `nika/*` and legacy `kathara/nika-*` tags and dangling NIKA builds. Images used by any container are kept. Upstream and vendor images, including licensed routers and Kubernetes workloads, stay in the local image store.
 - Removes stale `.nika_cache/` entries: workload archives the labs no longer use, other Helm versions and charts, and RouterOS CHR downloads for other versions. User-supplied XRd tarballs and SNDlib traffic are kept.
 - Reinstalls gnmic into `.venv/bin` when the `gnmic` on `PATH` differs from the pinned version, and installs Containerlab there when the `clab` on `PATH` is older than the minimum version. A newer Containerlab is kept, including one installed from a package by an older installer.
 - Rewrites an inotify sysctl file from an older installer into the current format.
@@ -121,9 +121,9 @@ sbx runs each sandbox as a KVM microVM, so your user needs read/write on `/dev/k
 
 ## Prepare vendor images
 
-Skip this unless you need a lab that depends on a third-party router image (for example [`iosxr_simple_bgp`](network-scenarios.md#ios-xr-simple-bgp-scenario) or [`routeros_simple_bgp`](network-scenarios.md#routeros-simple-bgp-scenario)). Ordinary FRR and Containerlab labs do not need it.
+A full benchmark run requires all router images, including user-prepared IOS XR (XRd) and RouterOS images. Individual labs need only the images of their selected router platform.
 
-Pass `--with-vendor-images` so the installer builds or loads those Docker images. Without the flag, nothing vendor-related is downloaded. Today's supported images:
+Pass `--with-vendor-images` so the installer builds or loads those Docker images. Without the flag, the installer does not prepare XRd or RouterOS. Today's supported images:
 
 | Scenario | Docker image | What you provide |
 | --- | --- | --- |
@@ -138,7 +138,7 @@ That prepares both images when possible: RouterOS always (CHR download + build),
 
 Vendor artifacts land under `.nika_cache/vendor/` (gitignored): XRd tarballs as `xrd-*.tgz`, CHR zip downloads, and the `hellt/vrnetlab` clone at `vrnetlab/`. Provide XRd via `--xrd-tarball`, `NIKA_XRD_TARBALL`, or a file in that directory. Override the cache root with `NIKA_VENDOR_CACHE`. If the target Docker image tag already exists, the step is skipped.
 
-Manual fallback for each lab: [IOS-XR](network-scenarios.md#ios-xr-simple-bgp-scenario), [RouterOS](network-scenarios.md#routeros-simple-bgp-scenario).
+Manual fallback for each lab: [IOS-XR](network-scenarios.md#install-the-ios-xr-image), [RouterOS](network-scenarios.md#install-the-routeros-image).
 
 ## Set up Firecracker execution
 

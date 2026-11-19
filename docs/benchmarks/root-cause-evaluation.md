@@ -8,7 +8,7 @@ Implementation: [`rca/models.py`](../../src/nika/problems/rca/models.py) defines
 
 NIKA represents each independent injected fault as one `(resource_id, fault_type)` pair.
 
-- `resource_id` identifies the mutated resource in the lab catalog.
+- `resource_id` identifies the catalog resource that owns the faulty configuration.
 - `fault_type` is a registered failure ID such as `link_down` or `bgp_asn_misconfig`. The task MCP server returns the accepted values from `list_avail_problems()`.
 
 The resource catalog uses these canonical IDs:
@@ -20,7 +20,9 @@ The resource catalog uses these canonical IDs:
 | Link | `link/{sorted node:intf joined by --}` | `link/pc1:eth0--router1:eth0` |
 | Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/NetworkPolicy/word-ns/default-deny-ingress` |
 
-Owner kind follows the mutated catalog object. Controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`) use the undirected link TP set. Interface removals, egress hooks, and queueing faults stay on `interface/...`.
+Owner kind follows the catalog resource that owns the faulty configuration. Controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`) use the undirected link TP set. Interface removals, egress hooks, and queueing faults stay on `interface/...`.
+
+Kubernetes Service, Deployment, Ingress and load-balancer configuration faults use the control-plane device. Node networking and taint faults use the affected device. NetworkPolicy faults use the policy object. The submission ontology states the resource kind for each failure ID.
 
 Benchmark YAML stores the parsed resource fields (`kind` / `node` / `name`, or the k8s fields) plus `fault_type`. NIKA derives `resource_id` from those fields when it scores, injects, or accepts a submit. Agent submissions may send either `resource_id` or the same resource fields; `submit` always writes the constructed `resource_id`.
 
@@ -32,7 +34,7 @@ root_causes:
     fault_type: link_down
 ```
 
-Healthy ground truth uses `is_anomaly: false` and an empty `root_causes` list. Benchmark YAML may include `problem: healthy` rows for no-fault control cases; those rows skip injection and persist the same healthy ground truth. A multi-fault case contains one root-cause object for each injected fault source. Each object identifies the resource that the injector mutates. Symptoms and affected peers do not become root-cause labels.
+Healthy ground truth uses `is_anomaly: false` and an empty `root_causes` list. Benchmark YAML may include `problem: healthy` rows for no-fault control cases; those rows skip injection and persist the same healthy ground truth. A multi-fault task contains one pair for each independent root cause. Symptoms and affected peers do not become root-cause labels.
 
 Multi-fault benchmark rows use a `problems` list and nested `inject` maps. The normalized `problem` label is `problem_a+problem_b` for task labels and fingerprints.
 
@@ -142,13 +144,15 @@ Fault types match only when they are identical. A predicted resource matches a g
 
 Joint RCA uses the same rule for the resource half of each pair. Fault-type metrics count the types of the same deduplicated pairs, one to one, without regard to resource: a correct type on a wrong resource still matches, and repeating that type on more resources adds false positives. Each ground-truth item is matched at most once, so naming both ends of a faulty link scores one true positive and one false positive. A coarser prediction, such as `node/{node}` for an interface fault, does not match.
 
-A failure can declare `root_cause_resource_match = "any"` when its listed resources are alternative locations for one distributed fault. For `bgp_max_prefix_exceeded`, either the receiver or its advertising peer earns full RCA credit with the correct fault type. For `flow_rule_loop`, either participating switch earns full credit. These alternatives count as one location and one resource/type pair, including when both are named. Other failures retain their resource requirements for RCA.
+A failure can declare `root_cause_resource_match = "any"` when its listed resources are alternative locations for one distributed fault. For `ospf_duplicate_router_id`, `ospf_network_type_mismatch`, `ospf_hello_interval_mismatch`, and `mac_address_conflict`, either endpoint earns full RCA credit with the correct fault type. For `flow_rule_loop`, either participating switch earns full credit. These alternatives count as one location and one resource/type pair, including when both are named. Other failures retain their resource requirements for RCA.
 
 Special case: when both `P` and `T` are empty, precision, recall, and F1 are all `1.0` only if the submission also says `is_anomaly: false`. That is the correct score for a healthy case. A healthy case submitted as `is_anomaly: true` with an empty `root_causes` list scores `0.0`. An agent that never submits must not reach this path (see `score_status` below).
 
 Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable `is_anomaly` also scores `0.0`. Trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, `tool_errors`) are recorded separately. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. Traces go through `agent.utils.usage.normalize_usage`.
 
 Score columns are only values in `[0, 1]` or `null`. They never store `-1`.
+
+A task row can set `objectives` to the diagnosis objectives it asks for: a subset of `detection`, `localization`, and `rca` that always contains `rca`. A row without `objectives` asks for all three. The task description names the objectives of a task that asks for fewer, and the scores of objectives it does not ask for are `null`. RCA and fault-type scores are always computed. Setting `objectives` changes the task ID; listing all three does not.
 
 `eval_metrics.json` records `validity_flags`; see [`WARNING_RUN_VALIDITY`](leaderboard-submission.md#warning_run_validity) and [`ERROR_RUN_VALIDITY`](leaderboard-submission.md#error_run_validity).
 
@@ -179,22 +183,35 @@ If the agent already wrote `submission.json` and cleanup later hits an infra fau
 
 ### Aggregate (leaderboard and `nika eval summary`)
 
-Primary means use a fixed denominator `N = case_count × n_trials`:
+The release main score is the equal-weight mean of the core, healthy, and multi-fault **task** scores. First average each task's RCA F1 across its expected trials, then average those task means. Missing trials and non-scored trials contribute zero. Healthy RCA F1 is one only for an explicit healthy diagnosis with no root causes. The two size-exempt BGP faults still enter the main score.
 
-`mean = (sum of per-trial contributions) / N`
+Vendor twins and third-size rows never enter the main score. `main_score` records the result; `mean_rca_f1` retains the same value for package consumers that require that field. Historical packages retain their published aggregation. Localization and detection summaries omit objectives the task does not ask for.
 
-Each contribution is the trial's score when `score_status=scored`, and `0` for every other status (including `null` scores and trials that never landed). Missing expected trials contribute `0`.
+Report these comparisons separately:
+
+| Output | Definition |
+| --- | --- |
+| `healthy_false_positive_rate` | Average each healthy task's false-positive rate over scored diagnoses, then average tasks; null when none were scored. Missing submissions reduce the main score and submission rate. |
+| `multi_fault_mean_rca_f1` | Equal-weight task mean of RCA F1 across multi-fault tasks. |
+| `vendor_deltas` | Separate `A` and `C` maps give each vendor's task-mean RCA F1 minus its referenced FRR core, averaged over pairs. `A.all_vendors` pools the tier-A differences across vendors. A 95% t interval uses cluster scores summed by fault; fewer than two fault clusters gives no interval. Unmatched pairs are counted separately. |
+| `size_slices` | Task means by family and size, with generator families separate from ISP graph classes. Includes core and third-size rows and excludes the two marked exceptions. These are descriptive comparisons across different networks. |
+
+Release 0.3.0 tier A supports conclusions only about the ISP-backbone faults listed in its [release README](../../benchmark/releases/0.3.0/README.md). Each fault contributes one small-graph FRR base and four vendor twins. The effective sample size is the number of fault clusters, including for the pooled comparison. Vendor observations and repeated trials within a fault share that cluster. Tier C has vendor-specific fault coverage, including host targets and mixed-platform networks. Report its deltas separately from tier A. The paired deltas include deployment-backend differences when the vendor uses a different backend from FRR.
+
+The tier-A target includes `bgp_md5_password_mismatch`, whose ISP candidates use only size-s graphs, so the different-size core rule excludes it from tier A. `bgp_acl_block` and `ospf_acl_block` lack supported SONiC filters and cannot supply complete four-vendor cells. The main set still includes these faults; their supported vendor comparisons belong to tier C.
+
+[`aggregate.py`](../../src/nika/workflows/leaderboard/aggregate.py) supplies the leaderboard package, validation, and offline summary calculations. Run-health and token totals cover all selected trials, including optional slices.
 
 Always report these as a pair:
 
 - `submission_rate = n(scored) / N`
-- `conditional_mean_*` over the `scored` subset only (`null` when `n(scored)=0`)
+- `conditional_mean_*`: average scored trials within each main task that asks for the objective, then average those task means; `null` when no such trials exist
 
 Also report:
 
 - `status_counts` for each `score_status`
 - fault-case means for `rca_f1` and `localization_f1`
-- healthy-case mean for `detection_score` (RCA/localization are not meaningful for healthy controls)
+- healthy-task mean for `detection_score`, alongside false-positive rate and submission coverage
 - `case_consistency`: the share of groups by `case_key` in which every trial is `scored` with `rca_f1 == 1.0`. Each case group has equal weight, including healthy cases, where `rca_f1` is 1.0 only for an `is_anomaly: false` submission; partial scores and non-scored trials fail the group. An empty run yields `0.0`. Leaderboard packages may omit this additive field for compatibility with older packages. Coverage validation separately requires every expected trial.
 
 Leaderboard pack/validate rejects a package when any trial has `grading_error` or residual `infra_error`.

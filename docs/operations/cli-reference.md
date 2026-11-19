@@ -47,7 +47,7 @@ uv run nika case browse --env dc_clos --failure host_missing_ip
 
 Review the task ID and injection parameters, then choose to start the lab, export a single-case YAML file, or show a reproduction command. Starting creates an isolated session and injects the selected failure. It leaves the lab running for manual diagnosis and prints the session ID and cleanup command. It does not start an agent. Starting requires the scenario's lab backend and Docker images, just as `nika env run` does.
 
-The default browser combines `benchmark/working/pool` with compatible registered failure/scenario/size combinations missing from that pool. This includes labs excluded from benchmark generation, such as `iosxr_simple_bgp`. NIKA generates missing injection presets with the existing target enumerator and checks their parameters and ground truth offline. It reports combinations with no legal target rather than offering them as runnable. The browser does not change the working pool or published benchmarks. Use `--catalog PATH` to restrict discovery to a particular pool directory, candidate YAML, or flat cases YAML.
+The default browser combines `benchmark/working/pool` with compatible registered failure/scenario/size combinations missing from that pool. NIKA generates missing injection presets with the existing target enumerator and checks their parameters and ground truth offline. It reports combinations with no legal target rather than offering them as runnable. The browser does not change the working pool or published benchmarks. Use `--catalog PATH` to restrict discovery to a particular pool directory, candidate YAML, or flat cases YAML.
 
 The menus, preview, and JSON output label cases as `experimental` when NIKA has no recorded E2E validation for them. Catalog membership alone does not establish runtime validation, so current catalog presets also carry this label. The `case_source` JSON field distinguishes catalog presets from generated presets. Deployment profiles and injection presets remain complete records throughout selection. Launching checks injection parameters against the topology again.
 
@@ -55,7 +55,7 @@ For scripts, list presets as JSON and select a returned task ID:
 
 ```shell
 uv run nika case browse --env dc_clos --failure host_missing_ip --json
-uv run nika case browse --env iosxr_simple_bgp --failure bgp_asn_misconfig --json
+uv run nika case browse --env dc_clos --failure bgp_asn_misconfig --json
 uv run nika case browse --task-id TASK_ID --output my-case.yaml
 uv run nika case run TASK_ID
 ```
@@ -161,7 +161,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 ## `nika env`
 
 - **`nika env list`**: print registered scenario ids.
-- **`nika env run NAME [-s s|m|l] [--telemetry KIND] [--traffic PATTERN[,KEY=VALUE...]] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG] [--result_dir PATH]`**: deploy one instance, run configured runtime verification, create a session, and print `session_id=…`. Repeat `--telemetry` for `netflow`, `prometheus`, and `syslog`; see [Telemetry](network-scenarios.md#telemetry). `--traffic` adds a background traffic profile, such as `--traffic gravity,load_mbps=4`; see [Background traffic profiles](network-scenarios.md#background-traffic-profiles). Batfish follows `nika.static_validation.enabled` (CLI flags override it for one run). Runtime depth follows `nika.runtime_validation.depth` (default `light`).
+- **`nika env run NAME [-s s|m|l] [--telemetry KIND] [--traffic PATTERN[,KEY=VALUE...]] [--static-validation|--no-static-validation] [--no-redeploy] [--instance-tag TAG] [--result_dir PATH]`**: deploy one instance, run configured runtime verification, create a session, and print `session_id=…`. All telemetry kinds are enabled by default. Repeat `--telemetry` to select `netflow`, `prometheus`, `syslog`, or `pingmesh`; see [Telemetry](network-scenarios.md#telemetry). `--traffic` adds a background traffic profile, such as `--traffic gravity,load_mbps=4`; see [Background traffic profiles](network-scenarios.md#background-traffic-profiles). Batfish follows `nika.static_validation.enabled` (CLI flags override it for one run). Runtime depth follows `nika.runtime_validation.depth` (default `light`).
 
   Deploy options for ISP and multi-backend scenarios:
 
@@ -171,9 +171,9 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
   | `--metric-strategy constant\|routing_cost\|inv_capacity` | Link metric strategy for ISP topology scenarios (default `constant`) |
   | `--constant-metric N` | Metric for the `constant` strategy and fallbacks (default `10`) |
   | `--bgp-mode none\|ibgp_rr\|ebgp` | BGP preset for ISP topology scenarios (default `none`) |
-  | `--rpki` / `--no-rpki` | Deprecated for base ISP scenarios. Use the named scenarios `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` |
+  | `--rpki` / `--no-rpki` | Records RPKI/ROV on an ISP `--bgp-mode ebgp` deployment on Kathara FRR, which carries it anyway. Other deployments reject it |
   | `--backend kathara\|containerlab` | Lab backend. Defaults to `kathara` when both are supported |
-  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux\|sonic` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` and `sonic` on Containerlab; the default follows `--backend`. `min3clos` accepts `nokia_srlinux` (default) and `sonic`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros` on Kathara. `dc_clos` also accepts `nokia_srlinux` and `sonic` on Containerlab at every supported size. RouterOS supports only size `s` in these three environments. IOS XR supports only size `s` for `dc_clos`, and all sizes for `campus_lan` and `enterprise_branch`. See [SONiC routers](network-scenarios.md#sonic-routers-on-containerlab), [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
+  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux\|sonic` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` and `sonic` on Containerlab; the default follows `--backend`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros` on Kathara. `dc_clos` also accepts `nokia_srlinux` and `sonic` on Containerlab at every supported size. RouterOS supports only size `s` in these three environments. IOS XR supports only size `s` for `dc_clos`, and all sizes for `campus_lan` and `enterprise_branch`. See [SONiC routers](network-scenarios.md#sonic-routers-on-containerlab), [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---
@@ -232,7 +232,7 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
   | Scenario type | Label | Example |
   |---------------|--------|---------|
-  | Non-scalable | `{scenario}_{problem}` | `min3clos_link_down` |
+  | Non-scalable | `{scenario}_{problem}` | `isp_pdh_link_down` |
   | Scalable | `{scenario}_{size}_{problem}` with size `s`, `m`, or `l` | `dc_clos_s_link_down` |
 
   Discover pieces with `nika env list` and `nika failure list`.
@@ -308,10 +308,10 @@ Use these commands when you need to look up a case or re-run one failed trial wi
 ```shell
 nika benchmark list
 nika benchmark list --release 0.3.0 --split test
-nika benchmark describe dc_clos__link_detach__m__h240c6b1dc30f \
+nika benchmark describe TASK_ID \
   --release 0.3.0 --split test
 nika benchmark run --release 0.3.0 --split test \
-  --task-id dc_clos__link_detach__m__h240c6b1dc30f__t01 \
+  --task-id TASK_ID__t01 \
   --result_dir results/one-case
 ```
 
@@ -320,8 +320,8 @@ nika benchmark run --release 0.3.0 --split test \
 | `nika benchmark list` | Without `--release` or `--config`, prints one row per frozen release: version, default split, case count per split, `n_trials`, and status. It reads only the `RELEASE.yaml` manifests and skips preflight. With `--release` (optionally `--split`) or `--config`, prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for each case. Add `--json` for scripts. |
 | `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. `--oracle` also prints the task's reference diagnosis, the oracle's playbook steps (see [Oracle solver](../benchmarks/oracle-solver.md)). |
 | `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before the run starts. |
-| `nika benchmark run --skip-licensed` | `--config` batch mode only. Leaves out rows that need licensed vendor images: IOS XR and RouterOS `device_profile` rows, `iosxr_simple_bgp`, `routeros_simple_bgp`. Without it, a run that needs a missing licensed image stops before any lab starts and lists the affected rows. |
-| `nika benchmark run --device-profile NAME` | `--config` batch mode only. Repeatable. Runs only rows of these router platforms (`frr`, `nokia_srlinux`, `sonic`, `iosxr`, `routeros`); an explicit `device_profile` takes precedence. Otherwise Containerlab rows count as `nokia_srlinux`, and other rows use the environment's uniquely declared native platform, with `frr` as the fallback. For example, `routeros_simple_bgp` rows count as `routeros` without the field. |
+| `nika benchmark run --skip-licensed` | `--config` batch mode only. Leaves out rows that need licensed vendor images: IOS XR and RouterOS `device_profile` rows. Without it, a run that needs a missing licensed image stops before any lab starts and lists the affected rows. |
+| `nika benchmark run --device-profile NAME` | `--config` batch mode only. Repeatable. Runs only rows of these router platforms (`frr`, `nokia_srlinux`, `sonic`, `iosxr`, `routeros`); an explicit `device_profile` takes precedence. Otherwise Containerlab rows count as `nokia_srlinux` and Kathara rows as `frr`. |
 
 ### Run layout and artifacts
 
@@ -396,13 +396,15 @@ nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-
 ### Generate and select candidate cases
 
 - **`nika benchmark generate [--output DIR]`**: write the executable candidate pool (default `benchmark/working/pool`) and print how many candidate files and inject options it produced.
-- **`nika benchmark generate --validated-only`**: keep IOS XR and RouterOS cases only for cells that `validate-profiles` recorded as validated.
+- **`nika benchmark generate --validated-only`**: keep IOS XR, RouterOS, and SONiC tasks only for cells that `validate-profiles` recorded as validated.
 - **`nika benchmark validate-profiles [--list] [--native-only] [--environment ENV] [--device-profile P] [--failure F] [--limit N] [--rerun]`**: run one case per (environment, device profile, failure) cell end to end and record the result in `benchmark/working/validation/device_profiles.yaml`. Heavy: cells run one at a time under `/tmp/nika-heavy-lab.lock`.
 - **`nika benchmark select [--pool DIR] [--output PATH] [--seed N] [--skip-audit]`**: pick a compact case subset from the audited pool (default output `benchmark/working/cases.yaml`, seed `42`). `--skip-audit` bypasses the pool audit gate; avoid it for release candidates.
+- **`nika benchmark run --release VERSION --include-slices`**: add vendor twins and third-size comparisons to the default main task set. `--main-only` selects only core, healthy, and multi-fault tasks. Both modes rank on the Test main score.
+- **`nika benchmark split [--output DIR] [--pool DIR] [--seed N]`**: generate network-disjoint `dev.yaml`, `test.yaml`, and `dev_pool.yaml` from the candidate pool (default output `benchmark/working/split`, pool `benchmark/working/pool`, seed `42`). Write joint-solve bounds, size patterns, vendor-twin capacity, and main-task distributions to `report.json`. This offline command writes the candidate files and exits with status 1 when hard constraints fail. See [Prepare Dev and Test splits](../benchmarks/benchmark-configuration.md#prepare-dev-and-test-splits).
 
 ### Freeze a release
 
-**`nika benchmark freeze --version VERSION --source DIRECTORY`** copies validated `dev.yaml` and `test.yaml` into `benchmark/releases/VERSION/`. It refuses to overwrite an existing destination.
+**`nika benchmark freeze --version VERSION --source DIRECTORY`** copies validated `dev.yaml` and `test.yaml` into `benchmark/releases/VERSION/`. It refuses to overwrite an existing destination and pins the benchmark engine to `vVERSION` with the current engine API. A multi-fault task must be one of the tested tasks in the [failure combination catalog](failures.md#failure-combinations); other benchmark files may combine failures freely.
 
 ### Migrate root causes
 

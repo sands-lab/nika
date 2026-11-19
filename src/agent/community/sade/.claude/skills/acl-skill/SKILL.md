@@ -8,12 +8,11 @@ description: Identify ACL and firewall faults from nftables or iptables rules. U
 ## What This Family Means
 
 - `arp_acl_block`: the device firewall blocks ARP itself, so neighbor discovery fails before normal IP traffic can work.
-- `icmp_acl_block`: the device drops ICMP, so ping-based reachability looks broken even if some non-ICMP traffic could still work.
-- `http_acl_block`: TCP port 80 is blocked on the affected device or path.
+- `host_acl_block`: a host firewall drops ICMP or the HTTP service port. Identify the blocked protocol from traffic and packet-filter evidence.
 - `dns_port_blocked`: DNS packets on port 53 are blocked by firewall policy.
 - `ospf_acl_block`: OSPF control-plane packets are blocked on a router even though interfaces and config may look normal.
 - `bgp_acl_block`: TCP port 179 is blocked, so BGP traffic cannot form or sustain the session.
-- `link_fragmentation_disabled`: packet-size filtering drops larger packets. This is a firewall/filter rule, not a physical link failure.
+- `icmp_frag_needed_filter_misconfiguration`: a filter blocks ICMP Fragmentation Needed and can mask a path MTU problem.
 
 ## Leading Signals
 
@@ -23,8 +22,8 @@ description: Identify ACL and firewall faults from nftables or iptables rules. U
 
 ## Exact Calls
 
-- `exec_shell(host_name="<flagged-device>", command="nft list ruleset")`
-- `exec_shell(host_name="<flagged-device>", command="iptables -L -n -v")`
+- `device_read(host_name="<router>", commands=["nft list ruleset"])`
+- `exec_shell(host_name="<host>", command="nft list ruleset")`
 
 Inspect the implicated devices through MCP and match firewall rules against the affected protocol and path.
 
@@ -32,7 +31,7 @@ Inspect the implicated devices through MCP and match firewall rules against the 
 
 - If one host is the repeated suspicious source across many destinations, check that host first.
 - If many sources converge on one destination or one small destination set, inspect that destination once, then check the first shared router or core router with `nft list ruleset`.
-- A clean destination-host ruleset does not clear `icmp_acl_block`; the matching drop rule may live on a router on the shared path.
+- A clean destination-host ruleset requires checking other implicated hosts and the shared path before choosing a fault.
 
 ## Guardrails
 

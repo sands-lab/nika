@@ -25,73 +25,22 @@ uv run nika benchmark describe enterprise_branch__link_down__hcecf68b8564f \
   --release 0.3.0 --split test --oracle
 ```
 
-```yaml
-oracle:
-- fault_type: link_down
-  finding: The link on br1_corp_pc:eth0 has no carrier, so every path across it is cut.
-  steps:
-  - step: 1
-    purpose: 'Triage: measure reachability and latency across the endpoint mesh.'
-    call:
-      tool: run_pingmesh_snapshot
-      args: {}
-  - step: 2
-    purpose: List interface states and routes on br1_corp_pc, an endpoint of the unreachable paths.
-    call:
-      tool: exec_shell
-      args:
-        host_name: br1_corp_pc
-        command: ip -br link; ip route
-        timeout: 15
-  - step: 3
-    purpose: Check the operational state of br1_corp_pc:eth0.
-    call:
-      tool: exec_shell
-      args:
-        host_name: br1_corp_pc
-        command: ip -d link show dev eth0; ip -br addr show dev eth0
-        timeout: 15
-    expect: br1_corp_pc:eth0 is operationally down
-    evidence: true
-  submit:
-  - resource_id: link/br1_corp_pc2:eth0--br1_corp_pc3:eth0--br1_corp_pc4:eth0--br1_corp_pc:eth0--br1_edge:eth0
-    fault_type: link_down
-```
+The output lists each step's tool, arguments, expected observation and evidence flag, followed by the root causes that confirmed evidence permits the oracle to submit.
 
 Playbooks that read the running environment's state, such as those for Containerlab tasks, cannot be built offline; for them `describe --oracle` prints `unavailable offline`, so run the oracle on a live session instead.
 
 ## How the oracle solves a task
 
 1. It rebuilds each injected failure from the session's injection record and asks the failure for its playbook.
-2. It measures the symptom with a Pingmesh snapshot, then runs the playbook steps in order. A step whose observation takes time to settle after injection, or that checks an intermittent fault, is retried until the observation holds.
-3. It submits the ground-truth root causes of every failure whose evidence steps all hold. In a multi-fault task it can therefore submit the confirmed faults and leave out an unconfirmed one, which earns partial RCA credit while `oracle.json` reports `solved: false`. When no failure is confirmed, it does not submit, so the trial ends as `no_submission` and scores 0.
+2. It maps authored device reads to `device_read` using the scenario's declared node roles and capabilities. Unsupported shell evidence stays in the playbook and fails access checks; the oracle keeps every evidence requirement.
+3. It measures the symptom with a Pingmesh snapshot, then runs the playbook steps in order. A step whose observation takes time to settle after injection, or that checks an intermittent fault, is retried until the observation holds.
+4. It submits the ground-truth root causes of every failure whose evidence steps all hold. In a multi-fault task it can therefore submit the confirmed faults and leave out an unconfirmed one, which earns partial RCA credit while `oracle.json` reports `solved: false`. When no failure is confirmed, it does not submit, so the trial ends as `no_submission` and scores 0.
 
 A healthy task's playbook is a Pingmesh snapshot that must report no anomalies; the oracle then submits `is_anomaly: false`, and otherwise does not submit.
 
 ## Write a playbook for a new failure
 
-Each failure implements `oracle_playbook(params)` next to `inject_fault` and `verify_fault`. Build it from the step templates in [`support/oracle.py`](../../src/nika/problems/support/oracle.py), such as `shell`, `ping`, `nft_rule`, `iface_down`, `kubectl`, `p4rt`, and `onos`, and the checks `contains`, `lacks`, and `all_of`. The `link_down` playbook in [`link.py`](../../src/nika/problems/link_interface/link.py):
-
-```python
-def oracle_playbook(self, params: LinkFailureParams) -> OraclePlaybook:
-    intf = resolve_default_intf(params.intf_name, self.net_env)
-    host = params.host_name
-    steps = [
-        shell(
-            host,
-            "ip -br link; ip route",
-            f"List interface states and routes on {host}, an endpoint of the unreachable paths.",
-        ),
-        iface_down(host, intf),
-    ]
-    peer = self._peer_endpoint(host, intf)
-    if peer is not None:
-        steps.append(iface_down(*peer, evidence=False))
-    return OraclePlaybook(
-        finding=f"The link on {host}:{intf} has no carrier, so every path across it is cut.",
-        steps=steps,
-    )
-```
+Each failure implements `oracle_playbook(params)` next to `inject_fault` and `verify_fault`. Build it from the step templates in [`support/oracle.py`](../../src/nika/problems/support/oracle.py), such as `shell`, `ping`, `nft_rule`, `interface_state`, `kubectl`, `p4rt`, and `onos`, and the checks `contains`, `lacks`, and `all_of`. The [link-down and flap playbooks](../../src/nika/problems/link_interface/link.py) show how to read the selected attachment through its platform's tools and check carrier over time.
 
 Follow these rules so the playbook proves solvability rather than restating the answer:
 
@@ -99,3 +48,11 @@ Follow these rules so the playbook proves solvability rather than restating the 
 - Mark as evidence only the observations that tell this failure apart from similar ones in the [fault ontology](root-cause-evaluation.md#submit-a-diagnosis). For example, `dns_service_down` needs no `named` process and no port 53 listener, while `dns_port_blocked` needs `named` running behind a port 53 drop rule.
 - Keep steps read-only. Probe traffic is fine; configuration changes and restarts are not.
 - Cover every backend and device profile the failure runs on. Test the playbook on a real task with `uv run nika benchmark run --release 0.3.0 --split test --agent oracle --task-id {task_id}`, or with `uv run nika agent run --agent oracle` on a session where you injected the failure.
+
+When a check depends on an earlier observation, save that output with `save_as` and use `compare(description, predicate)`. The predicate receives the current output and the mapping of saved outputs. Keep comparisons and counter arithmetic in the predicate. Use repeated steps or `attempts` for temporal observations; device commands contain only the read itself.
+
+Link-down evidence requires carrier to remain down throughout a 12-second observation. Link-flap evidence requires both carrier states and separate bursts of packet loss. A single down sample cannot distinguish these failures.
+
+A more-specific BGP hijack requires live evidence of the legitimate owner's covering prefix, along with the hijacker's local origin, export, and the observer's selected path. Declared prefix ownership selects the router and prefix to inspect; it does not replace the live observation.
+
+Select the prefix in SR Linux route and BGP reads. Read the chosen best path's referenced attribute set separately. Full-table JSON can exceed the MCP output limit and become an unparseable preview.

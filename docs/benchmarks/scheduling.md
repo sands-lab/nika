@@ -134,7 +134,7 @@ The session's `t0` starts after deployment, healthy-network checks, schedule pre
 
 Use `nika session close --session_id <id>` to cancel one running scheduled session. On Linux, the close command signals the owning trial worker, checks its process identity, and waits for scheduler and environment cleanup. Other sessions keep running. Interrupting a benchmark also follows its existing worker cleanup and abort policy. Resume starts an interrupted timeline from a clean session.
 
-Session cleanup reverses the actual injection order. If restoration fails, cleanup records the error and stops restoring older snapshots before environment teardown.
+Session cleanup reverses the actual injection order. For a combination, each step verifies its own restored configuration or artifact; healthy-service checks run after all members are recovered. If restoration fails, cleanup records the error and stops restoring older snapshots before environment teardown.
 
 Recovery is scheduled at `at + duration`. If injection finishes two seconds late, a 30-second window still schedules recovery at its original end. Due commands can execute late under host load; actual command acknowledgment and verification are recorded separately. Failure operations serialize within a session because the existing injection workflow aligns saved configuration artifacts across the lab. Traffic operations can run independently. NIKA does not provide hard real-time execution guarantees.
 

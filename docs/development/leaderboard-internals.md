@@ -50,6 +50,12 @@ Flags: `--dry-run`, `--hf-model`, `--hf-revision`, `--proprietary`, `--draft`, `
 
 Directory name `YYYYMMDD_<framework>_<model>`, lowercase ASCII words joined by underscores (validated on `--out`). The framework is the public harness name, not the NIKA agent ID: `cli.claude` → `Claude Code` → `claude_code`; `cli.codex` → `Codex`; `cli.opencode` → `OpenCode`; `cli.dsh` → `DeepSeek Harness`; `byo.langgraph` → `ReAct` → `react`. The map is in `meta_input.py`. Example: `20261012_claude_code_gemma_4_31b_it`.
 
+## Main score and optional comparisons
+
+`release_check.select_release_tasks` applies the run's `include_slices` selection to official coverage. A default run needs every main task; a run with slices also needs every comparison task. Packing records the selection in `BenchmarkIdentity`, and validation recomputes coverage and aggregates from the official task rows. Task labels in the trial artifacts do not override the official release.
+
+`aggregate_trial_results` accepts authoritative task rows and the expected trial count per task. It gives each main task equal weight after averaging trials, with missing trials at zero. `main_score` and the required `mean_rca_f1` field carry the same main score. Vendor deltas use referenced FRR cores and t intervals clustered by fault. Size summaries separate generator families and ISP graph classes. Offline summaries use the same aggregator and preserve task IDs across trials.
+
 ## Release identity and drift
 
 Validation computes expected trials from the official `benchmark/releases/<version>/` files in `sands-lab/nika`. New releases use `v<version>` tags; historical releases use the published reference listed in the [versioning policy](../../VERSIONING.md#releases-and-reproducibility). Each trial ID includes a hash of its task definition.
@@ -63,8 +69,8 @@ Release settings that differ at the recorded producer commit produce `ERROR_BENC
 
 ## Coverage and scoring
 
-- Coverage is exact: `case_count × n_trials` finished slots, with both values from the release. Example for 0.3.0: test 85 × 3 = 255, dev 84 × 3 = 252. Runs limited by `--task-id` or a single trial fail unless the directory already holds every required trial.
-- Agents submit `(resource_id, fault_type)` pairs; scoring uses set metrics on those pairs. Primary means use the fixed denominator `N = case_count × n_trials`; non-`scored` trials contribute 0. Full rules: [root-cause evaluation](../benchmarks/root-cause-evaluation.md#score-a-submission).
+- Coverage is exact: `selected_task_count × n_trials` finished slots, using the run’s task selection and the release’s trial count. A main-only run needs all main tasks; a run with slices also needs every optional comparison. Runs limited by `--task-id` or a single trial fail unless the directory already holds every required trial.
+- Agents submit `(resource_id, fault_type)` pairs; scoring uses set metrics on those pairs. The main RCA score averages expected trials within each main task, then averages those task means. Missing and non-`scored` trials contribute zero; optional comparisons are excluded. Full rules: [root-cause evaluation](../benchmarks/root-cause-evaluation.md#score-a-submission).
 - `score_status` (in each trial's `run.json`): `scored`, `no_submission` (agent fault, counts as 0, do not rerun), `infra_error` (no submission and missing ground truth or env/LLM API/MCP failure evidence; auto-retried by resume and `--retry-passes`), `grading_error` (submission exists but ground truth or scorer failed; regrade, do not rerun the agent). Any `grading_error` or residual `infra_error` rejects the package with no threshold (`ERROR_GRADING_ERROR`, `ERROR_INFRA_ERROR`).
 
 ## Run-validity flags

@@ -75,7 +75,8 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.access.role` | `default` | Diagnosis access role for the run. `--role` on `agent run` / `benchmark run` overrides it. The role must exist in `agent.access.roles`. Benchmark runs record it in the run identity. |
 | `agent.access.roles.<role>.tools` | `["*"]` | MCP tools the agent may call during diagnosis. `*` allows every tool. Submission always allows only `submit`. |
 | `agent.access.roles.<role>.node_roles` | `["*"]` | Scenario node roles that node-targeted tools may address. `*` allows every role. |
-| `agent.access.roles.<role>.node_ids` | `[]` | Extra node names allowed regardless of `node_roles`. |
+| `agent.access.roles.<role>.node_ids` | `[]` | Extra node names allowed regardless of `node_roles`. Shell access still follows the node role. |
+| `agent.access.roles.<role>.shell_node_roles` | `["host", "server", "service", "controller"]` | Node roles allowed to use `exec_shell`. This list can restrict shell access further; routers, switches and infrastructure nodes never receive shell access. |
 
 Model resolution order: `-m/--model`, then `agent.model`.
 
@@ -182,6 +183,7 @@ Default production and benchmark paths use light runtime checks without Batfish 
 | --- | --- | --- |
 | `benchmark.release` | `null` | Frozen release selected when `--release` is absent. |
 | `benchmark.split` | `null` | Release split selected when `--split` is absent. |
+| `benchmark.include_slices` | `false` | Add vendor twins and third-size comparisons to the main set. `--include-slices` and `--main-only` override this setting. |
 | `benchmark.batch_size` | `1` | Max concurrent light trials (sliding window). Must be at least `1`. |
 | `benchmark.heavy_batch_size` | `1` | Max concurrent heavy trials: Containerlab, k8s/llmd/XRd, and topo_size `l` cases. Must be at least `1`. Heavy and light trials never overlap; with `1`, each heavy trial runs alone on the host. When a heavy trial is next in the queue, NIKA stops starting light trials, waits for running trials to finish, then starts heavy trials. |
 | `benchmark.case_timeout_sec` | `2400` | Hard wall-clock limit per trial. Set `0` to disable it. |

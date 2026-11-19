@@ -13,7 +13,7 @@ The agent and its sandbox stay on the host and reach the environment through the
 
 ## When to use it
 
-Firecracker execution runs working YAML matrices and releases that do not pin a [benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol). It cannot run a release that pins one yet, such as `--release 0.3.0`. To run release 0.3.0's tasks, pass its task file as a matrix, for example `--config benchmark/releases/0.3.0/test.yaml`; such a run uses the current NIKA's code instead of the release's engine and is not an official release run.
+Firecracker execution runs working YAML matrices and releases that do not pin a [benchmark engine](../development/benchmark-contracts.md#b-lifecycle-protocol). It cannot run a release that pins one yet. To try the provisional 0.3.0 tasks, pass their task file as a matrix, for example `--config benchmark/releases/0.3.0/test.yaml`; this uses the current NIKA code and is not an official release run.
 
 The measurements on this page used release `0.2.0` tasks at commit [`ac4422d8`](https://github.com/sands-lab/nika/commit/ac4422d8a4a03be2b905e28edf72993d467e1b81).
 
@@ -94,9 +94,9 @@ Firecracker execution needs huge pages (`huge_pages: true`, the default). VM mem
 
 ### VM size
 
-Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. A variant whose routers run a router platform (`device_profile` SR Linux, SONiC, IOS XR or RouterOS) is sized from what it deploys. Memory is 1 GiB for the guest, the platform's memory per router (SONiC 256 MiB, RouterOS 1 GiB, SR Linux 1.5 GiB, IOS XR 3 GiB) and 64 MiB per other node, rounded up to whole GiB. Those per-router figures are the sizing budget; [scenario startup performance](../benchmarks/scenario_perf.md#sonic-containerlab) records measured Containerlab memory. vCPUs are 1 for the guest plus the platform's CPU per router (SONiC 250 millicores; SR Linux, RouterOS and IOS XR 1 vCPU), rounded up, and not below the default `vm_cpus`. `isp_pdh` gets 4 vCPUs and 5 GiB on SONiC, and 12 vCPUs and 19 GiB on SR Linux.
+Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. A variant whose routers run a router platform (`device_profile` SR Linux, SONiC, IOS XR or RouterOS) is sized from what it deploys. Memory is 2 GiB for the guest, the platform's memory per router (SONiC 256 MiB, RouterOS 1 GiB, SR Linux 1.5 GiB, IOS XR 3 GiB) and 64 MiB per other node, rounded up to whole GiB. Native router deployments also cover the environment's full deployment memory estimate plus the guest reserve. Those per-router figures are the sizing budget; [scenario startup performance](../benchmarks/scenario_perf.md#sonic-containerlab) records measured Containerlab memory. vCPUs are 1 for the guest plus the platform's CPU per router (SONiC 250 millicores; SR Linux, RouterOS and IOS XR 1 vCPU), rounded up, and not below the default `vm_cpus`. `isp_pdh` gets 4 vCPUs and 6 GiB on SONiC, and 12 vCPUs and 20 GiB on SR Linux.
 
-Other large labs get 8 GiB by default: `dc_clos`, `k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`). That 8 GiB is also a floor when a named router platform would otherwise size the VM smaller, so min3clos stays at 8 GiB on SONiC and SR Linux. `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 12 vCPUs when they have no router platform. `dc_clos` size l uses about 4.2 GiB in the guest. An image build warns when a lab leaves less than a quarter of its VM memory free; raise `vm_memory_overrides` for that environment, or for one variant with `<scenario>@<device_profile>`:
+Environments without a router-platform memory budget reserve 64 MiB per declared node plus 2 GiB for the guest, rounded up to whole GiB. This includes telemetry infrastructure nodes. Controller and infrastructure nodes use their declared container memory limit when it exceeds the per-node budget. The default `vm_memory` remains a floor. Other large labs get 8 GiB by default: `dc_clos`, `k8s_lab` and `llmd_lab`. That 8 GiB is also a floor when a named router platform would otherwise size the VM smaller, so these environments keep at least 8 GiB on SONiC and SR Linux. `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 12 vCPUs when they have no router platform. `dc_clos` size l uses about 4.2 GiB in the guest. An image build warns when a lab leaves less than a quarter of its VM memory free; raise `vm_memory_overrides` for that environment, or for one variant with `<scenario>@<device_profile>`:
 
 ```yaml
 nika:
@@ -113,7 +113,7 @@ Use `vm_cpus_overrides` the same way for vCPUs (`isp_pdh: 16` or `isp_pdh@sonic:
 
 A trial restored from a lab image still verifies the environment and injects its failure before the agent starts. For most tasks that takes a few seconds, but in the profiled baseline injection takes 50–110 s for several `dc_clos`, `enterprise_branch`, `campus_lan`, `k8s_lab` and `llmd_lab` tasks, and verifying `isp_pdh` (SR Linux) takes tens of seconds, again in every trial.
 
-To skip that when you run the same tasks repeatedly, such as several agents or models on one release, keep each task's VM right after injection as a *case image*:
+To skip that when you run the same tasks repeatedly, such as several agents or models on one release, save a *case image* for each task. Untimed tasks save the VM after injection; timed tasks save the healthy baselines and replay their timeline after each restore:
 
 ```yaml
 nika:
@@ -122,12 +122,14 @@ nika:
       case_images: true
 ```
 
-Every trial of the task then restores its case image, and the agent starts 1–8 s after the trial begins. A case image stores only the memory pages that changed since the lab image, compressed, plus the disk blocks that changed: median 32 MiB, up to 180 MiB, and 3.5 GiB for the profiled test split. Building one takes a restore, the injection and a snapshot, about a minute for most tasks. [Per environment](#per-environment) lists the build time, disk and break-even point.
+In the profiled untimed tasks, the agent starts 1–8 s after the trial begins. Timed tasks replay their authored schedule before diagnosis. A case image stores only the memory pages that changed since the lab image, compressed, plus the disk blocks that changed: median 32 MiB, up to 180 MiB, and 3.5 GiB for the profiled test split. Building one takes a restore, the injection and a snapshot, about a minute for most tasks. [Per environment](#per-environment) lists the build time, disk and break-even point.
 
 Case images change how trials start:
 
-* All trials of a task start from the same injected state instead of injecting the failure again. Failures that evolve over time (traffic floods, resource contention, flapping) continue from the moment of injection.
-* A trial checks that the injected failure is still present instead of repeating the startup verification, and fails if it is not.
+* Untimed trials of a task start from the same injected state instead of injecting the failure again. Failures that evolve over time (traffic floods, resource contention, flapping) continue from the moment of injection.
+* An untimed trial checks that every injected failure is still present instead of repeating the startup verification, and fails if any is absent. Timed trials verify the healthy restored environment before starting their timeline.
+* Timed tasks save their healthy baselines in the case image. Each restored copy applies the task’s placements and runs its authored timeline from a new session clock.
+* Multi-fault tasks retain a healthy symptom baseline for each member. Their restored artifacts, member symptoms, and joint outage or masking relation can be checked with the [benchmark audit](../benchmarks/benchmark-audit.md).
 * Healthy tasks restore the lab image as before.
 
 The restore times above assume the lab image's memory is in the page cache, which is usual because trials of one environment variant run together. The first restore of a variant reads that memory from disk: 10–40 s for most labs and about 100 s for `isp_pdh` (15 GiB).
@@ -146,7 +148,7 @@ The restore times above assume the lab image's memory is in the page cache, whic
 
 ### Clock
 
-Before exposing a restored environment, NIKA aligns its UTC clock with the restore host. Guest uptime and monotonic protocol timers continue from the saved state. `run.json` records any clock difference between the agent and lab hosts as `remote_clock_offset_sec`.
+A restored environment continues from the snapshot’s guest clock. NIKA records the agent-host minus lab-host clock offset in `run.json` as `remote_clock_offset_sec` while following remote logs. This preserves guest service state and lease timers when an older snapshot resumes.
 
 * Agent timing metrics use host timestamps only.
 * `nika inspect` shifts lab-host rows onto the host clock, so the timeline stays in order; the lab's own time is kept as `lab_timestamp`.
@@ -214,7 +216,7 @@ Restored labs behave like freshly deployed ones:
 
 ### Per environment
 
-*Per trial* is the median time outside the agent. *Pays off after* is the number of runs of that environment's tasks after which its builds have cost less than the time they saved. Case images count failure tasks only; healthy tasks restore the lab image.
+*Per trial* is the median time outside the agent. *Pays off after* is the number of runs of that environment's tasks after which its builds have cost less than the time they saved. Case images count failure tasks only; healthy tasks restore the lab image. These measurements use the historical 0.2.0 environment names; the retired fabric and named ISP variants are not current runtime registrations.
 
 | Environment | Tasks | Native, per trial | Lab image: build, disk | Firecracker, per trial | Pays off after (runs) | Case images: builds, disk | With case images, per trial | Case images pay off after (more runs) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -235,7 +237,7 @@ Restored labs behave like freshly deployed ones:
 | `isp_pdh` s | 1 | 237 s | 574 s, 2.8 GiB | 117 s | 1.59 | 449 s, 179 MiB | 5 s | 1.3 |
 | `k8s_lab` | 6 | 344 s | 460 s, 4.2 GiB | 23 s | 0.08 | 924 s, 506 MiB | 2 s | 2.8 |
 | `llmd_lab` | 5 | 207 s | 258 s, 4.3 GiB | 20 s | 0.09 | 859 s, 457 MiB | 3 s | 3.2 |
-| `min3clos` | 1 | 115 s | 207 s, 1.4 GiB | 10 s | 0.66 | 151 s, 64 MiB | 3 s | 7.2 |
+| Retired five-node fabric | 1 | 115 s | 207 s, 1.4 GiB | 10 s | 0.66 | 151 s, 64 MiB | 3 s | 7.2 |
 | `p4_dc_fabric` l | 1 | 187 s | 192 s, 389 MiB | 9 s | 0.36 | 56 s, 34 MiB | 2 s | 2.8 |
 | `p4_dc_fabric` m | 1 | 106 s | 123 s, 328 MiB | 12 s | 0.44 | 48 s, 23 MiB | 5 s | 2.2 |
 | `p4_dc_gateway` l | 5 | 173 s | 193 s, 471 MiB | 17 s | 0.08 | 350 s, 185 MiB | 3 s | 1.7 |

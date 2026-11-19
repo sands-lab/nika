@@ -15,7 +15,7 @@ description: Identify DNS server-side faults — wrong record, daemon down, port
 ## Exit conditions
 
 - If only one host's `/etc/resolv.conf` differs from peers and the DNS server itself is healthy, exit to `host-ip-skill` and submit `host_incorrect_dns` there. That RCA is NOT owned by this skill.
-- If `dhcpd.conf` on the DHCP server pushes the wrong nameserver and affected hosts show that exact wrong resolver, exit to `dhcp-fault-skill` for `dhcp_spoofed_dns`.
+- If `dhcpd.conf` on the DHCP server pushes the wrong nameserver and affected hosts show that exact wrong resolver, exit to `dhcp-fault-skill` for `dhcp_option_dns`.
 
 ## Guardrails
 

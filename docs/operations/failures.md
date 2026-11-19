@@ -13,7 +13,7 @@ uv run nika failure describe <failure_id>
 
 The Verification evidence column states what `verify_fault` checks to gate `nika failure inject`; some checks also include selected behavioral conditions. The Trigger and signal column describes expected behavior under the stated traffic and topology, rather than a result guaranteed by an artifact check. Test-path **`evaluate_symptom`** (unified probe API under `src/nika/validation/symptom/`) checks user-visible impact separately; user workflows do not call it. See [Testing guide](../development/testing.md#problem-injection-testsnikaproblems).
 
-`sender_resource_contention`, `receiver_resource_contention`, and `tcp_syn_flood_attack` run until recovery or session close. Their `duration` input remains accepted for stored task definitions; it does not set a timer.
+`endpoint_cpu_contention` and `tcp_syn_flood_attack` run until recovery or session close. Their `duration` input remains accepted for stored task definitions; it does not set a timer.
 
 ## Taxonomy model
 
@@ -25,20 +25,19 @@ The `failure_domain` identifies the subsystem where the injected mechanism acts.
 
 ## Domain boundaries
 
-Failure-task counts come from the [working pool](../benchmarks/benchmark-configuration.md#working-matrix), the task space that `nika benchmark run` runs by default. Its 50,066 failure tasks and 313 healthy controls total 50,379 tasks.
+The [working pool](../benchmarks/benchmark-configuration.md#working-matrix) records generated task coverage. The registry defines the domains below.
 
-| Domain | Boundary | Registered failures | Failure tasks in the working pool |
-| --- | --- | ---: | ---: |
-| Link & Interface | Link attachment, interface state, flapping, packet corruption, and capacity bottlenecks. | 6 | 22,054 |
-| Routing & Control Plane | BGP, OSPF, and IS-IS route computation, advertisements, adjacency, and routing-daemon availability. | 22 | 11,999 |
-| Forwarding, Encapsulation & Policy | ACLs, static forwarding, RIB/FIB consistency, SDN rules, P4 pipelines, MTU behavior, WireGuard and Kubernetes VXLAN encapsulation, and Kubernetes NetworkPolicy. | 29 | 9,675 |
-| Service Networking | Kubernetes ClusterIP forwarding, Service port mapping, Service selector matching, Ingress class selection and rate limits, and load-balancer operation and address advertisement. | 11 | 41 |
-| Management & Orchestration Plane | Kubernetes API-server reachability, Kubernetes Deployment replica counts and readiness probes, node taints, SDN controller availability, controller southbound management channels, and switch identity at the controller. | 9 | 47 |
-| Addressing, Neighbor & Naming | IP and MAC assignment, ARP, DHCP, DNS data, DNS reachability, and name resolution. | 13 | 1,872 |
-| Endpoint & Application | Endpoint resource contention and application delay. | 2 | 359 |
-| Traffic, Queueing & Resource | Offered load, queueing, and end-host resource constraints. | 4 | 184 |
-| Security | Attacks, spoofing, and poisoning. | 7 | 3,835 |
-| **Total** |  | **103** | **50,066** |
+| Domain | Boundary |
+| --- | --- |
+| Link & Interface | Link attachment, interface state, flapping, packet corruption, and capacity bottlenecks. |
+| Routing & Control Plane | BGP, OSPF, and IS-IS route computation, advertisements, adjacency, and routing-daemon availability. |
+| Forwarding, Encapsulation & Policy | ACLs, static forwarding, RIB/FIB consistency, SDN rules, P4 pipelines, MTU behavior, WireGuard and Kubernetes VXLAN encapsulation, and Kubernetes NetworkPolicy. |
+| Service Networking | Kubernetes ClusterIP forwarding, Service port mapping, Service selector matching, Ingress class selection and rate limits, and load-balancer operation and address advertisement. |
+| Management & Orchestration Plane | Kubernetes API-server reachability, Kubernetes Deployment replica counts and readiness probes, node taints, SDN controller availability, controller southbound management channels, and switch identity at the controller. |
+| Addressing, Neighbor & Naming | IP and MAC assignment, ARP, DHCP, DNS data, DNS reachability, and name resolution. |
+| Endpoint & Application | Endpoint resource contention and application delay. |
+| Traffic, Queueing & Resource | Offered load, queueing, and end-host resource constraints. |
+| Security | Attacks, spoofing, and poisoning. |
 
 The domains follow the failed network mechanism.
 
@@ -52,8 +51,8 @@ The scenario labels below reproduce tag-subset matching (`TAGS` on each failure 
 | **Host L2** | `dc_clos`, `campus_lan`, `enterprise_branch`, `sdn_l3_clos`, `p4_dc_fabric`, `p4_dc_gateway`, `k8s_lab`, `llmd_lab` |
 | **Routed host** | `dc_clos`, `campus_lan`, `enterprise_branch`, `k8s_lab` |
 | **FRR** | `dc_clos`, `campus_lan`, `enterprise_branch`, `isp_*`, `k8s_lab` |
-| **BGP** | `dc_clos`, `enterprise_branch`, `isp_*`, `min3clos`, `k8s_lab` |
-| **RPKI** | `isp_abilene_ebgp_rpki`, `isp_geant_ebgp_rpki` |
+| **BGP** | `dc_clos`, `enterprise_branch`, `isp_*`, `k8s_lab` |
+| **RPKI** | `isp_*` with `--bgp-mode ebgp` on Kathara FRR |
 | **OSPF** | `campus_lan`, `isp_*` |
 | **IS-IS** | `isp_*` |
 | **DNS** | `dc_clos` and `campus_lan` |
@@ -64,28 +63,40 @@ The scenario labels below reproduce tag-subset matching (`TAGS` on each failure 
 | **Kubernetes** | `k8s_lab`, `llmd_lab` |
 | **VPN** | `enterprise_branch` |
 
-For base `isp_*` scenarios, OSPF failures require `--igp ospf` and IS-IS failures require `--igp isis`; BGP failures require `--bgp-mode ibgp_rr` or `ebgp`. `bgp_max_prefix_exceeded` requires `isp_abilene` or `isp_geant` with `--bgp-mode ebgp`. `bgp_ttl_security_mismatch` requires `--bgp-mode ebgp`. `bgp_rpki_invalid_route_leak` requires `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` (Kathara+FRR+Routinator). Generated benchmark rows select those scenario IDs. Generic link failures and dual-backend BGP/ACL/static faults expand onto both Kathará+FRR and Containerlab, within the [Containerlab ISP size cap](network-scenarios.md#sndlib-isp-scenarios). Other ISP failures stay Kathará-only. SONiC routers route with FRR, so failures in the **FRR** set can also run on `dc_clos`, `min3clos`, and Containerlab ISP environments with `--device-profile sonic`, subject to backend, provider, and target checks. Receiver resource contention and RIB/FIB inconsistency require Kathara. [Router platforms](#router-platforms) lists which failures run on SR Linux, IOS XR, RouterOS, and SONiC.
+For base `isp_*` scenarios, OSPF failures require `--igp ospf` and IS-IS failures require `--igp isis`; BGP failures require `--bgp-mode ibgp_rr` or `ebgp`. `bgp_ttl_security_mismatch` requires `--bgp-mode ebgp`. On Kathara FRR, every eBGP deployment carries the RPKI/ROV profile (with a Routinator cache) and, where the AS partition has the provider interconnect, the RTBH profile, so the RPKI-invalid-origin variant of `bgp_hijacking` runs where the unauthorized origin directly peers a non-ROV observer, and `bgp_blackhole_community_leak` runs where RTBH is present. Generic link failures and dual-backend BGP/ACL/static faults expand onto both Kathará+FRR and Containerlab, within the [Containerlab ISP size cap](network-scenarios.md#sndlib-isp-scenarios). Other ISP failures stay Kathará-only. SONiC routers route with FRR, so failures in the **FRR** set can also run on `dc_clos` and Containerlab ISP environments with `--device-profile sonic`, subject to backend, provider, and target checks. Endpoint CPU contention and RIB/FIB inconsistency require Kathara. [Router platforms](#router-platforms) lists which failures run on SR Linux, IOS XR, RouterOS, and SONiC.
+
+The `bgp_route_leak` failure runs on Kathara FRR eBGP graphs whose AS partition has a multihomed customer and two peering providers. The healthy customer exports only locally originated routes upstream. Injection bypasses that restriction on one session, so the receiver prefers a customer transit path while the original origin ASN remains RPKI valid. The Oracle checks the received AS path and export policy to distinguish this failure from an origin hijack or a missing route. RFC 9234 roles and OTC describe a protocol mitigation; these environments use export filters rather than OTC enforcement.
+
+The `link_latency` failure adds one-way delay to the controller-side link. Compare a business flow crossing it with an endpoint-to-gateway control path that avoids it, then use direct cross-link probes or traceroute to locate the delay. Its deployment compatibility follows `link_packet_corruption`.
+
+## Device and link localization
+
+`device_flow_blackhole` and `device_forwarding_packet_corruption` affect flow-selected traffic through the whole device. Their reference diagnoses compare two service paths that share that device but no data link. A deployment without two such paths cannot establish this device-level diagnosis from path evidence.
+
+For black holes, compare repeated five-tuples, successful control flows, and ICMP reachability. For internal payload corruption, compare receiver TCP checksum counters before and after transfers on both paths. Interface counters provide context; these silent faults do not manufacture interface discard or CRC errors. Real ASIC queue discards and physical receive errors have different meanings, as described in [Juniper's drop-counter reference](https://www.juniper.net/documentation/us/en/software/junos/junos-overview/topics/concept/using-show-commands-for-packet-drops.html) and [Cisco's interface-error reference](https://www.cisco.com/c/en/us/support/docs/switches/catalyst-6500-series-switches/12027-53.html).
+
+`link_packet_corruption` affects one link and also damages large ICMP probes. Its Oracle requires partial ICMP loss with rising receiver integrity-error counters. Device payload corruption preserves ICMP; device flow blackholing preserves ICMP and loses selected handshakes consistently. The audit runs these playbooks against each other at the same attachment.
 
 ## Router platforms
 
-Failures that change a router's own state run on FRR by default. On SR Linux they run through the failure's Containerlab branch. On IOS XR, RouterOS and SONiC they run through a fault-operations provider: `src/nika/net_env/utils/<platform>/fault_ops.py` implements the `RouterFaultOps` operations of [`router_ops.py`](../../src/nika/problems/support/router_ops.py), and a failure targets a platform's routers only when the provider implements every operation in the failure's `native_router_operations`. Failures that act on the container link outside the router OS (`link_down`, `link_flap`, `link_capacity_bottleneck`, `link_packet_corruption`) run on every platform the backend supports.
+Failures that change a router's own state run on FRR by default. On SR Linux they run through the failure's Containerlab branch. On IOS XR, RouterOS and SONiC they run through a fault-operations provider: `src/nika/net_env/utils/<platform>/fault_ops.py` implements the `RouterFaultOps` operations of [`router_ops.py`](../../src/nika/problems/support/router_ops.py), and a failure targets a platform's routers only when the provider implements every operation in the failure's `native_router_operations`. Failures that act on the container link outside the router OS (`link_down`, `link_flap`, `link_capacity_bottleneck`, `link_packet_corruption`, `link_latency`) run on every platform the backend supports.
 
 | Failure | IOS XR | RouterOS | SONiC |
 | --- | --- | --- | --- |
-| `link_detach` | XRd keeps the port up and drops its traffic; recovery restarts the software packet path (`process restart spp`) | A watcher drops the guest NIC's carrier while the interface is missing; recovery puts a converted router's interface back into the bridge of its RouterOS port | Takes the port operationally down; recovery deletes and re-creates the port and its addresses in CONFIG_DB so the virtual switch binds it again |
-| `device_forwarding_packet_corruption` | Not a target | Attaches the eBPF program to the Kathara container interface of the RouterOS router | Attaches the eBPF program to the [host-side wire](network-scenarios.md#backend-requirements) that carries the port's egress |
+| `link_down` | Drops carrier on the Kathara attachments while the interface remains present | Drops carrier on the Kathara attachments while the interface remains present | Drops carrier on the link attachments outside the router OS |
+| `device_forwarding_packet_corruption` | Not a target | Applies the flow selector to controller-owned proxies on every data port | Applies the flow selector to the [host-side wires](network-scenarios.md#backend-requirements) on every data port |
 | `bgp_asn_misconfig` | Renumbers `router bgp` | Sets `/routing bgp instance` `as=` | Rewrites `router bgp` in `frr.conf`, removes the live instance, and reloads the file |
-| `bgp_max_prefix_exceeded` | Configures a terminating BGP prefix limit | Configures a terminating BGP prefix limit | Runs the FRR implementation (`frr_shell`) |
 | `bgp_missing_route_advertisement` | Withdraws the BGP `network` statement | Removes the prefix from the BGP output address list or VRF connected export | `no network` in FRR and `frr.conf` |
 | `routing_service_down` | Excluded on XRd 26.2.1: stopped processes fail to restart | Excluded: no persistent routing-service stop operation | Stops SONiC's supervised FRR daemons |
 | `ospf_area_misconfiguration` | Changes the interface OSPF area | Changes the OSPF area ID and restarts the instance | Changes the FRR network or interface area and saves the configuration |
-| `ospf_neighbor_missing` | Removes the interface from its `router ospf` area | Removes the interface template that covers the interface | Removes the FRR network or interface binding for one adjacency and saves the configuration |
+| `ospf_interface_not_enabled` | Removes the interface from its `router ospf` area | Removes the interface template that covers the interface | Removes the FRR network or interface binding for one adjacency and saves the configuration |
 | `bgp_hijacking` | Adds the prefix's first address on `Loopback1` and a BGP `network` statement | Adds the address on a bridge interface, the prefix to the BGP output network list, and an accept rule to the export filter | Adds the prefix's first address on `Loopback1` in CONFIG_DB and a BGP `network` statement in FRR |
-| `bgp_acl_block` | Ingress and egress ACL `deny tcp any any eq bgp` on every addressed interface | `input` and `output` firewall filter rules that drop TCP port 179 | iptables `INPUT` and `OUTPUT` rules that drop TCP source and destination port 179, then `clear ip bgp *` |
-| `ospf_acl_block` | Ingress ACL `deny ospf any any` on every addressed interface | `input` and `output` firewall filter rules that drop `protocol=ospf` | iptables `INPUT` and `OUTPUT` rules that drop `-p ospf`, where SONiC's control-plane ACL service installs its rules |
+| `bgp_acl_block` | Ingress and egress ACL `deny tcp any any eq bgp` on every addressed interface | `input` and `output` firewall filter rules that drop TCP port 179 | Unsupported; requires a native SONiC ACL implementation. |
+| `ospf_acl_block` | Ingress ACL `deny ospf any any` on every addressed interface | `input` and `output` firewall filter rules that drop `protocol=ospf` | Unsupported; requires a native SONiC ACL implementation. |
 | `host_static_blackhole` | Static `Null0` route | `/ip route add … blackhole` | FRR `ip route <prefix> blackhole` and `frr.conf` |
 | `mtu_mismatch` | Sets the IPv4 MTU of the IOS XR interface | Sets the container interface MTU and the RouterOS ethernet port MTU | Writes the CONFIG_DB port MTU |
-| `icmp_frag_needed_filter_misconfiguration` | IPv4 access list that denies ICMP packet-too-big, applied in both directions on every addressed interface | Firewall filter drop for ICMP type 3 code 4 | iptables `DROP` for `-p icmp --icmp-type fragmentation-needed` on `INPUT`, `FORWARD`, and `OUTPUT` |
+| `icmp_frag_needed_filter_misconfiguration` | IPv4 access list that denies ICMP packet-too-big, applied in both directions on every addressed interface | Firewall filter drop for ICMP type 3 code 4 | Unsupported; requires a native SONiC ACL implementation. |
+
 
 Without `supported_backends`, a failure runs on Kathara and, on Containerlab, only on SONiC routers. A failure with an SR Linux implementation lists `containerlab` in `supported_backends`.
 
@@ -93,43 +104,46 @@ Without `supported_backends`, a failure runs on Kathara and, on Containerlab, on
 
 ### Link & Interface
 
-On Kathara, link impairments (`link_flap`, `link_capacity_bottleneck`, `link_packet_corruption`, `silent_egress_packet_loss`) run in a controller-owned VDE fault proxy outside the lab. Each Kathara collision domain is one VDE hub. The proxy takes over the hub's two ports and bridges them through its own interfaces, where `tc` applies the fault; recovery hands the ports back to the hub. The lab interfaces are never re-created, so their ifindex, MAC, counters, qdiscs and carrier stay as they were, and the injector does not explicitly restart routing sessions or BMv2. Routing sessions can still expire if the impairment prevents protocol packets from arriving. Like the hub itself, the proxy forwards frames without a carrier state, so a flap does not toggle the node's carrier.
+On Kathara, link impairments run in a controller-owned VDE proxy outside the lab. Capacity limits, latency, packet corruption, and silent loss use `tc` on the proxy interfaces. `link_flap` toggles carrier on the lab TAP interfaces at both ends; nodes observe carrier transitions while the interfaces remain administratively up. Recovery removes the proxy and restores carrier. The injector preserves the lab interfaces and does not restart routing processes. Routing sessions can expire when an impairment interrupts their packets.
 
-On Containerlab, link failures (`link_down`, `link_flap`, `link_capacity_bottleneck`, `link_packet_corruption`) change carrier or apply `tc` on the [host-side wires](network-scenarios.md#backend-requirements). A down or flapping link drops carrier at both ends.
+On Containerlab, link failures (`link_down`, `link_flap`, `link_capacity_bottleneck`, `link_packet_corruption`, `link_latency`) change carrier or apply `tc` on the [host-side wires](network-scenarios.md#backend-requirements). A down or flapping link drops carrier at both ends.
 
 | Root cause | Failure ID | Scenarios | Parameters | Injection method | Trigger and signal | Verification evidence | Sources |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Link detached | `link_detach` | **All** | `host_name`, `intf_name=eth0` | Moves the interface into a network namespace held by a controller-side container, so it disappears from the node's inventory. Recovery moves it back, restores its addresses and static routes, and rebinds the native router port when required. | Traffic using the attachment fails and the interface disappears from inventory. | The interface no longer exists in the node namespace. Test-path probes check reachability. | [iproute2, ip-link(8)](#source-link_detach-1) |
-| Link down | `link_down` | **All** | `host_name`, `intf_name=eth0` | Drops carrier on the logical link: Kathara brings down both point-to-point attachments; Containerlab brings down both host ends of the link's wire, so the nodes see lost carrier with the interface still administratively up. | The attachment reports operstate down; traffic crossing the link fails and routing adjacencies on it drop. | Endpoint operstate is down on the injected attachment (and peer when present). GT labels the undirected link TP set. | [Linux kernel, Operational States](#source-link_down-1) |
-| Link flap | `link_flap` | **All** | `host_name`, `intf_name=eth0`, `down_time=1`, `up_time=1` | Runs the flap loop outside the lab node. Kathara uses a controller-owned VDE proxy. Containerlab uses a controller-host worker that toggles both host ends of the link's [host-side wire](network-scenarios.md#backend-requirements). Generated SR Linux access-port tasks use a 12-second up period so carrier recovery settles before the next flap. | Sustained ping or protocol sessions show periodic loss and adjacency churn. | The benchmark controller confirms the hidden flap worker and restores the logical link during recovery or lab teardown. Test-path probes require a healthy baseline (≤5% loss), then observe periodic packet loss and optional operstate or routing alignment across 1s/1s flap cycles. | [Linux kernel, Operational States](#source-link_flap-1) |
-| Link capacity bottleneck | `link_capacity_bottleneck` | **All** | `host_name`, `intf_name=eth0`, `rate=200kbit`, `burst=64kb`, `limit=500kb` | Applies a controller-side token-bucket filter to traffic leaving `host_name:intf_name` (Kathara VDE proxy or Containerlab host veth peer), like a carrier circuit provisioned below the ordered rate. Endpoint interface qdisc stays ordinary. In environments with [business traffic](network-scenarios.md#business-traffic), benchmark rows shape an egress that the traffic loads with at least 1.5 Mbit/s of bulk TCP (`bulk_transit`) down to a 512 kbit/s tier with a 32 kB queue, so IGP and BGP control traffic still fits. | The loaded egress flat-tops at the shaped rate; bulk flows across it lose throughput and retransmit, and RTT across the link rises by the queue delay, while small pings still succeed. | The controller confirms the hidden TBF; short iperf3 transfers measure throughput well below an unthrottled path. GT labels the undirected link TP set. | [iproute2, tc-tbf(8)](#source-link_capacity_bottleneck-1) |
+| Link latency | `link_latency` | **All**, subject to the link corruption deployment constraints | `host_name`, optional `intf_name`, `delay_ms=100` | Adds one-way propagation delay in the Kathara controller proxy or Containerlab host-side wire. | Business-path RTT rises relative to an unaffected control path. | Reads back the external delay qdisc. Oracle probes local and cross-link latency and traces the link; ground truth labels the link. | [RIPE NCC, A Deep Dive Into the Baltic Sea Cable Cuts](#source-link_latency-1) |
+| Link down | `link_down` | **All** | `host_name`, `intf_name=eth0` | Drops carrier on the logical link: Kathara brings down both point-to-point attachments; Containerlab brings down both host ends of the link's wire, so the nodes see lost carrier with the interface still administratively up. | The attachment reports operstate down; traffic crossing the link fails and routing adjacencies on it drop. | Endpoint operstate is down on the injected attachment (and peer when present). GT labels the undirected link TP set. | [iproute2, ip-link(8)](#source-link_down-1); [Linux kernel, Operational States](#source-link_down-2) |
+| Link flap | `link_flap` | **All** | `host_name`, `intf_name=eth0`, `down_time=1`, `up_time=1` | Runs the flap loop outside the lab node. Kathara toggles both endpoint TAP carriers through a controller-owned VDE proxy. Containerlab uses a controller-host worker that toggles both host ends of the link's [host-side wire](network-scenarios.md#backend-requirements). Generated ISP access-link and SR Linux access-port tasks use a 12-second up period so carrier recovery settles before the next flap. | Sustained ping or protocol sessions show periodic loss and adjacency churn. | The benchmark controller confirms the hidden flap worker and restores the logical link during recovery or lab teardown. Test-path probes require a healthy baseline (≤5% loss), then observe periodic packet loss and carrier transitions with the configured flap periods. | [Linux kernel, Operational States](#source-link_flap-1) |
+| Link capacity bottleneck | `link_capacity_bottleneck` | **All** | `host_name`, `intf_name=eth0`, `rate=200kbit`, `burst=64kb`, `limit=500kb` | Applies a controller-side token-bucket filter to traffic leaving `host_name:intf_name` (Kathara VDE proxy or Containerlab host veth peer), like a carrier circuit provisioned below the ordered rate. Endpoint interface qdisc stays ordinary. In environments with [business traffic](network-scenarios.md#business-traffic), benchmark rows shape an egress that the traffic loads with at least 1.5 Mbit/s of bulk TCP (`bulk_transit`) down to a 512 kbit/s tier with a 32 kB queue, so IGP and BGP control traffic still fits. On a declared fan-in workload, generation selects the forwarding egress toward its receiver and shapes it to 128 kbit/s with a 16 kB queue. | The loaded egress flat-tops at the shaped rate; bulk flows across it lose throughput and retransmit, and RTT across the link rises by the queue delay, while small pings still succeed. | The controller confirms the hidden TBF; short iperf3 transfers measure throughput well below an unthrottled path. GT labels the undirected link TP set. | [Alizadeh et al., Data Center TCP (DCTCP), SIGCOMM 2010](#source-link_capacity_bottleneck-1); [Phanishayee et al., Measurement and Analysis of TCP Throughput Collapse in Cluster-based Storage Systems, FAST 2008](#source-link_capacity_bottleneck-2); [Vasudevan et al., Safe and Effective Fine-grained TCP Retransmissions for Datacenter Communication, SIGCOMM 2009](#source-link_capacity_bottleneck-3); [Chen et al., Understanding TCP Incast Throughput Collapse in Datacenter Networks, WREN 2009](#source-link_capacity_bottleneck-4); [iproute2, tc-tbf(8)](#source-link_capacity_bottleneck-5) |
 | Link packet corruption | `link_packet_corruption` | **All** | `host_name`, `intf_name` optional, `corruption_percentage=8` | Applies low-rate `tc netem corrupt` to IP frames leaving `host_name:intf_name`, in the Kathara VDE fault proxy or on the Containerlab link's host-side wire end. Non-IP frames such as ARP are lost at the same rate instead, as a receiver's FCS check would discard them. | The link stays up while probe traffic can show partial loss, TCP retransmissions increase, throughput falls, and applications remain partially usable. Endpoint qdisc queries stay ordinary. | The controller confirms the hidden corrupt qdisc and operstate up on both link ends. Test-path probes measure partial ping loss, iperf degradation, and HTTP success. GT labels the undirected link TP set. | [iproute2, tc-netem(8)](#source-link_packet_corruption-1) |
-| Silent egress packet loss | `silent_egress_packet_loss` | `p4_dc_gateway` | `host_name`, `intf_name`, `bmv2_port`, `loss_basis_points=200`, `seed` (unused) | Drops, in the Kathara VDE fault proxy, `loss_basis_points` of the frames leaving `host_name:intf_name` toward the peer, at random (`netem loss`), like a defective transceiver or port transmit path that discards frames after the switch counted them. Nothing changes inside any lab node or in the P4 program: no table, register, qdisc, file, or process names the fault. Based on [Everflow, Section 7.2.2, paper page 9](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/08/everflow-sigcomm15.pdf). | Flows that ECMP-hash onto the port lose about two percent of their packets in that direction only; the reverse direction and the other uplinks stay clean. The link stays up and P4Runtime state matches the intent. The switch's egress packet counter for the port exceeds the peer's ingress counter for the same link. | The controller reads the loss qdisc on the proxy port toward the peer. | [Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015](#source-silent_egress_packet_loss-1) |
+| Silent egress packet loss | `silent_egress_packet_loss` | `p4_dc_gateway` | `host_name`, `intf_name`, `bmv2_port`, `loss_basis_points=200`, `seed` (unused) | Drops, in the Kathara VDE fault proxy, `loss_basis_points` of the frames leaving `host_name:intf_name` toward the peer, at random (`netem loss`), like a defective transceiver or port transmit path that discards frames after the switch counted them. Nothing changes inside any lab node or in the P4 program: no table, register, qdisc, file, or process names the fault. Based on [Everflow, Section 7.2.2, paper page 9](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/08/everflow-sigcomm15.pdf). | Flows that ECMP-hash onto the port lose about two percent of their packets in that direction only; the reverse direction and the other uplinks stay clean. The link stays up and P4Runtime state matches the intent. The switch's egress packet counter for the port exceeds the peer's ingress counter for the same link. | INT reports observe packets after dequeue at the affected egress without a corresponding downstream ingress observation before the next queue. Queue measurements and endpoint probes accompany the delivery counts. | [Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015](#source-silent_egress_packet_loss-1) |
 
 ### Routing & Control Plane
 
 | Root cause | Failure ID | Scenarios | Parameters | Injection method | Trigger and signal | Verification evidence | Sources |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| BGP route leak | `bgp_route_leak` | Kathara FRR base ISP eBGP graphs with two peering providers and a multihomed customer AS | `host_name`, optional `peer` | Bypasses the customer export guard on one upstream session. | The observer selects a path through the customer AS; the original origin remains RPKI valid and business traffic detours. | Confirms the export binding. Oracle checks the original AS-path origin, RPKI validity, received route and export policy; ground truth labels the customer border router. Recovery restores the prior binding. | [RFC 7908, Problem Definition and Classification of BGP Route Leaks](#source-bgp_route_leak-1); [RFC 9234, Route Leak Prevention and Detection Using Roles in UPDATE and OPEN Messages](#source-bgp_route_leak-2); [Cloudflare, How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today](#source-bgp_route_leak-3) |
 | BGP ASN mismatch | `bgp_asn_misconfig` | **BGP** | `host_name` | Changes the local ASN on the running BGP instance (FRR, SR Linux, IOS XR, RouterOS, or SONiC) and keeps the startup file in agreement. | Peers reject or reset sessions because the configured remote AS no longer matches. | Running configuration contains the changed ASN. | [RFC 4271, A Border Gateway Protocol 4 (BGP-4)](#source-bgp_asn_misconfig-1) |
-| BGP maximum-prefix exceeded | `bgp_max_prefix_exceeded` | **ISP eBGP** (`isp_abilene` or `isp_geant` with `--bgp-mode ebgp`) | `receiver_name`, `peer_name`, optional `neighbor_ip` / `maximum_prefix` / `flood_count` | On the receiver, configures a low `maximum-prefix` for the chosen eBGP neighbor, permits a `198.19.0.0/16` flood space in the BGP policy of every BGP router, then has the peer advertise many scattered, non-sequential `/24` more-specifics (deterministic per session) so received count exceeds the limit. Does not shut the session directly. Inspired by the [Optus 2023 BGP maximum-prefix outage discussion](https://blog.apnic.net/2023/11/23/call-the-routing-police/). Runs on Kathara FRR, Containerlab SONiC through FRR, and native IOS XR and RouterOS prefix-limit operations. Containerlab ISP environments have no customer site, so there the failure tears down the session without stranding a customer route. Benchmark rows target the session that carries the scenario's customer-site route (plain eBGP ISP environments attach `cust_<provider>`, whose prefix its provider announces only on that session). | FRR tears down the eBGP session. The customer route leaves the receiver's AS, so the customer site loses its sessions to the web service there; business routes detour through another link or AS. The peer also advertises the flood more-specifics on its other BGP sessions, so other routers learn them. | Session not Established; neighbor/log evidence of maximum-prefix. GT labels both `node/{receiver}` and `node/{peer}`. | [RFC 4486, Subcodes for BGP Cease Notification Message](#source-bgp_max_prefix_exceeded-1) |
-| BGP blackhole community leak | `bgp_blackhole_community_leak` | **`isp_abilene_ebgp_rtbh`, `isp_dfn-bwin_ebgp_rtbh`** | `host_name` (leaker from inventory) | Adds the RTBH provider blackhole community on the leaker AS export policy toward AS3 for a legitimately originated prefix. Kathara+FRR only. Inspired by [IMC 2018 RTBH without prefix hijacking](https://dl.acm.org/doi/10.1145/3278532.3278557). | AS3 installs discard forwarding for the prefix; data-plane probes fail; BGP sessions stay Established; origin ASN unchanged. | Origin preserved; community present on AS3; RTBH forwarding active; sessions Established. Test-path probes check that the observer loses reachability. `host_name` must equal the profile leaker. | [RFC 5635, Remote Triggered Black Hole Filtering with uRPF](#source-bgp_blackhole_community_leak-1) |
-| RPKI-invalid BGP route leak | `bgp_rpki_invalid_route_leak` | **RPKI** (`isp_abilene_ebgp_rpki`, `isp_geant_ebgp_rpki`) | `host_name` (leaker from inventory) | AS65001 originates the content prefixes under matching ROAs; the leaker AS routes copies internally and denies them on eBGP export. Flips the leaking border router's BGP-OUT deny to permit, so it announces those prefixes with its own origin ASN next to the valid origin. Requires Kathara+FRR+Routinator. Inspired by [APNIC analysis of a route leak](https://blog.apnic.net/2025/05/06/analysis-of-a-route-leak/). | Peers of the leaker hold a second, RPKI-invalid origin for each prefix (MOAS); ROV observers reject it; sessions stay Established. | Every leaker-AS router has the export permit, and the leaking border router advertises each leak prefix to an eBGP peer. ROV/non-ROV acceptance is checked by the separate symptom probe. `host_name` must equal the profile leaker. GT labels the leaking router, the only one whose export policy inject rewrites. | [RFC 6811, BGP Prefix Origin Validation](#source-bgp_rpki_invalid_route_leak-1) |
+| BGP blackhole community leak | `bgp_blackhole_community_leak` | **ISP eBGP with the RTBH profile** (`isp_*` with `--bgp-mode ebgp` where AS65002 peers an AS65003 router that also peers AS65001) | `host_name` (leaker from inventory) | Adds the RTBH provider blackhole community on the leaker AS export policy toward AS3 for a legitimately originated prefix. Kathara+FRR only. Inspired by [IMC 2018 RTBH without prefix hijacking](https://dl.acm.org/doi/10.1145/3278532.3278557). | AS3 installs discard forwarding for the prefix; data-plane probes fail; BGP sessions stay Established; origin ASN unchanged. | Origin preserved; community present on AS3; RTBH forwarding active; sessions Established. Test-path probes check that the observer loses reachability. `host_name` must equal the profile leaker. | [RFC 5635, Remote Triggered Black Hole Filtering with uRPF](#source-bgp_blackhole_community_leak-1) |
+| BGP maximum-prefix limit too low | `bgp_max_prefix_limit_low` | **ISP eBGP** (`isp_*` with `--bgp-mode ebgp`; Kathara FRR) (combination member only) | `receiver_name`, `peer_name`, optional `neighbor_ip`, `maximum_prefix` | Sets one session's terminating limit at its current received count or one above it. | Control-plane evidence: the session stays Established with at most one prefix of headroom. | The configured limit matches the captured normal count; recovery restores the original limit. GT labels the receiver. | [RFC 7454, BGP Operations and Security](#source-bgp_max_prefix_limit_low-1) |
+| BGP prefix surge | `bgp_prefix_surge` | **ISP eBGP** (`isp_*` with `--bgp-mode ebgp`; Kathara FRR) (combination member only) | `receiver_name`, `peer_name`, optional `neighbor_ip`, `flood_count` | Adds scattered `/24` announcements from `198.19.0.0/16` at the peer. Applies the supporting import/export permit to every BGP router. | Receiving tables grow; sessions with headroom stay Established. | The peer originates the additional routes; the symptom check compares the receiver's table with its healthy count. Recovery withdraws only these advertisements and supporting permits. GT labels the peer. | [Australian Senate, Chapter 2: The Optus network outage](#source-bgp_prefix_surge-1) |
+| RPKI origin validation not enforced | `bgp_rov_not_enforced` | **RPKI** (`isp_*` with `--bgp-mode ebgp` on Kathara FRR, where route leaks are admitted) (combination member only) | `host_name` (defaults to the ROV observer) | Removes the invalid-deny sequence from BGP-IN on the ROV router. Keeps the RTR session and remaining import policy intact. Recovery restores the captured sequence and checks the complete policy. | Latent control-plane fault: the attached import policy no longer rejects RPKI-invalid routes while the cache remains connected. Alone, it leaves traffic unchanged. Combined with an invalid-origin leak, it admits invalid paths. | The invalid-deny sequence is absent, the remaining policy matches the snapshot, imports remain attached, and the cache is connected. GT labels the ROV router. | [RFC 6811, BGP Prefix Origin Validation](#source-bgp_rov_not_enforced-1); [FRR BGP documentation, Validating BGP Updates](#source-bgp_rov_not_enforced-2); [Cloudflare, How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today](#source-bgp_rov_not_enforced-3) |
 | Missing BGP advertisement | `bgp_missing_route_advertisement` | **BGP** | `host_name`, optional `prefix` / symptom probe fields | On ISP, targets a BGP originator and withdraws its originated prefix via FRR `no network` (OSPF untouched). Clos-style FRR environments remove BGP `network` statements from the running configuration and save it. Enterprise Site Edges disable BGP VRF `redistribute connected`. Containerlab SR Linux applies an export-policy withdraw (prefers `prefix` when set). IOS XR, RouterOS, and SONiC withdraw through their BGP network operations. | Peers stay reachable while they lose the selected prefix; IGP stub paths remain up. | FRR BGP config lacks the advertisement (or redistribute), SR Linux applies the withdrawal policy, or the platform no longer lists the prefix. | [FRRouting, BGP Networks](#source-bgp_missing_route_advertisement-1) |
 | Routing service stopped | `routing_service_down` | **FRR** and SONiC routers (FRR under supervisord) | `host_name` | Stops the router's routing stack through its platform's process controls. | Dynamic adjacencies fail and route exchange stops. Existing forwarding entries can persist. | Routing processes are stopped; on FRR, zebra is absent and `vtysh` cannot connect. | [FRRouting, WATCHFRR](#source-routing_service_down-1) |
 | OSPF area misconfiguration | `ospf_area_misconfiguration` | **OSPF** | `host_name` | Changes an OSPF network statement or interface area in the running daemon and the startup file. IOS XR, RouterOS, and SONiC use their OSPF area operations; SR Linux is unsupported. | Adjacency fails on links whose endpoints no longer agree on area. | The platform OSPF configuration shows the changed area; FRR also persists it in its startup file. | [RFC 2328, OSPF Version 2](#source-ospf_area_misconfiguration-1) |
-| OSPF neighbor missing | `ospf_neighbor_missing` | **OSPF** | `host_name` | Removes the FRR network statement or interface-area binding covering one adjacency from `frr.conf` and the daemon. Other platforms delete the OSPF interface of one adjacency from their running configuration. | The router stops forming expected OSPF adjacencies and loses learned routes. | The statement is absent from `frr.conf` and the running daemon, or the interface is absent from the platform's OSPF interfaces while the others remain. | [RFC 2328, OSPF Version 2](#source-ospf_neighbor_missing-1) |
+| OSPF interface not enabled | `ospf_interface_not_enabled` | **OSPF** | `host_name` | Removes the FRR network statement or interface-area binding covering one adjacency from `frr.conf` and the daemon. Other platforms delete the OSPF interface of one adjacency from their running configuration. | The router stops forming expected OSPF adjacencies and loses learned routes. | The statement is absent from `frr.conf` and the running daemon, or the interface is absent from the platform's OSPF interfaces while the others remain. | [RFC 2328, OSPF Version 2](#source-ospf_interface_not_enabled-1) |
 | OSPF duplicate router ID | `ospf_duplicate_router_id` | **OSPF** (Kathara FRR, IOS XR, RouterOS; Containerlab SR Linux) | `host_name` | Sets the OSPF router ID to another router's ID in the same area. FRR updates its running daemon and `frr.conf` and restarts OSPF; IOS XR and RouterOS use native router operations, and SR Linux updates the OSPF instance. It prefers the lowest non-adjacent router ID; when every router in those areas is a neighbor, it takes the lowest neighbor ID. Based on [Cisco, Troubleshooting Duplicate Router IDs with OSPF](https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/23862-duplicate-router-id-ospf.html). | With a non-adjacent duplicate, the two routers may re-flood their router-LSAs against each other for a few minutes. Conflicting router-LSAs can remove routes to either duplicate's links and subnets while nonadjacent routers retain Full adjacencies; the outcome depends on LSA timing. With a neighbor's ID, that adjacency never forms. Hosts behind the losing router lose connectivity, and FRR logs nothing at its default level. | The running OSPF router ID equals the chosen duplicate. | [Cisco, Troubleshooting Duplicate Router IDs with OSPF](#source-ospf_duplicate_router_id-1) |
-| BGP TCP MD5 password mismatch | `bgp_md5_password_mismatch` | `dc_clos`, `enterprise_branch`, `isp_abilene` with eBGP or iBGP route reflection, `iosxr_simple_bgp`, `routeros_simple_bgp` (Kathara FRR, IOS XR, RouterOS) | `host_name`, optional `neighbor_ip` | Configures a password on one side of one established IPv4 BGP session and resets that session. FRR uses `neighbor ... password`, IOS XR uses `neighbor ... password clear`, and RouterOS uses `tcp-md5-key`. FRR first checks kernel TCP MD5 support. Benchmark targets in declared BGP plans originate a prefix. The enterprise IOS XR profile keeps its overlay edges on FRR. Based on [RFC 2385](https://www.rfc-editor.org/rfc/rfc2385). | The session leaves Established and the peer withdraws paths learned from the target. FRR exposes kernel TCP MD5 error counters; IOS XR logs invalid MD5 digests. Alternate BGP paths can preserve connectivity. | The selected neighbor has a password and its session is not Established. Recovery removes that password and waits for the original sessions; E2E checks also require the withdrawn paths to return. Ground truth identifies the target router. | [RFC 2385, Protection of BGP Sessions via the TCP MD5 Signature Option](#source-bgp_md5_password_mismatch-1) |
+| BGP TCP MD5 password mismatch | `bgp_md5_password_mismatch` | `dc_clos`, `enterprise_branch`, `isp_abilene` with eBGP or iBGP route reflection (Kathara FRR, IOS XR, RouterOS) | `host_name`, optional `neighbor_ip` | Configures a password on one side of one established IPv4 BGP session and resets that session. FRR uses `neighbor ... password`, IOS XR uses `neighbor ... password clear`, and RouterOS uses `tcp-md5-key`. FRR first checks kernel TCP MD5 support. Benchmark targets in declared BGP plans originate a prefix. The enterprise IOS XR profile keeps its overlay edges on FRR. Based on [RFC 2385](https://www.rfc-editor.org/rfc/rfc2385). | The session leaves Established and the peer withdraws paths learned from the target. FRR exposes kernel TCP MD5 error counters; IOS XR logs invalid MD5 digests. Alternate BGP paths can preserve connectivity. | The selected neighbor has a password and its session is not Established. Recovery removes that password and waits for the original sessions; E2E checks also require the withdrawn paths to return. Ground truth identifies the target router. | [RFC 2385, Protection of BGP Sessions via the TCP MD5 Signature Option](#source-bgp_md5_password_mismatch-1) |
 | OSPF area range suppression | `ospf_area_range_suppression` | **OSPF** (`campus_lan`: FRR, IOS XR; RouterOS size `s`) | `host_name`, `area` | Adds `not-advertise` area ranges on the area border router (ABR), or RouterOS `advertise=no`. The ranges exactly cover that ABR's non-backbone branch subnets. Targets require a single ABR per connected area component; campus area 1 has two separate branches, each with its own ABR. Based on [RFC 2328 §12.4.3 and Appendix C.2](https://www.rfc-editor.org/rfc/rfc2328#section-12.4.3). | Backbone Type-3 LSAs and remote routes to the branch disappear. Adjacencies remain Full and branch routers retain their intra-area reachability. Recovery removes the ranges and checks restored routes, summaries, and connectivity. | The ABR's running configuration contains every computed suppressing range. | [RFC 2328, OSPF Version 2](#source-ospf_area_range_suppression-1) |
 | OSPF network type mismatch | `ospf_network_type_mismatch` | **OSPF** (Kathara FRR and RouterOS; scenarios with a cut-edge OSPF link) | `host_name`, `intf_name` | Changes one side of a cut-edge OSPF link between broadcast and point-to-point. FRR updates the running daemon and startup file; RouterOS changes the existing interface-template to `type=ptp` or `type=broadcast` and rejects templates shared by other interfaces. Benchmark rows can target either end of a link to a router with only one router neighbor, so the link carries that site's traffic. Based on [Cisco, Troubleshoot OSPF Route Database Issues](https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/7112-26.html). IOS XR and [SR Linux 24.10](https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/ospf.html) are unsupported: both drop the adjacency instead of retaining the required Full adjacency. | Hello and dead timers still match, so the adjacency reaches Full. The two router-LSAs describe the link differently (transit vs point-to-point), SPF's two-way check rejects it, and hosts behind the stub router lose connectivity. | The running OSPF network type on the interface is the injected value. | [Cisco, Troubleshoot Open Shortest Path First Route Database Issues](#source-ospf_network_type_mismatch-1) |
 | OSPF hello interval mismatch | `ospf_hello_interval_mismatch` | **OSPF** (Kathara FRR, IOS XR, RouterOS, Containerlab SR Linux; cut-edge links serving hosts) | `host_name`, `intf_name` | Changes one interface's hello and dead intervals, choosing 5/20, 10/40, or 15/60 seconds so both differ from the neighbor. RouterOS changes the existing interface template by its stable ID and rejects shared templates. [SR Linux](https://documentation.nokia.com/srlinux/24-10/books/data-model-reference/srl_nokia-network-instance_0.html#d4839) changes `hello-interval` and `dead-interval` on the selected area interface. Based on [RFC 2328 section 10.5](https://www.rfc-editor.org/rfc/rfc2328#section-10.5). | Neighbors discard Hellos with different timers. The adjacency expires, learned routes withdraw, and hosts behind the cut edge lose reachability while interfaces stay up. Recovery restores the original timers and waits for Full adjacency and learned routes. | The target's running hello and dead intervals equal the injected values and differ from its neighbor's. Ground truth identifies the target router. | [RFC 2328, OSPF Version 2](#source-ospf_hello_interval_mismatch-1) |
 | OSPF stub-area mismatch | `ospf_stub_area_mismatch` | `campus_lan`, area 1 (Kathara FRR, IOS XR, RouterOS; cut edges serving hosts) | `host_name`, `intf_name` | Declares area 1 stub on one router while its peer keeps a normal area: FRR and IOS XR `area 1 stub`; RouterOS sets `type=stub` on the matching `/routing ospf area` entry and restarts the owning instance to apply the changed Hello capability. Targets prefer native routers; campus IOS XR uses core routers because distribution gateways remain FRR. Sources: the standards [RFC 2328 sections 10.5 and A.2](https://www.rfc-editor.org/rfc/rfc2328) and [RFC 1583 section 4.5](https://freesoft.org/CIE/RFC/1583/24.htm), and the Cisco Community vendor troubleshooting document [OSPF routers do not form neighbor relationship due to a mismatch in hello parameters](https://community.cisco.com/t5/networking-knowledge-base/ospf-routers-do-not-form-neighbor-relationship-due-to-a-mismatch/ta-p/3131411). | Neighbors reject Hellos whose E-bit disagrees. RouterOS logs `external capability mismatch`. Full adjacency and learned routes disappear, and hosts behind the router lose reachability while interfaces stay up. Area IDs, timers, and network types retain their healthy values. Recovery restores normal area 1 and waits for Full adjacency and the original learned routes. | The target runs stub area 1 and its peer runs normal area 1. The symptom probe compares adjacency, route withdrawal, and host packet loss against a healthy baseline. Ground truth identifies the target router. | [RFC 2328, OSPF Version 2](#source-ospf_stub_area_mismatch-1) |
 | IS-IS metric-style mismatch | `isis_metric_style_mismatch` | Base `isp_*` with `--igp isis` (Kathara FRR, IOS XR, RouterOS; benchmark rows use `--bgp-mode none`) | `host_name` | Sets the router to old-style (narrow) IS-IS metrics while its neighbors keep wide metrics: FRR `metric-style narrow` under `router isis`; IOS XR `metric-style narrow` under `address-family ipv4 unicast` in `router isis`; RouterOS `metric-type=old` on the IS-IS instance. Based on [RFC 5305](https://www.rfc-editor.org/rfc/rfc5305) wide metrics (TLV 135). SR Linux 24.10 accepts `metric-style narrow` but retains learned routes and Up adjacencies, so it is excluded. See [Nokia SR Linux IS-IS](https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/is-is.html). | IS-IS adjacencies stay Up while neighbors stop installing the target's loopback and stub prefixes. The symptom probe checks the routers that held those routes before injection. | The running configuration uses narrow IS-IS metrics. Recovery sets wide metrics. | [FRRouting 10.5, ISIS](#source-isis_metric_style_mismatch-1) |
-| IS-IS circuit-level mismatch | `isis_circuit_level_mismatch` | Base `isp_*` with `--igp isis` (Kathara FRR, IOS XR, RouterOS, Containerlab SR Linux; benchmark rows use `--bgp-mode none`) | `host_name` | Sets the router to IS-IS Level-1 while its neighbors stay Level-2 only: FRR `is-type level-1` under `router isis`; IOS XR `is-type level-1` plus `circuit-type level-1` on IS-IS interfaces; RouterOS `levels=l1` on every IS-IS interface-template. An interface `circuit-type level-1` alone is ignored while the instance stays Level-2 only. Based on [RFC 1195](https://www.rfc-editor.org/rfc/rfc1195) Level-1/Level-2 adjacency rules and [Cisco, Configure IS-IS Adjacency and Area Types](https://www.cisco.com/c/en/us/support/docs/ip/integrated-intermediate-system-to-intermediate-system-is-is/200293-IS-IS-Adjacency-and-Area-Types.html). [SR Linux](https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/is-is.html) sets `level-capability L1` and moves the existing instance and interface Level-2 settings to Level 1. Recovery restores the saved Level-2 settings. | IS-IS adjacencies with the router drop. The symptom probe requires each observed loopback or stub prefix to disappear from at least one former neighbor; cached routes can persist elsewhere until the LSP expires. | The running configuration uses IS-IS Level-1. Recovery restores the saved level. | [FRRouting 10.5, ISIS](#source-isis_circuit_level_mismatch-1) |
+| IS-IS router level mismatch | `isis_router_level_mismatch` | Base `isp_*` with `--igp isis` (Kathara FRR, IOS XR, RouterOS, Containerlab SR Linux; benchmark rows use `--bgp-mode none`) | `host_name` | Sets the router to IS-IS Level-1 while its neighbors stay Level-2 only: FRR `is-type level-1` under `router isis`; IOS XR `is-type level-1` plus `circuit-type level-1` on IS-IS interfaces; RouterOS `levels=l1` on every IS-IS interface-template. An interface `circuit-type level-1` alone is ignored while the instance stays Level-2 only. Based on [RFC 1195](https://www.rfc-editor.org/rfc/rfc1195) Level-1/Level-2 adjacency rules and [Cisco, Configure IS-IS Adjacency and Area Types](https://www.cisco.com/c/en/us/support/docs/ip/integrated-intermediate-system-to-intermediate-system-is-is/200293-IS-IS-Adjacency-and-Area-Types.html). [SR Linux](https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/is-is.html) sets `level-capability L1` and moves the existing instance and interface Level-2 settings to Level 1. Recovery restores the saved Level-2 settings. | IS-IS adjacencies with the router drop. The symptom probe requires each observed loopback or stub prefix to disappear from at least one former neighbor; cached routes can persist elsewhere until the LSP expires. | The running configuration uses IS-IS Level-1. Recovery restores the saved level. | [FRRouting 10.5, ISIS](#source-isis_router_level_mismatch-1) |
 | IS-IS authentication mismatch | `isis_authentication_mismatch` | Base `isp_*` with `--igp isis` (Kathara FRR, IOS XR, Containerlab SR Linux; benchmark rows use `--bgp-mode none`) | `host_name` | Enables HMAC-MD5 hello authentication on the target router's non-passive IS-IS interfaces while neighbors remain unauthenticated: FRR `isis password md5`; IOS XR `hello-password hmac-md5 clear`. Based on [RFC 5304](https://www.rfc-editor.org/rfc/rfc5304). [SR Linux](https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/is-is.html) configures an interface `authentication key` with `crypto-algorithm hmac-md5`, enables Hello authentication generation, and sets `check-received strict`. RouterOS 7.21.5 exposes no IS-IS authentication parameters. | Adjacencies with the router drop and its loopback or stub prefixes disappear from former neighbors. IS-IS circuits stay Up. | The running interface configuration requires MD5 hello authentication. Recovery removes authentication and waits for the baseline adjacencies and routes. | [RFC 5304, IS-IS Cryptographic Authentication](#source-isis_authentication_mismatch-1) |
 | One-sided BGP TTL security | `bgp_ttl_security_mismatch` | **BGP** (Kathara FRR, IOS XR); base `isp_*` needs `--bgp-mode ebgp` | `host_name` | Enables one-sided TTL security (GTSM, [RFC 5082](https://www.rfc-editor.org/rfc/rfc5082)) on every BGP neighbor and resets the sessions. FRR adds `neighbor … ttl-security hops 1` to the running daemon and startup file; IOS XR adds `ttl-security` under each eBGP neighbor, the only neighbors on which IOS XR accepts it. RouterOS and SR Linux are unsupported by this failure. The peers keep their default TTL. Based on [AWS Direct Connect, Troubleshoot BGP TTL security](https://docs.aws.amazon.com/directconnect/latest/UserGuide/ts-ttl-security.html). | The router rejects low-TTL BGP traffic, so its eBGP peers, which send with TTL 1, cannot establish sessions. FRR also rejects iBGP packets that arrive below TTL 255 from peers more than one hop away; directly connected iBGP peers still get through. On FRR, the router stays in OpenSent or Active and its peers in OpenConfirm or Active. No ACL or firewall rule matches TCP 179, and a packet capture shows the peers' BGP packets arriving with TTL 1 (eBGP) or another value below 255 (multi-hop iBGP). | Every BGP neighbor in the running configuration carries the platform's TTL security setting. | [AWS Direct Connect, Troubleshoot BGP TTL security (GTSM) issues](#source-bgp_ttl_security_mismatch-1) |
 | BGP IPv4 address family not activated | `bgp_address_family_not_activated` | `dc_clos`, `enterprise_branch`, base `isp_*` with eBGP or iBGP route reflection (`--device-profile routeros`, Kathara) | `host_name`, optional `neighbor_ip` | Removes `ip` from one established neighbor's `afi` and re-enables the connection to negotiate the changed family. The target must carry IPv4 prefixes before injection. Based on [RFC 4760 section 8](https://www.rfc-editor.org/rfc/rfc4760#section-8) and [RouterOS BGP address families](https://help.mikrotik.com/docs/spaces/ROS/pages/331612228/routing%2Bbgp). FRR and IOS XR are unsupported in these environments: removing their last active family leaves the session Idle. | The session reaches Established, its local `afi` omits `ip`, its received prefix count falls to zero, and its IPv4 routes from that peer disappear. `bgp_session_policy_missing` retains the negotiated IPv4 family and rejects routes through policy; inspect the local and remote address families and neighbor configuration to distinguish them. Alternate peers can preserve connectivity. | The connection configuration lacks `ip`. The symptom probe requires absent IPv4 negotiation and zero received prefixes against a healthy baseline. Recovery restores the neighbor's original family configuration, re-establishes its session, and waits for the original IPv4 prefixes. Ground truth identifies the target router. | [MikroTik RouterOS, /routing/bgp](#source-bgp_address_family_not_activated-1) |
 | BGP session policy missing | `bgp_session_policy_missing` | `dc_clos` and `enterprise_branch` with `--device-profile routeros`; base `isp_*` with `--bgp-mode ebgp` and `--device-profile iosxr` or `routeros` | `host_name` | On IOS XR, removes the `route-policy` from every eBGP neighbor, so XR applies its [RFC 8212](https://www.rfc-editor.org/rfc/rfc8212) default. On RouterOS, sets each eBGP connection's `input.filter` and `output.filter-chain` to chains that no rule defines, which RouterOS treats as rejecting every route. Recovery restores the saved router configuration. Targets are native routers with eBGP sessions and attached hosts; FRR routers are not targets because the environments run FRR without `ebgp-requires-policy`. SR Linux is unsupported: its environments forward the host prefixes over the IGP, so dropping BGP routes leaves clients reachable. | Every eBGP session stays Established while no route crosses it in either direction, so hosts behind the router lose connectivity. XR shows `0!` in `show bgp summary` and notes that the neighbor has no policy; RouterOS logs only the sessions coming up. | XR: no eBGP neighbor carries a `route-policy`. RouterOS: every eBGP connection names input and output chains with no rules. | [RFC 8212, Default External BGP Route Propagation Behavior without Policies](#source-bgp_session_policy_missing-1); [MikroTik RouterOS, Route Selection and Filters](#source-bgp_session_policy_missing-2) |
+| BGP session policy missing | `bgp_session_policy_missing` | `dc_clos` with `--device-profile iosxr` or `routeros`; `enterprise_branch` with `--device-profile routeros` | `host_name`, optional `peer` | On IOS XR, removes the `route-policy` from the selected eBGP neighbor, or every neighbor when `peer` is omitted, so XR applies its [RFC 8212](https://www.rfc-editor.org/rfc/rfc8212) default. On RouterOS, sets the selected eBGP connections' `input.filter` and `output.filter-chain` to chains that no rule defines, which RouterOS treats as rejecting every route. Recovery restores the selected peer's policy bindings, or the saved router configuration for whole-router scope. Single-failure targets are native routers with eBGP sessions and attached hosts; FRR routers are not targets because the environments run FRR without `ebgp-requires-policy`. SR Linux is unsupported: its environments forward the host prefixes over the IGP, so dropping BGP routes leaves clients reachable. | Selected eBGP sessions stay Established while no route crosses them in either direction. Other sessions can preserve connectivity; whole-router scope cuts off the attached hosts. XR shows `0!` in `show bgp summary` and notes that the neighbor has no policy; RouterOS logs only the sessions coming up. | XR: selected eBGP neighbors carry no `route-policy`, and the global unsafe-policy bypass is disabled. RouterOS: selected eBGP connections name input and output chains with no rules. Ground truth uses the directly connected interface for a selected peer and the node for whole-router scope. Single-failure benchmark targets retain whole-router scope. | [RFC 8212, Default External BGP Route Propagation Behavior without Policies](#source-bgp_session_policy_missing-1); [MikroTik RouterOS, Route Selection and Filters](#source-bgp_session_policy_missing-2) |
 | VRF import route-target mismatch | `vrf_route_target_mismatch` | `enterprise_branch` (Kathara; FRR or RouterOS Site Edges, including FRR edges in the IOS XR profile) | `host_name`, `vrf_name=vrf_corp` | Replaces the selected business VRF's overlay import with a mistyped route target on RouterOS or the wrong source VRF on FRR, preserving its other imports and exports. Recovery restores the original imports and waits for remote routes and endpoint connectivity. Related incidents: the [NHS Wales incident report](https://swanseabay.nhs.wales/about-us/our-health-board/our-board-business/health-board-committees/digital-data-research-and-innovation-committee/may-2026/4-1i-appendix-1-wales-wide-outage-pir-pdf/) (a route-leaking change admitted an unintended default) and a [NANOG operator discussion](https://seclists.org/nanog/2011/Mar/457) (VPN updates lost RT communities). [RFC 4364 §4.3.1](https://www.rfc-editor.org/rfc/rfc4364.html#section-4.3.1) and the [MikroTik vendor configuration document](https://help.mikrotik.com/docs/spaces/ROS/pages/328206/Virtual+Routing+and+Forwarding+-+VRF) define import matching. The [FRR route-leaking reference](https://docs.frrouting.org/en/latest/bgp.html#clicmd-import-vrf-VRFNAME) defines source VRF imports. | The selected VRF loses remote-site routes and connectivity while BGP sessions, WireGuard tunnels, overlay routes, the local gateway, and other VRFs stay healthy. | The selected VRF imports the mistyped RT on RouterOS or `vrf_guest` instead of `default` on FRR. Test-path probes compare healthy and faulty routes, tunnel handshakes, and endpoint pings. GT labels the Site Edge node. | [RFC 4364, BGP/MPLS IP Virtual Private Networks](#source-vrf_route_target_mismatch-1); [FRRouting, BGP Route Leaking](#source-vrf_route_target_mismatch-2) |
 | BGP prefix-list length mismatch | `bgp_prefix_list_length_mismatch` | `enterprise_branch` (Kathara; FRR or RouterOS site edges, including FRR edges in the IOS XR profile) | `host_name` | Changes the bound import filter from `10.0.0.0/8 le 24` to an exact `/8` match. RouterOS uses `dst == 10.0.0.0/8`. [FRR vendor semantics](https://docs.frrouting.org/en/latest/filter.html#ip-prefix-list) treat an omitted `le` as an exact-length match, and the [Cisco vendor configuration example](https://www.cisco.com/c/en/us/support/docs/ip/border-gateway-protocol-bgp/13750-22.html) shows length-bounded filters; the [BitFolk 2016 incident report](https://mailman.bitfolk.com/lurker/message/20160501.204902.6ff9c7e5.en.html) describes a filter rebuild that rejected more-specific routes. The [RouterOS vendor reference](https://help.mikrotik.com/docs/spaces/ROS/pages/74678285/Route+Selection+and+Filters) defines prefix equality and length matching; [Mahajan et al., SIGCOMM 2002](https://www.caida.org/archive/networkingbib/entries/mahajan02understanding/) provide a broader measurement study. | BGP sessions remain Established and import policies remain bound, but remote business `/24`s disappear and site traffic fails. ISP allow-lists already enumerate exact `/24`s, and `dc_clos` has no equivalent length-bounded import filter. | The bound import filter matches only `/8`. Test-path probes require healthy reachability and learned routes, then route loss and 100% ping loss with the same Established peers. Recovery restores the length range and waits for the original Established peers and learned routes. Ground truth identifies the router whose filter changed. | [FRRouting, Filtering](#source-bgp_prefix_list_length_mismatch-1); [MikroTik RouterOS, Route Selection and Filters](#source-bgp_prefix_list_length_mismatch-2) |
 
@@ -138,68 +152,56 @@ On Containerlab, link failures (`link_down`, `link_flap`, `link_capacity_bottlen
 | Root cause | Failure ID | Scenarios | Parameters | Injection method | Trigger and signal | Verification evidence | Sources |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | RIB/FIB inconsistency | `rib_fib_inconsistency` | `dc_clos`, `campus_lan`, and `isp_*` (Kathara FRR) | `host_name` (FRR router with an attached endpoint and a reachable remote endpoint) | Replaces one selected dynamic route's Linux main-table next hop with the attached endpoint's address, retaining its prefix, routing protocol, and metric. The FRR best path stays unchanged. Recovery deletes the divergent entry so zebra reinstalls the original path. | Traffic to the selected destination fails while the router's BGP, OSPF, or IS-IS sessions and FRR route remain healthy. | The selected FRR route is unchanged, while the matching kernel route uses the injected next hop with its original protocol and metric. Recovery checks restored forwarding, unchanged sessions, and endpoint reachability. | [FRRouting 10.5.3, zebra/rt_netlink.c](#source-rib_fib_inconsistency-1) |
-| Silent forwarding-device corruption | `device_forwarding_packet_corruption` | `dc_clos`, `campus_lan`, `enterprise_branch`, `sdn_l3_clos`, `min3clos` (SR Linux and SONiC), and the RouterOS deployments of `dc_clos`, `campus_lan` and `enterprise_branch` | `forwarding_device`, `intf_name`, `seed` | The controller compiles a TC/eBPF program and loads it on the egress of a router or switch port. Its hash selects approximately one quarter of TCP five-tuples and one eighth of their eligible packets, then flips one bit in the 33rd payload byte without updating the TCP checksum. Packets with fewer than 33 payload bytes are skipped. This models corruption after ingress validation and before egress L2 CRC generation. A short-lived `nika/tc-bpf` container (built on first use) compiles and attaches the program, so the device image needs no libbpf-enabled `tc`. On Kathara it joins the device's network namespace and attaches to the port itself. IOS XR routers are not targets; on RouterOS routers it attaches to the Kathara container interface. On Containerlab it attaches to the host-side wire end that carries what the port sends, so it works on SR Linux and SONiC and nothing appears inside the router. Where the environment declares business traffic, the target is a port that bulk traffic crosses, on a device with no end host attached when one exists. | Selected TCP flows through the device show checksum drops and retransmissions. Unselected flows, link state, and control-plane state remain healthy. | The controller confirms that the BPF classifier is attached. | [Linux BPF helper reference, bpf-helpers(7)](#source-device_forwarding_packet_corruption-1) |
-| MTU mismatch | `mtu_mismatch` | `dc_clos`, `campus_lan`, `enterprise_branch`, `k8s_lab`, Kathara `isp_abilene` (IS-IS, OSPF, iBGP RR, RTBH, RPKI) and `isp_geant_ebgp_rpki`, every SONiC environment, and the IOS XR and RouterOS deployments of `dc_clos`, `campus_lan`, `enterprise_branch` and base `isp_*` without BGP | `host_name` (intermediate L3 router), `intf_name`, `mtu=500`. Legacy id `link_fragmentation_disabled` resolves to this failure. | Sets the interface MTU on that one interface only, so it no longer matches the far end of its link: `ip link set … mtu` on Linux/FRR, CONFIG_DB on SONiC, and the interface IPv4 MTU on IOS XR, and the container plus ethernet port on RouterOS. | OSPF over the link stops at ExStart/Exchange on the Database Description MTU check ([RFC 2328 section 10.6](https://www.rfc-editor.org/rfc/rfc2328#section-10.6)); routed DF packets that leave through the interface elicit ICMP Fragmentation Needed (type 3 / code 4). Small packets can pass. DF packets exceeding this MTU fail until the sender adapts; working PMTUD can allow TCP transfers to resume. | `ip link` or the platform port reports the lowered MTU. GT labels the misconfigured interface. | [RFC 1191, Path MTU Discovery](#source-mtu_mismatch-1) |
-| Per-flow forwarding black hole | `device_flow_blackhole` | `dc_clos`, `campus_lan`, `enterprise_branch`, `sdn_l3_clos` (Kathara; FRR/Linux or OVS, plus RouterOS on converted routers); `min3clos` (Containerlab; SONiC or SR Linux) | `forwarding_device`, `intf_name`, `seed` | Loads a TC/eBPF program on a router or switch egress, through the same `nika/tc-bpf` loader as `device_forwarding_packet_corruption`. It hashes the 5-tuple of each forwarded IPv4 TCP or UDP packet and drops every packet of one quarter of the 5-tuples. Packets the device originates, ICMP, and IPv6 pass. Benchmark rows target the device port that faces a web server, which every flow to that server crosses. Based on the second black-hole type in [Pingmesh, SIGCOMM 2015, Section 5.1](https://conferences.sigcomm.org/sigcomm/2015/pdf/papers/p139.pdf). On RouterOS the classifier attaches to the container interface bridged to the router VM, which carries transit frames. IOS XR is not a target: the classifier does not see XR-forwarded packets as forwarded. | Some TCP connections and UDP exchanges through the device time out, and a retry from a new source port often works. Ping, link state, routing sessions, and interface counters stay healthy. Clients retransmit SYNs, and flow records show the dropped flows entering the device but not the next hop. | The controller confirms that the BPF classifier is attached. | [Guo et al., Pingmesh: A Large-Scale System for Data Center Network Latency Measurement and Analysis, SIGCOMM 2015](#source-device_flow_blackhole-1) |
+| Silent forwarding-device corruption | `device_forwarding_packet_corruption` | `dc_clos`, `campus_lan`, `enterprise_branch`, `sdn_l3_clos` (SR Linux and SONiC), and the RouterOS deployments of `dc_clos`, `campus_lan` and `enterprise_branch` | `forwarding_device`, `intf_name` (observation anchor), `seed` | Applies one deterministic flow selector to every data port of the forwarding device, outside the node. Selected TCP payloads change after ingress validation and before the modeled egress FCS generation; their TCP checksum stays unchanged. Locally originated routing traffic passes. | Independent service paths through different ports produce new TCP checksum errors at their receivers. The Oracle requires two paths that share the target device and no link. | The controller checks that every data-port classifier is attached. | [Linux BPF helper reference, bpf-helpers(7)](#source-device_forwarding_packet_corruption-1); [Stone and Partridge, When the CRC and TCP Checksum Disagree, SIGCOMM 2000](#source-device_forwarding_packet_corruption-2) |
+| MTU mismatch | `mtu_mismatch` | `dc_clos`, `campus_lan`, `enterprise_branch`, `k8s_lab`, Kathara `isp_abilene` (IS-IS, OSPF, iBGP RR, eBGP), every SONiC environment, and the IOS XR and RouterOS deployments of `dc_clos`, `campus_lan`, `enterprise_branch` and base `isp_*` without BGP | `host_name` (intermediate L3 router), `intf_name`, `mtu=500`. Legacy id `link_fragmentation_disabled` resolves to this failure. | Sets the interface MTU on that one interface only, so it no longer matches the far end of its link: `ip link set … mtu` on Linux/FRR, CONFIG_DB on SONiC, and the interface IPv4 MTU on IOS XR, and the container plus ethernet port on RouterOS. | OSPF over the link stops at ExStart/Exchange on the Database Description MTU check ([RFC 2328 section 10.6](https://www.rfc-editor.org/rfc/rfc2328#section-10.6)); routed DF packets that leave through the interface elicit ICMP Fragmentation Needed (type 3 / code 4). Small packets can pass. DF packets exceeding this MTU fail until the sender adapts; working PMTUD can allow TCP transfers to resume. | `ip link` or the platform port reports the lowered MTU. GT labels the misconfigured interface. | [RFC 1191, Path MTU Discovery](#source-mtu_mismatch-1) |
+| Per-flow forwarding black hole | `device_flow_blackhole` | `dc_clos`, `campus_lan`, `enterprise_branch`, `sdn_l3_clos` (Kathara; FRR/Linux or OVS, plus RouterOS on converted routers); `dc_clos` (Containerlab; SONiC or SR Linux) | `forwarding_device`, `intf_name` (observation anchor), `seed` | Applies the same seeded five-tuple hash to every data port, dropping all packets of selected forwarded TCP and UDP flows. ICMP and locally originated routing traffic pass. The impairment runs on controller-owned proxies or host-side wires. | Some fixed TCP tuples consistently time out while others connect and ICMP succeeds. The Oracle requires this behavior on two service paths that share the device and no link. Native interface discard counters can remain healthy, as in the silent black holes reported by Pingmesh. | The controller checks that every data-port classifier is attached. | [Guo et al., Pingmesh: A Large-Scale System for Data Center Network Latency Measurement and Analysis, SIGCOMM 2015](#source-device_flow_blackhole-1) |
 | Kubernetes VXLAN overlay neighbor stale | `k8s_vxlan_neighbor_stale` | **Kubernetes** | `control_node` optional, `node_name`, `peer_name` | Replaces the permanent overlay neighbor on `flannel.1` for the peer node's VTEP with a locally administered unicast MAC that differs from the peer's current VTEP MAC in the last octet and that no node uses, like the address of a recreated `flannel.1`. This is an authored stale-mapping model; the injector does not recreate `flannel.1` or establish a flannel restart defect. Injection skips any MAC already in use on a node's `flannel.1`. Encapsulated frames toward that VTEP then have no usable VXLAN destination. k3s's default CNI is flannel VXLAN on UDP 8472. Based on [RFC 7348](https://www.rfc-editor.org/rfc/rfc7348) and [flannel VXLAN](https://github.com/flannel-io/flannel#vxlan). | Pod IPs on the peer node are unreachable from `node_name` while pods on other nodes stay reachable from it, the same peer pods stay reachable from a third node, and the node-to-node underlay and Kubernetes API stay healthy. | `ip neigh show dev flannel.1` lists the injected MAC for the peer VTEP. | [flannel, VXLAN backend implementation](#source-k8s_vxlan_neighbor_stale-1) |
-| ARP ACL block | `arp_acl_block` | `campus_lan`, `dc_clos`, `enterprise_branch`, `sdn_l3_clos`, `p4_dc_fabric`, `p4_dc_gateway`, `iosxr_simple_bgp` | `host_name` | Adds an nftables ARP drop and flushes the neighbor cache, including `nud permanent` / static gateway entries used by Clos and P4 labs. Not compatible with `k8s_lab` / `llmd_lab` (client images lack nftables offline). | New ARP resolution fails; cached and permanent entries are removed so local-subnet and off-subnet traffic that needs ARP stops. | An ARP drop appears in nftables. | [Netfilter, nft(8)](#source-arp_acl_block-1) |
-| Routing control-plane ACL block | `bgp_acl_block` | **BGP** | `host_name` | Drops TCP source and destination port 179: nftables on FRR, the SR Linux ACL equivalent, an interface ACL on IOS XR, a firewall filter on RouterOS, and iptables on SONiC. | BGP sessions reset or cannot establish; routes learned through those sessions disappear. | The port-179 drop exists in the platform's packet filter. | [Netfilter, nft(8)](#source-bgp_acl_block-1) |
+| ARP ACL block | `arp_acl_block` | `campus_lan`, `dc_clos`, `enterprise_branch`, `sdn_l3_clos`, `p4_dc_fabric`, `p4_dc_gateway` | `host_name` | Adds an nftables ARP drop and flushes the neighbor cache, including `nud permanent` / static gateway entries used by Clos and P4 labs. Not compatible with `k8s_lab` / `llmd_lab` (client images lack nftables offline). | New ARP resolution fails; cached and permanent entries are removed so local-subnet and off-subnet traffic that needs ARP stops. | An ARP drop appears in nftables. | [Netfilter, nft(8)](#source-arp_acl_block-1) |
+| Routing control-plane ACL block | `bgp_acl_block` | **BGP** | `host_name` | Drops TCP source and destination port 179: nftables on FRR, the SR Linux ACL equivalent, an interface ACL on IOS XR and a firewall filter on RouterOS. | BGP sessions reset or cannot establish; routes learned through those sessions disappear. | The port-179 drop exists in the platform's packet filter. | [Netfilter, nft(8)](#source-bgp_acl_block-1) |
 | Switch/router crash | `bmv2_switch_down` | **P4** | `host_name` | Kills `simple_switch` / `simple_switch_grpc` on a BMv2 node (benchmark cases target a leaf or gateway on the probe path). | Every path through that switch fails and the P4 control CLI cannot reach the process. | No matching BMv2 dataplane process is running. | [P4lang, Behavioral Model targets](#source-bmv2_switch_down-1) |
-| DNS transport blocked | `dns_port_blocked` | **DNS** | `host_name` | Adds nftables drops for TCP and UDP destination port 53. Packets are dropped; the resolver does not generate an empty DNS answer. | DNS queries time out while the BIND process and direct IP connectivity remain healthy. | Both DNS port rules appear in nftables. | [RFC 1035, Domain Names: Implementation and Specification](#source-dns_port_blocked-1) |
+| DNS transport blocked | `dns_port_blocked` | **DNS**, **Kubernetes** | `host_name` for a DNS server; `control_node`, `node_name` and DNS Service parameters for Kubernetes | Adds nftables drops for TCP and UDP destination port 53. Packets are dropped; the resolver does not generate an empty DNS answer. In Kubernetes, node firewall rules drop DNS Service and pod traffic on UDP and TCP port 53. | DNS queries time out while the BIND process and direct IP connectivity remain healthy. | Both DNS port rules appear in nftables. The Kubernetes adapter also checks the running CoreDNS pods and node filter. | [RFC 1035, Domain Names: Implementation and Specification](#source-dns_port_blocked-1); [Kubernetes, Debugging DNS Resolution](#source-dns_port_blocked-2) |
 | Flow rule loop | `flow_rule_loop` | **SDN** | `host_name`, `host_name_2` | Installs paired IPv4 rules through ONOS, matching each selected inter-switch ingress port and applying TTL decrement plus OpenFlow `IN_PORT` output. | Traffic on the affected attachments reflects toward its incoming link and can loop with the adjacent path. | Both selected switches have the expected-priority IPv4 ingress-port rule with `IN_PORT` output. The checker does not assert TTL decrement. | [Open vSwitch, Using OpenFlow](#source-flow_rule_loop-1) |
 | Flow rule shadowing | `flow_rule_shadowing` | **SDN** | `host_name` | Installs, through ONOS, an IPv4 drop for one rack `/24` (the highest-numbered rack other than the switch's own) at a priority above the per-prefix forwarding rules. ARP, LLDP, and other prefixes keep their intended rules. | Flows to that rack that cross the switch are dropped (all of them through a leaf, the ECMP share through a spine). Other racks, ARP, and ONOS links are unaffected. The rule's packet counter matches the lost packets. | OVS reports the prefix-scoped drop flow. | [Open vSwitch, ovs-ofctl(8)](#source-flow_rule_shadowing-1) |
 | Host static blackhole | `host_static_blackhole` | **BGP** | `host_name` | Installs a static blackhole route for a remote endpoint prefix (preferring a non-locally-attached subnet) without advertising the route. FRR, SR Linux, IOS XR, RouterOS, and SONiC each install it through their route operations. | Traffic matching the victim prefix drops at the target router. | The native platform reports the discard route, or the Linux kernel route table contains the blackhole prefix. Reachability is checked separately. | [iproute2, ip-route(8)](#source-host_static_blackhole-1) |
-| HTTP ACL block | `http_acl_block` | **HTTP** | `host_name` | Adds nftables drops for TCP port 80. | Requests whose TCP destination port is 80 and whose path crosses the hooked chains time out; HTTPS and alternative HTTP ports are unaffected by this rule. | The ruleset contains the port-80 drop. | [Netfilter, nft(8)](#source-http_acl_block-1) |
-| ICMP Fragmentation Needed filtering misconfiguration | `icmp_frag_needed_filter_misconfiguration` | `p4_dc_gateway`, plus the Linux/FRR, SONiC, IOS XR and RouterOS deployments shared with `mtu_mismatch` | `host_name` (`gateway_1` on P4; intermediate router) | On `p4_dc_gateway`, inserts a P4Runtime ACL entry that drops ICMP Destination Unreachable / Fragmentation Needed (type 3/code 4), including the messages the gateway sends for its 1400-byte client access circuit, following [RFC 2923 section 2.1](https://www.rfc-editor.org/rfc/rfc2923.html). On Linux routers, installs an nftables drop for the same ICMP and ages out the path MTUs end hosts had cached (as `net.ipv4.route.mtu_expires` would). IOS XR, RouterOS and SONiC install the equivalent filter through their packet-filter operations. | On `p4_dc_gateway`, services never learn the client's path MTU, so large downloads to clients behind the gateway stall while small requests still work. On `isp_abilene` variants, `atlam5` sits on the GRE-backhauled link (IP MTU 1476): data sets served by `pc_atlam5` stall while ping, TCP connects, and small replies still work. Elsewhere on Linux routers, combined with `mtu_mismatch` on the same path, large DF transfers black-hole. | P4Runtime reads the type 3/code 4 entry in the gateway `icmp_acl` (next to its baseline timestamp and address-mask drops), or the platform's packet filter lists the frag-needed drop. | [RFC 2923, TCP Problems with Path MTU Discovery](#source-icmp_frag_needed_filter_misconfiguration-1) |
-| ICMP ACL block | `icmp_acl_block` | `dc_clos`, `campus_lan`, `enterprise_branch`, `sdn_l3_clos`, **P4**, `isp_*`, **Kubernetes** | `host_name` | Adds an nftables ICMP drop. | Ping and ICMP-based health checks fail while TCP or UDP services can remain reachable. | The ruleset contains an ICMP drop. | [Netfilter, nft(8)](#source-icmp_acl_block-1) |
+| ICMP Fragmentation Needed filtering misconfiguration | `icmp_frag_needed_filter_misconfiguration` | `p4_dc_gateway`, plus the Linux/FRR, IOS XR and RouterOS deployments shared with `mtu_mismatch` | `host_name` (`gateway_1` on P4; intermediate router) | On `p4_dc_gateway`, inserts a P4Runtime ACL entry that drops ICMP Destination Unreachable / Fragmentation Needed (type 3/code 4), including the messages the gateway sends for its 1400-byte client access circuit, following [RFC 2923 section 2.1](https://www.rfc-editor.org/rfc/rfc2923.html). On Linux routers, installs an nftables drop for the same ICMP and ages out the path MTUs end hosts had cached (as `net.ipv4.route.mtu_expires` would). IOS XR and RouterOS install the equivalent filter through their packet-filter operations. | On `p4_dc_gateway`, services never learn the client's path MTU, so large downloads to clients behind the gateway stall while small requests still work. On `isp_abilene` variants, `atlam5` sits on the GRE-backhauled link (IP MTU 1476): data sets served by `pc_atlam5` stall while ping, TCP connects, and small replies still work. Elsewhere on Linux routers, combined with `mtu_mismatch` on the same path, large DF transfers black-hole. | P4Runtime reads the type 3/code 4 entry in the gateway `icmp_acl` (next to its baseline timestamp and address-mask drops), or the platform's packet filter lists the frag-needed drop. | [RFC 2923, TCP Problems with Path MTU Discovery](#source-icmp_frag_needed_filter_misconfiguration-1) |
+| Host ACL block | `host_acl_block` | `dc_clos`, `campus_lan`, `enterprise_branch`, `sdn_l3_clos`, **P4**, `isp_*`, **Kubernetes** | `host_name`, `protocol=icmp` (`icmp` or `http`) | Adds a host packet-filter drop for ICMP or TCP port 80, selected by `protocol`. | The selected protocol fails while the other protocol and neighbor resolution remain healthy. | The host packet filter contains the selected drop rule. | [Netfilter, nft(8)](#source-host_acl_block-1) |
 | Kubernetes policy deny | `k8s_networkpolicy_deny` | **Kubernetes** | `control_node` optional, `namespace`, `pod_selector`, `policy_name`, `symptom_host`, `symptom_url`, `control_url` | Applies a deny-all-ingress `NetworkPolicy` to selected pods. | Ingress to the selected Pods fails. Pods remain Running; kubelet probes can also be blocked, so Ready may flap. A sibling route is an optional isolation observation. | Policy exists, selected Pods are Running, and the symptom URL fails. Pod readiness and control URL success are reported but do not gate verification. | [Kubernetes, Network Policies](#source-k8s_networkpolicy_deny-1) |
-| Routing control-plane ACL block | `ospf_acl_block` | **OSPF** | `host_name` | Drops IP protocol 89 in the router's packet filter: nftables on FRR, the CPM filter on SR Linux, an ingress interface ACL on IOS XR, the firewall filter on RouterOS, and iptables on SONiC. | OSPF neighbors time out and learned routes withdraw while unrelated protocols can pass. | The packet filter contains the OSPF drop. | [Netfilter, nft(8)](#source-ospf_acl_block-1) |
-| Forwarding table entry misconfig | `p4_table_entry_misconfig` | `p4_dc_fabric`, `p4_dc_gateway` | `host_name` | Points a destination prefix at the wrong ActionSelector group through P4Runtime. | Matching traffic uses the wrong ECMP group while BMv2 stays up. | P4Runtime Read shows the recorded wrong group on the selected prefix. | [P4.org API Working Group, P4Runtime Specification 1.4.1](#source-p4_table_entry_misconfig-1) |
+| Routing control-plane ACL block | `ospf_acl_block` | **OSPF** | `host_name` | Drops IP protocol 89 in the router's packet filter: nftables on FRR, the CPM filter on SR Linux, an ingress interface ACL on IOS XR and the firewall filter on RouterOS. | OSPF neighbors time out and learned routes withdraw while unrelated protocols can pass. | The packet filter contains the OSPF drop. | [Netfilter, nft(8)](#source-ospf_acl_block-1) |
+| Forwarding table entry misconfig | `p4_table_entry_misconfig` | `p4_dc_fabric`, `p4_dc_gateway` | `host_name`, optional `target_ip` and `observer_device` | Points a destination prefix at the wrong ActionSelector group through P4Runtime. | Matching traffic uses the wrong ECMP group while BMv2 stays up. | P4Runtime Read shows the recorded wrong group on the selected prefix. | [P4.org API Working Group, P4Runtime Specification 1.4.1](#source-p4_table_entry_misconfig-1); [Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015](#source-p4_table_entry_misconfig-2) |
 | Forwarding table entry missing | `p4_table_entry_missing` | `p4_dc_fabric`, `p4_dc_gateway` | `host_name` | Deletes a destination prefix from `ipv4_lpm` through P4Runtime. | Packets needing that prefix miss or follow the default action. | A successful P4Runtime Read still contains other routes but lacks the selected prefix. | [P4.org API Working Group, P4Runtime Specification 1.4.1](#source-p4_table_entry_missing-1) |
 | ActionSelector member misconfig | `p4_action_selector_member_misconfig` | `p4_dc_fabric`, `p4_dc_gateway` | `host_name` | Rewrites one ActionSelector member to a bogus egress port through P4Runtime. | Hashed flows that select that member fail; other members and other racks still forward. | P4Runtime member port differs from intent. | [P4.org API Working Group, P4Runtime Specification 1.4.1](#source-p4_action_selector_member_misconfig-1) |
 | ECMP group member missing | `p4_ecmp_group_member_missing` | `p4_dc_fabric`, `p4_dc_gateway` | `host_name` | Deletes one member from a destination ActionSelector group. | Group membership shrinks; remaining members and other prefixes still forward. | P4Runtime Read shows the group without the selected member and with at least one remaining member. | [P4.org API Working Group, P4Runtime Specification 1.4.1](#source-p4_ecmp_group_member_missing-1) |
 | P4Runtime pipeline mismatch | `p4runtime_pipeline_mismatch` | `p4_dc_fabric`, `p4_dc_gateway` | `host_name` | At inject time, compiles a drop-all P4 program and loads it with `SetForwardingPipelineConfig` on one switch. | Forwarding through that switch dies; other switches stay healthy. | A successful pipeline Read reports P4Info that differs from the intended pipeline. | [P4.org API Working Group, P4Runtime Specification 1.4.1](#source-p4runtime_pipeline_mismatch-1) |
 | P4Runtime partial write | `p4runtime_partial_write` | `p4_dc_fabric`, `p4_dc_gateway` | `host_name` | The controller re-derives the selector-group IDs of a multi-path route and a local host route (for example after a primary failover), stores that intent, and sends one `CONTINUE_ON_ERROR` Write: both group MODIFYs, then both routes as INSERTs instead of MODIFYs. BMv2 applies the group rewrites and rejects the route INSERTs with `ALREADY_EXISTS`. Based on [Reitblatt et al., Abstractions for Network Update, SIGCOMM 2012](https://doi.org/10.1145/2342356.2342427) and the non-atomic `CONTINUE_ON_ERROR` batch semantics of the [P4Runtime specification (Write RPC, batching and ordering of updates)](https://p4lang.github.io/p4runtime/spec/v1.4.1/P4Runtime-Spec.html). | Each route sits on a group holding the other route's next hops: traffic for the multi-path route is delivered to the local host, and traffic for that host loops until its TTL expires, while untouched routes forward. The controller's write log shows the batch with two failed updates, and P4Runtime Read matches the new intent for the groups but not for the routes. | P4Runtime Read shows both groups rewritten and both routes still on their old group IDs. | [P4.org API Working Group, P4Runtime Specification 1.4.1](#source-p4runtime_partial_write-1) |
 | P4 table resource exhaustion | `p4_table_resource_exhaustion` | `p4_dc_fabric`, `p4_dc_gateway` | `host_name` | Fills `ipv4_lpm` with host routes up to its declared size. A diagnostic first confirms a healthy insertion succeeds and cleans up the temporary route. | The full table rejects a new route with a resource error; existing routes continue forwarding. Duplicate-key, malformed-write, and transport errors do not establish exhaustion. | Admission and Oracle each attempt an unused route and require resource rejection with no diagnostic entry left behind. Recovery removes owned filler routes and verifies insertion works again. Independent symptom probes also check transit forwarding. | [P4.org API Working Group, P4Runtime Specification 1.4.1](#source-p4_table_resource_exhaustion-1) |
-| TCAM entry corruption | `p4_tcam_entry_corruption` | `p4_dc_gateway` | `host_name`, `target_ip`, `control_source` | Changes one host-part mask bit from don't-care to care in the device's ternary route for `target_ip`, using a separate P4Runtime client. The stored match value and selector group stay unchanged, and the controller intent retains the original prefix. This software-switch model reproduces a route match error; the source does not disclose the physical bit error. No external link proxy implements this fault. | Traffic to the excluded destination misses the route on the affected switch. Traffic avoiding that switch and the other declared services retain their routes. Device reads expose the changed mask while controller intent remains unchanged. | Device Read shows the changed value/mask, original priority and selector group, and no original match. Oracle compares that device match with the intended prefix through diagnosis tools. Recovery restores the original match and verifies the changed row is absent. | [Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015](#source-p4_tcam_entry_corruption-1) |
-| Insufficient INT MTU headroom | `int_insufficient_mtu_headroom` | `p4_dc_gateway` | `host_name`, `intf_name`, `bmv2_port`, `int_mtu=1480` | Sets an insufficient runtime INT MTU on one INT-source gateway egress. Based on [INT Dataplane Specification 2.1, Section 5.3, specification pages 18–19](https://github.com/p4lang/p4-applications/blob/master/docs/INT_v2_1.pdf). | A watched near-MTU packet reaches the configured gateway egress; the source reports the M state or does not start the INT trace while business forwarding follows the configured policy. | P4Runtime reads the configured `int_mtu` value on the selected port. Small INT and near-MTU non-INT controls belong to the separate symptom check. | [P4.org Applications Working Group, In-band Network Telemetry Dataplane Specification 2.1](#source-int_insufficient_mtu_headroom-1) |
 | CORP VRF DSCP mis-remarking | `vrf_dscp_remarking` | **VPN** (`enterprise_branch` s/m/l) | `host_name` (Site Edge: Branch, HQ, or DC2), `intf_name` (LAN→overlay WireGuard egress), `src_host` / `dst_host` (CORP EF path that exits that iface), `direction=lan_to_overlay`, optional `corp_prefix`. | Installs nftables mangle on the Site Edge that rewrites CORP EF (DSCP 46) to CS0 (0) for packets leaving `intf_name`. Targets are limited to egresses where the scenario's [business traffic](network-scenarios.md#business-traffic) carries EF media next to best-effort bulk (`hq_edge` `wg_br1`). Starts no traffic and adds no congestion. | The scenario's EF video leaves its reserved class and joins best effort, where the file sync already uses 60% of the ceiling: BE fair queueing drops the video above its share, so the receiving softphone logs sustained loss of about half of its packets, and the EF class on that egress stops counting it. Pings and the sync stay fast, and WG, eBGP, VRF RIB, and other paths stay up. | nft rule present and its counter shows remarked packets. | [RFC 2474, Definition of the Differentiated Services Field](#source-vrf_dscp_remarking-1) |
 | WireGuard AllowedIPs omit of a remote business prefix | `wireguard_allowed_ips_misconfiguration` | **VPN** (`enterprise_branch` s/m/l) | `host_name` (Branch Edge), `intf_name` (primary HQ peer, e.g. `wg_hq`), `target_prefix` (one remote advertised CORP/SERVER prefix, e.g. `10.0.20.0/24`). Dual-homed spokes are eligible because overlay BGP stays up and primary local-pref keeps the broken path. | Healthy labs still use catch-all `AllowedIPs = 0.0.0.0/0` with `Table = off`. Inject rewrites only the Branch→Hub peer AllowedIPs to an explicit allowlist that keeps the Hub tunnel `/32` and other remote enterprise prefixes, omitting `target_prefix`, then applies it with `wg syncconf`. Does not clear BGP or edit FRR. | Handshake continues; overlay BGP stays Established; the target prefix remains in FRR BGP/RIB and Linux routing via the WG iface; Edge can still reach the Hub tunnel address; LAN traffic to the omitted prefix fails while other business prefixes, other Branches, and underlay stay healthy. | Conf AllowedIPs omits `target_prefix` and retains Hub tunnel `/32`; latest handshake > 0; BGP neighbor Established; route to the target prefix still present via the WG iface. | [WireGuard, Cryptokey Routing](#source-wireguard_allowed_ips_misconfiguration-1) |
 | Wrong WireGuard peer public key | `wireguard_peer_key_misconfiguration` | **VPN** (`enterprise_branch` s/m/l; RouterOS s) | `host_name` (Branch Edge), `intf_name`, `scope` (`branch` by default, or `interface`). | Replaces the Hub peer public key on every branch tunnel, or only `intf_name` for interface scope. Keeps interfaces up and resets the affected BGP sessions. See [Latent backup-path task](#latent-backup-path-task) for the failover sources. | The affected tunnels cannot handshake. Branch scope interrupts cross-site traffic; a standby-only key error stays latent while the primary carries traffic. | The affected peers have the wrong key and no successful handshake. Ground truth labels only the rewritten interfaces. Recovery restores the Hub identities and waits for their BGP sessions. | [WireGuard, Conceptual Overview](#source-wireguard_peer_key_misconfiguration-1) |
 
 #### Latent backup-path task
 
-A primary WAN outage can expose an existing error on the standby tunnel. The [coordinated task definition](../../tests/fixtures/benchmark/latent_backup.yaml) pairs `wireguard_peer_key_misconfiguration` with `scope: interface` on `br1_edge:wg_hq_b` and `link_down` on the branch attachment to `isp1`. Ground truth labels both root causes. The primary attachment carries both the preferred HQ tunnel and the DC2 fallback; the affected standby reaches HQ through the independent `isp2` provider.
+A primary WAN outage can expose an existing error on the standby tunnel. The `standby_tunnel_key_exposed` task in the [failure combination catalog](../../src/nika/problems/combinations/cases.yaml) pairs `wireguard_peer_key_misconfiguration` on `br1_edge:wg_hq_b` with `link_down` on the branch attachment to `isp1`. Its schedule injects the standby error first, then interrupts the primary path. Ground truth identifies both root causes.
 
-The definition has two variants of `enterprise_branch` at size `s`: FRR Site Edges and `device_profile: routeros`. The RouterOS variant needs the locally built RouterOS image and KVM (see [RouterOS setup](network-scenarios.md#routeros-simple-bgp-scenario)). Run both variants with the oracle:
+Run its generated tasks with the Oracle:
 
 ```shell
-uv run nika benchmark run --config tests/fixtures/benchmark/latent_backup.yaml --agent oracle
+uv run nika benchmark run --config benchmark/working/pool/enterprise_branch/combinations/standby_tunnel_key_exposed.yaml --agent oracle
 ```
 
-Without the RouterOS image, add `--device-profile frr` to run only the FRR variant.
-
-Both failures use the default initial offset of `0s`; this task does not reserve an observation interval between them. Inspect `frr_bgp_peer_up` or `routeros_bgp_peer_up` by node and neighbor, together with BGP neighbor syslog events from `telemetry: [syslog, prometheus]`. To study the standby failure before the primary outage, author distinct offsets with [scheduled failure events](../benchmarks/scheduling.md#define-the-tasks-events).
-
-The task's live test checks corporate access to HQ and guest Internet access. Both work with only the latent fault and fail with both faults. Repairing the primary restores both services while the backup remains broken. Repairing only the backup restores corporate access to HQ, but guest Internet access still fails because the guest VRF uses the primary ISP attachment. Full branch service therefore requires primary recovery; both root causes must be repaired to restore redundancy. The oracle must confirm both playbooks to solve the task. If it confirms only one, it submits that root cause for partial RCA credit.
-
-The task models a failure pattern from two sources. Google's [*Evolve or Die*](https://research.google/pubs/pub45623/) (SIGCOMM 2016 research paper, sections 5 and 7.1) finds many failures during management operations and describes fallback strategies. Cloudflare's [November 2023 postmortem](https://blog.cloudflare.com/post-mortem-on-cloudflare-control-plane-and-analytics-outage/) (operator incident report, “Designing for Data Center Level Failure” and “Some Products and Features Delayed Restart”) reports dependencies missed by incomplete facility failure tests and recovery procedures that teams had not fully tested.
-
-The task remains outside the working pool and published releases. Incorporating it changes evaluation conditions and requires a new benchmark revision under the [versioning policy](../../VERSIONING.md).
+The [combination catalog](#failure-combinations) records the sources, deployment choices, timing, and tested interaction. [Incident scheduling](../benchmarks/scheduling.md) describes how to author a separate timeline.
 
 ### Service Networking
 
 | Root cause | Failure ID | Scenarios | Parameters | Injection method | Trigger and signal | Verification evidence | Sources |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Kubernetes ClusterIP forwarding failure | `k8s_clusterip_routing_broken` | **Kubernetes** | `control_node`, `node_name`, `service_name`, `namespace`, and `service_cidr` optional | Adds raw-table destination drops before kube-proxy DNAT on one node, for one ClusterIP or the whole Service CIDR. | Pods on that node cannot reach ClusterIP services while direct endpoint traffic and Kubernetes objects can remain healthy. | Raw PREROUTING and OUTPUT drops exist and the Service object remains intact. | [Kubernetes, Virtual IPs and Service Proxies](#source-k8s_clusterip_routing_broken-1) |
+| Kubernetes node firewall drop | `k8s_node_firewall_drop` | **Kubernetes** | `control_node`, `node_name`, `service_name`, `namespace`, and `service_cidr` optional | Adds raw-table destination drops before kube-proxy DNAT on one node, for one ClusterIP or the whole Service CIDR. | Pods on that node cannot reach ClusterIP services while direct endpoint traffic and Kubernetes objects can remain healthy. | Raw PREROUTING and OUTPUT drops exist and the Service object remains intact. | [Kubernetes, Virtual IPs and Service Proxies](#source-k8s_node_firewall_drop-1) |
 | Kubernetes Service target port mismatch | `k8s_service_target_port_mismatch` | **Kubernetes** | `control_node`, `service_name`, `namespace` (all optional) | Sets the first Ingress-backed or InferencePool endpoint-picker Service's `targetPort` to its Service `port` (the usual slip), or to the next port, through a spec patch that also updates the last-applied annotation. Recovery restores the original spec. Based on [Kubernetes, Debug Services](https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/). | Requests for that Service (Ingress HTTP, or the llmd_lab chat-completions call) return 5xx or time out while other application paths answer. Pods stay Ready and the Service keeps its endpoints, which now carry the wrong port. | The Service's `targetPort` equals the injected port. | [Kubernetes, Debug Services](#source-k8s_service_target_port_mismatch-1) |
 | Kubernetes Service selector mismatch | `k8s_service_selector_mismatch` | **Kubernetes** | `control_node`, `service_name`, `namespace` (all optional) | Sets one label on the first Ingress-backed or InferencePool endpoint-picker Service's selector so it no longer matches the Pods, through a spec patch that also updates the last-applied annotation. Recovery restores the original spec. Based on [Kubernetes, Debug Services](https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/). | Requests for that Service (Ingress HTTP, or the llmd_lab chat-completions call) return 5xx or time out. The Service has no endpoints. Pods that the original selector matched stay Running and Ready. | The Service selector equals the injected labels. | [Kubernetes, Debug Services](#source-k8s_service_selector_mismatch-1) |
 | Kubernetes Ingress class mismatch | `k8s_ingress_class_mismatch` | `k8s_lab` | `control_node` (optional) | Sets `ingressClassName` on the first live Ingress by namespace/name to an undefined class, and updates the last-applied annotation. Recovery restores the original spec and annotation. Based on [Kubernetes IngressClass](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class). | The controller returns its default 404 for the Ingress paths while the Service, Pods, and endpoints stay healthy. | The Ingress references the injected class and no IngressClass defines it. | [Kubernetes, Ingress](#source-k8s_ingress_class_mismatch-1) |
 | Kubernetes Ingress rate limit misconfiguration | `k8s_ingress_rate_limit_misconfig` | `k8s_lab` (`llmd_lab` serves its traffic through AgentGateway, not ingress-nginx) | `control_node` (optional) | Sets ingress-nginx `limit-rpm` on the first Ingress carrying the declared HTTP workload to one quarter of its conservative per-path request rate, rounded down with a minimum of one request per minute. Keeps the default burst multiplier of five and updates the last-applied annotation. Recovery restores the annotation and requires the baseline burst to fully succeed. Based on [ingress-nginx rate limiting](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/#rate-limiting) and [NGINX limit_req](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html). | A request burst partly succeeds and returns at least 30% HTTP 503; backend endpoints remain reachable, and controller logs report `limiting requests`. | The live and last-applied Ingress annotations contain the selected minute limit. Ground truth identifies the control-plane node. | [Ingress-Nginx Controller, Annotations](#source-k8s_ingress_rate_limit_misconfig-1) |
 | Load-balancer advertisement missing | `lb_advertisement_missing` | **Kubernetes** | `control_node` (optional) | Points every MetalLB `BGPAdvertisement` and `L2Advertisement` at an address pool that does not exist, through a spec patch that also updates the last-applied annotation. Recovery restores the original pools. Based on [MetalLB configuration](https://metallb.universe.tf/configuration/). | MetalLB keeps the LoadBalancer IPs assigned but speakers withdraw them: BGP sessions, when present, stay up without the service prefixes; in L2 mode ARP for the VIP goes unanswered. Clients outside the cluster lose the address. | No advertisement names an existing IPAddressPool. | [MetalLB, Configuration](#source-lb_advertisement_missing-1) |
-| Software load-balancer overload | `load_balancer_overload` | `campus_lan` | `host_name=load_balancer`, `client_host`, `load_client_hosts`, `vip_url`, `control_url`, `backend_url`, `cpu_quota`, `concurrency`, `load_workers`, `duration_sec` | Pins a fixed NGINX CPU capacity for the whole experiment, records independent `/small` probe baselines, then adds short-lived HTTP/1.1 background `ab` traffic to the VIP. Inspired by software L7 proxy saturation under legitimate traffic peaks (e.g. [GitHub 2026-08-17 LB saturation RCA](https://www.githubstatus.com/incidents/zkxwbgr0cnmx)). | Offered load exceeds LB processing capacity: NGINX CPU saturates and VIP p95/p99 rise (or limited timeouts/errors appear) while `web0.local`, backend-from-LB probes, ping RTT/loss, and nginx liveness stay healthy. | `verify_fault` requires running load workers, at least one `ab` process, the applied CPU quota, and running NGINX. CPU utilization, VIP degradation, and control/backend isolation are separate symptom checks. | [GitHub, Incident with GitHub.com, 2026-08-17](#source-load_balancer_overload-1) |
-| Load-balancer connection-state exhaustion | `lb_connection_state_exhaustion` | `p4_dc_gateway` | `host_name=gateway_1`, `max_connections=4` | Lowers the connection limit of the gateway's L4 agent (`max_connections` in `/etc/lb-agent/config.json`, healthy value 256, the `lb_conn_table` size) below the 8 to 10 VIP connections that its client site keeps open. The injector changes only that setting; the site's own sessions fill the table, as normal load fills an undersized Linux connection-tracking table (`nf_conntrack_max`). Connections the learner cannot pin follow the pool hash, as in [SilkRoad, section 4.3](https://www.cs.yale.edu/homes/yu-minlan/writeup/sigcomm17.pdf). | New connections through that gateway are not pinned, and `/tmp/lb-agent.log` reports `lb_conn_table full`. Each routine pool update (every 1 to 3 minutes) moves the unpinned connections to the other backend, which resets them. Pinned connections and the other gateways keep working, and P4Runtime Read shows `lb_conn_table` holding only a few entries. | The live learner state on the gateway (`/var/lib/lb-agent/status.json`) reports the lowered limit and at least that many pinned connections. | [Miao et al., SilkRoad: Making Stateful Layer-4 Load Balancing Fast and Cheap Using Switching ASICs, SIGCOMM 2017](#source-lb_connection_state_exhaustion-1) |
-| Pending load-balancer update race | `lb_pending_connection_update_race` | `p4_dc_gateway` | `host_name=gateway_1`, `learning_delay_ms=8000`, `seed` | Slows the gateway connection learner from its healthy 5 ms to `learning_delay_ms`, so new connections stay pending (not yet pinned in `lb_conn_table`) for that long. The gateway's routine pool update (a VIP version flip every 1 to 3 minutes in every case, no TransitTable pin) then races them, as in [SilkRoad, section 4.3](https://www.cs.yale.edu/homes/yu-minlan/writeup/sigcomm17.pdf). | Connections opened within `learning_delay_ms` before a pool update move to the new DIP and are reset; connections learned earlier keep their DIP. The business keep-alive sessions see resets and retry, and `/tmp/lb-agent.log` on the gateway shows each update with the connections not yet in `lb_conn_table`. | The live learner state on the gateway (`/var/lib/lb-agent/status.json`) reports the slowed learning delay. | [Miao et al., SilkRoad: Making Stateful Layer-4 Load Balancing Fast and Cheap Using Switching ASICs, SIGCOMM 2017](#source-lb_pending_connection_update_race-1) |
+| Load-balancer connection-state exhaustion | `lb_connection_state_exhaustion` | `p4_dc_gateway` | `host_name=gateway_1`, `max_connections=4` | Lowers the connection limit of the gateway's L4 agent (`max_connections` in `/etc/lb-agent/config.json`, healthy value 256, the `lb_conn_table` size) below the 8 to 10 VIP connections that its client site keeps open. The injector changes only that setting; the site's own sessions fill the table, as normal load fills an undersized Linux connection-tracking table (`nf_conntrack_max`). Connections the learner cannot pin follow the pool hash, as in [SilkRoad, section 4.3](https://www.cs.yale.edu/homes/yu-minlan/writeup/sigcomm17.pdf). | New connections through that gateway are not pinned, and the LB management endpoint reports rejected admissions. Each routine pool update (every 1 to 3 minutes) moves the unpinned connections to the other backend, which resets them. Pinned connections and the other gateways keep working, and P4Runtime Read shows occupancy at or above the lowered limit, including existing connections awaiting drain. | `lb_get_state` reports the lowered limit, connection occupancy and rejected admissions. | [Miao et al., SilkRoad: Making Stateful Layer-4 Load Balancing Fast and Cheap Using Switching ASICs, SIGCOMM 2017](#source-lb_connection_state_exhaustion-1) |
+| Pending load-balancer update race | `lb_pending_connection_update_race` | `p4_dc_gateway` | `host_name=gateway_1`, `learning_delay_ms=8000`, `seed` | Slows the gateway connection learner from its healthy 5 ms to `learning_delay_ms`, so new connections stay pending (not yet pinned in `lb_conn_table`) for that long. The gateway's routine pool update (a VIP version flip every 1 to 3 minutes in every case, no TransitTable pin) then races them, as in [SilkRoad, section 4.3](https://www.cs.yale.edu/homes/yu-minlan/writeup/sigcomm17.pdf). | Connections opened within `learning_delay_ms` before a pool update move to the new DIP and are reset; connections learned earlier keep their DIP. The business keep-alive sessions see resets and retry, and the LB management endpoint records each update and its pending connection count. | `lb_get_state` reports the learning delay, active and pending connections, and pool update events. | [Miao et al., SilkRoad: Making Stateful Layer-4 Load Balancing Fast and Cheap Using Switching ASICs, SIGCOMM 2017](#source-lb_pending_connection_update_race-1) |
 | SNAT port-pool exhaustion | `snat_port_pool_exhaustion` | `enterprise_branch` | `host_name=br1_edge`, `source_prefix=10.1.40.0/24`, `public_ip=198.18.1.10`, `port_start=40000`, `port_end=40063` | Installs an nftables SNAT rule that limits BR1 GUEST TCP flows to 64 source ports on a routed public alias. | Existing allocations remain usable. As the guest sessions of the scenario's business traffic reconnect into the pool, page loads exceed it: new connections to the public service intermittently fail or wait for SYN retries, and conntrack counts insert failures. | `nft list table ip nat` contains the configured SNAT port range. | [Netfilter, NAT HOWTO](#source-snat_port_pool_exhaustion-1) |
 | NAT mapping removed before drain | `nat_mapping_removed_without_drain` | `enterprise_branch` | `host_name=br1_edge`, `source_prefix=10.1.40.0/24`, `nat_ip_a=198.18.1.10`, `nat_ip_b=198.18.1.11`, `wan_interface=eth2` | Directs new GUEST TCP mappings to NAT_IP_B, removes the routed NAT_IP_A alias, and deletes NAT_IP_A conntrack mappings. This models the address-drain requirement in [Cloud NAT troubleshooting](https://cloud.google.com/nat/docs/troubleshooting). | The guest sessions of the scenario's business traffic that are live at inject break: their packets now leave from NAT_IP_B and the replies to NAT_IP_A have no state. Clients time out and reconnect through NAT_IP_B, while the public service keeps retransmitting to NAT_IP_A. | NAT_IP_A is absent from `eth2`, NAT_IP_B remains assigned, and the moved source prefix has no TCP mapping using NAT_IP_A. The native provider checks that no mapping uses NAT_IP_A. | [Netfilter, conntrack-tools user manual](#source-nat_mapping_removed_without_drain-1) |
 
@@ -232,8 +234,9 @@ The task remains outside the working pool and published releases. Incorporating 
 | Incorrect netmask | `host_incorrect_netmask` | **Routed host** | `host_name`, `netmask_prefix=8` | Replaces the `eth0` prefix length. | The host treats remote destinations as on-link or routes local destinations through its gateway. | `eth0` has exactly `netmask_prefix`. On-link versus gateway routing depends on that prefix and the probe destination. | [RFC 1122, Requirements for Internet Hosts: Communication Layers](#source-host_incorrect_netmask-1) |
 | Host IP conflict | `host_ip_conflict` | **Host L2** | `host_name`, `host_name_2` | Replaces `host_name_2`'s IPv4 address and default gateway with those of `host_name`; the first host is unchanged. | The second host loses its previous address. On a shared L2 segment, traffic to the shared address can follow either host as ARP ownership changes. | Both `eth0` interfaces report the same IPv4 address. | [RFC 5227, IPv4 Address Conflict Detection](#source-host_ip_conflict-1) |
 | Host IP misconfig | `host_missing_ip` | **Host L2** | `host_name`, `intf_name=eth0` | Deletes the selected IPv4 address from the interface. The no-address verification assumes it was the interface's only global IPv4 address. | Local and remote IP traffic fails while the link can remain up. | The interface has no global IPv4 address. | [iproute2, ip-address(8)](#source-host_missing_ip-1) |
-| Kubernetes DNS path block | `k8s_coredns_isolated` | **Kubernetes** | `control_node` and `node_name` optional, `dns_service=kube-dns`, `dns_namespace=kube-system`, `dns_selector=k8s-app=kube-dns`, `dns_port=53`, `include_pod_ips=true` | Drops TCP and UDP DNS traffic to the CoreDNS Service IP and, by default, CoreDNS pod IPs on the selected nodes. The labs place CoreDNS on the control plane, so benchmark cases name that node; it is the faulty device (`node/<device>`). | Cluster-name queries time out while CoreDNS pods remain Ready and direct IP traffic can work. | All drop rules exist, CoreDNS Pods remain Ready, and the workload DNS query fails. Port 53 and metrics-port 9153 reachability are reported without gating verification. | [Kubernetes, Debugging DNS Resolution](#source-k8s_coredns_isolated-1) |
-| DNS response delay | `dns_lookup_latency` | **DNS** | `host_name`, `intf_name=eth0`, `delay_ms=1000` | Adds a `tc netem` egress delay to the DNS server interface, affecting all packets leaving that interface. Clients keep their resolver configuration; the target server is already their first or only nameserver. | Name-based requests pause on DNS while direct IP requests avoid the lookup delay. | `verify_fault` checks that `tc qdisc` output contains a delay. It does not check its numerical value or an HTTP latency threshold; lookup timing is a separate symptom check. | [iproute2, tc-netem(8)](#source-dns_lookup_latency-1) |
+| DHCP DNS option misconfiguration | `dhcp_option_dns` | **DHCP** | `host_name`, `host_name_2`, `wrong_dns` optional (derived unused address) | Changes the DNS option on the legitimate DHCP server and renews leases. | Renewed clients send queries to the wrong resolver while direct IP traffic can work. | `dhcpd.conf` contains the incorrect DNS option. | [RFC 2132, DHCP Options and BOOTP Vendor Extensions](#source-dhcp_option_dns-1) |
+| DHCP gateway option misconfiguration | `dhcp_option_gateway` | **DHCP** | `host_name`, `host_name_2` | Changes the legitimate DHCP server's target subnet router option to an address ending in `.254`, then renews leases. | Renewed clients lose off-subnet traffic while local LAN traffic can work. | `dhcpd.conf` contains the incorrect router option. | [RFC 2132, DHCP Options and BOOTP Vendor Extensions](#source-dhcp_option_gateway-1) |
+| DHCP subnet option misconfiguration | `dhcp_option_subnet` | **DHCP** | `host_name`, `host_name_2`, `subnet` optional, `wrong_netmask=255.255.255.252` | Adds an incorrect `option subnet-mask` to the client's subnet declaration on the legitimate server and renews leases. The declaration stays. | Renewed clients get an address with a prefix that excludes their gateway, so off-subnet traffic fails. | The subnet declaration exists once and its `option subnet-mask` equals `wrong_netmask`. | [RFC 2132, DHCP Options and BOOTP Vendor Extensions](#source-dhcp_option_subnet-1) |
 
 ### Endpoint & Application
 
@@ -241,29 +244,464 @@ For these HTTP failures, `sender` is the server that sends the response body and
 
 | Root cause | Failure ID | Scenarios | Parameters | Injection method | Trigger and signal | Verification evidence | Sources |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Receiver resource contention | `receiver_resource_contention` | **HTTP** | `host_name` (HTTP client), `duration` (accepted, no timer), `stress_cpus=8`, `archive_workers=8` (`campus_lan`), `peer_host=web`, optional `large_url` | On `campus_lan`, a lab PC's local gzip archive job is reconfigured from 1 to `archive_workers` concurrent workers inside the PC's unchanged 0.5 CPU limit, so the batch competes with the user's catalog refresh. The PC downloads the repository's gzip-encoded software catalog (`https://web0.local/packages/catalog.txt`, 64 MiB decoded) over HTTPS and decompresses it while receiving. This follows the over-provisioned worker pool exhausting a container CPU quota in [Twitter's cgroup throttling analysis](https://danluu.com/cgroup-throttling/) and the CPU dependence of encrypted file transfer in [Microsoft's slow SMB transfer guidance](https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/slow-smb-file-transfer); [Dell's TCP zero-window guidance](https://www.dell.com/support/kbdoc/en-au/000221738/troubleshoot-tcp-zero-window-update-packets-sent-by-a-powerscale-node?lang=en) lists receiver CPU as one cause of a slow receiving application. Other scenarios create a 16 MiB object on `peer_host`, cap the receiver container at 0.05 CPU where the backend allows it, and run a local gzip archive job with `stress_cpus` workers on the receiver. | On `campus_lan`, the contended PC downloads the catalog at ≤ 50% of baseline throughput, every download completes with the full decoded catalog, and its throughput ratio is at most half that of another lab PC downloading the same catalog, so shared server, path, or host load cannot explain the slowdown; ping and small-object HTTP do not have to stay healthy. Elsewhere, a peer sends three TCP streams of up to 64 MiB or 15 seconds each into the receiver. Across them, the median share of send time in which the receiver's window held the sender back must be at least 20%, and ping loss from the sender must be at most 5%. Throughput is reported but is not a pass condition; it is typically about half of baseline. | On `campus_lan`, the archive job runs with the configured worker count and its gzip workers are active; elsewhere, the archive job's gzip workers are running. On `campus_lan`, symptom tests compare the median of three catalog downloads with the pre-injection baseline; elsewhere, the same three TCP streams measured before injection must all complete with no ping loss and a median receive-window-limited share of at most 10%. On `campus_lan`, recovery stops only the archive job it started, restores the original worker count, and requires catalog throughput to reach at least 70% of baseline. Elsewhere, recovery stops the archive job and restores the original quota without a throughput threshold. | [Dan Luu and David Mackey, The container throttling problem (Twitter operational analysis)](#source-receiver_resource_contention-1) |
-| Sender CPU contention | `sender_resource_contention` | **HTTP** (canonical: `dc_clos`) | `host_name` (HTTP server), `duration` (accepted, no timer), `cpu_quota=0.05`, `stress_cpus=16`, client/URL probe knobs | The environment starts the same static HTTP service on every web host. Its handler re-hashes each 64 KiB block and listens on port 80 (`campus_lan` uses 8080 alongside its web service). Injection caps the target container at `cpu_quota` and starts its local gzip archive job with `stress_cpus` workers. | Large HTTP transfers run at ≤ 20% of baseline throughput or take ≥ 5× the baseline time, while ping loss and small-object HTTP remain healthy. ICMP RTT to the contended host may rise under CFS starvation. | `NanoCpus` matches the applied quota, the archive job's gzip workers run, and the HTTP service listens on the target. Recovery restores the original quota, stops the archive job, and requires large-object throughput to reach at least 70% of baseline. | [Linux kernel, CFS Bandwidth Control](#source-sender_resource_contention-1) |
+| Endpoint CPU contention | `endpoint_cpu_contention` | **HTTP** (canonical: `dc_clos`) | `host_name` (contended endpoint), `client_host`, optional `server_host`, transfer URLs, `cpu_quota=0.05`, `stress_cpus=16` | Applies a CPU quota and starts competing CPU-bound batch workers on the selected endpoint. | A starved sender serves bulk HTTP slowly while small requests succeed; a starved receiver drains TCP slowly and limits the peer through its receive window. Peer probes check network reachability. The endpoint resource identifies the sender or receiver. | Batch workers run and the CPU quota matches. Recovery restores the quota and stops the owned workers. | [Dan Luu and David Mackey, The container throttling problem (Twitter operational analysis)](#source-endpoint_cpu_contention-1); [Linux kernel, CFS Bandwidth Control](#source-endpoint_cpu_contention-2) |
 
 ### Traffic, Queueing & Resource
 
 | Root cause | Failure ID | Scenarios | Parameters | Injection method | Trigger and signal | Verification evidence | Sources |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Undersized overlay EF class | `overlay_qos_ef_undersized` | `enterprise_branch` (FRR sizes `s`/`m`/`l`; RouterOS size `s`) | `host_name`, `intf_name`, `src_host`, `dst_host` (workload-loaded HQ video egress) | Lowers the EF guarantee and ceiling to one tenth of the EF reservation, so EF cannot borrow unused capacity. RouterOS uses the environment's CHR-scaled rates. Classification and DSCP remain correct. Sources: Cisco [interface-drop troubleshooting](https://www.cisco.com/c/en/us/support/docs/routers/asr-1000-series-ios-xe-sd-wan/224129-troubleshoot-interface-packet-drops-in.html) and [priority-queue drop troubleshooting](https://www.cisco.com/c/en/us/support/docs/asynchronous-transfer-mode-atm/atm-traffic-management/10105-priorityqueuedrops.html) (vendor troubleshooting documents), and [voice bandwidth-exceed drops](https://community.cisco.com/t5/routing/b-w-exceed-drops-for-voice-traffic/td-p/2156289) (operator discussion). HTB and queue trees reproduce bandwidth exhaustion with shaping and queue drops; Cisco LLQ uses a policer. | The declared HQ-to-br1 EF video loses packets while the EF class continues carrying traffic; best effort and pings remain healthy. | The live EF rate and ceiling both equal one tenth of the healthy reservation (minimum 1 kbit/s). Queue drops and softphone loss/jitter are separate symptom observations. Recovery restores the reservation and requires healthy media, best effort, and pings. Ground truth identifies the edge whose policy changed. | [RFC 3246, An Expedited Forwarding PHB](#source-overlay_qos_ef_undersized-1) |
-| Incast through a shallow egress buffer | `incast_traffic_network_limitation` | `p4_dc_fabric`, `p4_dc_gateway` | `host_name` (receiver; must be the scenario workload's fan-in receiver), optional `forwarding_device` and `egress_intf` (default: topology peer of the receiver's `eth0`), `port_rate=40mbit` (`20mbit` behind a BMv2 switch), `queue_limit=16kb`, `port_burst=2kb`, optional `probe_dst_ip` / `observer_device`. Old traffic keys (`sender_count`, `packets_per_period`, `period`, `packet_size`, `duration`, `seed`) are ignored. | Sets a TBF on the forwarding device's egress port toward the receiver: the port line rate, a bucket of about one frame, and a shallow `limit`. The line rate is above what one flow gets through the emulated fabric, so the port does not throttle a single flow. The failure starts no traffic: the scenario's business workload runs a partition/aggregate service whose workers answer the receiver's queries at once (`p4_dc_fabric`: the `web_2` search front end and its shards; `p4_dc_gateway`: the `service_1_1` status collector and the client-site agents). A normal port buffer absorbs the converging answers; the shallow queue does not. | At every query the shallow queue overflows and the port tail-drops toward the receiver, while its average rate stays far below the line rate. Traffic that avoids the port is unaffected. | `tc` on the egress port shows the TBF at the configured rate and queue limit. GT labels that egress interface. | [Alizadeh et al., Data Center TCP (DCTCP), SIGCOMM 2010](#source-incast_traffic_network_limitation-1); [Phanishayee et al., Measurement and Analysis of TCP Throughput Collapse in Cluster-based Storage Systems, FAST 2008](#source-incast_traffic_network_limitation-2); [Vasudevan et al., Safe and Effective Fine-grained TCP Retransmissions for Datacenter Communication, SIGCOMM 2009](#source-incast_traffic_network_limitation-3); [Chen et al., Understanding TCP Incast Throughput Collapse in Datacenter Networks, WREN 2009](#source-incast_traffic_network_limitation-4) |
-| Late ECN marking | `p4_ecn_threshold_misconfiguration` | `p4_dc_gateway` | `host_name`, `intf_name`, `bmv2_port`, `threshold=1024` | Raises the public ECN threshold on one BMv2 egress queue while baseline and injected runs use identical TCP incast and queue shaping. Based on [Everflow, Section 7.1, paper page 8](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/08/everflow-sigcomm15.pdf). | TCP incast uses the affected ECMP path under load; CE marking occurs later, and queue occupancy, hop latency, and tail HTTP latency increase. | P4Runtime reads exactly the configured threshold on the selected port. Delayed CE, queue growth, and control-queue stability require separate symptom checks. | [Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015](#source-p4_ecn_threshold_misconfiguration-1) |
+| ECN marking disabled | `p4_ecn_marking_disabled` | `p4_dc_gateway` | `host_name`, `intf_name`, `bmv2_port`, `threshold=1024` | Sets the ECN threshold above the BMv2 queue-depth cap of 64 packets. | The affected egress never marks packets CE under congestion. | P4Runtime shows a threshold above the queue-depth cap; the Oracle compares it with other ports. | [Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015](#source-p4_ecn_marking_disabled-1) |
 | Receiver TCP window limited | `tcp_receive_window_limited` | **HTTP** (`enterprise_branch` only for now) | `host_name` (HTTP client), optional `sender_host`/`sender_ip`/`large_url`, BDP calibration knobs | Disables `tcp_moderate_rcvbuf` and constrains receiver `tcp_rmem` (and `rmem_max` when writable) to a value well below measured path BDP (Dapper receiver-limited). Does not add delay, loss, or rate limits. | Bulk HTTP connections opened under the fault become slower, including new file-sync transfers. Ping, TCP connect, and small objects stay healthy; RTT and loss stay near baseline. Targets are limited to hosts that business traffic downloads into. | Sysctls match the injected `tcp_moderate_rcvbuf` / `tcp_rmem` values; interface remains up. Behavioral checks measure sender time limited by the receiver window and require a healthy control path. Recovery restores saved settings and reconnects post-injection sockets that retain the injected buffer cap, preserving pre-injection connections. | [Linux kernel, IP Sysctl](#source-tcp_receive_window_limited-1) |
 
 ### Security
 
 | Root cause | Failure ID | Scenarios | Parameters | Injection method | Trigger and signal | Verification evidence | Sources |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| ARP cache poisoning | `arp_cache_poisoning` | **Host L2**, `min3clos` | `host_name`, `fake_mac=00:11:22:33:44:55` | Clears existing neighbor entries (including `nud permanent` gateway mappings), installs a permanent neighbor that maps the default gateway to the fake MAC, and installs a netdev egress nftables drop for that forged MAC (required when P4 leaves ignore Ethernet dst on point-to-point host links; inet output cannot match L2 on locally generated packets). The extra drop is used only when the original neighbor was permanent and the environment's routers ignore Ethernet destination. Otherwise the wrong neighbor mapping acts alone; `sdn_l3_clos` leaves enforce destination MAC. | Off-subnet traffic from the target is sent toward the wrong L2 destination and does not leave the host usefully. | The gateway neighbor entry shows the fake MAC. | [RFC 5227, IPv4 Address Conflict Detection](#source-arp_cache_poisoning-1) |
-| BGP hijacking | `bgp_hijacking` | **BGP** | `host_name`, `target_network` optional | Makes an FRR, IOS XR, RouterOS, or SONiC router originate an unauthorized prefix and answer for it from a loopback. It runs on Kathara and on Containerlab SONiC routers; SR Linux has no implementation, and `min3clos` is excluded because its eBGP sessions accept no routes. On `enterprise_branch`, `hq_edge` originates another branch's CORP /24: hubs accept nothing longer than /24 from the overlay, and a branch's own /24 keeps winning at the hubs as the older path. On ISP labs with BGP, a router originates another router's business prefix inside its AS. Rows keep hijacks that win at a router whose stub holds sessions to that prefix's service. | BGP peers select the injected route when policy and prefix selection permit it. On `enterprise_branch`, HQ and every other branch send the victim branch's CORP traffic to `hq_edge`. On Kathara ISP labs, the observer's service sessions end at the hijacker and are refused; on Containerlab ISP labs, the observer stub's traffic to the prefix ends at the hijacker. | The router advertises the prefix; FRR also has the loopback address. | [FRRouting, BGP Networks](#source-bgp_hijacking-1) |
-| DHCP spoofing | `dhcp_spoofed_dns` | **DHCP** | `host_name`, `host_name_2`, `wrong_dns` optional (derived unused address) | Changes the DNS option on the legitimate DHCP server and renews leases; no rogue server sends forged DHCP packets. | Renewed clients send queries to the wrong resolver while direct IP traffic can work. | `dhcpd.conf` contains the spoofed DNS option. | [RFC 2132, DHCP Options and BOOTP Vendor Extensions](#source-dhcp_spoofed_dns-1) |
-| DHCP spoofing | `dhcp_spoofed_gateway` | **DHCP** | `host_name`, `host_name_2` | Changes the legitimate DHCP server's target subnet router option to an address ending in `.254`, then renews leases. | Renewed clients lose off-subnet traffic while local LAN traffic can work. | `dhcpd.conf` contains the spoofed router option. | [RFC 2132, DHCP Options and BOOTP Vendor Extensions](#source-dhcp_spoofed_gateway-1) |
-| DHCP spoofing | `dhcp_spoofed_subnet` | **DHCP** | `host_name`, `host_name_2`, `subnet` optional, `wrong_netmask=255.255.255.252` | Adds a spoofed `option subnet-mask` to the client's subnet declaration on the legitimate server and renews leases. The declaration stays. | Renewed clients get an address with a prefix that excludes their gateway, so off-subnet traffic fails. | The subnet declaration exists once and its `option subnet-mask` equals `wrong_netmask`. | [RFC 2132, DHCP Options and BOOTP Vendor Extensions](#source-dhcp_spoofed_subnet-1) |
+| ARP cache poisoning | `arp_cache_poisoning` | **Host L2** | `host_name`, `fake_mac=00:11:22:33:44:55` | Clears existing neighbor entries (including `nud permanent` gateway mappings), installs a permanent neighbor that maps the default gateway to the fake MAC, and installs a netdev egress nftables drop for that forged MAC (required when P4 leaves ignore Ethernet dst on point-to-point host links; inet output cannot match L2 on locally generated packets). The extra drop is used only when the original neighbor was permanent and the environment's routers ignore Ethernet destination. Otherwise the wrong neighbor mapping acts alone; `sdn_l3_clos` leaves enforce destination MAC. | Off-subnet traffic from the target is sent toward the wrong L2 destination and does not leave the host usefully. | The gateway neighbor entry shows the fake MAC. | [RFC 5227, IPv4 Address Conflict Detection](#source-arp_cache_poisoning-1) |
+| BGP hijacking | `bgp_hijacking` | **BGP** | `host_name`, `target_network` optional, `variant=prefix` (`prefix` or `rpki_invalid_origin`) | Makes an FRR, IOS XR, RouterOS, or SONiC router originate an unauthorized prefix and answer for it from a loopback. It runs on Kathara and on Containerlab SONiC and SR Linux routers with eligible BGP targets. On `enterprise_branch`, `hq_edge` originates another branch's CORP /24: hubs accept nothing longer than /24 from the overlay, and a branch's own /24 keeps winning at the hubs as the older path. On ISP labs with BGP, a router originates another router's business prefix inside its AS. Rows keep hijacks that win at a router whose stub holds sessions to that prefix's service. The `rpki_invalid_origin` variant on Kathara eBGP ISP labs exports an origin not authorized by the covering ROA. | BGP peers select the injected route when policy and prefix selection permit it. On `enterprise_branch`, HQ and every other branch send the victim branch's CORP traffic to `hq_edge`. On Kathara ISP labs, the observer's service sessions end at the hijacker and are refused; on Containerlab ISP labs, the observer stub's traffic to the prefix ends at the hijacker. ROV peers reject the invalid-origin variant while non-ROV peers learn it. | The router advertises the prefix; FRR also has the loopback address. | [FRRouting, BGP Networks](#source-bgp_hijacking-1); [RFC 6811, BGP Prefix Origin Validation](#source-bgp_hijacking-2) |
 | TCP SYN flood | `tcp_syn_flood_attack` | `p4_dc_gateway` | `attacker_device`, `target_ip`, `target_port=80`, `rate_pps=1000`, `duration` (accepted, no timer), `flows=100`, `seed` | Starts deterministic SYN-only 5-tuples from one seeded external client without changing the Bloom-filter threshold. Based on [Tracking Network Flows with P4, Sections VII–VIII, paper pages 28–30](https://pure.uva.nl/ws/files/42163153/Tracking_Network_Flows_with_P4.pdf). | At the default settings, the attacker is configured to send about 1000 SYNs per second across 100 five-tuples for the whole trial; SYN/non-SYN imbalance and half-open pressure increase while legitimate target connections degrade. | At least one configured SYN-generator process runs, and the INT collector is alive with a fresh report file. Bloom-filter imbalance and independent-client health require separate symptom checks. | [RFC 4987, TCP SYN Flooding Attacks and Common Mitigations](#source-tcp_syn_flood_attack-1) |
 | Service DoS | `web_dos_attack` | **HTTP** | `host_name`, `attacker_device`, optional `observer_device`/`probe_url`/`attack_url`; load and probe controls | Starts parallel ApacheBench download workers and a slow-header connection pool against the same service endpoint. The injector records an HTTP baseline from an independent observer and waits for worker, process, and target-connection evidence. | HTTP error rate, median latency, or p95 latency can rise from the healthy baseline while attack connections consume server capacity. | The configured worker loops, at least one `ab` process, and a slow-header client run. The target connection count meets `max(2, min(20, slow_connections / 2))` with integer division. HTTP degradation is checked separately against baseline; recovery stops failure-owned processes. | [cPanel, How to Mitigate Slowloris Attacks](#source-web_dos_attack-1) |
+
+## Failure combinations
+
+A multi-fault task injects two or more failure placements in one network. A task may place the same failure on two resources. Repeated placements use `failure[1]` and `failure[2]` keys in the injection map; the failure IDs stay unchanged.
+
+`bgp_max_prefix_limit_low`, `bgp_prefix_surge`, and `bgp_rov_not_enforced` are combination members. Generation and selection reject single-fault tasks for these components. Multi-fault tasks form one category in reports, whatever their failures are.
+
+A benchmark release contains only the tested multi-fault tasks in [`cases.yaml`](../../src/nika/problems/combinations/cases.yaml). Each task fixes its scenario, deployment, and every failure's parameters, and its failures have a public source for occurring together, recorded with the task and listed below. Every task passed the live test in [`test_failure_combinations_e2e.py`](../../tests/nika/problems/test_failure_combinations_e2e.py): each failure alone, both together, recovery of each, and an [Oracle](../benchmarks/oracle-solver.md) run that confirms every failure. `nika benchmark generate` writes these tasks to `pool/<scenario>/combinations/<name>.yaml`, and freezing a release rejects any other multi-fault task. Where the order matters, a task injects the first failure at `0s`, the others at `trigger_at`, and starts diagnosis after `settle`, once the network has converged.
+
+Benchmark files outside a release may combine any registered failures. Before deploying such a task, NIKA checks that each failure is compatible with the deployment and that its parameters fit its schema and the topology, so the injections run. It does not check that the failures produce a joint symptom; test that separately.
+
+The tasks of `policy_gap_exposed_by_uplink_loss` use size `s` of `dc_clos`. RouterOS removes policy on the leaf; IOS XR removes it on the spine side of the same session because its bridged leaves run FRR. Healthy IOS XR sessions use explicit pass policies with `bgp unsafe-ebgp-policy` disabled.
+
+`pmtud_black_hole` requires small packets to remain reachable after routing settles. The SONiC `isp_abilene` IS-IS placement at `atlam5:eth1` is excluded because the reduced MTU breaks its sole adjacency and the peer's return route, so small packets also fail. Its padded IS-IS hellos exceed the reduced MTU; restoring the MTU restores the adjacency and return route.
+
+<!-- combination-sources:start -->
+| Combination | Failures | Tested deployments | Description | Sources |
+| --- | --- | --- | --- | --- |
+| `bgp_transport_masks_asn` | `bgp_asn_misconfig`, `bgp_acl_block` | `dc_clos` (default); `dc_clos` (routeros); `isp_dfn-bwin` (nokia_srlinux) | A router's BGP TCP filter keeps its sessions from reaching the OPEN exchange that would reveal its misconfigured local AS. | [RFC 4271, A Border Gateway Protocol 4 (BGP-4)](#combination-source-bgp_transport_masks_asn-1); [RFC 4271, A Border Gateway Protocol 4 (BGP-4)](#combination-source-bgp_transport_masks_asn-2) |
+| `bottleneck_masks_receive_window` | `tcp_receive_window_limited`, `link_capacity_bottleneck` | `enterprise_branch` (default) | A bottleneck on the sender's link caps a transfer below the rate the receiver's small TCP window allows. | [RFC 6349, Framework for TCP Throughput Testing](#combination-source-bottleneck_masks_receive_window-1); [RFC 6349, Framework for TCP Throughput Testing](#combination-source-bottleneck_masks_receive_window-2) |
+| `ingress_class_masks_target_port` | `k8s_service_target_port_mismatch`, `k8s_ingress_class_mismatch` | `k8s_lab` (default) | An Ingress claimed by no controller answers 404 before its Service's wrong target port can show as a gateway error. | [Kubernetes, Ingress](#combination-source-ingress_class_masks_target_port-1); [Kubernetes, Debug Services](#combination-source-ingress_class_masks_target_port-2) |
+| `latent_adjacency_cut` | `ospf_hello_interval_mismatch`, `link_down` | `campus_lan` (default); `campus_lan` (iosxr); `campus_lan` (routeros) | An OSPF adjacency lost to a hello timer mismatch stays hidden until the other link of the same cut fails. | [Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016)](#combination-source-latent_adjacency_cut-1); [Evolve or Die: High-Availability Design Principles Drawn from Google's Network Infrastructure (SIGCOMM 2016)](#combination-source-latent_adjacency_cut-2) |
+| `latent_network_type_cut` | `ospf_network_type_mismatch`, `link_down` | `campus_lan` (default); `campus_lan` (routeros) | An OSPF link whose network types disagree drops out of SPF and stays hidden until the other link of the same cut fails. | [Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016)](#combination-source-latent_network_type_cut-1); [Cisco, Troubleshoot Open Shortest Path First Route Database Issues](#combination-source-latent_network_type_cut-2) |
+| `pmtud_black_hole` | `mtu_mismatch`, `icmp_frag_needed_filter_misconfiguration` | `dc_clos` (default); `dc_clos` (routeros) | A router's lowered MTU on a routed link and its filter on ICMP Fragmentation Needed together silently drop large DF packets. | [RFC 2923, TCP Problems with Path MTU Discovery](#combination-source-pmtud_black_hole-1); [Path MTU discovery in practice (Cloudflare)](#combination-source-pmtud_black_hole-2) |
+| `policy_gap_exposed_by_uplink_loss` | `bgp_session_policy_missing`, `link_down` | `dc_clos` (iosxr); `dc_clos` (routeros) | A leaf's eBGP session without usable policy stays hidden until its other uplink fails. | [RFC 8212, Default External BGP Route Propagation Behavior without Policies](#combination-source-policy_gap_exposed_by_uplink_loss-1); [Evolve or Die: High-Availability Design Principles Drawn from Google's Network Infrastructure (SIGCOMM 2016)](#combination-source-policy_gap_exposed_by_uplink_loss-2); [Cisco IOS XR, Implementing BGP](#combination-source-policy_gap_exposed_by_uplink_loss-3) |
+| `prefix_surge_trips_low_limit` | `bgp_max_prefix_limit_low`, `bgp_prefix_surge` | `isp_abilene` (frr) | A peer's prefix surge exceeds a session's latent low maximum-prefix limit and disconnects its customer route. | [Australian Senate, Chapter 2: The Optus network outage](#combination-source-prefix_surge_trips_low_limit-1); [RFC 7454, BGP Operations and Security](#combination-source-prefix_surge_trips_low_limit-2) |
+| `redundant_links_both_lost` | `link_down`, `link_down` | `campus_lan` (default); `campus_lan` (iosxr); `campus_lan` (routeros); `isp_abilene` (sonic); `isp_dfn-gwin` (nokia_srlinux) | Two administratively disabled links that back each other up are lost together, partitioning the nodes behind them. | [Evolve or Die: High-Availability Design Principles Drawn from Google's Network Infrastructure (SIGCOMM 2016)](#combination-source-redundant_links_both_lost-1) |
+| `rov_gap_admits_hijack` | `bgp_rov_not_enforced`, `bgp_hijacking` | `isp_abilene` (frr) | A router whose import policy no longer rejects RPKI-invalid routes installs routes a peer originates with an unauthorized origin. | [How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today (Cloudflare)](#combination-source-rov_gap_admits_hijack-1); [RFC 6811, BGP Prefix Origin Validation](#combination-source-rov_gap_admits_hijack-2) |
+| `selector_masks_readiness` | `k8s_readiness_probe_misconfig`, `k8s_service_selector_mismatch` | `k8s_lab` (default) | A Service whose selector matches no Pods hides that the Pods behind it fail their readiness probes. | [Kubernetes, Debug Services](#combination-source-selector_masks_readiness-1); [Kubernetes, Pod Lifecycle](#combination-source-selector_masks_readiness-2) |
+| `standby_tunnel_allowed_ips_exposed` | `wireguard_allowed_ips_misconfiguration`, `link_down` | `enterprise_branch` (default); `enterprise_branch` (iosxr); `enterprise_branch` (routeros) | A standby tunnel's AllowedIPs omit a remote prefix, which stays hidden until the primary provider link fails. | [Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016)](#combination-source-standby_tunnel_allowed_ips_exposed-1); [WireGuard, Cryptokey Routing](#combination-source-standby_tunnel_allowed_ips_exposed-2) |
+| `standby_tunnel_key_exposed` | `wireguard_peer_key_misconfiguration`, `link_down` | `enterprise_branch` (default); `enterprise_branch` (iosxr); `enterprise_branch` (routeros) | A standby overlay tunnel's wrong peer key stays hidden until the primary provider link fails. | [Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016)](#combination-source-standby_tunnel_key_exposed-1) |
+| `undersized_backup_exposed` | `link_capacity_bottleneck`, `link_down` | `enterprise_branch` (default); `enterprise_branch` (iosxr) | A branch's standby provider link is provisioned far below the branch's traffic, which shows only after the primary link fails. | [Summary of the Amazon EC2 and Amazon RDS Service Disruption in the US East Region (AWS, April 2011)](#combination-source-undersized_backup_exposed-1); [Summary of the Amazon EC2 and Amazon RDS Service Disruption in the US East Region (AWS, April 2011)](#combination-source-undersized_backup_exposed-2) |
+
+#### `bgp_transport_masks_asn`
+
+<a id="combination-source-bgp_transport_masks_asn-1"></a>
+<details>
+<summary>RFC 4271, A Border Gateway Protocol 4 (BGP-4) (rfc; interaction)</summary>
+
+Source: [RFC 4271, A Border Gateway Protocol 4 (BGP-4)](https://www.rfc-editor.org/rfc/rfc4271.html#section-8.2.2). Location: Section 8.2.2, Connect state. Accessed: 2026-11-12.
+
+> If the TCP connection succeeds (Event 16 or Event 17), the local system checks the DelayOpen attribute prior to processing.
+
+**Correspondence:** A speaker sends OPEN only after its TCP connection succeeds, so a filter on TCP port 179 keeps every session of the router before the OPEN exchange.
+
+**Evidence limits:** The RFC describes the state machine, not a filter combined with an AS error.
+
+</details>
+
+<a id="combination-source-bgp_transport_masks_asn-2"></a>
+<details>
+<summary>RFC 4271, A Border Gateway Protocol 4 (BGP-4) (rfc; interaction)</summary>
+
+Source: [RFC 4271, A Border Gateway Protocol 4 (BGP-4)](https://www.rfc-editor.org/rfc/rfc4271.html#section-6.2). Location: Section 6.2, OPEN Message Error Handling. Accessed: 2026-11-12.
+
+> If the Autonomous System field of the OPEN message is unacceptable, then the Error Subcode MUST be set to Bad Peer AS.
+
+**Correspondence:** The misconfigured local AS is reported only as an OPEN error, which the transport filter prevents.
+
+**Evidence limits:** Same document as the state machine excerpt.
+
+</details>
+
+#### `bottleneck_masks_receive_window`
+
+<a id="combination-source-bottleneck_masks_receive_window-1"></a>
+<details>
+<summary>RFC 6349, Framework for TCP Throughput Testing (rfc; interaction)</summary>
+
+Source: [RFC 6349, Framework for TCP Throughput Testing](https://www.rfc-editor.org/rfc/rfc6349.html#section-3.3.1). Location: Section 3.3.1, Minimum TCP RWND. Accessed: 2026-11-12.
+
+> If a smaller TCP RWND size is used, then the TCP Throughput cannot be optimal.
+
+**Correspondence:** The tighter of the two limits sets throughput: the shaper on the sender's link keeps the transfer below what the receiver's window allows, so the window never fills until the shaper is removed.
+
+**Evidence limits:** RFC 6349 is a test methodology; it does not report incidents with both conditions.
+
+</details>
+
+<a id="combination-source-bottleneck_masks_receive_window-2"></a>
+<details>
+<summary>RFC 6349, Framework for TCP Throughput Testing (rfc; interaction)</summary>
+
+Source: [RFC 6349, Framework for TCP Throughput Testing](https://www.rfc-editor.org/rfc/rfc6349.html#section-3.2.2). Location: Section 3.2.2, Measuring the bottleneck bandwidth. Accessed: 2026-11-12.
+
+> Before any TCP Throughput test can be conducted, bandwidth measurement tests SHOULD be run with stateless IP streams.
+
+**Correspondence:** The method measures the bottleneck separately from TCP, which separates the two limits.
+
+**Evidence limits:** Same methodology document as the window guidance.
+
+</details>
+
+#### `ingress_class_masks_target_port`
+
+<a id="combination-source-ingress_class_masks_target_port-1"></a>
+<details>
+<summary>Kubernetes, Ingress (vendor_documentation; interaction)</summary>
+
+Source: [Kubernetes, Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/). Location: Prerequisites. Accessed: 2026-11-12.
+
+> You must have an Ingress controller to satisfy an Ingress. Only creating an Ingress resource has no effect.
+
+**Correspondence:** An Ingress whose class no controller handles is not served, so clients never reach the Service whose target port is wrong.
+
+**Evidence limits:** The page describes the missing controller, not an Ingress class that names no installed controller; both leave the Ingress unserved.
+
+</details>
+
+<a id="combination-source-ingress_class_masks_target_port-2"></a>
+<details>
+<summary>Kubernetes, Debug Services (vendor_documentation; co_occurrence)</summary>
+
+Source: [Kubernetes, Debug Services](https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/). Location: Is the Service defined correctly?. Accessed: 2026-11-12.
+
+> Is the `targetPort` correct for your Pods (some Pods use a different port than the Service)?
+
+**Correspondence:** A wrong target port is a separate check from the Ingress path in the same debugging procedure.
+
+**Evidence limits:** Checklist guidance, not an incident report.
+
+</details>
+
+#### `latent_adjacency_cut`
+
+<a id="combination-source-latent_adjacency_cut-1"></a>
+<details>
+<summary>Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016) (paper; co_occurrence)</summary>
+
+Source: [Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016)](https://www.ece.iastate.edu/~mai/docs/papers/2016_SoCC_COS.pdf). Location: Section 4.3, Backups that also Fail. Accessed: 2026-11-12.
+
+> simultaneous multiple failures of primary and backup components such as double failures of power [5, 17], network [52, 87]
+
+**Correspondence:** The OSPF adjacency on one link of a two-link cut is the failed backup; the later link loss is the primary failure that exposes it.
+
+**Evidence limits:** The study classifies outages by category; it does not describe an IGP timer mismatch on a backup link.
+
+</details>
+
+<a id="combination-source-latent_adjacency_cut-2"></a>
+<details>
+<summary>Evolve or Die: High-Availability Design Principles Drawn from Google&#x27;s Network Infrastructure (SIGCOMM 2016) (paper; co_occurrence)</summary>
+
+Source: [Evolve or Die: High-Availability Design Principles Drawn from Google's Network Infrastructure (SIGCOMM 2016)](https://homepages.dcc.ufmg.br/~cunha/teaching/20221/cloudcomp/readings/03-readings/govindan16evolve.pdf). Location: Section 5, root-cause categories. Accessed: 2026-11-12.
+
+> A single failure event can have more than one root cause
+
+**Correspondence:** Each fault is a counterfactual root cause: without either, the cut keeps one working link and the network stays connected.
+
+**Evidence limits:** The paper does not count multi-root-cause events or name this pair.
+
+</details>
+
+#### `latent_network_type_cut`
+
+<a id="combination-source-latent_network_type_cut-1"></a>
+<details>
+<summary>Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016) (paper; co_occurrence)</summary>
+
+Source: [Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016)](https://www.ece.iastate.edu/~mai/docs/papers/2016_SoCC_COS.pdf). Location: Section 4.3, Backups that also Fail. Accessed: 2026-11-12.
+
+> simultaneous multiple failures of primary and backup components such as double failures of power [5, 17], network [52, 87]
+
+**Correspondence:** The link that the network-type mismatch removes from SPF is the failed backup; the loss of the other link of the cut exposes it.
+
+**Evidence limits:** The study classifies outages by category; it does not describe an OSPF network-type mismatch.
+
+</details>
+
+<a id="combination-source-latent_network_type_cut-2"></a>
+<details>
+<summary>Cisco, Troubleshoot Open Shortest Path First Route Database Issues (vendor_documentation; interaction)</summary>
+
+Source: [Cisco, Troubleshoot Open Shortest Path First Route Database Issues](https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/7112-26.html). Location: Reason 1: Network Type Mismatch. Accessed: 2026-11-12.
+
+> network type mismatch makes the advertising router unreachable
+
+**Correspondence:** The mismatched link carries no routes, so its loss of service is visible only when no other path remains.
+
+**Evidence limits:** Describes the single fault.
+
+</details>
+
+#### `pmtud_black_hole`
+
+<a id="combination-source-pmtud_black_hole-1"></a>
+<details>
+<summary>RFC 2923, TCP Problems with Path MTU Discovery (rfc; interaction)</summary>
+
+Source: [RFC 2923, TCP Problems with Path MTU Discovery](https://www.rfc-editor.org/rfc/rfc2923.html#section-2.1). Location: Section 2.1, Black Hole Detection. Accessed: 2026-11-12.
+
+> Its packets are disappearing into a PMTUD black hole.
+
+**Correspondence:** NIKA lowers a routed interface MTU and filters ICMP Fragmentation Needed on the same router, so large DF packets vanish without feedback.
+
+**Evidence limits:** RFC 2923 describes the filter on any device on the path; NIKA places both faults on one router.
+
+</details>
+
+<a id="combination-source-pmtud_black_hole-2"></a>
+<details>
+<summary>Path MTU discovery in practice (Cloudflare) (incident_report; co_occurrence)</summary>
+
+Source: [Path MTU discovery in practice (Cloudflare)](https://blog.cloudflare.com/path-mtu-discovery-in-practice/). Location: Section Do-not-fragment bit. Accessed: 2026-11-12.
+
+> The most common problems are caused by misconfigured firewalls that drop ICMP packets.
+
+**Correspondence:** An operator reports filtered ICMP combined with a smaller path MTU as the common cause of stalled transfers.
+
+**Evidence limits:** The post describes production patterns rather than one incident.
+
+</details>
+
+#### `policy_gap_exposed_by_uplink_loss`
+
+<a id="combination-source-policy_gap_exposed_by_uplink_loss-1"></a>
+<details>
+<summary>RFC 8212, Default External BGP Route Propagation Behavior without Policies (rfc; interaction)</summary>
+
+Source: [RFC 8212, Default External BGP Route Propagation Behavior without Policies](https://datatracker.ietf.org/doc/html/rfc8212#section-3). Location: Section 3, Changes to RFC 4271. Accessed: 2026-11-12.
+
+> Routes SHALL NOT be added to an Adj-RIB-Out associated with an EBGP peer if no explicit Export Policy has been applied.
+
+**Correspondence:** A leaf's session without import and export policy carries no routes. Its other session carries rack traffic until that uplink fails.
+
+**Evidence limits:** The RFC specifies per-session route rejection; the redundant uplink placement and latent outage are the NIKA reproduction. RouterOS reproduces rejection with undefined filter chains.
+
+</details>
+
+<a id="combination-source-policy_gap_exposed_by_uplink_loss-2"></a>
+<details>
+<summary>Evolve or Die: High-Availability Design Principles Drawn from Google&#x27;s Network Infrastructure (SIGCOMM 2016) (paper; co_occurrence)</summary>
+
+Source: [Evolve or Die: High-Availability Design Principles Drawn from Google's Network Infrastructure (SIGCOMM 2016)](https://cs538.github.io/readings/govindan16.pdf). Location: Section 5, Analysis of Failure Events. Accessed: 2026-11-12.
+
+> if a link failure coincided with planned network maintenance operation that should have been safe due to redundancy
+
+**Correspondence:** A configuration error removes one usable routing path; a later link failure removes the remaining redundancy.
+
+**Evidence limits:** The paper describes maintenance coinciding with link loss and congestive loss, not this eBGP policy fault or a complete rack partition.
+
+</details>
+
+<a id="combination-source-policy_gap_exposed_by_uplink_loss-3"></a>
+<details>
+<summary>Cisco IOS XR, Implementing BGP (vendor_documentation; interaction)</summary>
+
+Source: [Cisco IOS XR, Implementing BGP](https://www.cisco.com/c/en/us/td/docs/iosxr/ncs5500/bgp/710x/b-bgp-cg-ncs5500-710x/implementing-bgp.html). Location: Enable BGP Routing, Before you begin. Accessed: 2026-11-12.
+
+> allow all eBGP neighbors to pass routes using the bgp unsafe-ebgp-policy command.
+
+**Correspondence:** The healthy IOS XR rendering uses explicit pass policies and disables the global unsafe bypass, so removing one session's policies invokes default rejection.
+
+**Evidence limits:** This documents the policy prerequisite, not the later redundant-uplink outage.
+
+</details>
+
+#### `prefix_surge_trips_low_limit`
+
+<a id="combination-source-prefix_surge_trips_low_limit-1"></a>
+<details>
+<summary>Australian Senate, Chapter 2: The Optus network outage (incident_report; co_occurrence)</summary>
+
+Source: [Australian Senate, Chapter 2: The Optus network outage](https://www.aph.gov.au/Parliamentary_Business/Committees/Senate/Environment_and_Communications/OptusNetworkOutage/Report/Chapter_2_-_The_Optus_network_outage). Location: Paragraphs 2.21 and 2.27. Accessed: 2026-11-12.
+
+> a preset safety limit on these routers was reached or exceeded
+
+**Correspondence:** Routing changes from an interconnected network exceeded configured safety limits and disconnected routers. NIKA separates the extra advertisements from the low terminating limit.
+
+**Evidence limits:** The report does not publish router configuration or prefix counts. NIKA models the mechanism with FRR sessions and an isolated additional-prefix block, not the national outage scale or the upgrade.
+
+</details>
+
+<a id="combination-source-prefix_surge_trips_low_limit-2"></a>
+<details>
+<summary>RFC 7454, BGP Operations and Security (rfc; interaction)</summary>
+
+Source: [RFC 7454, BGP Operations and Security](https://www.rfc-editor.org/rfc/rfc7454.html#section-8). Location: Section 8, Maximum Prefixes on a Peering. Accessed: 2026-11-12.
+
+> It is important to regularly review the limits that are configured
+
+**Correspondence:** The terminating limit needs headroom for expected route growth. NIKA sets it one prefix above the normal received count.
+
+**Evidence limits:** The RFC recommends limit management; it does not specify the Optus configuration or its actual headroom.
+
+</details>
+
+#### `redundant_links_both_lost`
+
+<a id="combination-source-redundant_links_both_lost-1"></a>
+<details>
+<summary>Evolve or Die: High-Availability Design Principles Drawn from Google&#x27;s Network Infrastructure (SIGCOMM 2016) (paper; co_occurrence)</summary>
+
+Source: [Evolve or Die: High-Availability Design Principles Drawn from Google's Network Infrastructure (SIGCOMM 2016)](https://homepages.dcc.ufmg.br/~cunha/teaching/20221/cloudcomp/readings/03-readings/govindan16evolve.pdf). Location: Section 5 and Figure 7, Competing drains/upgrades. Accessed: 2026-11-12.
+
+> if a link failure coincided with planned network maintenance operation that should have been safe due to redundancy
+
+**Correspondence:** NIKA disables both links of a redundant pair; each is safe alone and together they partition the nodes behind them.
+
+**Evidence limits:** The paper's example ends in congestive loss; NIKA's pair removes all redundancy, so the outcome is a partition.
+
+</details>
+
+#### `rov_gap_admits_hijack`
+
+<a id="combination-source-rov_gap_admits_hijack-1"></a>
+<details>
+<summary>How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today (Cloudflare) (incident_report; co_occurrence)</summary>
+
+Source: [How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today (Cloudflare)](https://blog.cloudflare.com/how-verizon-and-a-bgp-optimizer-knocked-large-parts-of-the-internet-offline-today/). Location: Section What happened?. Accessed: 2026-11-12.
+
+> Verizon’s lack of filtering turned this into a major incident
+
+**Correspondence:** A peer leaks routes it should not originate, and an upstream that does not filter them installs and propagates them; NIKA leaks RPKI-invalid routes toward a router whose invalid-route rejection is missing.
+
+**Evidence limits:** The 2019 leak consisted of more-specific prefixes and Verizon lacked several filters; NIKA reproduces the missing filter with RPKI origin validation and an unauthorized-origin leak.
+
+</details>
+
+<a id="combination-source-rov_gap_admits_hijack-2"></a>
+<details>
+<summary>RFC 6811, BGP Prefix Origin Validation (rfc; interaction)</summary>
+
+Source: [RFC 6811, BGP Prefix Origin Validation](https://www.rfc-editor.org/rfc/rfc6811.html#section-2). Location: Section 2, validation states. Accessed: 2026-11-12.
+
+> Invalid: At least one VRP Covers the Route Prefix, but no VRP Matches it.
+
+**Correspondence:** The leaked routes are Invalid; only a router whose import policy acts on that state rejects them, so the missing rejection matters only once invalid routes arrive.
+
+**Evidence limits:** RFC 6811 leaves the policy for Invalid routes to the operator.
+
+</details>
+
+#### `selector_masks_readiness`
+
+<a id="combination-source-selector_masks_readiness-1"></a>
+<details>
+<summary>Kubernetes, Debug Services (vendor_documentation; interaction)</summary>
+
+Source: [Kubernetes, Debug Services](https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/). Location: Does the Service have any EndpointSlices?. Accessed: 2026-11-12.
+
+> you should check that the `spec.selector` field of your Service actually selects for `metadata.labels` values on your Pods
+
+**Correspondence:** A selector that matches no Pods leaves the Service without endpoints regardless of the Pods' readiness.
+
+**Evidence limits:** The guide presents the checks in sequence; it does not discuss both conditions at once.
+
+</details>
+
+<a id="combination-source-selector_masks_readiness-2"></a>
+<details>
+<summary>Kubernetes, Pod Lifecycle (vendor_documentation; interaction)</summary>
+
+Source: [Kubernetes, Pod Lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/). Location: Container probes, readinessProbe. Accessed: 2026-11-12.
+
+> If the readiness probe returns a failed state, the EndpointSlice controller removes the Pod&#x27;s IP address from the EndpointSlices of all Services that match the Pod.
+
+**Correspondence:** Failing readiness shows on a Service only through the endpoints of Pods it matches, so the selector mismatch hides it.
+
+**Evidence limits:** Describes readiness alone.
+
+</details>
+
+#### `standby_tunnel_allowed_ips_exposed`
+
+<a id="combination-source-standby_tunnel_allowed_ips_exposed-1"></a>
+<details>
+<summary>Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016) (paper; co_occurrence)</summary>
+
+Source: [Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016)](https://www.ece.iastate.edu/~mai/docs/papers/2016_SoCC_COS.pdf). Location: Section 4.3, Backups that also Fail. Accessed: 2026-11-12.
+
+> simultaneous multiple failures of primary and backup components such as double failures of power [5, 17], network [52, 87]
+
+**Correspondence:** The standby tunnel's AllowedIPs omission is the failed backup; the primary provider link loss exposes it.
+
+**Evidence limits:** The study classifies outages by category; it does not describe a WireGuard AllowedIPs error.
+
+</details>
+
+<a id="combination-source-standby_tunnel_allowed_ips_exposed-2"></a>
+<details>
+<summary>WireGuard, Cryptokey Routing (vendor_documentation; interaction)</summary>
+
+Source: [WireGuard, Cryptokey Routing](https://www.wireguard.com/#cryptokey-routing). Location: Cryptokey Routing, outgoing peer selection. Accessed: 2026-11-12.
+
+> compares it to each peer&#x27;s list of allowed IPs
+
+**Correspondence:** Traffic to the omitted prefix is refused only once routing sends it into the standby tunnel.
+
+**Evidence limits:** Describes peer selection, not standby tunnels.
+
+</details>
+
+#### `standby_tunnel_key_exposed`
+
+<a id="combination-source-standby_tunnel_key_exposed-1"></a>
+<details>
+<summary>Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016) (paper; co_occurrence)</summary>
+
+Source: [Why Does the Cloud Stop Computing? Lessons from Hundreds of Service Outages (SoCC 2016)](https://www.ece.iastate.edu/~mai/docs/papers/2016_SoCC_COS.pdf). Location: Section 4.3, Backups that also Fail. Accessed: 2026-11-12.
+
+> simultaneous multiple failures of primary and backup components such as double failures of power [5, 17], network [52, 87]
+
+**Correspondence:** The standby tunnel's wrong peer key is the failed backup; the primary provider link loss exposes it.
+
+**Evidence limits:** The study classifies outages by category; it does not describe a WireGuard key error.
+
+</details>
+
+#### `undersized_backup_exposed`
+
+<a id="combination-source-undersized_backup_exposed-1"></a>
+<details>
+<summary>Summary of the Amazon EC2 and Amazon RDS Service Disruption in the US East Region (AWS, April 2011) (incident_report; co_occurrence)</summary>
+
+Source: [Summary of the Amazon EC2 and Amazon RDS Service Disruption in the US East Region (AWS, April 2011)](https://aws.amazon.com/message/65648/). Location: Primary Outage. Accessed: 2026-11-12.
+
+> the traffic was routed onto the lower capacity redundant EBS network
+
+**Correspondence:** Traffic moved onto a backup network too small for it; NIKA shapes a branch's standby provider link and then fails the primary.
+
+**Evidence limits:** In the AWS event a configuration change shifted the traffic; NIKA uses a primary link failure as the trigger.
+
+</details>
+
+<a id="combination-source-undersized_backup_exposed-2"></a>
+<details>
+<summary>Summary of the Amazon EC2 and Amazon RDS Service Disruption in the US East Region (AWS, April 2011) (incident_report; interaction)</summary>
+
+Source: [Summary of the Amazon EC2 and Amazon RDS Service Disruption in the US East Region (AWS, April 2011)](https://aws.amazon.com/message/65648/). Location: Overview of EBS System. Accessed: 2026-11-12.
+
+> This network is not designed to handle all traffic from the primary network
+
+**Correspondence:** The backup's capacity is a standing condition that matters only when the primary's traffic moves onto it.
+
+**Evidence limits:** Same report.
+
+</details>
+
+<!-- combination-sources:end -->
 
 ## Recover receiver-limited TCP transfers
 
@@ -285,15 +723,15 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 The evidence below supports each failure's mechanism, reference implementation, or expected symptom. Each entry distinguishes the source's claim from NIKA's modeling choices. Source review establishes the correspondence with code; executable tests establish behavior in the supported environments.
 
 <!-- failure-sources:start -->
-Reviewed: 103 of 103 registered failures.
+Reviewed: 97 of 97 registered failures.
 
 | Source type | Citation records | Distinct failures |
 | --- | --- | --- |
-| incident_report | 2 | 2 |
+| incident_report | 5 | 5 |
 | operator_mailing_list | 0 | 0 |
-| vendor_documentation | 69 | 68 |
-| rfc | 28 | 28 |
-| paper | 10 | 7 |
+| vendor_documentation | 67 | 65 |
+| rfc | 31 | 30 |
+| paper | 11 | 8 |
 
 Citation records count repeated uses of a source. Distinct-failure counts overlap when a failure cites multiple source types.
 
@@ -423,21 +861,35 @@ Source: [FRRouting, BGP Networks](https://docs.frrouting.org/en/latest/bgp.html#
 
 </details>
 
-### `bgp_max_prefix_exceeded`
-
-Implementation: [`BGPMaxPrefixExceeded`](../../src/nika/problems/routing_control_plane/bgp.py).
-
-<a id="source-bgp_max_prefix_exceeded-1"></a>
+<a id="source-bgp_hijacking-2"></a>
 <details>
-<summary>RFC 4486, Subcodes for BGP Cease Notification Message (rfc; mechanism)</summary>
+<summary>RFC 6811, BGP Prefix Origin Validation (rfc; mechanism)</summary>
 
-Source: [RFC 4486, Subcodes for BGP Cease Notification Message](https://www.rfc-editor.org/rfc/rfc4486.html#section-4). Location: Sections 3 and 4, Maximum Number of Prefixes Reached. Accessed: 2026-11-10.
+Source: [RFC 6811, BGP Prefix Origin Validation](https://www.rfc-editor.org/rfc/rfc6811.html#section-2). Location: Section 2, validation procedure; Section 5, deployment considerations. Accessed: 2026-11-10.
 
-> Maximum Number of Prefixes Reached
+> rejecting all &quot;invalid&quot; routes
 
-**Correspondence:** NIKA sets a terminating maximum-prefix limit below an injected peer advertisement flood. RFC 4486 specifies the Cease notification when the received prefix count exceeds the configured upper bound.
+**Correspondence:** NIKA permits export of prefixes with the unauthorized origin origin ASN while ROAs authorize the legitimate origin. RFC 6811 marks a covered route invalid when no authorization matches and permits invalid-route rejection, matching the ROV/non-ROV observer difference.
 
-**Evidence limits:** The RFC specifies the notification for a speaker that decides to terminate. It does not mandate NIKA flood sizes or hold-down behavior.
+**Evidence limits:** ROV rejection is local policy, not mandatory. This implementation changes origin and creates MOAS; it does not model every form of path-only route leak.
+
+</details>
+
+### `bgp_max_prefix_limit_low`
+
+Implementation: [`BGPLowPrefixLimit`](../../src/nika/problems/routing_control_plane/bgp_prefix_surge.py).
+
+<a id="source-bgp_max_prefix_limit_low-1"></a>
+<details>
+<summary>RFC 7454, BGP Operations and Security (rfc; mechanism)</summary>
+
+Source: [RFC 7454, BGP Operations and Security](https://www.rfc-editor.org/rfc/rfc7454.html#section-8). Location: Section 8, Maximum Prefixes on a Peering. Accessed: 2026-11-12.
+
+> It is important to regularly review the limits that are configured
+
+**Correspondence:** The terminating limit needs headroom for expected route growth. NIKA sets it one prefix above the normal received count.
+
+**Evidence limits:** The RFC recommends limit management; it does not specify the Optus configuration or its actual headroom.
 
 </details>
 
@@ -509,21 +961,113 @@ Source: [MikroTik RouterOS, Route Selection and Filters](https://help.mikrotik.c
 
 </details>
 
-### `bgp_rpki_invalid_route_leak`
+### `bgp_prefix_surge`
 
-Implementation: [`BGPRPKIInvalidRouteLeak`](../../src/nika/problems/routing_control_plane/bgp.py).
+Implementation: [`BGPPrefixSurge`](../../src/nika/problems/routing_control_plane/bgp_prefix_surge.py).
 
-<a id="source-bgp_rpki_invalid_route_leak-1"></a>
+<a id="source-bgp_prefix_surge-1"></a>
+<details>
+<summary>Australian Senate, Chapter 2: The Optus network outage (incident_report; mechanism)</summary>
+
+Source: [Australian Senate, Chapter 2: The Optus network outage](https://www.aph.gov.au/Parliamentary_Business/Committees/Senate/Environment_and_Communications/OptusNetworkOutage/Report/Chapter_2_-_The_Optus_network_outage). Location: Paragraphs 2.21 and 2.27. Accessed: 2026-11-12.
+
+> a preset safety limit on these routers was reached or exceeded
+
+**Correspondence:** Routing changes from an interconnected network exceeded configured safety limits and disconnected routers. NIKA separates the extra advertisements from the low terminating limit.
+
+**Evidence limits:** The report does not publish router configuration or prefix counts. NIKA models the mechanism with FRR sessions and an isolated additional-prefix block, not the national outage scale or the upgrade.
+
+</details>
+
+### `bgp_route_leak`
+
+Implementation: [`BGPRouteLeak`](../../src/nika/problems/routing_control_plane/route_leak.py).
+
+<a id="source-bgp_route_leak-1"></a>
+<details>
+<summary>RFC 7908, Problem Definition and Classification of BGP Route Leaks (rfc; mechanism)</summary>
+
+Source: [RFC 7908, Problem Definition and Classification of BGP Route Leaks](https://www.rfc-editor.org/rfc/rfc7908.html). Location: Sections 3.1–3.4: Type 1 hairpin; types 2–4 peer/provider export violations. Accessed: 2026-11-15.
+
+> Neither the prefix nor the AS path in the update is altered.
+
+**Correspondence:** NIKA bypasses one upstream export restriction on a multihomed customer. The learned full prefix and original origin AS remain intact; normal eBGP prepending adds the customer AS.
+
+**Evidence limits:** Implements the type 1 provider-customer-provider hairpin. Types 2–4 describe related peer export violations; they are taxonomy references, not additional injected variants.
+
+</details>
+
+<a id="source-bgp_route_leak-2"></a>
+<details>
+<summary>RFC 9234, Route Leak Prevention and Detection Using Roles in UPDATE and OPEN Messages (rfc; mechanism)</summary>
+
+Source: [RFC 9234, Route Leak Prevention and Detection Using Roles in UPDATE and OPEN Messages](https://www.rfc-editor.org/rfc/rfc9234.html). Location: Sections 3.1, 4 and 5: peering relationships, BGP Role and OTC. Accessed: 2026-11-15.
+
+> It prevents ASes from creating leaks and detects leaks
+
+**Correspondence:** The declared provider/customer/peer relationships define the healthy export contract. BGP roles and Only to Customer (OTC) are the protocol mitigation for this class of violation.
+
+**Evidence limits:** NIKA uses ordinary AS-path export filters and customer route preference. It does not enable negotiated roles or OTC enforcement, which would prevent this injected leak.
+
+</details>
+
+<a id="source-bgp_route_leak-3"></a>
+<details>
+<summary>Cloudflare, How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today (incident_report; mechanism)</summary>
+
+Source: [Cloudflare, How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today](https://blog.cloudflare.com/how-verizon-and-a-bgp-optimizer-knocked-large-parts-of-the-internet-offline-today/). Location: 24 June 2019, The leak section: DQE → Allegheny → Verizon. Accessed: 2026-11-15.
+
+> sent to their other transit provider
+
+**Correspondence:** The incident documents a customer forwarding routes learned from DQE to its other transit provider Verizon. NIKA reproduces the unauthorized upstream transit and resulting traffic detour.
+
+**Evidence limits:** The incident also involved optimizer-generated more-specific prefixes and overload. NIKA uses an unchanged full prefix and does not reproduce those additional mechanisms.
+
+</details>
+
+### `bgp_rov_not_enforced`
+
+Implementation: [`BGPROVNotEnforced`](../../src/nika/problems/routing_control_plane/bgp.py).
+
+<a id="source-bgp_rov_not_enforced-1"></a>
 <details>
 <summary>RFC 6811, BGP Prefix Origin Validation (rfc; mechanism)</summary>
 
-Source: [RFC 6811, BGP Prefix Origin Validation](https://www.rfc-editor.org/rfc/rfc6811.html#section-2). Location: Section 2, validation procedure; Section 5, deployment considerations. Accessed: 2026-11-10.
+Source: [RFC 6811, BGP Prefix Origin Validation](https://www.rfc-editor.org/rfc/rfc6811.html#section-2). Location: Section 2, validation states; Section 5, invalid-route policy. Accessed: 2026-11-12.
 
-> rejecting all &quot;invalid&quot; routes
+> Invalid: At least one VRP Covers the Route Prefix, but no VRP Matches it.
 
-**Correspondence:** NIKA permits export of prefixes with the leaker origin ASN while ROAs authorize the legitimate origin. RFC 6811 marks a covered route invalid when no authorization matches and permits invalid-route rejection, matching the ROV/non-ROV observer difference.
+**Correspondence:** The router retains origin validation data but loses its local policy to reject invalid routes. Section 5 describes rejecting all invalid routes as one possible policy.
 
-**Evidence limits:** ROV rejection is local policy, not mandatory. This implementation changes origin and creates MOAS; it does not model every form of path-only route leak.
+**Evidence limits:** RFC 6811 defines validation states; it does not mandate invalid-route rejection. NIKA models a router whose intended import policy rejects them.
+
+</details>
+
+<a id="source-bgp_rov_not_enforced-2"></a>
+<details>
+<summary>FRR BGP documentation, Validating BGP Updates (vendor_documentation; reference_implementation)</summary>
+
+Source: [FRR BGP documentation, Validating BGP Updates](https://docs.frrouting.org/en/latest/bgp.html#validating-bgp-updates). Location: Validating BGP Updates, match rpki notfound|invalid|valid. Accessed: 2026-11-12.
+
+> Create a clause for a route map to match prefixes with the specified RPKI state.
+
+**Correspondence:** The healthy BGP-IN deny sequence matches rpki invalid. Removing that sequence leaves the later business-prefix permit and RTR configuration intact.
+
+**Evidence limits:** The example in the FRR documentation changes local preference. NIKA uses the documented matcher in a deny sequence.
+
+</details>
+
+<a id="source-bgp_rov_not_enforced-3"></a>
+<details>
+<summary>Cloudflare, How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today (incident_report; mechanism)</summary>
+
+Source: [Cloudflare, How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today](https://blog.cloudflare.com/how-verizon-and-a-bgp-optimizer-knocked-large-parts-of-the-internet-offline-today/). Location: 2019-06-24 incident account, upstream filtering at Verizon. Accessed: 2026-11-12.
+
+> Verizon’s lack of filtering turned this into a major incident
+
+**Correspondence:** The Verizon/DQE incident motivates a separate upstream filtering failure that can combine with a route leak. Alone, the missing invalid-deny policy has no traffic effect without invalid announcements.
+
+**Evidence limits:** The incident involved more-specific route leaks. NIKA retains the existing RPKI profile with an unauthorized origin; this is a mechanism-level reproduction.
 
 </details>
 
@@ -631,6 +1175,20 @@ Source: [Linux BPF helper reference, bpf-helpers(7)](https://man7.org/linux/man-
 
 </details>
 
+<a id="source-device_forwarding_packet_corruption-2"></a>
+<details>
+<summary>Stone and Partridge, When the CRC and TCP Checksum Disagree, SIGCOMM 2000 (paper; mechanism)</summary>
+
+Source: [Stone and Partridge, When the CRC and TCP Checksum Disagree, SIGCOMM 2000](https://conferences.sigcomm.org/sigcomm/2000/conf/paper/sigcomm2000-9-1.pdf). Location: Section 1, introduction. Accessed: 2026-11-16.
+
+> intermediate systems
+
+**Correspondence:** The paper describes transport checksum errors that pass link CRC checks and identifies intermediate systems or hosts as possible sources. NIKA models payload corruption inside one forwarding device before egress FCS generation, then requires checksum errors on independent paths through that device.
+
+**Evidence limits:** The paper does not establish NIKA's particular flow hash, bit position, corruption rate, or a specific switch ASIC defect. These remain model choices.
+
+</details>
+
 ### `dhcp_missing_subnet`
 
 Implementation: [`DHCPMissingSubnet`](../../src/nika/problems/addressing_neighbor_naming/dhcp.py).
@@ -646,6 +1204,60 @@ Source: [ISC DHCP 4.4, dhcpd.conf](https://kb.isc.org/docs/isc-dhcp-44-manual-pa
 **Correspondence:** DHCPMissingSubnet removes the declaration for the client subnet and renews leases. ISC requires a subnet declaration for every served subnet, with ranges inside it for dynamic allocation.
 
 **Evidence limits:** The manual establishes the required configuration. Server startup behavior after removing a declaration depends on its other configured subnets.
+
+</details>
+
+### `dhcp_option_dns`
+
+Implementation: [`DHCPOptionDNS`](../../src/nika/problems/addressing_neighbor_naming/dhcp_options.py).
+
+<a id="source-dhcp_option_dns-1"></a>
+<details>
+<summary>RFC 2132, DHCP Options and BOOTP Vendor Extensions (rfc; mechanism)</summary>
+
+Source: [RFC 2132, DHCP Options and BOOTP Vendor Extensions](https://www.rfc-editor.org/rfc/rfc2132.html#section-3.8). Location: Section 3.8, Domain Name Server Option. Accessed: 2026-11-10.
+
+> name servers available to the client
+
+**Correspondence:** NIKA changes an option on the legitimate DHCP server and renews the affected client lease. The resulting client configuration follows the incorrect server option.
+
+**Evidence limits:** NIKA models DHCP option misconfiguration; it does not introduce a rogue DHCP server.
+
+</details>
+
+### `dhcp_option_gateway`
+
+Implementation: [`DHCPOptionGateway`](../../src/nika/problems/addressing_neighbor_naming/dhcp_options.py).
+
+<a id="source-dhcp_option_gateway-1"></a>
+<details>
+<summary>RFC 2132, DHCP Options and BOOTP Vendor Extensions (rfc; mechanism)</summary>
+
+Source: [RFC 2132, DHCP Options and BOOTP Vendor Extensions](https://www.rfc-editor.org/rfc/rfc2132.html#section-3.5). Location: Section 3.5, Router Option. Accessed: 2026-11-10.
+
+> routers on the client&#x27;s subnet
+
+**Correspondence:** NIKA changes an option on the legitimate DHCP server and renews the affected client lease. The resulting client configuration follows the incorrect server option.
+
+**Evidence limits:** NIKA models DHCP option misconfiguration; it does not introduce a rogue DHCP server.
+
+</details>
+
+### `dhcp_option_subnet`
+
+Implementation: [`DHCPOptionSubnet`](../../src/nika/problems/addressing_neighbor_naming/dhcp_options.py).
+
+<a id="source-dhcp_option_subnet-1"></a>
+<details>
+<summary>RFC 2132, DHCP Options and BOOTP Vendor Extensions (rfc; mechanism)</summary>
+
+Source: [RFC 2132, DHCP Options and BOOTP Vendor Extensions](https://www.rfc-editor.org/rfc/rfc2132.html#section-3.3). Location: Section 3.3, Subnet Mask. Accessed: 2026-11-10.
+
+> specifies the client&#x27;s subnet mask
+
+**Correspondence:** NIKA changes an option on the legitimate DHCP server and renews the affected client lease. The resulting client configuration follows the incorrect server option.
+
+**Evidence limits:** NIKA models DHCP option misconfiguration; it does not introduce a rogue DHCP server.
 
 </details>
 
@@ -667,78 +1279,6 @@ Source: [RFC 2131, Dynamic Host Configuration Protocol](https://www.rfc-editor.o
 
 </details>
 
-### `dhcp_spoofed_dns`
-
-Implementation: [`DHCPSpoofedDNS`](../../src/nika/problems/security/dhcp.py).
-
-<a id="source-dhcp_spoofed_dns-1"></a>
-<details>
-<summary>RFC 2132, DHCP Options and BOOTP Vendor Extensions (rfc; mechanism)</summary>
-
-Source: [RFC 2132, DHCP Options and BOOTP Vendor Extensions](https://www.rfc-editor.org/rfc/rfc2132.html#section-3.8). Location: Section 3.8, Domain Name Server Option. Accessed: 2026-11-10.
-
-> name servers available to the client
-
-**Correspondence:** NIKA changes the subnet DNS option and renews clients; option 6 supplies the resolver list used by those clients.
-
-**Evidence limits:** The source defines option semantics, not a rogue-server attack. NIKA edits the legitimate server configuration.
-
-</details>
-
-### `dhcp_spoofed_gateway`
-
-Implementation: [`DHCPSpoofedGateway`](../../src/nika/problems/security/dhcp.py).
-
-<a id="source-dhcp_spoofed_gateway-1"></a>
-<details>
-<summary>RFC 2132, DHCP Options and BOOTP Vendor Extensions (rfc; mechanism)</summary>
-
-Source: [RFC 2132, DHCP Options and BOOTP Vendor Extensions](https://www.rfc-editor.org/rfc/rfc2132.html#section-3.5). Location: Section 3.5, Router Option. Accessed: 2026-11-10.
-
-> routers on the client&#x27;s subnet
-
-**Correspondence:** NIKA replaces the router option with a wrong .254 address and renews clients; option 3 determines their next-hop routers.
-
-**Evidence limits:** The source defines option semantics. Connectivity loss additionally requires that the injected gateway cannot forward the intended traffic; NIKA uses a configuration change, not an on-wire rogue server.
-
-</details>
-
-### `dhcp_spoofed_subnet`
-
-Implementation: [`DHCPSpoofedSubnet`](../../src/nika/problems/security/dhcp.py).
-
-<a id="source-dhcp_spoofed_subnet-1"></a>
-<details>
-<summary>RFC 2132, DHCP Options and BOOTP Vendor Extensions (rfc; mechanism)</summary>
-
-Source: [RFC 2132, DHCP Options and BOOTP Vendor Extensions](https://www.rfc-editor.org/rfc/rfc2132.html#section-3.3). Location: Section 3.3, Subnet Mask. Accessed: 2026-11-10.
-
-> specifies the client&#x27;s subnet mask
-
-**Correspondence:** NIKA changes option subnet-mask while keeping the subnet declaration, then renews clients. Option 1 controls the client mask and therefore its on-link decision.
-
-**Evidence limits:** The source defines the mask option. Whether a wrong mask excludes the gateway depends on the assigned address and deployment. NIKA edits the legitimate server.
-
-</details>
-
-### `dns_lookup_latency`
-
-Implementation: [`DNSLookupLatency`](../../src/nika/problems/addressing_neighbor_naming/dns_latency.py).
-
-<a id="source-dns_lookup_latency-1"></a>
-<details>
-<summary>iproute2, tc-netem(8) (vendor_documentation; reference_implementation)</summary>
-
-Source: [iproute2, tc-netem(8)](https://man7.org/linux/man-pages/man8/tc-netem.8.html). Location: OPTIONS, delay. Accessed: 2026-11-10.
-
-> delay
-
-**Correspondence:** NIKA installs a netem egress delay on the resolver interface, delaying DNS replies and any other packets leaving that interface. The manual defines the same delay operation; the injector does not select only DNS packets.
-
-**Evidence limits:** The source documents delay injection. It does not demonstrate a DNS DoS attack or establish NIKA application-latency thresholds.
-
-</details>
-
 ### `dns_port_blocked`
 
 Implementation: [`DNSPortBlocked`](../../src/nika/problems/forwarding_encapsulation_policy/acl.py).
@@ -754,6 +1294,20 @@ Source: [RFC 1035, Domain Names: Implementation and Specification](https://www.r
 **Correspondence:** NIKA drops both UDP and TCP destination port 53. RFC 1035 assigns DNS server traffic to those transports and port, so both query paths are blocked.
 
 **Evidence limits:** A dropped query times out; this does not model a DNS empty-answer response. The RFC defines the transport dependency, not the nftables implementation.
+
+</details>
+
+<a id="source-dns_port_blocked-2"></a>
+<details>
+<summary>Kubernetes, Debugging DNS Resolution (vendor_documentation; mechanism)</summary>
+
+Source: [Kubernetes, Debugging DNS Resolution](https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/). Location: Is DNS service up?; Are DNS endpoints exposed?. Accessed: 2026-11-10.
+
+> 53/UDP,53/TCP
+
+**Correspondence:** NIKA filters TCP and UDP port 53 to the kube-dns Service and CoreDNS pod addresses. The guide identifies that Service and its DNS endpoints on those ports, matching name-resolution failure with live CoreDNS pods.
+
+**Evidence limits:** The source supports the required DNS paths and diagnostic controls. It does not describe this particular node firewall rule as a real incident.
 
 </details>
 
@@ -793,6 +1347,38 @@ Source: [BIND 9, named manual](https://bind9.readthedocs.io/en/latest/manpages.h
 
 </details>
 
+### `endpoint_cpu_contention`
+
+Implementation: [`EndpointCPUContention`](../../src/nika/problems/endpoint_application/transport.py).
+
+<a id="source-endpoint_cpu_contention-1"></a>
+<details>
+<summary>Dan Luu and David Mackey, The container throttling problem (Twitter operational analysis) (incident_report; mechanism)</summary>
+
+Source: [Dan Luu and David Mackey, The container throttling problem (Twitter operational analysis)](https://danluu.com/cgroup-throttling/). Location: The problem, in theory; The problem, in practice [case study]. Accessed: 2026-11-10.
+
+> thread pools that are much larger than their mesos core reservation
+
+**Correspondence:** NIKA applies a CPU quota and starts competing CPU-bound batch workers on the selected endpoint. The endpoint node determines which side of the transfer suffers contention.
+
+**Evidence limits:** This is an operational analysis with case studies, not a single-outage postmortem. It supports quota contention; it does not validate NIKA receiver-window behavior or download slowdown magnitude.
+
+</details>
+
+<a id="source-endpoint_cpu_contention-2"></a>
+<details>
+<summary>Linux kernel, CFS Bandwidth Control (vendor_documentation; mechanism)</summary>
+
+Source: [Linux kernel, CFS Bandwidth Control](https://docs.kernel.org/scheduler/sched-bwc.html). Location: Management; quota exhaustion and throttling. Accessed: 2026-11-10.
+
+> threads being throttled
+
+**Correspondence:** NIKA applies a CPU quota and starts competing CPU-bound batch workers on the selected endpoint. The endpoint node determines which side of the transfer suffers contention.
+
+**Evidence limits:** The source does not establish the NIKA HTTP throughput ratio or imply congestion in the network; the handler and background job are workload choices.
+
+</details>
+
 ### `flow_rule_loop`
 
 Implementation: [`FlowRuleLoop`](../../src/nika/problems/forwarding_encapsulation_policy/flow_rules.py).
@@ -826,6 +1412,24 @@ Source: [Open vSwitch, ovs-ofctl(8)](https://www.openvswitch.org/support/dist-do
 **Correspondence:** NIKA installs a higher-priority IPv4 prefix rule with no output actions through ONOS. ovs-ofctl documents priority-based rule selection and dropping when an action list is empty, matching a prefix drop shadowing lower-priority forwarding.
 
 **Evidence limits:** This supports OpenFlow match/action behavior, not an ONOS software defect. Other prefixes and non-IPv4 traffic do not match the injected selector.
+
+</details>
+
+### `host_acl_block`
+
+Implementation: [`HostACLBlock`](../../src/nika/problems/forwarding_encapsulation_policy/acl.py).
+
+<a id="source-host_acl_block-1"></a>
+<details>
+<summary>Netfilter, nft(8) (vendor_documentation; reference_implementation)</summary>
+
+Source: [Netfilter, nft(8)](https://netfilter.org/projects/nftables/manpage.html). Location: TCP HEADER EXPRESSION (dport); VERDICT STATEMENTS (drop). Accessed: 2026-11-10.
+
+> drop
+
+**Correspondence:** NIKA installs tcp dport 80 drop, using the documented transport-port match and terminal drop verdict to block cleartext HTTP on the target.
+
+**Evidence limits:** Only port 80 is selected. HTTPS, alternative HTTP ports and other protocols are outside this injected rule.
 
 </details>
 
@@ -955,42 +1559,6 @@ Source: [iproute2, ip-route(8)](https://man7.org/linux/man-pages/man8/ip-route.8
 
 </details>
 
-### `http_acl_block`
-
-Implementation: [`HttpAclBlock`](../../src/nika/problems/forwarding_encapsulation_policy/acl.py).
-
-<a id="source-http_acl_block-1"></a>
-<details>
-<summary>Netfilter, nft(8) (vendor_documentation; reference_implementation)</summary>
-
-Source: [Netfilter, nft(8)](https://netfilter.org/projects/nftables/manpage.html). Location: TCP HEADER EXPRESSION (dport); VERDICT STATEMENTS (drop). Accessed: 2026-11-10.
-
-> drop
-
-**Correspondence:** NIKA installs tcp dport 80 drop, using the documented transport-port match and terminal drop verdict to block cleartext HTTP on the target.
-
-**Evidence limits:** Only port 80 is selected. HTTPS, alternative HTTP ports and other protocols are outside this injected rule.
-
-</details>
-
-### `icmp_acl_block`
-
-Implementation: [`IcmpAclBlock`](../../src/nika/problems/forwarding_encapsulation_policy/acl.py).
-
-<a id="source-icmp_acl_block-1"></a>
-<details>
-<summary>Netfilter, nft(8) (vendor_documentation; reference_implementation)</summary>
-
-Source: [Netfilter, nft(8)](https://netfilter.org/projects/nftables/manpage.html). Location: IP HEADER EXPRESSIONS (protocol); VERDICT STATEMENTS (drop). Accessed: 2026-11-10.
-
-> drop
-
-**Correspondence:** NIKA installs ip protocol icmp drop. The manual documents IP protocol selection and drop verdicts, matching ICMP-specific filtering while other traffic can pass.
-
-**Evidence limits:** This supports the filter operation. It does not imply that all network connectivity or TCP services fail.
-
-</details>
-
 ### `icmp_frag_needed_filter_misconfiguration`
 
 Implementation: [`IcmpFragNeededFilterMisconfiguration`](../../src/nika/problems/forwarding_encapsulation_policy/p4_gateway.py).
@@ -1006,84 +1574,6 @@ Source: [RFC 2923, TCP Problems with Path MTU Discovery](https://www.rfc-editor.
 **Correspondence:** NIKA drops ICMP type 3 code 4 on the lower-MTU path. RFC 2923 describes PMTUD failure when fragmentation-needed feedback is filtered: small probes work but large TCP transfers stall.
 
 **Evidence limits:** NIKA targets only fragmentation-needed rather than all ICMP. Its symptom additionally requires a path MTU lower than endpoint packet size.
-
-</details>
-
-### `incast_traffic_network_limitation`
-
-Implementation: [`IncastTrafficNetworkLimitation`](../../src/nika/problems/traffic_queueing_resource/link.py).
-
-<a id="source-incast_traffic_network_limitation-1"></a>
-<details>
-<summary>Alizadeh et al., Data Center TCP (DCTCP), SIGCOMM 2010 (paper; mechanism)</summary>
-
-Source: [Alizadeh et al., Data Center TCP (DCTCP), SIGCOMM 2010](https://conferences.sigcomm.org/sigcomm/2010/papers/sigcomm/p63.pdf). Location: Section 2.3.2 (Incast), Figure 6(a) and Figure 7. Accessed: 2026-11-10.
-
-> the request for data synchronizes the workers’ responses
-
-**Correspondence:** NIKA's partition/aggregate workload converges synchronized responses on the receiver-facing egress; inject_fault reduces that port's buffer with tc_set_tbf.
-
-**Evidence limits:** The source supports buffer exhaustion and packet loss. It does not establish NIKA queue parameters, timeout values, or measured throughput loss.
-
-</details>
-
-<a id="source-incast_traffic_network_limitation-2"></a>
-<details>
-<summary>Phanishayee et al., Measurement and Analysis of TCP Throughput Collapse in Cluster-based Storage Systems, FAST 2008 (paper; mechanism)</summary>
-
-Source: [Phanishayee et al., Measurement and Analysis of TCP Throughput Collapse in Cluster-based Storage Systems, FAST 2008](https://www.cs.cmu.edu/~dga/papers/incast-fast2008.pdf). Location: Abstract; Section 1; Figure 1. Accessed: 2026-11-10.
-
-> overload the switch buffers on the client’s link
-
-**Correspondence:** The paper's synchronized reads overflow the receiver-facing switch buffer. NIKA's fan-in service and shallow egress queue reproduce that causal structure.
-
-**Evidence limits:** NIKA uses application fan-in rather than the storage system or hardware in the paper; the paper does not validate NIKA performance.
-
-</details>
-
-<a id="source-incast_traffic_network_limitation-3"></a>
-<details>
-<summary>Vasudevan et al., Safe and Effective Fine-grained TCP Retransmissions for Datacenter Communication, SIGCOMM 2009 (paper; mechanism)</summary>
-
-Source: [Vasudevan et al., Safe and Effective Fine-grained TCP Retransmissions for Datacenter Communication, SIGCOMM 2009](https://www.cs.cmu.edu/~dga/papers/incast-sigcomm2009.pdf). Location: Abstract; Section 1. Accessed: 2026-11-10.
-
-> Inbound data overfills small switch buffers
-
-**Correspondence:** Simultaneous responses overfill a small buffer, matching NIKA's existing fan-in traffic and injected shallow receiver-facing queue.
-
-**Evidence limits:** The source reports TCP timeouts and throughput collapse. NIKA queue drops alone do not establish those downstream effects or their magnitude.
-
-</details>
-
-<a id="source-incast_traffic_network_limitation-4"></a>
-<details>
-<summary>Chen et al., Understanding TCP Incast Throughput Collapse in Datacenter Networks, WREN 2009 (paper; mechanism)</summary>
-
-Source: [Chen et al., Understanding TCP Incast Throughput Collapse in Datacenter Networks, WREN 2009](https://conferences.sigcomm.org/sigcomm/2009/workshops/wren/papers/p73.pdf). Location: Section 1; Section 3.2; discussion of randomized RTO. Accessed: 2026-11-10.
-
-> switch buffer overflow events will be synchronized for all senders
-
-**Correspondence:** The shared bottleneck buffer overflows under concurrent replies, matching NIKA's many-to-one workload and shallow egress queue.
-
-**Evidence limits:** The paper studies TCP dynamics and RTO changes; NIKA does not inject those TCP changes or claim the same goodput curve.
-
-</details>
-
-### `int_insufficient_mtu_headroom`
-
-Implementation: [`IntInsufficientMtuHeadroom`](../../src/nika/problems/forwarding_encapsulation_policy/p4_gateway.py).
-
-<a id="source-int_insufficient_mtu_headroom-1"></a>
-<details>
-<summary>P4.org Applications Working Group, In-band Network Telemetry Dataplane Specification 2.1 (vendor_documentation; mechanism)</summary>
-
-Source: [P4.org Applications Working Group, In-band Network Telemetry Dataplane Specification 2.1](https://raw.githubusercontent.com/p4lang/p4-applications/master/docs/INT_v2_1.pdf). Location: Section 5.3, MTU Settings. Accessed: 2026-11-10.
-
-> egress link MTU to be exceeded
-
-**Correspondence:** The specification states INT header/metadata insertion can exceed egress MTU and recommends extra headroom. NIKA lowers the INT egress MTU setting while keeping business forwarding policy, matching inability to insert telemetry on near-MTU packets.
-
-**Evidence limits:** The specification allows multiple responses to MTU pressure. The NIKA M-bit/no-start observations follow its configured policy, not a universal INT packet-drop requirement.
 
 </details>
 
@@ -1105,24 +1595,6 @@ Source: [RFC 5304, IS-IS Cryptographic Authentication](https://www.rfc-editor.or
 
 </details>
 
-### `isis_circuit_level_mismatch`
-
-Implementation: [`IsisCircuitLevelMismatch`](../../src/nika/problems/routing_control_plane/isis.py).
-
-<a id="source-isis_circuit_level_mismatch-1"></a>
-<details>
-<summary>FRRouting 10.5, ISIS (vendor_documentation; reference_implementation)</summary>
-
-Source: [FRRouting 10.5, ISIS](https://docs.frrouting.org/en/stable-10.5/isisd.html). Location: ISIS router, is-type; ISIS interface, isis circuit-type. Accessed: 2026-11-10.
-
-> is-type level-1
-
-**Correspondence:** NIKA changes an IS-IS router from Level-2 to Level-1 while its neighbors remain Level-2. FRR documents router is-type and interface circuit-type as the supported level controls.
-
-**Evidence limits:** The reference supports the configuration operation. The mismatch premise requires no common level with neighbors; changing only the interface type under a Level-2-only instance is not the implemented operation.
-
-</details>
-
 ### `isis_metric_style_mismatch`
 
 Implementation: [`IsisMetricStyleMismatch`](../../src/nika/problems/routing_control_plane/isis.py).
@@ -1141,21 +1613,21 @@ Source: [FRRouting 10.5, ISIS](https://docs.frrouting.org/en/stable-10.5/isisd.h
 
 </details>
 
-### `k8s_clusterip_routing_broken`
+### `isis_router_level_mismatch`
 
-Implementation: [`ClusterIPRoutingBroken`](../../src/nika/problems/service_networking/kubernetes.py).
+Implementation: [`IsisRouterLevelMismatch`](../../src/nika/problems/routing_control_plane/isis.py).
 
-<a id="source-k8s_clusterip_routing_broken-1"></a>
+<a id="source-isis_router_level_mismatch-1"></a>
 <details>
-<summary>Kubernetes, Virtual IPs and Service Proxies (vendor_documentation; mechanism)</summary>
+<summary>FRRouting 10.5, ISIS (vendor_documentation; reference_implementation)</summary>
 
-Source: [Kubernetes, Virtual IPs and Service Proxies](https://kubernetes.io/docs/reference/networking/virtual-ips/). Location: Proxy mode: iptables. Accessed: 2026-11-10.
+Source: [FRRouting 10.5, ISIS](https://docs.frrouting.org/en/stable-10.5/isisd.html). Location: ISIS router, is-type; ISIS interface, isis circuit-type. Accessed: 2026-11-10.
 
-> destination NAT
+> is-type level-1
 
-**Correspondence:** NIKA drops traffic to the ClusterIP before kube-proxy DNAT on one node. The reference explains iptables rules that redirect Service virtual IP traffic to backend endpoints; preempting those rules breaks the VIP path while direct endpoint traffic avoids the VIP match.
+**Correspondence:** NIKA changes an IS-IS router from Level-2 to Level-1 while its neighbors remain Level-2. FRR documents router is-type and interface circuit-type as the supported level controls.
 
-**Evidence limits:** NIKA models the failure by packet filtering rather than corrupting kube-proxy rules. The source supports the forwarding dependency, not the exact raw-table injection.
+**Evidence limits:** The reference supports the configuration operation. The mismatch premise requires no common level with neighbors; changing only the interface type under a Level-2-only instance is not the implemented operation.
 
 </details>
 
@@ -1174,24 +1646,6 @@ Source: [CoreDNS, loop plugin](https://coredns.io/plugins/loop/). Location: Exam
 **Correspondence:** The source shows exactly the forward-to-self directive that NIKA writes to the root zone. The loop plugin detects repeated probe queries, halts CoreDNS, and Kubernetes restarts it into CrashLoopBackOff.
 
 **Evidence limits:** The detector only covers simple static loops present at startup and involving HINFO. NIKA restarts CoreDNS to make that premise hold.
-
-</details>
-
-### `k8s_coredns_isolated`
-
-Implementation: [`CoreDNSIsolation`](../../src/nika/problems/addressing_neighbor_naming/kubernetes.py).
-
-<a id="source-k8s_coredns_isolated-1"></a>
-<details>
-<summary>Kubernetes, Debugging DNS Resolution (vendor_documentation; mechanism)</summary>
-
-Source: [Kubernetes, Debugging DNS Resolution](https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/). Location: Is DNS service up?; Are DNS endpoints exposed?. Accessed: 2026-11-10.
-
-> 53/UDP,53/TCP
-
-**Correspondence:** NIKA filters TCP and UDP port 53 to the kube-dns Service and CoreDNS pod addresses. The guide identifies that Service and its DNS endpoints on those ports, matching name-resolution failure with live CoreDNS pods.
-
-**Evidence limits:** The source supports the required DNS paths and diagnostic controls. It does not describe this particular node firewall rule as a real incident.
 
 </details>
 
@@ -1264,6 +1718,24 @@ Source: [Kubernetes, Network Policies](https://kubernetes.io/docs/concepts/servi
 **Correspondence:** NIKA applies a NetworkPolicy selecting the victim Pods with policyTypes Ingress and no allow rules. The documented deny-ingress pattern is the same manifest structure with a narrower Pod selector.
 
 **Evidence limits:** Enforcement requires a NetworkPolicy-capable CNI. Policies are additive, so another matching allow policy can defeat a deny-only premise.
+
+</details>
+
+### `k8s_node_firewall_drop`
+
+Implementation: [`NodeFirewallDrop`](../../src/nika/problems/service_networking/kubernetes.py).
+
+<a id="source-k8s_node_firewall_drop-1"></a>
+<details>
+<summary>Kubernetes, Virtual IPs and Service Proxies (vendor_documentation; mechanism)</summary>
+
+Source: [Kubernetes, Virtual IPs and Service Proxies](https://kubernetes.io/docs/reference/networking/virtual-ips/). Location: Proxy mode: iptables. Accessed: 2026-11-10.
+
+> destination NAT
+
+**Correspondence:** NIKA drops traffic to the ClusterIP before kube-proxy DNAT on one node. The reference explains iptables rules that redirect Service virtual IP traffic to backend endpoints; preempting those rules breaks the VIP path while direct endpoint traffic avoids the VIP match.
+
+**Evidence limits:** NIKA models the failure by packet filtering rather than corrupting kube-proxy rules. The source supports the forwarding dependency, not the exact raw-table injection.
 
 </details>
 
@@ -1435,6 +1907,62 @@ Implementation: [`LinkCapacityBottleneck`](../../src/nika/problems/link_interfac
 
 <a id="source-link_capacity_bottleneck-1"></a>
 <details>
+<summary>Alizadeh et al., Data Center TCP (DCTCP), SIGCOMM 2010 (paper; mechanism)</summary>
+
+Source: [Alizadeh et al., Data Center TCP (DCTCP), SIGCOMM 2010](https://conferences.sigcomm.org/sigcomm/2010/papers/sigcomm/p63.pdf). Location: Section 2.3.2 (Incast), Figure 6(a) and Figure 7. Accessed: 2026-11-10.
+
+> the request for data synchronizes the workers’ responses
+
+**Correspondence:** The paper describes congestion when synchronized fan-in exceeds available capacity. NIKA shapes the receiving circuit with a controller-side TBF below traffic demand.
+
+**Evidence limits:** The paper studies incast and congestion. NIKA models limited circuit capacity rather than a separate switch-buffer failure.
+
+</details>
+
+<a id="source-link_capacity_bottleneck-2"></a>
+<details>
+<summary>Phanishayee et al., Measurement and Analysis of TCP Throughput Collapse in Cluster-based Storage Systems, FAST 2008 (paper; mechanism)</summary>
+
+Source: [Phanishayee et al., Measurement and Analysis of TCP Throughput Collapse in Cluster-based Storage Systems, FAST 2008](https://www.cs.cmu.edu/~dga/papers/incast-fast2008.pdf). Location: Abstract; Section 1; Figure 1. Accessed: 2026-11-10.
+
+> overload the switch buffers on the client’s link
+
+**Correspondence:** The paper describes congestion when synchronized fan-in exceeds available capacity. NIKA shapes the receiving circuit with a controller-side TBF below traffic demand.
+
+**Evidence limits:** The paper studies incast and congestion. NIKA models limited circuit capacity rather than a separate switch-buffer failure.
+
+</details>
+
+<a id="source-link_capacity_bottleneck-3"></a>
+<details>
+<summary>Vasudevan et al., Safe and Effective Fine-grained TCP Retransmissions for Datacenter Communication, SIGCOMM 2009 (paper; mechanism)</summary>
+
+Source: [Vasudevan et al., Safe and Effective Fine-grained TCP Retransmissions for Datacenter Communication, SIGCOMM 2009](https://www.cs.cmu.edu/~dga/papers/incast-sigcomm2009.pdf). Location: Abstract; Section 1. Accessed: 2026-11-10.
+
+> Inbound data overfills small switch buffers
+
+**Correspondence:** The paper describes congestion when synchronized fan-in exceeds available capacity. NIKA shapes the receiving circuit with a controller-side TBF below traffic demand.
+
+**Evidence limits:** The paper studies incast and congestion. NIKA models limited circuit capacity rather than a separate switch-buffer failure.
+
+</details>
+
+<a id="source-link_capacity_bottleneck-4"></a>
+<details>
+<summary>Chen et al., Understanding TCP Incast Throughput Collapse in Datacenter Networks, WREN 2009 (paper; mechanism)</summary>
+
+Source: [Chen et al., Understanding TCP Incast Throughput Collapse in Datacenter Networks, WREN 2009](https://conferences.sigcomm.org/sigcomm/2009/workshops/wren/papers/p73.pdf). Location: Section 1; Section 3.2; discussion of randomized RTO. Accessed: 2026-11-10.
+
+> switch buffer overflow events will be synchronized for all senders
+
+**Correspondence:** The paper describes congestion when synchronized fan-in exceeds available capacity. NIKA shapes the receiving circuit with a controller-side TBF below traffic demand.
+
+**Evidence limits:** The paper studies incast and congestion. NIKA models limited circuit capacity rather than a separate switch-buffer failure.
+
+</details>
+
+<a id="source-link_capacity_bottleneck-5"></a>
+<details>
 <summary>iproute2, tc-tbf(8) (vendor_documentation; reference_implementation)</summary>
 
 Source: [iproute2, tc-tbf(8)](https://man7.org/linux/man-pages/man8/tc-tbf.8.html). Location: DESCRIPTION; ALGORITHM; PARAMETERS (rate, burst, limit). Accessed: 2026-11-10.
@@ -1447,11 +1975,11 @@ Source: [iproute2, tc-tbf(8)](https://man7.org/linux/man-pages/man8/tc-tbf.8.htm
 
 </details>
 
-### `link_detach`
+### `link_down`
 
-Implementation: [`LinkDetach`](../../src/nika/problems/link_interface/link.py).
+Implementation: [`LinkFailure`](../../src/nika/problems/link_interface/link.py).
 
-<a id="source-link_detach-1"></a>
+<a id="source-link_down-1"></a>
 <details>
 <summary>iproute2, ip-link(8) (vendor_documentation; reference_implementation)</summary>
 
@@ -1465,11 +1993,7 @@ Source: [iproute2, ip-link(8)](https://man7.org/linux/man-pages/man8/ip-link.8.h
 
 </details>
 
-### `link_down`
-
-Implementation: [`LinkFailure`](../../src/nika/problems/link_interface/link.py).
-
-<a id="source-link_down-1"></a>
+<a id="source-link_down-2"></a>
 <details>
 <summary>Linux kernel, Operational States (vendor_documentation; mechanism)</summary>
 
@@ -1501,6 +2025,24 @@ Source: [Linux kernel, Operational States](https://docs.kernel.org/networking/op
 
 </details>
 
+### `link_latency`
+
+Implementation: [`LinkLatency`](../../src/nika/problems/link_interface/latency.py).
+
+<a id="source-link_latency-1"></a>
+<details>
+<summary>RIPE NCC, A Deep Dive Into the Baltic Sea Cable Cuts (incident_report; symptom)</summary>
+
+Source: [RIPE NCC, A Deep Dive Into the Baltic Sea Cable Cuts](https://labs.ripe.net/author/emileaben/a-deep-dive-into-the-baltic-sea-cable-cuts/). Location: 19 December 2024, No inter-domain and intra-domain changes for 460 anchor pairs. Accessed: 2026-11-15.
+
+> latency increases of 3 ms or more, which indicates circuit-level changes.
+
+**Correspondence:** The report observes increased delay even with unchanged IP paths, consistent with circuit-level rerouting. NIKA adds propagation delay on the external link while preserving node interfaces and routes.
+
+**Evidence limits:** NIKA models the slower circuit after a physical failure. It does not cut fiber, switch protection circuits, simulate optical impairment, or reproduce the incident delay distribution; its default 100 ms makes the link diagnosis measurable.
+
+</details>
+
 ### `link_packet_corruption`
 
 Implementation: [`LinkPacketCorruption`](../../src/nika/problems/link_interface/quality.py).
@@ -1516,24 +2058,6 @@ Source: [iproute2, tc-netem(8)](https://man7.org/linux/man-pages/man8/tc-netem.8
 **Correspondence:** NIKA applies netem corrupt to IP frames on the controller-side wire, matching the documented random bit-corruption operation. Non-IP frames are dropped at the same rate to represent receiver rejection.
 
 **Evidence limits:** Software bit corruption is a packet-impairment model. It does not reproduce physical cable BER, FCS counters or electrical faults.
-
-</details>
-
-### `load_balancer_overload`
-
-Implementation: [`LoadBalancerOverload`](../../src/nika/problems/service_networking/load_balancer.py).
-
-<a id="source-load_balancer_overload-1"></a>
-<details>
-<summary>GitHub, Incident with GitHub.com, 2026-08-17 (incident_report; mechanism)</summary>
-
-Source: [GitHub, Incident with GitHub.com, 2026-08-17](https://www.githubstatus.com/incidents/zkxwbgr0cnmx). Location: Resolved update, 2026-08-17 21:15 UTC, causes and mitigation. Accessed: 2026-11-10.
-
-> network saturation on load balancers
-
-**Correspondence:** GitHub reports traffic peaks and retry amplification exceeding load-balancer capacity and degrading authentication. NIKA overloads a fixed-capacity NGINX proxy with HTTP traffic and compares VIP latency to direct backend/control paths.
-
-**Evidence limits:** The incident includes network saturation, sidecar autoscaling and HAProxy flow-limit exhaustion. It does not establish NIKA CPU saturation as the exact incident root cause, nor reproduce the cascading retries; it supports the load/capacity failure pattern.
 
 </details>
 
@@ -1681,11 +2205,11 @@ Source: [RFC 2328, OSPF Version 2](https://www.rfc-editor.org/rfc/rfc2328.html#s
 
 </details>
 
-### `ospf_neighbor_missing`
+### `ospf_interface_not_enabled`
 
-Implementation: [`OSPFNeighborMissing`](../../src/nika/problems/routing_control_plane/ospf.py).
+Implementation: [`OSPFInterfaceNotEnabled`](../../src/nika/problems/routing_control_plane/ospf.py).
 
-<a id="source-ospf_neighbor_missing-1"></a>
+<a id="source-ospf_interface_not_enabled-1"></a>
 <details>
 <summary>RFC 2328, OSPF Version 2 (rfc; mechanism)</summary>
 
@@ -1789,11 +2313,11 @@ Source: [P4.org API Working Group, P4Runtime Specification 1.4.1](https://p4lang
 
 </details>
 
-### `p4_ecn_threshold_misconfiguration`
+### `p4_ecn_marking_disabled`
 
-Implementation: [`P4EcnThresholdMisconfiguration`](../../src/nika/problems/traffic_queueing_resource/p4_gateway.py).
+Implementation: [`P4EcnMarkingDisabled`](../../src/nika/problems/traffic_queueing_resource/p4_gateway.py).
 
-<a id="source-p4_ecn_threshold_misconfiguration-1"></a>
+<a id="source-p4_ecn_marking_disabled-1"></a>
 <details>
 <summary>Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015 (paper; mechanism)</summary>
 
@@ -1819,9 +2343,23 @@ Source: [P4.org API Working Group, P4Runtime Specification 1.4.1](https://p4lang
 
 > action_profile_group_id
 
-**Correspondence:** NIKA replaces a prefix table entry with the same prefix and a wrong selector group ID. The specification defines an indirect table action as referencing a selector group, matching a wrong next-hop group for that prefix.
+**Correspondence:** NIKA rewrites an ipv4_lpm entry to select the wrong next-hop group through P4Runtime. Device reads show the changed forwarding entry while the declared controller intent stays intact.
 
 **Evidence limits:** This is a control-plane configuration error, not corruption beneath the P4Runtime read path.
+
+</details>
+
+<a id="source-p4_table_entry_misconfig-2"></a>
+<details>
+<summary>Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015 (paper; mechanism)</summary>
+
+Source: [Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/08/everflow-sigcomm15.pdf). Location: Section 7.2.1, Blackhole, PDF pages 8–9. Accessed: 2026-11-10.
+
+> TCAM table was corrupted
+
+**Correspondence:** NIKA rewrites an ipv4_lpm entry to select the wrong next-hop group through P4Runtime. Device reads show the changed forwarding entry while the declared controller intent stays intact.
+
+**Evidence limits:** Everflow reports a hardware table fault. NIKA represents erroneous forwarding state through a P4Runtime configuration change.
 
 </details>
 
@@ -1861,24 +2399,6 @@ Source: [P4.org API Working Group, P4Runtime Specification 1.4.1](https://p4lang
 
 </details>
 
-### `p4_tcam_entry_corruption`
-
-Implementation: [`P4TcamEntryCorruption`](../../src/nika/problems/forwarding_encapsulation_policy/p4_gateway.py).
-
-<a id="source-p4_tcam_entry_corruption-1"></a>
-<details>
-<summary>Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015 (paper; mechanism)</summary>
-
-Source: [Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/08/everflow-sigcomm15.pdf). Location: Section 7.2.1, Blackhole, PDF pages 8–9. Accessed: 2026-11-10.
-
-> TCAM table was corrupted
-
-**Correspondence:** Everflow reports a corrupted forwarding TCAM entry dropping matching packets without counter evidence. NIKA changes one care bit in the device ternary route mask through a separate P4Runtime client, leaving the intended prefix and selector group in the controller intent unchanged. Device reads expose the changed match; target packets miss that route.
-
-**Evidence limits:** This is a software-switch match-error model, not physical TCAM memory corruption. Everflow does not disclose a mask-bit flip; the bit, mask geometry, and P4Runtime injection are NIKA choices. Unlike the reported hardware failure, the changed match is visible in a device read.
-
-</details>
-
 ### `p4runtime_partial_write`
 
 Implementation: [`P4RuntimePartialWrite`](../../src/nika/problems/forwarding_encapsulation_policy/p4_runtime.py).
@@ -1912,24 +2432,6 @@ Source: [P4.org API Working Group, P4Runtime Specification 1.4.1](https://p4lang
 **Correspondence:** NIKA compiles a drop-all P4 program and installs it on one switch using SetForwardingPipelineConfig. The specification defines that RPC as configuring a new forwarding pipeline, directly supporting this reference injection operation.
 
 **Evidence limits:** The API does not diagnose the pipeline as wrong. Wrongness is relative to the intended NIKA program; drop-all behavior comes from the injected source.
-
-</details>
-
-### `receiver_resource_contention`
-
-Implementation: [`ReceiverResourceContention`](../../src/nika/problems/endpoint_application/transport.py).
-
-<a id="source-receiver_resource_contention-1"></a>
-<details>
-<summary>Dan Luu and David Mackey, The container throttling problem (Twitter operational analysis) (incident_report; mechanism)</summary>
-
-Source: [Dan Luu and David Mackey, The container throttling problem (Twitter operational analysis)](https://danluu.com/cgroup-throttling/). Location: The problem, in theory; The problem, in practice [case study]. Accessed: 2026-11-10.
-
-> thread pools that are much larger than their mesos core reservation
-
-**Correspondence:** The authors report oversized worker pools exhausting a container CPU quota and degrading service latency. NIKA oversubscribes gzip workers in the receiver CPU budget while a download requires CPU for receiving and decompression.
-
-**Evidence limits:** This is an operational analysis with case studies, not a single-outage postmortem. It supports quota contention; it does not validate NIKA receiver-window behavior or download slowdown magnitude.
 
 </details>
 
@@ -1984,24 +2486,6 @@ Source: [Open vSwitch, ovs-vswitchd.conf.db(5)](https://www.openvswitch.org/supp
 **Correspondence:** NIKA kills the ONOS JVM/Karaf process, severing OpenFlow control. The OVS schema explains controller-managed flow setup and behavior when the connection fails, matching loss of new programming while installed forwarding can survive.
 
 **Evidence limits:** Survival and fallback depend on fail_mode and flow timeouts. Controller failure does not necessarily stop existing traffic or imply a switch dataplane failure.
-
-</details>
-
-### `sender_resource_contention`
-
-Implementation: [`SenderResourceContention`](../../src/nika/problems/endpoint_application/transport.py).
-
-<a id="source-sender_resource_contention-1"></a>
-<details>
-<summary>Linux kernel, CFS Bandwidth Control (vendor_documentation; mechanism)</summary>
-
-Source: [Linux kernel, CFS Bandwidth Control](https://docs.kernel.org/scheduler/sched-bwc.html). Location: Management; quota exhaustion and throttling. Accessed: 2026-11-10.
-
-> threads being throttled
-
-**Correspondence:** NIKA limits the sender container CPU and runs gzip workers alongside a CPU-sensitive HTTP sender. The kernel describes shared cgroup quota exhaustion throttling runnable threads, explaining contention for sender processing time.
-
-**Evidence limits:** The source does not establish the NIKA HTTP throughput ratio or imply congestion in the network; the handler and background job are workload choices.
 
 </details>
 

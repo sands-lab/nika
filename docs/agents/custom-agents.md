@@ -101,28 +101,6 @@ These settings preserve your sandbox runtime and select `custom.nooa` for both `
 
 For an OpenAI-compatible endpoint, use the [NOOA profile setup](nooa-example.md#run-it) and run with that profile instead. Custom agents use API credentials; subscription logins apply only to the built-in Codex and Claude agents.
 
-<details>
-<summary>Example investigation from a real run</summary>
-
-*The NOOA agent on the earlier DC Clos topology, running `dc_clos_s_link_down` with `nvidia/Qwen3.6-35B-A3B-NVFP4`; shortened from the recorded trace and report.*
-
-```text
-Tool: run_pingmesh_snapshot(count=3)
-Result: client_0 → dns_pod0, webserver0_pod0: 100% loss; server-to-server paths healthy
-
-Tool: exec_shell(host_name="client_0", command="ip addr show; ip route show …")
-Tool: exec_shell(host_name="super_spine_router_0", command="ip addr show …")
-Tool: exec_shell(host_name=…, command='vtysh -c "show bgp summary"') on each router
-
-Report: The physical link between client_0:eth0 and super_spine_router_0:eth2 is
-        DOWN, isolating client_0 from the fabric. BGP sessions are up, but
-        192.168.0.0/24 is not advertised because eth2 is down.
-
-Score: detection, root cause, and localization 1.0 (17 steps, 20 tool calls)
-```
-
-</details>
-
 ## Agents in their own project
 
 An agent in `src/agent/custom/` lives in your NIKA checkout. If it already has its own repository, or you want to version it separately, NIKA can run it from that project instead: register the project with `nika agent add`, which reads a `nika-agent.yaml` manifest, or pass its class as `-a module.path:ClassName`. The [registration reference](agent-reference.md#custom-agent-registration) describes both.

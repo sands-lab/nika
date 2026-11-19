@@ -11,7 +11,7 @@ Every current scenario uses a **two-layer** healthy baseline, aligned with failu
 
 `verify_lab_with_retry()` follows `nika.runtime_validation.depth`: `light` (default) polls `startup_verify_lab()` when implemented and otherwise falls back to `verify_lab()`; `full` always polls `verify_lab()`. Production workflows do not import `evaluate_scenario`. Pre-deploy Batfish remains separate and off by default (`nika.static_validation.enabled`).
 
-Base `isp_<topology>` scenarios, `dc_clos`, and `min3clos` create a design-time validation contract. Batfish static validation can check that contract for ISP scenarios on Kathara with FRR and for ISP scenarios, `dc_clos`, and `min3clos` on Containerlab with SONiC. Static and runtime evidence remain separate because they answer different questions.
+Base `isp_<topology>` scenarios and `dc_clos` create a design-time validation contract. Batfish static validation can check that contract for ISP scenarios on Kathara with FRR and for ISP scenarios and `dc_clos` on Containerlab with SONiC. Static and runtime evidence remain separate because they answer different questions.
 
 ## Specification-driven experiments
 
@@ -76,9 +76,8 @@ The scenario registry in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool
 | `enterprise_branch` | Kathara | WireGuard and BGP overlay with VRF isolation |  | [`enterprise_branch/verify.py`](../../src/nika/net_env/enterprise_branch/verify.py) |
 | `sdn_l3_clos` | Kathara | ONOS-controlled OVS L3 Clos and ECMP |  | [`sdn_l3_clos/verify.py`](../../src/nika/net_env/sdn_l3_clos/verify.py) |
 | `p4_dc_fabric` | Kathara | P4Runtime-programmed Clos forwarding and ECMP |  | [`p4_dc_fabric/verify.py`](../../src/nika/net_env/p4_dc_fabric/verify.py) |
-| `p4_dc_gateway` | Kathara | P4 gateway-spine-leaf service path and complete INT-MX telemetry |  | [`p4_dc_gateway/verify.py`](../../src/nika/net_env/p4_dc_gateway/verify.py) |
+| `p4_dc_gateway` | Kathara | P4 gateway-spine-leaf service path and INT-MD telemetry |  | [`p4_dc_gateway/verify.py`](../../src/nika/net_env/p4_dc_gateway/verify.py) |
 | `isp_<topology>` | Kathara or Containerlab | SNDlib or Topology Zoo IGP/BGP forwarding, adjacency, and policy | Kathara + FRR; Containerlab + SONiC | [`kathara/verify.py`](../../src/nika/net_env/isp/kathara/verify.py), [`containerlab/verify.py`](../../src/nika/net_env/isp/containerlab/verify.py) |
-| `min3clos` | Containerlab | SR Linux or SONiC eBGP Clos client connectivity | SONiC | [`min3clos/verify.py`](../../src/nika/net_env/min3clos/verify.py) |
 | `k8s_lab` | Kathara | BGP fat-tree and k3s Word application |  | [`k8s_lab/verify.py`](../../src/nika/net_env/k8s_lab/verify.py) |
 | `llmd_lab` | Kathara | L2 k3s inference cluster and gateway API |  | [`llmd_lab/verify.py`](../../src/nika/net_env/llmd_lab/verify.py) |
 
@@ -184,7 +183,7 @@ The checks use each router's native query for mixed IOS XR or RouterOS deploymen
 
 ### `isp_<topology>`
 
-Each `isp_<topology>` ID deploys one SNDlib or Topology Zoo graph with IS-IS or OSPF, optional BGP, deterministic edge traffic attachments, and the routing policy selected by its design options. Named specials (`isp_abilene_ebgp_rpki`, `isp_geant_ebgp_rpki`, `isp_abilene_ebgp_rtbh`, `isp_dfn-bwin_ebgp_rtbh`) add fixed RPKI or RTBH overlays. The Kathara FRR implementation adds a validation contract. Its contract can contain edge reachability, explicit external-prefix isolation, OSPF adjacency, BGP adjacency, BGP observer-prefix reachability, and an optional IGP metric waypoint constraint. The completion workflow also supports directed, physical-interface IS-IS Level-2 adjacency predicates for its restricted single-level model.
+Each `isp_<topology>` ID deploys one SNDlib or Topology Zoo graph with IS-IS or OSPF, optional BGP, deterministic edge traffic attachments, and the routing policy selected by its design options. Kathara FRR eBGP deployments carry RPKI/ROV and add RTBH when their AS partition supports its provider interconnect. The Kathara FRR implementation adds a validation contract. Its contract can contain edge reachability, explicit external-prefix isolation, OSPF adjacency, BGP adjacency, BGP observer-prefix reachability, and an optional IGP metric waypoint constraint. The completion workflow also supports directed, physical-interface IS-IS Level-2 adjacency predicates for its restricted single-level model.
 
 | Target | Measurement | Purpose | Expected result |
 | --- | --- | --- | --- |
@@ -196,7 +195,7 @@ Each `isp_<topology>` ID deploys one SNDlib or Topology Zoo graph with IS-IS or 
 | Selected traffic stubs, when configured | Inspect host address; ping gateway and remote stub | Confirm sampled edge attachment and forwarding | Address exists; both probes reply |
 | Planned BGP sessions and prefixes, when configured | Inspect BGP neighbor and route state | Confirm establishment, origin, and propagation | Peers establish; originated and observer prefixes appear |
 | Kathara FRR BGP | Inspect BGP table for denied infrastructure prefix | Prevent forbidden infrastructure distribution | Denied prefix is absent |
-| Kathara FRR RPKI named specials | Inspect RTR and RPKI route state | Confirm RPKI attachment and leak policy | RTR is connected; leak is absent |
+| Kathara FRR eBGP with RPKI/ROV | Inspect RTR and RPKI route state | Confirm RPKI attachment and leak policy | RTR is connected; leak is absent |
 | Kathara contract reachability/isolation intent | ICMP or TCP/UDP probe between concrete entities | Confirm required reachability or denial | Reachability connects; isolation does not connect |
 | Kathara contract waypoint intent | Traceroute between concrete entities | Confirm required transit and avoidance | Trace contains required nodes and no forbidden node |
 | Kathara contract BGP/OSPF adjacency intent | Inspect FRR protocol state | Confirm concrete contract adjacency | BGP peer is established or OSPF peer is Full |
@@ -205,18 +204,6 @@ Each `isp_<topology>` ID deploys one SNDlib or Topology Zoo graph with IS-IS or 
 ISP FIB checks use installed Linux local/main routes on FRR and active, programmed routes with resolved next-hop groups in the SR Linux `default` network-instance. They validate router-to-loopback forwarding; they do not simulate arbitrary policy routing, ACLs, or NAT. Existing explicit contract and service probes remain responsible for their respective properties.
 
 ISP stub checks select the first and last host in each IGP component, plus contract-referenced endpoints and the RTBH observer. `details.host_coverage` lists the selected hosts and total count; deployment checks still cover every container. Other current scenarios retain their existing probe coverage.
-
-### `min3clos`
-
-`min3clos` provides a fixed fabric with two leaves, one spine, and two clients, running SR Linux or SONiC. Each leaf has one uplink to the spine.
-
-| Target | Measurement | Purpose | Expected result |
-| --- | --- | --- | --- |
-| `leaf1`, `leaf2`, `spine1`, `client1`, `client2` | Compare expected names with deployed nodes | Confirm five-node fabric deployment | Every node exists |
-| Expected leaf and client interfaces | Read interface operstate | Confirm physical topology | Every checked interface is `up` |
-| `leaf1`, `leaf2` | Parse SR Linux BGP neighbors | Confirm eBGP fabric convergence | Each leaf has the required established neighbors |
-| `client1`, `client2` | Ping configured default gateways | Confirm host attachment | Both gateway probes reply |
-| `client1` to `client2` | ICMP ping | Confirm end-to-end fabric forwarding | Probe replies |
 
 ### `k8s_lab`
 
@@ -248,15 +235,13 @@ ISP stub checks select the first and last host in each IGP component, plus contr
 
 ## Batfish static validation
 
-Batfish static validation applies to an `isp_<topology>` scenario on the Kathara backend with the FRR device profile, and to `isp_<topology>`, `min3clos`, and `dc_clos` on Containerlab with the SONiC device profile. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run. The first run builds the pinned Batfish image from `scripts/batfish`.
+Batfish static validation applies to an `isp_<topology>` scenario on the Kathara backend with the FRR device profile, and to `isp_<topology>` and `dc_clos` on Containerlab with the SONiC device profile. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run. The first run builds the pinned Batfish image from `scripts/batfish`.
 
 ```shell
 uv sync --extra batfish
 uv run nika env run isp_abilene --igp ospf --static-validation
-uv run nika env run min3clos --device-profile sonic --static-validation
+uv run nika env run dc_clos -s s --backend containerlab --device-profile sonic --static-validation
 ```
-
-The `min3clos` contract requires its four eBGP sessions, the OSPF adjacency of each leaf with the spine, and ICMP between the client gateways of both leaves.
 
 [`snapshot.py`](../../src/nika/validation/batfish/snapshot.py) writes the exact generated FRR configuration for each Kathara ISP router into Batfish's concatenated Cumulus format. It also writes traffic hosts and `batfish/layer1_topology.json`. The adapter does not synthesize another routing configuration.
 
@@ -283,7 +268,6 @@ The pinned Batfish version does not model FRR `match rpki invalid`. An RPKI ISP 
 | --- | --- |
 | OSPFv2, BGP, prefix lists, route maps, loopbacks | Parsed natively from the deployed files |
 | IS-IS as the only IGP | The FRR design behind the SONiC files is projected to IOS XR, as for Kathara FRR IS-IS |
-| IS-IS next to OSPF (`min3clos`) | Not modeled; IS-IS adjacency intents are `unsupported`, and forwarding follows OSPF |
 | IPv6 addresses and routing | Not modeled |
 | OSPF interface cost | Must be set explicitly; Batfish has no bandwidth for SONiC ports from which to derive it |
 | OSPF `non-broadcast` network type and `neighbor ... poll-interval` | Ignored by the parser, so Batfish forms these adjacencies as on a broadcast network; the same holds for Kathara FRR |

@@ -8,12 +8,12 @@ Related references: [Network scenarios](network-scenarios.md), [CLI reference](c
 
 <a id="k3s-controller-container-not-running-k8s_lab--llmd_lab"></a>
 
-Raise `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` on the Docker host before you run `k8s_lab`, `llmd_lab`, or `iosxr_simple_bgp`. Many kernels default `max_user_instances` to `128`. k3s and Cisco XRd need far more, so those containers exit and NIKA fails lab verification.
+Raise `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` on the Docker host before you run `k8s_lab`, `llmd_lab`, or an IOS XR device profile. Many kernels default `max_user_instances` to `128`. k3s and Cisco XRd need far more, so those containers exit and NIKA fails lab verification.
 
 | Scenario | What consumes inotify | Host requirement |
 | --- | --- | --- |
-| `k8s_lab`, `llmd_lab` | Six privileged k3s nodes and in-cluster components | One shared pool; concurrent labs compete |
-| `iosxr_simple_bgp` | Each Cisco XRd Control Plane router (IOS XR ≥ 7.9.2) | About 4000 instances and 4000 watches per router |
+| `k8s_lab`, `llmd_lab` | Privileged k3s nodes and in-cluster components, scaled by task size | One shared pool; concurrent labs compete |
+| IOS XR device profiles | Each Cisco XRd Control Plane router (IOS XR ≥ 7.9.2) | About 4000 instances and 4000 watches per router |
 
 XRd host prerequisites: [XRd host setup tutorial](https://xrdocs.io/virtual-routing/tutorials/2022-08-22-setting-up-host-environment-to-run-xrd).
 
@@ -27,7 +27,7 @@ Lab verification aborted for 'k8s_lab__…': k3s node container(s) not running: 
 
 `nika.jsonl` or the worker log records `env_verify_failed` with the same text. Tracker: [sands-lab/nika#54](https://github.com/sands-lab/nika/issues/54#issuecomment-5743222111).
 
-**`iosxr_simple_bgp`:** Verification fails checks such as `router1_bgp_established` or `pc1_gateway_reachable` (lab `VERIFY_MAX_WAIT_SEC` is 480). `pc*` containers stay up; XR routers exit:
+**IOS XR device profiles:** Verification fails routing or service checks. Client containers stay up; XR routers exit:
 
 ```shell
 docker ps -a
@@ -82,10 +82,10 @@ sudo sysctl --system
 ```shell
 uv run nika session ps
 uv run nika session close --session_id SESSION_ID
-uv run nika env run iosxr_simple_bgp
+uv run nika env run dc_clos -s s --device-profile iosxr
 ```
 
-Use `k8s_lab` or `llmd_lab` instead of `iosxr_simple_bgp` when that is the failing scenario.
+Use the same environment name and device profile as the failed run.
 
 ### Confirm success
 
@@ -215,7 +215,7 @@ Containerlab starts many Nokia SR Linux nodes and PC endpoints in one lab. Paral
 - `dmesg` or `journalctl -k` shows an OOM killer entry for `dockerd`, `containerd`, or a `clab-*` container during deploy.
 - Deploy fails or the host recovers after swap thrashing, then a wipe and retry sometimes succeeds on a quieter host.
 
-Typical scenarios: `min3clos`, `isp_*` with `--backend containerlab` (especially topologies near the Containerlab size cap; see [Network scenarios](network-scenarios.md#concurrency-and---batch-size)).
+Typical scenarios: `dc_clos --backend containerlab`, `isp_*` with `--backend containerlab` (especially topologies near the Containerlab size cap; see [Network scenarios](network-scenarios.md#concurrency-and---batch-size)).
 
 ### Cause
 

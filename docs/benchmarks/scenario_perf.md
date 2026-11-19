@@ -1,5 +1,7 @@
 # Scenario startup performance
 
+The five-node fabric measurements describe the retired environment. Current vendor checks use `dc_clos`; their timings require new measurements.
+
 Resource and time cost of the environments and tasks in the profiled benchmark baseline (test and dev splits), measured without an agent, and of SONiC Containerlab variants measured the same way. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](https://github.com/sands-lab/nika/blob/experiment/experiment/profile/README.md). NIKA budgets 256 MiB per SONiC router and 1.5 GiB per SR Linux router when it sizes Firecracker VMs and the Containerlab ISP set; the tables below are measured lab-container memory, not that budget.
 
 The benchmark baseline measurements used release `0.2.0` tasks at commit [`ac4422d8`](https://github.com/sands-lab/nika/commit/ac4422d8a4a03be2b905e28edf72993d467e1b81). Run the research commands below from a separate checkout of the shared `experiment` branch. Current tasks can produce different measurements.
@@ -8,7 +10,7 @@ The page has four measurements:
 
 - **Single-lab baseline:** every environment variant in that baseline, one environment at a time, 3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime verification), a 10 s hold, and cleanup.
 - **Concurrency sweep:** every task in that baseline, with its failure injected and verified as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
-- **SONiC Containerlab:** `min3clos` and the ISP topologies the baseline runs on SR Linux (`isp_dfn-bwin`, `isp_dfn-gwin`, `isp_di-yuan`, `isp_pdh`), one environment at a time, 3 runs each, with `--device-profile sonic`. Same startup path, 10 s hold, and cleanup as the single-lab baseline.
+- **SONiC Containerlab:** the retired five-node fabric and the ISP topologies the baseline runs on SR Linux (`isp_dfn-bwin`, `isp_dfn-gwin`, `isp_di-yuan`, `isp_pdh`), one environment at a time, 3 runs each, with `--device-profile sonic`. Same startup path, 10 s hold, and cleanup as the single-lab baseline.
 - **SONiC scale:** the largest SNDlib ISPs on Containerlab SONiC, one environment at a time, with host-side wires and a full `verify_lab()` after startup.
 
 ## Run
@@ -118,7 +120,7 @@ ISP topology sit next to each other.
 | isp_ta2 | kathara | l | isis/none | 3/3 | 130 | 47 (47-47) | 25 (25-26) | 33 (32-33) | 116 (116-117) | 1.96 (1.87-2.02) | 1.96 | 591 | 158 |
 | k8s_lab | kathara | - | - | 3/3 | 20 | 230 (230-231) | 76 (76-95) | 14 (14-14) | 331 (330-348) | 14.20 (14.15-14.23) | 1.96 | 817 | 126 |
 | llmd_lab | kathara | - | - | 3/3 | 8 | 145 (144-147) | 37 (37-37) | 5 (5-5) | 197 (196-200) | 8.24 (8.23-8.37) | 1.57 | 745 | 136 |
-| min3clos | containerlab | - | - | 3/3 | 5 | 65 (62-67) | 4 (3-4) | 2 (2-2) | 81 (78-83) | 4.23 (4.23-4.29) | 4.21 | 1049 | 253 |
+| Retired five-node fabric | containerlab | - | - | 3/3 | 5 | 65 (62-67) | 4 (3-4) | 2 (2-2) | 81 (78-83) | 4.23 (4.23-4.29) | 4.21 | 1049 | 253 |
 | p4_dc_fabric | kathara | s | - | 3/3 | 15 | 33 (32-33) | 12 (12-13) | 3 (3-3) | 58 (58-58) | 0.15 (0.13-0.15) | 0.15 | 55 | 18 |
 | p4_dc_fabric | kathara | m | - | 3/3 | 45 | 46 (46-47) | 13 (13-13) | 8 (8-8) | 78 (77-78) | 0.29 (0.29-0.29) | 0.29 | 84 | 29 |
 | p4_dc_fabric | kathara | l | - | 3/3 | 89 | 84 (81-84) | 13 (13-13) | 23 (23-23) | 131 (129-132) | 0.56 (0.56-0.56) | 0.56 | 139 | 34 |
@@ -145,7 +147,7 @@ ISP topology sit next to each other.
   peaks at 14.2 GiB with a 1.96 GiB working set and writes 13.1 GiB per run;
   `llmd_lab` peaks at 8.2 GiB with a 1.57 GiB working set and writes 7.0 GiB.
 - **25 of 49 variants stay below 1 GiB.** Apart from the Containerlab SR Linux labs,
-  k3s labs and `min3clos` (4.2 GiB), the largest is `dc_clos` size l at 3.2 GiB.
+  k3s labs and the retired five-node fabric (4.2 GiB), the largest is `dc_clos` size l at 3.2 GiB.
 - **Convergence is short.** The longest median convergence is 76 s (`k8s_lab`); the
   Kathara ISP labs converge in 25-54 s.
 
@@ -211,7 +213,7 @@ the light phase.
 
 ## SONiC Containerlab
 
-SONiC-VS on Containerlab is outside the profiled benchmark baseline. This measurement uses the same profiler, hold, and validation settings as the [single-lab baseline](#single-lab-baseline), for `min3clos --device-profile sonic` and the ISP topologies that baseline runs on SR Linux, with `--backend containerlab --device-profile sonic` and the same IGP/BGP variants.
+SONiC-VS on Containerlab is outside the profiled benchmark baseline. This measurement uses the same profiler, hold, and validation settings as the [single-lab baseline](#single-lab-baseline), for the retired five-node SONiC fabric and the ISP topologies that baseline runs on SR Linux, with `--backend containerlab --device-profile sonic` and the same IGP/BGP variants.
 
 ### Run
 
@@ -219,7 +221,7 @@ SONiC-VS on Containerlab is outside the profiled benchmark baseline. This measur
 | --- | --- |
 | Dates | 2026-10-31 18:17 UTC to 19:13 UTC |
 | Host | 16 vCPU (AMD EPYC 9754, 1 thread per core), 63 GiB RAM, no swap, Linux 6.8.0-147, cgroup v2, Docker 29.8.1, Containerlab 0.79.0 |
-| Cases | 9 lab variants (`min3clos` and 8 ISP IGP/BGP combinations), 3 runs each |
+| Cases | 9 lab variants (the retired five-node fabric and 8 ISP IGP/BGP combinations), 3 runs each |
 | Run config | `config/nika.yaml`: `runtime_validation.depth: light`, `static_validation.enabled: false`, `heavy_batch_size: 1` |
 | Sampling | 1 s interval, lab container cgroups and the NIKA worker process tree |
 | Other load | A Kathara `isp_abilene` lab from another session ran throughout. Other NIKA sessions on the same host started and stopped during the run |
@@ -230,7 +232,7 @@ The case file is one healthy row per variant. ISP rows set `topo_size: s`, `rpki
 ```bash
 uv run python - <<'EOF'
 import yaml
-cases = [{"scenario": "min3clos", "problem": "healthy",
+cases = [{"scenario": "dc_clos", "problem": "healthy", "topo_size": "s",
           "backend": "containerlab", "device_profile": "sonic"}]
 for scenario, igp, bgp_mode in (
     ("isp_dfn-bwin", "ospf", "ebgp"),
@@ -259,7 +261,7 @@ Every one of the 9 variants passed 3 of 3 runs. Columns match the [single-lab ba
 
 | Scenario | Backend | Size | Variant | OK | Containers | Deploy | Convergence | Cleanup | Total | Peak mem GiB | WS GiB | Peak CPU % | Mean CPU % |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| min3clos | containerlab | - | SONiC | 3/3 | 5 | 56 (56-56) | 38 (31-38) | 1 (1-2) | 105 (98-106) | 0.44 (0.44-0.44) | 0.41 | 256 | 60 |
+| Retired five-node fabric | containerlab | - | SONiC | 3/3 | 5 | 56 (56-56) | 38 (31-38) | 1 (1-2) | 105 (98-106) | 0.44 (0.44-0.44) | 0.41 | 256 | 60 |
 | isp_dfn-bwin | containerlab | s | ospf/ebgp, SONiC | 3/3 | 20 | 63 (61-65) | 54 (54-54) | 4 (4-6) | 133 (130-134) | 1.42 (1.37-1.43) | 1.33 | 699 | 165 |
 | isp_dfn-gwin | containerlab | s | isis/none, SONiC | 3/3 | 22 | 64 (63-66) | 34 (34-36) | 4 (4-7) | 115 (114-116) | 1.47 (1.45-1.50) | 1.37 | 731 | 195 |
 | isp_di-yuan | containerlab | s | isis/ibgp_rr, SONiC | 3/3 | 22 | 63 (63-65) | 36 (34-36) | 4 (4-5) | 114 (114-115) | 1.59 (1.55-1.59) | 1.49 | 782 | 203 |
@@ -269,7 +271,7 @@ Every one of the 9 variants passed 3 of 3 runs. Columns match the [single-lab ba
 | isp_pdh | containerlab | s | isis/none, SONiC | 3/3 | 22 | 62 (57-64) | 36 (36-36) | 4 (4-5) | 112 (108-115) | 1.45 (1.41-1.45) | 1.35 | 639 | 193 |
 | isp_pdh | containerlab | s | ospf/ebgp, SONiC | 3/3 | 22 | 73 (62-77) | 55 (53-56) | 5 (3-6) | 143 (134-144) | 1.52 (1.51-1.55) | 1.43 | 577 | 160 |
 
-The SONiC rows were measured on this host and the SR Linux rows of the baseline on a host with twice the vCPUs and RAM, so the comparison is between observations, not a controlled measurement. SONiC environments used about a tenth of the memory of the matching SR Linux environments (0.44 GiB vs 4.23 GiB for `min3clos`, 1.42-1.59 GiB vs 14.2-15.7 GiB for the ISP variants). The SONiC ISP variants deployed in about a third of the time (62-73 s vs 181-202 s). SONiC `min3clos` deployed in 56 s against 65 s but spent longer in convergence (38 s vs 4 s), so its total time was 105 s against 81 s.
+The SONiC rows were measured on this host and the SR Linux rows of the baseline on a host with twice the vCPUs and RAM, so the comparison is between observations, not a controlled measurement. SONiC environments used about a tenth of the memory of the matching SR Linux environments (0.44 GiB vs 4.23 GiB for the retired five-node fabric, 1.42-1.59 GiB vs 14.2-15.7 GiB for the ISP variants). The SONiC ISP variants deployed in about a third of the time (62-73 s vs 181-202 s). The retired SONiC fabric deployed in 56 s against 65 s but spent longer in convergence (38 s vs 4 s), so its total time was 105 s against 81 s.
 
 ## SONiC scale
 

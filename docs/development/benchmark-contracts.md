@@ -12,7 +12,7 @@ The **frontend** is the NIKA CLI and its agent orchestration code. The **benchma
 | Frontend | Select tasks, schedule trials, launch agent sandboxes, enforce agent budgets, record provenance, evaluate validity, and package results |
 | Benchmark engine | Deploy and close environments, inject and check failures, provide task descriptions and MCP gateways, validate submissions, and compute scores |
 
-The frontend also maps unstructured diagnosis reports through [`ReportMapper`](../../src/nika/agents/submission.py). The engine's task tool validates and records the resulting answer. Moving the mapper into the release's engine remains follow-up work under [#291](https://github.com/sands-lab/nika/issues/291) and [#292](https://github.com/sands-lab/nika/issues/292).
+The frontend also maps unstructured diagnosis reports through [`ReportMapper`](../../src/nika/agents/submission.py). Its prompt and context formatting are NIKA scoring code, not agent-package code, so a change to them needs a benchmark revision. The engine's task tool validates and records the resulting answer. Moving the mapper into the release's engine remains follow-up work under [#292](https://github.com/sands-lab/nika/issues/292).
 
 A manifest with an `engine` block selects a separate engine container. A manifest without one uses the current NIKA's engine in process. Ad-hoc task matrices also use the in-process engine. An emulation backend, such as Kathará or Containerlab, runs the engine's environments; it is distinct from the benchmark engine.
 
@@ -27,11 +27,17 @@ engine:
     version: 1
 ```
 
-This is the engine reference in release 0.3.0's manifest. It names the release tag, which points at the commit that contains this manifest. `engine.tag` also accepts a commit. The frontend builds that reference from a clean `git archive`, so uncommitted changes do not enter the image. `nika engine build <ref>` builds it ahead of a run. Without a local image whose commit label matches the reference, the first release run builds the image itself.
+The example pins a release tag. `engine.tag` also accepts a commit; provisional 0.3.0 pins its source commit in the linked manifest. The frontend builds that reference from a clean `git archive`, so uncommitted changes do not enter the image. `nika engine build <ref>` builds it ahead of a run. Without a local image whose commit label matches the reference, the first release run builds the image itself.
 
 A manifest may also provide `engine.image`. The frontend uses that image when it exists locally or can be pulled; otherwise it builds from `engine.tag`. An image override does not check the image's commit against the Git reference. Run provenance records the image ID actually used.
 
 Before deploying trials, the frontend checks the supported API version, the manifest's task-file hashes, and the hashes the engine reports through `describe`. See [`release.py`](../../src/nika/workflows/benchmark/release.py) for release validation and [`container.py`](../../src/nika/benchmark_engine/container.py) for image resolution.
+
+The manifest's `selection` declares `default: main`, `main_slices: [core, healthy, multi_fault]`, and `optional_slices: [third_size, vendor_twin]`. `benchmark.include_slices` selects both sets; its default is false. Split `case_count` describes all rows on disk; run `case_count` describes the selected rows. Task hashes cover the entire split file regardless of selection.
+
+Dataset rows use `slice: vendor_twin` with `base_task_id` referencing a same-split FRR core. Each twin declares `vendor_tier: A` or `vendor_tier: C`; tier A requires all four vendors on each matched ISP-backbone cell. Preflight rejects incomplete tier-A cells and more than 156 twins. The loader retains dataset metadata, and preflight checks the full injection and observation contract against that base. Third-size rows reference both related cores with `core_task_ids`, complete s/m/l, and belong to Dev. Core pairs match family, non-ISP environment, backend, platform, protocol, traffic, telemetry, and objectives. Their sizes differ, except for the two explicitly marked small-ISP native BGP faults. These checks also apply when preflighting an existing release.
+
+The main score averages trials within each main task before taking the equal-weight task mean. Optional rows cannot affect it. The [scoring reference](../benchmarks/root-cause-evaluation.md#aggregate-leaderboard-and-nika-eval-summary) defines the separate comparisons. The training-pool sidecar is checked for Test-network overlap during freeze; its hash is checked during preflight.
 
 Optional `evaluation` fields constrain release runs:
 

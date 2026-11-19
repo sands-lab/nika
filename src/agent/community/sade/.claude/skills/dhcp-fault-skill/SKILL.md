@@ -1,6 +1,6 @@
 ---
 name: dhcp-fault-skill
-description: Identify DHCP server-side faults — service down, missing subnet declaration, spoofed gateway or DNS pushed by the server. Use when one or more hosts cannot obtain a lease, or hosts received DHCP-supplied values that look wrong.
+description: Identify DHCP server-side faults — service down, missing subnet declaration, incorrect gateway, DNS, or subnet-mask options on the legitimate server. Use when one or more hosts cannot obtain a lease, or hosts received DHCP-supplied values that look wrong.
 ---
 
 # DHCP Server-Side Faults
@@ -21,7 +21,7 @@ When direct evidence on the DHCP server is sufficient AND the upstream cascade h
 
 ## Disambiguation
 
-- **DHCP-spoofed vs host-local misconfig.** If the host's wrong gateway/DNS matches what the DHCP server is pushing, this is a DHCP fault and faulty_devices includes both. If the DHCP server's config is correct but the host's `/etc/resolv.conf` or default route differs from what was pushed, that's `host-ip-skill` territory.
+- **DHCP option vs host-local misconfiguration.** If the host's wrong gateway/DNS matches what the DHCP server is pushing, this is a DHCP fault and faulty_devices includes both. If the DHCP server's config is correct but the host's `/etc/resolv.conf` or default route differs from what was pushed, that's `host-ip-skill` territory.
 - **dhcp_service_down vs no-route-to-DHCP.** A host without IP plus a DHCP server whose process is alive = upstream cascade, not `dhcp_service_down`. The cascade guard above must pass first.
 - **`systemctl inactive` is not enough.** `systemctl is-active` may report inactive for services that are actually running under a different init pattern. Combine with `pgrep` (or equivalent process check) to confirm the daemon is actually absent before naming a service-down fault.
-- **`dhcp_missing_subnet` vs `dhcp_spoofed_subnet`.** Both produce the same direct evidence (a `subnet` block missing from `dhcpd.conf` for an affected host's subnet). The label follows the scenario's category: `dhcp_missing_subnet` under misconfiguration scenarios, `dhcp_spoofed_subnet` under network-attack scenarios. Check `list_avail_problems()` to see which name is valid for the current scenario before submitting.
+- **`dhcp_missing_subnet` vs `dhcp_option_subnet`.** A missing subnet declaration prevents lease allocation. An incorrect subnet-mask option changes the mask in an existing declaration and gives clients the wrong prefix length.

@@ -115,23 +115,34 @@
         "correspondence": "NIKA assigns an address in the victim prefix to a local interface and originates that prefix through a BGP network statement and export policy. FRR documents that statement as announcing the prefix to neighbors.",
         "limitation": "The source supports the reference origination configuration, not authorization of the originating AS or whether the forged route wins at every receiver. Native profiles use equivalent origination operations.",
         "accessed": "2026-11-10"
+      },
+      {
+        "source_type": "rfc",
+        "title": "RFC 6811, BGP Prefix Origin Validation",
+        "url": "https://www.rfc-editor.org/rfc/rfc6811.html#section-2",
+        "locator": "Section 2, validation procedure; Section 5, deployment considerations",
+        "excerpt": "rejecting all \"invalid\" routes",
+        "supports": "mechanism",
+        "correspondence": "NIKA permits export of prefixes with the unauthorized origin origin ASN while ROAs authorize the legitimate origin. RFC 6811 marks a covered route invalid when no authorization matches and permits invalid-route rejection, matching the ROV/non-ROV observer difference.",
+        "limitation": "ROV rejection is local policy, not mandatory. This implementation changes origin and creates MOAS; it does not model every form of path-only route leak.",
+        "accessed": "2026-11-10"
       }
     ]
   },
-  "bgp_max_prefix_exceeded": {
-    "implementation": "src/nika/problems/routing_control_plane/bgp.py",
-    "symbol": "BGPMaxPrefixExceeded",
+  "bgp_max_prefix_limit_low": {
+    "implementation": "src/nika/problems/routing_control_plane/bgp_prefix_surge.py",
+    "symbol": "BGPLowPrefixLimit",
     "sources": [
       {
         "source_type": "rfc",
-        "title": "RFC 4486, Subcodes for BGP Cease Notification Message",
-        "url": "https://www.rfc-editor.org/rfc/rfc4486.html#section-4",
-        "locator": "Sections 3 and 4, Maximum Number of Prefixes Reached",
-        "excerpt": "Maximum Number of Prefixes Reached",
+        "title": "RFC 7454, BGP Operations and Security",
+        "url": "https://www.rfc-editor.org/rfc/rfc7454.html#section-8",
+        "locator": "Section 8, Maximum Prefixes on a Peering",
+        "excerpt": "It is important to regularly review the limits that are configured",
         "supports": "mechanism",
-        "correspondence": "NIKA sets a terminating maximum-prefix limit below an injected peer advertisement flood. RFC 4486 specifies the Cease notification when the received prefix count exceeds the configured upper bound.",
-        "limitation": "The RFC specifies the notification for a speaker that decides to terminate. It does not mandate NIKA flood sizes or hold-down behavior.",
-        "accessed": "2026-11-10"
+        "correspondence": "The terminating limit needs headroom for expected route growth. NIKA sets it one prefix above the normal received count.",
+        "limitation": "The RFC recommends limit management; it does not specify the Optus configuration or its actual headroom.",
+        "accessed": "2026-11-12"
       }
     ]
   },
@@ -197,20 +208,98 @@
       }
     ]
   },
-  "bgp_rpki_invalid_route_leak": {
+  "bgp_prefix_surge": {
+    "implementation": "src/nika/problems/routing_control_plane/bgp_prefix_surge.py",
+    "symbol": "BGPPrefixSurge",
+    "sources": [
+      {
+        "source_type": "incident_report",
+        "title": "Australian Senate, Chapter 2: The Optus network outage",
+        "url": "https://www.aph.gov.au/Parliamentary_Business/Committees/Senate/Environment_and_Communications/OptusNetworkOutage/Report/Chapter_2_-_The_Optus_network_outage",
+        "locator": "Paragraphs 2.21 and 2.27",
+        "excerpt": "a preset safety limit on these routers was reached or exceeded",
+        "supports": "mechanism",
+        "correspondence": "Routing changes from an interconnected network exceeded configured safety limits and disconnected routers. NIKA separates the extra advertisements from the low terminating limit.",
+        "limitation": "The report does not publish router configuration or prefix counts. NIKA models the mechanism with FRR sessions and an isolated additional-prefix block, not the national outage scale or the upgrade.",
+        "accessed": "2026-11-12"
+      }
+    ]
+  },
+  "bgp_route_leak": {
+    "implementation": "src/nika/problems/routing_control_plane/route_leak.py",
+    "symbol": "BGPRouteLeak",
+    "sources": [
+      {
+        "source_type": "rfc",
+        "title": "RFC 7908, Problem Definition and Classification of BGP Route Leaks",
+        "url": "https://www.rfc-editor.org/rfc/rfc7908.html",
+        "locator": "Sections 3.1\u20133.4: Type 1 hairpin; types 2\u20134 peer/provider export violations",
+        "excerpt": "Neither the prefix nor the AS path in the update is altered.",
+        "supports": "mechanism",
+        "correspondence": "NIKA bypasses one upstream export restriction on a multihomed customer. The learned full prefix and original origin AS remain intact; normal eBGP prepending adds the customer AS.",
+        "limitation": "Implements the type 1 provider-customer-provider hairpin. Types 2\u20134 describe related peer export violations; they are taxonomy references, not additional injected variants.",
+        "accessed": "2026-11-15"
+      },
+      {
+        "source_type": "rfc",
+        "title": "RFC 9234, Route Leak Prevention and Detection Using Roles in UPDATE and OPEN Messages",
+        "url": "https://www.rfc-editor.org/rfc/rfc9234.html",
+        "locator": "Sections 3.1, 4 and 5: peering relationships, BGP Role and OTC",
+        "excerpt": "It prevents ASes from creating leaks and detects leaks",
+        "supports": "mechanism",
+        "correspondence": "The declared provider/customer/peer relationships define the healthy export contract. BGP roles and Only to Customer (OTC) are the protocol mitigation for this class of violation.",
+        "limitation": "NIKA uses ordinary AS-path export filters and customer route preference. It does not enable negotiated roles or OTC enforcement, which would prevent this injected leak.",
+        "accessed": "2026-11-15"
+      },
+      {
+        "source_type": "incident_report",
+        "title": "Cloudflare, How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today",
+        "url": "https://blog.cloudflare.com/how-verizon-and-a-bgp-optimizer-knocked-large-parts-of-the-internet-offline-today/",
+        "locator": "24 June 2019, The leak section: DQE \u2192 Allegheny \u2192 Verizon",
+        "excerpt": "sent to their other transit provider",
+        "supports": "mechanism",
+        "correspondence": "The incident documents a customer forwarding routes learned from DQE to its other transit provider Verizon. NIKA reproduces the unauthorized upstream transit and resulting traffic detour.",
+        "limitation": "The incident also involved optimizer-generated more-specific prefixes and overload. NIKA uses an unchanged full prefix and does not reproduce those additional mechanisms.",
+        "accessed": "2026-11-15"
+      }
+    ]
+  },
+  "bgp_rov_not_enforced": {
     "implementation": "src/nika/problems/routing_control_plane/bgp.py",
-    "symbol": "BGPRPKIInvalidRouteLeak",
+    "symbol": "BGPROVNotEnforced",
     "sources": [
       {
         "source_type": "rfc",
         "title": "RFC 6811, BGP Prefix Origin Validation",
         "url": "https://www.rfc-editor.org/rfc/rfc6811.html#section-2",
-        "locator": "Section 2, validation procedure; Section 5, deployment considerations",
-        "excerpt": "rejecting all \"invalid\" routes",
+        "locator": "Section 2, validation states; Section 5, invalid-route policy",
+        "excerpt": "Invalid: At least one VRP Covers the Route Prefix, but no VRP Matches it.",
         "supports": "mechanism",
-        "correspondence": "NIKA permits export of prefixes with the leaker origin ASN while ROAs authorize the legitimate origin. RFC 6811 marks a covered route invalid when no authorization matches and permits invalid-route rejection, matching the ROV/non-ROV observer difference.",
-        "limitation": "ROV rejection is local policy, not mandatory. This implementation changes origin and creates MOAS; it does not model every form of path-only route leak.",
-        "accessed": "2026-11-10"
+        "correspondence": "The router retains origin validation data but loses its local policy to reject invalid routes. Section 5 describes rejecting all invalid routes as one possible policy.",
+        "limitation": "RFC 6811 defines validation states; it does not mandate invalid-route rejection. NIKA models a router whose intended import policy rejects them.",
+        "accessed": "2026-11-12"
+      },
+      {
+        "source_type": "vendor_documentation",
+        "title": "FRR BGP documentation, Validating BGP Updates",
+        "url": "https://docs.frrouting.org/en/latest/bgp.html#validating-bgp-updates",
+        "locator": "Validating BGP Updates, match rpki notfound|invalid|valid",
+        "excerpt": "Create a clause for a route map to match prefixes with the specified RPKI state.",
+        "supports": "reference_implementation",
+        "correspondence": "The healthy BGP-IN deny sequence matches rpki invalid. Removing that sequence leaves the later business-prefix permit and RTR configuration intact.",
+        "limitation": "The example in the FRR documentation changes local preference. NIKA uses the documented matcher in a deny sequence.",
+        "accessed": "2026-11-12"
+      },
+      {
+        "source_type": "incident_report",
+        "title": "Cloudflare, How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today",
+        "url": "https://blog.cloudflare.com/how-verizon-and-a-bgp-optimizer-knocked-large-parts-of-the-internet-offline-today/",
+        "locator": "2019-06-24 incident account, upstream filtering at Verizon",
+        "excerpt": "Verizon\u2019s lack of filtering turned this into a major incident",
+        "supports": "mechanism",
+        "correspondence": "The Verizon/DQE incident motivates a separate upstream filtering failure that can combine with a route leak. Alone, the missing invalid-deny policy has no traffic effect without invalid announcements.",
+        "limitation": "The incident involved more-specific route leaks. NIKA retains the existing RPKI profile with an unauthorized origin; this is a mechanism-level reproduction.",
+        "accessed": "2026-11-12"
       }
     ]
   },
@@ -307,6 +396,17 @@
         "correspondence": "NIKA switch_internal_corruption.bpf.c flips a selected TCP payload byte and writes it with bpf_skb_store_bytes flags=0. The helper reference defines packet-byte replacement and optional checksum recomputation, matching deliberate payload mutation without repairing its TCP checksum.",
         "limitation": "This is an eBPF reference implementation of corruption after forwarding. It does not reproduce a particular ASIC defect or physical bit-error distribution; Containerlab attaches on the external host-side wire.",
         "accessed": "2026-11-10"
+      },
+      {
+        "source_type": "paper",
+        "title": "Stone and Partridge, When the CRC and TCP Checksum Disagree, SIGCOMM 2000",
+        "url": "https://conferences.sigcomm.org/sigcomm/2000/conf/paper/sigcomm2000-9-1.pdf",
+        "locator": "Section 1, introduction",
+        "excerpt": "intermediate systems",
+        "supports": "mechanism",
+        "correspondence": "The paper describes transport checksum errors that pass link CRC checks and identifies intermediate systems or hosts as possible sources. NIKA models payload corruption inside one forwarding device before egress FCS generation, then requires checksum errors on independent paths through that device.",
+        "limitation": "The paper does not establish NIKA's particular flow hash, bit position, corruption rate, or a specific switch ASIC defect. These remain model choices.",
+        "accessed": "2026-11-16"
       }
     ]
   },
@@ -323,6 +423,57 @@
         "supports": "mechanism",
         "correspondence": "DHCPMissingSubnet removes the declaration for the client subnet and renews leases. ISC requires a subnet declaration for every served subnet, with ranges inside it for dynamic allocation.",
         "limitation": "The manual establishes the required configuration. Server startup behavior after removing a declaration depends on its other configured subnets.",
+        "accessed": "2026-11-10"
+      }
+    ]
+  },
+  "dhcp_option_dns": {
+    "implementation": "src/nika/problems/addressing_neighbor_naming/dhcp_options.py",
+    "symbol": "DHCPOptionDNS",
+    "sources": [
+      {
+        "source_type": "rfc",
+        "title": "RFC 2132, DHCP Options and BOOTP Vendor Extensions",
+        "url": "https://www.rfc-editor.org/rfc/rfc2132.html#section-3.8",
+        "locator": "Section 3.8, Domain Name Server Option",
+        "excerpt": "name servers available to the client",
+        "supports": "mechanism",
+        "correspondence": "NIKA changes an option on the legitimate DHCP server and renews the affected client lease. The resulting client configuration follows the incorrect server option.",
+        "limitation": "NIKA models DHCP option misconfiguration; it does not introduce a rogue DHCP server.",
+        "accessed": "2026-11-10"
+      }
+    ]
+  },
+  "dhcp_option_gateway": {
+    "implementation": "src/nika/problems/addressing_neighbor_naming/dhcp_options.py",
+    "symbol": "DHCPOptionGateway",
+    "sources": [
+      {
+        "source_type": "rfc",
+        "title": "RFC 2132, DHCP Options and BOOTP Vendor Extensions",
+        "url": "https://www.rfc-editor.org/rfc/rfc2132.html#section-3.5",
+        "locator": "Section 3.5, Router Option",
+        "excerpt": "routers on the client's subnet",
+        "supports": "mechanism",
+        "correspondence": "NIKA changes an option on the legitimate DHCP server and renews the affected client lease. The resulting client configuration follows the incorrect server option.",
+        "limitation": "NIKA models DHCP option misconfiguration; it does not introduce a rogue DHCP server.",
+        "accessed": "2026-11-10"
+      }
+    ]
+  },
+  "dhcp_option_subnet": {
+    "implementation": "src/nika/problems/addressing_neighbor_naming/dhcp_options.py",
+    "symbol": "DHCPOptionSubnet",
+    "sources": [
+      {
+        "source_type": "rfc",
+        "title": "RFC 2132, DHCP Options and BOOTP Vendor Extensions",
+        "url": "https://www.rfc-editor.org/rfc/rfc2132.html#section-3.3",
+        "locator": "Section 3.3, Subnet Mask",
+        "excerpt": "specifies the client's subnet mask",
+        "supports": "mechanism",
+        "correspondence": "NIKA changes an option on the legitimate DHCP server and renews the affected client lease. The resulting client configuration follows the incorrect server option.",
+        "limitation": "NIKA models DHCP option misconfiguration; it does not introduce a rogue DHCP server.",
         "accessed": "2026-11-10"
       }
     ]
@@ -344,74 +495,6 @@
       }
     ]
   },
-  "dhcp_spoofed_dns": {
-    "implementation": "src/nika/problems/security/dhcp.py",
-    "symbol": "DHCPSpoofedDNS",
-    "sources": [
-      {
-        "source_type": "rfc",
-        "title": "RFC 2132, DHCP Options and BOOTP Vendor Extensions",
-        "url": "https://www.rfc-editor.org/rfc/rfc2132.html#section-3.8",
-        "locator": "Section 3.8, Domain Name Server Option",
-        "excerpt": "name servers available to the client",
-        "supports": "mechanism",
-        "correspondence": "NIKA changes the subnet DNS option and renews clients; option 6 supplies the resolver list used by those clients.",
-        "limitation": "The source defines option semantics, not a rogue-server attack. NIKA edits the legitimate server configuration.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "dhcp_spoofed_gateway": {
-    "implementation": "src/nika/problems/security/dhcp.py",
-    "symbol": "DHCPSpoofedGateway",
-    "sources": [
-      {
-        "source_type": "rfc",
-        "title": "RFC 2132, DHCP Options and BOOTP Vendor Extensions",
-        "url": "https://www.rfc-editor.org/rfc/rfc2132.html#section-3.5",
-        "locator": "Section 3.5, Router Option",
-        "excerpt": "routers on the client's subnet",
-        "supports": "mechanism",
-        "correspondence": "NIKA replaces the router option with a wrong .254 address and renews clients; option 3 determines their next-hop routers.",
-        "limitation": "The source defines option semantics. Connectivity loss additionally requires that the injected gateway cannot forward the intended traffic; NIKA uses a configuration change, not an on-wire rogue server.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "dhcp_spoofed_subnet": {
-    "implementation": "src/nika/problems/security/dhcp.py",
-    "symbol": "DHCPSpoofedSubnet",
-    "sources": [
-      {
-        "source_type": "rfc",
-        "title": "RFC 2132, DHCP Options and BOOTP Vendor Extensions",
-        "url": "https://www.rfc-editor.org/rfc/rfc2132.html#section-3.3",
-        "locator": "Section 3.3, Subnet Mask",
-        "excerpt": "specifies the client's subnet mask",
-        "supports": "mechanism",
-        "correspondence": "NIKA changes option subnet-mask while keeping the subnet declaration, then renews clients. Option 1 controls the client mask and therefore its on-link decision.",
-        "limitation": "The source defines the mask option. Whether a wrong mask excludes the gateway depends on the assigned address and deployment. NIKA edits the legitimate server.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "dns_lookup_latency": {
-    "implementation": "src/nika/problems/addressing_neighbor_naming/dns_latency.py",
-    "symbol": "DNSLookupLatency",
-    "sources": [
-      {
-        "source_type": "vendor_documentation",
-        "title": "iproute2, tc-netem(8)",
-        "url": "https://man7.org/linux/man-pages/man8/tc-netem.8.html",
-        "locator": "OPTIONS, delay",
-        "excerpt": "delay",
-        "supports": "reference_implementation",
-        "correspondence": "NIKA installs a netem egress delay on the resolver interface, delaying DNS replies and any other packets leaving that interface. The manual defines the same delay operation; the injector does not select only DNS packets.",
-        "limitation": "The source documents delay injection. It does not demonstrate a DNS DoS attack or establish NIKA application-latency thresholds.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
   "dns_port_blocked": {
     "implementation": "src/nika/problems/forwarding_encapsulation_policy/acl.py",
     "symbol": "DNSPortBlocked",
@@ -425,6 +508,17 @@
         "supports": "mechanism",
         "correspondence": "NIKA drops both UDP and TCP destination port 53. RFC 1035 assigns DNS server traffic to those transports and port, so both query paths are blocked.",
         "limitation": "A dropped query times out; this does not model a DNS empty-answer response. The RFC defines the transport dependency, not the nftables implementation.",
+        "accessed": "2026-11-10"
+      },
+      {
+        "source_type": "vendor_documentation",
+        "title": "Kubernetes, Debugging DNS Resolution",
+        "url": "https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/",
+        "locator": "Is DNS service up?; Are DNS endpoints exposed?",
+        "excerpt": "53/UDP,53/TCP",
+        "supports": "mechanism",
+        "correspondence": "NIKA filters TCP and UDP port 53 to the kube-dns Service and CoreDNS pod addresses. The guide identifies that Service and its DNS endpoints on those ports, matching name-resolution failure with live CoreDNS pods.",
+        "limitation": "The source supports the required DNS paths and diagnostic controls. It does not describe this particular node firewall rule as a real incident.",
         "accessed": "2026-11-10"
       }
     ]
@@ -463,6 +557,34 @@
       }
     ]
   },
+  "endpoint_cpu_contention": {
+    "implementation": "src/nika/problems/endpoint_application/transport.py",
+    "symbol": "EndpointCPUContention",
+    "sources": [
+      {
+        "source_type": "incident_report",
+        "title": "Dan Luu and David Mackey, The container throttling problem (Twitter operational analysis)",
+        "url": "https://danluu.com/cgroup-throttling/",
+        "locator": "The problem, in theory; The problem, in practice [case study]",
+        "excerpt": "thread pools that are much larger than their mesos core reservation",
+        "supports": "mechanism",
+        "correspondence": "NIKA applies a CPU quota and starts competing CPU-bound batch workers on the selected endpoint. The endpoint node determines which side of the transfer suffers contention.",
+        "limitation": "This is an operational analysis with case studies, not a single-outage postmortem. It supports quota contention; it does not validate NIKA receiver-window behavior or download slowdown magnitude.",
+        "accessed": "2026-11-10"
+      },
+      {
+        "source_type": "vendor_documentation",
+        "title": "Linux kernel, CFS Bandwidth Control",
+        "url": "https://docs.kernel.org/scheduler/sched-bwc.html",
+        "locator": "Management; quota exhaustion and throttling",
+        "excerpt": "threads being throttled",
+        "supports": "mechanism",
+        "correspondence": "NIKA applies a CPU quota and starts competing CPU-bound batch workers on the selected endpoint. The endpoint node determines which side of the transfer suffers contention.",
+        "limitation": "The source does not establish the NIKA HTTP throughput ratio or imply congestion in the network; the handler and background job are workload choices.",
+        "accessed": "2026-11-10"
+      }
+    ]
+  },
   "flow_rule_loop": {
     "implementation": "src/nika/problems/forwarding_encapsulation_policy/flow_rules.py",
     "symbol": "FlowRuleLoop",
@@ -497,19 +619,19 @@
       }
     ]
   },
-  "routing_service_down": {
-    "implementation": "src/nika/problems/routing_control_plane/node_services.py",
-    "symbol": "RoutingServiceDown",
+  "host_acl_block": {
+    "implementation": "src/nika/problems/forwarding_encapsulation_policy/acl.py",
+    "symbol": "HostACLBlock",
     "sources": [
       {
         "source_type": "vendor_documentation",
-        "title": "FRRouting, WATCHFRR",
-        "url": "https://docs.frrouting.org/en/latest/watchfrr.html",
-        "locator": "WATCHFRR; Starting WATCHFRR",
-        "excerpt": "handles failed daemon processes and intelligently restarts them",
+        "title": "Netfilter, nft(8)",
+        "url": "https://netfilter.org/projects/nftables/manpage.html",
+        "locator": "TCP HEADER EXPRESSION (dport); VERDICT STATEMENTS (drop)",
+        "excerpt": "drop",
         "supports": "reference_implementation",
-        "correspondence": "On FRR, NIKA kills watchfrr before the routing daemons to prevent automatic restarts. On SONiC, NIKA stops the running routing programs with supervisorctl stop. The FRR manual documents the watchdog restart behavior.",
-        "limitation": "This source supports FRR daemon failure handling and the need to stop watchfrr; it does not document SONiC supervisor control. Existing kernel forwarding entries may persist, so process failure alone does not prove all traffic stops.",
+        "correspondence": "NIKA installs tcp dport 80 drop, using the documented transport-port match and terminal drop verdict to block cleartext HTTP on the target.",
+        "limitation": "Only port 80 is selected. HTTPS, alternative HTTP ports and other protocols are outside this injected rule.",
         "accessed": "2026-11-10"
       }
     ]
@@ -633,40 +755,6 @@
       }
     ]
   },
-  "http_acl_block": {
-    "implementation": "src/nika/problems/forwarding_encapsulation_policy/acl.py",
-    "symbol": "HttpAclBlock",
-    "sources": [
-      {
-        "source_type": "vendor_documentation",
-        "title": "Netfilter, nft(8)",
-        "url": "https://netfilter.org/projects/nftables/manpage.html",
-        "locator": "TCP HEADER EXPRESSION (dport); VERDICT STATEMENTS (drop)",
-        "excerpt": "drop",
-        "supports": "reference_implementation",
-        "correspondence": "NIKA installs tcp dport 80 drop, using the documented transport-port match and terminal drop verdict to block cleartext HTTP on the target.",
-        "limitation": "Only port 80 is selected. HTTPS, alternative HTTP ports and other protocols are outside this injected rule.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "icmp_acl_block": {
-    "implementation": "src/nika/problems/forwarding_encapsulation_policy/acl.py",
-    "symbol": "IcmpAclBlock",
-    "sources": [
-      {
-        "source_type": "vendor_documentation",
-        "title": "Netfilter, nft(8)",
-        "url": "https://netfilter.org/projects/nftables/manpage.html",
-        "locator": "IP HEADER EXPRESSIONS (protocol); VERDICT STATEMENTS (drop)",
-        "excerpt": "drop",
-        "supports": "reference_implementation",
-        "correspondence": "NIKA installs ip protocol icmp drop. The manual documents IP protocol selection and drop verdicts, matching ICMP-specific filtering while other traffic can pass.",
-        "limitation": "This supports the filter operation. It does not imply that all network connectivity or TCP services fail.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
   "icmp_frag_needed_filter_misconfiguration": {
     "implementation": "src/nika/problems/forwarding_encapsulation_policy/p4_gateway.py",
     "symbol": "IcmpFragNeededFilterMisconfiguration",
@@ -680,73 +768,6 @@
         "supports": "mechanism",
         "correspondence": "NIKA drops ICMP type 3 code 4 on the lower-MTU path. RFC 2923 describes PMTUD failure when fragmentation-needed feedback is filtered: small probes work but large TCP transfers stall.",
         "limitation": "NIKA targets only fragmentation-needed rather than all ICMP. Its symptom additionally requires a path MTU lower than endpoint packet size.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "incast_traffic_network_limitation": {
-    "implementation": "src/nika/problems/traffic_queueing_resource/link.py",
-    "symbol": "IncastTrafficNetworkLimitation",
-    "sources": [
-      {
-        "source_type": "paper",
-        "title": "Alizadeh et al., Data Center TCP (DCTCP), SIGCOMM 2010",
-        "url": "https://conferences.sigcomm.org/sigcomm/2010/papers/sigcomm/p63.pdf",
-        "locator": "Section 2.3.2 (Incast), Figure 6(a) and Figure 7",
-        "excerpt": "the request for data synchronizes the workers’ responses",
-        "supports": "mechanism",
-        "correspondence": "NIKA's partition/aggregate workload converges synchronized responses on the receiver-facing egress; inject_fault reduces that port's buffer with tc_set_tbf.",
-        "limitation": "The source supports buffer exhaustion and packet loss. It does not establish NIKA queue parameters, timeout values, or measured throughput loss.",
-        "accessed": "2026-11-10"
-      },
-      {
-        "source_type": "paper",
-        "title": "Phanishayee et al., Measurement and Analysis of TCP Throughput Collapse in Cluster-based Storage Systems, FAST 2008",
-        "url": "https://www.cs.cmu.edu/~dga/papers/incast-fast2008.pdf",
-        "locator": "Abstract; Section 1; Figure 1",
-        "excerpt": "overload the switch buffers on the client’s link",
-        "supports": "mechanism",
-        "correspondence": "The paper's synchronized reads overflow the receiver-facing switch buffer. NIKA's fan-in service and shallow egress queue reproduce that causal structure.",
-        "limitation": "NIKA uses application fan-in rather than the storage system or hardware in the paper; the paper does not validate NIKA performance.",
-        "accessed": "2026-11-10"
-      },
-      {
-        "source_type": "paper",
-        "title": "Vasudevan et al., Safe and Effective Fine-grained TCP Retransmissions for Datacenter Communication, SIGCOMM 2009",
-        "url": "https://www.cs.cmu.edu/~dga/papers/incast-sigcomm2009.pdf",
-        "locator": "Abstract; Section 1",
-        "excerpt": "Inbound data overfills small switch buffers",
-        "supports": "mechanism",
-        "correspondence": "Simultaneous responses overfill a small buffer, matching NIKA's existing fan-in traffic and injected shallow receiver-facing queue.",
-        "limitation": "The source reports TCP timeouts and throughput collapse. NIKA queue drops alone do not establish those downstream effects or their magnitude.",
-        "accessed": "2026-11-10"
-      },
-      {
-        "source_type": "paper",
-        "title": "Chen et al., Understanding TCP Incast Throughput Collapse in Datacenter Networks, WREN 2009",
-        "url": "https://conferences.sigcomm.org/sigcomm/2009/workshops/wren/papers/p73.pdf",
-        "locator": "Section 1; Section 3.2; discussion of randomized RTO",
-        "excerpt": "switch buffer overflow events will be synchronized for all senders",
-        "supports": "mechanism",
-        "correspondence": "The shared bottleneck buffer overflows under concurrent replies, matching NIKA's many-to-one workload and shallow egress queue.",
-        "limitation": "The paper studies TCP dynamics and RTO changes; NIKA does not inject those TCP changes or claim the same goodput curve.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "int_insufficient_mtu_headroom": {
-    "implementation": "src/nika/problems/forwarding_encapsulation_policy/p4_gateway.py",
-    "symbol": "IntInsufficientMtuHeadroom",
-    "sources": [
-      {
-        "source_type": "vendor_documentation",
-        "title": "P4.org Applications Working Group, In-band Network Telemetry Dataplane Specification 2.1",
-        "url": "https://raw.githubusercontent.com/p4lang/p4-applications/master/docs/INT_v2_1.pdf",
-        "locator": "Section 5.3, MTU Settings",
-        "excerpt": "egress link MTU to be exceeded",
-        "supports": "mechanism",
-        "correspondence": "The specification states INT header/metadata insertion can exceed egress MTU and recommends extra headroom. NIKA lowers the INT egress MTU setting while keeping business forwarding policy, matching inability to insert telemetry on near-MTU packets.",
-        "limitation": "The specification allows multiple responses to MTU pressure. The NIKA M-bit/no-start observations follow its configured policy, not a universal INT packet-drop requirement.",
         "accessed": "2026-11-10"
       }
     ]
@@ -768,23 +789,6 @@
       }
     ]
   },
-  "isis_circuit_level_mismatch": {
-    "implementation": "src/nika/problems/routing_control_plane/isis.py",
-    "symbol": "IsisCircuitLevelMismatch",
-    "sources": [
-      {
-        "source_type": "vendor_documentation",
-        "title": "FRRouting 10.5, ISIS",
-        "url": "https://docs.frrouting.org/en/stable-10.5/isisd.html",
-        "locator": "ISIS router, is-type; ISIS interface, isis circuit-type",
-        "excerpt": "is-type level-1",
-        "supports": "reference_implementation",
-        "correspondence": "NIKA changes an IS-IS router from Level-2 to Level-1 while its neighbors remain Level-2. FRR documents router is-type and interface circuit-type as the supported level controls.",
-        "limitation": "The reference supports the configuration operation. The mismatch premise requires no common level with neighbors; changing only the interface type under a Level-2-only instance is not the implemented operation.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
   "isis_metric_style_mismatch": {
     "implementation": "src/nika/problems/routing_control_plane/isis.py",
     "symbol": "IsisMetricStyleMismatch",
@@ -802,19 +806,19 @@
       }
     ]
   },
-  "k8s_clusterip_routing_broken": {
-    "implementation": "src/nika/problems/service_networking/kubernetes.py",
-    "symbol": "ClusterIPRoutingBroken",
+  "isis_router_level_mismatch": {
+    "implementation": "src/nika/problems/routing_control_plane/isis.py",
+    "symbol": "IsisRouterLevelMismatch",
     "sources": [
       {
         "source_type": "vendor_documentation",
-        "title": "Kubernetes, Virtual IPs and Service Proxies",
-        "url": "https://kubernetes.io/docs/reference/networking/virtual-ips/",
-        "locator": "Proxy mode: iptables",
-        "excerpt": "destination NAT",
-        "supports": "mechanism",
-        "correspondence": "NIKA drops traffic to the ClusterIP before kube-proxy DNAT on one node. The reference explains iptables rules that redirect Service virtual IP traffic to backend endpoints; preempting those rules breaks the VIP path while direct endpoint traffic avoids the VIP match.",
-        "limitation": "NIKA models the failure by packet filtering rather than corrupting kube-proxy rules. The source supports the forwarding dependency, not the exact raw-table injection.",
+        "title": "FRRouting 10.5, ISIS",
+        "url": "https://docs.frrouting.org/en/stable-10.5/isisd.html",
+        "locator": "ISIS router, is-type; ISIS interface, isis circuit-type",
+        "excerpt": "is-type level-1",
+        "supports": "reference_implementation",
+        "correspondence": "NIKA changes an IS-IS router from Level-2 to Level-1 while its neighbors remain Level-2. FRR documents router is-type and interface circuit-type as the supported level controls.",
+        "limitation": "The reference supports the configuration operation. The mismatch premise requires no common level with neighbors; changing only the interface type under a Level-2-only instance is not the implemented operation.",
         "accessed": "2026-11-10"
       }
     ]
@@ -832,23 +836,6 @@
         "supports": "mechanism",
         "correspondence": "The source shows exactly the forward-to-self directive that NIKA writes to the root zone. The loop plugin detects repeated probe queries, halts CoreDNS, and Kubernetes restarts it into CrashLoopBackOff.",
         "limitation": "The detector only covers simple static loops present at startup and involving HINFO. NIKA restarts CoreDNS to make that premise hold.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "k8s_coredns_isolated": {
-    "implementation": "src/nika/problems/addressing_neighbor_naming/kubernetes.py",
-    "symbol": "CoreDNSIsolation",
-    "sources": [
-      {
-        "source_type": "vendor_documentation",
-        "title": "Kubernetes, Debugging DNS Resolution",
-        "url": "https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/",
-        "locator": "Is DNS service up?; Are DNS endpoints exposed?",
-        "excerpt": "53/UDP,53/TCP",
-        "supports": "mechanism",
-        "correspondence": "NIKA filters TCP and UDP port 53 to the kube-dns Service and CoreDNS pod addresses. The guide identifies that Service and its DNS endpoints on those ports, matching name-resolution failure with live CoreDNS pods.",
-        "limitation": "The source supports the required DNS paths and diagnostic controls. It does not describe this particular node firewall rule as a real incident.",
         "accessed": "2026-11-10"
       }
     ]
@@ -899,7 +886,7 @@
         "excerpt": "When clients exceed this limit, limit-req-status-code default: 503 is returned.",
         "supports": "symptom",
         "correspondence": "IngressRateLimitMisconfig.inject_fault sets limit-rpm below the declared request rate. The documented minute limit, burst multiplier and default 503 explain the burst rejection symptom.",
-        "limitation": "The source does not specify NIKA’s selected rate, burst test, or rejection threshold. Limits apply per client IP per controller replica.",
+        "limitation": "The source does not specify NIKA\u2019s selected rate, burst test, or rejection threshold. Limits apply per client IP per controller replica.",
         "accessed": "2026-11-10"
       }
     ]
@@ -917,6 +904,23 @@
         "supports": "mechanism",
         "correspondence": "NIKA applies a NetworkPolicy selecting the victim Pods with policyTypes Ingress and no allow rules. The documented deny-ingress pattern is the same manifest structure with a narrower Pod selector.",
         "limitation": "Enforcement requires a NetworkPolicy-capable CNI. Policies are additive, so another matching allow policy can defeat a deny-only premise.",
+        "accessed": "2026-11-10"
+      }
+    ]
+  },
+  "k8s_node_firewall_drop": {
+    "implementation": "src/nika/problems/service_networking/kubernetes.py",
+    "symbol": "NodeFirewallDrop",
+    "sources": [
+      {
+        "source_type": "vendor_documentation",
+        "title": "Kubernetes, Virtual IPs and Service Proxies",
+        "url": "https://kubernetes.io/docs/reference/networking/virtual-ips/",
+        "locator": "Proxy mode: iptables",
+        "excerpt": "destination NAT",
+        "supports": "mechanism",
+        "correspondence": "NIKA drops traffic to the ClusterIP before kube-proxy DNAT on one node. The reference explains iptables rules that redirect Service virtual IP traffic to backend endpoints; preempting those rules breaks the VIP path while direct endpoint traffic avoids the VIP match.",
+        "limitation": "NIKA models the failure by packet filtering rather than corrupting kube-proxy rules. The source supports the forwarding dependency, not the exact raw-table injection.",
         "accessed": "2026-11-10"
       }
     ]
@@ -1079,6 +1083,50 @@
     "symbol": "LinkCapacityBottleneck",
     "sources": [
       {
+        "source_type": "paper",
+        "title": "Alizadeh et al., Data Center TCP (DCTCP), SIGCOMM 2010",
+        "url": "https://conferences.sigcomm.org/sigcomm/2010/papers/sigcomm/p63.pdf",
+        "locator": "Section 2.3.2 (Incast), Figure 6(a) and Figure 7",
+        "excerpt": "the request for data synchronizes the workers\u2019 responses",
+        "supports": "mechanism",
+        "correspondence": "The paper describes congestion when synchronized fan-in exceeds available capacity. NIKA shapes the receiving circuit with a controller-side TBF below traffic demand.",
+        "limitation": "The paper studies incast and congestion. NIKA models limited circuit capacity rather than a separate switch-buffer failure.",
+        "accessed": "2026-11-10"
+      },
+      {
+        "source_type": "paper",
+        "title": "Phanishayee et al., Measurement and Analysis of TCP Throughput Collapse in Cluster-based Storage Systems, FAST 2008",
+        "url": "https://www.cs.cmu.edu/~dga/papers/incast-fast2008.pdf",
+        "locator": "Abstract; Section 1; Figure 1",
+        "excerpt": "overload the switch buffers on the client\u2019s link",
+        "supports": "mechanism",
+        "correspondence": "The paper describes congestion when synchronized fan-in exceeds available capacity. NIKA shapes the receiving circuit with a controller-side TBF below traffic demand.",
+        "limitation": "The paper studies incast and congestion. NIKA models limited circuit capacity rather than a separate switch-buffer failure.",
+        "accessed": "2026-11-10"
+      },
+      {
+        "source_type": "paper",
+        "title": "Vasudevan et al., Safe and Effective Fine-grained TCP Retransmissions for Datacenter Communication, SIGCOMM 2009",
+        "url": "https://www.cs.cmu.edu/~dga/papers/incast-sigcomm2009.pdf",
+        "locator": "Abstract; Section 1",
+        "excerpt": "Inbound data overfills small switch buffers",
+        "supports": "mechanism",
+        "correspondence": "The paper describes congestion when synchronized fan-in exceeds available capacity. NIKA shapes the receiving circuit with a controller-side TBF below traffic demand.",
+        "limitation": "The paper studies incast and congestion. NIKA models limited circuit capacity rather than a separate switch-buffer failure.",
+        "accessed": "2026-11-10"
+      },
+      {
+        "source_type": "paper",
+        "title": "Chen et al., Understanding TCP Incast Throughput Collapse in Datacenter Networks, WREN 2009",
+        "url": "https://conferences.sigcomm.org/sigcomm/2009/workshops/wren/papers/p73.pdf",
+        "locator": "Section 1; Section 3.2; discussion of randomized RTO",
+        "excerpt": "switch buffer overflow events will be synchronized for all senders",
+        "supports": "mechanism",
+        "correspondence": "The paper describes congestion when synchronized fan-in exceeds available capacity. NIKA shapes the receiving circuit with a controller-side TBF below traffic demand.",
+        "limitation": "The paper studies incast and congestion. NIKA models limited circuit capacity rather than a separate switch-buffer failure.",
+        "accessed": "2026-11-10"
+      },
+      {
         "source_type": "vendor_documentation",
         "title": "iproute2, tc-tbf(8)",
         "url": "https://man7.org/linux/man-pages/man8/tc-tbf.8.html",
@@ -1091,9 +1139,9 @@
       }
     ]
   },
-  "link_detach": {
+  "link_down": {
     "implementation": "src/nika/problems/link_interface/link.py",
-    "symbol": "LinkDetach",
+    "symbol": "LinkFailure",
     "sources": [
       {
         "source_type": "vendor_documentation",
@@ -1105,13 +1153,7 @@
         "correspondence": "NIKA moves the selected attachment into a controller-owned network namespace. ip-link documents netns as moving a device to another namespace, exactly the missing-interface operation observed in the node.",
         "limitation": "The operation models interface removal from a node, not physical unplugging. Native router backends can expose port-down rather than disappearance.",
         "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "link_down": {
-    "implementation": "src/nika/problems/link_interface/link.py",
-    "symbol": "LinkFailure",
-    "sources": [
+      },
       {
         "source_type": "vendor_documentation",
         "title": "Linux kernel, Operational States",
@@ -1142,6 +1184,23 @@
       }
     ]
   },
+  "link_latency": {
+    "implementation": "src/nika/problems/link_interface/latency.py",
+    "symbol": "LinkLatency",
+    "sources": [
+      {
+        "source_type": "incident_report",
+        "title": "RIPE NCC, A Deep Dive Into the Baltic Sea Cable Cuts",
+        "url": "https://labs.ripe.net/author/emileaben/a-deep-dive-into-the-baltic-sea-cable-cuts/",
+        "locator": "19 December 2024, No inter-domain and intra-domain changes for 460 anchor pairs",
+        "excerpt": "latency increases of 3 ms or more, which indicates circuit-level changes.",
+        "supports": "symptom",
+        "correspondence": "The report observes increased delay even with unchanged IP paths, consistent with circuit-level rerouting. NIKA adds propagation delay on the external link while preserving node interfaces and routes.",
+        "limitation": "NIKA models the slower circuit after a physical failure. It does not cut fiber, switch protection circuits, simulate optical impairment, or reproduce the incident delay distribution; its default 100 ms makes the link diagnosis measurable.",
+        "accessed": "2026-11-15"
+      }
+    ]
+  },
   "link_packet_corruption": {
     "implementation": "src/nika/problems/link_interface/quality.py",
     "symbol": "LinkPacketCorruption",
@@ -1155,23 +1214,6 @@
         "supports": "reference_implementation",
         "correspondence": "NIKA applies netem corrupt to IP frames on the controller-side wire, matching the documented random bit-corruption operation. Non-IP frames are dropped at the same rate to represent receiver rejection.",
         "limitation": "Software bit corruption is a packet-impairment model. It does not reproduce physical cable BER, FCS counters or electrical faults.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "load_balancer_overload": {
-    "implementation": "src/nika/problems/service_networking/load_balancer.py",
-    "symbol": "LoadBalancerOverload",
-    "sources": [
-      {
-        "source_type": "incident_report",
-        "title": "GitHub, Incident with GitHub.com, 2026-08-17",
-        "url": "https://www.githubstatus.com/incidents/zkxwbgr0cnmx",
-        "locator": "Resolved update, 2026-08-17 21:15 UTC, causes and mitigation",
-        "excerpt": "network saturation on load balancers",
-        "supports": "mechanism",
-        "correspondence": "GitHub reports traffic peaks and retry amplification exceeding load-balancer capacity and degrading authentication. NIKA overloads a fixed-capacity NGINX proxy with HTTP traffic and compares VIP latency to direct backend/control paths.",
-        "limitation": "The incident includes network saturation, sidecar autoscaling and HAProxy flow-limit exhaustion. It does not establish NIKA CPU saturation as the exact incident root cause, nor reproduce the cascading retries; it supports the load/capacity failure pattern.",
         "accessed": "2026-11-10"
       }
     ]
@@ -1312,9 +1354,9 @@
       }
     ]
   },
-  "ospf_neighbor_missing": {
+  "ospf_interface_not_enabled": {
     "implementation": "src/nika/problems/routing_control_plane/ospf.py",
-    "symbol": "OSPFNeighborMissing",
+    "symbol": "OSPFInterfaceNotEnabled",
     "sources": [
       {
         "source_type": "rfc",
@@ -1414,9 +1456,9 @@
       }
     ]
   },
-  "p4_ecn_threshold_misconfiguration": {
+  "p4_ecn_marking_disabled": {
     "implementation": "src/nika/problems/traffic_queueing_resource/p4_gateway.py",
-    "symbol": "P4EcnThresholdMisconfiguration",
+    "symbol": "P4EcnMarkingDisabled",
     "sources": [
       {
         "source_type": "paper",
@@ -1442,8 +1484,19 @@
         "locator": "Sections 9.1 and 9.1.2, TableEntry and Action Specification",
         "excerpt": "action_profile_group_id",
         "supports": "reference_implementation",
-        "correspondence": "NIKA replaces a prefix table entry with the same prefix and a wrong selector group ID. The specification defines an indirect table action as referencing a selector group, matching a wrong next-hop group for that prefix.",
+        "correspondence": "NIKA rewrites an ipv4_lpm entry to select the wrong next-hop group through P4Runtime. Device reads show the changed forwarding entry while the declared controller intent stays intact.",
         "limitation": "This is a control-plane configuration error, not corruption beneath the P4Runtime read path.",
+        "accessed": "2026-11-10"
+      },
+      {
+        "source_type": "paper",
+        "title": "Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015",
+        "url": "https://www.microsoft.com/en-us/research/wp-content/uploads/2016/08/everflow-sigcomm15.pdf",
+        "locator": "Section 7.2.1, Blackhole, PDF pages 8\u20139",
+        "excerpt": "TCAM table was corrupted",
+        "supports": "mechanism",
+        "correspondence": "NIKA rewrites an ipv4_lpm entry to select the wrong next-hop group through P4Runtime. Device reads show the changed forwarding entry while the declared controller intent stays intact.",
+        "limitation": "Everflow reports a hardware table fault. NIKA represents erroneous forwarding state through a P4Runtime configuration change.",
         "accessed": "2026-11-10"
       }
     ]
@@ -1482,23 +1535,6 @@
       }
     ]
   },
-  "p4_tcam_entry_corruption": {
-    "implementation": "src/nika/problems/forwarding_encapsulation_policy/p4_gateway.py",
-    "symbol": "P4TcamEntryCorruption",
-    "sources": [
-      {
-        "source_type": "paper",
-        "title": "Zhu et al., Packet-Level Telemetry in Large Datacenter Networks (Everflow), SIGCOMM 2015",
-        "url": "https://www.microsoft.com/en-us/research/wp-content/uploads/2016/08/everflow-sigcomm15.pdf",
-        "locator": "Section 7.2.1, Blackhole, PDF pages 8–9",
-        "excerpt": "TCAM table was corrupted",
-        "supports": "mechanism",
-        "correspondence": "Everflow reports a corrupted forwarding TCAM entry dropping matching packets without counter evidence. NIKA changes one care bit in the device ternary route mask through a separate P4Runtime client, leaving the intended prefix and selector group in the controller intent unchanged. Device reads expose the changed match; target packets miss that route.",
-        "limitation": "This is a software-switch match-error model, not physical TCAM memory corruption. Everflow does not disclose a mask-bit flip; the bit, mask geometry, and P4Runtime injection are NIKA choices. Unlike the reported hardware failure, the changed match is visible in a device read.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
   "p4runtime_partial_write": {
     "implementation": "src/nika/problems/forwarding_encapsulation_policy/p4_runtime.py",
     "symbol": "P4RuntimePartialWrite",
@@ -1533,23 +1569,6 @@
       }
     ]
   },
-  "receiver_resource_contention": {
-    "implementation": "src/nika/problems/endpoint_application/transport.py",
-    "symbol": "ReceiverResourceContention",
-    "sources": [
-      {
-        "source_type": "incident_report",
-        "title": "Dan Luu and David Mackey, The container throttling problem (Twitter operational analysis)",
-        "url": "https://danluu.com/cgroup-throttling/",
-        "locator": "The problem, in theory; The problem, in practice [case study]",
-        "excerpt": "thread pools that are much larger than their mesos core reservation",
-        "supports": "mechanism",
-        "correspondence": "The authors report oversized worker pools exhausting a container CPU quota and degrading service latency. NIKA oversubscribes gzip workers in the receiver CPU budget while a download requires CPU for receiving and decompression.",
-        "limitation": "This is an operational analysis with case studies, not a single-outage postmortem. It supports quota contention; it does not validate NIKA receiver-window behavior or download slowdown magnitude.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
   "rib_fib_inconsistency": {
     "implementation": "src/nika/problems/forwarding_encapsulation_policy/rib_fib.py",
     "symbol": "RibFibInconsistency",
@@ -1567,6 +1586,23 @@
       }
     ]
   },
+  "routing_service_down": {
+    "implementation": "src/nika/problems/routing_control_plane/node_services.py",
+    "symbol": "RoutingServiceDown",
+    "sources": [
+      {
+        "source_type": "vendor_documentation",
+        "title": "FRRouting, WATCHFRR",
+        "url": "https://docs.frrouting.org/en/latest/watchfrr.html",
+        "locator": "WATCHFRR; Starting WATCHFRR",
+        "excerpt": "handles failed daemon processes and intelligently restarts them",
+        "supports": "reference_implementation",
+        "correspondence": "On FRR, NIKA kills watchfrr before the routing daemons to prevent automatic restarts. On SONiC, NIKA stops the running routing programs with supervisorctl stop. The FRR manual documents the watchdog restart behavior.",
+        "limitation": "This source supports FRR daemon failure handling and the need to stop watchfrr; it does not document SONiC supervisor control. Existing kernel forwarding entries may persist, so process failure alone does not prove all traffic stops.",
+        "accessed": "2026-11-10"
+      }
+    ]
+  },
   "sdn_controller_crash": {
     "implementation": "src/nika/problems/management_orchestration_plane/sdn.py",
     "symbol": "SDNControllerCrash",
@@ -1580,23 +1616,6 @@
         "supports": "mechanism",
         "correspondence": "NIKA kills the ONOS JVM/Karaf process, severing OpenFlow control. The OVS schema explains controller-managed flow setup and behavior when the connection fails, matching loss of new programming while installed forwarding can survive.",
         "limitation": "Survival and fallback depend on fail_mode and flow timeouts. Controller failure does not necessarily stop existing traffic or imply a switch dataplane failure.",
-        "accessed": "2026-11-10"
-      }
-    ]
-  },
-  "sender_resource_contention": {
-    "implementation": "src/nika/problems/endpoint_application/transport.py",
-    "symbol": "SenderResourceContention",
-    "sources": [
-      {
-        "source_type": "vendor_documentation",
-        "title": "Linux kernel, CFS Bandwidth Control",
-        "url": "https://docs.kernel.org/scheduler/sched-bwc.html",
-        "locator": "Management; quota exhaustion and throttling",
-        "excerpt": "threads being throttled",
-        "supports": "mechanism",
-        "correspondence": "NIKA limits the sender container CPU and runs gzip workers alongside a CPU-sensitive HTTP sender. The kernel describes shared cgroup quota exhaustion throttling runnable threads, explaining contention for sender processing time.",
-        "limitation": "The source does not establish the NIKA HTTP throughput ratio or imply congestion in the network; the handler and background job are workload choices.",
         "accessed": "2026-11-10"
       }
     ]

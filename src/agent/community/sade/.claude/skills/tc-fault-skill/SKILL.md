@@ -1,41 +1,16 @@
 ---
 name: tc-fault-skill
-description: Identify generic traffic-control faults — link bandwidth throttling, link packet corruption, incast traffic limitation. Use when tc qdisc output shows tbf or netem shaping on a network-path interface.
+description: Diagnose link capacity, latency, and packet corruption from path measurements and device counters.
 ---
 
-# Traffic Control Faults
+# Link performance faults
 
-## What These Faults Mean
+Use the current fault candidates and compare the affected path with a healthy control:
 
-- `link_bandwidth_throttling`: a device interface owns a `tbf` shaping rule that caps throughput.
-- `link_high_packet_corruption`: a `netem corrupt` rule randomly damages packets, so TCP retransmits and throughput collapses.
-- `incast_traffic_network_limitation`: the qdisc stack combines `netem` and `tbf`, creating fan-in or queueing behavior that looks worse than a simple bandwidth cap.
+- `link_capacity_bottleneck`: fan-in traffic exceeds a link's capacity, increasing delay or receive loss.
+- `link_packet_corruption`: damaged packets increase checksum errors, retransmissions, or receive loss.
+- `link_latency`: one direction of a link has excess delay.
 
-## Leading Signals
+Read interface counters with `device_read` on routers and switches. Use bounded endpoint probes to measure throughput, latency, and delivery. Hosts retain `exec_shell` for their own network state.
 
-- `tc qdisc show` reveals a non-default shaping stack on the implicated interface.
-- The qdisc layout itself is the decisive proof; RTT or throughput symptoms only tell you where to look.
-
-## When To Use
-
-- Quiet throughput degradation
-- Extreme jitter with little or no packet loss
-- Suspected qdisc or shaping on a server or router interface
-- If ownership is still unclear, use `exec_shell` with `tc -s qdisc show` to find non-default qdisc stacks before targeted tc checks.
-
-## Exact Calls
-
-- `exec_shell(host_name="<host>", command="tc qdisc show dev <interface>")`
-- `get_tc_statistics(host_name="<host>", intf_name="<interface>")`
-- `exec_shell(host_name="<host>", command="tc -s qdisc show dev <interface>")`
-
-## Required Tool Usage
-
-- `get_tc_statistics` always needs both `host_name` and `intf_name`.
-- Check the specific interface under test, not a default placeholder. If the bottleneck may be on a different interface, use that one.
-
-## Guardrails
-
-- The decisive signal is the qdisc stack itself, not just high RTT.
-- Report only the device that actually owns the shaping rule.
-- Sending clients are victims, not faulty devices, unless a different skill proves otherwise.
+A qdisc can describe normal provisioning. Link impairments can also run outside the device, so an absent device qdisc does not clear a fault. Locate the affected attachment from path and counter evidence. Do not infer ownership from a shaping rule alone.
