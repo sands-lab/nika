@@ -146,11 +146,11 @@ def _mock_diagnosis_tool_calls(
             calls.append(
                 ("routeros_exec", {"router_name": router, "command": "/ip route print"})
             )
-        elif router:
+        elif router and "kathara_frr_mcp_server" in server_names:
             calls.append(
                 (
-                    "exec_shell",
-                    {"host_name": router, "command": "vtysh -c 'show ip route'"},
+                    "device_read",
+                    {"host_name": router, "commands": ["vtysh -c 'show ip route'"]},
                 )
             )
     return calls

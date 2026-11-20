@@ -39,7 +39,7 @@ def test_diagnosis_calls_use_lab_hosts_not_hardcoded_pc() -> None:
     )
     by_name = {name: args for name, args in calls}
     assert ("exec_shell", {"host_name": "pc_2_1_1_1", "command": "hostname"}) in calls
-    assert by_name["exec_shell"]["host_name"] == "router_dist_2_1"
-    assert by_name["exec_shell"]["command"] == "vtysh -c 'show ip route'"
+    assert by_name["device_read"]["host_name"] == "router_dist_2_1"
+    assert by_name["device_read"]["commands"] == ["vtysh -c 'show ip route'"]
     assert "pc1" not in str(calls)
     assert "pc2" not in str(calls)

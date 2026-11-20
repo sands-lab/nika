@@ -77,6 +77,8 @@ def _run_task(result_dir: Path, release_ref: str, split: str, task: dict) -> Pat
             result_dir=str(result_dir),
             include_slices=True,
             task_ids=[f"{task_id_for_row(task)}__t01"],
+            # This smoke runs one task; deployment ensures its own images.
+            check_images=False,
             yes=True,
         )
     finally:
