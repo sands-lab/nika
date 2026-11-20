@@ -47,7 +47,11 @@ class DshMcpPatchTest:
         config = next(row["config"] for row in patch if row.get("id") == "llm-pi-ai")
         provider = next(iter(config["providers"].values()))
         assert provider["models"] == [
-            {"id": "custom-model", "contextWindow": 1_000_000}
+            {
+                "id": "custom-model",
+                "contextWindow": 1_000_000,
+                "reasoningEfforts": {"high": "high"},
+            }
         ]
         assert provider["reasoning"] == "high"
         assert provider["defaultMaxTokens"] == 8192
@@ -117,7 +121,9 @@ class DshMcpPatchTest:
         assert proxy["api"] == "openai-completions"
         assert proxy["baseURL"] == "http://127.0.0.1:18080/v1"
         assert proxy["apiKeyEnv"] == "DEEPSEEK_API_KEY"
-        assert proxy["models"] == [{"id": "deepseek-v4-flash"}]
+        assert proxy["models"] == [
+            {"id": "deepseek-v4-flash", "reasoningEfforts": {"high": "high"}}
+        ]
         assert by_id["agent-default-model"]["config"]["provider"] == "proxy"
         assert by_id["agent-default-model"]["config"]["model"] == "deepseek-v4-flash"
         assert by_id["agent-default-model"]["config"]["reasoningEffort"] == "high"
