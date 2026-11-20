@@ -21,8 +21,36 @@ from agent.protocols import DIAGNOSIS, SUBMISSION
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _no_model_metadata_network(monkeypatch):
+    monkeypatch.setattr(
+        "agent.cli.dsh.dsh_worker.model_context_window", lambda *args: None
+    )
+
+
 class DshMcpPatchTest:
     """Headless-profile patch generation for DeepSeek Harness MCP clients."""
+
+    def test_custom_model_uses_served_context(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "agent.cli.dsh.dsh_worker.model_context_window", lambda *args: 1_000_000
+        )
+        patch = yaml.safe_load(
+            build_headless_patch(
+                {},
+                model="custom-model",
+                base_url="http://proxy/v1",
+                reasoning_effort="high",
+                max_tokens=8192,
+            )
+        )
+        config = next(row["config"] for row in patch if row.get("id") == "llm-pi-ai")
+        provider = next(iter(config["providers"].values()))
+        assert provider["models"] == [
+            {"id": "custom-model", "contextWindow": 1_000_000}
+        ]
+        assert provider["reasoning"] == "high"
+        assert provider["defaultMaxTokens"] == 8192
 
     def test_http_servers_become_streamable_http_entries(self) -> None:
         patch = build_headless_patch(

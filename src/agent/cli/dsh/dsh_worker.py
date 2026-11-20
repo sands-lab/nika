@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.base import max_steps_report
+from agent.cli.model_metadata import model_context_window
 from agent.cli.dsh.config import (
     ENV_DEEPSEEK_API_KEY,
     dsh_env,
@@ -204,6 +205,10 @@ def build_headless_patch(
         "api": "openai-completions",
         "models": [{"id": model}],
     }
+    if window := model_context_window(
+        resolved_base, model, os.environ.get("OPENAI_API_KEY", "")
+    ):
+        proxy["models"][0]["contextWindow"] = window
     if resolved_base:
         proxy["baseURL"] = resolved_base
     if effort is not None:

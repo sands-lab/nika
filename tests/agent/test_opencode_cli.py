@@ -19,6 +19,13 @@ from agent.protocols import DIAGNOSIS, SUBMISSION
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _no_model_metadata_network(monkeypatch):
+    monkeypatch.setattr(
+        "agent.cli.opencode.opencode_worker.model_context_window", lambda *args: None
+    )
+
+
 class OpenCodeMcpJsonTest:
     """MCP config JSON generation for OpenCode CLI."""
 
@@ -131,6 +138,27 @@ class OpenCodeProviderConfigTest:
     def test_model_ref_is_endpoint_prefixed(self) -> None:
         assert opencode_model_ref("deepseek-v4-flash") == "endpoint/deepseek-v4-flash"
         assert opencode_model_ref("endpoint/m1") == "endpoint/m1"
+
+    def test_custom_model_uses_served_context_and_high_variant(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_BASE_URL", "http://proxy/v1")
+        monkeypatch.setenv("OPENAI_API_KEY", "placeholder")
+        monkeypatch.setattr(
+            "agent.cli.opencode.opencode_worker.model_context_window",
+            lambda *args: 1_000_000,
+        )
+        config = build_opencode_config(
+            {},
+            llm_provider="custom",
+            model="custom-model",
+            max_tokens=8192,
+            reasoning_effort="high",
+        )
+        model = config["provider"]["endpoint"]["models"]["custom-model"]
+        assert model["limit"] == {"context": 1_000_000, "output": 8192}
+        assert model["reasoning"] is True
+        assert model["variants"]["high"] == {"reasoningEffort": "high"}
 
     def test_maps_reasoning_effort_to_variant(self) -> None:
         assert map_opencode_variant(None) is None

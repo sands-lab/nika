@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.base import max_steps_report
+from agent.cli.model_metadata import model_context_window
 from agent.llm.endpoints import (
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_AUTH_TOKEN,
@@ -139,6 +140,7 @@ def build_provider_section(
     llm_provider: str,
     model: str,
     max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
 ) -> dict[str, Any]:
     """Custom ``endpoint`` provider that uses the sandbox model variables."""
     provider = (llm_provider or "").strip().lower()
@@ -170,12 +172,25 @@ def build_provider_section(
     options["apiKey"] = api_key or f"{{env:{key_env}}}"
 
     model_cfg: dict[str, Any] = {"name": model_id}
-    # OpenCode requires ``limit.context`` whenever ``limit`` is present.
-    # Custom endpoints are not in models.dev, so supply a conservative window.
-    if max_tokens is not None:
+    window = (
+        model_context_window(base_url, model_id, api_key)
+        if provider == "custom"
+        else None
+    )
+    if window is not None or max_tokens is not None:
+        # OpenCode requires both context and output when a limit is supplied.
         model_cfg["limit"] = {
-            "context": 128_000,
-            "output": max_tokens,
+            "context": window or 128_000,
+            "output": min(
+                max_tokens if max_tokens is not None else 32_000, window or 128_000
+            ),
+        }
+    if provider == "custom" and reasoning_effort not in (None, "none"):
+        model_cfg["reasoning"] = True
+        model_cfg["variants"] = {
+            map_opencode_variant(reasoning_effort): {
+                "reasoningEffort": reasoning_effort
+            }
         }
 
     return {
@@ -194,6 +209,7 @@ def build_opencode_config(
     llm_provider: str,
     model: str,
     max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
 ) -> dict[str, Any]:
     """Full ``opencode.json`` body for one phase."""
     return {
@@ -201,7 +217,10 @@ def build_opencode_config(
         "model": opencode_model_ref(model),
         "permission": {"*": "allow"},
         "provider": build_provider_section(
-            llm_provider=llm_provider, model=model, max_tokens=max_tokens
+            llm_provider=llm_provider,
+            model=model,
+            max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
         ),
         "mcp": build_mcp_section(servers),
     }
@@ -302,6 +321,7 @@ class OpenCodeWorker:
             llm_provider=self.llm_provider,
             model=self.model,
             max_tokens=self.max_tokens,
+            reasoning_effort=self.reasoning_effort,
         )
         self._config_path.write_text(
             json.dumps(config, indent=2, ensure_ascii=False),
