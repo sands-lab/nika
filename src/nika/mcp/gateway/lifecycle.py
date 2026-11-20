@@ -265,21 +265,22 @@ def mcp_gateway_for_session(
     """
     if policy_mode != "two_phase":
         raise ValueError(f"unsupported MCP gateway policy_mode: {policy_mode!r}")
+    from nika.runtime.factory import resolve_backend
+    from nika.utils.session_store import SessionStore
+
+    row = SessionStore().get_session(session_id)
     bind_host = host
     if sandbox and bind_host is None:
         bind_host = SANDBOX_GATEWAY_BIND_HOST
-    resolved_backend = backend or resolve_session_backend(scenario_name)
+    resolved_backend = backend or resolve_backend(row)
     manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
     registered = False
     try:
         if sandbox:
             set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
-        from nika.utils.session_store import SessionStore
-
         from nika.run_config.loader import get_run_config
 
         access = access or configured_access()
-        row = SessionStore().get_session(session_id)
         node_roles = node_roles_for_session(session_id)
         snapshot = policy_snapshot(
             role=access.role, policy=access.policy, node_roles=node_roles

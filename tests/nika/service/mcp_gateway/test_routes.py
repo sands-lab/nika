@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from starlette.testclient import TestClient
@@ -25,6 +26,45 @@ def _phase_headers() -> dict[str, str]:
 
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize(
+    ("stored", "explicit", "expected"),
+    [
+        ({"backend": "containerlab"}, None, "containerlab"),
+        ({"scenario_params": {"backend": "containerlab"}}, None, "containerlab"),
+        ({"backend": "containerlab"}, "kathara", "kathara"),
+    ],
+)
+def test_session_gateway_uses_persisted_backend(
+    tmp_path, monkeypatch, stored, explicit, expected
+):
+    from nika.mcp.gateway import lifecycle as life
+
+    sid = "gateway-persisted-backend"
+    row = {"scenario_name": "dc_clos", "session_dir": str(tmp_path), **stored}
+    monkeypatch.setattr(
+        "nika.utils.session_store.SessionStore",
+        lambda: SimpleNamespace(get_session=lambda _: row),
+    )
+    mounted = []
+    manager = SimpleNamespace(backend=expected)
+
+    def start(**kwargs):
+        mounted.append(kwargs["backend"])
+        return manager
+
+    stopped = []
+    monkeypatch.setattr(life, "start_gateway", start)
+    monkeypatch.setattr(life, "_shutdown_manager", stopped.append)
+    monkeypatch.setattr(life, "node_roles_for_session", lambda _: {})
+    with life.mcp_gateway_for_session(
+        sid, scenario_name="dc_clos", backend=explicit
+    ) as gateway:
+        assert gateway is manager
+        assert mounted == [expected]
+    assert stopped == [manager]
+    assert get_session(sid) is None
 
 
 class GatewayPhaseRouteTest:
