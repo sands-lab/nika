@@ -118,10 +118,12 @@ def start_capture(
         timeout=10,
     )
 
+    # Promiscuity changes emit link events that can make FRR rewrite the FIB.
     bpf = capture_filter.strip() if capture_filter else ""
     if backend == "dumpcap":
         cmd_parts = [
             "dumpcap",
+            "-p",
             "-i",
             interface,
             "-w",
@@ -139,7 +141,7 @@ def start_capture(
         capture_cmd = " ".join(shlex.quote(part) for part in cmd_parts)
     else:
         capture_cmd = (
-            f"timeout {int(limits.max_duration_sec)} tcpdump -U -i {quoted_iface} "
+            f"timeout {int(limits.max_duration_sec)} tcpdump -p -U -i {quoted_iface} "
             f"-w {quoted_remote} -c {limits.max_packets}"
         )
         if bpf:

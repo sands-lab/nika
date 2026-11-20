@@ -817,7 +817,10 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
     def _runtime(self):
         return runtime_for_session(self._session_row(self.session_id))
 
-    def test_start_ping_stop_inspect_workflow(self) -> None:
+    @pytest.mark.parametrize("capture_backend", ["dumpcap", "tcpdump"])
+    def test_start_ping_stop_inspect_workflow(
+        self, capture_backend, monkeypatch
+    ) -> None:
         manager = self._manager()
         session_dir = Path(self._session_row(self.session_id)["session_dir"])
         runtime = self._runtime()
@@ -831,6 +834,26 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert "tcpdump" in tools or "dumpcap" in tools, tools
         assert "tshark" in tools, tools
 
+        available = runtime.exec(
+            self.CAPTURE_HOST, f"command -v {capture_backend} || true"
+        ).strip()
+        if not available:
+            pytest.skip(f"{capture_backend} is not installed in the test image")
+        monkeypatch.setattr(
+            "nika.service.packet_capture.capture_backend.detect_capture_backend",
+            lambda *_: capture_backend,
+        )
+
+        def interface_mode():
+            link = json.loads(
+                runtime.exec(
+                    self.CAPTURE_HOST,
+                    f"ip -j -d link show dev {self.CAPTURE_IFACE}",
+                )
+            )[0]
+            return {key: link.get(key) for key in ("flags", "promiscuity", "allmulti")}
+
+        before_capture = interface_mode()
         started = manager.start(
             device=self.CAPTURE_HOST,
             interface=self.CAPTURE_IFACE,
@@ -842,6 +865,7 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert started["status"] == "running"
 
         time.sleep(1.0)
+        assert interface_mode() == before_capture
         ping_out = runtime.exec(
             self.CAPTURE_HOST,
             f"ping -c 4 -W 2 {self.PING_TARGET}",
@@ -850,6 +874,7 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert "bytes from" in ping_out or "icmp_seq" in ping_out.lower(), ping_out
 
         stopped = manager.stop(capture_id)
+        assert interface_mode() == before_capture
         assert stopped["artifact"]["tshark_version"].startswith("TShark "), stopped
         assert stopped["packet_count"] >= 1, stopped
         assert stopped["captured_bytes"] > 0, stopped
