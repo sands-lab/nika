@@ -31,6 +31,21 @@ def _no_model_metadata_network(monkeypatch):
 class DshMcpPatchTest:
     """Headless-profile patch generation for DeepSeek Harness MCP clients."""
 
+    def test_xhigh_maps_native_max_to_upstream_xhigh(self) -> None:
+        patch = yaml.safe_load(
+            build_headless_patch(
+                {},
+                model="custom-model",
+                base_url="http://proxy/v1",
+                reasoning_effort="xhigh",
+                max_tokens=8192,
+            )
+        )
+        config = next(row["config"] for row in patch if row.get("id") == "llm-pi-ai")
+        provider = next(iter(config["providers"].values()))
+        assert provider["reasoning"] == "max"
+        assert provider["models"][0]["reasoningEfforts"] == {"max": "xhigh"}
+
     def test_custom_model_uses_served_context(self, monkeypatch) -> None:
         monkeypatch.setattr(
             "agent.cli.dsh.dsh_worker.model_context_window", lambda *args: 1_000_000

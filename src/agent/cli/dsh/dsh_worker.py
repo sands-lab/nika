@@ -213,7 +213,9 @@ def build_headless_patch(
         proxy["baseURL"] = resolved_base
     if effort is not None:
         proxy["reasoning"] = effort
-        proxy["models"][0]["reasoningEfforts"] = {effort: effort}
+        proxy["models"][0]["reasoningEfforts"] = {
+            effort: "xhigh" if reasoning_effort == "xhigh" else effort
+        }
     if max_tokens is not None:
         proxy["defaultMaxTokens"] = max_tokens
     ops.append({"id": "llm-pi-ai", "config": {"providers": {PROXY_PROVIDER: proxy}}})
