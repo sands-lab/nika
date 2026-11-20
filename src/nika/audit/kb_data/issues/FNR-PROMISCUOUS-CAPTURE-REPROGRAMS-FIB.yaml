@@ -1,0 +1,41 @@
+id: FNR-PROMISCUOUS-CAPTURE-REPROGRAMS-FIB
+title: Promiscuous packet capture makes FRR reinstall an injected FIB entry
+class: fault_not_realized
+severity: warn
+status: fixed
+fixed_in: aa9c9391b0af2de3305419353357eaacdd52fd37
+summary: >-
+  Starting dumpcap or tcpdump with its default promiscuous mode changes a
+  routed interface's flags. In the verified FRR Clos deployment, that link
+  event makes FRR reprogram its healthy next-hop group, replacing the wrong
+  main-table next hop installed by rib_fib_inconsistency. A diagnosis tool
+  can therefore remove the fault without an agent issuing a routing change.
+  Non-promiscuous capture preserves interface mode and the injected entry.
+guideline: >-
+  Establish that the incorrect FIB exists before capture and the correct
+  next hops return after capture starts on a routed interface. Compare
+  interface promiscuity, routing observations, source, and an equivalent
+  non-promiscuous capture. An absent fault and a capture in the same trial
+  alone do not establish this cause. Do not attribute a bridge-port capture
+  or an unrelated FRR update to this mechanism without matched evidence.
+  The native Clos reproduction confirms this interaction; other routing
+  stacks and topologies require their own confirmation.
+scope:
+  fault_types:
+  - rib_fib_inconsistency
+  scenarios:
+  - dc_clos
+detect: []
+provenance:
+  source: K8s Sol evaluation trajectory and matched native Docker capture controls on nika01
+  date: '2026-11-20'
+  refs:
+  - dc_clos__rib_fib_inconsisten__h4697116a1c17__t01:tool_calls.jsonl:35
+  - dc_clos__rib_fib_inconsisten__h4697116a1c17__t01:tool_calls.jsonl:37
+  - aa9c9391b0af2de3305419353357eaacdd52fd37
+  found_by: live_audit
+evidence:
+- 'Original tool row35 starts packet_capture_start on leaf_1 eth3; row37 immediately reads "10.0.2.0/24 nhid 10 proto bgp metric 20" with the original ECMP next hops. The before-cleanup recheck reports "Fault artifact absent: phase=before_cleanup fault=rib_fib_inconsistency".'
+- 'nika01:/workspace/nika-eval-prep-20261119/refresh/rib-fib-diagnostics/native-01/capture-probe.json: incorrect FIB persists before capture and after eth1 capture, then correct ECMP returns when eth3 capture starts. The preceding passive observation interval exceeds 300 seconds.'
+- 'Matched passive-probe.json: both dumpcap and tcpdump preserve the injected entry before, during and after capture, retain interface mode, collect and inspect 16 and 10 packets, and recover successfully. The final native session closes with no owned containers or networks.'
+- 'tests/nika/service/test_packet_capture.py::PacketCaptureLiveE2ETest::test_start_ping_stop_inspect_workflow runs both real backends and checks unchanged interface mode, successful packet generation, capture and inspection.'
