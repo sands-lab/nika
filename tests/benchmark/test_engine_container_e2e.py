@@ -17,10 +17,14 @@ import yaml
 
 from nika.benchmark_engine.container import RUN_LABEL, _git_commit, image_id
 from nika.config import SESSIONS_DIR
+from nika.net_env.utils.kathara.docker_files.docker_images import (
+    ensure_nika_docker_images,
+)
 from nika.problems.rca.materialize import assert_root_causes_match
 from nika.runtime.factory import runtime_for_session
 from nika.workflows.benchmark.admit import HEAVY_CLASSES, resource_class_for_row
-from nika.workflows.benchmark.release import load_release
+from nika.workflows.benchmark.licensed import require_licensed_images
+from nika.workflows.benchmark.release import collect_images_for_cases, load_release
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import is_valid_trial, task_id_for_row
 from tests.benchmark.trial_helpers import pinned_engine_release
@@ -66,6 +70,8 @@ def _engine_cases() -> list:
 
 
 def _run_task(result_dir: Path, release_ref: str, split: str, task: dict) -> Path:
+    require_licensed_images([task])
+    ensure_nika_docker_images(collect_images_for_cases([task]))
     try:
         run_benchmark_from_release(
             release_ref=release_ref,
@@ -77,7 +83,7 @@ def _run_task(result_dir: Path, release_ref: str, split: str, task: dict) -> Pat
             result_dir=str(result_dir),
             include_slices=True,
             task_ids=[f"{task_id_for_row(task)}__t01"],
-            # This smoke runs one task; deployment ensures its own images.
+            # Images were checked for this task; retain release integrity checks.
             check_images=False,
             yes=True,
         )
