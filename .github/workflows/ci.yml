@@ -433,16 +433,16 @@ jobs:
         include:
           - runtime: kathara
             split: test
-            task: dc_clos__bgp_md5_password_mi__h92908efb818c
+            task: dc_clos__bgp_md5_password_mi__h78296f0558c9
           - runtime: containerlab
             split: test
-            task: dc_clos__bgp_md5_password_mi__h38580e6c850e
+            task: dc_clos__bgp_md5_password_mi__he3bd8b011305
           - runtime: p4
             split: dev
-            task: p4_dc_gateway__p4_tcam_entry__h02a25cf1c892
+            task: p4_dc_gateway__p4_table_reso__hbd5410d15b84
           - runtime: sdn
             split: test
-            task: sdn_l3_clos__flow_rule_shado__h5a2cd7459b6e
+            task: sdn_l3_clos__flow_rule_shado__h9d8cbd80517f
     steps:
       - uses: actions/checkout@v5
       - name: Enable amd64 binfmt (ONOS foreign stage)
