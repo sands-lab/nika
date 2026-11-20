@@ -91,9 +91,15 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
 
         assert resolved_lab == lab_name
 
-        assert len(container_rows) == len(self.EXPECTED_NODES)
-
-        assert {r["name"] for r in container_rows} == self.EXPECTED_NODES
+        metadata = row.get("metadata") or {}
+        telemetry = metadata.get("telemetry") or {}
+        telemetry_nodes = {
+            telemetry[key] for key in ("collector", "switch") if telemetry.get(key)
+        }
+        expected_nodes = self.EXPECTED_NODES | telemetry_nodes
+        assert set(metadata["machine_identities"]) == expected_nodes
+        assert len(container_rows) == len(expected_nodes)
+        assert {r["name"] for r in container_rows} == expected_nodes
         for container_row in container_rows:
             assert container_row["status"] == "running"
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import multiprocessing
 import os
-import re
+import shlex
 import shutil
 import signal
 import socket
@@ -573,23 +573,42 @@ def test_session_timing_cancellation_and_bursts_are_isolated(tmp_path, fabric):
                 for e in _events(directory_b)
             )
         )
-        _wait(
-            lambda: "connected to" in _exec(sid_b, dns_host, "cat /tmp/burst-*.log"),
-            timeout=10,
+        burst = next(
+            event
+            for event in _events(directory_b)
+            if event["status"] == "applied"
+            and event.get("event_index") == 1
+            and event.get("occurrence_index") == 0
         )
-        traffic = _exec(sid_b, dns_host, "cat /tmp/burst-*.log")
-        assert "iperf3: error" not in traffic
-        assert "connected to" in traffic
-        _wait(
-            lambda: any(
-                float(value) > 0
-                for value in re.findall(
-                    r"(\d+(?:\.\d+)?)\s+[KMG]?Bytes",
-                    _exec(sid_b, web, "cat /tmp/iperf-server-*.log"),
-                )
+        flow = burst["flows"][0]
+        assert flow["source"] == dns_host and flow["destination"] == web
+        packet_filter = (
+            f"udp and src host {flow['source_ip']} and src port {flow['source_port']} "
+            f"and dst host {burst['destination_ip']} "
+            f"and dst port {flow['destination_port']}"
+        )
+        packets = _exec(
+            sid_b,
+            web,
+            shlex.join(
+                [
+                    "timeout",
+                    "5",
+                    "tcpdump",
+                    "-nn",
+                    "-i",
+                    "any",
+                    "-c",
+                    "2",
+                    packet_filter,
+                ]
             ),
-            timeout=10,
         )
+        observed_flow = (
+            f"{flow['source_ip']}.{flow['source_port']} > "
+            f"{burst['destination_ip']}.{flow['destination_port']}:"
+        )
+        assert packets.count(observed_flow) == 2, packets
         closed = subprocess.run(
             ["uv", "run", "nika", "session", "close", "--yes", "--session_id", sid_a],
             capture_output=True,
