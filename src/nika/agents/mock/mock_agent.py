@@ -146,7 +146,7 @@ def _mock_diagnosis_tool_calls(
             calls.append(
                 ("routeros_exec", {"router_name": router, "command": "/ip route print"})
             )
-        elif router and "kathara_frr_mcp_server" in server_names:
+        elif router:
             calls.append(
                 (
                     "device_read",

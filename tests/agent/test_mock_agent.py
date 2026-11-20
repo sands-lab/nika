@@ -30,10 +30,17 @@ def test_pick_router_from_clos_names() -> None:
     assert _pick_router(["pc1", "leaf_router_0_1", "spine_0"]) == "leaf_router_0_1"
 
 
-def test_diagnosis_calls_use_lab_hosts_not_hardcoded_pc() -> None:
+@pytest.mark.parametrize(
+    "server_names",
+    [
+        ["kathara_base_mcp_server"],
+        ["kathara_base_mcp_server", "kathara_frr_mcp_server"],
+    ],
+)
+def test_diagnosis_calls_use_lab_hosts_not_hardcoded_pc(server_names) -> None:
     calls = _mock_diagnosis_tool_calls(
         backend="kathara",
-        server_names=["kathara_base_mcp_server", "kathara_frr_mcp_server"],
+        server_names=server_names,
         devices=["pc_2_1_1_1", "router_dist_2_1", "pc_2_1_1_2"],
         preferred=["pc_2_1_1_1"],
     )
