@@ -566,6 +566,7 @@ class E2bBackend(SandboxBackend):
         llm_provider: str | None,
         call_log: ModelCallLog | None = None,
     ) -> dict[str, str]:
+        from agent.cli.model_budget import ENV_HOST_MODEL_BUDGET
         from nika.agents.sandbox.model_proxy import start_model_proxy
 
         if not llm_provider:
@@ -582,6 +583,7 @@ class E2bBackend(SandboxBackend):
             agent_host="127.0.0.1",
             call_log=call_log,
         )
+        env[ENV_HOST_MODEL_BUDGET] = "1" if call_log is not None else "0"
         return env
 
     def stage_workspace(self, workspace_dir: Path, *, agent_type: str) -> None:

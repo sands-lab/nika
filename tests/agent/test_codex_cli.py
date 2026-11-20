@@ -474,3 +474,21 @@ class CodexStepBudgetTest:
         worker._log_codex_event(self._tool("item.completed", "a"))
         with pytest.raises(CodexMaxStepsReached):
             worker._log_codex_event(self._tool("item.started", "b"))
+
+    def test_host_budget_allows_sequential_tools_past_inferred_limit(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("AGENT_HOST_MODEL_BUDGET", "1")
+        worker = CodexWorker(
+            session_id="sess-host-budget",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            max_steps=1,
+            stream_output=False,
+        )
+        # One API response may issue calls which Codex executes sequentially.
+        for item_id in ("a", "b", "c"):
+            worker._log_codex_event(self._tool("item.started", item_id))
+            worker._log_codex_event(self._tool("item.completed", item_id))
+        assert worker._responses.responses == 3

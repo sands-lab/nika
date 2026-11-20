@@ -96,6 +96,8 @@ class SbxBackend(SandboxBackend):
         llm_provider: str | None,
         call_log: ModelCallLog | None = None,
     ) -> dict[str, str]:
+        from agent.cli.model_budget import ENV_HOST_MODEL_BUDGET
+
         if not llm_provider:
             raise RuntimeError("Set agent.provider for sandboxed agents.")
         self._upstream_proxy = resolve_sbx_upstream_proxy(env_file=self.config.env_file)
@@ -114,6 +116,7 @@ class SbxBackend(SandboxBackend):
             agent_host=SANDBOX_GATEWAY_HOST_BRIDGE,
             call_log=call_log,
         )
+        env[ENV_HOST_MODEL_BUDGET] = "1" if call_log is not None else "0"
         return env
 
     def stage_workspace(self, workspace_dir: Path, *, agent_type: str) -> None:

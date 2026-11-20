@@ -15,10 +15,9 @@ isolated, per-session workspace of the agent's sandbox.  It handles:
   line-by-line, logged to ``messages.jsonl`` (``trace_dir``) in real
   time, and pretty-printed to the terminal via
   :func:`~agent.utils.display.display_agent_event`.
-* **Step budget** – ``codex exec`` has no turn limit and reports usage only
-  once per ``codex exec`` turn, so the worker infers model responses from item
-  boundaries (:class:`_ResponseCounter`), logs one ``llm_end`` per response,
-  and stops Codex when a response past ``max_steps`` begins.
+* **Step budget** – the sandbox host counts model requests. Without a host
+  budget, the worker bounds inferred responses from item boundaries
+  (:class:`_ResponseCounter`). These boundaries also drive the CLI trace.
 """
 
 import asyncio
@@ -31,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.base import max_steps_report
+from agent.cli.model_budget import host_enforces_model_budget
 from agent.llm.endpoints import (
     ENV_OPENAI_API_KEY,
     ENV_OPENAI_BASE_URL,
@@ -456,6 +456,7 @@ class CodexWorker:
         self.stall_timeout = stall_timeout
         self.scenario_name = scenario_name
         self.max_steps = max_steps
+        self._host_model_budget = host_enforces_model_budget()
         self._reconnect_failure_at: float | None = None
         self._last_progress_at: float | None = None
 
@@ -809,7 +810,10 @@ class CodexWorker:
 
         if self._responses.observe(event):
             self._flush_response()
-            if self._responses.responses > self.max_steps:
+            if (
+                not self._host_model_budget
+                and self._responses.responses > self.max_steps
+            ):
                 raise CodexMaxStepsReached()
             self._response_open = True
             self._logger.log(
