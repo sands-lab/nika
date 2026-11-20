@@ -5,8 +5,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
-from nika.runtime.meta import meta_get
-
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
@@ -85,6 +83,8 @@ def require_telemetry_backend(kinds: tuple[str, ...], backend: str) -> None:
 
 def telemetry_for_session(meta: dict[str, Any] | Any) -> tuple[str, ...]:
     """Return the telemetry kinds a session was started with."""
+    from nika.runtime.meta import meta_get
+
     return normalize_telemetry(meta_get(meta, "telemetry", scenario_params=True))
 
 

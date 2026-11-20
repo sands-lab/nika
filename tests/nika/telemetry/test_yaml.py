@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -10,6 +13,27 @@ from nika.run_config.loader import load_run_config
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
 
 pytestmark = pytest.mark.contract
+
+
+@pytest.mark.parametrize("entry", ["nika.telemetry", "nika.agents.mcp_config"])
+def test_telemetry_imports_in_a_fresh_process(entry, tmp_path):
+    repo = Path(__file__).resolve().parents[3]
+    code = (
+        f"import importlib; importlib.import_module({entry!r}); "
+        "from nika.telemetry import telemetry_for_session; "
+        "assert telemetry_for_session({'scenario_params': "
+        "{'telemetry': ['pingmesh']}}) == ('pingmesh',)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONPATH": str(repo / "src")},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
 
 _CASES = """\
 cases:
