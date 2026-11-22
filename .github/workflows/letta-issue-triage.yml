@@ -50,8 +50,13 @@ jobs:
           letta_args: --agent agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a --new
           show_full_output: true
           prompt: |
-            Triage issue #${{ github.event.issue.number }}. Read it with
-            `gh issue view ${{ github.event.issue.number }} --comments`.
+            Triage issue #${{ github.event.issue.number }} (event: ${{ github.event.action }}).
+            Read it with `gh issue view ${{ github.event.issue.number }} --comments`.
+
+            If the issue was edited, re-triage its current text: update the existing
+            triage comment (step 4) and replace `agent-ready` or `needs-human` when
+            your judgment changes. If the edit does not change the triage, leave the
+            comment and labels as they are.
 
             You run in a checkout of the repository with NIKA installed: run
             `source .venv/bin/activate` to use the `nika` CLI and start labs if
@@ -87,9 +92,10 @@ jobs:
                  are unsure about.
 
             4. Post ONE triage comment with these sections, omitting empty ones.
-               Retries must not create duplicate triage comments. Before posting,
-               look for a comment by `github-actions[bot]` containing
-               `<!-- nika-issue-triage -->`. Update that comment if it exists;
+               Edits and retries must not create duplicate triage comments. Before
+               posting, look for a comment by `github-actions[bot]` containing
+               `<!-- nika-issue-triage -->`. If it exists, update it with
+               `gh api -X PATCH repos/${{ github.repository }}/issues/comments/<id> -F body=@<file>`;
                otherwise create one. Include this marker in the comment. Do not
                edit comments by other authors.
                - `### TL;DR`: only if the issue is long or highly technical (typical of

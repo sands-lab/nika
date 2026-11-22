@@ -127,7 +127,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       verdict: ${{ steps.result.outputs.verdict }}
-      quota_exhausted: ${{ steps.result.outputs.quota_exhausted }}
+      handoff: ${{ steps.result.outputs.handoff }}
       comment: ${{ steps.result.outputs.comment }}
     steps:
       # Scripts come from the same base commit as this workflow file.
@@ -144,7 +144,7 @@ jobs:
           allow-unsafe-pr-checkout: true
       - uses: letta-ai/letta-code-action@v0
         id: letta
-        # A quota failure hands the review to the fallback job; the gate fails other errors.
+        # Any Letta failure without a report hands the review to the fallback job.
         continue-on-error: true
         with:
           letta_api_key: ${{ secrets.LETTA_API_KEY }}
@@ -220,12 +220,16 @@ jobs:
             python3 scripts/review_docs.py report .docs-review.json || true
           fi
           verdict=$(tr -d '[:space:]' < .docs-review-verdict 2>/dev/null || true)
+          handoff=false
+          [ -n "$verdict" ] || handoff=true
           echo "Letta outcome: $LETTA_OUTCOME; verdict: ${verdict:-missing}; quota exhausted: $quota"
           if [ "$quota" = true ]; then
             echo "::warning::Letta ran out of model quota or credits; handing the review to the self-hosted fallback."
+          elif [ "$handoff" = true ]; then
+            echo "::warning::Letta produced no review report; handing the review to the self-hosted fallback. See the Run Letta Code step."
           fi
           echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
-          echo "quota_exhausted=$quota" >> "$GITHUB_OUTPUT"
+          echo "handoff=$handoff" >> "$GITHUB_OUTPUT"
           if [ -s "$REVIEW_COMMENT" ]; then
             { echo "comment<<NIKA_DOCS_REVIEW"; cat "$REVIEW_COMMENT"; echo "NIKA_DOCS_REVIEW"; } >> "$GITHUB_OUTPUT"
           fi
@@ -233,10 +237,10 @@ jobs:
   fallback:
     name: Fallback docs review
     needs: [target, hosted]
-    # Runs when the PR selects the fallback or hosted Letta ran out of quota.
+    # Runs when the PR selects the fallback or hosted Letta produced no report.
     if: >-
       always() && needs.target.outputs.changed == 'true' &&
-      (contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') || needs.hosted.outputs.quota_exhausted == 'true')
+      (contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') || needs.hosted.outputs.handoff == 'true')
     runs-on: nika-docs-fallback
     timeout-minutes: 30
     permissions:
@@ -323,7 +327,7 @@ jobs:
         env:
           REVIEW_PR: ${{ needs.target.outputs.pr }}
           # Same reviewer choice as the verdict below.
-          USE_FALLBACK: ${{ contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') || needs.hosted.outputs.quota_exhausted == 'true' }}
+          USE_FALLBACK: ${{ contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') || needs.hosted.outputs.handoff == 'true' }}
           HOSTED_COMMENT: ${{ needs.hosted.outputs.comment }}
           FALLBACK_COMMENT: ${{ needs.fallback.outputs.comment }}
         with:
@@ -344,7 +348,7 @@ jobs:
           BLOCKED: ${{ needs.target.outputs.blocked }}
           DOCS_CHANGED: ${{ needs.target.outputs.changed }}
           FALLBACK_SELECTED: ${{ contains(github.event.pull_request.labels.*.name, 'docs-review-fallback') }}
-          QUOTA_EXHAUSTED: ${{ needs.hosted.outputs.quota_exhausted }}
+          HOSTED_HANDOFF: ${{ needs.hosted.outputs.handoff }}
           HOSTED_RESULT: ${{ needs.hosted.result }}
           HOSTED_VERDICT: ${{ needs.hosted.outputs.verdict }}
           FALLBACK_RESULT: ${{ needs.fallback.result }}
@@ -362,7 +366,7 @@ jobs:
             echo "No human-facing documentation changed."
             exit 0
           fi
-          if [ "$FALLBACK_SELECTED" = true ] || [ "$QUOTA_EXHAUSTED" = true ]; then
+          if [ "$FALLBACK_SELECTED" = true ] || [ "$HOSTED_HANDOFF" = true ]; then
             reviewer=fallback result=$FALLBACK_RESULT verdict=$FALLBACK_VERDICT
           else
             reviewer="hosted Letta" result=$HOSTED_RESULT verdict=$HOSTED_VERDICT
