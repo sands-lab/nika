@@ -15,7 +15,7 @@ flowchart LR
     F & X & R & S & N --> A["Agent with the matching<br/>diagnosis tools"]
 ```
 
-The environment, the incident, and the ground truth stay the same. The router platform and the agent's CLI tool change, and a vendor image can limit the traffic or the incidents available, as the section on what NIKA guarantees describes below.
+A vendor image can limit the traffic or the incidents available, as the section on what NIKA guarantees describes below.
 
 ## 🧭 Supported routers
 
@@ -116,7 +116,7 @@ Running a new router in NIKA starts outside NIKA: the vendor's image has to run 
 ```mermaid
 flowchart LR
     O["NIKA orchestrator<br/>environments, verification,<br/>tasks, failures, agents"]
-    M["Platform module<br/>(what you write)"]
+    M["Integration code<br/>(what you write)"]
     R["Your router in Kathará<br/>or Containerlab"]
     O -- "environment design" --> M
     M -- "vendor configuration<br/>and CLI commands" --> R
@@ -128,7 +128,7 @@ flowchart LR
     class O,R provided
 ```
 
-The yellow block is the adapter you write; NIKA (blue) and the emulator (blue) provide the rest. The router only has to run and answer CLI commands. The platform module is the adapter that lets NIKA's vendor-neutral environments talk to it.
+The yellow block is the code you write: a platform module for a Kathará router, or changes to the environments for a Containerlab router. NIKA (blue) and the emulator (blue) provide the rest. The router only has to run and answer CLI commands.
 
 ### 1. Run the router in an emulator
 
@@ -138,7 +138,9 @@ Get a node of your vendor running in the emulator on its own first, with data in
 * **Containerlab:** [node kinds](https://containerlab.dev/manual/kinds/) for the vendors it supports and [nodes](https://containerlab.dev/manual/nodes/) for their options.
 * **Vendor images that are virtual machines:** [vrnetlab](https://containerlab.dev/manual/vrnetlab/) wraps a vendor VM into a container, and its [source repository](https://github.com/srl-labs/vrnetlab) has the build steps. NIKA runs RouterOS this way.
 
-### 2. Write the platform module
+### 2. Integrate your router
+
+What you write depends on the backend.
 
 #### Kathará router: write a platform module
 
