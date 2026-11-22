@@ -175,7 +175,7 @@ uv run nika env run <environment> --device-profile <yours>
 To validate failures end to end, `validate-profiles` needs two things, or it lists no cells for your profile:
 
 * **A failure-operations provider.** The `fault_ops` field of a Kathará platform module, or an entry for a Containerlab router in `_CONTAINERLAB_PLATFORMS` in [`router_ops.py`](../../src/nika/problems/support/router_ops.py) that points to the module's `FAULT_OPS`.
-* **Tasks for the profile in the benchmark pool.** Regenerate the pool with `uv run nika benchmark generate` after the environments declare your profile.
+* **Tasks for the profile in the benchmark pool.** Regenerate the pool with `uv run nika benchmark generate` after the environments declare your profile. For a Containerlab router, first add the profile to `CONTAINERLAB_ALTERNATE_PROFILES` in [`generate.py`](../../src/nika/workflows/benchmark/generate.py), which holds only `sonic` today.
 
 Confirm that the cells exist, then run them:
 
