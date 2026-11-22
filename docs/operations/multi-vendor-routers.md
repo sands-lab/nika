@@ -67,6 +67,21 @@ The environment names above map to the identifiers `dc_clos`, `campus_lan`, `ent
 
 ## 🚀 Run an environment on another vendor
 
+### Prepare the host and the vendor image
+
+> [!IMPORTANT]
+> Cisco and MikroTik do not allow NIKA to redistribute their images, so you supply the IOS XR and RouterOS images once before you use those profiles.
+
+Install NIKA and the backend you need first, as [Installation](installation.md) and the [backend requirements](network-scenarios.md#backend-requirements) describe. Image setup steps are in [Network scenarios](network-scenarios.md):
+
+* [IOS XR image](network-scenarios.md#ios-xr-simple-bgp-scenario): download XRd Control Plane from Cisco and load it, or pass the tarball to the installer with `./scripts/install.sh --with-vendor-images --xrd-tarball <path>`.
+* [RouterOS image](network-scenarios.md#routeros-simple-bgp-scenario): build it with `./scripts/install.sh --with-vendor-images`. The host needs KVM.
+* [SONiC image](network-scenarios.md#sonic-routers-on-containerlab): `uv run nika images prepare`.
+
+For IOS XR and RouterOS, if an image is missing or the host lacks the memory, NIKA stops with an explanation before it deploys anything.
+
+### Start the environment
+
 Pass `--device-profile` when you start an environment. NIKA starts a session as usual.
 
 ```shell
@@ -77,19 +92,6 @@ uv run nika env run isp_abilene --device-profile nokia_srlinux --backend contain
 ```
 
 The agent needs no extra setup. NIKA picks the diagnosis tool that matches the session's device profile: `iosxr_exec` for IOS XR, `routeros_exec` for RouterOS, and the SR Linux or SONiC command tools on Containerlab. See [MCP servers](../agents/mcp-servers.md) for the tools. Benchmark tasks record their device profile and run the same way.
-
-### Prepare the vendor image
-
-> [!IMPORTANT]
-> Cisco and MikroTik do not allow NIKA to redistribute their images, so you supply the IOS XR and RouterOS images once before you use those profiles.
-
-Setup steps are in [Network scenarios](network-scenarios.md):
-
-* [IOS XR image](network-scenarios.md#ios-xr-simple-bgp-scenario): download XRd Control Plane from Cisco and load it, or pass the tarball to the installer with `./scripts/install.sh --with-vendor-images --xrd-tarball <path>`.
-* [RouterOS image](network-scenarios.md#routeros-simple-bgp-scenario): build it with `./scripts/install.sh --with-vendor-images`. The host needs KVM.
-* [SONiC image](network-scenarios.md#sonic-routers-on-containerlab): `uv run nika images prepare`.
-
-For IOS XR and RouterOS, if an image is missing or the host lacks the memory, NIKA stops with an explanation before it deploys anything.
 
 ---
 
@@ -132,9 +134,9 @@ The yellow block is the adapter you write; NIKA (blue) and the emulator (blue) p
 
 Get a node of your vendor running in the emulator on its own first, with data interfaces, a way to run CLI commands, and a startup configuration. The emulator documentation covers this, so NIKA does not repeat it:
 
-* **Kathará:** [Kathará wiki](https://github.com/KatharaFramework/Kathara/wiki) for [custom images](https://github.com/KatharaFramework/Kathara/wiki/Kathara-Images) and the [`lab.conf`](https://github.com/KatharaFramework/Kathara/wiki/Kathara-lab.conf) options that attach a device to a network.
+* **Kathará:** the [Docker images repository](https://github.com/KatharaFramework/Docker-Images) for Dockerfiles and custom images, the [`lab.conf` manual](https://www.kathara.org/man-pages/kathara-lab.conf.5.html) for the options that attach a device to a network, and the [VRNetLab pages](https://github.com/KatharaFramework/Kathara/wiki/VRNetLab) of the Kathará wiki for vendor virtual machines, including [MikroTik RouterOS](https://github.com/KatharaFramework/Kathara/wiki/MikroTik-RouterOS).
 * **Containerlab:** [node kinds](https://containerlab.dev/manual/kinds/) for the vendors it supports and [nodes](https://containerlab.dev/manual/nodes/) for their options.
-* **Vendor images that are virtual machines:** [vrnetlab](https://containerlab.dev/manual/vrnetlab/) wraps a vendor VM into a container, and its [source repository](https://github.com/hellt/vrnetlab) has the build steps. NIKA runs RouterOS this way.
+* **Vendor images that are virtual machines:** [vrnetlab](https://containerlab.dev/manual/vrnetlab/) wraps a vendor VM into a container, and its [source repository](https://github.com/srl-labs/vrnetlab) has the build steps. NIKA runs RouterOS this way.
 
 ### 2. Write the platform module
 
