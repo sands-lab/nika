@@ -85,11 +85,15 @@ The agent needs no extra setup. NIKA picks the diagnosis tool that matches the s
 
 Setup steps are in [Network scenarios](network-scenarios.md):
 
-* [IOS XR image](network-scenarios.md#ios-xr-simple-bgp-scenario): download XRd Control Plane from Cisco and load it, or pass it to the installer with `--xrd-tarball`.
+* [IOS XR image](network-scenarios.md#ios-xr-simple-bgp-scenario): download XRd Control Plane from Cisco and load it, or pass the tarball to the installer with `./scripts/install.sh --with-vendor-images --xrd-tarball <path>`.
 * [RouterOS image](network-scenarios.md#routeros-simple-bgp-scenario): build it with `./scripts/install.sh --with-vendor-images`. The host needs KVM.
 * [SONiC image](network-scenarios.md#sonic-routers-on-containerlab): `uv run nika images prepare`.
 
 If an image is missing or the host lacks the memory, NIKA stops with an explanation before it deploys anything.
+
+---
+
+The sections above are the path to run an environment on another vendor. The sections below are reference material: what NIKA checks on a vendor router, and how to add a router that NIKA does not support yet.
 
 ## ✅ What NIKA guarantees on a vendor router
 
@@ -146,7 +150,7 @@ A **platform module** is a Python file that tells NIKA how to work with one vend
 Use the existing modules as templates: [RouterOS](../../src/nika/net_env/utils/routeros/platform.py) for a Kathará router and [SONiC](../../src/nika/net_env/utils/sonic/) for a Containerlab router. Then connect it to the rest of NIKA:
 
 1. **Register the module** in [`native_routers.py`](../../src/nika/net_env/native_routers.py).
-2. **Choose the roles it replaces.** Each environment declares which router roles may run the profile, and at which sizes, in `NATIVE_PROFILE_ROLES` and `NATIVE_PROFILE_SIZES`. Add the profile to the environment's `device_profiles` in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py). ISP environments also list the allowed backend and profile pairs in [`profiles.py`](../../src/nika/net_env/isp/profiles.py).
+2. **Choose the roles it replaces.** Each environment declares which router roles may run the profile, and at which sizes, in `NATIVE_PROFILE_ROLES` and `NATIVE_PROFILE_SIZES`. Add the profile to the environment's `device_profiles` in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py). The ISP environments need two more changes, because they validate the profile name and accept only `iosxr` and `routeros` on Kathará today: add the profile and its backend pair to [`profiles.py`](../../src/nika/net_env/isp/profiles.py), and extend the [ISP vendor environment](../../src/nika/net_env/isp/kathara/vendor.py) to build your router. Skip the ISP environments for a first version.
 3. **Give the agent a tool** for the vendor CLI. Add the tool to the [MCP server registry](../../src/nika/mcp/registry.py) and extend `select_diagnosis_servers` there, which recognizes only the `iosxr` and `routeros` profiles on Kathará today, so your profile's tool is attached to the session.
 
 Failure operations are optional. Failures that need an operation your module does not implement are not generated for your router, so a first version can start with none.
