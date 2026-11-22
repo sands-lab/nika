@@ -156,6 +156,28 @@ A Containerlab router needs more than a registration, because each Containerlab 
 * Add the profile and its Containerlab backend pair to [`profiles.py`](../../src/nika/net_env/isp/profiles.py), and list it in `containerlab_device_profiles` for `min3clos` in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py).
 * Teach each environment that should run it to render the vendor's nodes and configuration: the [ISP Containerlab environment](../../src/nika/net_env/isp/containerlab/lab.py) and [`min3clos`](../../src/nika/net_env/min3clos/lab.py).
 * Map the profile to its agent tool in `CONTAINERLAB_ROUTER_SERVERS` in the [MCP server registry](../../src/nika/mcp/registry.py).
-* Optionally expose `FAULT_OPS` from the vendor's module in [`utils/`](../../src/nika/net_env/utils/) for failure operations.
+* Optionally expose `FAULT_OPS` from the vendor's module in [`utils/`](../../src/nika/net_env/utils/) and register it in `_CONTAINERLAB_PLATFORMS` in [`router_ops.py`](../../src/nika/problems/support/router_ops.py) for failure operations.
 
-[Create benchmark tasks](../development/creating-benchmark-tasks.md) covers how failures declare the operations they need. Then run `uv run nika env run <environment> --device-profile <yours>` and the [`validate-profiles` command](../development/creating-benchmark-tasks.md#validate-device-profile-cells) to check your router.
+[Create benchmark tasks](../development/creating-benchmark-tasks.md) covers how failures declare the operations they need.
+
+### 3. Try and validate your router
+
+Start an environment on your profile and inspect it with `nika exec` and your agent tool:
+
+```shell
+uv run nika env run <environment> --device-profile <yours>
+```
+
+To validate failures end to end, `validate-profiles` needs two things, or it lists no cells for your profile:
+
+* **A failure-operations provider.** The `fault_ops` field of a Kathará platform module, or an entry for a Containerlab router in `_CONTAINERLAB_PLATFORMS` in [`router_ops.py`](../../src/nika/problems/support/router_ops.py) that points to the module's `FAULT_OPS`.
+* **Tasks for the profile in the benchmark pool.** Regenerate the pool with `uv run nika benchmark generate` after the environments declare your profile.
+
+Confirm that the cells exist, then run them:
+
+```shell
+uv run nika benchmark validate-profiles --device-profile <yours> --list
+uv run nika benchmark validate-profiles --device-profile <yours>
+```
+
+See [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells) for the command's options.
