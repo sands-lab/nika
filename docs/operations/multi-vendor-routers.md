@@ -61,7 +61,7 @@ NIKA converts only the roles a vendor can run. A role stays FRR when the vendor 
 | Enterprise branch WAN | Provider routers | Site edges, size `s` |
 
 > [!NOTE]
-> A size a vendor does not support is rejected with an error that names the supported sizes. Large ISP graphs are limited by host memory, which NIKA checks before it creates any container.
+> A size a vendor does not support is rejected with an error that names the supported sizes. For IOS XR and RouterOS, NIKA checks host memory before it creates any container and rejects labs that do not fit. Containerlab ISP deployments have no such check, so keep large SR Linux or SONiC graphs to hosts with enough memory.
 
 The environment names above map to the identifiers `dc_clos`, `campus_lan`, `enterprise_branch`, `isp_<topology>`, `min3clos`, `iosxr_simple_bgp`, and `routeros_simple_bgp`. Run `uv run nika env list` for the registered environments and backends.
 
@@ -89,7 +89,7 @@ Setup steps are in [Network scenarios](network-scenarios.md):
 * [RouterOS image](network-scenarios.md#routeros-simple-bgp-scenario): build it with `./scripts/install.sh --with-vendor-images`. The host needs KVM.
 * [SONiC image](network-scenarios.md#sonic-routers-on-containerlab): `uv run nika images prepare`.
 
-If an image is missing or the host lacks the memory, NIKA stops with an explanation before it deploys anything.
+For IOS XR and RouterOS, if an image is missing or the host lacks the memory, NIKA stops with an explanation before it deploys anything.
 
 ---
 
@@ -102,7 +102,7 @@ A vendor environment is only useful if the incident is the same incident the age
 * **Same environment.** Topology, addressing, hosts, services, and ground truth do not change. Only the routers of the converted roles run the vendor's configuration.
 * **Healthy before the incident.** At startup, NIKA waits for the live routers to come up and reads the vendor's own `show` output to check a core subset of the environment's declared requirements, such as routing sessions and routes, before it starts the incident. This is a readiness check, not the full set of requirements. Separately, environment developers can run an opt-in construction experiment that synthesizes and statically analyzes a vendor design against its original requirements. It is not part of normal startup; [Environment construction and verification](../development/scenario-verification.md) explains it and its limits.
 * **Only failures the vendor can run.** Each vendor implements the router operations a failure needs, such as changing a BGP AS number or an OSPF area. NIKA generates a task on a vendor router only when that vendor implements every operation of the failure, and refuses to inject otherwise instead of changing nothing. [Router platforms](failures.md#router-platforms) lists the failures and how each vendor applies them.
-* **Failures that run end to end.** For IOS XR, RouterOS, and SONiC, `uv run nika benchmark validate-profiles` deploys one representative task for each cell, an environment, device profile, and failure combination, injects it, and checks the symptom and ground truth. All base ISP topologies count as one `isp` environment, and recorded cells are skipped unless you pass `--rerun`. It also recovers the network when the failure defines a recovery. `nika benchmark generate --validated-only` keeps tasks on those three vendors only for validated combinations. See [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells) for the options that select cells.
+* **Failures that run end to end.** For IOS XR, RouterOS, and SONiC, `uv run nika benchmark validate-profiles` deploys one representative task for each cell, an environment, device profile, and failure combination, injects it, and checks the symptom and ground truth. It then recovers the network, and a cell passes only when the failure's recovery is confirmed. All base ISP topologies count as one `isp` environment. Recorded cells are skipped unless you pass `--rerun`, except validated cells without confirmed recovery, which run again. `nika benchmark generate --validated-only` keeps tasks on those three vendors only for validated combinations. See [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells) for the options that select cells.
 
 > [!NOTE]
 > A vendor image can change what an agent encounters. RouterOS CHR sends at most 1 Mbit/s per interface, so NIKA scales the traffic to fit and skips failures that need a faster path. IOS XR does not report link carrier state to its interfaces, so a link failure shows up when the routing protocol times out. [Network scenarios](network-scenarios.md#run-other-environments-on-routeros-routers) lists these differences.
@@ -138,6 +138,8 @@ Get a node of your vendor running in the emulator on its own first, with data in
 
 ### 2. Write the platform module
 
+#### Kathará router: write a platform module
+
 A **platform module** is a Python file that tells NIKA how to work with one vendor's routers. NIKA describes every environment in vendor-neutral terms, and the module translates between that description and your router. It answers four questions:
 
 | NIKA asks | The module provides |
@@ -147,7 +149,7 @@ A **platform module** is a Python file that tells NIKA how to work with one vend
 | Is the network healthy? | How to read the vendor's own CLI output to confirm sessions and routes, and how long to wait for the router to boot |
 | How does a failure act on it? (optional) | The router operations that failures use, such as changing a BGP AS number |
 
-Use the existing modules as templates: [RouterOS](../../src/nika/net_env/utils/routeros/platform.py) for a Kathará router and [SONiC](../../src/nika/net_env/utils/sonic/) for a Containerlab router. Then connect it to the rest of NIKA:
+Use the [RouterOS module](../../src/nika/net_env/utils/routeros/platform.py) as the template. Then connect it to the rest of NIKA:
 
 1. **Register the module** in [`native_routers.py`](../../src/nika/net_env/native_routers.py).
 2. **Choose the roles it replaces.** Each environment declares which router roles may run the profile, and at which sizes, in `NATIVE_PROFILE_ROLES` and `NATIVE_PROFILE_SIZES`. Add the profile to the environment's `device_profiles` in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py). The ISP environments need two more changes, because they validate the profile name and accept only `iosxr` and `routeros` on Kathará today: add the profile and its backend pair to [`profiles.py`](../../src/nika/net_env/isp/profiles.py), and extend the [ISP vendor environment](../../src/nika/net_env/isp/kathara/vendor.py) to build your router. Skip the ISP environments for a first version.
@@ -155,7 +157,9 @@ Use the existing modules as templates: [RouterOS](../../src/nika/net_env/utils/r
 
 Failure operations are optional. Failures that need an operation your module does not implement are not generated for your router, so a first version can start with none.
 
-A Containerlab router needs more than a registration, because each Containerlab environment renders and deploys its own nodes. Use the SONiC integration as the template:
+#### Containerlab router: extend the environments
+
+A Containerlab router does not use a platform module, because each Containerlab environment renders and deploys its own nodes. Use the [SONiC integration](../../src/nika/net_env/utils/sonic/) as the template:
 
 * Add the profile and its Containerlab backend pair to [`profiles.py`](../../src/nika/net_env/isp/profiles.py), and list it in `containerlab_device_profiles` for `min3clos` in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py).
 * Teach each environment that should run it to render the vendor's nodes and configuration: the [ISP Containerlab environment](../../src/nika/net_env/isp/containerlab/lab.py) and [`min3clos`](../../src/nika/net_env/min3clos/lab.py).
