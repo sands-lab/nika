@@ -19,7 +19,7 @@ The environment, the incident, and the ground truth stay the same. Only the rout
 
 ## 🧭 Supported routers
 
-A router platform is called a [device profile](../../GLOSSARY.md). Every environment deploys FRR unless you select another profile.
+A router platform is called a [device profile](../../GLOSSARY.md). Without `--device-profile`, a Kathará environment deploys FRR and a Containerlab environment deploys Nokia SR Linux. The two eBGP pair environments always deploy their named vendor's routers.
 
 | Device profile | Router | Runs on | What you need |
 | --- | --- | --- | --- |
@@ -48,7 +48,7 @@ Each cell shows how much of the environment runs on that vendor's routers:
 | Two-router IOS XR eBGP pair | ✅ | ➖ | ➖ | ➖ |
 | Two-router RouterOS eBGP pair | ➖ | ✅ | ➖ | ➖ |
 
-FRR runs every environment above, and the SDN, P4, and Kubernetes environments run only on their own platforms.
+FRR is the default for the Kathará environments in the table and is not available for the Containerlab-only five-node Clos fabric or the two vendor-specific pairs, which always run their named routers. The SDN, P4, and Kubernetes environments run only on their own platforms.
 
 ### What a partial cell converts
 
@@ -93,12 +93,12 @@ If an image is missing or the host lacks the memory, NIKA stops with an explanat
 
 ## ✅ What NIKA guarantees on a vendor router
 
-A vendor environment is only useful if the incident is the same incident the agent would meet on FRR. NIKA checks that in four places:
+A vendor environment is only useful if the incident is the same incident the agent would meet on FRR. NIKA covers that in four places:
 
 * **Same environment.** Topology, addressing, hosts, services, and ground truth do not change. Only the routers of the converted roles run the vendor's configuration.
-* **Healthy before the incident.** NIKA builds each vendor configuration from the environment's declared requirements, such as reachability, routing, and isolation. It analyzes the design with a static model (Batfish where it has a parser for the vendor) and then waits for the live routers to meet the requirements, reading the vendor's own `show` output. [Environment construction and verification](../development/scenario-verification.md) explains the checks and their limits.
+* **Healthy before the incident.** At startup, NIKA waits for the live routers to come up and reads the vendor's own `show` output to confirm the environment's declared sessions and routes before it starts the incident. Separately, environment developers can run an opt-in construction experiment that synthesizes and statically analyzes a vendor design against its original requirements. It is not part of normal startup; [Environment construction and verification](../development/scenario-verification.md) explains it and its limits.
 * **Only failures the vendor can run.** Each vendor implements the router operations a failure needs, such as changing a BGP AS number or an OSPF area. NIKA generates a task on a vendor router only when that vendor implements every operation of the failure, and refuses to inject otherwise instead of changing nothing. [Router platforms](failures.md#router-platforms) lists the failures and how each vendor applies them.
-* **Failures that run end to end.** `uv run nika benchmark validate-profiles` deploys one representative task for each environment, device profile, and failure, injects it, checks the symptom and ground truth, and recovers the network. `nika benchmark generate --validated-only` keeps vendor tasks only for validated combinations. See [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells).
+* **Failures that run end to end.** For IOS XR, RouterOS, and SONiC, `uv run nika benchmark validate-profiles` deploys one representative task for each environment, device profile, and failure, injects it, and checks the symptom and ground truth. It also recovers the network when the failure defines a recovery. `nika benchmark generate --validated-only` keeps tasks on those three vendors only for validated combinations. See [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells).
 
 > [!NOTE]
 > A vendor image can change what an agent encounters. RouterOS CHR sends at most 1 Mbit/s per interface, so NIKA scales the traffic to fit and skips failures that need a faster path. IOS XR does not report link carrier state to its interfaces, so a link failure shows up when the routing protocol times out. [Network scenarios](network-scenarios.md#run-other-environments-on-routeros-routers) lists these differences.
@@ -151,6 +151,11 @@ Use the existing modules as templates: [RouterOS](../../src/nika/net_env/utils/r
 
 Failure operations are optional. Failures that need an operation your module does not implement are not generated for your router, so a first version can start with none.
 
-For a Containerlab router, register the profile and its backend pair, map it to its tool in `CONTAINERLAB_ROUTER_SERVERS`, and optionally expose `FAULT_OPS` from its module.
+A Containerlab router needs more than a registration, because each Containerlab environment renders and deploys its own nodes. Use the SONiC integration as the template:
+
+* Add the profile and its Containerlab backend pair to [`profiles.py`](../../src/nika/net_env/isp/profiles.py), and list it in `containerlab_device_profiles` for `min3clos` in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py).
+* Teach each environment that should run it to render the vendor's nodes and configuration: the [ISP Containerlab environment](../../src/nika/net_env/isp/containerlab/lab.py) and [`min3clos`](../../src/nika/net_env/min3clos/lab.py).
+* Map the profile to its agent tool in `CONTAINERLAB_ROUTER_SERVERS` in the [MCP server registry](../../src/nika/mcp/registry.py).
+* Optionally expose `FAULT_OPS` from the vendor's module in [`utils/`](../../src/nika/net_env/utils/) for failure operations.
 
 [Create benchmark tasks](../development/creating-benchmark-tasks.md) covers how failures declare the operations they need. Then run `uv run nika env run <environment> --device-profile <yours>` and the [`validate-profiles` command](../development/creating-benchmark-tasks.md#validate-device-profile-cells) to check your router.
