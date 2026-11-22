@@ -15,7 +15,7 @@ flowchart LR
     F & X & R & S & N --> A["Agent with the matching<br/>diagnosis tools"]
 ```
 
-The environment, the incident, and the ground truth stay the same. Only the router platform and the agent's CLI tool change.
+The environment, the incident, and the ground truth stay the same. The router platform and the agent's CLI tool change, and a vendor image can limit the traffic or the incidents available, as the section on what NIKA guarantees describes below.
 
 ## 🧭 Supported routers
 
@@ -96,9 +96,9 @@ If an image is missing or the host lacks the memory, NIKA stops with an explanat
 A vendor environment is only useful if the incident is the same incident the agent would meet on FRR. NIKA covers that in four places:
 
 * **Same environment.** Topology, addressing, hosts, services, and ground truth do not change. Only the routers of the converted roles run the vendor's configuration.
-* **Healthy before the incident.** At startup, NIKA waits for the live routers to come up and reads the vendor's own `show` output to confirm the environment's declared sessions and routes before it starts the incident. Separately, environment developers can run an opt-in construction experiment that synthesizes and statically analyzes a vendor design against its original requirements. It is not part of normal startup; [Environment construction and verification](../development/scenario-verification.md) explains it and its limits.
+* **Healthy before the incident.** At startup, NIKA waits for the live routers to come up and reads the vendor's own `show` output to check a core subset of the environment's declared requirements, such as routing sessions and routes, before it starts the incident. This is a readiness check, not the full set of requirements. Separately, environment developers can run an opt-in construction experiment that synthesizes and statically analyzes a vendor design against its original requirements. It is not part of normal startup; [Environment construction and verification](../development/scenario-verification.md) explains it and its limits.
 * **Only failures the vendor can run.** Each vendor implements the router operations a failure needs, such as changing a BGP AS number or an OSPF area. NIKA generates a task on a vendor router only when that vendor implements every operation of the failure, and refuses to inject otherwise instead of changing nothing. [Router platforms](failures.md#router-platforms) lists the failures and how each vendor applies them.
-* **Failures that run end to end.** For IOS XR, RouterOS, and SONiC, `uv run nika benchmark validate-profiles` deploys one representative task for each environment, device profile, and failure, injects it, and checks the symptom and ground truth. It also recovers the network when the failure defines a recovery. `nika benchmark generate --validated-only` keeps tasks on those three vendors only for validated combinations. See [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells).
+* **Failures that run end to end.** For IOS XR, RouterOS, and SONiC, `uv run nika benchmark validate-profiles` deploys one representative task for each cell, an environment, device profile, and failure combination, injects it, and checks the symptom and ground truth. All base ISP topologies count as one `isp` environment, and recorded cells are skipped unless you pass `--rerun`. It also recovers the network when the failure defines a recovery. `nika benchmark generate --validated-only` keeps tasks on those three vendors only for validated combinations. See [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells) for the options that select cells.
 
 > [!NOTE]
 > A vendor image can change what an agent encounters. RouterOS CHR sends at most 1 Mbit/s per interface, so NIKA scales the traffic to fit and skips failures that need a faster path. IOS XR does not report link carrier state to its interfaces, so a link failure shows up when the routing protocol times out. [Network scenarios](network-scenarios.md#run-other-environments-on-routeros-routers) lists these differences.
@@ -147,7 +147,7 @@ Use the existing modules as templates: [RouterOS](../../src/nika/net_env/utils/r
 
 1. **Register the module** in [`native_routers.py`](../../src/nika/net_env/native_routers.py).
 2. **Choose the roles it replaces.** Each environment declares which router roles may run the profile, and at which sizes, in `NATIVE_PROFILE_ROLES` and `NATIVE_PROFILE_SIZES`. Add the profile to the environment's `device_profiles` in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py). ISP environments also list the allowed backend and profile pairs in [`profiles.py`](../../src/nika/net_env/isp/profiles.py).
-3. **Give the agent a tool** for the vendor CLI, and map the profile to it in the [MCP server registry](../../src/nika/mcp/registry.py).
+3. **Give the agent a tool** for the vendor CLI. Add the tool to the [MCP server registry](../../src/nika/mcp/registry.py) and extend `select_diagnosis_servers` there, which recognizes only the `iosxr` and `routeros` profiles on Kathará today, so your profile's tool is attached to the session.
 
 Failure operations are optional. Failures that need an operation your module does not implement are not generated for your router, so a first version can start with none.
 
