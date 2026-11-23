@@ -36,18 +36,28 @@ The default input covers the whole recording, so it supports diagnosis after the
 
 ## Get the dataset
 
-The recorded tasks are published on Hugging Face as [`nika-bench/nika-incident-recordings`](https://huggingface.co/datasets/nika-bench/nika-incident-recordings). Download them with the Hugging Face CLI; you do not need NIKA or a network emulator.
+The recorded tasks are published on Hugging Face as [`nika-bench/nika-incident-recordings`](https://huggingface.co/datasets/nika-bench/nika-incident-recordings). You do not need NIKA or a network emulator to use them.
 
-```bash
-pip install -U huggingface_hub
-hf download nika-bench/nika-incident-recordings --repo-type dataset --local-dir dataset
-```
+1. Open the [dataset page](https://huggingface.co/datasets/nika-bench/nika-incident-recordings), sign in, and request access. Downloads work once the request is approved.
+2. Install the Hugging Face CLI and log in with an [access token](https://huggingface.co/settings/tokens) that can read.
 
-To fetch only some tasks, add patterns, for example every task of one network plus the index files:
+   ```bash
+   pip install -U huggingface_hub
+   hf auth login
+   ```
+
+3. Download the dataset.
+
+   ```bash
+   hf download nika-bench/nika-incident-recordings --repo-type dataset --local-dir dataset
+   ```
+
+To fetch only some tasks, name what you need. This command fetches every task of one network plus the index files:
 
 ```bash
 hf download nika-bench/nika-incident-recordings --repo-type dataset --local-dir dataset \
-    --include "tasks/dc_clos-*" --include "labels/dc_clos-*" --include "*.csv"
+    --include "tasks/dc_clos-*" --include "labels/dc_clos-*" \
+    --include tasks.csv --include labels.csv
 ```
 
 ## Dataset layout
