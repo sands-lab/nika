@@ -49,7 +49,7 @@ HERE = Path(__file__).resolve().parent
 REPO_URL = "https://github.com/sands-lab/nika"
 CARD_HEADER = """---
 license: mit
-pretty_name: NIKA Network Incidents
+pretty_name: NIKA Incident Recordings
 tags:
 - network
 - troubleshooting

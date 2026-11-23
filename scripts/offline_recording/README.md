@@ -36,17 +36,17 @@ The default input covers the whole recording, so it supports diagnosis after the
 
 ## Get the dataset
 
-The recorded tasks are published on Hugging Face as [`nika-bench/nika-network-incidents`](https://huggingface.co/datasets/nika-bench/nika-network-incidents). Download them with the Hugging Face CLI; you do not need NIKA or a network emulator.
+The recorded tasks are published on Hugging Face as [`nika-bench/nika-incident-recordings`](https://huggingface.co/datasets/nika-bench/nika-incident-recordings). Download them with the Hugging Face CLI; you do not need NIKA or a network emulator.
 
 ```bash
 pip install -U huggingface_hub
-hf download nika-bench/nika-network-incidents --repo-type dataset --local-dir dataset
+hf download nika-bench/nika-incident-recordings --repo-type dataset --local-dir dataset
 ```
 
 To fetch only some tasks, add patterns, for example every task of one network plus the index files:
 
 ```bash
-hf download nika-bench/nika-network-incidents --repo-type dataset --local-dir dataset \
+hf download nika-bench/nika-incident-recordings --repo-type dataset --local-dir dataset \
     --include "tasks/dc_clos-*" --include "labels/dc_clos-*" --include "*.csv"
 ```
 
@@ -178,7 +178,7 @@ This part is for whoever produces the dataset. Set up [NIKA](../../README.md) fi
 
    ```bash
    hf auth login
-   hf upload nika-bench/nika-network-incidents dataset . --repo-type dataset
+   hf upload nika-bench/nika-incident-recordings dataset . --repo-type dataset
    ```
 
 The [dry-run task list](dryrun.yaml) is the selection behind the sample. [`figures/make_figures.py`](figures/make_figures.py) redraws the figures on this page from their PowerPoint sources.
