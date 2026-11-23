@@ -251,15 +251,21 @@ def test_resolve_release_commit_reads_the_tagged_commit(
         resolve_release_commit("9.9.9")
 
 
-@pytest.mark.parametrize("version", ["0.1.0", "0.2.0"])
+@pytest.mark.parametrize(
+    ("version", "commit"),
+    [
+        ("0.1.0", "ac4422d8a4a03be2b905e28edf72993d467e1b81"),
+        ("0.2.0", "543fcae713ea58f3c3021ac6a5f74333a180cad1"),
+    ],
+)
 def test_legacy_release_reference_does_not_depend_on_a_missing_tag(
-    monkeypatch, version
+    monkeypatch, version, commit
 ):
     def unexpected_network(*args, **kwargs):
         pytest.fail("A legacy release uses its declared published commit")
 
     monkeypatch.setattr(official_release.subprocess, "run", unexpected_network)
-    assert resolve_release_commit(version) == "ac4422d8a4a03be2b905e28edf72993d467e1b81"
+    assert resolve_release_commit(version) == commit
 
 
 def test_every_issue_code_has_a_guide_section() -> None:
