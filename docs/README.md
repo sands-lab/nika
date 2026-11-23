@@ -15,6 +15,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Find a command, option, session rule, or artifact location | [CLI reference](operations/cli-reference.md) | Reference |
 | Pick tasks, agents, and sessions interactively instead of typing flags | [Interactive shell (`nika tui`)](operations/tui.md) | How-to |
 | Browse finished or running session trajectories in a browser | [Browse sessions with `nika inspect`](operations/session-inspect.md) | How-to |
+| Run an environment on Cisco IOS XR, MikroTik RouterOS, Nokia SR Linux, SONiC, or your own router | [Multi-vendor routers](operations/multi-vendor-routers.md) | How-to |
 | Compare network types, scenarios, backends, and prerequisites | [Network scenarios](operations/network-scenarios.md) | Reference |
 | Deploy a Clos or SNDlib ISP on SONiC routers | [SONiC routers on Containerlab](operations/network-scenarios.md#sonic-routers-on-containerlab) | How-to |
 | Recover from common lab, host, and run failures | [Troubleshooting](operations/troubleshooting.md) | How-to |

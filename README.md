@@ -43,6 +43,7 @@ NIKA enables the comparison of AI agents for network operations under identical,
 ## ✨ Features
 
 - **Network emulators:** Use NIKA with [Kathará](https://www.kathara.org/) or [Containerlab](https://containerlab.dev/) to run live networks without physical hardware.
+- **Multi-vendor routers:** Run network environments on routers from different vendors, or [add your own router](docs/operations/multi-vendor-routers.md).
 - **Pre-built tasks:** Troubleshoot network incidents without building the setup yourself. NIKA deploys the network and injects the faults.
 - **Bring your AI agent:** Use the included Claude Code, Codex, or LangGraph agents, or [connect your own harness](docs/agents/custom-agents.md).
 - **Agent sandboxing:** Run every agent in an [isolated sandbox](docs/operations/agent-sandbox.md), with controlled access to the network, filesystem, and tools.
