@@ -35,11 +35,10 @@ from nika.workflows.benchmark.trials import task_id_for_row
 
 OFFICIAL_REPO = "sands-lab/nika"
 RELEASE_TAG_PREFIX = "v"
-# These releases predate Git tags. This main-branch revision is also the
-# published reference previously selected by leaderboard CI.
+# These releases predate Git tags. The 0.2.0 reference includes the R1 repairs.
 LEGACY_RELEASE_COMMITS = {
     "0.1.0": "ac4422d8a4a03be2b905e28edf72993d467e1b81",
-    "0.2.0": "ac4422d8a4a03be2b905e28edf72993d467e1b81",
+    "0.2.0": "543fcae713ea58f3c3021ac6a5f74333a180cad1",
 }
 RELEASES_RELPATH = "benchmark/releases"
 MANIFEST_FILENAME = "RELEASE.yaml"
