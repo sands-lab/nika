@@ -24,6 +24,7 @@ uv.lock
 /.agents/*
 !/.agents/skills/
 /.agents/skills/*
+!/.agents/skills/nika-audience-readme/
 !/.agents/skills/nika-docs/
 !/.agents/skills/nika-leaderboard-submit/
 !/.agents/skills/nika-submission-audit/
