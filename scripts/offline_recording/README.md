@@ -34,10 +34,27 @@ Together they connect a cause to its effects. For example, a PC with a wrong def
 
 The default input covers the whole recording, so it supports diagnosis after the fact. To evaluate diagnosis at alert time instead, keep only measurements up to the alert time and leave out the final device state.
 
+## Get the dataset
+
+The recorded tasks are published on Hugging Face as [`nika-bench/nika-network-incidents`](https://huggingface.co/datasets/nika-bench/nika-network-incidents). Download them with the Hugging Face CLI; you do not need NIKA or a network emulator.
+
+```bash
+pip install -U huggingface_hub
+hf download nika-bench/nika-network-incidents --repo-type dataset --local-dir dataset
+```
+
+To fetch only some tasks, add patterns, for example every task of one network plus the index files:
+
+```bash
+hf download nika-bench/nika-network-incidents --repo-type dataset --local-dir dataset \
+    --include "tasks/dc_clos-*" --include "labels/dc_clos-*" --include "*.csv"
+```
+
 ## Dataset layout
 
 ```text
 dataset/
+├── README.md                  this page, with the figures in figures/
 ├── tasks.csv                  one row per task: network, size, times
 ├── labels.csv                 one row per task: the answer
 ├── tasks/<task_id>/           everything a model may read
@@ -56,9 +73,21 @@ Keep `labels.csv` and `labels/` out of the model input. Leave out `before_fault/
 
 Task IDs such as `dc_clos-0cee4113` name the network, never the fault.
 
-## Use the dataset
+## Explore it in your browser
 
-To browse tasks interactively (topology, device state, charts on a shared time axis), run the [dataset explorer](explorer/README.md).
+The dataset explorer shows each task's topology, device state, and charts on a shared time axis, and keeps the answer hidden until you reveal it. Build it with Docker straight from GitHub and point it at the downloaded folder:
+
+```bash
+docker build -t nika-dataset-explorer \
+    "https://github.com/sands-lab/nika.git#feat/offline-evidence-recorder:scripts/offline_recording/explorer"
+docker run --rm -p 8050:8050 -v "$PWD/dataset:/data:ro" nika-dataset-explorer
+```
+
+Then open <http://localhost:8050>.
+
+![Dataset explorer: task list, topology graph, timeline with the alert, and per-second traffic rates](explorer/docs/screenshots/overview.png)
+
+## Use the dataset
 
 Load the task index, the answers for scoring, and one task's evidence with pandas:
 
@@ -138,11 +167,18 @@ This part is for whoever produces the dataset. Set up [NIKA](../../README.md) fi
        --config recording.yaml --agent recorder --result_dir results/recording -y
    ```
 
-3. Build the dataset folder and draw the topologies.
+3. Build the dataset folder and draw the topologies. The export also writes the Hugging Face dataset card (`README.md`) and copies the figures it needs.
 
    ```bash
    uv run python scripts/offline_recording/export_dataset.py results/recording -o dataset
    uv run scripts/offline_recording/topology/draw_topology.py dataset
+   ```
+
+4. Publish the folder. You need a Hugging Face token with write access to `nika-bench`; an interrupted upload resumes when you run the command again.
+
+   ```bash
+   hf auth login
+   hf upload nika-bench/nika-network-incidents dataset . --repo-type dataset
    ```
 
 The [dry-run task list](dryrun.yaml) is the selection behind the sample. [`figures/make_figures.py`](figures/make_figures.py) redraws the figures on this page from their PowerPoint sources.

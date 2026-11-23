@@ -22,7 +22,10 @@ import argparse
 import csv
 import hashlib
 import json
+import posixpath
+import re
 import shutil
+import subprocess
 from pathlib import Path
 
 # Older recordings used other folder names.
@@ -40,6 +43,67 @@ def _recordings(run_dirs: list[Path]) -> dict[str, tuple[Path, Path]]:
                     found[trial.name] = (trial, rec)
                     break
     return found
+
+
+HERE = Path(__file__).resolve().parent
+REPO_URL = "https://github.com/sands-lab/nika"
+CARD_HEADER = """---
+license: mit
+pretty_name: NIKA Network Incidents
+tags:
+- network
+- troubleshooting
+- incident
+- telemetry
+- nika
+---
+
+"""
+_LINK = re.compile(r"(!?)\[([^\]]*)\]\(([^)\s]+)\)")
+
+
+def write_card(out: Path) -> None:
+    """Write the dataset card: this folder's README with figures copied in.
+
+    Other relative links point to GitHub at the commit that exported the
+    dataset, so they keep matching the data.
+    """
+    ref = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=HERE,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    repo_root = Path(
+        subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=HERE,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    )
+    base = HERE.relative_to(repo_root).as_posix()
+    (out / "figures").mkdir(exist_ok=True)
+    used: dict[str, str] = {}
+
+    def link(match: re.Match) -> str:
+        bang, text, target = match.groups()
+        if target.startswith(("http://", "https://", "#", "mailto:")):
+            return match.group(0)
+        if bang:
+            # Same-named images from different folders must not overwrite each other.
+            name = used.setdefault(target, Path(target).name)
+            if list(used.values()).count(name) > 1:
+                name = used[target] = target.replace("/", "-")
+            shutil.copy2(HERE / target, out / "figures" / name)
+            return f"![{text}](figures/{name})"
+        path = posixpath.normpath(posixpath.join(base, target))
+        return f"[{text}]({REPO_URL}/blob/{ref}/{path})"
+
+    body = _LINK.sub(link, (HERE / "README.md").read_text())
+    (out / "README.md").write_text(CARD_HEADER + body)
 
 
 def _segments(description: str) -> list[list[dict[str, str]]]:
@@ -142,6 +206,7 @@ def export(run_dirs: list[Path], out: Path) -> None:
             writer = csv.DictWriter(fh, fieldnames=list(rows[0]))
             writer.writeheader()
             writer.writerows(rows)
+    write_card(out)
     print(f"wrote {len(task_rows)} tasks to {out}")
 
 
