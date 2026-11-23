@@ -1,0 +1,20 @@
+[project]
+name = "nika-dataset-explorer"
+version = "0.1.0"
+description = "Local web explorer for NIKA offline-recording datasets"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+testpaths = ["tests"]
+markers = ["unit: isolated logic without Docker or external services"]
