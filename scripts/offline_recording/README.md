@@ -58,6 +58,8 @@ Task IDs such as `dc_clos-0cee4113` name the network, never the fault.
 
 ## Use the dataset
 
+To browse tasks interactively (topology, device state, charts on a shared time axis), run the [dataset explorer](explorer/README.md).
+
 Load the task index, the answers for scoring, and one task's evidence with pandas:
 
 ```python
