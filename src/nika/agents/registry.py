@@ -190,6 +190,14 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
         default_model="oracle",
         template=None,
     ),
+    AgentSpec(
+        id="recorder",
+        class_path="nika.agents.recorder.agent:RecorderAgent",
+        requires_provider=False,
+        supports_max_tokens=False,
+        default_model="recorder",
+        template=None,
+    ),
 )
 
 _BUILTINS_BY_ID = {spec.id: spec for spec in BUILTIN_AGENTS}

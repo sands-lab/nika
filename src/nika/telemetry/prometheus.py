@@ -20,6 +20,7 @@ counters are scraped from the collector over SSH.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 from typing import TYPE_CHECKING, Any
@@ -42,6 +43,43 @@ SCRAPE_INTERVAL = "5s"
 # Collectors that read the device's own network namespace. CPU, memory, and disk
 # collectors would report the shared host kernel, the same on every device.
 NODE_COLLECTORS = ("netdev", "netclass", "netstat", "sockstat", "conntrack", "arp")
+# Opt-in profile for offline evidence recording (``NIKA_TELEMETRY_PROFILE=fine``):
+# 1 s scrapes, queue statistics, and the error and drop counters that link
+# corruption, MTU, and receive-window failures move.
+FINE_PROFILE_ENV = "NIKA_TELEMETRY_PROFILE"
+FINE_SCRAPE_INTERVAL = "1s"
+FINE_NETSTAT_FIELDS = (
+    "^(Ip_.*|Icmp_.*|IcmpMsg_.*|Tcp_.*|Udp_.*|Ip6_(InOctets|OutOctets)"
+    "|TcpExt_(Listen.*|Syncookies.*|TCPSynRetrans|TCPTimeouts|TCPOFOQueue"
+    "|TCPRcvQDrop|TCPZeroWindow.*|TCPWantZeroWindowAdv|TCPToZeroWindowAdv"
+    "|TCPFromZeroWindowAdv|TCPAbort.*|TCPBacklogDrop|TCPReqQFull.*"
+    "|TCPLostRetransmit|TCPRetransFail|TCPLossProbes|TCPMemoryPressures|PMTUDiscovered|PAWS.*))$"
+)
+
+
+def fine_profile() -> bool:
+    """Whether the opt-in fine-grained recording profile is active."""
+    return os.environ.get(FINE_PROFILE_ENV, "").strip().lower() == "fine"
+
+
+def scrape_interval() -> str:
+    return FINE_SCRAPE_INTERVAL if fine_profile() else SCRAPE_INTERVAL
+
+
+def node_collector_args() -> list[str]:
+    if not fine_profile():
+        return [f"--collector.{name}" for name in NODE_COLLECTORS]
+    return [
+        *(f"--collector.{name}" for name in (*NODE_COLLECTORS, "qdisc")),
+        f"--collector.netstat.fields='{FINE_NETSTAT_FIELDS}'",
+    ]
+
+
+def exporter_period() -> int:
+    """Seconds between textfile exporter runs (P4 and FRR BGP counters)."""
+    return 1 if fine_profile() else 5
+
+
 # ``prometheus-node-exporter --version`` prints e.g. "node_exporter, version 1.5.0".
 _NODE_EXPORTER_VERSION = re.compile(r"\bnode_exporter, version (\d[\w.+\-]*)")
 _OVS_VERSION = re.compile(r"ovs-vsctl \(Open vSwitch\) (\d[\w.]*)")
@@ -482,7 +520,7 @@ def device_lines(device: dict[str, Any], address: str, version: str = "") -> lis
             "prometheus-node-exporter",
             f"--web.listen-address=127.0.0.1:{EXPORTER_PORT}",
             "--collector.disable-defaults",
-            *(f"--collector.{name}" for name in NODE_COLLECTORS),
+            *node_collector_args(),
             "--collector.textfile",
             f"--collector.textfile.directory={TEXTFILE_DIR}",
             f"--collector.netdev.device-exclude={hidden}",
@@ -500,8 +538,12 @@ def device_lines(device: dict[str, Any], address: str, version: str = "") -> lis
         f"(while true; do {relay}; sleep 1; done) &",
     ]
     if has_p4(version):
-        lines.append(f"(while true; do python3 {P4_EXPORTER}; sleep 5; done) &")
-    lines.append(f"(while true; do python3 {FRR_BGP_EXPORTER}; sleep 5; done) &")
+        lines.append(
+            f"(while true; do python3 {P4_EXPORTER}; sleep {exporter_period()}; done) &"
+        )
+    lines.append(
+        f"(while true; do python3 {FRR_BGP_EXPORTER}; sleep {exporter_period()}; done) &"
+    )
     return lines
 
 
@@ -554,7 +596,7 @@ def collector_files(
             }
         )
     config = {
-        "global": {"scrape_interval": SCRAPE_INTERVAL},
+        "global": {"scrape_interval": scrape_interval()},
         "scrape_configs": jobs,
     }
     files = {PROMETHEUS_CONFIG: json.dumps(config, indent=1) + "\n"}

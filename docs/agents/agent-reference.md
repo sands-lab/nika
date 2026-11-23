@@ -21,6 +21,8 @@ Use [Choose and run an agent](agent-implementations.md) for setup walkthroughs a
 
 Two deterministic agents read the ground truth, so they run in the NIKA process and are not for benchmark comparisons. The `mock` agent supports tests and pipeline checks. The `oracle` agent runs each task's reference diagnosis and checks that the task can be solved with the agent tools; see [Oracle solver](../benchmarks/oracle-solver.md).
 
+The deterministic `recorder` agent also runs in the NIKA process. It makes no diagnosis: it records a task's device state, monitoring data, and network-test results as a dataset for offline analysis; see [Network incident dataset](../../scripts/offline_recording/README.md).
+
 ## Shared run contract
 
 Every agent runs the same pipeline:
@@ -76,7 +78,7 @@ Harnesses also pass `max_steps` to their own turn limit, so most stop by themsel
 | `cli.codex` | NIKA counts model responses in the `codex exec --json` stream and stops Codex when a response past the limit starts |
 | `sdk.claude_sdk`, `community.sade` | Claude Agent SDK `max_turns` |
 | `sdk.codex_sdk` | NIKA counts `thread/tokenUsage/updated` notifications, one per model response, and interrupts the turn past the limit |
-| `mock`, `oracle` | Not applicable (no LLM; runs in the NIKA process) |
+| `mock`, `oracle`, `recorder` | Not applicable (no LLM; runs in the NIKA process) |
 
 ## Providers
 

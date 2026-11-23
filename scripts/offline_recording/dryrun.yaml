@@ -1,0 +1,157 @@
+cases:
+- scenario: dc_clos
+  topo_size: s
+  traffic:
+    pattern: uniform
+    load_mbps: 1.0
+  telemetry:
+  - prometheus
+  - syslog
+  - netflow
+  schedule:
+    agent_start: 0s
+    events:
+    - problem: host_incorrect_gateway
+      inject:
+        host_name: client_1_1
+      at: 120s
+- scenario: dc_clos
+  topo_size: s
+  traffic:
+    pattern: uniform
+    load_mbps: 1.0
+  telemetry:
+  - prometheus
+  - syslog
+  - netflow
+  schedule:
+    agent_start: 0s
+    events: []
+- scenario: campus_lan
+  topo_size: s
+  traffic:
+    pattern: uniform
+    load_mbps: 1.0
+  telemetry:
+  - prometheus
+  - syslog
+  - netflow
+  schedule:
+    agent_start: 0s
+    events:
+    - problem: dhcp_spoofed_dns
+      inject:
+        host_name: dhcp_server
+        host_name_2: pc_1_1_1_1
+      at: 120s
+- scenario: enterprise_branch
+  topo_size: s
+  traffic:
+    pattern: uniform
+    load_mbps: 1.0
+  telemetry:
+  - prometheus
+  - syslog
+  - netflow
+  schedule:
+    agent_start: 0s
+    events:
+    - problem: wireguard_peer_key_misconfiguration
+      inject:
+        host_name: br1_edge
+        intf_name: wg_hq
+      at: 120s
+- scenario: p4_dc_fabric
+  topo_size: s
+  traffic:
+    pattern: uniform
+    load_mbps: 1.0
+  telemetry:
+  - prometheus
+  - syslog
+  - netflow
+  schedule:
+    agent_start: 0s
+    events:
+    - problem: p4_table_entry_missing
+      inject:
+        host_name: leaf_1
+        observer_device: client_1_1
+        probe_dst_ip: 10.0.2.11
+      at: 120s
+- scenario: p4_dc_gateway
+  topo_size: s
+  traffic:
+    pattern: uniform
+    load_mbps: 1.0
+  telemetry:
+  - prometheus
+  - syslog
+  - netflow
+  schedule:
+    agent_start: 0s
+    events:
+    - problem: tcp_syn_flood_attack
+      inject:
+        attacker_device: client_1
+        duration: '3600'
+        flows: '100'
+        rate_pps: '1000'
+        seed: '42'
+        target_ip: 10.0.2.11
+        target_port: '80'
+      at: 120s
+- scenario: sdn_l3_clos
+  topo_size: s
+  traffic:
+    pattern: uniform
+    load_mbps: 1.0
+  telemetry:
+  - prometheus
+  - syslog
+  - netflow
+  schedule:
+    agent_start: 0s
+    events:
+    - problem: flow_rule_shadowing
+      inject:
+        host_name: spine_1
+      at: 120s
+- scenario: isp_abilene
+  topo_size: s
+  igp: isis
+  bgp_mode: none
+  rpki: false
+  backend: containerlab
+  device_profile: sonic
+  traffic:
+    pattern: gravity
+    load_mbps: 1.0
+  telemetry:
+  - prometheus
+  - syslog
+  - netflow
+  schedule:
+    agent_start: 0s
+    events:
+    - problem: isis_authentication_mismatch
+      inject:
+        host_name: atlam5
+      at: 120s
+- scenario: k8s_lab
+  traffic:
+    pattern: uniform
+    load_mbps: 1.0
+  telemetry:
+  - prometheus
+  - syslog
+  - netflow
+  schedule:
+    agent_start: 0s
+    events:
+    - problem: k8s_coredns_isolated
+      inject:
+        control_node: controller
+        node_name: controller
+        symptom_host: worker1
+      at: 120s
