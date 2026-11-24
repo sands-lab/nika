@@ -138,6 +138,11 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
         "Inspect the trajectory and repair the fault lifecycle or agent access "
         "policy before rerunning the trial. Preserve the original run for analysis.",
     ),
+    "WARNING_REVIEWED_FAULT_ABSENCE": IssueSpec(
+        "the maintainer verified that the agent repaired the injected fault",
+        "The submitted scores and trajectories match the recorded maintainer review.",
+        "Read the cited review before accepting the entry.",
+    ),
     "ERROR_UNOFFICIAL_RUN": IssueSpec(
         "the run is not an official release run",
         "Only runs started with `nika benchmark run --release` qualify.",

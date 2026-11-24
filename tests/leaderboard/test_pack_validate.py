@@ -349,6 +349,65 @@ def test_absent_fault_rejects_pack_and_trajectory_validation(mini_release_env) -
     assert any("fault_absent_at_cleanup" in error for error in report.errors)
 
 
+def test_reviewed_fault_absence_requires_matching_paired_packages(
+    mini_release_env, monkeypatch
+) -> None:
+    from nika.workflows.leaderboard import reviewed_fault_absence as reviews
+
+    _release, result_dir = mini_release_env
+    packed = pack_leaderboard_submission(
+        result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+    )
+    scores = packed.scores_dir
+    trajectories = packed.trajectories_dir
+    trial = next((trajectories / "trials").iterdir())
+    trace = trial / "nika.jsonl"
+    trace.write_text(
+        trace.read_text()
+        + json.dumps(
+            {
+                "event": "fault_presence_recheck",
+                "data": {"phase": "before_cleanup", "result": "absent"},
+            }
+        )
+        + "\n"
+    )
+    score = scores / RESULTS_DIRNAME / "trials" / trial.name / "result.json"
+    result = json.loads(score.read_text())
+    result["validity_flags"].append("fault_absent_at_cleanup")
+    _write_json(score, result)
+    metrics = scores / RESULTS_DIRNAME / METRICS_FILENAME
+    values = json.loads(metrics.read_text())
+    values["validity_counts"]["fault_absent_at_cleanup"] = 1
+    _write_json(metrics, values)
+    assert not validate_leaderboard_submission(scores).ok
+
+    monkeypatch.setitem(
+        reviews._REVIEWS,
+        scores.name,
+        (
+            reviews._package_digest(scores),
+            reviews._package_digest(trajectories),
+            frozenset({trial.name}),
+            "https://example.com/maintainer-review",
+        ),
+    )
+    report = validate_leaderboard_submission(scores)
+    assert report.ok, report.errors
+    (warning,) = [
+        issue
+        for issue in report.issues
+        if issue.code == "WARNING_REVIEWED_FAULT_ABSENCE"
+    ]
+    assert warning.items == [trial.name]
+    assert "https://example.com/maintainer-review" in warning.details[0]
+
+    trace.write_text(trace.read_text() + "\n")
+    report = validate_leaderboard_submission(scores)
+    assert not report.ok
+    assert any(issue.code == "ERROR_FAULT_ABSENT" for issue in report.issues)
+
+
 def test_cli_submit_generates_metadata_and_validates_offline(
     mini_release_env, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -212,7 +212,9 @@ uv run nika leaderboard validate results/my-run/20261027_codex_gpt_6_astra
 
 ### `ERROR_FAULT_ABSENT`
 
-The injected fault disappeared before cleanup, so the trial cannot qualify for submission. Inspect its trajectory for network changes or a self-healing fault, repair the cause, and rerun the task. Keep the original run for analysis. The harness failure-rate allowance does not apply to this error.
+An unreviewed trial whose injected fault disappeared before cleanup cannot qualify for submission. Inspect its trajectory for network changes or a self-healing fault, repair the cause, and rerun the task. Keep the original run for analysis. The harness failure-rate allowance does not apply to this error.
+
+The auditor can report a warning for a maintainer-reviewed agent repair in a paired package. See [reviewed fault absence](#warning_reviewed_fault_absence).
 
 ### `ERROR_RELEASE_DRIFT`
 
@@ -325,6 +327,10 @@ The package was checked against this checkout's release files (`--release-source
 ### `WARNING_RUN_COMMIT_UNVERIFIED`
 
 The NIKA commit recorded in the package is neither in the local repository nor on GitHub, so NIKA compared trial IDs only. Run from a commit that is on GitHub, or push the commit the run used.
+
+### `WARNING_REVIEWED_FAULT_ABSENCE`
+
+The maintainer verified that the agent repaired the initially present fault during diagnosis. This warning applies only to the listed trials when both packages match the exact reviewed files. The report links the review. Trial flags and scores remain part of the submitted evidence.
 
 ### `WARNING_RUN_VALIDITY`
 

@@ -44,6 +44,7 @@ from nika.workflows.leaderboard.release_check import (
     load_reference,
     run_commit_changes,
 )
+from nika.workflows.leaderboard.reviewed_fault_absence import review_fault_absences
 from nika.workflows.leaderboard.secrets import (
     reject_package_symlinks,
     scan_trajectory_package_dir,
@@ -172,6 +173,7 @@ def validate_trajectory_package(
     )
 
     present_ids: set[str] = set()
+    fault_absences: set[str] = set()
     for trial_dir_path in sorted(p for p in trials_root.iterdir() if p.is_dir()):
         trial_id = trial_dir_path.name
         present_ids.add(trial_id)
@@ -181,7 +183,7 @@ def validate_trajectory_package(
                 f"{trial_id}/messages.jsonl has no agent trajectory",
             )
         if FAULT_ABSENT_AT_CLEANUP in detect_trial_validity(trial_dir_path).flags:
-            issues.add("ERROR_FAULT_ABSENT", f"{trial_id}: {FAULT_ABSENT_AT_CLEANUP}")
+            fault_absences.add(trial_id)
         for name in TRAJECTORY_REQUIRED_FILES:
             path = trial_dir_path / name
             if not path.is_file():
@@ -322,6 +324,22 @@ def validate_trajectory_package(
                             "ERROR_PACKAGE_PAIR_MISMATCH",
                             "trial set differs between scores and trajectories packages",
                         )
+
+    reviewed = review_fault_absences(
+        _resolve_dir(scores_dir) if scores_dir is not None else None,
+        root,
+        fault_absences,
+    )
+    if reviewed is not None:
+        issues.append(reviewed)
+        fault_absences.difference_update(reviewed.items)
+    issues.extend(
+        "ERROR_FAULT_ABSENT",
+        [
+            f"{trial_id}: {FAULT_ABSENT_AT_CLEANUP}"
+            for trial_id in sorted(fault_absences)
+        ],
+    )
 
     for finding in scan_trajectory_package_dir(root):
         code = (
