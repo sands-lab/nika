@@ -23,6 +23,9 @@ on:
       nika_ref:
         default: dev
         type: string
+      publish_proposals:
+        default: false
+        type: boolean
       trajectories_repository:
         default: nika-bench/nika-trajectories
         type: string
@@ -146,7 +149,10 @@ jobs:
       - name: Review recorded trajectories
         env:
           AUDIT_STAGE: review
-          AUDIT_PUBLISH_PROPOSALS: ${{ github.repository == 'sands-lab/nika' && github.event_name == 'workflow_dispatch' && inputs.publish_proposals && 'true' || 'false' }}
+          AUDIT_PUBLISH_PROPOSALS: >-
+            ${{ github.event_name == 'workflow_dispatch' && inputs.publish_proposals &&
+                (github.repository == 'sands-lab/nika' || github.repository == 'sands-lab/nika-leaderboard') &&
+                'true' || 'false' }}
           TMPDIR: ${{ runner.temp }}
           PACKAGE: ${{ inputs.package }}
           SCORES_ROOT: ${{ github.workspace }}/scores
