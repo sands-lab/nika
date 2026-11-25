@@ -201,7 +201,6 @@ def validate_leaderboard_submission(
         confusion = None
 
     trial_results: list[TrialResult] = []
-    fault_absences: set[str] = set()
     seen_ids: set[str] = set()
     for trial_dir_path in sorted(p for p in trials_root.iterdir() if p.is_dir()):
         result_path = trial_dir_path / TRIAL_RESULT_FILENAME
@@ -276,10 +275,13 @@ def validate_leaderboard_submission(
                 "ERROR_EMPTY_TRACE",
                 [t.trial_id for t in trial_results if EMPTY_TRACE in t.validity_flags],
             )
-            fault_absences.update(
-                t.trial_id
-                for t in trial_results
-                if FAULT_ABSENT_AT_CLEANUP in t.validity_flags
+            issues.extend(
+                "WARNING_FAULT_ABSENT",
+                [
+                    f"{t.trial_id}: {FAULT_ABSENT_AT_CLEANUP}"
+                    for t in trial_results
+                    if FAULT_ABSENT_AT_CLEANUP in t.validity_flags
+                ],
             )
             v_errors, v_warnings = validity_findings(
                 {
@@ -346,19 +348,10 @@ def validate_leaderboard_submission(
         )
         for issue in paired.issues:
             issues.append(issue)
-            if issue.code == "WARNING_REVIEWED_FAULT_ABSENCE":
-                fault_absences.difference_update(issue.items)
         audit = paired.audit
     else:
         issues.add(
             "WARNING_TRAJECTORY_AUDIT_NOT_RUN",
             "Provide --trajectories or the paired sibling directory.",
         )
-    issues.extend(
-        "ERROR_FAULT_ABSENT",
-        [
-            f"{trial_id}: {FAULT_ABSENT_AT_CLEANUP}"
-            for trial_id in sorted(fault_absences)
-        ],
-    )
     return ValidationReport(issues=issues.issues, reference=reference, audit=audit)

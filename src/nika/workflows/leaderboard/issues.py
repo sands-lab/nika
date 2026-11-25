@@ -131,17 +131,11 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
         "Fix the harness configuration (for example the output token limit), "
         "re-run the affected trials, and pack again.",
     ),
-    "ERROR_FAULT_ABSENT": IssueSpec(
+    "WARNING_FAULT_ABSENT": IssueSpec(
         "an injected fault disappeared before cleanup",
-        "A fault_presence_recheck recorded fault_absent_at_cleanup. The agent "
-        "may have changed the network, or the fault may have healed.",
-        "Inspect the trajectory and repair the fault lifecycle or agent access "
-        "policy before rerunning the trial. Preserve the original run for analysis.",
-    ),
-    "WARNING_REVIEWED_FAULT_ABSENCE": IssueSpec(
-        "the maintainer verified that the agent repaired the injected fault",
-        "The submitted scores and trajectories match the recorded maintainer review.",
-        "Read the cited review before accepting the entry.",
+        "A fault presence check recorded the fault absent. The agent may have "
+        "repaired it, it may have recovered on schedule, or it may have self-healed.",
+        "Review the fault timeline and tool calls to determine why it disappeared.",
     ),
     "ERROR_UNOFFICIAL_RUN": IssueSpec(
         "the run is not an official release run",

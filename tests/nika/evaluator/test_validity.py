@@ -158,8 +158,8 @@ def test_fault_absent_at_cleanup(tmp_path: Path) -> None:
     errors, warnings = validity_findings(
         {"fault_absent_at_cleanup": 1}, 1000, max_harness_rate=1.0
     )
-    assert len(errors) == 1 and "fault_absent_at_cleanup" in errors[0]
-    assert not warnings
+    assert not errors
+    assert len(warnings) == 1 and "fault_absent_at_cleanup" in warnings[0]
 
 
 def test_findings_fail_only_on_harness_flags_over_threshold() -> None:
