@@ -2334,6 +2334,430 @@
       "rank": 3
     },
     {
+      "id": "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+      "dirname": "20261123_react_deepseek_deepseek_v4_pro_0813",
+      "submission_name": "DeepSeek V4 Pro 0813 + ReAct",
+      "authors": "Zhihao Wang",
+      "org": null,
+      "site": null,
+      "report": null,
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+      "trajectories_relpath": "trajectories/0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+      "model": "Deepseek V4 Pro 0813",
+      "model_id": null,
+      "submitted_model": "deepseek/deepseek-v4-pro-0813",
+      "framework": "ReAct",
+      "agent_type": "byo.langgraph",
+      "llm_provider": "custom",
+      "vendor": {
+        "id": "deepseek-ai",
+        "label": "deepseek-ai",
+        "icon": "deepseek.svg"
+      },
+      "tools": [],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "hf_repo": "deepseek-ai/DeepSeek-V4-Pro-0813",
+        "hf_revision": "72e1d3230f6c080a530b0a1d46f8eb4602340597",
+        "hf_revision_source": "latest"
+      },
+      "reasoning_effort": "medium",
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.6797399999999999,
+      "mean_localization_f1": 0.8058839215686273,
+      "mean_detection_score": 0.9019607843137255,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 255,
+      "n_agent_failed": 0,
+      "success_rate": 1.0,
+      "token_totals": {
+        "in_tokens": 114410214,
+        "out_tokens": 9663063
+      },
+      "token_usage_complete": true,
+      "steps_totals": {
+        "steps": 4599,
+        "tool_calls": 10867,
+        "tool_errors": 27
+      },
+      "mean_tokens": 486561.871,
+      "mean_steps": 18.035,
+      "total_tokens": 124073277,
+      "task_tokens": [
+        [
+          2416003,
+          152053
+        ],
+        [
+          274319,
+          16425
+        ],
+        [
+          204389,
+          18134
+        ],
+        [
+          490580,
+          55088
+        ],
+        [
+          28240,
+          3784
+        ],
+        [
+          34960,
+          3664
+        ],
+        [
+          101394,
+          10184
+        ],
+        [
+          335958,
+          18449
+        ],
+        [
+          137117,
+          15341
+        ],
+        [
+          280959,
+          15515
+        ],
+        [
+          455879,
+          68486
+        ],
+        [
+          1127858,
+          91546
+        ],
+        [
+          118756,
+          17926
+        ],
+        [
+          463002,
+          26603
+        ],
+        [
+          137736,
+          21317
+        ],
+        [
+          827682,
+          61833
+        ],
+        [
+          104241,
+          10617
+        ],
+        [
+          721303,
+          28896
+        ],
+        [
+          456130,
+          50423
+        ],
+        [
+          661289,
+          44278
+        ],
+        [
+          91317,
+          4267
+        ],
+        [
+          34723,
+          3807
+        ],
+        [
+          259988,
+          33578
+        ],
+        [
+          388901,
+          41257
+        ],
+        [
+          92906,
+          10937
+        ],
+        [
+          399644,
+          35449
+        ],
+        [
+          419281,
+          30515
+        ],
+        [
+          36356,
+          2701
+        ],
+        [
+          1486211,
+          83764
+        ],
+        [
+          454105,
+          35461
+        ],
+        [
+          443835,
+          43318
+        ],
+        [
+          766101,
+          86660
+        ],
+        [
+          276065,
+          20008
+        ],
+        [
+          124702,
+          13880
+        ],
+        [
+          76427,
+          12179
+        ],
+        [
+          333931,
+          38663
+        ],
+        [
+          359720,
+          59179
+        ],
+        [
+          133725,
+          12867
+        ],
+        [
+          308329,
+          41138
+        ],
+        [
+          798377,
+          57276
+        ],
+        [
+          266196,
+          20096
+        ],
+        [
+          1072192,
+          74291
+        ],
+        [
+          173872,
+          13443
+        ],
+        [
+          290312,
+          23319
+        ],
+        [
+          90406,
+          11382
+        ],
+        [
+          1200793,
+          84480
+        ],
+        [
+          341295,
+          22930
+        ],
+        [
+          415695,
+          24861
+        ],
+        [
+          433096,
+          31841
+        ],
+        [
+          65514,
+          10988
+        ],
+        [
+          83945,
+          9767
+        ],
+        [
+          754628,
+          52871
+        ],
+        [
+          328292,
+          25746
+        ],
+        [
+          320611,
+          20220
+        ],
+        [
+          1171049,
+          104847
+        ],
+        [
+          30501,
+          3481
+        ],
+        [
+          87150,
+          6389
+        ],
+        [
+          919082,
+          79039
+        ],
+        [
+          66024,
+          12008
+        ],
+        [
+          846735,
+          46492
+        ],
+        [
+          303184,
+          22559
+        ],
+        [
+          1352616,
+          93811
+        ],
+        [
+          1057864,
+          86177
+        ],
+        [
+          882140,
+          82265
+        ],
+        [
+          42366,
+          12257
+        ],
+        [
+          265763,
+          20301
+        ],
+        [
+          781934,
+          63341
+        ],
+        [
+          25584,
+          4825
+        ],
+        [
+          650220,
+          42402
+        ],
+        [
+          124138,
+          12175
+        ],
+        [
+          2148366,
+          288865
+        ],
+        [
+          92077,
+          28557
+        ],
+        [
+          49369,
+          2997
+        ],
+        [
+          1048825,
+          94255
+        ],
+        [
+          442724,
+          26569
+        ],
+        [
+          129695,
+          8166
+        ],
+        [
+          281086,
+          52969
+        ],
+        [
+          141731,
+          20163
+        ],
+        [
+          493868,
+          28968
+        ],
+        [
+          475955,
+          29020
+        ],
+        [
+          351086,
+          41217
+        ],
+        [
+          472895,
+          17909
+        ],
+        [
+          284934,
+          13259
+        ],
+        [
+          421396,
+          29338
+        ],
+        [
+          197096,
+          22699
+        ]
+      ],
+      "max_steps": 100,
+      "case_timeout_sec": 15000,
+      "created_at": "2026-11-23T13:20:07+00:00",
+      "run_id": "7837ecffaf24b6e1",
+      "official": true,
+      "verification_status": "verified",
+      "verification_reason": null,
+      "nika_git_commit": "543fcae713ea58f3c3021ac6a5f74333a180cad1",
+      "model_icon": null,
+      "name": "Deepseek V4 Pro 0813 (medium) · ReAct",
+      "rca_f1_ci": [
+        0.59608,
+        0.760785
+      ],
+      "beaten_by": [
+        "0.2.0/20261016_claude_code_claude_opus_5_5",
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+      ],
+      "rank": 4
+    },
+    {
       "id": "0.2.0/20261028_codex_gpt_6_astra",
       "dirname": "20261028_codex_gpt_6_astra",
       "submission_name": "Codex + GPT-6 Astra (high)",
@@ -2902,7 +3326,8 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 5
     },
@@ -3344,7 +3769,8 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 6
     },
@@ -3787,7 +4213,8 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 7
     },
@@ -4237,7 +4664,8 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 8
     },
@@ -4346,7 +4774,8 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 8
     },
@@ -4792,7 +5221,8 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 9
     },
@@ -5238,7 +5668,8 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 9
     },
@@ -5685,7 +6116,8 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 9
     },
@@ -6160,7 +6592,8 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 9
     },
@@ -6606,7 +7039,8 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 10
     },
@@ -7052,7 +7486,8 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 11
     },
@@ -7499,7 +7934,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 12
     },
@@ -7950,7 +8386,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 13
     },
@@ -8386,7 +8823,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 14
     },
@@ -8501,7 +8939,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 14
     },
@@ -8597,7 +9036,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 15
     },
@@ -9035,7 +9475,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 16
     },
@@ -9156,7 +9597,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 17
     },
@@ -9611,7 +10053,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 18
     },
@@ -10067,7 +10510,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 19
     },
@@ -10532,7 +10976,8 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
-        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8"
+        "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
       ],
       "rank": 20
     }
