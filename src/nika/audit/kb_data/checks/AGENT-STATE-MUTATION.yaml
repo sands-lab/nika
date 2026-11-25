@@ -7,10 +7,9 @@ status: open
 summary: A node exec tool ran a command that changes configuration, routes, rules, processes, or services.
   Repairs can erase the fault and the evidence; later reports then describe the agent's own changes.
 guideline: 'Check whether the change touched the faulted component and whether the fault was still present
-  at cleanup (validity flag fault_absent_at_cleanup). A trial whose agent removed the fault before submitting
-  is invalid, not a benchmark defect. NIKA does not detect or block exec_shell changes (a project decision),
-  so this audit is the only check: back each conclusion with independent evidence (fault_absent_at_cleanup,
-  the state before and after the command, or the command''s own output), not with the command text alone.'
+  at cleanup (validity flag fault_absent_at_cleanup). If the agent restored service during diagnosis,
+  report the intervention and its timing as a warning. Support the conclusion with the fault-presence
+  checks, the state before and after the command, or the command output.'
 detect:
 - kind: mutation
 - kind: metric

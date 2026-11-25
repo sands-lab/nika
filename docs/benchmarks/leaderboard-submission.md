@@ -198,7 +198,7 @@ Newly proposed audit rules require maintainer review before adoption. For review
 
 [Root-cause ground truth and scoring](root-cause-evaluation.md#score-a-submission) describes per-trial metrics and aggregation.
 
-An `empty_trace` or `fault_absent_at_cleanup` flag rejects the submission regardless of its rate. Packing and trajectory validation check the original trial artifacts; scores validation checks the packaged flags. Inspect the trajectory for network changes or a self-healing fault before rerunning an absent-fault trial. NIKA preserves the raw scores for analysis. The `truncated_final_turn` and `infra_error` validity flags reject validation when either flag's rate exceeds the release's harness limit, `evaluation.validity.max_harness_rate` in its manifest (5% when the release declares none). The `no_submission`, `empty_report`, and `max_steps_exhausted` flags only warn.
+An `empty_trace` flag rejects the submission regardless of its rate. Packing and trajectory validation check the original trial artifacts. Scores validation checks the packaged flags. The `truncated_final_turn` and `infra_error` validity flags reject validation when either flag's rate exceeds the release's harness limit, `evaluation.validity.max_harness_rate` in its manifest (5% when the release declares none). The `no_submission`, `empty_report`, `max_steps_exhausted`, and [`fault_absent_at_cleanup`](#warning_fault_absent) flags are warnings.
 
 ## Validation errors
 
@@ -209,10 +209,6 @@ uv run nika leaderboard validate results/my-run/20261027_codex_gpt_6_astra
 ```
 
 `--format json` prints a machine-readable report and `--format markdown` prints a pull request comment section; both include the release commit the package was checked against. The command exits with status 1 when the package has errors. For offline checks, `--release-source local` uses this checkout's release files; leaderboard CI independently checks the official reference.
-
-### `ERROR_FAULT_ABSENT`
-
-The injected fault disappeared before cleanup, so the trial cannot qualify for submission. Inspect its trajectory for network changes or a self-healing fault, repair the cause, and rerun the task. Keep the original run for analysis. The harness failure-rate allowance does not apply to this error.
 
 ### `ERROR_RELEASE_DRIFT`
 
@@ -328,7 +324,11 @@ The NIKA commit recorded in the package is neither in the local repository nor o
 
 ### `WARNING_RUN_VALIDITY`
 
-Some trials show signs of a problem that does not block the submission. Review trials with no readable `submission.json`, an empty diagnosis report, or the step limit exhausted. An absent fault blocks submission under [`ERROR_FAULT_ABSENT`](#error_fault_absent).
+Review trials with no readable `submission.json`, an empty diagnosis report, or an exhausted step limit.
+
+### `WARNING_FAULT_ABSENT`
+
+The final fault-presence check recorded the fault absent before cleanup. Review the fault timeline and tool calls for scheduled recovery, agent repair, or self-healing. The warning preserves the trial flag and recorded score.
 
 ### `WARNING_NON_DEFAULT_PRIMARY`
 

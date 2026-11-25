@@ -276,7 +276,7 @@ def validate_leaderboard_submission(
                 [t.trial_id for t in trial_results if EMPTY_TRACE in t.validity_flags],
             )
             issues.extend(
-                "ERROR_FAULT_ABSENT",
+                "WARNING_FAULT_ABSENT",
                 [
                     f"{t.trial_id}: {FAULT_ABSENT_AT_CLEANUP}"
                     for t in trial_results

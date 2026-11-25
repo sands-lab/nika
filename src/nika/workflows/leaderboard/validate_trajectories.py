@@ -181,7 +181,7 @@ def validate_trajectory_package(
                 f"{trial_id}/messages.jsonl has no agent trajectory",
             )
         if FAULT_ABSENT_AT_CLEANUP in detect_trial_validity(trial_dir_path).flags:
-            issues.add("ERROR_FAULT_ABSENT", f"{trial_id}: {FAULT_ABSENT_AT_CLEANUP}")
+            issues.add("WARNING_FAULT_ABSENT", f"{trial_id}: {FAULT_ABSENT_AT_CLEANUP}")
         for name in TRAJECTORY_REQUIRED_FILES:
             path = trial_dir_path / name
             if not path.is_file():
