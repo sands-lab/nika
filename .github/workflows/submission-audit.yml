@@ -41,6 +41,10 @@ on:
       scores_ref:
         default: main
         type: string
+      publish_proposals:
+        description: Open issues and a draft knowledge PR for new audit rules
+        default: false
+        type: boolean
       nika_ref:
         default: dev
         type: string
@@ -142,6 +146,7 @@ jobs:
       - name: Review recorded trajectories
         env:
           AUDIT_STAGE: review
+          AUDIT_PUBLISH_PROPOSALS: ${{ github.repository == 'sands-lab/nika' && github.event_name == 'workflow_dispatch' && inputs.publish_proposals && 'true' || 'false' }}
           TMPDIR: ${{ runner.temp }}
           PACKAGE: ${{ inputs.package }}
           SCORES_ROOT: ${{ github.workspace }}/scores
@@ -152,7 +157,7 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_HUB_DISABLE_PROGRESS_BARS: "1"
         run: nika/.venv/bin/python -m nika.audit.ci
-      - name: Publish review evidence and proposed rules
+      - name: Upload review evidence and candidate rules
         if: always()
         uses: actions/upload-artifact@v4
         with:

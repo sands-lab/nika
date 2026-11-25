@@ -1241,6 +1241,55 @@ def test_review_workflow_preserves_kb_and_reports_failures(
         review.review_trajectories(result_dir, out, command="reviewer")
 
 
+@pytest.mark.parametrize("opt_in", [None, "false", "true"])
+def test_ci_review_publishes_candidates_only_on_request(
+    mini_release_env, tmp_path, monkeypatch, opt_in
+):
+    from nika.audit import ci
+
+    _, result_dir = mini_release_env
+    scores = _pack(result_dir)
+    revision = "a" * 40
+    source = {"repo": "test/trajectories", "revision": revision, "path": scores.name}
+    trajectories = scores.parent / f"{scores.name}_trajectories"
+    out = tmp_path / "audit"
+    publications = []
+
+    def fetch(slug, release, destination, *, repo, revision):
+        (destination / "fetch-source.json").write_text(json.dumps(source))
+        return trajectories
+
+    def review(path, review_out, **kwargs):
+        review_out.mkdir()
+        summary = {"complete": True, "written": ["TEST-CANDIDATE"]}
+        (review_out / "summary.json").write_text(json.dumps(summary))
+        return summary
+
+    monkeypatch.setattr(ci, "fetch_trajectories", fetch)
+    monkeypatch.setattr(ci, "review_trajectories", review)
+    monkeypatch.setattr(
+        ci, "publish_proposals", lambda *args: publications.append(args)
+    )
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    if opt_in is None:
+        monkeypatch.delenv("AUDIT_PUBLISH_PROPOSALS", raising=False)
+    else:
+        monkeypatch.setenv("AUDIT_PUBLISH_PROPOSALS", opt_in)
+
+    assert ci.audit_package(
+        scores,
+        out,
+        REPO_ROOT,
+        trajectories_repo=source["repo"],
+        revision=revision,
+        review=True,
+    )
+    assert (out / "review/summary.json").is_file()
+    assert publications == (
+        [(scores, source, out / "review", trajectories)] if opt_in == "true" else []
+    )
+
+
 def test_ci_publication_deduplicates_issues_and_preserves_git_history(
     tmp_path, monkeypatch
 ):

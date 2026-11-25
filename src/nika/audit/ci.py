@@ -267,7 +267,10 @@ def audit_package(
                 repo=repo,
                 workers=min(8, os.cpu_count() or 1),
             )
-            if os.environ.get("GITHUB_ACTIONS") == "true":
+            if (
+                os.environ.get("GITHUB_ACTIONS") == "true"
+                and os.environ.get("AUDIT_PUBLISH_PROPOSALS") == "true"
+            ):
                 publish_proposals(package, source, out / "review", trajectories)
             return summary["complete"]
         report = validate_leaderboard_submission(
