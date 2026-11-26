@@ -1352,6 +1352,445 @@
       "rank": 1
     },
     {
+      "id": "0.2.0/20261126_codex_gpt_6_2_astra",
+      "dirname": "20261126_codex_gpt_6_2_astra",
+      "submission_name": "Codex + GPT-6.2 Astra (high)",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261126_codex_gpt_6_2_astra",
+      "trajectories_relpath": "trajectories/0.2.0/20261126_codex_gpt_6_2_astra",
+      "model": "GPT 6.2 Astra",
+      "model_id": null,
+      "submitted_model": "GPT-6.2-Astra",
+      "framework": "Codex",
+      "agent_type": "cli.codex",
+      "llm_provider": "openai",
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "nika_agent": "cli.codex",
+        "runtime_model_id": "gpt-6.2-astra",
+        "provider": "openai (hosted, ChatGPT subscription authentication)",
+        "reasoning_effort": "high",
+        "sandbox_backend": "e2b",
+        "max_steps": 100,
+        "max_output_tokens": null,
+        "agent_timeout_sec": 1800,
+        "case_timeout_sec": 2400,
+        "nika_git_commit": "543fcae713ea58f3c3021ac6a5f74333a180cad1"
+      },
+      "reasoning_effort": "high",
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.8156874509803922,
+      "mean_localization_f1": 0.850981568627451,
+      "mean_detection_score": 0.9333333333333333,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 246,
+      "n_agent_failed": 9,
+      "success_rate": 0.964706,
+      "token_totals": {
+        "in_tokens": 71935770,
+        "out_tokens": 690001
+      },
+      "token_usage_complete": true,
+      "steps_totals": {
+        "steps": 2756,
+        "tool_calls": 8114,
+        "tool_errors": 22
+      },
+      "mean_tokens": 284806.945,
+      "mean_steps": 10.808,
+      "total_tokens": 72625771,
+      "task_tokens": [
+        [
+          817220,
+          6693
+        ],
+        [
+          319260,
+          3562
+        ],
+        [
+          180312,
+          3080
+        ],
+        [
+          284177,
+          3164
+        ],
+        [
+          109543,
+          1969
+        ],
+        [
+          130734,
+          1983
+        ],
+        [
+          174639,
+          2789
+        ],
+        [
+          259683,
+          2650
+        ],
+        [
+          163515,
+          2590
+        ],
+        [
+          159502,
+          2682
+        ],
+        [
+          130087,
+          2485
+        ],
+        [
+          364342,
+          3956
+        ],
+        [
+          254868,
+          3195
+        ],
+        [
+          147342,
+          1946
+        ],
+        [
+          162337,
+          2308
+        ],
+        [
+          292977,
+          3867
+        ],
+        [
+          201090,
+          2098
+        ],
+        [
+          335064,
+          3188
+        ],
+        [
+          214496,
+          2436
+        ],
+        [
+          156464,
+          1821
+        ],
+        [
+          144507,
+          1366
+        ],
+        [
+          111649,
+          1219
+        ],
+        [
+          153755,
+          2105
+        ],
+        [
+          280438,
+          2970
+        ],
+        [
+          134356,
+          1795
+        ],
+        [
+          655397,
+          4844
+        ],
+        [
+          314711,
+          3673
+        ],
+        [
+          244026,
+          2718
+        ],
+        [
+          420195,
+          4669
+        ],
+        [
+          507178,
+          4473
+        ],
+        [
+          245795,
+          3022
+        ],
+        [
+          188405,
+          2217
+        ],
+        [
+          204523,
+          2216
+        ],
+        [
+          200876,
+          2051
+        ],
+        [
+          140321,
+          1473
+        ],
+        [
+          163756,
+          1638
+        ],
+        [
+          197282,
+          2407
+        ],
+        [
+          193677,
+          2106
+        ],
+        [
+          216987,
+          2462
+        ],
+        [
+          361173,
+          3650
+        ],
+        [
+          164785,
+          1985
+        ],
+        [
+          308852,
+          3395
+        ],
+        [
+          187553,
+          2231
+        ],
+        [
+          186072,
+          1945
+        ],
+        [
+          136811,
+          1888
+        ],
+        [
+          216287,
+          2400
+        ],
+        [
+          180629,
+          1652
+        ],
+        [
+          163312,
+          1882
+        ],
+        [
+          304773,
+          2845
+        ],
+        [
+          66851,
+          1143
+        ],
+        [
+          103782,
+          1311
+        ],
+        [
+          206699,
+          2195
+        ],
+        [
+          114933,
+          1652
+        ],
+        [
+          66156,
+          938
+        ],
+        [
+          234885,
+          1724
+        ],
+        [
+          272825,
+          1550
+        ],
+        [
+          147751,
+          1674
+        ],
+        [
+          610382,
+          5083
+        ],
+        [
+          197088,
+          1379
+        ],
+        [
+          423623,
+          3131
+        ],
+        [
+          303426,
+          2421
+        ],
+        [
+          246737,
+          2157
+        ],
+        [
+          1193001,
+          6874
+        ],
+        [
+          867673,
+          5500
+        ],
+        [
+          170069,
+          1447
+        ],
+        [
+          231348,
+          1900
+        ],
+        [
+          890771,
+          7270
+        ],
+        [
+          211530,
+          1607
+        ],
+        [
+          242166,
+          1916
+        ],
+        [
+          196784,
+          1350
+        ],
+        [
+          572184,
+          4510
+        ],
+        [
+          215038,
+          1994
+        ],
+        [
+          187169,
+          1554
+        ],
+        [
+          804303,
+          6897
+        ],
+        [
+          232921,
+          1878
+        ],
+        [
+          476873,
+          3965
+        ],
+        [
+          216474,
+          1321
+        ],
+        [
+          239979,
+          1564
+        ],
+        [
+          466222,
+          4423
+        ],
+        [
+          431360,
+          3927
+        ],
+        [
+          371374,
+          2993
+        ],
+        [
+          291167,
+          2915
+        ],
+        [
+          230094,
+          1653
+        ],
+        [
+          240448,
+          2221
+        ],
+        [
+          218774,
+          2202
+        ]
+      ],
+      "max_steps": 100,
+      "case_timeout_sec": 2400,
+      "created_at": "2026-11-26T13:04:53+00:00",
+      "run_id": "a142722b28be2071",
+      "official": true,
+      "verification_status": "verified",
+      "verification_reason": null,
+      "nika_git_commit": "543fcae713ea58f3c3021ac6a5f74333a180cad1",
+      "model_icon": null,
+      "name": "GPT 6.2 Astra (high) · Codex",
+      "rca_f1_ci": [
+        0.741178,
+        0.882355
+      ],
+      "beaten_by": [
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+      ],
+      "rank": 2
+    },
+    {
       "id": "0.2.0/20261016_claude_code_claude_opus_5_5",
       "dirname": "20261016_claude_code_claude_opus_5_5",
       "submission_name": "Claude Opus 5.5",
@@ -1789,8 +2228,10 @@
         0.687584,
         0.841831
       ],
-      "beaten_by": [],
-      "rank": 1
+      "beaten_by": [
+        "0.2.0/20261126_codex_gpt_6_2_astra"
+      ],
+      "rank": 2
     },
     {
       "id": "0.2.0/20261016_claude_code_claude_sonnet_5_5",
@@ -2230,9 +2671,10 @@
         0.810086
       ],
       "beaten_by": [
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 2
+      "rank": 3
     },
     {
       "id": "0.2.0/20261017_codex_gpt_6_1_sol",
@@ -2329,9 +2771,10 @@
       ],
       "beaten_by": [
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 3
+      "rank": 4
     },
     {
       "id": "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
@@ -2753,9 +3196,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 4
+      "rank": 5
     },
     {
       "id": "0.2.0/20261028_codex_gpt_6_astra",
@@ -2858,9 +3302,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 4
+      "rank": 5
     },
     {
       "id": "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
@@ -3327,9 +3772,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
@@ -3770,9 +4216,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261011_react_qwen3_8_27b_fp8",
@@ -4214,9 +4661,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261017_claude_code_claude_haiku_5_5",
@@ -4665,9 +5113,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261025_claude_code_ornith_1_5_122b",
@@ -4775,9 +5224,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261014_react_qwen3_5_27b",
@@ -5222,9 +5672,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
@@ -5669,9 +6120,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
@@ -6117,9 +6569,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
@@ -6593,9 +7046,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
@@ -7040,9 +7494,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -7487,9 +7942,10 @@
         "0.2.0/20261028_codex_gpt_6_astra",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 11
+      "rank": 12
     },
     {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
@@ -7935,9 +8391,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 12
+      "rank": 13
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -8387,9 +8844,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -8824,9 +9282,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 14
+      "rank": 15
     },
     {
       "id": "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
@@ -8940,9 +9399,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 14
+      "rank": 15
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -9037,9 +9497,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 15
+      "rank": 16
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -9476,9 +9937,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 16
+      "rank": 17
     },
     {
       "id": "0.2.0/20261020_codex_qwen3_coder_next_fp8",
@@ -9598,9 +10060,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 17
+      "rank": 18
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -10054,9 +10517,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 18
+      "rank": 19
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -10511,9 +10975,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 19
+      "rank": 20
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -10977,9 +11442,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
-        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813"
+        "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
+        "0.2.0/20261126_codex_gpt_6_2_astra"
       ],
-      "rank": 20
+      "rank": 21
     }
   ]
 }

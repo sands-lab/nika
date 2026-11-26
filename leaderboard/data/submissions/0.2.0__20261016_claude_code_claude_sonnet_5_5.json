@@ -7614,7 +7614,8 @@
     0.810086
   ],
   "beaten_by": [
-    "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+    "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
+    "0.2.0/20261126_codex_gpt_6_2_astra"
   ],
-  "rank": 2
+  "rank": 3
 }
