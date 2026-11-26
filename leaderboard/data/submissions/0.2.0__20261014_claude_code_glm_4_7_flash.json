@@ -8543,7 +8543,8 @@
     "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
     "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
     "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
-    "0.2.0/20261126_codex_gpt_6_2_astra"
+    "0.2.0/20261126_codex_gpt_6_2_astra",
+    "0.2.0/20261126_codex_gpt_6_2_sol"
   ],
   "rank": 19
 }

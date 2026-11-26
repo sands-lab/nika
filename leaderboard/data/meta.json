@@ -28,6 +28,7 @@
       "Deepseek V4 Pro 0813",
       "GLM-4.7-Flash",
       "GPT 6.2 Astra",
+      "GPT 6.2 Sol",
       "GPT OSS 120B",
       "GPT OSS 20B",
       "GPT-5",
@@ -112,5 +113,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-11-26T13:44:00+00:00"
+  "generated_at": "2026-11-26T19:15:43+00:00"
 }
