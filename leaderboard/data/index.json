@@ -1352,6 +1352,446 @@
       "rank": 1
     },
     {
+      "id": "0.2.0/20261127_codex_gpt_6_1_sol",
+      "dirname": "20261127_codex_gpt_6_1_sol",
+      "submission_name": "Codex + GPT-6.1 Sol (high)",
+      "authors": "Mariano Scazzariello",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261127_codex_gpt_6_1_sol",
+      "trajectories_relpath": "trajectories/0.2.0/20261127_codex_gpt_6_1_sol",
+      "model": "GPT-6.1 Sol",
+      "model_id": "gpt-6.1-sol",
+      "submitted_model": "GPT-6.1-Sol",
+      "framework": "Codex",
+      "agent_type": "cli.codex",
+      "llm_provider": "openai",
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "nika_agent": "cli.codex",
+        "runtime_model_id": "gpt-6.1-sol",
+        "provider": "openai (hosted, ChatGPT subscription authentication)",
+        "reasoning_effort": "high",
+        "sandbox_backend": "e2b",
+        "max_steps": 100,
+        "max_output_tokens": null,
+        "agent_timeout_sec": 1800,
+        "case_timeout_sec": 2400,
+        "nika_git_commit": "543fcae713ea58f3c3021ac6a5f74333a180cad1",
+        "nika_git_dirty": true
+      },
+      "reasoning_effort": "high",
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.8366023529411765,
+      "mean_localization_f1": 0.9084976470588235,
+      "mean_detection_score": 0.9294117647058824,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 249,
+      "n_agent_failed": 6,
+      "success_rate": 0.976471,
+      "token_totals": {
+        "in_tokens": 123450354,
+        "out_tokens": 1177223
+      },
+      "token_usage_complete": true,
+      "steps_totals": {
+        "steps": 3880,
+        "tool_calls": 9098,
+        "tool_errors": 4
+      },
+      "mean_tokens": 488735.596,
+      "mean_steps": 15.216,
+      "total_tokens": 124627577,
+      "task_tokens": [
+        [
+          1125914,
+          10616
+        ],
+        [
+          366226,
+          4565
+        ],
+        [
+          386725,
+          3866
+        ],
+        [
+          374258,
+          4766
+        ],
+        [
+          277486,
+          3868
+        ],
+        [
+          351228,
+          4669
+        ],
+        [
+          364542,
+          4819
+        ],
+        [
+          373057,
+          3952
+        ],
+        [
+          355557,
+          5517
+        ],
+        [
+          381709,
+          4899
+        ],
+        [
+          454537,
+          6087
+        ],
+        [
+          333576,
+          4634
+        ],
+        [
+          372022,
+          4735
+        ],
+        [
+          285839,
+          3969
+        ],
+        [
+          391805,
+          4658
+        ],
+        [
+          444026,
+          4510
+        ],
+        [
+          232619,
+          3015
+        ],
+        [
+          446852,
+          5552
+        ],
+        [
+          239927,
+          4303
+        ],
+        [
+          177732,
+          2641
+        ],
+        [
+          333571,
+          3243
+        ],
+        [
+          191078,
+          3090
+        ],
+        [
+          353001,
+          3585
+        ],
+        [
+          574378,
+          4475
+        ],
+        [
+          321618,
+          3067
+        ],
+        [
+          573004,
+          5197
+        ],
+        [
+          373839,
+          3611
+        ],
+        [
+          256408,
+          2632
+        ],
+        [
+          832177,
+          7061
+        ],
+        [
+          583376,
+          5823
+        ],
+        [
+          691609,
+          5466
+        ],
+        [
+          455481,
+          4603
+        ],
+        [
+          420556,
+          4433
+        ],
+        [
+          370326,
+          4129
+        ],
+        [
+          425652,
+          3657
+        ],
+        [
+          600814,
+          4605
+        ],
+        [
+          773397,
+          5066
+        ],
+        [
+          405509,
+          4968
+        ],
+        [
+          407177,
+          5899
+        ],
+        [
+          463815,
+          5631
+        ],
+        [
+          402238,
+          4959
+        ],
+        [
+          449669,
+          4533
+        ],
+        [
+          374151,
+          4252
+        ],
+        [
+          290169,
+          3704
+        ],
+        [
+          322719,
+          3197
+        ],
+        [
+          416767,
+          3975
+        ],
+        [
+          460466,
+          3888
+        ],
+        [
+          333236,
+          4173
+        ],
+        [
+          215040,
+          2603
+        ],
+        [
+          262559,
+          3063
+        ],
+        [
+          192232,
+          3049
+        ],
+        [
+          238979,
+          3433
+        ],
+        [
+          349551,
+          3892
+        ],
+        [
+          193609,
+          2802
+        ],
+        [
+          556541,
+          4167
+        ],
+        [
+          279015,
+          3166
+        ],
+        [
+          329692,
+          3433
+        ],
+        [
+          718180,
+          5687
+        ],
+        [
+          427056,
+          4085
+        ],
+        [
+          741520,
+          5731
+        ],
+        [
+          515235,
+          4799
+        ],
+        [
+          839330,
+          6022
+        ],
+        [
+          803386,
+          6091
+        ],
+        [
+          1713366,
+          10129
+        ],
+        [
+          569248,
+          4972
+        ],
+        [
+          644465,
+          5277
+        ],
+        [
+          1064450,
+          7902
+        ],
+        [
+          433894,
+          3669
+        ],
+        [
+          612186,
+          5255
+        ],
+        [
+          657750,
+          5591
+        ],
+        [
+          1392788,
+          8198
+        ],
+        [
+          771976,
+          5475
+        ],
+        [
+          503699,
+          4239
+        ],
+        [
+          940633,
+          6924
+        ],
+        [
+          721980,
+          5945
+        ],
+        [
+          528233,
+          3866
+        ],
+        [
+          356978,
+          3350
+        ],
+        [
+          326575,
+          3295
+        ],
+        [
+          464465,
+          4494
+        ],
+        [
+          586775,
+          4302
+        ],
+        [
+          525002,
+          4666
+        ],
+        [
+          324788,
+          3238
+        ],
+        [
+          347064,
+          2998
+        ],
+        [
+          294974,
+          2929
+        ],
+        [
+          515065,
+          5106
+        ]
+      ],
+      "max_steps": 100,
+      "case_timeout_sec": 2400,
+      "created_at": "2026-11-27T11:49:13+00:00",
+      "run_id": "6228ceccc3e30931",
+      "official": true,
+      "verification_status": "verified",
+      "verification_reason": null,
+      "nika_git_commit": "543fcae713ea58f3c3021ac6a5f74333a180cad1",
+      "model_icon": null,
+      "name": "GPT-6.1 Sol (high) · Codex · run 2",
+      "rca_f1_ci": [
+        0.762093,
+        0.903269
+      ],
+      "beaten_by": [
+        "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5"
+      ],
+      "rank": 2
+    },
+    {
       "id": "0.2.0/20261126_codex_gpt_6_2_astra",
       "dirname": "20261126_codex_gpt_6_2_astra",
       "submission_name": "Codex + GPT-6.2 Astra (high)",
@@ -2229,9 +2669,10 @@
         0.841831
       ],
       "beaten_by": [
-        "0.2.0/20261126_codex_gpt_6_2_astra"
+        "0.2.0/20261126_codex_gpt_6_2_astra",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 2
+      "rank": 3
     },
     {
       "id": "0.2.0/20261016_claude_code_claude_sonnet_5_5",
@@ -2672,9 +3113,10 @@
       ],
       "beaten_by": [
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261126_codex_gpt_6_2_astra"
+        "0.2.0/20261126_codex_gpt_6_2_astra",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 3
+      "rank": 4
     },
     {
       "id": "0.2.0/20261017_codex_gpt_6_1_sol",
@@ -2764,7 +3206,7 @@
       "verification_reason": null,
       "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918",
       "model_icon": null,
-      "name": "GPT-6.1 Sol (high) · Codex",
+      "name": "GPT-6.1 Sol (high) · Codex · run 1",
       "rca_f1_ci": [
         0.597387,
         0.766735
@@ -2772,9 +3214,10 @@
       "beaten_by": [
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261126_codex_gpt_6_2_astra"
+        "0.2.0/20261126_codex_gpt_6_2_astra",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 4
+      "rank": 5
     },
     {
       "id": "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
@@ -3197,9 +3640,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261126_codex_gpt_6_2_astra"
+        "0.2.0/20261126_codex_gpt_6_2_astra",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261028_codex_gpt_6_astra",
@@ -3303,9 +3747,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261126_codex_gpt_6_2_astra"
+        "0.2.0/20261126_codex_gpt_6_2_astra",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261126_codex_gpt_6_2_sol",
@@ -3746,9 +4191,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
-        "0.2.0/20261126_codex_gpt_6_2_astra"
+        "0.2.0/20261126_codex_gpt_6_2_astra",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
@@ -4217,9 +4663,10 @@
         "0.2.0/20261103_veneta_worldmodel_claude_opus_5_5",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
@@ -4662,9 +5109,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261011_react_qwen3_8_27b_fp8",
@@ -5108,9 +5556,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261017_claude_code_claude_haiku_5_5",
@@ -5561,9 +6010,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261025_claude_code_ornith_1_5_122b",
@@ -5673,9 +6123,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261014_react_qwen3_5_27b",
@@ -6122,9 +6573,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
@@ -6571,9 +7023,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
@@ -7021,9 +7474,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261105_veneta_worldmodel_gemma_4_31b_fp8",
@@ -7499,9 +7953,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
@@ -7948,9 +8403,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 11
+      "rank": 12
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -8397,9 +8853,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 12
+      "rank": 13
     },
     {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
@@ -8847,9 +9304,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -9301,9 +9759,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 14
+      "rank": 15
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -9740,9 +10199,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 15
+      "rank": 16
     },
     {
       "id": "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
@@ -9858,9 +10318,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 15
+      "rank": 16
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -9957,9 +10418,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 16
+      "rank": 17
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -10398,9 +10860,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 17
+      "rank": 18
     },
     {
       "id": "0.2.0/20261020_codex_qwen3_coder_next_fp8",
@@ -10522,9 +10985,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 18
+      "rank": 19
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -10980,9 +11444,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 19
+      "rank": 20
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -11439,9 +11904,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 20
+      "rank": 21
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -11907,9 +12373,10 @@
         "0.2.0/20261105_veneta_worldmodel_qwen3_8_27b_fp8",
         "0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
         "0.2.0/20261126_codex_gpt_6_2_astra",
-        "0.2.0/20261126_codex_gpt_6_2_sol"
+        "0.2.0/20261126_codex_gpt_6_2_sol",
+        "0.2.0/20261127_codex_gpt_6_1_sol"
       ],
-      "rank": 21
+      "rank": 22
     }
   ]
 }

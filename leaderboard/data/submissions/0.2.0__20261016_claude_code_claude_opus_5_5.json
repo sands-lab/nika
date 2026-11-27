@@ -7685,7 +7685,8 @@
     0.841831
   ],
   "beaten_by": [
-    "0.2.0/20261126_codex_gpt_6_2_astra"
+    "0.2.0/20261126_codex_gpt_6_2_astra",
+    "0.2.0/20261127_codex_gpt_6_1_sol"
   ],
-  "rank": 2
+  "rank": 3
 }
