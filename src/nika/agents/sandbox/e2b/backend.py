@@ -76,16 +76,22 @@ _LIFETIME_MARGIN_SEC = 1800
 _UNBOUNDED_AGENT_LIFETIME_SEC = 6 * 3600
 _SETUP_COMMAND_TIMEOUT_SEC = 900
 _UPLOAD_TIMEOUT_SEC = 900
-# Fails when the sandbox opens a connection to the internet (by name or by
-# address): the service must enforce ``allow_internet_access=False``.
+# Fails when the sandbox gets a reply from the internet (by name or by
+# address): the service must enforce ``allow_internet_access=False``. E2B
+# accepts TCP handshakes to any address and then drops the data, so only a
+# reply counts as reaching the host.
 _EGRESS_PROBE = (
     "python3 -c 'import socket,sys\n"
     'for host in ("example.com", "1.1.1.1"):\n'
     "    try:\n"
-    "        socket.create_connection((host, 443), timeout=3).close()\n"
+    "        with socket.create_connection((host, 80), timeout=3) as s:\n"
+    "            s.settimeout(3)\n"
+    '            s.sendall(b"HEAD / HTTP/1.0\\r\\n\\r\\n")\n'
+    "            reply = s.recv(1)\n"
     "    except OSError:\n"
     "        continue\n"
-    '    sys.exit("reached " + host)\n\''
+    "    if reply:\n"
+    '        sys.exit("reached " + host)\n\''
 )
 # Disable page reclaim in microVMs that have it enabled
 _DISABLE_PAGE_RECLAIM = (
