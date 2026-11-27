@@ -1804,8 +1804,8 @@
       "email": null,
       "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261126_codex_gpt_6_2_astra",
       "trajectories_relpath": "trajectories/0.2.0/20261126_codex_gpt_6_2_astra",
-      "model": "GPT 6.2 Astra",
-      "model_id": null,
+      "model": "GPT-6.2 Astra",
+      "model_id": "gpt-6.2-astra",
       "submitted_model": "GPT-6.2-Astra",
       "framework": "Codex",
       "agent_type": "cli.codex",
@@ -2220,7 +2220,7 @@
       "verification_reason": null,
       "nika_git_commit": "543fcae713ea58f3c3021ac6a5f74333a180cad1",
       "model_icon": null,
-      "name": "GPT 6.2 Astra (high) · Codex",
+      "name": "GPT-6.2 Astra (high) · Codex",
       "rca_f1_ci": [
         0.741178,
         0.882355
@@ -3232,15 +3232,15 @@
       "email": null,
       "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
       "trajectories_relpath": "trajectories/0.2.0/20261123_react_deepseek_deepseek_v4_pro_0813",
-      "model": "Deepseek V4 Pro 0813",
-      "model_id": null,
+      "model": "DeepSeek V4 Pro 0813",
+      "model_id": "deepseek-deepseek-v4-pro-0813",
       "submitted_model": "deepseek/deepseek-v4-pro-0813",
       "framework": "ReAct",
       "agent_type": "byo.langgraph",
       "llm_provider": "custom",
       "vendor": {
         "id": "deepseek-ai",
-        "label": "deepseek-ai",
+        "label": "DeepSeek",
         "icon": "deepseek.svg"
       },
       "tools": [],
@@ -3630,7 +3630,7 @@
       "verification_reason": null,
       "nika_git_commit": "543fcae713ea58f3c3021ac6a5f74333a180cad1",
       "model_icon": null,
-      "name": "Deepseek V4 Pro 0813 (medium) · ReAct",
+      "name": "DeepSeek V4 Pro 0813 (medium) · ReAct",
       "rca_f1_ci": [
         0.59608,
         0.760785
@@ -3765,8 +3765,8 @@
       "email": null,
       "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261126_codex_gpt_6_2_sol",
       "trajectories_relpath": "trajectories/0.2.0/20261126_codex_gpt_6_2_sol",
-      "model": "GPT 6.2 Sol",
-      "model_id": null,
+      "model": "GPT-6.2 Sol",
+      "model_id": "gpt-6.2-sol",
       "submitted_model": "GPT-6.2-Sol",
       "framework": "Codex",
       "agent_type": "cli.codex",
@@ -4181,7 +4181,7 @@
       "verification_reason": null,
       "nika_git_commit": "543fcae713ea58f3c3021ac6a5f74333a180cad1",
       "model_icon": null,
-      "name": "GPT 6.2 Sol (high) · Codex",
+      "name": "GPT-6.2 Sol (high) · Codex",
       "rca_f1_ci": [
         0.58693,
         0.746407

@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-11-16",
+  "as_of": "2026-11-27",
   "currency": "USD",
   "unit": "per_million_tokens",
   "notes": "Reference token prices used to turn a submission's token counts into a monetary cost on the leaderboard's cost-performance chart. Proprietary models use the vendor's list API price. Open-weight models have no vendor price, so they carry a public hosted-inference quote for the same weights as a reference rate; that is a market price for someone else's serving, not the submitter's own cost. Each model keeps a dated list of `quotes`, appended only when a rate changes; a submission is priced with the latest quote retrieved on or before its package date (the earliest quote if it predates them all), so published costs never move. Entries with `status: unavailable` record that no public quote exists. Prices are editable in the UI without changing this file.",
@@ -372,6 +372,65 @@
           "source": "https://developers.openai.com/api/docs/pricing",
           "retrieved": "2026-10-29",
           "retrieved_via": "models.dev"
+        }
+      ]
+    },
+    "gpt-6.2-astra": {
+      "basis": "api",
+      "provider": "OpenAI",
+      "quotes": [
+        {
+          "input": 8.0,
+          "output": 40.0,
+          "cache_read": 0.4,
+          "tiers": [
+            {
+              "min_prompt_tokens": 272000,
+              "input": 16,
+              "output": 60,
+              "cache_read": 0.8
+            }
+          ],
+          "source": "https://developers.openai.com/api/docs/pricing",
+          "retrieved": "2026-11-27",
+          "retrieved_via": "models.dev"
+        }
+      ]
+    },
+    "gpt-6.2-sol": {
+      "basis": "api",
+      "provider": "OpenAI",
+      "quotes": [
+        {
+          "input": 2.0,
+          "output": 10.0,
+          "cache_read": 0.1,
+          "tiers": [
+            {
+              "min_prompt_tokens": 272000,
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2
+            }
+          ],
+          "source": "https://developers.openai.com/api/docs/pricing",
+          "retrieved": "2026-11-27",
+          "retrieved_via": "models.dev"
+        }
+      ]
+    },
+    "deepseek-deepseek-v4-pro-0813": {
+      "basis": "hosted_open_weight",
+      "provider": "OpenRouter",
+      "note": "Hosted reference estimate, not the self-hosted GPU bill; provider serving precision is not specified by this quote.",
+      "quotes": [
+        {
+          "input": 0.0999,
+          "output": 5.0,
+          "cache_read": 0.0999,
+          "source": "https://openrouter.ai/deepseek/deepseek-v4-pro-0813",
+          "retrieved": "2026-11-27",
+          "retrieved_via": "openrouter-api"
         }
       ]
     }
